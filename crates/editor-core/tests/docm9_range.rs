@@ -309,6 +309,38 @@ fn a_certified_side_stops_at_the_seeds_edge() {
     assert_eq!(r.nominal(), 1.0);
 }
 
+/// **A pattern's spacing has the slab's floor**: a spacing is a size,
+/// so the certificate over a driven spacing stops above zero instead
+/// of certifying through it into the mirrored pattern, where every
+/// reference to a copy would silently change sides.
+#[test]
+fn a_driven_spacing_does_not_certify_through_zero() {
+    let (doc, pattern) = patterned();
+    let r = certified_range(
+        &doc,
+        &RangeField::Slot {
+            node: pattern,
+            slot: SlotId::Spacing,
+        },
+        RangeSeed { lo: -3.0, hi: 0.5 },
+        &budget(24, 2048),
+        tol(),
+    )
+    .expect("the spacing boxes");
+    let (lo, hi) = r.certified_interval();
+    assert!(
+        0.0 < lo && lo < hi,
+        "the certificate stops above a zero spacing: [{lo}, {hi}], low side {:?}",
+        r.lo()
+    );
+    assert!(
+        !matches!(r.lo(), RangeSide::Certified { .. }),
+        "the low side meets a boundary before the seed's edge: {:?}",
+        r.lo()
+    );
+    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
+}
+
 // ------------------------------------------------ the four-arm contract
 
 /// **A2.** A branch change whose flipped leaf still builds every node

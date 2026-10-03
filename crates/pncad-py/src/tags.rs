@@ -968,6 +968,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Escalated => "escalated",
         C::AxisInDifferentPlane => "axis_in_different_plane",
         C::NonPositiveCount => "non_positive_count",
+        C::NegativeSpacing => "negative_spacing",
+        C::DegenerateSpacing => "degenerate_spacing",
+        C::DegenerateStep => "degenerate_step",
+        C::FullRangeStep => "full_range_step",
         C::PlacementsUncertified => "placements_uncertified",
         C::PlacementRuleCountSpelling => "placement_rule_mismatch",
         C::PlacementRuleNoPlacements => "empty_placement_list",
@@ -1155,6 +1159,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Escalated { .. } => None,
         NodeErrorKind::AxisInDifferentPlane { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
+        NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. } => None,
         NodeErrorKind::PlacementsUncertified { .. } => None,
         NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,

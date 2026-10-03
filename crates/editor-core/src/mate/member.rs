@@ -722,8 +722,10 @@ fn refuse(
 }
 
 /// **The map a pattern copy contributes**, or `None` for copy 0 —
-/// whose map is the identity by the stepped rule's own construction,
-/// so composing it would be a no-op that costs bits.
+/// the master, which reads no operand, as on the evaluation's road.
+/// Every other copy builds its operands through the constructor the
+/// evaluation steps by ([`SteppedOperands`]), so a spacing or step the
+/// pattern refuses, the solve refuses the same way.
 ///
 /// # Errors
 ///
@@ -747,15 +749,12 @@ fn pattern_map<P: crate::ProfilePayload>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { .. } => SteppedOperands::Linear {
-            direction: crate::eval::unit_direction(
-                need_vec3(&vals, SlotId::Direction).map_err(here)?,
-                crate::eval::PATTERN_DIRECTION_ROLE,
-                band,
-            )
-            .map_err(here)?,
-            spacing: need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-        },
+        PatternKind::Linear { .. } => SteppedOperands::linear(
+            need_vec3(&vals, SlotId::Direction).map_err(here)?,
+            need_scalar(&vals, SlotId::Spacing).map_err(here)?,
+            band,
+        )
+        .map_err(here)?,
         PatternKind::Circular { axis, .. } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
@@ -763,16 +762,18 @@ fn pattern_map<P: crate::ProfilePayload>(
             let datum = axis_datum(doc, node, *axis)?;
             let at_datum = |kind| Box::new((*axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
-            SteppedOperands::Circular {
-                origin: Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
-                dir: crate::eval::unit_direction(
+            SteppedOperands::circular(
+                Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
+                crate::eval::unit_direction(
                     need_vec3(&dvals, SlotId::Direction).map_err(at_datum)?,
                     crate::eval::DATUM_AXIS_ROLE,
                     band,
                 )
                 .map_err(at_datum)?,
-                step: need_scalar(&vals, SlotId::Step).map_err(here)?,
-            }
+                need_scalar(&vals, SlotId::Step).map_err(here)?,
+                band,
+            )
+            .map_err(here)?
         }
         // The list-rule pattern's count has two spellings, which the
         // pattern node itself refuses; no copy of it has a derived

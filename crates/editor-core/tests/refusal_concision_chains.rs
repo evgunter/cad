@@ -1053,6 +1053,29 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::NonPositiveCount { count: 0 },
         ),
         row(
+            "NegativeSpacing",
+            NodeErrorKind::NegativeSpacing {
+                spacing: geom_core::MarginDiag::value(-4.0),
+                reversed: [-1.0, 0.0, 0.0],
+            },
+        ),
+        row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
+        row("DegenerateStep", NodeErrorKind::DegenerateStep),
+        row(
+            "FullRangeStep(at)",
+            NodeErrorKind::FullRangeStep {
+                step: std::f64::consts::TAU,
+                past: false,
+            },
+        ),
+        row(
+            "FullRangeStep(past)",
+            NodeErrorKind::FullRangeStep {
+                step: -7.0,
+                past: true,
+            },
+        ),
+        row(
             "PlacementsUncertified",
             NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),

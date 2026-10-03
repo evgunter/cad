@@ -89,7 +89,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
-rigidity residuals — F13 ×1, F14 ×1, F16 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
+rigidity residuals — F13 ×1, F14 ×3, F16 ×1 — 6 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -853,7 +853,14 @@ Flagged, NOT fixed here (dispositions):
   `revolve_angle`/`revolve_angle_headroom` gates (which lever at the
   profile's radial extent, correctly). The honest lever lives
   kernel-side; duplicating it in the editor is a design question, not
-  a same-day fix. Carried as `decide_flagged(.., "F14")`.
+  a same-day fix. Carried as `decide_flagged(.., "F14")`. The circular
+  pattern's step is the same comparand at two more sites,
+  `editor-core/eval/wire.rs` `SteppedOperands::circular`:
+  `pattern_step` (the step, radians, against the band: a zero step
+  lands every copy on the master) and `pattern_step_full_turn`
+  (`|step| − τ`, the revolve's own shape). The honest lever is the
+  master's radial extent about the axis, which the mate solve's
+  derived offset (the same constructor) does not have in hand.
 - **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
   `editor-core/src/expr.rs:656`: the expression evaluator's door-2
   finiteness probe is a shipped raw `sign_within` — its own comment

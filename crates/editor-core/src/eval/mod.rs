@@ -32,8 +32,8 @@ mod wire;
 pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
-    need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
+    stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub(crate) use anchor::derive_naming;
@@ -1551,6 +1551,31 @@ pub enum NodeErrorKind {
         /// The evaluated count.
         count: i64,
     },
+    /// A linear pattern's spacing evaluated definitely below zero. A
+    /// spacing is a size; which way the copies step is the direction's
+    /// to say.
+    NegativeSpacing {
+        /// The spacing as the classifier saw it, in metres, for the
+        /// sentence only.
+        spacing: geom_core::MarginDiag,
+        /// The evaluated direction, negated: the one that, with the
+        /// spacing made positive, builds the same copies.
+        reversed: [f64; 3],
+    },
+    /// A linear pattern's spacing is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateSpacing,
+    /// A circular pattern's step is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateStep,
+    /// A circular pattern's step reaches a full turn at tolerance, or
+    /// passes it.
+    FullRangeStep {
+        /// The step in radians, for the sentence only.
+        step: f64,
+        /// Past a full turn, rather than at one.
+        past: bool,
+    },
     /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
     /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
     /// named copies' conservative boxes meet.
@@ -2162,6 +2187,19 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     }
 }
 
+/// An angle in degrees for error text, to six decimals with trailing
+/// zeros dropped: a step authored as `400 deg` reads back as 400, not
+/// as the radian round trip's last bit.
+struct Degrees(f64);
+
+impl core::fmt::Display for Degrees {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let text = format!("{:.6}", self.0);
+        let text = text.trim_end_matches('0').trim_end_matches('.');
+        f.write_str(if text == "-0" { "0" } else { text })
+    }
+}
+
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
 // and then FORWARDS its payload's own `Display` — the kernel refusal
@@ -2414,6 +2452,45 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
+            }
+            Self::NegativeSpacing { spacing, reversed } => {
+                let [x, y, z] = reversed;
+                write!(
+                    f,
+                    "the pattern spacing evaluated to {spacing} m, below zero, and a spacing is \
+                     a size: which way the copies step is the direction's to say, not a sign's. \
+                     Recourse: make the spacing evaluate positive (its sign comes from whatever \
+                     drives it) and point the direction the other way, ({x}, {y}, {z})"
+                )
+            }
+            Self::DegenerateSpacing => f.write_str(
+                "the pattern spacing is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the spacing a length the tolerance tells from zero, \
+                 or lower the tolerance",
+            ),
+            Self::DegenerateStep => f.write_str(
+                "the pattern step is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the step an angle the tolerance tells from zero \
+                 (360° over the count closes a ring), or lower the tolerance",
+            ),
+            Self::FullRangeStep { step, past: false } => write!(
+                f,
+                "the pattern step evaluated to {}°, a full turn, so every copy would land on \
+                 the master. Recourse: make the step less than a turn (360° over the count \
+                 closes a ring)",
+                Degrees(step.to_degrees())
+            ),
+            Self::FullRangeStep { step, past: true } => {
+                let turn = 360f64.copysign(*step);
+                let degrees = Degrees(step.to_degrees());
+                write!(
+                    f,
+                    "the pattern step evaluated to {degrees}°, past a full turn, and a step is \
+                     an angle within one. Recourse: write the step {} 360°, {}°, which places \
+                     every copy where this does",
+                    if *step > 0.0 { "−" } else { "+" },
+                    Degrees(degrees.0 - turn)
+                )
             }
             Self::PlacementsUncertified { i, j } => write!(
                 f,

@@ -115,6 +115,14 @@ pub enum NodeErrorClass {
     AxisInDifferentPlane,
     /// [`NodeErrorKind::NonPositiveCount`].
     NonPositiveCount,
+    /// [`NodeErrorKind::NegativeSpacing`].
+    NegativeSpacing,
+    /// [`NodeErrorKind::DegenerateSpacing`].
+    DegenerateSpacing,
+    /// [`NodeErrorKind::DegenerateStep`].
+    DegenerateStep,
+    /// [`NodeErrorKind::FullRangeStep`].
+    FullRangeStep,
     /// [`NodeErrorKind::PlacementsUncertified`].
     PlacementsUncertified,
     /// [`NodeErrorKind::PlacementRule`] carrying
@@ -324,6 +332,10 @@ impl NodeErrorKind {
             Self::Escalated { .. } => C::Escalated,
             Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
+            Self::NegativeSpacing { .. } => C::NegativeSpacing,
+            Self::DegenerateSpacing => C::DegenerateSpacing,
+            Self::DegenerateStep => C::DegenerateStep,
+            Self::FullRangeStep { .. } => C::FullRangeStep,
             Self::PlacementsUncertified { .. } => C::PlacementsUncertified,
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
@@ -540,6 +552,10 @@ mod tests {
         Escalated,
         AxisInDifferentPlane,
         NonPositiveCount,
+        NegativeSpacing,
+        DegenerateSpacing,
+        DegenerateStep,
+        FullRangeStep,
         PlacementsUncertified,
         PlacementRuleCountSpelling,
         PlacementRuleNoPlacements,
@@ -810,6 +826,16 @@ mod tests {
                 profile_plane: Some(n(2)),
             },
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
+            C::NegativeSpacing => K::NegativeSpacing {
+                spacing: geom_core::MarginDiag::value(-4.0),
+                reversed: [-1.0, 0.0, 0.0],
+            },
+            C::DegenerateSpacing => K::DegenerateSpacing,
+            C::DegenerateStep => K::DegenerateStep,
+            C::FullRangeStep => K::FullRangeStep {
+                step: 7.0,
+                past: true,
+            },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {
                 K::PlacementRule(crate::PlacementRuleFault::CountSpelling {

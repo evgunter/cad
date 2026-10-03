@@ -709,6 +709,67 @@ class TestTheCircularRule(unittest.TestCase):
         self.assertEqual(mass_of(doc, group).volume, 4.0)
 
 
+class TestTheStepsReadBack(unittest.TestCase):
+    """A linear spacing is a positive length, and a circular step a
+    signed angle within a turn; each refusal reaches Python by its
+    own tag, on the pattern and on the group alike."""
+
+    def axis(self, doc):
+        return doc.insert(Node.datum_axis((
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
+
+    def refusal(self, kind, count=3, union=False):
+        doc = Doc()
+        box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
+        rule = kind(self.axis(doc))
+        node = doc.insert(
+            Node.placed_union(box, Expr.count(count), rule)
+            if union
+            else Node.pattern(box, Expr.count(count), rule)
+        )
+        ev = evaluate(doc)
+        if ev.succeeded(node):
+            return None
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(node)
+        return caught.exception
+
+    def linear(self, spacing, direction=(1.0, 0.0, 0.0)):
+        return lambda _axis: PatternKind.linear(
+            tuple(Expr.literal(c) for c in direction), Expr.length_in(spacing, m)
+        )
+
+    def circular(self, degrees):
+        return lambda axis: PatternKind.circular(axis, Expr.angle_in(degrees, deg))
+
+    def test_a_spacing_is_a_positive_length(self):
+        for union in (False, True):
+            self.assertEqual(self.refusal(self.linear(0.0), union=union).kind, "degenerate_spacing")
+            refused = self.refusal(self.linear(-4.0, (3.0, 4.0, 0.0)), union=union)
+            self.assertEqual(refused.kind, "negative_spacing")
+            self.assertIn("(-3, -4, 0)", str(refused))
+            self.assertIsNone(self.refusal(self.linear(4.0, (-3.0, -4.0, 0.0)), union=union))
+
+    def test_a_step_is_a_signed_angle_within_a_turn(self):
+        self.assertEqual(self.refusal(self.circular(0.0)).kind, "degenerate_step")
+        for degrees in (360.0, -360.0, 400.0, -400.0):
+            self.assertEqual(self.refusal(self.circular(degrees)).kind, "full_range_step", degrees)
+        self.assertIn("40°", str(self.refusal(self.circular(400.0))))
+        for degrees in (90.0, -90.0):
+            self.assertIsNone(self.refusal(self.circular(degrees)), degrees)
+
+    def test_one_copy_reads_no_step(self):
+        self.assertIsNone(self.refusal(self.circular(360.0), count=1))
+        self.assertIsNone(self.refusal(self.linear(-4.0), count=1, union=True))
+
+
 class TestTheCountParamBinding(unittest.TestCase):
     """`bind_count_param` — the narrowed structural-slot edit. The
     count stops being a literal and becomes a named number one

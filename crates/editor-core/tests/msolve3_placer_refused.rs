@@ -702,6 +702,71 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
     );
 }
 
+/// **The derived offset refuses the value the evaluation refuses.** A
+/// negative spacing and a step past a full turn reach the mate solve
+/// through the same operand constructor the pattern node steps by, so
+/// the fault carries the kind the twin's own evaluation raises, word
+/// for word, and a mate onto copy 0 reads no step at all.
+#[test]
+fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
+    for (label, kind, class) in [
+        (
+            "msolve3-negative-spacing",
+            PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(-2.0),
+            },
+            NodeErrorClass::NegativeSpacing,
+        ),
+        (
+            "msolve3-zero-spacing",
+            PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(0.0),
+            },
+            NodeErrorClass::DegenerateSpacing,
+        ),
+    ] {
+        let scene = patterned(label, kind, 4, 1);
+        let f = scene.fault();
+        let (placer, refused) = carried(&f);
+        assert_eq!(placer, scene.placer, "{label}: the pattern is named: {f:?}");
+        assert_eq!(refused, scene.own_refusal(), "{label}: the twin's own kind");
+        assert_eq!(carried_class(&f), class, "{label}: {refused}");
+    }
+    let (scene, _) = build("msolve3-step-past-a-turn", |doc, legs, leg_body| {
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        );
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis,
+                    step: ang(7.0),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
+        (doc, pattern, name, vec![axis])
+    });
+    let f = scene.fault();
+    let (placer, refused) = carried(&f);
+    assert_eq!(placer, scene.placer, "the pattern is named: {f:?}");
+    assert_eq!(refused, scene.own_refusal(), "the twin's own kind");
+    assert_eq!(
+        carried_class(&f),
+        NodeErrorClass::FullRangeStep,
+        "{refused}"
+    );
+}
+
 /// **The explicit rule, measured where it can be reached.** A
 /// `Node::Pattern` carries its count as a slot, so an explicit
 /// placement list is a second spelling of the same number and the
