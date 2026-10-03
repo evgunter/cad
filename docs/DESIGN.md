@@ -493,7 +493,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no

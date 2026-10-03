@@ -41,6 +41,22 @@ needs a SIGN, so the sign walk (`props::sign_walk`) and its bracket
 ends (`ShellRole::decided_at`) are the reading to take, not the
 reporting midpoint.
 
+## Evidence (2026-10-02, REACH's ellipse-rim lane)
+
+A boolean reaches the probe on an ordinary pose. The lower part of the
+tilted drum cut (`crates/sweep/tests/conic_edge_curved_face.rs`: a
+radius-0.5 cylinder of height 1, split by the plane through
+`(0, 0, 0.5)` at 0.3 rad) against a ball poking up through the cut face
+(radius 0.3 at `(0, 0, 0.5)`, charted about the cut's normal so the
+join passes; also at `(0.1, 0.1, ·)` r 0.25 and 0.1 off the plane
+either way), or a rod drilled up through the cut face (radius 0.2 at
+`(0.1, 0)`, `z ∈ [0.2, 1.2]`): ∪, ∩ and ∖ all refuse
+`Containment(VolumeUncertified)` once the crossing layer and the join
+have passed. Which classification query reaches the probe was not
+instrumented; the drum's cut wall is the only face in these operands
+with an ellipse boundary. Pinned (the ball) by
+`a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream`.
+
 ## Also met: blind pockets in a tilted-cut cylinder (SHOW, 2026-10-02)
 
 The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`) cuts a cylinder

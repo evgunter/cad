@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -214,6 +216,8 @@ mod cert5_offgrid_knot_rational;
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "conic_edge_curved_face.rs"]
+mod conic_edge_curved_face;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]

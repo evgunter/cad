@@ -554,3 +554,26 @@ the orchestrator checked itself.
 - **Residue.** Two items filed: a non-convex touch read at a fragment's
   ends only, and an offset stack that refuses `Join(UnpairedLooseEnds)`.
 — (REACH orchestrator)
+
+## 2026-10-02 — an ellipse edge meets a curved face (PR 3805)
+
+Built by a wave-one cloud implementer.
+- **Review history.** Dual review (both NOT-MERGEABLE-AS-IS at the
+  frozen head), three fix passes each followed by a delta review, and a
+  fourth fix pass that the orchestrator checked itself.
+- **Built.** Ellipse × sphere and ellipse × cylinder cells go through
+  one conic rung, `geom_brep::Conic` and `boolean::ellipse_roots`. The
+  tour's tiltedcut U now builds.
+- **The lever MAJOR** (one reviewer, executed: certified roots 15× the
+  band off the wall at ε 1e-6). Fixed by carrying the speed bracket
+  `[b, a]` in the ladder's frame; delta review 3 measured 0 wrong in
+  12,931. It enters the tally (DR row on this commit).
+- **Rulings.** The certify gate refuses a non-positive minor semi-axis,
+  as before this PR. The sphere × cylinder scan arm defers to #3801's
+  section pass; the two items it opened close with it.
+- **Merges.** Main's factored circle × sphere extremes (#3847) were
+  merged in. The circle residual extremes charge their running bounds
+  plus the frame's defect.
+- **Filed.** Evidence for CLEAVE's steep tube cut at ε 1e-6 (red on main),
+  folded into `steep-tube-split-refuses-trim-containment-at-eps-1e-6`.
+— (REACH orchestrator)
