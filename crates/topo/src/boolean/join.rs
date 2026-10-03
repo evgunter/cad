@@ -200,10 +200,11 @@ enum RingClosure<T: geom_core::Real> {
     /// A curved face: the island closes along this section plane, on
     /// the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A segment along an edge of both solids reads no section: a
-    /// planar face's island closes on its own plane, and a curved face
-    /// has nothing to close along.
-    AlongEdge,
+    /// A segment along an edge of both solids (this solid the named
+    /// operand) reads no section: a planar face's island closes on its
+    /// own plane, and a curved face has nothing to close along, which
+    /// is a join arm not yet built.
+    AlongEdge(Operand),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -613,7 +614,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // lane winds its island on the face's chart, closed along this
         // solid's section plane; an along-edge segment reads no section.
         let (a_closure, b_closure) = lane.map_or(
-            (RingClosure::AlongEdge, RingClosure::AlongEdge),
+            (
+                RingClosure::AlongEdge(Operand::A),
+                RingClosure::AlongEdge(Operand::B),
+            ),
             GermLane::ring_closures,
         );
         let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_closure, band)?;
@@ -1714,10 +1718,21 @@ fn ring_run_ccw<T: Decide>(
         RingClosure::Planar => face_outward_normal(body, face).ok_or(desync(
             "a planar germ face's ring lane found no planar carrier",
         ))?,
-        RingClosure::AlongEdge => face_outward_normal(body, face).ok_or(desync(
-            "an along-edge segment's ring lane reached a curved face, which has no section to \
-             close its island along",
-        ))?,
+        RingClosure::AlongEdge(operand) => match face_outward_normal(body, face) {
+            Some(normal) => normal,
+            None => {
+                let kind = body
+                    .get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .map(geom::Surface::kind)
+                    .ok_or(desync("ring-lane face no longer resolves"))?;
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind,
+                });
+            }
+        },
     };
     let normal = section;
     let normal = normal.vec();

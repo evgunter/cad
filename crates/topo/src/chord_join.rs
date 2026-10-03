@@ -466,6 +466,17 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A ring on a curved face that is not a cylinder wall: the ring
+    /// lane winds an island, and re-homes a ring, on a cylinder wall's
+    /// chart only. Valid input whose lane is not yet built (D2 addendum
+    /// row 2), refused typed; no reachable pose built a sphere island
+    /// when the cylinder reading was written.
+    RingOffCylinderChart {
+        /// The face carrying the ring.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+    },
     /// The boolean's PLANAR side of a plane×sphere germ pair met a
     /// section tilted against the sphere's chart polar axis
     /// (`split_sphere_section_polar`). That side selects its arc by the
@@ -669,6 +680,12 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::RingOffCylinderChart { kind, .. } => write!(
+                f,
+                "a cut passes through a {kind:?} face without reaching its boundary, leaving \
+                 a ring the join reads only on a cylinder wall. Recourse: move the cut so it \
+                 crosses the face's edge, or divide the face there first"
+            ),
             Self::SectionNotPolar { band, .. } => write!(
                 f,
                 "the planar side of a plane×sphere cut is tilted against the sphere's polar \
@@ -2930,8 +2947,12 @@ fn cross_loop_window_cycle<T: Decide>(
     Ok(outer_cycle(body, face)?.unwrap_or_default())
 }
 
-/// `∫ v du` of a harmonic chart image from `t0` to `t1`, and an upper
-/// bound on `∫ |dv|` there; `None` for an image that is not harmonic.
+/// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
+/// an upper bound on `∫ |dv|` there; `None` for an image that is not
+/// harmonic. The anchor is subtracted from the constant term before
+/// integrating, so a short island far along the axis does not cancel
+/// `v·Δu` against `v·Δu` (the precision note at `geom_brep::props`'
+/// cylinder Green form, which this shares).
 ///
 /// Read for a cylinder chart, whose every harmonic image
 /// [`chart_pcurve`] writes with a LINEAR azimuth channel (`pa.x = pb.x
@@ -2950,6 +2971,7 @@ fn chart_v_du<T: Decide>(
     face: FaceKey,
     p: &Pcurve<T>,
     (t0, t1): (T, T),
+    anchor: T,
     radius: T,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
@@ -2974,8 +2996,11 @@ fn chart_v_du<T: Decide>(
     }
     let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
-    let v_int = |t: T| p0.y * t + pa.y * t.sin() - pb.y * t.cos() + pl.y * t.powi(2) * half;
-    Ok(Some((pl.x * (v_int(t1) - v_int(t0)), v_var)))
+    let dt = t1 - t0;
+    let integral = (p0.y - anchor) * dt + pa.y * (t1.sin() - t0.sin())
+        - pb.y * (t1.cos() - t0.cos())
+        + pl.y * (t1 + t0) * dt * half;
+    Ok(Some((pl.x * integral, v_var)))
 }
 
 /// A cylinder face's chart frame: the one destructure the wall-chart
@@ -3008,14 +3033,11 @@ fn wall_chart<T: Real>(surface: &geom::Surface<T>) -> Option<WallChart<T>> {
 }
 
 /// The refusal of a ring-lane reading on a curved face that is not a
-/// cylinder wall: a sphere island is valid input whose chart winding is
-/// not yet written (no reachable pose built one when the wall reading
-/// was), so it stops here typed rather than run unexercised arithmetic.
-fn no_wall_chart(face: FaceKey) -> SplitJoinError {
-    SplitJoinError::SectionInvariant {
+/// cylinder wall ([`SplitJoinError::RingOffCylinderChart`]).
+fn no_wall_chart<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> SplitJoinError {
+    SplitJoinError::RingOffCylinderChart {
         face,
-        what: "a ring-lane island is wound, and a ring re-homed, on a cylinder wall's chart; \
-               the sphere and the other curved kinds have no such reading yet",
+        kind: surface.kind(),
     }
 }
 
@@ -3038,13 +3060,17 @@ fn no_wall_chart(face: FaceKey) -> SplitJoinError {
 ///   junction gap;
 /// - the closing chord is the section of the face by `closure`:
 ///   `v(u) = (n·(o − c) − R·n·r̂(u)) / (n·â)`, integrated in closed
-///   form, or a ruling (`n·â = 0`, no `du`). A straight chart
-///   segment would differ by the lens between the sinusoid and its
-///   chord. Measured over forty tilted thin bars through a pipe (480
-///   islands, both tilts, both sides of the axis, down to 1 mm thick)
-///   that lens enlarged `|A|` by up to 4.8× and never reversed its
-///   sign, and no row distinguishes the two closures; but nothing here
-///   bounds the lens by the island, so the exact form stays.
+///   form, or a ruling (`n·â = 0`, no `du`). **The exact closure is
+///   load-bearing**: a straight chart segment differs by the lens
+///   between the sinusoid and its chord, and on a thin bar turned about
+///   two axes that lens outweighs the island and reverses its sign
+///   (38 of 658 islands in the delta review's scan, −13.4× to 35×;
+///   pinned by `verbs_germarms::a_thin_bar_turned_about_two_axes_gets_through_the_join`).
+///
+/// Every `v` is read against an anchor on the island (its first entry):
+/// the island is closed, so `Σ du = 0` and the anchor drops out in
+/// exact arithmetic, and the sum keeps the conditioning of the island's
+/// own height rather than its distance along the axis.
 ///
 /// The chart sign is the winding about `+r̂`, and the face's sense bit
 /// turns it into the winding about the outward normal.
@@ -3073,7 +3099,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
         axis,
         radius,
         u_ref,
-    } = wall_chart(&surface).ok_or_else(|| no_wall_chart(face))?;
+    } = wall_chart(&surface).ok_or_else(|| no_wall_chart(face, &surface))?;
     let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
     let end = cycle
         .iter()
@@ -3087,11 +3113,12 @@ pub(crate) fn chart_island_winding<T: Decide>(
         });
     };
     let half = T::from_f64(0.5);
+    let anchor = first.v.0;
     let mut area = T::zero();
     let mut length = T::zero();
     for (i, image) in images.iter().enumerate() {
         let harmonic = match image.harmonic.as_ref() {
-            Some(p) => chart_v_du(face, p, image.t, radius, band)?,
+            Some(p) => chart_v_du(face, p, image.t, anchor, radius, band)?,
             None => None,
         };
         let (v_du, v_var) = harmonic.ok_or(SplitJoinError::SectionInvariant {
@@ -3103,7 +3130,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
         length = length + radius * (image.exit - image.entry).abs() + v_var;
         if let Some(next) = images.get(i + 1) {
             let du = next.entry - image.exit;
-            area = area - (image.v.1 + next.v.0) * half * du;
+            area = area - ((image.v.1 - anchor) + (next.v.0 - anchor)) * half * du;
             length = length + radius * du.abs() + (next.v.0 - image.v.1).abs();
         }
     }
@@ -3123,11 +3150,13 @@ pub(crate) fn chart_island_winding<T: Decide>(
         Sign::Positive | Sign::Negative => {
             let n_u = n.dot(u_ref);
             let n_v = n.dot(axis.cross(u_ref));
-            let k = n.dot(origin - centre) / n_a;
+            let k = n.dot(origin - centre) / n_a - anchor;
             let lever = radius / n_a;
-            let g = |u: T| k * u - lever * (n_u * u.sin() - n_v * u.cos());
             let du = to.0 - from.0;
-            area = area - (g(to.0) - g(from.0));
+            // `∫ (v − anchor) du` along the section, as differences.
+            let g = k * du
+                - lever * (n_u * (to.0.sin() - from.0.sin()) - n_v * (to.0.cos() - from.0.cos()));
+            area = area - g;
             length = length
                 + radius * du.abs()
                 + lever.abs() * (n_u.powi(2) + n_v.powi(2)).sqrt() * du.abs();
@@ -3730,7 +3759,7 @@ fn chart_ring_side<T: Decide>(
         axis,
         radius,
         u_ref,
-    } = wall_chart(surface).ok_or_else(|| no_wall_chart(newf))?;
+    } = wall_chart(surface).ok_or_else(|| no_wall_chart(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
