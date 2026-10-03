@@ -1288,3 +1288,10 @@ Closes MSOLVE-13 and
 `a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
 Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
 The spec is deleted, with a note in `docs/doc-ledger/msolve-13-spec.md`.
+
+MSOLVE-13 merged on PR 3969. Its MERGED entry rode the unit branch.
+MSOLVE-14 (item 19: the solve at the run's scalar) was dispatched on
+Opus, red rows first, with the `f64` bit-fence green on every push. Its
+review tier is dual. One build fits the disk, so if both reviewer arms
+cannot run beside each other the protocol's late-trigger fallback
+applies again.

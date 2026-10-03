@@ -230,9 +230,8 @@ and CHROME; triaged 2026-10-01:**
     Weighed 2026-10-01: both designers chose one solve, generic over the
     run's scalar, with the structure read at the nominal. Asked on
     `[ev]` PR 3679 (fork-log row 58). Ruled by Ev on 2026-10-01:
-    approved, with A11 (5) stated in place. The build is an MSOLVE unit
-    after MSOLVE-12: the solve goes generic over the scalar, and
-    `Unpinned` loses its producer.
+    approved, with A11 (5) stated in place. The build is `MSOLVE-14`
+    (dual review), dispatched 2026-10-03 after MSOLVE-13 merged.
 20. **`MSOLVE-11` gains three riders**, all refusal and reporting
     words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
     kernel word for whether a mate placed its child; AUTH's viewer row
@@ -321,8 +320,7 @@ and CHROME; triaged 2026-10-01:**
     refuses `MovedAbove`, the walk descends a union, and a member is
     its instance plus the placing nodes passed. The sentences that move
     are agent text, so Ev is told rather than asked. This is
-    `MSOLVE-13` (spec on `msolve/13-read-at-operand`), dispatched
-    2026-10-03 on Opus after MSOLVE-12 merged.
+    `MSOLVE-13`, merged on PR 3969 on 2026-10-03.
 
 EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
