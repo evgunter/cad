@@ -6405,3 +6405,23 @@ any future unit on this ground.
   (`delete_lone_ring`), which goes beyond the brief.
 - The offer is executed (T1). M1–M5 red. CI run 37148625668 passed.
 - Cloud reviewer: `session_01XyjeAwAqxdBgCMmtYYkCav`.
+
+## PR 3974 merged with main; PR 3992 review and fix pass (2026-10-03)
+
+- **PR 3974** went dirty against main. The only conflict was CLEAVE's
+  mints row: TOPO's `## Landed in PR 3974` and CLEAVE's "Step 1 landed"
+  and "Step 2 WIP, held by #3990". Both are kept (`6ee9164cd6`).
+  CLEAVE's step-2 WIP (`cleave/mints-coincidence`, its own
+  `Coincidence::{Decided, InBand}` with poison as `InBand`) is
+  unreviewed and held, so it does not collide in code. The divergence
+  stays recorded on the row for CLEAVE. The merge waits on CI.
+- **PR 3992's review** found no MAJOR. The MINOR is `merge_group`'s doc
+  stranded on `delete_lone_ring`.
+  - **NOTEs taken:** the closed-edge path gets the pruning's
+    `ring == outline` guard; witness (a) names the killed vertex; and
+    `CORNER_LEVER`'s "longer" becomes "spanning".
+  - **Not taken:** the closed-edge `CoplanarNeighbours` offer case, the
+    `Corruption` spelling, and the `kept_loop` assertion.
+  - The review also confirmed `edge_extent` is a lower bound for every
+    carrier, with closed NURBS still over-refusing, the safe side.
+  - The fix runs as cloud session `session_01KwoWmcpHhVj3Zd5UL2kCxL`.
