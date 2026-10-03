@@ -329,3 +329,12 @@ lane, because both edit `remap_contacts`.
   - a red row for the lower-germ splice;
   - re-checking the face-interior attribution;
   - `reconcile_shared` to a fixed point or an assert.
+- 2026-10-03 — PR 3943 lands. The shared-vertex tie arms are built: the
+  flat-in-face tie, three pieces, and two dangling null edges.
+  - Review: single FULL, with one fix pass (angular strut sides, a
+    fixed-point reconcile, a red row for the lower-germ splice).
+  - The row stays open at P0 for its one reachable arm, a dangling null
+    edge holding another pair's cut. That arm needs a nested-null-edge
+    structure, which is a design question for the next designer pair.
+  - The pinch-end 3′ failure is filed separately (P1,
+    `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
