@@ -3189,8 +3189,8 @@ impl core::fmt::Display for BooleanError {
             Self::ResultInvalid { errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
-                    "the Boolean's result did not pass the at-rest gate ({} finding(s); the \
-                     first: {first}), so no body is returned. {KERNEL_DEFECT_ENDING}",
+                    "the Boolean's result did not pass the at-rest gate, so no body is \
+                     returned ({} finding(s)); the first: {first}",
                     errors.len(),
                 ),
                 [] => write!(
