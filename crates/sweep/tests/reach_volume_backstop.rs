@@ -176,7 +176,7 @@ fn a_boss_at_half_a_radian_measures_in_one_operand_order() {
         operand: None,
         source:
             MassPropsError::Face {
-                source: geom_brep::props::PropsError::Escalated { cause },
+                source: geom_brep::props::PropsError::Escalated { cause, .. },
                 ..
             },
     } = &err

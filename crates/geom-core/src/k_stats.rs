@@ -572,6 +572,25 @@ pub fn decide_flagged<T: Decide>(
     classify(name, margin, band).map(|d| d.sign)
 }
 
+/// [`decide_flagged`], keeping the reporting margin the classifier
+/// decided on ([`Decided`]) — [`decide_reported`]'s mirror on the
+/// finding lane, for a flagged decision whose refusal quotes what it
+/// saw. The obligation is [`decide_flagged`]'s, and so is the census:
+/// `flagged_census.rs` counts this door's sites with that one's.
+///
+/// # Errors
+///
+/// As [`decide`].
+pub fn decide_flagged_reported<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    ledger_row: &'static str,
+) -> Result<Decided, Indeterminate> {
+    let _ = ledger_row;
+    classify(name, margin, band)
+}
+
 /// The classify seam's **invariant lane** — [`decide`] for the
 /// kernel's **consistency backstops**: inequalities between integral
 /// RESULTS (the `volume_backstop` family — wrong-component detectors),

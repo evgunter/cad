@@ -4,7 +4,7 @@ kind: issue
 title: The coincidence zone of a magnitude slot refuses DegenerateExtrusion on every sub-box yet is bisected to the depth floor and priced Budget
 status: open
 opened: 2026-09-05
-refs: [1969, k-stats-escalation-channel-and-redo]
+refs: [1969]
 priority: P1
 cost: H
 ---
@@ -127,3 +127,10 @@ the driver's floor at the crossing
 `DecisionFlip` fixture moved to a profile vertex passing through
 collinear, whose far side builds. The terminal name this row asks for
 would cover the half-line too.
+
+## A reference that outlived its program (2026-10-03)
+
+`k-stats-escalation-channel-and-redo` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.

@@ -2925,6 +2925,14 @@ pub trait AtRestPolicy: Decide {
     /// derivation is written.
     fn shell_door() -> Option<ShellDoor<Self>>;
 
+    /// **This scalar's quadrature lane, or `None` where it may not
+    /// certify** — the lane a door that reads shell roles outside the
+    /// validator reads them through ([`crate::pieces`]), the same one
+    /// the at-rest gate makes check 7 and check 10 through. Certification
+    /// rights, as [`AtRestPolicy::shell_door`]: `None` reads closed forms
+    /// only.
+    fn quad_lane() -> Option<QuadLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -3021,6 +3029,10 @@ impl AtRestPolicy for f64 {
         Some(ShellDoor::certified())
     }
 
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -3084,6 +3096,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(ShellDoor::certified())
     }
 
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -3141,6 +3157,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// what the validator's certified claim is made of.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
+    }
+
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -3213,6 +3233,10 @@ where
     /// would otherwise stop hollowing the bodies it certifies.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
+    }
+
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -3292,6 +3316,10 @@ where
     /// sensitivities meets a typed refusal at its shell node rather
     /// than an unvalidated hollow.
     fn shell_door() -> Option<ShellDoor<Self>> {
+        None
+    }
+
+    fn quad_lane() -> Option<QuadLane<Self>> {
         None
     }
 

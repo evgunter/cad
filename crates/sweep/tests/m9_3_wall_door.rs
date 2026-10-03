@@ -18,7 +18,7 @@
 use crate::common::operands::{slab as plate, three_arc_cylinder};
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::test_support::extruded;
@@ -298,9 +298,12 @@ fn tangent_door_contradicts_escalates_and_verifies() {
         Tol::witness(),
     );
     let v = bracket.finish().verdicts;
+    // A verdict names its row, not its caller: any `pc_parallel_gap` Zero
+    // in the bracket satisfies this, the witness lane's among them.
     assert!(
-        v.iter().any(|x| x.predicate == "tangent_locus_gap"),
-        "the witness lane must have derived the ruling"
+        v.iter()
+            .any(|x| x.predicate == "pc_parallel_gap" && x.sign == Sign::Zero),
+        "the witness lane must have derived the ruling from the section's tangent gap"
     );
     // Verified, and the ruling runs through the plate top's interior:
     // the union would have material on both sides of it, the doubled
@@ -378,7 +381,7 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "{err:?}"
