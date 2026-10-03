@@ -6456,3 +6456,9 @@ passed on `6ee9164cd6`.
   Its question is the same as the stale-key split's
   (`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`),
   which is a design fork not yet run.
+
+## PR 3992 merged (2026-10-03)
+
+merge-orientation-rung merged as `8a7b2d1f36`, after CI run 37158737738
+passed. Both units started before the hold (PR 3974 and PR 3992) are now
+landed.
