@@ -151,7 +151,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             // arm's premise, and the edge refuses rather than store a
             // description neither reading chose.
             let refused = |refusal| match refusal {
-                MustCarryRefusal::InBand(source) => sliver(source),
+                MustCarryRefusal::InBand(source) => sliver(source.diag()),
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
             };
             match must_carry_over_edge(

@@ -86,3 +86,10 @@ Two live `walls::wall` probes panic when this closes:
   and pins `(H∩T) ∩ C` (silhouette3 wall 1); the scene then takes
   whichever order reads naturally.
 - `demos/tour/src/az.rs` builds `A ∩ Z` and pins `Z ∩ A` (az wall 1).
+
+## On JOIN-1 (PR 3790)
+
+On JOIN-1's branch, `(H∩T)∩C` builds at V = 11/4, and the tour's `silhouette3` wall 1 retired for it. `letterforms.rs` now builds that order and checks its volume.
+
+`Z∩A` builds too, at the exact 38627/14336, and the `az` wall 1 retired for it: `az.rs` checks that order's volume. Both live witnesses now build. I did not re-measure `(H∩C)∩T`, the one nesting left unchecked, so the issue stays open until someone measures it.
+

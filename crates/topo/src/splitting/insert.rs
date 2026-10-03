@@ -27,7 +27,7 @@
 //! `NullEdge { below_end: old vertex, above_end: copy }`, save the
 //! whole-orbit strut, whose copy is the below end — no he1/he2 slot
 //! convention anywhere. The copy's side verdict is cached ON
-//! (bitwise-coincident point: structural coincidence).
+//! (the old vertex's own point: structural coincidence).
 
 use slotmap::SecondaryMap;
 

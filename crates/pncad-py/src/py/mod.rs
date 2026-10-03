@@ -363,7 +363,7 @@ pyo3::create_exception!(
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
-     `name`, `id`), `None` where inapplicable."
+     `name`, `id`, `gauge`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -372,7 +372,8 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
-     `part_epsilon`), `None` where inapplicable.\n\n\
+     `part_epsilon`, `host_root`, `part_root`, `part_gauges`), `None` \
+     where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \

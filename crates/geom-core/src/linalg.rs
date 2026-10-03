@@ -138,5 +138,7 @@ pub use mat::Mat3;
 pub use ortho_frame::{OrthoAxis, OrthoFrame, OrthoFrameError};
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
-pub use unit_vec::{UnitVec3, UnitVec3Error, decide_unit_direction};
+pub use unit_vec::{
+    LeveredUnitError, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, decide_unit_direction,
+};
 pub use vec::{Vec2, Vec3};

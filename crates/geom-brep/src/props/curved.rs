@@ -29,7 +29,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::{
-    Band, Decide, Margin, OrthoFrame, Point3, Real, Sign, UnitVec3, UnitVec3Error, Vec3,
+    Band, Decide, LeveredUnitError, Margin, OrthoFrame, Point3, Real, Sign, UNIT_DIRECTION_ARM,
+    UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
@@ -3856,8 +3857,17 @@ fn torus_meridian_orient<T: Decide>(
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    let aim = UnitVec3::new(axis, "props_torus_axis", band).map_err(|e| {
-        torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
+    // The axis is a pure number, levered by the anchor meridian's reach
+    // from the torus centre, where the frame it aims is consumed.
+    let reach = (m0.c_c - center).norm() + minor;
+    let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
+        LeveredUnitError::Direction(e) => {
+            torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
+        }
+        LeveredUnitError::Arm(Some(cause)) => PropsError::Escalated { cause },
+        LeveredUnitError::Arm(None) => PropsError::NotIsoRectangle {
+            what: UNIT_DIRECTION_ARM,
+        },
     })?;
     let frame = OrthoFrame::from_aim_and_reference(
         center,

@@ -1408,13 +1408,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingHomingUncrossable",
-                J::RingHomingUncrossable {
-                    ring: LoopKey::default(),
-                },
+                "RingHoming(Uncrossable)",
+                J::RingHoming(topo::PointInLoopError::Uncrossable(topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                })),
             ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
+            (
+                "SingleSiteSectionLoop",
+                J::SingleSiteSectionLoop { count: 2 },
+            ),
             ("SectionLoopMixed", J::SectionLoopMixed { face }),
+            ("SectionLoopUndecided", J::SectionLoopUndecided { face }),
             ("CutInvariant", J::CutInvariant { edge }),
             (
                 "Corrupt",
@@ -2845,7 +2852,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ),
     ];
     let placement = [
-        ("CountSpelling", PlacementRuleFault::CountSpelling),
+        (
+            "CountSpelling",
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            },
+        ),
         ("NoPlacements", PlacementRuleFault::NoPlacements),
         (
             "NonFiniteFrame",
@@ -4238,7 +4250,14 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         ),
         (
             "EdgeCarrierUnsupported",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: topo::LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "WallOutlineUnsupported",

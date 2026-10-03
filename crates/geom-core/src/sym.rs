@@ -274,8 +274,10 @@
 //! 1.6e-4·s`, so the flip first enters the box at `s = 0.625`, while
 //! at the pinned ceiling `s ≈ 0.263` the true margin is `[5.79e-5,
 //! 1.42e-4] > 0` everywhere and the enclosure is `[−2.09e-9, 2.00e-4]`
-//! — widened by ~6e-5 on each side (pinned:
-//! `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! — widened by ~6e-5 on each side (the extrude's closing pcurve mint
+//! now refuses the plate before the assertion is read, at `3.9e2·ε`:
+//! `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`,
+//! pinned at `m10_10_pins_interval::m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`);
 //! at `1e-6` the same widened enclosure sits in the band. The annulus
 //! is the same class: `arc_diameter_clearance` cannot be zero for any
 //! `r > 0` — the widening finding's second site. The plate's rows are

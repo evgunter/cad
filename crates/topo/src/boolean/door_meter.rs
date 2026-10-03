@@ -1,8 +1,8 @@
 //! **The door's tier-3 meter** (feature `door-tier3-meter`): what tier 3
 //! would cost, and what it would refuse, if `ops::gate` ran it.
 //!
-//! `ops::gate` runs tiers 1 and 2 on every finished result. With this
-//! feature on, the door also runs the scalar's at-rest gate
+//! `ops::gate` runs tiers 1 and 2 and tier 3's transience fence on every
+//! finished result. With this feature on, the door also runs the scalar's at-rest gate
 //! ([`crate::AtRestPolicy::gate_at_rest`]) on the result and on both
 //! operands after the volume backstop, and appends one tab-separated
 //! line per result to the file the build names in

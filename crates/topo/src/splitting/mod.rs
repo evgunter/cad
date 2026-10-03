@@ -82,10 +82,14 @@ use geom_core::Tol;
 use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
-pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
+pub use containment::{
+    LoopContainment, PointInLoopError, Uncrossable, UncrossableCarrier, point_in_loop,
+};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
-pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
+pub use section::{
+    Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
+};
 
 /// The splitting plane: a point on the plane and its unit normal. The
 /// positive side (`(p − origin)·normal > 0`) is **Above**.
