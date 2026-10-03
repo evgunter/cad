@@ -359,11 +359,18 @@ pub enum ShellError<T: Real> {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
     },
-    /// One of the operand's solids classifies to something other than
-    /// exactly one outer shell — several material components filed
-    /// under one solid, or none. Not a shape this verb thickens. The
-    /// roles are read per solid, so the count is that solid's own and
-    /// the refusal names which solid it is about.
+    /// The operand could not be sorted into pieces ([`crate::pieces`])
+    /// before it is thickened: the verb takes a body, and a solid
+    /// holding several pieces is sorted first, so the piece a shell
+    /// belongs to has to be readable.
+    Pieces {
+        /// The sort's typed refusal, verbatim.
+        error: crate::pieces::PieceSortError,
+    },
+    /// One of the operand's solids, once sorted into pieces, holds no
+    /// outer shell — only cavities, which bound no material. Not a
+    /// shape this verb thickens. The roles are read per solid, so the
+    /// refusal names which solid it is about.
     OperandOuterShells {
         /// The solid whose shells did not classify to one boundary.
         solid: SolidKey,
@@ -560,6 +567,10 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the body's shells could not be sorted into one outer boundary and its \
                  voids: {error}"
+            ),
+            Self::Pieces { error } => write!(
+                f,
+                "the body could not be sorted into solids before it is thickened: {error}"
             ),
             Self::OperandOuterShells { outer, .. } => write!(
                 f,
@@ -944,6 +955,24 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         Ok(Sign::Positive) => {}
         _ => return Err(ShellError::Thickness { thickness }),
     }
+
+    // ---- Decide: one piece of material per solid. ----
+    //
+    // The verb takes a body: a solid holding several pieces is sorted
+    // into one solid per piece first ([`crate::pieces`]), on a clone, so
+    // every key the caller holds still names the same face, edge and
+    // vertex. A body whose every solid has one shell is one piece per
+    // solid by arity and is not read.
+    let sorted;
+    let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
+        let mut clone = body.clone();
+        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane())
+            .map_err(|error| ShellError::Pieces { error })?;
+        sorted = clone;
+        &sorted
+    } else {
+        body
+    };
 
     // ---- Decide: there is a solid to thicken. ----
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();

@@ -4385,24 +4385,14 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
-    let mut targets: Vec<topo::SolidKey> = Vec::new();
     for (i, map) in maps.iter().enumerate() {
         // Distinct instances are distinct sources, and distinct maps.
         let placed = place(&body, Some(map), Placing::of(id, i, 1, 0)?, tol)?;
-        // Placement 0 MINTS the destination solids; every later
-        // placement grafts ONTO them, so the fused body has the
-        // prototype's solid structure with N shells in each — the shape
-        // a union of separated bodies has, and the only one the seamed
-        // boolean path accepts as an operand.
-        let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
-                .map_err(NodeErrorKind::Boolean)?;
-            targets = keys.solids().to_vec();
-            keys
-        } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
-                .map_err(NodeErrorKind::Boolean)?
-        };
+        // Every placement MINTS its own solids: the copies are certified
+        // apart, so each is a piece of its own, and a body of N solids
+        // is a boolean operand like any other.
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut fused, &placed).map_err(NodeErrorKind::Boolean)?;
         bridges.push(keys);
     }
     // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body

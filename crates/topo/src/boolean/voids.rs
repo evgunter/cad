@@ -260,8 +260,8 @@ impl VoidInserted {
 /// [`insert_voids`] the whole moved clone of its operand and re-homes
 /// each transplanted void twin with the operand void it pairs with
 /// ([`crate::shell`](mod@crate::shell)'s thin-solid step, paired off
-/// the graft map), and the boolean's containment fallback files each
-/// island by its nesting before its gate (`boolean::islands`).
+/// the graft map), and every boolean result is sorted into pieces at
+/// its exit ([`crate::pieces`]).
 ///
 /// # Errors
 ///

@@ -464,60 +464,8 @@ fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
 }
 
 // ---------------------------------------------------------------------
-// LIB-PLACEDUNION: the fuse-onto door and the placement certificate
+// LIB-PLACEDUNION: the placement certificate
 // ---------------------------------------------------------------------
-
-/// **The `onto` door puts shells in an EXISTING solid.** Same
-/// transplant, same census, one solid — the representation a UNION of
-/// separated bodies already has in this kernel, and the one the seamed
-/// boolean path accepts as an operand.
-#[test]
-fn the_onto_door_fuses_into_one_solid_without_changing_the_census() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let placed = topo::transform_rigid(
-        &src,
-        &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
-        Tol::witness(),
-    )
-    .expect("a rigid map");
-
-    let mut separate = topo::Body::<f64>::new();
-    let first = topo::graft_disjoint_all_keyed(&mut separate, &src).expect("the first graft");
-    topo::graft_disjoint_all_keyed(&mut separate, &placed).expect("the second, as its own solid");
-
-    let mut fused = topo::Body::<f64>::new();
-    let keys = topo::graft_disjoint_all_keyed(&mut fused, &src).expect("the first graft");
-    let onto = topo::graft_disjoint_all_onto_keyed(&mut fused, keys.solids(), &placed)
-        .expect("the second, onto the first's solid");
-
-    assert_eq!(separate.solids().count(), 2, "the sibling door mints");
-    assert_eq!(fused.solids().count(), 1, "the onto door does not");
-    assert_eq!(fused.shells().count(), separate.shells().count());
-    assert_eq!(fused.faces().count(), separate.faces().count());
-    assert_eq!(fused.edges().count(), separate.edges().count());
-    assert_eq!(fused.vertices().count(), separate.vertices().count());
-    assert_eq!(onto.solids(), first.solids(), "the echo is positional");
-    // The bridge is still total over the source — the name carry does
-    // not care which door placed the shells.
-    for (k, _) in placed.faces() {
-        assert!(onto.face(k).is_some_and(|f| fused.get_face(f).is_some()));
-    }
-    assert_eq!(topo::validate_geometric(&fused, Tol::witness()), Ok(()));
-}
-
-/// **A dead destination refuses, typed** — the door never invents a
-/// solid to land in.
-#[test]
-fn the_onto_door_refuses_a_destination_that_is_not_there() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let mut a = topo::Body::<f64>::new();
-    let keys = topo::graft_disjoint_all_keyed(&mut a, &src).expect("a graft");
-    // `keys`' solids belong to `a`, not to this fresh destination.
-    let mut b = topo::Body::<f64>::new();
-    assert!(topo::graft_disjoint_all_onto_keyed(&mut b, keys.solids(), &src).is_err());
-}
 
 /// **The certificate separates, and refuses when it cannot.** One
 /// prototype, three placements: two clear of each other certify, and

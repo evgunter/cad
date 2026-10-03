@@ -1590,6 +1590,7 @@ fn attribute(
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
         | ValidationError::ShellWinding { .. }
+        | ValidationError::SolidOuterShells { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }

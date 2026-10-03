@@ -387,10 +387,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          API MISUSE rather than a kernel bug — the state class D9's footnote says \
          cannot occur. Open as S14; this entry records it, it does not excuse it.",
     ),
-    (
-        "graft_disjoint_all_onto_keyed",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
 ];
 
 /// **The closure property the module docs of [`crate::euler`] and D9's

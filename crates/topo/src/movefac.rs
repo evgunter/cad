@@ -399,6 +399,72 @@ impl<T: Decide> Body<T> {
         );
         Ok(new_solid)
     }
+
+    /// Refiles every shell of the body under its first solid (in arena
+    /// order) and removes the others — [`Body::move_shells_to_new_solid`]
+    /// run backwards, over the whole body. Returns the keeper, or `None`
+    /// for a body with no solid.
+    ///
+    /// A multi-shell solid is the shape the boolean's pipeline reads an
+    /// operand in: it classifies, keeps and grafts SHELLS, and the
+    /// result sort ([`crate::pieces`]) files them back into pieces at the
+    /// exit. Ownership moves and nothing else: the keeper's shell list
+    /// gains the others' in arena order, every shell keeps its key and
+    /// faces, and each removed solid's provenance record goes with it.
+    pub(crate) fn into_one_solid(&mut self) -> Option<SolidKey> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let solids: Vec<SolidKey> = self.solids().map(|(k, _)| k).collect();
+        let (&keeper, donors) = solids.split_first()?;
+        for &donor in donors {
+            let moved = self
+                .solids
+                .remove(donor)
+                .map(|s| s.shells)
+                .unwrap_or_default();
+            self.solid_provenance.remove(donor);
+            for &shell in &moved {
+                if let Some(data) = self.get_shell_mut(shell) {
+                    data.solid = keeper;
+                }
+            }
+            if let Some(k) = self.get_solid_mut(keeper) {
+                k.shells.extend(moved);
+            }
+        }
+        #[cfg(debug_assertions)]
+        {
+            // Lossless: an arena length that overflows isize is
+            // unrepresentable long before.
+            #[allow(clippy::cast_possible_wrap)]
+            let solids = -(donors.len() as isize);
+            self.assert_euler_postcondition(
+                before,
+                ArenaDelta {
+                    solids,
+                    ..ArenaDelta::ZERO
+                },
+                "into_one_solid",
+            );
+        }
+        Some(keeper)
+    }
+
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with every shell filed under its first solid
+    /// ([`Body::into_one_solid`]) — several pieces of material under one
+    /// solid, the state the verbs sort out of their results and tier 3's
+    /// check 10 refuses (`ValidationError::SolidOuterShells`). No verb
+    /// produces it; it exists to be refused, and to stand for a body
+    /// built before solids were one piece each.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_solids_merged_for_tests(&self) -> Self {
+        let mut out = self.clone();
+        out.into_one_solid();
+        out
+    }
 }
 
 #[cfg(test)]

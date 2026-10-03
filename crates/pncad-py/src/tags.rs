@@ -1588,6 +1588,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
+        BooleanErrorKind::Pieces => "pieces",
     }
 }
 
@@ -2964,6 +2965,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
+        ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",

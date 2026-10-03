@@ -16,9 +16,9 @@
 //! - [`OperandA`](BooleanResultKind::OperandA) /
 //!   [`OperandB`](BooleanResultKind::OperandB): one operand's material
 //!   is the whole answer (disjoint ∖, nested ∩, …).
-//! - [`Assembly`](BooleanResultKind::Assembly): a multi-shell body
-//!   combining components of both operands without a seam — the
-//!   disjoint union (∪ of separated bodies), including
+//! - [`Assembly`](BooleanResultKind::Assembly): components of both
+//!   operands without a seam, each piece a solid — the disjoint union
+//!   (∪ of separated bodies), including
 //!   touching-at-declared-contacts assemblies (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator).
@@ -29,14 +29,15 @@
 //!   void-insertion door every cavity is born through (this fallback,
 //!   the holed full revolve, and `shell`'s sealed hollow), with this
 //!   fallback's probe verdicts as the door's containment evidence. A
-//!   hollow B's cavities land as islands inside the void B leaves, each
-//!   filed as a solid of its own (below).
+//!   hollow B's cavities land as pieces inside the void B leaves.
 //!
-//! **Every island a solid of its own** (`boolean::islands`): whatever
-//! the kind, a component standing inside a cavity of another moves out
-//! of the solid the combine door grafted it under, at the one point
-//! every result path passes before its gate. Components side by side
-//! stay under one solid.
+//! **Bodies in, bodies out** (`docs/DESIGN.md`, "A solid is one piece
+//! of material"). An operand may hold any number of solids: the
+//! pipeline reads each operand as one multi-shell solid
+//! ([`Body::into_one_solid`] on a clone), since it classifies, keeps and
+//! grafts shells, and every result leaves [`boolean_op_with`] sorted
+//! into pieces ([`crate::pieces`]) — one `Outer` per solid, each `Void`
+//! under the piece whose material surrounds it.
 //!
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell containment against the pristine other operand: the
@@ -176,9 +177,8 @@ pub enum BooleanResultKind {
 /// `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
-    /// The result body: one solid, possibly multi-shell, plus one solid
-    /// per island — material standing inside a cavity of another
-    /// component (`boolean::islands`).
+    /// The result body: one solid per piece of material
+    /// ([`crate::pieces`]).
     pub body: Body<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
@@ -514,7 +514,27 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
             });
         }
     }
-    boolean_op_recut(op, a, b, decls, strategy, true, tol)
+    let band = Band::linear(tol)?;
+    let (a, b) = (one_solid(a), one_solid(b));
+    let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
+    if let BooleanResult::Body(r) = &mut result {
+        crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane())
+            .map_err(BooleanError::Pieces)?;
+    }
+    Ok(result)
+}
+
+/// `body` as the pipeline reads an operand: as is when it holds at most
+/// one solid, else a clone with every shell under one solid (module
+/// docs, "Bodies in, bodies out").
+fn one_solid<T: Decide>(body: &Body<T>) -> std::borrow::Cow<'_, Body<T>> {
+    if body.solids().nth(1).is_none() {
+        std::borrow::Cow::Borrowed(body)
+    } else {
+        let mut flat = body.clone();
+        flat.into_one_solid();
+        std::borrow::Cow::Owned(flat)
+    }
 }
 
 /// The pipeline behind the front door, parameterized on whether the
@@ -597,8 +617,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
-    let mut body = finished;
-    super::islands::file_islands(&mut body, band, tol)?;
+    let body = finished;
     gate(&body)?;
     #[cfg(feature = "door-tier3-meter")]
     let meter = super::door_meter::Meter::start(metered_from);
@@ -3461,7 +3480,6 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 &KeyView::Graft(&graft),
                 &desc,
             )?;
-            super::islands::file_islands(&mut body, band, tol)?;
             gate(&body)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -3521,7 +3539,6 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc)?;
     remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc)?;
-    super::islands::file_islands(&mut body, band, tol)?;
     gate(&body)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

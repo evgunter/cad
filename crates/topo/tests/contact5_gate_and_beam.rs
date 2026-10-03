@@ -39,7 +39,7 @@ fn parallelepiped(p: [f64; 3], a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> Body<f6
 fn assembly(parts: &[Body<f64>]) -> Body<f64> {
     let mut out = parts[0].clone();
     for part in &parts[1..] {
-        topo::graft_disjoint(&mut out, part).unwrap();
+        topo::graft_disjoint_all(&mut out, part).unwrap();
     }
     out
 }
@@ -313,8 +313,8 @@ fn the_interference(errors: &[ValidationError]) -> (SolidKey, SolidKey) {
     }
 }
 
-/// **A two-lump solid with one lump inside the other instance.** A
-/// union of two disjoint cubes is ONE solid with two outer shells.
+/// **A two-lump body with one lump inside the other instance.** A
+/// union of two disjoint cubes is two solids, one per lump.
 /// Lump 1, `[0, 1]³`, lies strictly inside `B = [−1, 10] × [−1, 2]²`;
 /// lump 2 sits at `x ∈ [10, 11]`, face to face with B, or far off at
 /// `x ∈ [20, 21]`. The solid's whole hull sticks out of B's box either
@@ -329,7 +329,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         let union =
             topo::boolean::union(&block(unit, unit, unit), &block(lump2, unit, unit), tol).unwrap();
         let a = union.body().unwrap().body.clone();
-        assert_eq!((a.solids().count(), a.shells().count()), (1, 2));
+        assert_eq!((a.solids().count(), a.shells().count()), (2, 2));
         let body = assembly(&[a, block((-1.0, 10.0), (-1.0, 2.0), (-1.0, 2.0))]);
         let lumps = body.solids().next().unwrap().0;
         let errors = errors_of(&body);
@@ -475,27 +475,24 @@ fn a_declared_seat_with_a_keel_is_probed() {
     }
 }
 
-/// **One solid's boundary crossing itself blocks its pairs.** Solid A
-/// is two slabs crossed in a plus, `[0, 3] × [1, 2] × [0, 1]` and
-/// `[1, 2] × [0, 3] × [0, 1]`, as two shells of ONE solid: their edges
-/// cross each other in the planes `z = 0` and `z = 1`. A block B rests
-/// on A's first slab end, face to face. Every finding between A and B
-/// is a rest, but A's own edge crosses say its boundary crosses itself,
-/// and no placement can be read against such a material.
+/// **Two crossing shells under one solid refuse before the census.**
+/// Solid A is two slabs crossed in a plus, `[0, 3] × [1, 2] × [0, 1]`
+/// and `[1, 2] × [0, 3] × [0, 1]`, as two shells of ONE solid: their
+/// edges cross each other in the planes `z = 0` and `z = 1`. A block B
+/// rests on A's first slab end, face to face. Two `Outer` shells under
+/// one solid are two pieces' worth, which check 10 refuses by count, so
+/// the census never reads the crossing.
 #[test]
-fn a_solid_crossing_itself_blocks_its_pair() {
+fn a_solid_of_two_crossing_shells_refuses_by_count() {
     let mut body = block((0.0, 3.0), (1.0, 2.0), (0.0, 1.0));
+    topo::graft_disjoint(&mut body, &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0))).unwrap();
+    let mut body = body.with_solids_merged_for_tests();
     let a = body.solids().next().unwrap().0;
-    topo::graft_disjoint_all_onto_keyed(
-        &mut body,
-        &[a],
-        &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0)),
-    )
-    .unwrap();
     topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
-    let errors = errors_of(&body);
-    assert!(crosses(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
+    assert_eq!(
+        errors_of(&body),
+        vec![ValidationError::SolidOuterShells { solid: a, outer: 2 }]
+    );
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one
@@ -653,7 +650,7 @@ fn a_void_shell_does_not_open_the_gate() {
     );
 }
 
-/// **A two-lump solid seated declared.** One lump `[0, 2] × [0, 1] ×
+/// **A two-lump body seated declared.** One lump `[0, 2] × [0, 1] ×
 /// [0, 2]` rests on the U channel's floor, declared as a patch record.
 /// Its sibling floats far off, or floats between the channel's walls
 /// touching nothing — its hull inside the channel's reach, so the pair
@@ -687,8 +684,8 @@ fn a_two_lump_solid_seated_declared() {
             let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
             assert_eq!(
                 the_interference(&errors),
-                (solids[0], solids[1]),
-                "{errors:?}"
+                (solids[0], solids[2]),
+                "the sunk sibling is a solid of its own: {errors:?}"
             );
         } else {
             assert_eq!(result, Ok(()), "{sibling:?}");

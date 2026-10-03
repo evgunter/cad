@@ -179,6 +179,7 @@ pub(crate) mod live;
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod movefac;
+pub mod pieces;
 #[cfg(test)]
 mod n2r1_probes;
 pub mod null;
@@ -666,8 +667,7 @@ pub use geom_brep::{
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
-    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
-    graft_disjoint_all_onto_keyed, per_part_gate_owed,
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
@@ -701,6 +701,7 @@ pub use readback::{
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
+pub use pieces::PieceSortError;
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };

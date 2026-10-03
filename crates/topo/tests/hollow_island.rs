@@ -1,12 +1,13 @@
-//! **Every island a solid of its own**: a boolean whose material falls
-//! apart into a component standing inside a cavity of another files that
-//! component as a solid of its own (`crates/topo/src/boolean/islands.rs`).
+//! **A solid is one piece of material** (`docs/DESIGN.md`): every
+//! boolean result is sorted into one solid per `Outer` shell, each
+//! `Void` filed under the piece whose material surrounds it
+//! (`crates/topo/src/pieces.rs`), and an operand may hold any number of
+//! solids.
 //!
-//! Tier 3 admits the one-solid filing on its merits (check 10:
-//! `+1 - 1 + 1 = 1` inside the island), so no gate catches a regression
-//! here. Each row asserts the GROUPING directly: how many solids, which
+//! Each row asserts the GROUPING directly: how many solids, which
 //! shells each one holds in which order with their roles, and each
-//! solid's volume.
+//! solid's volume — plus tier 3, which now refuses two `Outer` shells
+//! under one solid.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -114,15 +115,37 @@ fn assert_graft_lineage(r: &BooleanBody<f64>, what: &str) {
 
 use ShellRole::{Outer, Void};
 
+fn subtract(a: &Body<f64>, b: &Body<f64>) -> BooleanBody<f64> {
+    body_of(topo::subtract(a, b, tol()).expect("the subtraction runs"))
+}
+
+fn union(a: &Body<f64>, b: &Body<f64>) -> BooleanBody<f64> {
+    body_of(topo::union(a, b, tol()).expect("the union runs"))
+}
+
+/// The unit's own operand pair's result: `cube(0..6) ∖ shell(cube(2..4),
+/// 0.25)`.
+fn hollow_b_result() -> BooleanBody<f64> {
+    let b = topo::shell(&cube(2.0, 4.0), 0.25, tol())
+        .expect("the small cube shells")
+        .body;
+    subtract(&cube(0.0, 6.0), &b)
+}
+
+/// `hollow(lo, hi, cavity)` with `cube(island)` standing in its cavity:
+/// two pieces, so a body of two solids.
+fn hollow_with_island(lo: f64, hi: f64, cavity: (f64, f64), island: (f64, f64)) -> Body<f64> {
+    let r = union(&hollow(lo, hi, &[cavity]), &cube(island.0, island.1));
+    assert_eq!(r.body.solids().count(), 2, "the island is a piece of its own");
+    r.body
+}
+
 /// **The unit's own case**: `cube(0..6) ∖ shell(cube(2..4), 0.25)`. B's
 /// cavity `(2.25..3.75)³` is material of the result standing inside the
 /// void B's outer shell leaves, touching none of A's wall.
 #[test]
 fn subtract_of_a_hollow_operand_files_its_island_as_a_solid_of_its_own() {
-    let b = topo::shell(&cube(2.0, 4.0), 0.25, tol())
-        .expect("the small cube shells")
-        .body;
-    let r = body_of(topo::subtract(&cube(0.0, 6.0), &b, tol()).expect("the subtraction runs"));
+    let r = hollow_b_result();
     assert_eq!(r.kind, BooleanResultKind::Voided);
     assert_grouping(
         &r.body,
@@ -132,11 +155,51 @@ fn subtract_of_a_hollow_operand_files_its_island_as_a_solid_of_its_own() {
     assert_graft_lineage(&r, "hollow B");
 }
 
+/// **That result is an operand.** The two-solid body the unit's case
+/// leaves refused `JoinDesync` as a boolean operand before booleans took
+/// bodies; now a cut far from the island (the containment fallback) and
+/// a cut through A's wall (the seamed path) both build.
+#[test]
+fn the_two_solid_result_is_the_next_booleans_operand() {
+    let r = hollow_b_result().body;
+    let far = subtract(&r, &cube(0.5, 1.0));
+    assert_grouping(
+        &far.body,
+        &[
+            (&[Outer, Void, Void], 208.0 - 0.125),
+            (&[Outer], 1.5f64.powi(3)),
+        ],
+        "a cavity cut far from the island",
+    );
+    let crossing = subtract(&r, &brick((5.5, 6.5), (0.5, 1.5), (0.5, 1.5), tol()));
+    assert_eq!(crossing.kind, BooleanResultKind::Seamed);
+    assert_grouping(
+        &crossing.body,
+        &[(&[Outer, Void], 208.0 - 0.5), (&[Outer], 1.5f64.powi(3))],
+        "a notch through A's wall",
+    );
+}
+
+/// **A channel from outside into the cavity, missing the island**: the
+/// cavity opens to the outside and stops being a cavity, and the island
+/// stays a solid of its own, now beside the wall rather than inside it.
+#[test]
+fn a_channel_into_the_cavity_leaves_the_island_its_own_solid() {
+    let r = hollow_b_result().body;
+    let channel = brick((3.9, 6.5), (2.5, 3.5), (2.5, 3.5), tol());
+    let cut = subtract(&r, &channel);
+    assert_grouping(
+        &cut.body,
+        &[(&[Outer], 208.0 - 2.0), (&[Outer], 1.5f64.powi(3))],
+        "the opened cavity",
+    );
+}
+
 /// **B with two cavities**: each cavity is an island of its own.
 #[test]
 fn each_cavity_of_a_hollow_operand_is_an_island_of_its_own() {
     let b = hollow(1.0, 5.0, &[(1.5, 2.5), (3.5, 4.5)]);
-    let r = body_of(topo::subtract(&cube(0.0, 6.0), &b, tol()).expect("the subtraction runs"));
+    let r = subtract(&cube(0.0, 6.0), &b);
     assert_grouping(
         &r.body,
         &[
@@ -149,16 +212,13 @@ fn each_cavity_of_a_hollow_operand_is_an_island_of_its_own() {
     assert_graft_lineage(&r, "two cavities");
 }
 
-/// **B with an island inside its own cavity** (one solid, grafted there
-/// by the graft door): B's cavity becomes an island of the result, and
-/// B's island becomes that island's void, filed with it.
+/// **B with an island inside its own cavity** — B is a body of two
+/// solids, and a boolean takes it: B's cavity becomes an island of the
+/// result, and B's island becomes that island's void, filed with it.
 #[test]
 fn an_island_of_the_operand_lands_as_the_void_of_its_islands_solid() {
-    let mut b = hollow(1.0, 5.0, &[(1.5, 4.5)]);
-    let b_solid = b.solids().next().expect("one solid").0;
-    topo::graft_disjoint_all_onto_keyed(&mut b, &[b_solid], &cube(2.5, 3.5))
-        .expect("the island grafts into B's solid");
-    let r = body_of(topo::subtract(&cube(0.0, 6.0), &b, tol()).expect("the subtraction runs"));
+    let b = hollow_with_island(1.0, 5.0, (1.5, 4.5), (2.5, 3.5));
+    let r = subtract(&cube(0.0, 6.0), &b);
     assert_grouping(
         &r.body,
         &[(&[Outer, Void], 216.0 - 64.0), (&[Outer, Void], 27.0 - 1.0)],
@@ -167,13 +227,62 @@ fn an_island_of_the_operand_lands_as_the_void_of_its_islands_solid() {
     assert_graft_lineage(&r, "B's own island");
 }
 
+/// **An island inside a void of an island**: three pieces nested, and
+/// each cavity filed under the piece around it.
+#[test]
+fn an_island_inside_a_void_of_an_island_is_a_third_solid() {
+    let inner = hollow_with_island(2.0, 6.0, (2.5, 5.5), (3.5, 4.5));
+    let r = union(&hollow(0.0, 8.0, &[(1.0, 7.0)]), &inner);
+    assert_grouping(
+        &r.body,
+        &[
+            (&[Outer, Void], 512.0 - 216.0),
+            (&[Outer, Void], 64.0 - 27.0),
+            (&[Outer], 1.0),
+        ],
+        "three nested pieces",
+    );
+}
+
+/// **Two voids, each holding an island**: each island is its own solid,
+/// and the wall keeps both cavities.
+#[test]
+fn two_voids_each_holding_an_island_give_three_solids() {
+    let wall = hollow(0.0, 6.0, &[(0.5, 2.5), (3.5, 5.5)]);
+    let r = union(&union(&wall, &cube(1.0, 2.0)).body, &cube(4.0, 5.0));
+    assert_grouping(
+        &r.body,
+        &[
+            (&[Outer, Void, Void], 216.0 - 16.0),
+            (&[Outer], 1.0),
+            (&[Outer], 1.0),
+        ],
+        "two islanded voids",
+    );
+}
+
+/// **A single-operand result is sorted too**: subtracting a far cube
+/// from a two-solid body answers with A's material, and A's island
+/// stays a solid of its own.
+#[test]
+fn a_single_operand_result_keeps_its_island_a_solid() {
+    let a = hollow_with_island(0.0, 6.0, (1.0, 5.0), (2.0, 4.0));
+    let r = subtract(&a, &cube(10.0, 11.0));
+    assert_eq!(r.kind, BooleanResultKind::OperandA);
+    assert_grouping(
+        &r.body,
+        &[(&[Outer, Void], 216.0 - 64.0), (&[Outer], 8.0)],
+        "OperandA",
+    );
+}
+
 /// **A's void inside B's cavity**: the void is A's shell, not B's, and it
 /// moves with the island around it — read by nesting, not by operand.
 #[test]
 fn a_void_of_a_inside_bs_cavity_moves_with_the_island() {
     let a = hollow(0.0, 6.0, &[(2.5, 3.5)]);
     let b = hollow(1.5, 4.5, &[(2.0, 4.0)]);
-    let r = body_of(topo::subtract(&a, &b, tol()).expect("the subtraction runs"));
+    let r = subtract(&a, &b);
     assert_grouping(
         &r.body,
         &[(&[Outer, Void], 216.0 - 27.0), (&[Outer, Void], 8.0 - 1.0)],
@@ -186,7 +295,7 @@ fn a_void_of_a_inside_bs_cavity_moves_with_the_island() {
 #[test]
 fn union_files_an_operand_inside_the_others_cavity_as_its_own_solid() {
     let a = hollow(0.0, 6.0, &[(1.0, 5.0)]);
-    let r = body_of(topo::union(&a, &cube(2.0, 4.0), tol()).expect("the union runs"));
+    let r = union(&a, &cube(2.0, 4.0));
     assert_eq!(r.kind, BooleanResultKind::Assembly);
     assert_grouping(
         &r.body,
@@ -194,8 +303,7 @@ fn union_files_an_operand_inside_the_others_cavity_as_its_own_solid() {
         "solid B in A's cavity",
     );
 
-    let b = hollow(2.0, 4.0, &[(2.5, 3.5)]);
-    let r = body_of(topo::union(&a, &b, tol()).expect("the union runs"));
+    let r = union(&a, &hollow(2.0, 4.0, &[(2.5, 3.5)]));
     assert_grouping(
         &r.body,
         &[(&[Outer, Void], 216.0 - 64.0), (&[Outer, Void], 8.0 - 1.0)],
@@ -203,17 +311,27 @@ fn union_files_an_operand_inside_the_others_cavity_as_its_own_solid() {
     );
 }
 
-/// **Side by side is not an island**: a disjoint union keeps its
-/// components under one solid (the ruled assembly shape), hollow or not.
+/// **Side by side is two pieces too**: a disjoint union is a body of two
+/// solids, and that body is the next boolean's operand — a cut through
+/// both pieces at once leaves both, each notched.
 #[test]
-fn a_disjoint_union_beside_a_hollow_operand_stays_one_solid() {
+fn a_disjoint_union_is_two_solids_and_an_operand() {
     let a = hollow(0.0, 6.0, &[(1.0, 5.0)]);
-    let r = body_of(topo::union(&a, &cube(10.0, 12.0), tol()).expect("the union runs"));
+    let r = union(&a, &cube(10.0, 12.0));
     assert_eq!(r.kind, BooleanResultKind::Assembly);
     assert_grouping(
         &r.body,
-        &[(&[Outer, Void, Outer], 216.0 - 64.0 + 8.0)],
+        &[(&[Outer, Void], 216.0 - 64.0), (&[Outer], 8.0)],
         "side by side",
+    );
+
+    let pair = union(&cube(0.0, 1.0), &brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol())).body;
+    assert_grouping(&pair, &[(&[Outer], 1.0), (&[Outer], 1.0)], "two cubes");
+    let notched = subtract(&pair, &brick((0.5, 3.5), (0.25, 0.75), (0.5, 1.5), tol()));
+    assert_grouping(
+        &notched.body,
+        &[(&[Outer], 1.0 - 0.125), (&[Outer], 1.0 - 0.125)],
+        "both pieces notched",
     );
 }
 
@@ -226,14 +344,14 @@ fn intersect_of_a_hollow_operand_leaves_one_hollow_solid() {
     assert_grouping(&r.body, &[(&[Void, Outer], 125.0 - 64.0)], "∩");
 }
 
-/// **The seamed path files islands too**: B crosses A's cavity wall, so
-/// the two cavities merge, and B's own cavity, sitting in A's material,
+/// **The seamed path is sorted too**: B crosses A's cavity wall, so the
+/// two cavities merge, and B's own cavity, sitting in A's material,
 /// stands inside the merged cavity as an island.
 #[test]
 fn a_seamed_subtract_files_the_island_inside_the_merged_cavity() {
     let a = hollow(0.0, 6.0, &[(2.0, 4.0)]);
     let b = hollow(3.0, 5.5, &[(4.5, 5.0)]);
-    let r = body_of(topo::subtract(&a, &b, tol()).expect("the subtraction runs"));
+    let r = subtract(&a, &b);
     assert_eq!(r.kind, BooleanResultKind::Seamed);
     assert_grouping(
         &r.body,

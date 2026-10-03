@@ -1035,6 +1035,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "SolidOuterShells".to_owned(),
+        ValidationError::SolidOuterShells { solid, outer: 2 },
+    ));
 
     // Tier 3′: the census.
     for contact in census_contacts() {

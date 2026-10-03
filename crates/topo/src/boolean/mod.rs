@@ -91,7 +91,6 @@ mod ellipse_roots;
 pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
-mod islands;
 mod join;
 mod ops;
 pub(crate) mod section_cert;
@@ -2047,6 +2046,11 @@ pub enum BooleanError {
     /// bitwise-identical inputs make this unreachable for well-formed
     /// grafts; loud, never a dangling reference).
     GraftRecertify(geom_brep::CertifyError),
+    /// The result sort could not read which piece of material a shell
+    /// of the result belongs to ([`crate::pieces`]): a solid is one
+    /// piece, and the result is not handed back under a guessed
+    /// grouping.
+    Pieces(crate::pieces::PieceSortError),
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -2186,6 +2190,8 @@ pub enum BooleanErrorKind {
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
     GraftRecertify,
+    /// [`BooleanError::Pieces`].
+    Pieces,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -2349,6 +2355,7 @@ impl BooleanError {
             Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
+            Self::Pieces(_) => BooleanErrorKind::Pieces,
         }
     }
 }
@@ -2909,6 +2916,7 @@ impl core::fmt::Display for BooleanError {
                     e.render(geom_brep::recourse::Reading::Build)
                 )
             }
+            Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
         }
     }
 }
@@ -4321,7 +4329,7 @@ mod tests {
     /// enums and `&'static str` — everything the projection can be
     /// checked on without reaching into another crate's error type.
     /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
-    /// `Revert`, `GraftRecertify`, `CrossingInsertion`) are absent by
+    /// `Revert`, `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
     /// the same rule.
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4635,6 +4643,7 @@ mod tests {
                 BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
+                BooleanErrorKind::Pieces => "Pieces",
             }
         }
         /// The variant name `Debug` opens with.
