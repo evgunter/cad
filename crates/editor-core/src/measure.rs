@@ -43,7 +43,8 @@
 //! comes out. A rule change in `expr.rs` therefore reaches this
 //! language automatically; a second copy of the F1 table would drift.
 
-use geom_core::Decide;
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite};
+use geom_core::{Decide, SizedPass};
 
 use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING};
 
@@ -582,10 +583,9 @@ impl core::fmt::Display for MeasureUnavailableAt {
             Self::NeedsEnclosure { verb, scalar, door } => write!(
                 f,
                 "`{verb}` answers with a certified enclosure, which only the {interval} \
-                 scalar's engine computes, so a {scalar} build has no answer to give: a pair a \
-                 point search finds is an upper bound on the minimum rather than the minimum. \
-                 Evaluate the document at the {interval} scalar over a parameter box, where \
-                 `{door}` computes the bracket",
+                 scalar computes; a {scalar} point search finds an upper bound on the minimum, \
+                 not the minimum. Recourse: evaluate the document at the {interval} scalar \
+                 over a parameter box, where `{door}` computes the bracket",
                 interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
         }
@@ -825,12 +825,24 @@ impl<T> AssertionVerdict<T> {
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]), which is a
 /// value and not a failure, and therefore reaches here rather than
 /// poisoning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// `Eq` is not derived: the undecided arm keeps the escalation, whose
+// reporting margin is floating point.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnevaluatedReason {
     /// The margin between measured and bound landed in the sliver
     /// band: the run's tolerance cannot separate them, and guessing a
     /// side would manufacture the certainty the band exists to deny.
-    Indeterminate,
+    ///
+    /// **It keeps the escalation**, so the refusal ends through
+    /// [`ASSERT_BOUND_DECISION`] with the value its own margin gives
+    /// (D4 ¶1 (i)) rather than offering an unvalued tighten that a
+    /// poisoned margin and an enclosure straddling zero would both
+    /// receive.
+    Indeterminate {
+        /// The escalation of the measured-versus-bound decision, with
+        /// the reporting margin it was classified on.
+        cause: geom_core::Indeterminate,
+    },
     /// The measure has no value at this build's scalar, and says why.
     /// E10's third state used for exactly what it is for: the
     /// requirement is recorded, the run cannot answer it, and neither
@@ -941,9 +953,11 @@ impl Certified {
 impl core::fmt::Display for UnevaluatedReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Indeterminate => f.write_str(
-                "the measured value and the bound are not separated at this run's tolerance, \
-                 so the assertion has no verdict — tighten the tolerance or move the bound",
+            Self::Indeterminate { cause } => write!(
+                f,
+                "the measured value and the bound are not separated at this tolerance, so the \
+                 assertion has no verdict. {}",
+                ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
             Self::WindowSuperset {
@@ -952,11 +966,9 @@ impl core::fmt::Display for UnevaluatedReason {
                 recourse,
             } => write!(
                 f,
-                "this verdict would be read off the enclosure's {endpoint} endpoint, which \
-                 `{verb}` certifies only over the carrier WINDOWS — a superset of the trimmed \
-                 faces the measure names — so a window pair neither face occupies could decide \
-                 it. The opposite verdict on this same bound is still available and still \
-                 gates. Recourse: {recourse}"
+                "this verdict would be read off the {endpoint} end of an enclosure `{verb}` \
+                 certifies only over carrier windows, a superset of the faces the measure \
+                 names. The opposite verdict on this bound still gates. Recourse: {recourse}"
             ),
         }
     }
@@ -1053,8 +1065,8 @@ pub(crate) fn decide_assertion<T: Decide>(
                 refuse(upper)
             }
         }
-        Err(_) => AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::Indeterminate,
+        Err(cause) => AssertionVerdict::Unevaluated {
+            reason: UnevaluatedReason::Indeterminate { cause },
         },
     }
 }
@@ -1062,6 +1074,23 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// The funnel site name of the assertion comparison. A roster carrier
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
+
+/// **The assertion's own decision**, as the one ending table reads it
+/// (D4 ¶1 (i)): the comparand is `measured − bound` and BOTH definite
+/// signs are verdicts — at the bound exactly a non-strict relation holds
+/// — so the only refused arm is the undecided one, and the lever is the
+/// bound the document names. A smaller tolerance decides an in-band
+/// margin, so the offer is valued from that margin; a straddling
+/// enclosure and an unreadable margin get the lever alone, which is the
+/// defect this spelling closes.
+pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
+    lever: "move the bound",
+    size: "difference",
+    passes: SizedPass::AnySign,
+    // The stored description the lever edits IS the asserted bound.
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// A negation over `e`, built past the constructors, which refuse it
 /// past the bound.

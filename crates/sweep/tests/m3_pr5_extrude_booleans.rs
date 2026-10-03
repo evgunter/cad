@@ -13,6 +13,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate,
@@ -33,9 +34,16 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: height,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The two-brick trace on extrude-built operands: all three ops, tier

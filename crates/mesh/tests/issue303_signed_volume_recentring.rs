@@ -26,6 +26,7 @@ use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 fn plane_at(offset: f64) -> SketchPlane<f64> {
@@ -51,7 +52,14 @@ fn mesh_or_typed(
             return None;
         }
     };
-    let body = match extrude(&vp, Extrusion::Distance(h), Tol::witness()) {
+    let body = match extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    ) {
         Ok(x) => x.body,
         Err(e) => {
             println!("{label}: typed refusal at extrude: {e:?}");

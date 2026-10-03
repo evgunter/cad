@@ -97,11 +97,12 @@
 //! the floor otherwise. Uniqueness in this module and completeness
 //! there are two theorems, and neither is doing the other's work.
 //!
-//! An enclosure that **straddles** zero at the chain's box size is not
-//! a resolution failure to retry: two branches passing within the band
-//! of each other is a genuine sliver of the operand pair, and F6's
-//! ladder says escalate. That is `ssi_tube_transversality` landing in
-//! `Sign::Zero`, and it refuses toward C7.
+//! An enclosure that **straddles** zero at every rung escalates, typed,
+//! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and
+//! refuses toward C7. Two branches passing within the band of each
+//! other is a genuine sliver of the operand pair, where F6's ladder says
+//! escalate; the enclosure's remaining slack can also straddle, and
+//! escalates the same way.
 //!
 //! # The witness is unchanged
 //!
@@ -161,7 +162,7 @@ pub const SSI_TUBE_RADIUS: f64 = 8.0;
 /// (D9): no value branch chooses it, the first rung that certifies
 /// wins, and if none does the operation refuses typed rather than
 /// shipping a carrier whose component-selection claim is unproved.
-fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> {
+pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> {
     let floor = SSI_TUBE_RADIUS * band.zero();
     (0..SSI_TUBE_RUNGS).filter_map(move |k| {
         #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -351,10 +352,9 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                            — refused rather than represented by a midpoint";
     match *s {
         Surface::Plane { origin, normal, .. } => {
-            let (Some(point), Some(normal)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([normal.x, normal.y, normal.z]),
-            ) else {
+            let (Some(point), Some(normal)) =
+                (exact3(origin.to_array()), exact3(normal.to_array()))
+            else {
                 return Err(WIDENED);
             };
             Ok((
@@ -364,9 +364,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ))
         }
         Surface::Sphere { center, radius, .. } => {
-            let (Some(center), Some(radius)) =
-                (exact3([center.x, center.y, center.z]), exact(radius))
-            else {
+            let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
                 return Err(WIDENED);
             };
             Ok((
@@ -383,8 +381,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ..
         } => {
             let (Some(point), Some(axis), Some(radius)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([axis.x, axis.y, axis.z]),
+                exact3(origin.to_array()),
+                exact3(axis.to_array()),
                 exact(radius),
             ) else {
                 return Err(WIDENED);
@@ -831,17 +829,15 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let mut count = 0u32;
     for ChartWindow { rect, mid } in windows {
         let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-        let du = boxes.deriv_box(u0, u1, v0, v1, true);
-        let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
         let t = pcurve.deriv(T::from_f64(mid));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        // A positive finite norm and a nonzero direction. The norm alone
-        // cannot see a zero tangent: the outward `sqrt` of an exact `0`
-        // is the smallest subnormal, so the zero shows as `(tx, ty)`.
+        // A positive finite norm and a nonzero direction: a lane whose
+        // root pads an exact `0` outward reads a zero tangent as a
+        // positive norm, so the zero is asked of `(tx, ty)` too.
         // The tangent is the pcurve's alone, so an unusable one refuses
         // at this rung rather than sending the ladder down rungs that
         // read the same tangent.
@@ -850,7 +846,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(n, du, dv, (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
+        else {
             return Ok(None);
         };
         if margin < worst {
@@ -1327,6 +1324,33 @@ mod tests {
                 ),
                 "a chart constant across the locus answered {verdict:?} instead of \
                  refusing by name"
+            );
+        }
+
+        /// **A chart constant across the locus refuses by name when its
+        /// net is not one point.** Rows `a, a` and `b, b`: `S_v` is exactly
+        /// zero and `S_u` is not. The tube windows are cut below the span,
+        /// and `a − c`, `b − c` do not round exactly, so the cut box alone
+        /// reads `S_v` as a few ulps around zero rather than zero; met with
+        /// the whole cell's exact zero, the stretch along e⊥ = `e_v` is
+        /// zero again and the probe names the degeneracy rather than
+        /// reporting a margin of 0.
+        #[test]
+        fn a_chart_constant_across_the_locus_refuses_on_a_net_that_is_not_one_point() {
+            let a = Point3::new(iv(0.1), iv(0.1), iv(0.1));
+            let b = Point3::new(iv(0.7), iv(0.7), iv(0.7));
+            let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
+                .expect("a patch a caller can build");
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let verdict = probe_tube_chart(&u_line(), &ridge, normal, (0.01, 0.01));
+            assert!(
+                matches!(
+                    verdict,
+                    Err(SsiError::TubeDegenerate(
+                        TubeDegeneracy::WallConstantAcrossLocus
+                    ))
+                ),
+                "a chart constant along v answered {verdict:?} instead of refusing by name"
             );
         }
 

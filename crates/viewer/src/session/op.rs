@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
-    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, Label, LoopProgram,
+    Maintenance, ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -508,8 +508,9 @@ pub enum SessionOp {
     /// does. The program itself, and `ids`' shape, are the edit door's
     /// to judge, and refuse in its words ([`Refusal::Edit`]).
     ///
-    /// A name on a step the program does not keep is stranded, and the
-    /// door's report of it rides [`OpOutcome::maintenance`];
+    /// A name on a step the program does not keep, or on a kept step's
+    /// piece it stops drawing, is stranded, and the door's report of it
+    /// rides [`OpOutcome::maintenance`];
     /// [`crate::session::DocSession::edit_profile_report`] reads the
     /// same rows before the op is performed.
     ///
@@ -534,14 +535,13 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// A NEGATIVE distance is admitted deliberately and builds: it is
-    /// an extrusion along the negative sketch normal, the same value
-    /// the property panel can author into the slot afterwards, and
-    /// the door does not narrow what the vocabulary means.
+    /// The extrude goes along the sketch normal. The distance is a
+    /// depth: the door inserts what it is given, and a negative one
+    /// refuses at evaluation, naming the side as its recourse.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// The extrusion distance (`Length`).
+        /// The extrusion depth (`Length`).
         distance: Expr,
     },
     /// Insert one revolve of an existing profile node about an
@@ -570,11 +570,10 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// **A contact is declared in the same action or not at all.** No
-    /// edit attaches a declaration to a live node, so an empty
-    /// `declare` authors the node's `declare` as `None` and a non-empty
-    /// one commits a `Node::Declare` of exactly those findings and then
-    /// the boolean naming it — one action, one undo. The door evaluates
+    /// **The findings become the boolean's own declared pairs**: an
+    /// empty `declare` authors an undeclared boolean, and a non-empty
+    /// one a boolean carrying exactly those findings' pairs — one
+    /// insert, one undo. The door evaluates
     /// the boolean before recording it, and one that refuses an
     /// undeclared contact of its own is not committed:
     /// [`Refusal::Contact`] carries the kernel's finding back, and its
@@ -827,6 +826,28 @@ pub enum SessionOp {
         /// Which part, by the identity every reference to it carries.
         id: DocumentId,
     },
+    /// **Rename a node**: set its label, or clear it with `None`
+    /// (DESIGN.md Band 1, "Node labels") — one `DocEdit::SetLabel`,
+    /// one undo. A label is document data beside the node, so this
+    /// recomputes nothing. Writing the label the node already has is
+    /// no action and costs no undo step.
+    SetLabel {
+        /// The node renamed.
+        node: RecipeNodeId,
+        /// Its new label, `None` to clear it.
+        label: Option<Label>,
+    },
+    /// **A creation, labelled**: the creation's own edits and then a
+    /// `DocEdit::SetLabel` on the node it created last, as ONE action
+    /// and one undo. The insert carries no label, because what an
+    /// insert carries is what its node's id is minted from; the label
+    /// is the second edit of the same action.
+    CreateLabelled {
+        /// The creation.
+        creation: Creation,
+        /// The label its node is given.
+        label: Label,
+    },
 }
 
 /// **Which VALUE drag an operation names**: the slot or the document
@@ -1001,6 +1022,64 @@ impl GestureName {
 }
 
 impl SessionOp {
+    /// **Whether this operation inserts a node** — what
+    /// [`Creation::of`] admits. Exhaustive with no wildcard arm, so an
+    /// operation added tomorrow says whether it creates.
+    #[must_use]
+    pub fn creates_a_node(&self) -> bool {
+        match self {
+            Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
+            | Self::AddInstance { .. } => true,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
+            | Self::CancelGesture
+            | Self::Undo
+            | Self::Redo
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Open(_)
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::NewDocument { .. }
+            | Self::EditProfile { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => false,
+        }
+    }
+
     /// **Which gesture this operation drives**, or `None` for an
     /// operation that drives none.
     ///
@@ -1067,7 +1146,9 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => None,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => None,
         }
     }
 
@@ -1090,7 +1171,7 @@ impl SessionOp {
     ///
     /// **This section is scoped to the tree as it stands.** DI5
     /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one `DocEdit::SetPlacement` and that
+    /// a free-move gesture emits one `DocEdit::SetOffset` and that
     /// `DisplayState::moves` empties, because a committed frame
     /// becomes document data. When that lands,
     /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
@@ -1273,7 +1354,10 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => false,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. } => false,
+            // A labelled creation is its creation, labelled.
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
     }
 
@@ -1390,8 +1474,45 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => true,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. } => true,
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
+    }
+}
+
+/// **An operation that creates a node** — the only operation
+/// [`SessionOp::CreateLabelled`] labels, so a label can never be handed
+/// to an operation that has no node to give it.
+#[derive(Clone, Debug)]
+pub struct Creation(Box<SessionOp>);
+
+impl Creation {
+    /// `op` as a creation, or `op` back when it creates no node.
+    ///
+    /// # Errors
+    ///
+    /// The operation itself, when it is not one of the creating
+    /// operations.
+    pub fn of(op: SessionOp) -> Result<Self, Box<SessionOp>> {
+        let op = Box::new(op);
+        if op.creates_a_node() {
+            Ok(Self(op))
+        } else {
+            Err(op)
+        }
+    }
+
+    /// The creating operation.
+    #[must_use]
+    pub fn op(&self) -> &SessionOp {
+        &self.0
+    }
+
+    /// The creating operation, unwrapped.
+    #[must_use]
+    pub fn into_op(self) -> SessionOp {
+        *self.0
     }
 }
 
@@ -1440,19 +1561,18 @@ pub struct OpOutcome {
     /// every edit the action applied, in the order they applied and
     /// each edit's rows in the door's own order.
     ///
-    /// The log keeps only the cluster acts (replay re-applies them and
-    /// re-derives the rest), so this is the one place the other rows —
+    /// The log keeps the edits alone (replay re-applies them, and each
+    /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
-    /// stranded, a declaration left with no consumer — leave the
-    /// session. The chrome words them through
+    /// stranded — leave the session. The chrome words them through
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
     /// several edits (a cascade delete, a profile on a new frame), and
     /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
-    /// carrier it deleted, an orphan it consumed again, a name it moved
-    /// twice. The rows are folded through
-    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// carrier it deleted, a name it moved
+    /// twice. The rows are netted by the action's
+    /// `pncad::document::Recording`, which states which survive,
     /// so this holds what is true of the document the action ended at.
     ///
     /// Empty on every operation that committed nothing, and on a

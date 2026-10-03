@@ -96,7 +96,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -226,8 +226,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result
         // carries NON-EMPTY surviving contacts — the discovered
-        // corner kiss, then the same record re-entered by name through
-        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // corner kiss, then the same record re-entered by name as a
+        // declared pair (the carried v-v arm of `resolve_declarations`,
         // reached nowhere else in the corpus). Registered so a pin can
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
@@ -344,7 +344,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 21] = [
+pub const NODE_KINDS: [&str; 20] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -363,7 +363,7 @@ pub const NODE_KINDS: [&str; 21] = [
     // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
     // cutting tool is one union over 21 pips. Listed as its own row
     // beside `Boolean` because they are two nodes: a pair union keeps
-    // its `declare` input and its `FromA`/`FromB` naming, and a
+    // its `FromA`/`FromB` naming, and a
     // document that carries one carries nothing about the other.
     "Union",
     "Transform",
@@ -396,7 +396,6 @@ pub const NODE_KINDS: [&str; 21] = [
     // pretending coverage — the `Sweep` disposition, for a different
     // reason.
     "Shell",
-    "Declare",
     // M10-2's measurement sinks. Listed because `measured_web` now
     // registers them: the hold-out that kept them off this roster was
     // correct only while no corpus document carried one, and a
@@ -410,9 +409,10 @@ pub const NODE_KINDS: [&str; 21] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
-/// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
-/// corpus document authors, and listing them here would report four
-/// permanent misses rather than covering anything. `SetProgram` is
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
+/// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
+/// and listing them here would report eight permanent misses rather
+/// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -423,12 +423,13 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 18] = [
+pub const EDIT_KINDS: [&str; 20] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
     "SetParam",
     "SetStructuralParam",
+    "SetExtrudeSide",
     "SetExpression",
     "SetDocParam",
     "SetDocParamValue",
@@ -442,6 +443,7 @@ pub const EDIT_KINDS: [&str; 18] = [
     "SetTolerance",
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
+    "SetLabel",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
@@ -509,7 +511,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
                 BooleanOp::Intersect => "Boolean::Intersect",
                 BooleanOp::Subtract => "Boolean::Subtract",
             }];
-            if declare.is_some() {
+            if !declare.is_empty() {
                 v.push("Boolean+Declare");
             }
             v
@@ -567,11 +569,11 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Transform { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Declare { .. }
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. } => Vec::new(),
+        | Node::InstantiatePart { .. }
+        | Node::Gauge { .. } => Vec::new(),
     }
 }
 
@@ -599,11 +601,11 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
-        Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
+        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -616,6 +618,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
+        DocEdit::SetExtrudeSide { .. } => "SetExtrudeSide",
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::SetDocParam { .. } => "SetDocParam",
         DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
@@ -630,8 +633,13 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::SetRoots { .. } => "SetRoots",
-        DocEdit::SetPlacement { .. } => "SetPlacement",
+        DocEdit::SetOffset { .. } => "SetOffset",
+        DocEdit::SetGauge { .. } => "SetGauge",
+        DocEdit::Promote { .. } => "Promote",
+        DocEdit::Fold { .. } => "Fold",
         DocEdit::UpdateReference { .. } => "UpdateReference",
+        DocEdit::SetLabel { .. } => "SetLabel",
+        DocEdit::SetDeclare { .. } => "SetDeclare",
     }
 }
 
@@ -665,12 +673,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d
-            .edits
-            .iter()
-            .map(|e| &e.edit)
-            .chain(std::iter::once(&d.bump))
-        {
+        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node } = e {
                 note(node, &mut seen_n, &mut seen_s);

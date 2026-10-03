@@ -292,39 +292,30 @@ fn the_plane_hosted_shape_reaches_either_material_side() {
     }
 }
 
-/// **The shape has no NATIVE revolve instance.** A full revolve of a
-/// pole-touching profile is the wire case, which sweeps every segment
-/// of the loop in two π-bands — the split is a property of the BODY,
-/// not of the segment, so a plane annulus that does not touch the axis
-/// is minted as two half-annuli just the same. The spec's own "dome on
-/// a wider flat top" is therefore the ordinary seam-split annulus:
-/// TWO planar supports, valence-4 crossings, and it carves today.
+/// **A pole-touching revolve builds each plane wall whole**, the
+/// annulus that does not touch the axis included: the boss's flat top
+/// is ONE face whose inner circle is a ring (`crates/sweep/README.md`,
+/// "Walls: one per run"), so its dome rim is the ring-hosted ladder rim
+/// below, as built.
 #[test]
-fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
+fn a_pole_touching_revolve_builds_its_plane_walls_whole() {
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
         let body = boss(up, tol());
         assert_eq!(
             body.faces().count(),
-            8,
-            "{name}: four profile segments, every one of them split in two"
+            6,
+            "{name}: base disc and flat top whole, cylinder and dome in π halves"
         );
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         assert_full_revolve_rim(&arcs, name);
+        let hosts = planar_supports(&body, &arcs);
+        assert_eq!(hosts.len(), 1, "{name}: the flat top is one face");
         assert_eq!(
-            planar_supports(&body, &arcs).len(),
-            2,
-            "{name}: the flat top is TWO half-annuli, not one face"
+            body.get_face(hosts[0]).unwrap().rings.len(),
+            1,
+            "{name}: an annulus"
         );
-        for v in rim_vertices(&body, &arcs) {
-            assert_eq!(
-                body.edges_of_vertex(v).unwrap().len(),
-                4,
-                "{name}: a crossing carries a co-surface seam per SIDE"
-            );
-        }
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name} is the seam-split annulus and carves, got {e:?}"));
     }
 }
 

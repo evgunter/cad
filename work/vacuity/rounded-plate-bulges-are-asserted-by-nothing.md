@@ -31,7 +31,7 @@ reds nothing.** Both consuming suites stay green:
 8 passed 0 failed with the plant in).
 
 The plate is not inert in every direction. **Doubling it in `x`** reds
-`n3r1_prune::n3r1_prune_corpus_examines_98_pairs_and_loses_no_accepted_one`,
+`n3r1_prune::n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one`,
 whose hard count moves — so the corpus counts the pairs the rounded
 plate contributes, and that is all it does with them. In
 `s16_box_soundness` **neither** plant reds anything: the size plant

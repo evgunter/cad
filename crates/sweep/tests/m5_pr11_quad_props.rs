@@ -16,8 +16,9 @@
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
-use topo::splitting::{SplitPart, SplitPlane, split};
+use topo::splitting::{SplitPart, split};
 use topo::{Body, validate_geometric};
 
 const R: f64 = 0.5;
@@ -35,13 +36,21 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, H / 2.0),
-        normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
-    };
+    let cylinder = extrude(
+        &disc(),
+        Extrusion::Distance {
+            depth: H,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, H / 2.0),
+        Vec3::new(PHI.sin(), 0.0, PHI.cos()),
+        geom_core::Tol::witness(),
+    );
     let result =
         split(&cylinder, &plane, Tol::witness()).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
@@ -229,13 +238,21 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(d(H)), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(d(0.0), d(0.0), d(H / 2.0)),
-        normal: Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
-    };
+    let cylinder = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: d(H),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let plane = topo::test_support::split_plane(
+        Point3::new(d(0.0), d(0.0), d(H / 2.0)),
+        Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {
         panic!("above carries material");

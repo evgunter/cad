@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
@@ -53,40 +54,42 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
-    let plane = insert(&mut doc, fixture::xy_frame());
-    let outer_profile = insert(&mut doc, square(plane, 2.0));
+    let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 2.0)));
     let outer = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: outer_profile,
             distance: len(2.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
-    let inner_profile = insert(&mut doc, square(plane, 1.0));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
     let inner = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: inner_profile,
             distance: len(1.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
     let cut = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
-            declare: None,
-        },
+            declare: Vec::new(),
+        }),
     );
     let downstream = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
-            declare: None,
-        },
+            declare: Vec::new(),
+        }),
     );
     (doc, cut, downstream)
 }
@@ -160,7 +163,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(tagged(7)),
+        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -203,10 +206,10 @@ fn refusals_render_as_prose_not_debug_guts() {
         "{message}"
     );
     assert!(
-        message.contains("Boolean refused an undeclared contact"),
+        message.contains("Boolean refused an undeclared coincidence"),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
+    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
         "UndeclaredCoincidence",
         "UndeclaredContact",
@@ -249,11 +252,11 @@ fn refusals_render_as_prose_not_debug_guts() {
         ),
     ] {
         let message = EditError::MetaUnversioned {
-            name: editor_core::StableName {
+            name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
                 node: RecipeNodeId(tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
-            },
+            }),
             key: "provenance".to_string(),
             error,
         }
@@ -551,8 +554,8 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "vertex name",
-                "node 000000000005 was deleted",
+                "vertex name minted by node 000000000005",
+                "its minting node was deleted",
                 "explicit rebind",
             ],
         ),
@@ -578,7 +581,10 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ],
         ),
         (
-            PlacementRuleFault::CountSpelling.to_string(),
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            }
+            .to_string(),
             &["disagree about how many placements"],
         ),
         (

@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
@@ -39,6 +40,7 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -57,9 +59,11 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -282,7 +286,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetPlacement` on a multi-solid instance moves ALL of its
+/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
 /// solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.
@@ -301,9 +305,11 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
         },
     );
     assert_ne!(
@@ -379,7 +385,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the mint gives the part's nodes or steps other ids; the VOLUME bits
 /// and the solid count beside it are id-free, which is the half of this
 /// row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 6_104_778_039_035_903_067;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 255_888_501_987_147_043;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

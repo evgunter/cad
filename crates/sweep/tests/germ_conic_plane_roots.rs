@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::germ_pair::{cyl, spin};
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
@@ -39,9 +40,16 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the box extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the box extrudes")
+    .body
 }
 
 fn volume(b: &Body<f64>) -> f64 {

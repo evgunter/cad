@@ -4,7 +4,7 @@
 //!
 //! The unit cube with its `y = 0` wall restated as a described degree-2
 //! NURBS net on the same plane: the wall's four edges are plane × NURBS
-//! `Intersection`s minted through `Body::set_edge_curve_nurbs_lane`, and
+//! `Intersection`s minted through `Body::set_edge_curve`, and
 //! the other eight are plane × plane `Intersection`s, so no edge keeps
 //! the construction's scaffolding description.
 //!
@@ -54,8 +54,9 @@ where
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {
-        let s1 = topo::test_support::face_surface_of_he(&body, edge.he_plus);
-        let s2 = topo::test_support::face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = topo::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
         let p0 = *body
@@ -74,7 +75,7 @@ where
         let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
         ));
-        body.set_edge_curve_nurbs_lane(
+        body.set_edge_curve(
             edge_key,
             geom_brep::EdgeCurveSpec {
                 description,

@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
@@ -42,6 +43,7 @@ fn exemplar(
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
@@ -113,22 +115,12 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_a),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_a.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let loaded_b = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_b),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_b.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -280,7 +272,7 @@ fn row4_metadata_edit_moves_pin() {
         DocEdit::SetAppearanceMeta {
             name: body,
             key: "tool.example/pin-row".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     assert_ne!(content_pin(&annotated, Tol::witness()).unwrap(), before);

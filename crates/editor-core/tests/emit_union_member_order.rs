@@ -31,6 +31,7 @@ use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
 use crate::fixture::{ends, fname, insert, len, member_face, on_frame, point, table};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, EntityKey, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
@@ -66,6 +67,7 @@ fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, slab, rib)
@@ -85,7 +87,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = crate::fixture::union_over(doc, &members, None);
+    let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
     (run(&doc), u, [x, y])
 }
 
@@ -265,7 +267,7 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                     doc,
                     Node::Union {
                         members: p.iter().map(|&i| m[i]).collect(),
-                        declare: None,
+                        declare: Vec::new(),
                     },
                 );
                 let ev = run(&doc);
@@ -315,7 +317,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         )
     };
@@ -399,7 +401,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         doc = d;
@@ -409,7 +411,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         doc,
         Node::Union {
             members: vec![rib, turned],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     ids.push(("union node", node));
@@ -454,7 +456,7 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
             let pairs = flush_pairs(&doc, (a, a), (b, b));
-            let (doc, u, _) = declared_union(doc, &members, pairs);
+            let (doc, u) = declared_union(doc, &members, pairs);
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()

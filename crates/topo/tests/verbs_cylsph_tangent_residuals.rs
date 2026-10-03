@@ -1,30 +1,22 @@
-//! **#974's residual one-sign story, measured.**
+//! **The coaxial cylinder×sphere pair's residual one-sign story,
+//! measured.**
 //!
-//! `boolean::rest::tangent_locus`'s CONTRACT is the separation
+//! `geom_brep::tangent_locus`'s CONTRACT is the separation
 //! invariant: every configuration the lane mints a locus for has each
-//! carrier wholly in ONE closed residual half-space of the other. #974
-//! recorded the coaxial cylinder×sphere circle arm as blocked on that
-//! story, on the grounds that its residuals are "one-signed in OPPOSITE
-//! orientations per direction".
-//!
-//! Both halves of that are measured here, and the measurement changes
-//! what the sentence means:
+//! carrier wholly in ONE closed residual half-space of the other.
 //!
 //! 1. The coaxial tangency (`R = r`, sphere centre on the axis) IS
 //!    one-signed in each direction — the sphere never leaves the
 //!    cylinder's closed inside, the cylinder never enters the sphere's
 //!    closed inside. The invariant HOLDS.
-//! 2. The orientations are indeed opposite. But the pair the lane
-//!    ALREADY admits under its internal `|r1 − r2|` fallback — two
-//!    internally tangent parallel cylinders — has exactly the same
-//!    opposite-orientation structure, so opposite orientations cannot
-//!    be what disqualifies a configuration from this contract.
+//! 2. The orientations are opposite. The pair the lane already admits
+//!    under its internal `|r1 − r2|` fallback — two internally tangent
+//!    parallel cylinders — has the same opposite-orientation structure,
+//!    so opposite orientations do not disqualify a configuration from
+//!    this contract.
 //!
-//! What still blocks the arm is downstream and structural, and is
-//! stated at `tangent_locus` itself: `TangentLocus` carries a LINE
-//! only, its consumers read a locus DIRECTION, and none has a circle
-//! story. This suite deliberately makes no claim about that half — it
-//! measures the residual story and nothing else.
+//! What keeps the circle arm out is stated at `tangent_locus` itself;
+//! this suite measures the residual story and nothing else.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -124,7 +116,7 @@ fn the_coaxial_tangency_is_one_signed_in_both_directions() {
     let b = one_signed("cylinder against the sphere", &cylinder_vs_sphere);
     assert_eq!(a, -1, "the sphere is inside the cylinder");
     assert_eq!(b, 1, "the cylinder is outside the sphere");
-    // And the orientations are OPPOSITE, exactly as #974 recorded.
+    // And the orientations are OPPOSITE.
     assert_ne!(a, b);
 }
 
@@ -151,7 +143,12 @@ fn the_admitted_internal_cylinder_tangency_has_the_same_orientation_shape() {
     assert_eq!(b, 1);
     assert_ne!(a, b, "the admitted pair has opposite orientations too");
     // The lane really does admit it: the internal fallback mints.
-    let got = topo::tangent_locus(&big, &small, Band::linear(Tol::witness()).unwrap());
+    let got = geom_brep::tangent_locus(
+        &big,
+        &small,
+        geom_brep::ExtentBall::new(Point3::origin(), 2.0),
+        Band::linear(Tol::witness()).unwrap(),
+    );
     assert!(
         got.is_ok(),
         "the internally tangent parallel pair is admitted: {got:?}"

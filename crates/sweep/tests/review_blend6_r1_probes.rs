@@ -173,6 +173,7 @@ fn seeds() -> Vec<BlendError> {
             face: FaceKey::default(),
             chain: sweep::blend::Convexity::Convex,
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+            bounded: false,
         },
         BlendError::Certify {
             site: "blend face pcurves",

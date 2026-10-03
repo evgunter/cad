@@ -45,6 +45,7 @@ use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
 };
@@ -461,12 +462,6 @@ fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
-}
-
-/// The face on a half-edge's side.
-fn face_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
-    let h = body.get_half_edge(he)?;
-    Some(body.get_loop(h.parent_loop)?.face)
 }
 
 /// The sample parameters of a link, and its carrier.
@@ -910,10 +905,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     kind: BlendKind,
 ) -> Result<Link<T>, BlendError> {
     let broken = || BlendError::ChainNotConnected { edge };
-    let e = body.get_edge(edge).ok_or_else(broken)?;
-    let (he_plus, he_minus) = (e.he_plus, e.he_minus);
-    let face_a = face_of(body, he_plus).ok_or_else(broken)?;
-    let face_b = face_of(body, he_minus).ok_or_else(broken)?;
+    let sides = topo::readback::edge_sides(body, edge).map_err(|_| broken())?;
+    let he_plus = sides.plus.half_edge;
+    let (face_a, face_b) = sides.faces();
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
@@ -1637,21 +1631,30 @@ pub fn run_battery_for<T: Decide + Bounds>(
 /// stored arena keys, so a co-surface seam is recognized by identity
 /// rather than by comparing two placed surfaces for equality.
 fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey, SurfaceKey)> {
-    let e = body.get_edge(edge)?;
-    let a = body.get_face(face_of(body, e.he_plus)?)?.surface;
-    let b = body.get_face(face_of(body, e.he_minus)?)?.surface;
+    let (a, b) = topo::readback::edge_sides(body, edge).ok()?.surfaces();
     Some(if a <= b { (a, b) } else { (b, a) })
 }
 
 /// **A chart-seam vertex, recognized structurally** — the point where a
 /// CLOSED rim was cut by the chart seams of its own two supports.
 ///
-/// Its shape, and the whole of it: four incident edges, of which two are
-/// CO-SURFACE seams (one surface on both sides, so the dihedral there is
-/// zero by construction and not by measurement — the same structural
-/// reading S10/S11 require of every sense question), and the other two
-/// carry ONE support pair between them, i.e. the same rim arriving and
-/// leaving.
+/// Its shape, and the whole of it: two incident edges carrying ONE
+/// support pair between them, i.e. the same rim arriving and leaving,
+/// and beside them one or two CO-SURFACE seams (one surface on both
+/// sides, so the dihedral there is zero by construction and not by
+/// measurement — the same structural reading S10/S11 require of every
+/// sense question). Two where both supports are periodic walls cut at
+/// their seams; one where a support is a whole face carrying both arcs —
+/// a full revolve's plane disc or annulus, which has no seam to cut it.
+/// The one-seam reading also needs `topo::query::rim_of` to list the
+/// rim through this vertex: an open run of cocircular arcs swept beside
+/// a whole face (one arc of a D's rim) has the same orbit at its
+/// station, and there the recourse's "request the rim whole, `rim_of`
+/// lists it" would be false — so the reading asks that door itself:
+/// `rim_lists(seed, arcs)` is the caller's `rim_of` read, true iff the
+/// rim it lists from `seed` holds every one of `arcs` (passed in, since
+/// that door wants `Bounds` and this classifier is generic over
+/// [`Decide`] alone).
 ///
 /// The two families must be the SAME geometry, not merely the right
 /// counts: each seam's surface has to be one of the rim's own two
@@ -1673,7 +1676,8 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 ///
 /// - **here** — a REFUSAL classifier over a chain end's edge orbit. It
 ///   reads incidence and nothing else: no convexity, no arm, no
-///   support-face resolution. It is the WEAKEST of the three, and that
+///   support-face resolution (the one-seam arm adds `rim_of`'s answer,
+///   itself a read of stored incidence and carrier bits). It is the WEAKEST of the three, and that
 ///   is load-bearing rather than incidental — a tag that fired only
 ///   where the carve succeeds could not name a door in its recourse at
 ///   all, and the price is that the recourse must be TRUE ON BOTH
@@ -1693,9 +1697,13 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// do, and more. Anything that narrows it must narrow the recourse with
 /// it; anything that widens the other two must not silently assume this
 /// one already screened it.
-fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
+fn is_seam_vertex<T: Decide>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    rim_lists: impl FnOnce(EdgeKey, &[EdgeKey]) -> bool,
+) -> bool {
     let mut seams: Vec<SurfaceKey> = Vec::new();
-    let mut rim: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut rim: Vec<(EdgeKey, (SurfaceKey, SurfaceKey))> = Vec::new();
     for e in edges {
         let Some((a, b)) = edge_surfaces(body, *e) else {
             return false;
@@ -1703,13 +1711,28 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
         if a == b {
             seams.push(a);
         } else {
-            rim.push((a, b));
+            rim.push((*e, (a, b)));
         }
     }
-    let [(p, q), second] = rim[..] else {
+    let [(arrive, (p, q)), (_, second)] = rim[..] else {
         return false;
     };
-    seams.len() == 2 && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
+    if (p, q) != second || !seams.iter().all(|s| *s == p || *s == q) {
+        return false;
+    }
+    match seams.len() {
+        2 => true,
+        // One seam: a whole face carries the rim on one side, so
+        // nothing about this vertex alone says the rim is CLOSED — one
+        // arc of an open cocircular run (a D's quarter arcs, swept) has
+        // the same orbit, and so do arcs that close on shared vertices
+        // but sit on circles `rim_of` does not read as one (the same
+        // point set stored on bits of its own per arc). The recourse
+        // promises `rim_of` lists the rim, so the reading is THAT
+        // door's answer: both rim arcs here are in the rim it lists.
+        1 => rim_lists(arrive, &rim.iter().map(|(e, _)| *e).collect::<Vec<_>>()),
+        _ => false,
+    }
 }
 
 /// The refusal for a ruled link's end that is not a transverse cap —
@@ -1799,14 +1822,10 @@ pub(super) fn cap_incidence<T: Decide>(
     let [_, _, _] = incident[..] else {
         return None;
     };
-    let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
-        let ed = body.get_edge(e)?;
-        Some((face_of(body, ed.he_plus)?, face_of(body, ed.he_minus)?))
-    };
     let mut rim_a: Option<(EdgeKey, FaceKey)> = None;
     let mut rim_b: Option<(EdgeKey, FaceKey)> = None;
     for e in incident.into_iter().filter(|e| *e != crease) {
-        let (f1, f2) = faces_of(e)?;
+        let (f1, f2) = topo::readback::edge_sides(body, e).ok()?.faces();
         let on = |f: FaceKey| f == face_a || f == face_b;
         let (support, third) = match (on(f1), on(f2)) {
             (true, false) => (f1, f2),
@@ -1869,7 +1888,10 @@ fn corner_at<T: Decide + Bounds>(
     // recognized before the valence is read as a corner configuration —
     // otherwise the refusal describes a wedge that is not there and
     // names a run-out policy that could not help.
-    if is_seam_vertex(body, &edges) {
+    let rim_lists = |seed: EdgeKey, arcs: &[EdgeKey]| {
+        topo::query::rim_of(body, seed).is_ok_and(|listed| arcs.iter().all(|e| listed.contains(e)))
+    };
+    if is_seam_vertex(body, &edges, rim_lists) {
         return Err(super::surgery::unbuilt_corner_config(
             vertex,
             CornerConfig::SeamVertex,
@@ -1981,8 +2003,65 @@ fn corner_at<T: Decide + Bounds>(
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }
 
+/// **What a junction of an open chain is**, read once for every reader:
+/// the open-chain door (`admit::Joint::admit`) refuses each non-joint
+/// arm by name, and predicate 2 groups exactly the [`JointVerdict::Joint`]
+/// junctions into one feature — so the two cannot disagree on which
+/// junctions are joints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum JointVerdict {
+    /// Both links plane–plane, on the same two support faces, at a
+    /// valence-2 vertex: one band the vertex only splits.
+    Joint,
+    /// A link's supports are not two planes.
+    NotPlanar,
+    /// The links lie on different support faces.
+    OtherFaces,
+    /// The vertex carries edges other than the two links.
+    Valence(usize),
+    /// The vertex's edge orbit does not walk.
+    OrbitBroken,
+}
+
+/// Judge the junction at `vertex` between `arriving` and `leaving`.
+pub(super) fn joint_verdict<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    arriving: &Link<T>,
+    leaving: &Link<T>,
+) -> JointVerdict {
+    if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
+        return JointVerdict::NotPlanar;
+    }
+    let mut pa = [arriving.face_a, arriving.face_b];
+    let mut pb = [leaving.face_a, leaving.face_b];
+    pa.sort_unstable();
+    pb.sort_unstable();
+    if pa != pb {
+        return JointVerdict::OtherFaces;
+    }
+    // Two edges between the same two faces close a manifold vertex's
+    // fan, so the valence is two; checked, not inherited.
+    match fan_at(body.edges_of_vertex(vertex)) {
+        None => JointVerdict::OrbitBroken,
+        Some(es) if es.len() != 2 => JointVerdict::Valence(es.len()),
+        Some(_) => JointVerdict::Joint,
+    }
+}
+
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
+///
+/// **A joined run is one feature.** Consecutive links of one chain on
+/// the same two support faces (a joint, `admit::Joint`) are one band
+/// whose setback on each support is ONE trimline, so two links of one
+/// run are never a pair, and the run's adjacency is the run's: an edge
+/// touching either end of the run is its neighbour, as a plain edge's
+/// neighbours are. What a joint itself needs is metered instead: its
+/// foot on each support must lie beyond the trimline of the edge that
+/// meets the run at each end — the corner's own foot is on that
+/// trimline, so a joint short of it would put the band's foot inside
+/// the corner patch.
 fn consumption_sweep<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
@@ -2016,63 +2095,86 @@ fn consumption_sweep<T: Decide + Bounds>(
     let chain_ix = |e: EdgeKey| -> Option<usize> {
         chain_of.iter().find(|(ee, _)| *ee == e).map(|(_, ci)| *ci)
     };
-    for face in faces {
-        let Some(fa) = body.get_face(face) else {
-            continue;
-        };
-        let mut loops = vec![fa.outer];
-        loops.extend(fa.rings.iter().copied());
-        let mut boundary: Vec<(EdgeKey, Vec<Point3<T>>)> = Vec::new();
-        for lp in loops {
-            let Some(topo::LoopBoundary::Cycle { first }) = body.get_loop(lp).map(|l| l.boundary)
-            else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(h) = body.get_half_edge(he) else {
-                    continue;
-                };
-                let Some((c, t0, t1)) = carrier_of(body, h.edge) else {
-                    continue;
-                };
-                let pts = (0..CHAIN_SAMPLES)
-                    .map(|i| c.eval(chain_sample_at(t0, t1, i)))
-                    .collect();
-                boundary.push((h.edge, pts));
+    // The joined runs: each requested edge's run id, a junction of an
+    // open chain whose two links share both support faces joining the
+    // leaving link's run to the arriving one's.
+    let mut run_of: Vec<(EdgeKey, usize)> = Vec::new();
+    // Per joint: (vertex, the arriving link) — what its feet are read
+    // off.
+    let mut joints: Vec<(VertexKey, &Link<T>)> = Vec::new();
+    for chain in chains {
+        let ring: Vec<&Link<T>> = chain.links().collect();
+        let mut ids: Vec<usize> = (0..ring.len()).map(|i| run_of.len() + i).collect();
+        // Joints are an OPEN chain's: a closed rim is carved by the rim
+        // phases, whose arcs this screen meters edge by edge.
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        for j in chain.junctions.iter().filter(|_| open) {
+            let (a, b) = (ring[j.arriving], ring[j.leaving]);
+            if joint_verdict(body, j.vertex, a, b) == JointVerdict::Joint {
+                let (from, to) = (ids[j.leaving], ids[j.arriving]);
+                for id in &mut ids {
+                    if *id == from {
+                        *id = to;
+                    }
+                }
+                joints.push((j.vertex, a));
             }
+        }
+        for (i, l) in ring.iter().enumerate() {
+            run_of.push((l.edge, ids[i]));
+        }
+    }
+    let run =
+        |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
+    let members = |e: EdgeKey| -> Vec<EdgeKey> {
+        match run(e) {
+            Some(r) => run_of
+                .iter()
+                .filter(|(_, rr)| *rr == r)
+                .map(|(ee, _)| *ee)
+                .collect(),
+            None => vec![e],
+        }
+    };
+    let touches = |a: EdgeKey, b: EdgeKey| -> Result<bool, BlendError> {
+        touches_any(body, &members(a), &members(b))
+    };
+    for face in faces {
+        let fa = body.get_face(face).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(face),
+                "a support face, for its boundary pairs",
+            )
+        })?;
+        let mut boundary: Vec<ScreenedEdge<T>> = Vec::new();
+        for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
+            boundary.extend(screened_loop(body, lp)?);
         }
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
-                let (ei, pi) = (&boundary[i].0, &boundary[i].1);
-                let (ej, pj) = (&boundary[j].0, &boundary[j].1);
-                // Adjacent boundary edges TOUCH (gap 0 at the shared
+                let (ei, pi) = (&boundary[i].0, &boundary[i].2);
+                let (ej, pj) = (&boundary[j].0, &boundary[j].2);
+                // Adjacent boundary features TOUCH (gap 0 at the shared
                 // vertex) — their setbacks are judged by the corner
                 // and G1 predicates, not by this one, so the pair is
-                // skipped exactly when the edges share a vertex.
-                if shares_vertex(body, *ei, *ej) {
+                // skipped exactly when the features share a vertex. Two
+                // links of one joined run are one feature, and skipped.
+                if run(*ei).is_some() && run(*ei) == run(*ej) {
                     continue;
                 }
-                // The closest approach of the two sampled boundaries.
-                // Seeded from the FIRST real pair, never from an
-                // infinite sentinel: at the certified scalar an
-                // infinity is the ill-formed interval (NaI), NaI
-                // absorbs through `min`, and every clearance margin
-                // downstream of it escalates `Invalid` — which is what
-                // kept the whole fillet op out of the Interval lane
-                // (and its `fillet3_*` family out of the K corpus)
-                // until the gate caught it. There is always a first
-                // pair here: both sample vectors are non-empty by
-                // construction (`CHAIN_SAMPLES` ≥ 1).
-                let mut pairs = pi
-                    .iter()
-                    .flat_map(|a| pj.iter().map(move |b| (*b - *a).norm()));
-                let Some(first) = pairs.next() else {
+                if touches(*ei, *ej)? {
                     continue;
-                };
-                let gap = pairs.fold(first, T::min);
+                }
+                // The closest approach of the two sampled boundaries,
+                // seeded from a real pair (`CHAIN_SAMPLES` ≥ 1, asserted
+                // at compile time), never from an infinite sentinel: at
+                // the certified scalar an infinity is the ill-formed
+                // interval, which absorbs through `min` and would
+                // escalate every margin downstream of it.
+                let gap = pi
+                    .iter()
+                    .flat_map(|a| pj.iter().map(move |b| (*b - *a).norm()))
+                    .fold((pj[0] - pi[0]).norm(), T::min);
                 let cross_chain = match (chain_ix(*ei), chain_ix(*ej)) {
                     (Some(a), Some(b)) => a != b,
                     _ => false,
@@ -2087,19 +2189,138 @@ fn consumption_sweep<T: Decide + Bounds>(
                 )?;
             }
         }
+        // Each joint on this face: its foot against the trimline of
+        // every boundary edge that meets its run at an end.
+        for (v, link) in &joints {
+            let trim = if link.face_a == face {
+                &link.blend.trim_a.0
+            } else if link.face_b == face {
+                &link.blend.trim_b.0
+            } else {
+                continue;
+            };
+            // A joint is plane–plane by its verdict, and
+            // `arms::plane_plane_blend` mints its trimlines as lines.
+            let Curve3::Line { origin, dir } = trim else {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(link.edge),
+                    detail: "a plane–plane joint's trimline is not a line",
+                });
+            };
+            let p = body
+                .get_vertex(*v)
+                .and_then(|x| body.get_point(x.point))
+                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
+            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let run_edges = members(link.edge);
+            for (e, carrier, _) in &boundary {
+                if run_edges.contains(e) || !touches_any(body, &run_edges, &[*e])? {
+                    continue;
+                }
+                // The run ends at a corner on this PLANE support, so the
+                // end edge is straight unless the corner's third support
+                // is curved — which no corner carves, and which refuses
+                // here as that rather than being sampled.
+                let Curve3::Line { origin: o, dir: d } = *carrier else {
+                    return Err(unbuilt_geometry(
+                        EntityId::Edge(*e),
+                        CORNER_SUPPORT_NOT_PLANAR,
+                    ));
+                };
+                let gap = (foot - o).cross(d).norm() / d.norm();
+                face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
+            }
+        }
     }
     Ok(())
 }
 
-fn shares_vertex<T: Decide>(body: &Body<T>, a: EdgeKey, b: EdgeKey) -> bool {
-    let ends = |e: EdgeKey| -> Option<(VertexKey, VertexKey)> {
-        let edge = body.get_edge(e)?;
-        let s = body.get_half_edge(edge.he_plus)?.start;
-        let t = body.half_edge_end(edge.he_plus)?;
-        Some((s, t))
+/// One boundary edge as predicate 2 reads it: its key, its certified
+/// carrier, and the [`CHAIN_SAMPLES`] points along its window.
+type ScreenedEdge<T> = (EdgeKey, Curve3<T>, [Point3<T>; CHAIN_SAMPLES as usize]);
+
+const _: () = assert!(
+    CHAIN_SAMPLES >= 1,
+    "predicate 2 seeds its gap from a real pair"
+);
+
+/// **One loop of a support face, read whole for predicate 2**: each
+/// boundary edge, in cycle order. Whatever the screen cannot read
+/// refuses here, typed — a feature left out of the pair sweep would
+/// let the screen report a face clear having metered nothing for it.
+fn screened_loop<T: Decide>(
+    body: &Body<T>,
+    lp: topo::LoopKey,
+) -> Result<Vec<ScreenedEdge<T>>, BlendError> {
+    let l = body
+        .get_loop(lp)
+        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's loop"))?;
+    let topo::LoopBoundary::Cycle { first } = l.boundary else {
+        return Err(unbuilt_geometry(
+            EntityId::Loop(lp),
+            "a support face carries a lone-vertex cycle, which the face-clearance screen does \
+             not cover",
+        ));
     };
-    match (ends(a), ends(b)) {
-        (Some((a0, a1)), Some((b0, b1))) => a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1,
-        _ => false,
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's cycle"))?;
+    cycle
+        .into_iter()
+        .map(|he| {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a support face's boundary"))?
+                .edge;
+            let e = body.get_edge(edge).ok_or_else(|| {
+                not_intact(EntityId::Edge(edge), "a support face's boundary edge")
+            })?;
+            let c = body
+                .get_curve_geom(e.curve)
+                .ok_or_else(|| {
+                    not_intact(EntityId::Edge(edge), "a support boundary edge's curve row")
+                })?
+                .certified()
+                .ok_or_else(|| {
+                    unbuilt_geometry(
+                        EntityId::Edge(edge),
+                        "a support face's boundary edge carries no certified carrier",
+                    )
+                })?;
+            let (t0, t1) = c.params();
+            let pts = core::array::from_fn(|i| c.carrier().eval(chain_sample_at(t0, t1, i as u32)));
+            Ok((edge, c.carrier().clone(), pts))
+        })
+        .collect()
+}
+
+/// Whether any edge of `xs` shares an end vertex with any edge of
+/// `ys`. An edge whose ends do not resolve refuses rather than reading
+/// as "apart": apart is what puts a pair INTO the screen, but it is
+/// also what keeps a joint's neighbour OUT of the joint's meter.
+fn touches_any<T: Decide>(
+    body: &Body<T>,
+    xs: &[EdgeKey],
+    ys: &[EdgeKey],
+) -> Result<bool, BlendError> {
+    let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
+        let he = body
+            .get_edge(e)
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a boundary edge, for its ends"))?
+            .he_plus;
+        body.get_half_edge(he)
+            .map(|h| h.start)
+            .zip(body.half_edge_end(he))
+            .map(|(s, t)| [s, t])
+            .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a boundary edge's ends"))
+    };
+    for x in xs {
+        let ex = ends(*x)?;
+        for y in ys {
+            if ends(*y)?.iter().any(|v| ex.contains(v)) {
+                return Ok(true);
+            }
+        }
     }
+    Ok(false)
 }

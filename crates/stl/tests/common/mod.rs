@@ -11,6 +11,7 @@ use geom_core::Tol;
 use geom_core::{OrthoFrame, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
 
@@ -79,23 +80,27 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
 /// mid-height axis point (exact `Ellipse` section carriers; the walls
 /// tessellate through the PR 11 trimmed lane).
 pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 1.0),
         (Point2::new(1.0, 0.0), 1.0),
     ]);
     let cylinder = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(2.5),
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
     .body;
     let phi: f64 = 0.3;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
@@ -116,7 +121,10 @@ pub fn boss_plate() -> Body<f64> {
     ]);
     let plate = extrude(
         &validated(vec![plate_loop]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -131,9 +139,16 @@ pub fn boss_plate() -> Body<f64> {
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.2), Tol::witness())
-        .unwrap()
-        .body;
+    let boss = extrude(
+        &boss_profile,
+        Extrusion::Distance {
+            depth: 1.2,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let out = topo::union(&plate, &boss, Tol::witness()).unwrap();
     match out {
         BooleanResult::Body(bb) => bb.body,
@@ -164,7 +179,10 @@ pub fn az_intersect() -> Body<f64> {
         &Profile::new(xy(-0.0625), vec![a_outline, a_counter])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -189,7 +207,10 @@ pub fn az_intersect() -> Body<f64> {
         )
         .validate(Tol::witness())
         .unwrap(),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -211,7 +232,10 @@ pub fn l_prism() -> Body<f64> {
     ]);
     extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -233,7 +257,10 @@ pub fn holed_prism() -> Body<f64> {
     ]);
     extrude(
         &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

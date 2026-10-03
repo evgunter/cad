@@ -68,3 +68,29 @@ closed types ride under refusals the prelude does not reach as
 payloads: `PlaneRung` (under `CarrierEqError::Escalated`,
 `MergeDecision::DeclaredPlanes` and `BooleanDecision::Neighbours`) and
 `MergeDecision` (under `MergeCoplanarError::Escalated`).
+
+## More rungs (TOPO, PR 3513)
+
+PR 3513 adds, re-exported beside `BooleanDecision`: `Coincide`,
+`DeclarationRead` (what a coincidence's door read of the pair's
+declaration, carried with its `Coincide` by
+`BooleanDecision::Coincidence`), `LeverArm`, `WallRung` and
+`SectionRadius` one rung under `BooleanDecision`; `NeighbourOffset`, carried by
+`BooleanError::CoplanarNeighbours { offset, .. }`; and
+`RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
+The last two are payload rungs of `BooleanError` itself, so the sweep
+counts them, and their disposition is this row.
+
+Its third fix pass adds `SphereQuestion` (under
+`BooleanDecision::Sphere`), `SelfCheck` (under
+`BooleanDecision::SelfCheck`) and `Settling` (under
+`DeclarationRead::Settles`), each one rung under `BooleanDecision`, and
+`PlaneRung::Norm`; `BooleanError::SpheresMeet { verdict }` carries
+`geom_brep::recourse::Refused`, as `CurvedSectorSideUnsupported` does.
+
+CLEAVE (PR 3860) adds `Corruption`, carried by
+`BooleanError::CorruptOperand { corruption, .. }`: `Structure { errors }`
+(tier 1 refused the operand at the operand gate) or `Vertex { vertex }`
+(a traversal failed at that vertex). It is declared in
+`crates/topo/src/boolean/mod.rs` beside `BooleanError`, and is a payload
+rung of `BooleanError` itself, filed here with the others.

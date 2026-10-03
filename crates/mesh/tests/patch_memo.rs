@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_brep::{Pcurve, PcurveCache};
@@ -435,7 +436,10 @@ fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -616,6 +620,22 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                         }
                     }
                 },
+            },
+            // Likewise no cone chart here; `u0` is the one field.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => Pcurve::ConeSection {
+                u0: u0 + TAU,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
             },
         };
         let (t0, t1) = cache.params();

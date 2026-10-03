@@ -295,18 +295,6 @@ fn pi_bracket() -> Interval {
 /// conservative direction.
 const ENCLOSE_DEPTH: usize = 8;
 
-fn ring_sqrt(x: Interval) -> Interval {
-    if !x.is_certified() || x.hi() < 0.0 {
-        return Interval::refused();
-    }
-    let lo = if x.lo() <= 0.0 {
-        0.0
-    } else {
-        x.lo().sqrt().next_down()
-    };
-    Interval::from_bounds(lo, x.hi().sqrt().next_up())
-}
-
 fn ring_abs(x: Interval) -> Interval {
     if !x.is_certified() || x.lo() >= 0.0 {
         x
@@ -370,7 +358,12 @@ fn enclose_indet(
         enclose_form_deep(f, params, atoms, depth + 1)
     };
     let out = match atom.op {
-        SymOp::Sqrt => ring_sqrt(arg(0)?),
+        // A domain restriction, not an outside fact: the tier's `sqrt` is
+        // `Real::sqrt` of the lane value, which has no real value below zero
+        // (NaN at f64, refused at `Interval`), so the atom's real lies over
+        // the radicand's non-negative part alone and enclosing only that part
+        // encloses every value the atom can take.
+        SymOp::Sqrt => arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt(),
         SymOp::Abs => ring_abs(arg(0)?),
         SymOp::Min => ring_min(arg(0)?, arg(1)?),
         SymOp::Max => ring_max(arg(0)?, arg(1)?),

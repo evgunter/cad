@@ -66,6 +66,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
@@ -179,6 +180,7 @@ fn carve(
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     );
     // A selection is stored in name order, which for one rod's edges
@@ -309,7 +311,7 @@ fn lateral_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, vertex: u32) -
 fn wall(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, segment: u32) -> StableName {
     fixture::fname(
         rod,
-        RoleSeg::Lateral(crate::fixture::piece(doc, rod, 0, segment as usize)),
+        RoleSeg::Lateral(crate::fixture::piece(doc, rod, 0, segment as usize).into()),
     )
 }
 

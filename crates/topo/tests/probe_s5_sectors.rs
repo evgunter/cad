@@ -90,18 +90,19 @@ fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> 
 }
 
 fn plane_y(c: f64) -> SplitPlane<Probe> {
-    SplitPlane {
-        origin: Point3::new(
+    topo::test_support::split_plane(
+        Point3::new(
             Probe::from_f64(0.0),
             Probe::from_f64(c),
             Probe::from_f64(0.0),
         ),
-        normal: Vec3::new(
+        Vec3::new(
             Probe::from_f64(0.0),
             Probe::from_f64(1.0),
             Probe::from_f64(0.0),
         ),
-    }
+        geom_core::Tol::witness(),
+    )
 }
 
 #[test]
