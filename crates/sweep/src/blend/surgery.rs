@@ -2949,36 +2949,27 @@ fn rim_carrier<T: Decide>(
 
 /// The scaled trim carrier for the arc REPLACING a rim edge on one
 /// side: same frame, same parameter window, oriented so `he_plus` runs
-/// with that side's loop — reversed by negating the axis and the
-/// window, never by an endpoint `atan2` (π-arc safe).
+/// with that side's loop — reversed by [`Curve3::reversed`] over the
+/// negated window, never by an endpoint `atan2` (π-arc safe).
 fn scaled<T: Real>(
     rc: &RimCarrier<T>,
     center: Point3<T>,
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
+    let circle = Curve3::Circle {
+        center,
+        axis: rc.axis,
+        radius,
+        u_ref: rc.u_ref,
+    };
     if forward {
-        (
-            Curve3::Circle {
-                center,
-                axis: rc.axis,
-                radius,
-                u_ref: rc.u_ref,
-            },
-            rc.t0,
-            rc.t1,
-        )
+        (circle, rc.t0, rc.t1)
     } else {
-        (
-            Curve3::Circle {
-                center,
-                axis: -rc.axis,
-                radius,
-                u_ref: rc.u_ref,
-            },
-            -rc.t1,
-            -rc.t0,
-        )
+        let back = circle
+            .reversed()
+            .unwrap_or_else(|| unreachable!("a circle reverses"));
+        (back, -rc.t1, -rc.t0)
     }
 }
 
