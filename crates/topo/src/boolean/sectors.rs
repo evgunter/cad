@@ -1098,21 +1098,35 @@ fn touch<T: Decide>(
     contacts: &super::ContactRecords,
 ) -> Touch {
     let site = crate::chord_join::null_site(side.body, &[far]);
-    let on_face = match side.operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
-    };
-    if on_face.iter().any(|c| site.contains(&c.vertex)) {
+    if on_faces(contacts, side.operand)
+        .iter()
+        .any(|c| site.contains(&c.vertex))
+    {
         Touch::Face
-    } else if contacts.vv.iter().any(|c| {
-        site.contains(&match side.operand {
-            Operand::A => c.a,
-            Operand::B => c.b,
-        })
-    }) {
+    } else if contacts
+        .vv
+        .iter()
+        .any(|c| site.contains(&vv_sides(c, side.operand).0))
+    {
         Touch::Boundary
     } else {
         Touch::Apart
+    }
+}
+
+/// The recorded contacts of `operand`'s vertices on the partner's faces.
+fn on_faces(contacts: &super::ContactRecords, operand: Operand) -> &[super::VfContact] {
+    match operand {
+        Operand::A => &contacts.a_on_b,
+        Operand::B => &contacts.b_on_a,
+    }
+}
+
+/// A vertex pair's two vertices, `operand`'s first.
+fn vv_sides(c: &super::VvContact, operand: Operand) -> (VertexKey, VertexKey) {
+    match operand {
+        Operand::A => (c.a, c.b),
+        Operand::B => (c.b, c.a),
     }
 }
 
@@ -1136,20 +1150,13 @@ fn tangent_face<T: Decide>(
         return Ok(None);
     };
     let far_site = crate::chord_join::null_site(partner.body, &[far]);
-    let pierced = match partner.operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
-    };
-    let mut far_faces: Vec<FaceKey> = pierced
+    let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
         .iter()
         .filter(|c| far_site.contains(&c.vertex))
         .map(|c| c.face)
         .collect();
     for c in &contacts.vv {
-        let (mine, theirs) = match side.operand {
-            Operand::A => (c.a, c.b),
-            Operand::B => (c.b, c.a),
-        };
+        let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
             far_faces.extend(faces_at(side.body, mine)?);
         }
