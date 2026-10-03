@@ -19,7 +19,8 @@ use crate::common;
 
 use geom_core::{Point3, Tol};
 use topo::{
-    Body, BooleanDecision, BooleanError, LoopBoundary, NeighbourOffset, Operand, PlaneRung,
+    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, NeighbourOffset,
+    Operand, PlaneRung,
 };
 
 /// The brick `[0, 4s]² × [0, s]`, its top face and the first half-edge
@@ -69,6 +70,11 @@ fn a_disc_declared_on_its_hosts_plane_merges_across_the_circle() {
         body.get_face(top).unwrap().surface,
         body.get_face(disc).unwrap().surface,
     );
+    let disc_outline = body.get_face(disc).unwrap().outer;
+    let LoopBoundary::Cycle { first } = body.get_loop(disc_outline).unwrap().boundary else {
+        panic!("the disc's outline is the circle");
+    };
+    let circle_vertex = body.get_half_edge(first).unwrap().start;
     let outcome = body
         .merge_coplanar_faces_declared(&[keys], Tol::witness())
         .unwrap_or_else(|err| panic!("the declared pair glues: {err:?}\n{err}"));
@@ -82,9 +88,9 @@ fn a_disc_declared_on_its_hosts_plane_merges_across_the_circle() {
         "the top absorbs the disc"
     );
     assert_eq!(
-        group.killed_vertices.len(),
-        1,
-        "the circle's vertex goes with it: {group:?}"
+        group.killed_vertices,
+        [circle_vertex],
+        "the circle's vertex goes with it, and only it: {group:?}"
     );
     assert_eq!(body.faces().count(), 6, "the brick has six faces again");
     assert!(
@@ -158,4 +164,77 @@ fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
             && !text.contains("tighten"),
         "the rung ends in the gate's lever alone: {text}"
     );
+}
+
+/// A unit sphere cut at its equator: one closed circle, the whole
+/// outline of each hemisphere, both on one surface key.
+fn hemispheres() -> Body<f64> {
+    let tol = Tol::witness();
+    let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(origin + x, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New {
+            surface: geom::Surface::Sphere {
+                center: origin,
+                radius: 1.0,
+                axis: z,
+                u_ref: x,
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let equator = geom::Curve3::Circle {
+        center: origin,
+        axis: z,
+        radius: 1.0,
+        u_ref: x,
+    };
+    body.mef(
+        topo::MefSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        geom_brep::EdgeCurveSpec::arc_of_circle(equator, 0.0, core::f64::consts::TAU).unwrap(),
+        topo::FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    topo::validate_closed(&body).expect("the cut sphere is a closed solid");
+    body
+}
+
+/// Two faces sharing one closed outline: killing the circle would leave
+/// the survivor's outline a lone vertex. The merge refuses that before
+/// the `kef`, as it refuses a pruned ring that is the outline; the
+/// curved group records it as a skip and the body is left as it was.
+#[test]
+fn two_faces_sharing_one_closed_outline_refuse_before_the_kef() {
+    let mut body = hemispheres();
+    let before: Vec<_> = body.faces().map(|(f, _)| f).collect();
+    let equator = body.edges().map(|(e, _)| e).collect::<Vec<_>>();
+    let outcome = body
+        .merge_coplanar_faces(Tol::witness())
+        .unwrap_or_else(|err| panic!("the run records a skip: {err:?}\n{err}"));
+    assert!(outcome.groups.is_empty(), "nothing merges: {outcome:?}");
+    let [skip] = &outcome.skipped[..] else {
+        panic!("one skip: {outcome:?}");
+    };
+    let mut faces = skip.faces.clone();
+    faces.sort();
+    assert_eq!(faces, before, "the skip names both hemispheres");
+    assert_eq!(
+        skip.reason,
+        MergeCoplanarError::UnsupportedConfiguration { edge: equator[0] },
+        "refused on the equator, before the kef"
+    );
+    assert_eq!(
+        body.faces().map(|(f, _)| f).collect::<Vec<_>>(),
+        before,
+        "the body keeps both hemispheres"
+    );
+    topo::validate_closed(&body).expect("the skipped body is still closed");
 }

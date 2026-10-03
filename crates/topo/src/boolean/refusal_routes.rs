@@ -180,7 +180,7 @@ macro_rules! proximity_lever {
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
     () => {
-        "make the edges at the corner where the two faces meet clearly longer than the tolerance"
+        "make the edges at the corner where the two faces meet span clearly more than the tolerance"
     };
 }
 
@@ -1372,7 +1372,7 @@ pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one \
 
 /// A corner's own shape: its arm and its straightness, the two rungs
 /// of [`SectorRung`], which one move answers.
-const CORNER_LEVER: &str = "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line";
+const CORNER_LEVER: &str = "reshape that corner so its edges span clearly more than the tolerance and are clearly not in line";
 
 /// A sized decision's table row at a build, where the stored arm is
 /// never read.
@@ -2119,14 +2119,14 @@ mod tests {
     }
 
     const LONGER: &str = "Recourse: make the edges at the corner where the two faces meet \
-                          clearly longer than the tolerance";
+                          span clearly more than the tolerance";
 
     /// Each decision's subject and ending, as literals: an independent
     /// statement of the words `subject` and `ending` must produce, on a
     /// margin it can read (`readable`) or a poisoned one.
     fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
-        const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
-                              the tolerance and clearly not in line";
+        const CORNER: &str = "Recourse: reshape that corner so its edges span clearly more than \
+                              the tolerance and are clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
                                lies clearly inside the other";
@@ -3276,7 +3276,7 @@ mod tests {
                              undecided: "
                         ) && text.contains(
                             "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance"
+                             span clearly more than the tolerance"
                         ) && text.contains(if zero {
                             "lies within the zero band"
                         } else {
