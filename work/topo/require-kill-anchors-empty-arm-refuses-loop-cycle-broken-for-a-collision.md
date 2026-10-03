@@ -2,10 +2,12 @@
 id: require-kill-anchors-empty-arm-refuses-loop-cycle-broken-for-a-collision
 kind: issue
 title: require_kill_anchors' Empty arm refuses LoopCycleBroken for another loop Empty at the vertex, which is EmptyAnchorsCollide's question
-status: open
+status: review
 opened: 2026-10-01
 priority: P4
 cost: E
+pr: 3975
+branch: topo/kill-anchors-collision-refuses-its-own-variant
 refs: [euler-op-corruption-refusals-end-in-a-tag]
 ---
 
