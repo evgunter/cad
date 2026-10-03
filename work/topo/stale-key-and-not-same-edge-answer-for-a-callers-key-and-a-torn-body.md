@@ -7,7 +7,8 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-refs: [euler-op-corruption-refusals-end-in-a-tag]
+needs_ev: true
+refs: [euler-op-corruption-refusals-end-in-a-tag, cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link]
 ---
 
 
@@ -86,18 +87,58 @@ wrapper has to say so, whichever way the variant splits.
 
 ## The question
 
-Split each into a caller's variant and a torn one, so
-`reports_tier1_corruption` answers by variant and the torn half ends in
-`KERNEL_DEFECT_ENDING` with the rest of the class. Two directions:
+Which of an operator's inputs failed to hold is known at every raise
+site from the code alone. It is an **argument** (a key or pairing the
+caller passed in) or a **record** (a field the operator read out of the
+body: `next`/`prev`, `parent_loop`, a loop's `first`, a face's surface
+key, an edge's mate slot). The shared lookups throw that away.
+`cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link` has the same
+cause: `Walk` tells `Broken` from `Overrun`, and `loop_cycle` merges them.
 
-- a caller's variant raised only where an operator resolves its own
-  arguments, leaving the existing name on every key read from a record
-  (fewer sites, but each public door's argument resolution has to be
-  found, and a missed one keeps saying "torn");
-- a torn variant raised wherever a key comes from a record (every
-  shared lookup takes a provenance).
+The designers' final state:
 
-`NotSameEdge` is the cheap one: the caller's arm is `kemr`'s pair
-alone. Either direction has to place the new variant in
-`merge_faces`' `OpPlacement`, which calls `kemr` and the kills with
-keys it read from the body.
+1. **`EulerOpError::Torn(TornBody)`**: the body is not tier-1-valid.
+   - `Dangling { from, link, to }`: a record whose field names nothing.
+     It takes the record half of `StaleKey`/`StaleGeometry` and every
+     walk that meets an unresolved link, so both directions of the probe
+     above refuse the same value.
+   - A bijection arm beside `UnclaimedHalfEdge`: the record half of
+     `NotSameEdge`.
+   - `LoopCycleBroken`, kept only for a walk whose links all resolve but
+     that does not close.
+   - The existing corruption variants, moved in unchanged.
+
+   Its Display ends in `KERNEL_DEFECT_ENDING` once.
+2. **`EulerOpError::Argument(BadArgument)`**: `Stale { role, key }` and
+   `NotMates { he1, he2 }` (`kemr`'s pair). It states the fact, with no
+   defect claim and no recourse.
+3. **One crate-internal lookup** takes `KeyFrom::Arg(role)` or
+   `KeyFrom::Link { holder, link }` and builds the refusal from it.
+   - `Walk::Broken` carries the hop that failed.
+   - `require_live`, `require_halves`, `proven_mate` and
+     `resolve_vertex_point` take the source they are given.
+4. **`KernelCalled(EulerOpError)`** is the field type of every kernel
+   driver's wrapper (11 wrapper types, 15 fields today: sweep, boolean,
+   splitting, merge_faces, shell, replace_face, step-import).
+   - Its Display, written once in topo, ends `Torn` and `Argument` in
+     the defect ending. A bare `write!(f, "{source}")` is therefore
+     right, and so is each driver's `From`.
+   - A bare `EulerOpError` field reads as "this door forwards a caller's
+     keys". None does today.
+   - `Reading` stays a render parameter, because step-import reads at
+     `Adopt`.
+5. **Drivers' own lookups** of keys they minted use the driver's own
+   defect variant, not `EulerOpError::StaleKey`. `ShellError::Corrupt`
+   is the precedent.
+6. **`reports_tier1_corruption` is deleted.**
+   - "Is this a kernel defect" is `KernelCalled::is_defect`, meaning
+     `Torn | Argument`.
+   - `merge_faces`' `OpPlacement` keeps its exhaustive match and reads
+     an `Argument` from keys it read off the body as an arena fault.
+   - The `FILED_NO_RECOURSE` admissions for the Euler chains in
+     `refusal_concision_chains.rs` retire.
+
+**For Ev:** the sentence this PR adds to the D2 addendum's rows 4/5 note
+in `docs/DESIGN.md`. It records what the tree does today: row 1 says
+"reachable by input" and a torn body is not, while row 4 needs a proof
+made in the same call. The code above does not depend on it.

@@ -1056,6 +1056,14 @@ swallowed.
   carries the values a reader debugging it would want; this stays
   prose, not a gate (`topo`'s `d18_no_unreachable_message_can_impersonate_the_postcondition`
   forbids one spelling and that is all a shape gate can do).
+- *A torn body is a typed refusal that names the defect.* A failed
+  read through a record the body holds (a `next`, a `parent_loop`, a
+  mate slot, a face's surface key), on a body assumed tier-1-valid, is
+  neither row 1 (no input reaches it, S14's partly written graft
+  destination aside) nor row 4 (no proof in the same call excludes
+  it). It is a typed corruption refusal ending in the
+  defect ending (`geom_core::KERNEL_DEFECT_ENDING`), and never the same
+  variant as a refusal about the caller's arguments.
 - *Row 5's boundary:* `debug_assert` also serves the expensive check
   whose failure PROBABLY indicates a bug — a tripwire, not a proof.
   Its contract: (i) the assertion's absence never changes shipped
