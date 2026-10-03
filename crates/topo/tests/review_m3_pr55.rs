@@ -33,9 +33,9 @@ use topo::{
 /// plane of its mapped corners. Exact-volume oracle:
 /// area(profile) * (z1 - z0) * det(m).
 ///
-/// **No description step**, unlike `prism_z`: these operands reach the
-/// boolean ops with their conventional chords, which is the state this
-/// suite's falsification targets were written against.
+/// Described like `prism_z`: an operand still carrying its
+/// conventional chords hands them to every result it keeps them in,
+/// and the result gate refuses a scaffold at rest.
 fn tprism<T: Decide + topo::AtRestPolicy>(
     profile: &[(f64, f64)],
     z0: f64,
@@ -58,6 +58,7 @@ fn tprism<T: Decide + topo::AtRestPolicy>(
         common::FaceGeometry::Certified,
         Tol::witness(),
     );
+    common::describe_as_intersections(&mut body, Tol::witness());
     body
 }
 

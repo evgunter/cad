@@ -39,3 +39,23 @@ Each pocket's volume is its glyph's planar area × depth, exactly (the
 glyphs are lines and arcs, so their areas are closed-form); the
 scene's existing certified-quadrature bracket for the halves keeps
 holding with the pockets subtracted.
+
+## Evidence (REACH, PR 3805: the conic rung)
+
+The section face's `Ellipse` rim is now crossed or cleared exactly by
+the crossing layer, so the two walls in `demos/tour/src/curvedcut.rs`
+moved, measured at the walls' own pose (offset (0, 0), depth 0.05):
+
+- **wall 2, the U on the upper half's section face, BUILDS**: tier-3
+  valid, its volume 1.95e-10 m³ from the closed form `πr²H/2 − pockets −
+  area·DEPTH` against a certified pad of 7.8e-7. The wall is retired into
+  an executed check of that oracle in `walls`; the scene still engraves
+  the cap.
+- **wall 1, the C on the lower half's section face**, now refuses
+  `Containment(VolumeUncertified)` (the at-infinity probe,
+  `work/contact/at-infinity-probe-measures-in-closed-form-only.md`)
+  instead of `CurvedPierceUnsupported` at the rim; re-pinned there.
+
+The other poses and glyphs were not re-measured. Whether the scene now
+moves its lettering onto the upper half's section face is this item's
+call.
