@@ -1465,6 +1465,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     what: "a section arc with no endpoint on the face's boundary",
                 },
             ),
+            (
+                "RingOffCylinderChart",
+                J::RingOffCylinderChart {
+                    face,
+                    kind: geom::SurfaceKind::Sphere,
+                },
+            ),
             ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
             (
                 "SectionArcSide",
