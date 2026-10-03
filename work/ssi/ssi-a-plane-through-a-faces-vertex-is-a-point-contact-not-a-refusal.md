@@ -155,9 +155,33 @@ margin can differ by up to ε. So the join must accept a `Corner` region
 whose reach contains both its crossing vertices, and take the Hermite
 candidate from those vertices.
 
-## Closed (2026-10-02, PR 3862)
+## Closed (2026-10-02, PR 3862; rules revised by Ev's rulings of 2026-10-03)
 
-Built as designed, on the branch that carried the ruling.
+Built as designed, on the branch that carried the ruling, with two rules
+changed after review:
+
+- **A region iff coincident.** A `Corner` or `Side` region is reported
+  exactly where the boundary pass certifies the locus within ε of the
+  corner or side (its cover inside its cell, and its certified distance
+  at most ε; `reach` is that distance plus ε). The region cap
+  (`SSI_REGION_REACH_MAX`) is gone. A side whose strip holds the locus
+  but not within ε (`SideClass::Apart`) is no region: it keeps its
+  interior roots, each decided along it, and an arc there is traced.
+  On rational walls a plane between ε and `Kε` off a side then traces
+  the metre-long branch, which the certificate refuses as it does
+  mid-wall (Ev, option (i)); the remedy is filed as
+  `ssi-a-near-side-locus-could-take-the-walls-own-iso-curve` (P2).
+- **March first, then the Hermite.** Every branch between known ends is
+  marched; where the march cannot progress, its step in the band, the
+  candidate is the Hermite cubic through the two ends (`ssi/ends.rs`).
+  `SSI_SHORT_CLIP` is gone; the sized refusal reads the step as the
+  length over `SHORT_BRANCH_STEPS`.
+- `RegionUnbounded` is gone: the one geometry found to reach it (a wall
+  turning back short of a plane within the band of its side, no side
+  crossed) is a certified empty answer the exhaustiveness sweep gives
+  without it.
+
+The rest as built:
 
 - `geom_brep::boundary_section` (`ssi/section.rs`): plane × one NURBS
   curve, Bernstein pieces in interval arithmetic, roots isolated by the
@@ -167,27 +191,27 @@ Built as designed, on the branch that carried the ruling.
   extraction is `nurbs_iso`'s row copy.
 - The boundary pass (`ssi/boundary.rs`) runs before seeding in
   `plane_nurbs_ssi`; the branches between known ends and the Hermite
-  candidate are `ssi/ends.rs` (`SSI_SHORT_CLIP = 5`).
+  candidate are `ssi/ends.rs`.
 - `SsiOutcome.boundary`, `Exhaustiveness.contact`, and
   `BranchEnd::Crossings` are the output; the ℝ³ lane keeps its slab
   search behind `SlabExit` (`ssi-r3-slab-is-not-geometry`).
 
 The two `TraceUnresolved` rows report regions; the open-end escalation
-row retired. Measured answers (1 m flat wall, every ε of 1e-6, 1e-9,
-1e-12; the 100 m wall at a 200 m extent agrees, except that at ε 1e-12
-its 100 m branch beside the edge escalates limb 2 in band, a 1e-14
-relative residual on a carrier that long):
+row retired. Measured answers on the 1 m flat wall, every ε of 1e-6,
+1e-9 and 1e-12 (`m5_pr7_ssi.rs`):
 
 | geometry | answer |
 |---|---|
 | corner clip `x + z = d`, `d < 0` | `Ok`, empty |
-| `0 ≤ d ≤ √2·Kε` (corner within the band) | `Ok`, one `Corner` region |
-| `√2·Kε < d·√2 < 5Kε` | one branch, the Hermite candidate, certified |
-| `d·√2 ≥ 5Kε` | one branch, marched between its crossings |
+| `0 ≤ d ≤ 0.9ε` | `Ok`, one `Corner` region, reach `d + ε` |
+| `d > ε`, `|AB| = d·√2 < 5Kε` | one branch, the Hermite candidate, certified |
+| `|AB| ≥ 5Kε` | one branch, marched between its crossings |
 | edge plane `x = off`, `off < 0` | `Ok`, empty |
-| `0 ≤ off ≤ Kε` | `Ok`, one `Side` region |
-| `off > Kε` | one branch |
+| `0 ≤ off ≤ 0.9ε` | `Ok`, one `Side` region, reach `off + ε` |
+| `off ≥ 3ε` | one branch, 1 m |
+| semicircle of radius `2Kε` (half cylinder cut by `z = ½`) | `ShortBranchUncertified`, limb 1 |
 
-Residue filed: `ssi-r3-slab-is-not-geometry`. The final-chord and
-step-scale rows carry this lane's evidence and stay open for the ℝ³
-lane.
+Residue filed: `ssi-r3-slab-is-not-geometry`,
+`ssi-a-near-side-locus-could-take-the-walls-own-iso-curve`. The
+final-chord and step-scale rows carry this lane's evidence and stay open
+for the ℝ³ lane.

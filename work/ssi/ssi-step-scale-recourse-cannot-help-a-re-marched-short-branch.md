@@ -38,10 +38,11 @@ ending can name the lever that moves it.
 
 ## The plane × NURBS lane (PR 3862)
 
-The short-branch re-march no longer runs on this lane. A branch whose
-certified ends are under `SSI_SHORT_CLIP·Kε` apart takes the Hermite
-cubic through them, and a refused candidate ends as a sized refusal in
-its length (`SsiError::ShortBranchUncertified`); the collapsed net's
-spreads whose plane lies within the band of the wall's long sides now
-report those sides' regions. The re-march, and this ending question
+The short-branch re-march no longer runs on this lane. A branch the
+march cannot progress along, its step in the band, takes the Hermite
+cubic through its two certified ends, and a refused candidate on a
+branch too short for a fifth of it to clear the band ends as a sized
+refusal in its length (`SsiError::ShortBranchUncertified`); the
+collapsed net's spreads whose plane lies within ε of the wall's long
+sides now report those sides' regions, and past ε trace the branch. The re-march, and this ending question
 with it, survive only on the ℝ³ lane (`ssi-r3-slab-is-not-geometry`).
