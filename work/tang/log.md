@@ -433,3 +433,12 @@ orchestrator.
 
 **Closed in the PR.** `pierce-ring-has-no-join-arm` (P0) and PROPS'
 notched-wall row.
+
+## 2026-10-03 — `tangent_locus` consumes the section classifiers' tangency (TANG implementer)
+
+The witness lane's plane×cylinder and parallel-cylinder tangency now
+run on the section classifiers' rows (`pc_*`, `cc_*`), not its own.
+Two band-edge disagreements resolved and pinned. One issue filed: the
+plane×cylinder section reads its gap at the stored origin.
+
+**Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
