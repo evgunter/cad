@@ -5,6 +5,7 @@ title: RefusalReason::MeasureRefused carries a measure's typed refusal as its na
 status: review
 opened: 2026-09-24
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 

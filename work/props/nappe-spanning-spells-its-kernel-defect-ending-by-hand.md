@@ -5,6 +5,7 @@ title: geom-brep: PropsError::NappeSpanning spells its kernel-defect ending by h
 status: review
 opened: 2026-09-28
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 

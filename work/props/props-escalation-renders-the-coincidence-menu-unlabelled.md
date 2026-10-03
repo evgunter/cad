@@ -5,6 +5,7 @@ title: geom-brep: PropsError::Escalated forwards Indeterminate's coincidence men
 status: review
 opened: 2026-09-28
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 (ENCL implementer, from the §5 sweep of

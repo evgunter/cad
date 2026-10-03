@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 

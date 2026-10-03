@@ -7,6 +7,7 @@ priority: P3
 cost: M
 opened: 2026-09-29
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 

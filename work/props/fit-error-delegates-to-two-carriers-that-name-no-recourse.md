@@ -5,6 +5,7 @@ title: FitError's Lsq and KnotAlgebra arms delegate to LsqError and KnotAlgebraE
 status: review
 opened: 2026-09-21
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 

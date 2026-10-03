@@ -7,6 +7,7 @@ opened: 2026-09-29
 priority: P4
 cost: E
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 ## Finding

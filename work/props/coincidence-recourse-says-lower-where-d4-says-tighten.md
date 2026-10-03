@@ -5,6 +5,7 @@ title: geom-core: COINCIDENCE_RECOURSE's third arm says 'lower the tolerance' wh
 status: review
 opened: 2026-09-28
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)

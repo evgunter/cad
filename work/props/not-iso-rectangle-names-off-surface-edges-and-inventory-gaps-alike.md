@@ -5,6 +5,7 @@ title: NotIsoRectangle carries both an edge off its own surface (a defect) and a
 status: review
 opened: 2026-10-01
 branch: props/recourse-grammar
+pr: 3942
 ---
 
 
