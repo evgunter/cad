@@ -6114,3 +6114,27 @@ Ruled for the fix pass (sent to the implementer):
 
 Accepted as is: refusing or repairing tier-3-invalid input where base
 shipped it.
+
+## PR 3970: Ev leans to B; B+ proposed; round 3 (2026-10-03)
+
+Ev found the case that C′ is essentially B compelling, and asked how B
+could be amended so that keeping two redundant forms in step is not
+done by hand.
+
+I proposed B+ (`5971084256`):
+1. **A `Vouched` token.** Every production write of `loop.face`,
+   cross-face `parent_loop` and `face.surface` goes through private
+   `Body` primitives that require a `Vouched` token, which only
+   `vouch_move` or a twin's certification can mint. A gate lists the
+   permitted writers.
+2. **One derivation.** The five re-key helpers become one function,
+   which the twin calls itself.
+3. **Earlier checks.** The naming check joins the `per-op-postcondition`
+   feature, so fuzzers red on the first operator that strands.
+
+Round 3: both designers test B+ (`design-kef-r3-brief.md`), with the
+same A/B mapping. They check:
+- token cycles, and whether the token is structural or only advisory;
+- whether one derivation works across `Chart` and `Intersection`;
+- whether the per-op check holds with legitimately transient strands;
+- what wrong-answer paths remain.
