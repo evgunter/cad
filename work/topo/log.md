@@ -6253,3 +6253,35 @@ The merge waits on CI on that head.
   levers at the edge's extent at both the merge site and F7, the
   tolerance offers are executed, and the witnesses are a circle-split
   coplanar pair at each site.
+
+## Reviews of PR 3974 and PR 3972; fix passes out (2026-10-03)
+
+Both reviews said mergeable with no MAJOR. Both fix passes run as cloud
+sessions on the PR branches.
+
+**PR 3974** (fix session `session_01CK4BpdarqF33YwF7FGMinH`):
+1. ±∞ is poison too. Today it decides `Distinct`, and `pair_finding`
+   silently drops it. The finiteness check goes at the one place the
+   measure is built.
+2. `Unreadable` ends in `KERNEL_OR_FILE_DEFECT_ENDING`, as
+   `PoisonedSurfaceDatum` does, and the lead says "not finite". File
+   `SelfCheck::Normals` as the same class.
+3. One home for the `Unreadable` route (four copies today). Rows so that
+   M6–M9 red.
+4. `PairInBand`'s poison text.
+5. `same_door` compares arm for arm.
+6. **CLEAVE overlap.** `work/cleave/topo-mints-indeterminates-outside-the-funnel.md`
+   (P0, design, converged today) specifies `Coincidence::{Decided, InBand}`
+   for the same payload, with poison as `InBand`. The PR keeps its type
+   and appends `## Landed in PR 3974 (TOPO)` to CLEAVE's row. That section
+   states the type and the one divergence (poison is its own arm, because
+   a non-finite datum is not a coincidence to declare, per D4 ¶1 (i)),
+   for CLEAVE to adopt or reshape at its step 2.
+
+**PR 3972** (fix session `session_01D6gXstDbkxkajseVvrPDKC`): the walk
+proves its first member's vertex, but `orbit_projection`, `valence` and
+`arcs_along` never check `emanating.start == v`. The fix is one home, a
+vertex-keyed orbit read. The unproven walk is made structurally
+validator-only.
+
+The finished cloud sessions are archived.
