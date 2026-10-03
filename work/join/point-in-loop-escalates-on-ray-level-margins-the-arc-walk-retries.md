@@ -2,12 +2,13 @@
 id: point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries
 kind: issue
 title: point_in_loop escalates on ray-level margins (side, advance, arm) that point_in_carrier_loop's arc path retries, so a polygon outer loop refuses where the same loop with an arc answers
-status: open
+status: closed
 opened: 2026-09-27
 priority: P2
 cost: M
 refs: [3288]
 parent: a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census
+closed: 2026-10-03
 ---
 
 Filed by ATREST-12's delta review (PR #3288, MINOR-A), on REACH's
@@ -96,3 +97,5 @@ read `point_in_loop_arm` at 5.65e-9 on a 1e-4 face.
   Its ε/16 rung was the union escalating on `point_in_loop_arm`; it
   now certifies at the default, 1e-6 and 1e-12 ε rows. The ladder is
   re-baselined: ε/10 still escalates, and ε/16 is the floor.
+
+Closed with PR 3967, 2026-10-03.

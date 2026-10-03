@@ -2,11 +2,12 @@
 id: a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census
 kind: issue
 title: Sixteen reflex-corner booleans turned 0.003 degrees off flush ship a body with the closed-form volume that tier 3-prime's census cannot decide (CensusEscalated, point_in_loop_side in band)
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap]
+closed: 2026-10-03
 ---
 
 
@@ -110,3 +111,5 @@ three of the four refuse typed (`Escalated` on a coincidence, margins
 4e-6 to 7e-6), which the bar admits. The row allows that refusal only
 at a coarse ε, and logs it there; at 1e-9 and 1e-12 all four build
 sound. PR 3967.
+
+Closed with PR 3967, 2026-10-03.
