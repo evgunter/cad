@@ -1205,3 +1205,24 @@ first. Two things the MSOLVE-12 lane noted:
   on main. Unverified here; it is not this program's file.
 - One merge commit on that branch (`84db7bf21`) lacks the trailers. It
   is merged history now, and merge-only means it stays.
+
+
+## 2026-10-03 — MSOLVE-13 fix pass (PR 3969)
+
+A single full review of `3610f0432` came back APPROVE-WITH-FIXES with
+no MAJOR, and claims C1–C5 held. The fix pass is R1–R10:
+- `Vanished { by }` names the consumer that lost the face, not a
+  datum reading beside it.
+- `MovedAbove` gains a `copies` field. Its recourse now reads
+  "re-pick the face on {by}", with ", naming the copy" added for a
+  pattern or placed union.
+- A5's sentences match the code: the lift is the identity through
+  `Part`s and split targets, and a placer refuses only when no route
+  carries the face unmoved.
+- `msolve1::a5` was rebuilt as sibling transforms under a union, so
+  the gate verifies the declaring loop again. `msolve2::a4b` keeps
+  its declaring mate by reading through a transform.
+- `names::lift` spells every field.
+- New lift rows for chamfer, shell and the bystander datum, plus a
+  `Part`-above-a-union backstop row.
+- The `msolve5` test files are renamed to what they pin.
