@@ -1135,7 +1135,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
-    use super::section_cert::{Refusal, Side, certify, classify};
+    use super::section_cert::{Refusal, Section, Side, certify, classify};
     if has_lone_vertex(a, fa.face)? || has_lone_vertex(b, fb.face)? {
         return Ok(Err(Refusal::LoneVertex));
     }
@@ -1157,6 +1157,13 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         radius: T::from_f64((hi - lo).norm() * 0.5),
     };
     let section = classify(&fa.surface, &fb.surface, reach, band);
+    let clear = match &section {
+        Section::Touch(t) => [
+            boundary_clear_of(a, fa.face, t, band)?,
+            boundary_clear_of(b, fb.face, t, band)?,
+        ],
+        _ => [false; 2],
+    };
     Ok(certify(
         &section,
         evented,
@@ -1173,7 +1180,84 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(b, fb.face, &fb.surface, p, band),
             ]
         },
+        |side| match side {
+            Side::F => clear[0],
+            Side::G => clear[1],
+        },
     ))
+}
+
+/// **Whether no edge of `face` reaches a touch's ball**: the ball's box,
+/// padded, overlaps no boundary edge's certified box. A ball whose box
+/// is not finite (a touch built from a degenerate pose) reaches
+/// everything.
+///
+/// # Errors
+///
+/// [`face_boundary_meets`]'.
+fn boundary_clear_of<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    touch: &super::section_cert::Touch<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    let (at, spread) = (touch.at, touch.spread.hi());
+    let ball = bvh::Aabb {
+        min_x: at.x.lo() - spread,
+        min_y: at.y.lo() - spread,
+        min_z: at.z.lo() - spread,
+        max_x: at.x.hi() + spread,
+        max_y: at.y.hi() + spread,
+        max_z: at.z.hi() + spread,
+    }
+    .padded(pad);
+    let finite = [
+        ball.min_x, ball.min_y, ball.min_z, ball.max_x, ball.max_y, ball.max_z,
+    ]
+    .iter()
+    .all(|v| v.is_finite());
+    Ok(finite && !face_boundary_meets(body, face, &ball, pad)?)
+}
+
+/// **Whether a boundary edge of `face` may meet `region`**: some edge of
+/// one of its loops has a certified box, padded by `pad`, overlapping it.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a loop, cycle or
+/// half-edge that does not resolve, and the edge box's own errors.
+fn face_boundary_meets<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    region: &bvh::Aabb,
+    pad: f64,
+) -> Result<bool, BooleanError> {
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    let fd = body
+        .get_face(face)
+        .ok_or(corrupt("face boundary: the face is lost"))?;
+    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        let l = body
+            .get_loop(lk)
+            .ok_or(corrupt("face boundary: a face loop is lost"))?;
+        let LoopBoundary::Cycle { first } = l.boundary else {
+            continue;
+        };
+        for he in body
+            .loop_cycle(first)
+            .ok_or(corrupt("face boundary: an unwalkable loop"))?
+        {
+            let ek = body
+                .get_half_edge(he)
+                .ok_or(corrupt("face boundary: a half-edge is lost"))?
+                .edge;
+            if boxes::edge_box(body, ek, pad)?.overlaps(region) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B
@@ -2820,7 +2904,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             .padded(pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
-            for (y_row, (yf, yfd)) in y_rows.iter().zip(y.faces()) {
+            for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "extent scan: face rows out of arena order",
@@ -2832,12 +2916,29 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         normal,
                         u_ref,
                     } => {
-                        // A tangency (a decided zero) is a touching
-                        // configuration the crossing layer cannot
-                        // represent: it refuses with its decided margin,
-                        // as its in-band twin does.
-                        let (side, s) = ball_against_plane(center, radius, origin, normal, band)
-                            .map_err(esc(SphereQuestion::AgainstPlane))?;
+                        // A tangency (a decided zero) or an in-band gap
+                        // is a touch the crossing layer cannot
+                        // represent. The faces are asked whether they
+                        // meet there; only where they may does it
+                        // refuse, with the decided margin.
+                        let (side, s) =
+                            match ball_against_plane(center, radius, origin, normal, band) {
+                                Ok(read) => read,
+                                Err(diag) => {
+                                    if sphere_faces_apart(
+                                        (x_is, x, x_rows),
+                                        fd.surface,
+                                        (y, y_row),
+                                        band,
+                                        &mut section_charts,
+                                    )?
+                                    .is_none()
+                                    {
+                                        continue;
+                                    }
+                                    return Err(esc(SphereQuestion::AgainstPlane)(diag));
+                                }
+                            };
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
@@ -2874,37 +2975,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     max_z: foot.z.hi() + rho.hi(),
                                 }
                                 .padded(pad);
-                                let mut near_boundary = false;
-                                let mut walk = |lk| -> Result<(), BooleanError> {
-                                    let l = y.get_loop(lk).ok_or(
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: face loop lost",
-                                        },
-                                    )?;
-                                    let LoopBoundary::Cycle { first } = l.boundary else {
-                                        return Ok(());
-                                    };
-                                    for he in y.loop_cycle(first).ok_or(
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: unwalkable loop",
-                                        },
-                                    )? {
-                                        let ek = y
-                                            .get_half_edge(he)
-                                            .ok_or(BooleanError::ClassificationInvariant {
-                                                what: "extent scan: half-edge lost",
-                                            })?
-                                            .edge;
-                                        if boxes::edge_box(y, ek, pad)?.overlaps(&circle_box) {
-                                            near_boundary = true;
-                                        }
-                                    }
-                                    Ok(())
-                                };
-                                walk(yfd.outer)?;
-                                for &ring in &yfd.rings {
-                                    walk(ring)?;
-                                }
+                                let near_boundary = face_boundary_meets(y, yf, &circle_box, pad)?;
                                 if near_boundary {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
@@ -2987,15 +3058,32 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
                         // there is one a smaller tolerance decides apart.
-                        // It refuses as the question's in-band arm does,
-                        // with its decided margin.
-                        match crate::validate::decide_nonzero_reported(
+                        // The faces are asked whether they meet at the
+                        // touch; only where they may does it refuse, as
+                        // the question's in-band arm does, with its
+                        // decided margin.
+                        let gap = match crate::validate::decide_nonzero_reported(
                             "bool_sphere_sphere_gap",
                             Margin::of(d - (radius + r2)),
                             band,
-                        )
-                        .map_err(esc(SphereQuestion::Apart))?
-                        {
+                        ) {
+                            Ok(gap) => gap,
+                            Err(diag) => {
+                                if sphere_faces_apart(
+                                    (x_is, x, x_rows),
+                                    fd.surface,
+                                    (y, y_row),
+                                    band,
+                                    &mut section_charts,
+                                )?
+                                .is_none()
+                                {
+                                    continue;
+                                }
+                                return Err(esc(SphereQuestion::Apart)(diag));
+                            }
+                        };
+                        match gap {
                             // Definitely separated.
                             NonzeroSign::Positive => {}
                             NonzeroSign::Negative => {
@@ -3019,7 +3107,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // other refusal of the certificate is
                                 // its own reason, raised as the pass
                                 // raises it. A touch (a decided zero)
-                                // refuses on the carriers.
+                                // asks the faces the same question, and
+                                // refuses as spheres that meet wherever
+                                // the touch is not certified off them.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
@@ -3029,11 +3119,21 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        return Err(BooleanError::SpheresMeet {
-                                            operand: x_is,
-                                            face,
-                                            verdict,
-                                        });
+                                        if sphere_faces_apart(
+                                            (x_is, x, x_rows),
+                                            fd.surface,
+                                            (y, y_row),
+                                            band,
+                                            &mut section_charts,
+                                        )?
+                                        .is_some()
+                                        {
+                                            return Err(BooleanError::SpheresMeet {
+                                                operand: x_is,
+                                                face,
+                                                verdict,
+                                            });
+                                        }
                                     }
                                     Some(verdict @ Refused::Negative { .. }) => {
                                         match sphere_faces_apart(

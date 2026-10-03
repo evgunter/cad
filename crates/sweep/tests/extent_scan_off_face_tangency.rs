@@ -61,15 +61,23 @@ fn rod_x(r: f64, (y, z): (f64, f64), (x0, x1): (f64, f64), seams_beside: bool) -
     let own = Affine3::rotation_about_axis(
         Point3::new(-z, y, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
-        if seams_beside { core::f64::consts::FRAC_PI_2 } else { 0.0 },
+        if seams_beside {
+            core::f64::consts::FRAC_PI_2
+        } else {
+            0.0
+        },
     );
     let quarter = Affine3::rotation_about_axis(
         Point3::origin(),
         Vec3::new(0.0, 1.0, 0.0),
         core::f64::consts::FRAC_PI_2,
     );
-    topo::transform_rigid(&rod_z(r, (-z, y), (x0, x1)), &(quarter * own), Tol::witness())
-        .unwrap()
+    topo::transform_rigid(
+        &rod_z(r, (-z, y), (x0, x1)),
+        &(quarter * own),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn ball_volume(r: f64) -> f64 {
@@ -109,7 +117,11 @@ fn lens() -> Body<f64> {
     .expect("the lens")
 }
 
-fn boolean(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<topo::BooleanResult<f64>, BooleanError> {
+fn boolean(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+) -> Result<topo::BooleanResult<f64>, BooleanError> {
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -132,7 +144,11 @@ fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
 fn assert_body(label: &str, body: &Body<f64>, want: f64) {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
-    assert_eq!(topo::validate_closed(body), Ok(()), "{label}: validate_closed");
+    assert_eq!(
+        topo::validate_closed(body),
+        Ok(()),
+        "{label}: validate_closed"
+    );
     assert_eq!(
         topo::validate_geometric(body, tol),
         Ok(()),
@@ -190,7 +206,12 @@ const OPS: [BooleanOp; 3] = [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::
 
 /// Every op in both operand orders refuses, and `expect` holds of each
 /// refusal.
-fn assert_every_op_refuses(label: &str, a: &Body<f64>, b: &Body<f64>, expect: fn(&BooleanError) -> bool) {
+fn assert_every_op_refuses(
+    label: &str,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    expect: fn(&BooleanError) -> bool,
+) {
     for op in OPS {
         for (order, x, y) in [("A·B", a, b), ("B·A", b, a)] {
             match boolean(op, x, y) {
@@ -218,7 +239,13 @@ fn a_ball_touching_the_snowman_sphere_where_it_is_trimmed_builds() {
     let snowman = snowman();
     let v_snowman = ball_volume(R1) + ball_volume(R2) - lens_volume(R1, R2, D);
     let inner = ball(0.4, dir(0.0, 0.7, 0.3) * 0.6);
-    assert_every_op("snowman ⊃ ball(0.4)", &snowman, &inner, (v_snowman, ball_volume(0.4)), Pose::Inside);
+    assert_every_op(
+        "snowman ⊃ ball(0.4)",
+        &snowman,
+        &inner,
+        (v_snowman, ball_volume(0.4)),
+        Pose::Inside,
+    );
 }
 
 /// **Sphere × plane, tangent off the plane face.** The brick's bottom
@@ -230,7 +257,13 @@ fn a_brick_whose_plane_touches_the_snowman_sphere_off_its_face_builds() {
     let v_snowman = ball_volume(R1) + ball_volume(R2) - lens_volume(R1, R2, D);
     let brick: Body<f64> =
         sweep::test_support::brick((1.5, 3.0), (1.0, 2.0), (-1.0, 1.0), Tol::witness());
-    assert_every_op("snowman, brick", &snowman, &brick, (v_snowman, 3.0), Pose::Apart);
+    assert_every_op(
+        "snowman, brick",
+        &snowman,
+        &brick,
+        (v_snowman, 3.0),
+        Pose::Apart,
+    );
 }
 
 /// **Sphere × sphere, externally tangent off the face.** A ball of
@@ -315,13 +348,10 @@ fn the_same_tangencies_on_both_faces_refuse() {
             }
         )
     });
-    let tangent = |e: &BooleanError| {
-        matches!(e, BooleanError::FallbackExtentUnsupported { what, .. } if what.contains("tangent"))
-    };
+    let tangent = |e: &BooleanError| matches!(e, BooleanError::FallbackExtentUnsupported { what, .. } if what.contains("tangent"));
     let rod = rod_x(0.5, (0.0, 1.5), (-1.5, 2.0), true);
     assert_every_op_refuses("ball, rod", &unit, &rod, tangent);
     let along_x = rod_x(0.5, (0.0, 0.0), (-2.0, 2.0), false);
     let along_z = rod_z(0.5, (0.0, 1.0), (-1.0, 3.0));
     assert_every_op_refuses("rod x, rod z", &along_x, &along_z, tangent);
 }
-
