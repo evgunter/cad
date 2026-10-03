@@ -52,3 +52,15 @@ retire `validate.rs`'s local `NOT_YET` for `geom_core::NOT_YET_ENDING`
 stands alone in `topo/src/splitting/mod.rs` (two arms, REACH's) and
 `topo/src/shell.rs` (one arm, SHELL's); `topo/src/census.rs` extends it
 ("… yet for this shape") at eight arms.
+
+## Evidence (TOPO, PR 3513's second fix pass, 2026-09-30)
+
+The literal copies of `geom_core::NOT_YET_ENDING` outside tests, as of
+PR 3513's merge base: `topo/src/splitting/mod.rs` (two arms),
+`topo/src/shell.rs` (one), `topo/src/census.rs` (eight, each extended
+"… yet for …"), and `topo/src/validate.rs`'s local `NOT_YET` (one),
+twelve in all; PR 3513's `RestZipFrontier::ending`
+(`topo/src/boolean/refusal_routes.rs`) reads the constant. Swept with
+`"There is no way through yet"` over `crates/`, `demos/` and `tools/`;
+a copy spelled otherwise ("no way through", without "yet") is not
+matched.

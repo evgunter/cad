@@ -60,13 +60,13 @@ use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 /// A domain violation with finite endpoints: `sqrt([−1, 4])` clamps to
 /// `[0, 2]` and records the violation only in the decoration.
 fn trv() -> Interval {
-    Interval::from_bounds(-1.0, 4.0).sqrt()
+    Real::sqrt(Interval::from_bounds(-1.0, 4.0))
 }
 
 /// The same shape of value with nothing wrong with it — `sqrt([1, 4])` is
 /// `[1, 2]` at `Com`. The discriminating partner of [`trv`].
 fn healthy() -> Interval {
-    Interval::from_bounds(1.0, 4.0).sqrt()
+    Real::sqrt(Interval::from_bounds(1.0, 4.0))
 }
 
 fn nai() -> Interval {
@@ -75,7 +75,7 @@ fn nai() -> Interval {
 
 /// Fully out of domain: `sqrt([−4, −1])` is empty.
 fn empty() -> Interval {
-    Interval::from_bounds(-4.0, -1.0).sqrt()
+    Real::sqrt(Interval::from_bounds(-4.0, -1.0))
 }
 
 fn band() -> Band {
@@ -181,7 +181,7 @@ fn hull_bound(c: Interval) -> Interval {
 fn the_hull_bound_refuses_exactly_where_the_decoration_degrades() {
     let (mut certified, mut refused) = (0, 0);
     for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0] {
-        let c = Interval::from_bounds(a, 4.0).sqrt();
+        let c = Real::sqrt(Interval::from_bounds(a, 4.0));
         let bound = hull_bound(c);
         assert_eq!(
             !bound.is_certified(),

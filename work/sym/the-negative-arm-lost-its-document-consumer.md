@@ -7,7 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 design: true
-refs: [the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic, interval-orthonormal-basis-sign-hull, SYM-12]
+refs: [the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic, 2468, SYM-12]
 ---
 
 ## What was measured (LINALG's merge of `main` into `props/sign-hull`, 2026-10-01)

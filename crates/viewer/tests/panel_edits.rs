@@ -12,6 +12,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use editor_core::ExtrudeSide;
 
 use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
@@ -58,6 +59,7 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -114,6 +116,7 @@ fn literal_and_pattern_doc(
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -320,7 +323,7 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
                 found,
             },
         )) => {
-            assert_eq!(node, extrude);
+            assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(expected, Dimension::Length);
             assert_eq!(found, Dimension::Count);
@@ -461,6 +464,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -861,6 +865,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -924,10 +929,8 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
     let ids: Vec<_> = rows.iter().map(|row| row.id).collect();
     assert!(ids.contains(&profile) && ids.contains(&extrude));
     assert_eq!(
-        rows.iter()
-            .find(|row| row.id == extrude)
-            .map(|row| row.depth),
-        Some(0),
+        common::row_of(&rows, extrude).depth,
+        0,
         "the profile is the extrude's primary input, so the extrude \
          continues its line rather than indenting under it"
     );

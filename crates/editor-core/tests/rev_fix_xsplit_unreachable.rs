@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -42,6 +43,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -198,10 +200,10 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
                 in_part(b, b_body, CapEnd::Start),
-            ),
+            )),
         },
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a

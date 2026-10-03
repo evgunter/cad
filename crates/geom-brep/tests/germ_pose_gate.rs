@@ -23,13 +23,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::{band, eps};
-use geom::Surface;
-use geom_brep::intersect::{
-    PlaneConeSection, SectionError, SurfaceKind, plane_cone_section, route, route_pose,
-};
+use geom::{Surface, SurfaceKind};
+use geom_brep::intersect::{PlaneConeSection, SectionError, plane_cone_section, route, route_pose};
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
+const PI_2: f64 = core::f64::consts::FRAC_PI_2;
 
 fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
@@ -96,7 +95,7 @@ fn served(a: &Surface<f64>, b: &Surface<f64>) -> bool {
     let ab = route_pose(a, b, 4.0, band()).expect("the pose decides");
     let ba = route_pose(b, a, 4.0, band()).expect("the pose decides");
     assert_eq!(ab.implemented, ba.implemented, "asymmetric: {a:?} / {b:?}");
-    assert_eq!(ab.rung, route(SurfaceKind::of(a), SurfaceKind::of(b)).rung);
+    assert_eq!(ab.rung, route(a.kind(), b.kind()).rung);
     ab.implemented
 }
 
@@ -132,6 +131,15 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
         (
             "tilted plane off the apex (an ellipse)",
             plane(Point3::new(0.0, 0.0, 3.0), Vec3::new(0.3, 0.0, 1.0)),
+            &cone,
+            true,
+        ),
+        (
+            "plane parallel to a generator (a parabola)",
+            plane(
+                Point3::new(0.0, 0.0, 3.0),
+                Vec3::new((PI_2 - PI_6).sin(), 0.0, (PI_2 - PI_6).cos()),
+            ),
             &cone,
             false,
         ),
@@ -326,10 +334,9 @@ fn the_pose_is_read_over_the_callers_reach() {
 
 /// **A pose the arm cannot classify is not served.** The aperture
 /// guards run ahead of plane×cone's pose trileans, so a cone whose
-/// `cos α` is inside the band refuses before the tilt is ever read. A
-/// gate that read that refusal as "served" would admit the tilted plane
-/// — which the same arm refuses at any classifiable aperture — only
-/// because the operand is degenerate.
+/// `cos α` is inside the band refuses before the tilt is ever read. The
+/// same tilted plane against a classifiable cone is the served ellipse,
+/// so the guard is the only thing refusing here.
 #[test]
 fn an_unclassified_pose_is_not_served() {
     let cone = cone_z((0.2 * eps()).acos());
@@ -337,10 +344,7 @@ fn an_unclassified_pose_is_not_served() {
     let p = route_pose(&tilted, &cone, 1.0, band()).unwrap();
     assert!(!p.implemented, "an operand guard classified no pose");
     let control = route_pose(&tilted, &cone_z(0.5), 1.0, band()).unwrap();
-    assert!(
-        !control.implemented,
-        "and the classifiable twin is refused too"
-    );
+    assert!(control.implemented, "the classifiable twin is the ellipse");
 }
 
 /// **The aperture guard is levered by the arm's extent.** `sin α = 20ε`

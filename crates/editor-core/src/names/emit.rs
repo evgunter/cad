@@ -372,8 +372,17 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
-impl core::fmt::Display for NamingError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//
+// It is raised only inside evaluation and memoized with the node's
+// refusal, so it holds ids: each node and each name's minting node is
+// said by the speaker of the frame that hands the refusal out.
+impl crate::spoken::Say for NamingError {
+    #[allow(clippy::too_many_lines)] // one arm per variant, each short
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             // The role path rides along here, alone among the crate's
             // name renderings: a duplicate mint is a kernel bug report,
@@ -381,8 +390,9 @@ impl core::fmt::Display for NamingError {
             // from every other name the node minted.
             Self::Duplicate { name } => write!(
                 f,
-                "{EMISSION_FRAMING}: the {name} (role path {:?}) was minted twice — names \
+                "{EMISSION_FRAMING}: the {} (role path {:?}) was minted twice — names \
                  alias silently only over the kernel's dead body",
+                by.name(name),
                 name.path
             ),
             Self::Unnamed { kind, body } => write!(
@@ -392,9 +402,9 @@ impl core::fmt::Display for NamingError {
             ),
             Self::MissingUpstream { node } => write!(
                 f,
-                "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
+                "{EMISSION_FRAMING}: the name table of upstream {} lacks an entity the \
                  emission needed",
-                node
+                by.node(*node)
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
@@ -428,10 +438,10 @@ impl core::fmt::Display for NamingError {
                 found,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
+                "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
-                node
+                by.node(*node)
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
@@ -441,7 +451,7 @@ impl core::fmt::Display for NamingError {
                 candidates.len(),
                 candidates
                     .iter()
-                    .map(ToString::to_string)
+                    .map(|name| by.name(name).to_string())
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
@@ -463,16 +473,17 @@ impl core::fmt::Display for NamingError {
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
-                 does not lie within the rim {rim:?} of operand node {}'s body its key reads \
+                 does not lie within the rim {rim:?} of operand {}'s body its key reads \
                  through to",
-                node
+                by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member node {}'s edge (the {edge}) cannot \
+                "{UNRULED_FRAMING}: the crossings of member {}'s edge (the {}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                member
+                by.node(*member),
+                by.name(edge)
             ),
             Self::Band(error) => write!(
                 f,
@@ -487,6 +498,13 @@ impl core::fmt::Display for NamingError {
                 )
             }
         }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for NamingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -1057,13 +1075,20 @@ mod pattern_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built =
-            sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let table = name_extrude(
             node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -1861,7 +1886,7 @@ mod display_tests {
     fn the_rim_walk_reports_cardinality_as_a_fact() {
         let cube = super::walk_tests::cube();
 
-        let wall = cube.side_faces[0][0];
+        let wall = cube.side_faces()[0][0];
         let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
             .expect("a sound body raises no emission refusal")
         else {
@@ -1965,7 +1990,10 @@ mod walk_tests {
             .expect("a unit square validates");
         let cube = sweep::extrude(
             &prof,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             geom_core::Tol::witness(),
         )
         .expect("a unit cube extrudes");
@@ -1985,7 +2013,7 @@ mod walk_tests {
 
     fn rim1() -> Rim1 {
         let cube = cube();
-        let (top, wall) = (cube.top, cube.side_faces[0][0]);
+        let (top, wall) = (cube.top, cube.side_faces()[0][0]);
         let body = &cube.body;
         let (he, mate) = face_half_edges(body, top)
             .unwrap()

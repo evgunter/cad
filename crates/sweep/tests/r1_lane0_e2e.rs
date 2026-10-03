@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_core::{Affine3, Tol, Vec3};
@@ -30,10 +31,7 @@ fn rigid_f64() -> Affine3<f64> {
 /// **At `f64` the absence arm never fires, and the map's certificate is
 /// the free certifier's.**
 ///
-/// The fixture refuses for its own reason — its cap's boundary is a
-/// neighbour's chart image, so mass properties have no stored pcurve
-/// cache to quadrature — and that refusal is not this unit's. What the
-/// row holds is the two things that are: no door on the walk reports
+/// What the row holds is two things: no door on the walk reports
 /// `ApproxLaneUnsupported` or `ApproxCertification` when the seam
 /// answers, and the surface `transform_rigid` produces carries
 /// `geom_brep::certify_offset_over`'s measurement of the mapped pair
@@ -172,7 +170,10 @@ fn the_interval_seam_refuses_at_every_public_door() {
         .expect("a square is a valid profile");
     let mut body = sweep::extrude(
         &profile,
-        sweep::Extrusion::Distance(iv(1.0)),
+        sweep::Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
@@ -255,7 +256,10 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .expect("a square is a valid profile");
     let mut body = sweep::extrude(
         &profile,
-        sweep::Extrusion::Distance(iv(1.0)),
+        sweep::Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")

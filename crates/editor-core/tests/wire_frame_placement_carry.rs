@@ -17,6 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::fixture;
@@ -73,12 +74,8 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
 
 /// Every component of a placement, as raw bits — the comparison an
 /// approximate one would let through.
-fn bits(p: &profile::SketchPlane<f64>) -> Vec<u64> {
-    let a = &p.placement;
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|v| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()])
-        .collect()
+fn bits(p: &profile::SketchPlane<f64>) -> [u64; 12] {
+    p.placement.components().map(f64::to_bits)
 }
 
 fn assert_same_plane(
@@ -174,6 +171,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         Node::Extrude {
             profile: first,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, frame, [first, second], extrude)
@@ -285,6 +283,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: base,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, derived) = fixture::insert(
@@ -307,6 +306,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: boss,
             distance: fixture::len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc, None);

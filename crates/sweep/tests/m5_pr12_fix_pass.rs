@@ -6,16 +6,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use geom_core::{ErrorTextReading, Tol};
+use geom_core::{Band, ErrorTextReading, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{Body, BooleanDeclarations, MassPropsError, ValidationError};
+use topo::{Body, BooleanDeclarations};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(
@@ -26,9 +27,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A unit-side regular hexagonal prism (circumradius 1 ⇒ side 1,
@@ -162,23 +170,41 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 
 /// **F4, deviation 3's missing fixture.** A genuinely OBLIQUE
 /// trihedron — a cube with one corner sliced by a tilted plane — has
-/// no incident edge whose chart makes the octant an iso-rectangle. The
-/// body still builds and passes tiers 1 and 2; tier 3 reports
-/// `VolumeUncomputable` because the closed-form mass-properties
-/// inventory has no spherical-triangle form. The gap is in `props`,
-/// not in the body, and this row is what says so out loud.
+/// no incident edge whose chart makes the octant an iso-rectangle, so
+/// each corner patch is a spherical triangle bounded by circles tilted
+/// against its chart. The body builds and passes all three tiers: the
+/// sphere flux arm measures those patches by Gauss–Bonnet over their
+/// arcs.
 ///
 /// **It is also the pin on tier 3's curved check-6 EXEMPTION.** Five
 /// of this body's faces are exactly the input on which
-/// `boundary_material_sign` refuses, and check 6 must stay silent on
-/// them: the refusal is not a sense disagreement, and check 7 — gated
-/// on `errors.is_empty()` — is the check that owns it and names its
-/// cause. So the two halves are asserted together and structurally: no
-/// `CurvedSenseInverted`, and a `VolumeUncomputable` carrying
-/// `NotIsoRectangle`. Turn that exemption into a raise and the second
-/// half vanishes with the first.
+/// `boundary_material_sign` refuses (no rim encodes their side), and
+/// check 6 must stay silent on them: the refusal is not a sense
+/// disagreement. A raise there would fail tier 3 here.
+///
+/// Each corner patch is held to Girard's spherical-triangle area, and
+/// the volume to a bracket that reads nothing of the kernel's
+/// fillet: rounding a convex edge of length `ℓ` and interior angle `θ`
+/// at radius `r` removes `r²·(cot(θ/2) − (π − θ)/2)·ℓ` at most (less
+/// where blends meet at corners), which is under `r²·ℓ` for every
+/// `θ` above 50°, and this clip's dihedrals are all within 0.4 rad of
+/// a right angle; so the rounded body lies strictly between the clip's
+/// volume and that less `r²·Σℓ`.
+///
+/// **And the pin on the octant's pcurve rows.** The oblique corners'
+/// contact circles are GENERAL circles of their sphere's chart — neither
+/// polar nor meridian — so the closed-form door has no image for them;
+/// the mint routes them through the fitted lane. Every half-edge of
+/// every corner face carries a certified row, some of them `Fitted`,
+/// each one's dense map residual — measured between its certification
+/// samples — under its stored envelope and that under the band, and
+/// tier 3's pcurve pass re-certifies them clean. Take the route
+/// away and those faces are rowless or refused, and this half goes red.
+/// The chart boundary of every corner face that stores a fitted row
+/// gets past the derivation (a pole joint or a wrap may still refuse
+/// it, each for its own reason).
 #[test]
-fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
+fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
     let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
     let c2 = topo::transform_rigid(
@@ -211,29 +237,133 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .body
     .clone();
     let edges = query::all_edges(&clipped);
-    let f = fillet_edges(&clipped, &edges, 0.08, Tol::witness())
+    let r = 0.08;
+    let f = fillet_edges(&clipped, &edges, r, Tol::witness())
         .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
-    let errs = topo::validate_geometric(&f.body, Tol::witness())
-        .expect_err("tier 3 cannot meter a spherical triangle at M5");
-    assert!(
-        !errs
-            .iter()
-            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
-        "check 6 must EXEMPT a face whose material-side derivation refuses: {errs:?}"
+    assert_eq!(
+        topo::validate_geometric(&f.body, Tol::witness()),
+        Ok(()),
+        "tier 3 meters the spherical triangles, and check 6 exempts them"
     );
+    let total_length: f64 = edges
+        .iter()
+        .map(|&k| {
+            let curve = clipped
+                .get_edge(k)
+                .and_then(|e| clipped.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .expect("a certified edge");
+            let (t0, t1) = curve.params();
+            (curve.carrier().eval(t1) - curve.carrier().eval(t0)).norm()
+        })
+        .sum();
+    let volume = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (clip, rounded) = (volume(&clipped), volume(&f.body));
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            ValidationError::VolumeUncomputable {
-                source: MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-                ..
+        rounded < clip && rounded > clip - r * r * total_length,
+        "rounded {rounded} outside ({}, {clip})",
+        clip - r * r * total_length
+    );
+
+    let band = Band::linear(Tol::witness()).unwrap();
+    // Each corner patch is a geodesic triangle on its ball — three
+    // great-circle arcs, the balls' contact circles with the three
+    // fillet cylinders, whose axes pass through the ball's centre — so
+    // its area is Girard's: `r²·E`, with the excess `E` of the triangle
+    // on the unit vectors from the centre to its three vertices, read
+    // off nothing the flux arm reads.
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).expect("the corner face resolves");
+        let Some(&geom::Surface::Sphere { center, radius, .. }) = f.body.get_surface(face.surface)
+        else {
+            panic!("corner face {corner:?} is a sphere patch");
+        };
+        let (outer, _) = topo::props::loop_edges(&f.body, face.outer).expect("its loop");
+        assert_eq!(outer.len(), 3, "corner face {corner:?} is a triangle");
+        let u: Vec<Vec3<f64>> = outer
+            .iter()
+            .map(|e| {
+                let t = if e.forward { e.t0 } else { e.t1 };
+                (e.carrier.eval(t) - center) / radius
+            })
+            .collect();
+        // Van Oosterom–Strackee, through `atan2` so the excess is right
+        // past π too (a patch over a quarter of its sphere), where the
+        // denominator goes negative and a plain `atan` would fold it.
+        let excess = 2.0
+            * u[0]
+                .dot(u[1].cross(u[2]))
+                .abs()
+                .atan2(1.0 + u[0].dot(u[1]) + u[1].dot(u[2]) + u[2].dot(u[0]));
+        let surface = f.body.get_surface(face.surface).unwrap();
+        let area = geom_brep::props::curved_face(surface, &outer, face.sense, band)
+            .expect("the patch measures")
+            .area;
+        let want = radius * radius * excess;
+        assert!(
+            (area - want).abs() <= 1e-12 * radius * radius,
+            "corner face {corner:?}: area {area} against Girard's {want}"
+        );
+    }
+    let mut fitted = 0;
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).expect("the corner face resolves");
+        let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("a corner face's outer loop is a cycle");
+        };
+        let mut face_fitted = false;
+        for he in f.body.loop_cycle(first).unwrap() {
+            let row = f.body.pcurve(he).unwrap_or_else(|| {
+                panic!("corner face {corner:?} half-edge {he:?} carries no pcurve row")
+            });
+            if matches!(row.pcurve(), geom_brep::Pcurve::Fitted(_)) {
+                fitted += 1;
+                face_fitted = true;
+                // Between the samples: the dense map residual is under
+                // the stored envelope, which is under the band.
+                let edge = f.body.get_half_edge(he).unwrap().edge;
+                let curve = f.body.get_edge(edge).unwrap().curve;
+                let Some(topo::CurveGeom::Certified(curve)) = f.body.get_curve_geom(curve) else {
+                    panic!("a minted row's edge has a certified carrier");
+                };
+                let ((t0, t1), carrier) = (curve.params(), curve.carrier());
+                let surface = f.body.get_surface(face.surface).unwrap();
+                let envelope = row.certificate().envelope;
+                let dense = (0..=4000)
+                    .map(|k| {
+                        let t = t0 + (t1 - t0) * f64::from(k) / 4000.0;
+                        let p = row.pcurve().eval(t);
+                        (surface.eval(p.x, p.y) - carrier.eval(t)).norm()
+                    })
+                    .fold(0.0, f64::max);
+                assert!(
+                    dense <= envelope && envelope <= band.zero(),
+                    "half-edge {he:?}: dense map residual {dense:e} m, envelope {envelope:e} \
+                     m, band {:e} m",
+                    band.zero()
+                );
             }
-        )),
-        "the refusal must name the props inventory's gap: {errs:?}"
+        }
+        if face_fitted {
+            let chart = f.body.get_surface(face.surface).unwrap().clone();
+            if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
+                assert!(
+                    !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),
+                    "corner face {corner:?}'s boundary refused at the derivation: {e:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        fitted > 0,
+        "the oblique corners' general circles take the fitted lane"
+    );
+    let findings = topo::pcurves::validate_pcurves(&f.body, band);
+    assert!(
+        findings.is_empty(),
+        "the octant's rows re-certify: {findings:?}"
     );
 }

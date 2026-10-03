@@ -32,6 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -84,6 +85,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance,
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -93,25 +95,30 @@ fn depth_param() -> Expr {
 }
 
 /// **A document whose witness chamber is BOUNDED ON BOTH SIDES in the
-/// varying parameter**: the extrusion distance is
-/// `min(depth, 2·nominal - depth)`, so the solid exists exactly on
-/// `0 < depth < 2·nominal` and both ends of a wide enough box are
-/// definitely on the far branch. That is the shape E2's
+/// varying parameter**: [`crate::m10_3_driver_interval::notch`]'s
+/// vertex at height `−min(t, 2·nominal − t)`, so the vertex is a
+/// convex point exactly on `0 < t < 2·nominal` and a notch past either
+/// end — a body on another branch, so both ends of a wide enough box
+/// are definitely on the far branch. That is the shape E2's
 /// chamber-containment amendment describes, and the unit's own suite
 /// has no fixture for it.
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
-    let distance = Expr::min(
-        depth_param(),
-        Expr::sub(len(2.0 * nominal), depth_param()).expect("length minus length"),
+    let t = || Expr::param(name("height"), Dimension::Length);
+    let height = Expr::neg(
+        Expr::min(
+            t(),
+            Expr::sub(len(2.0 * nominal), t()).expect("length minus length"),
+        )
+        .expect("min of two lengths is a length"),
     )
-    .expect("min of two lengths is a length");
-    slab_with(
+    .expect("a shallow negation");
+    crate::m10_3_driver_interval::notch_with(
         nominal,
         Distribution::Uniform {
             lo: -half,
             hi: half,
         },
-        distance,
+        height,
     )
 }
 
@@ -234,14 +241,14 @@ fn the_unresolved_budget_is_refused_mass_plus_tail() {
 /// `contained()` that returned `false` unconditionally would pass the
 /// whole shipped suite.
 ///
-/// The construction: the extrusion distance is `min(depth, 2h - depth)`,
-/// so the witness chamber in `depth` is the OPEN interval `(0, 2h)` and
-/// the analyzed box `[-h, 3h]` strictly contains it. Both ends of the
+/// The construction: the notch's vertex sits at `−min(t, 2h − t)`, so
+/// the witness chamber in `t` is the OPEN interval `(0, 2h)` and the
+/// analyzed box `[-h, 3h]` strictly contains it. Both ends of the
 /// box are then definitely on the far branch, which is exactly E2's
 /// "the witness chamber is contained in the box".
 #[test]
 fn containment_fires_when_the_chamber_is_strictly_inside_the_box() {
-    let doc = pinched(20.0 * eps(), 40.0 * eps());
+    let doc = pinched(0.25, 0.5);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(
         &doc,
@@ -628,6 +635,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
         r.insert(Node::Extrude {
             profile: p,
             distance: Expr::param(name("plate_h"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         r.doc
     };

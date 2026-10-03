@@ -158,7 +158,7 @@ fn intrinsic_seam_at(
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -791,7 +791,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     // The description is re-stated against the chart the face now
     // carries, so the mate is the one `mate_surface` would find rather
     // than a hand-picked one (`rechart` mints a new surface key).
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         body.get_half_edge(he).unwrap().edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

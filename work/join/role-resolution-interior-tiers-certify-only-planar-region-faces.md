@@ -1,0 +1,129 @@
+---
+id: role-resolution-interior-tiers-certify-only-planar-region-faces
+kind: issue
+title: Role resolution probes a curved edge at its chord midpoint, which is on neither flanking region and reads both loops alike (SectionLoopMixed); its region-interior tiers read a curved region through the planar-only face_plane
+status: closed
+opened: 2026-09-25
+priority: P0
+cost: H
+closed: 2026-10-02
+refs: [the-uncut-shell-witness-reads-no-curved-face-interior]
+---
+
+
+Found by CONTACT-2 (PR 3250) and its review.
+
+`boolean/join.rs` `resolve_roles_geometric` decides which loop of a
+completed section polygon is the IN copy by probing the regions flanking
+the seam against the other operand, tier by tier (`Anchor::Vertex`,
+`Anchor::ChordMidpoint`, `Anchor::EdgeOnCarrier`, `Anchor::RegionInterior`,
+`Anchor::RegionVertexChord`). Two defects sit in it.
+
+## 1. `Anchor::ChordMidpoint` is unsound on a curved edge (reproduced)
+
+The tier probes each region edge's CHORD midpoint (`lerp` of its ends)
+uncertified, as if it lay on the region. For a curved edge it does not:
+a rim semicircle's chord midpoint is the circle's centre, a point on
+neither flanking region, and its one verdict is taken by both loops.
+
+**Reproducer**, `crates/sweep/tests/axis_lap.rs`
+`a_chord_midpoint_probe_reads_both_loops_alike`: rod `r = 0.5` about `z`
+over `z ∈ [0, 4]` (an extruded circle) minus a cutter extruded over
+`z ∈ [−1, 5]` from the half-plane `y ≥ 0` with a half-rod bump
+`r = 0.1` on the axis, bulging either way. Every rod vertex is
+`OnBoundary`, so the chord-midpoint tier decides, and both loops read
+the centre alike: `Join(SectionLoopMixed)` for both bulge signs, on
+CONTACT-2's head and on its base. The loud guard fires, so no wrong
+body ships, but a legal pose refuses as a kernel invariant.
+
+Swapping the chord midpoint for the on-carrier one is not the fix by
+itself: CONTACT-2 tried it and three rows moved to the refusal in §2
+(`curved_mergedoor`
+`floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today` and
+`consumed_side_of_the_pair_is_gone_and_one_record_ships` (now `consumed_side_of_the_pair_leaves_the_door_nothing_to_record`),
+`r1_probes_m9_3` `probe_partial_engagement_never_silent`). There the rim
+lies ON the other body's bore wall, so the on-carrier point reads
+`OnBoundary`, and today the off-region chord midpoint decides them —
+by the same unsound read. CONTACT-2 kept the tier and added
+`Anchor::EdgeOnCarrier` after it.
+
+## 2. The region-interior tiers are planar-only
+
+`Anchor::RegionInterior` and `Anchor::RegionVertexChord` certify a
+candidate interior to its region face through `point_in_face`, taking
+the projection normal from `solid_contain::face_plane`, which answers
+only for a `Plane` and returns `PointInSolidError::KindUnsupported`
+otherwise. A curved region reaching them refuses
+`Containment(KindUnsupported { kind: Cylinder })`, and
+`KindUnsupported`'s docs say the containment door HAS a cylinder arm.
+Reached on CONTACT-2's tree before `Anchor::EdgeOnCarrier` landed by
+`rod − brick((-1, 1), (0, 1), (-1, 5))`, and by the three rows above
+with the chord-midpoint tier replaced; no row reaches it today.
+
+## What the taker owes
+
+A sound curved-edge anchor — the chord-midpoint tier fenced to straight
+edges, with the rows it decides today resolved by a certified point (a
+chart-space `point_in_face` for curved regions answers §2 as well) — or
+a typed refusal naming the gap. The reproducer row flips when it lands.
+
+## Measured (CLEAVE `cleave/ladders`, 2026-10-01)
+
+Role resolution now runs the cell-dimension witness ladder of
+`boolean/shell_witness.rs` (`complex_side`) over each loop's region
+faces: vertices, each edge's carrier at its parameter midpoint, then
+one certified interior point per PLANAR face, a curved face passed over
+rather than refused. The chord-midpoint tier is gone.
+
+- §1: the reproducer resolves. `axis_lap.rs`
+  `a_rim_semicircle_decides_role_resolution_at_its_own_midpoint` (the
+  renamed row) certifies at rest at the analytic volume for both bulge
+  signs. The three rows CONTACT-2 saw move to §2 do not move there:
+  `curved_mergedoor` scenes A and B now ship honest bodies (see
+  `rest-zip-seam-chord-on-cylinder-wall`), and
+  `consumed_side_of_the_pair_is_gone_and_one_record_ships` and
+  `r1_probes_m9_3` `probe_partial_engagement_never_silent` pass
+  unchanged. On their region faces the rim arc's carrier midpoint reads
+  `OnBoundary` (the rim lies on the bore wall), the curved faces are
+  passed over, and the OTHER loop decides through a certified planar
+  interior point.
+- §2: no region face reaches `face_plane`'s refusal any more; what
+  remains is that a curved region's interior is not read, which
+  `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
+  now carries for both callers of the ladder.
+
+## A second reproducer: declared rounded continuations (REACH, PR 3657)
+
+Measured on `reach/cosurface-continuation` after `3aff2e6a07`, with the
+anchor instrumented at `resolve_roles_geometric`'s mixed-verdict return:
+the rounded 6 × 4 × 1 plate (corner fillets r = 0.5) and a rounded
+plate of the same outline 0.5 thick, either sunk inside it
+(z 0.25..0.75) or flush with its top (z 0.5..1) or bottom (z 0..0.5),
+every finding declared as the continuation it is. Subtract and
+intersect refuse `Join(SectionLoopMixed)`, decided at
+`Anchor::ChordMidpoint` in all six; the union refuses
+`FallbackExtentUnsupported` instead
+(`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+The rows are
+`declared_rounded_continuations_inside_a_wall_refuse_typed` in
+`crates/sweep/tests/reach_continuation.rs`. The sharp outline builds
+all three ops on the same poses.
+
+CLEAVE #3716 resolved this reproducer. On PR 3657 with `origin/main`
+merged in, none of the six refuses `SectionLoopMixed`. Five build at the
+oracle, valid at tier 3 and 3′. The flush-top intersect builds the right
+body, but the volume backstop then refuses it on a rounding tie
+(`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`).
+The row is now
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
+
+## Closed 2026-10-02 — at JOIN's opening, on what main already carries
+
+§1 is fixed on main: role resolution runs `shell_witness::complex_side`
+and the chord-midpoint tier is gone (`boolean/join.rs`), and the
+reproducer flipped to
+`axis_lap.rs` `a_rim_semicircle_decides_role_resolution_at_its_own_midpoint`.
+§2's remainder, that the ladder reads no curved face's interior, is
+`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`,
+which carries it for both callers of the ladder. Nothing is left on
+this row.

@@ -2,11 +2,13 @@
 id: pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger
 kind: issue
 title: PR 3612 moved the m10 symbolic-walk ledger's Decision forms, so main's m10_sym_profile_interval row is red at the default eps
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
 refs: [3612]
+closed: 2026-10-01
+pr: 3652
 ---
 
 
@@ -48,3 +50,11 @@ Decide whether the new walk is right. PR 3612 changed
 what moved and why (implementer-discipline §3). Otherwise fix the
 kernel. The bisection logs are at
 `~/.local/share/cad-work/reach-bisect-m10/` on the REACH box.
+
+## Closed (PR 3652, 2026-10-01)
+
+PCERT re-baselined the ledger in PR 3652, merged 28 minutes after this
+row was filed and without seeing it: the same bisection, the same
+lines. The move is the exact-end sample schedule letting end residuals
+discharge symbolically, so the same calls build fewer forms; verified
+at all three ε rows, green hosted. (PCERT orchestrator)

@@ -136,6 +136,7 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
             body.describe_at_rest(edge, s_seed, tol).unwrap();
         }
     }
+    topo::mint_pcurves(&mut body, tol).unwrap();
     body
 }
 

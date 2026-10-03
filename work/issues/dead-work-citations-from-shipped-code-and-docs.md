@@ -256,3 +256,32 @@ form that does not rot.
 **The gate this strengthens is still the weak one** (shape 1): assert
 that a cited `work/` path resolves. All four paths above were simply
 absent, and CI said nothing across two sweeps and a re-home.
+
+## EDIT's closed rows (added 2026-10-02, at EDIT's exit)
+
+EDIT closed on 2026-10-02 (`docs/doc-ledger/edit-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in PLACE, RECIPE and DOCTAIL. Citations of its CLOSED rows now dangle. Each is recoverable at `88369343b`:
+
+| citing file | cited row |
+| --- | --- |
+| ~~`crates/editor-core/src/edit.rs`, `src/roots.rs`, `tests/dm7_delete_strands.rs`~~ (cleared 2026-10-02: the citing prose went with `Maintenance::OrphanedDeclare`, RECIPE `declared-pairs-are-a-booleans-own-payload`) | `an-orphaned-declare-joins-the-product-root-set` |
+| `crates/editor-core/src/persist/check.rs` | `three-door-predicates-are-hand-copied-not-shared` |
+| `crates/editor-core/src/resolve/pick.rs`, `crates/viewer/tests/pick3_acceptance.rs` | `pick-closed-acceptance-loses-a-graze-to-rounding` |
+| `crates/editor-core/tests/edit_doc_param_unit.rs` | `doc-param-distribution-edit-has-no-door` |
+| `crates/editor-core/tests/load_door_payload_param_ref.rs` | `load-door-does-not-check-payload-expression-param-refs` |
+| `crates/viewer/src/session/refuse.rs` | `no-door-refuses-a-blank-parameter-name` |
+| `crates/viewer/tests/index_memo.rs` | `pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour` |
+| `docs/DESIGN-FORK-LOG.md` | `part-root-failure-nests-a-whole-refusal-past-the-budget` |
+| `docs/MODEL-AB-LOG.md` | `work/edit/plan.md`, `work/edit/program.md` |
+
+Other programs' rows and logs also cite closed EDIT rows. They are history, not shipped prose, and are not listed.
+
+`docs/AUTH-9-SPEC.md`'s row left this table on 2026-10-02: the spec was pruned at AUTHOR's close, so the citing file is gone.
+
+## AUTHOR's closed rows (added 2026-10-02, at AUTHOR's exit)
+
+AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in DOORS and AUTHTAIL. The two code comments that named a closed AUTHOR row as a residue's carrier now name AUTHTAIL's `drawing-on-a-picked-face-is-a-two-form-trip`. One shipped-doc citation of a closed row is left dangling. It is recoverable at `29b8874a1`:
+
+| citing file | cited row |
+| --- | --- |
+| `docs/DESIGN-FORK-LOG.md` (row 22) | `a-negative-extrude-distance-probes-as-valid` |
+

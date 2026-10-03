@@ -79,10 +79,14 @@ mod chart_box_span;
 
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
+#[path = "cylinder_green_conditioning.rs"]
+mod cylinder_green_conditioning;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "ellipse_signed_semi_axis_gate.rs"]
+mod ellipse_signed_semi_axis_gate;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -115,8 +119,12 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "pcurve_frame_premise_rows.rs"]
+mod pcurve_frame_premise_rows;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_sphere_circle_loop.rs"]
+mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
@@ -146,8 +154,14 @@ mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;
+#[path = "chart_incidence.rs"]
+mod chart_incidence;
+#[path = "cone_incidence_fuzz.rs"]
+mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
+#[path = "pcurve_cone_section.rs"]
+mod pcurve_cone_section;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_general.rs"]
@@ -251,6 +265,8 @@ mod pcurve_mirror_v;
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "sphere_circle_certificate.rs"]
+mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_meridian_radial.rs"]

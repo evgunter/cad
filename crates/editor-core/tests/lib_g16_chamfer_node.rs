@@ -34,6 +34,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{
@@ -124,11 +125,11 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
 fn the_chamfer_door_sorts_and_dedups_its_selection() {
     let a = fixture::ename(
         RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+        editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
     let b = fixture::ename(
         RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(1)),
+        editor_core::RoleSeg::Lateral(fixture::leg(1).into()),
     );
     let node: Node<ProfileProgram> = Node::chamfer(
         RecipeNodeId(1),
@@ -167,7 +168,7 @@ fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
 fn the_selection_is_payload_names() {
     let a = fixture::ename(
         RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+        editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
     let node: Node<ProfileProgram> =
         Node::chamfer(RecipeNodeId(1), fixture::len(0.1), vec![a.clone()]);
@@ -194,6 +195,7 @@ fn an_empty_selection_refuses_as_a_chamfer() {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, ch) = fixture::insert(doc, Node::chamfer(cube, fixture::len(0.1), Vec::new()));

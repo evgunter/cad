@@ -139,7 +139,7 @@ fn a_rotated_bracket_and_brick_sweep_clears_no_overlap() {
         let r = rotation(axis, ang);
         let map = move |x: f64, y: f64, z: f64| {
             let q = r([x, y, z]);
-            Point3::new(q[0], q[1], q[2])
+            Point3::from_array(q)
         };
         for &x in &xy {
             for &y in &xy {
@@ -425,7 +425,7 @@ fn sweep_pairs(poses: &[(String, Part<'_>, Part<'_>)]) -> (usize, usize, Vec<Str
         let r = rotation(axis, ang);
         let map = move |x: f64, y: f64, z: f64| {
             let q = r([x, y, z]);
-            Point3::new(q[0], q[1], q[2])
+            Point3::from_array(q)
         };
         for (label, (pa, ba, za), (pb, bb, zb)) in poses {
             let mut body = Body::<f64>::new();

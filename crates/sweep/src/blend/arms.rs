@@ -242,7 +242,8 @@ impl BlendArm {
 
     /// The arm's two support KINDS, in the same order
     /// [`Self::name`] spells them — one word each, in the vocabulary
-    /// the recourse sentences use for a stored surface.
+    /// the recourse sentences use for a stored surface, which is
+    /// [`geom::SurfaceKind::name`]'s.
     ///
     /// Split out from [`Self::name`] because a refused caller needs
     /// the KIND SET (four words, which is what the door tests first)
@@ -253,18 +254,20 @@ impl BlendArm {
     /// so the two spellings cannot drift apart.
     #[must_use]
     pub fn kinds(self) -> [&'static str; 2] {
+        use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
         match self {
-            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => ["plane", "plane"],
-            Self::PlaneSphereTorus => ["plane", "sphere"],
-            Self::SphereConeTorus => ["sphere", "cone"],
-            Self::ConePlaneTorus => ["cone", "plane"],
-            Self::ConeConeTorus => ["cone", "cone"],
-            Self::CylinderConeTorus => ["cylinder", "cone"],
-            Self::CylinderSphereTorus => ["cylinder", "sphere"],
-            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => ["cylinder", "plane"],
-            Self::SphereSphereTorus => ["sphere", "sphere"],
-            Self::CylinderCylinderCylinder => ["cylinder", "cylinder"],
+            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => [Plane, Plane],
+            Self::PlaneSphereTorus => [Plane, Sphere],
+            Self::SphereConeTorus => [Sphere, Cone],
+            Self::ConePlaneTorus => [Cone, Plane],
+            Self::ConeConeTorus => [Cone, Cone],
+            Self::CylinderConeTorus => [Cylinder, Cone],
+            Self::CylinderSphereTorus => [Cylinder, Sphere],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => [Cylinder, Plane],
+            Self::SphereSphereTorus => [Sphere, Sphere],
+            Self::CylinderCylinderCylinder => [Cylinder, Cylinder],
         }
+        .map(geom::SurfaceKind::name)
     }
 
     /// Every arm, for the coverage rows and the refusal-roster check.

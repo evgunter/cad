@@ -21,9 +21,10 @@
 
 use std::fmt::Write as _;
 
+use geom::SurfaceKind;
 use geom_brep::{
-    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
-    must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
+    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    sample_param, tangent_certificate_lane, tangent_second_order,
 };
 use geom_core::{Band, ErrorTextReading, Margin, Tol};
 use sweep::blend::{
@@ -91,7 +92,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {
-            kinds: (SurfaceKind::of(s1), SurfaceKind::of(s2)),
+            kinds: (s1.kind(), s2.kind()),
             in_lane: tangent_certificate_lane(carrier, s1, s2),
             verdict: must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band),
             min_margin,

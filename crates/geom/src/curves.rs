@@ -75,14 +75,6 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
-// The variant roster the analytic-kind fixtures read
-// ([`crate::test_support`]; this crate's `test-support` feature,
-// test builds only).
-#[cfg_attr(
-    feature = "test-support",
-    derive(strum::EnumDiscriminants),
-    strum_discriminants(name(Curve3Variant), derive(strum::EnumIter), doc(hidden))
-)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -160,11 +152,15 @@ pub enum Curve3<T: Real> {
         /// The unit normal of the ellipse's plane (right-hand winding
         /// rule; conventional, unchecked).
         axis: Vec3<T>,
-        /// The semi-major axis length in meters (`major > minor` by
-        /// the constructor's refusal).
+        /// The semi-major axis length in meters: `major > minor` where
+        /// [`Curve3::ellipse`] minted it, which refuses otherwise. Tier 3
+        /// certifies it positive but not the ordering, and a struct
+        /// literal checks neither; readers past the constructor take
+        /// the semi-axes as magnitudes in either order
+        /// (`geom_brep::Conic`).
         major: T,
-        /// The semi-minor axis length in meters (positive by the
-        /// constructor's refusal).
+        /// The semi-minor axis length in meters: positive where
+        /// [`Curve3::ellipse`] or tier 3 decided it.
         minor: T,
         /// The unit semi-major direction ⊥ `axis` where θ = 0 lives —
         /// the seam, carried as conventional data per D2.
@@ -187,7 +183,8 @@ pub enum Curve3<T: Real> {
     /// ellipse's its eccentric anomaly: `|dP/dv|² = r²cos²v +
     /// r²ρ²sin²v/(ρ² − offset²)`, `ρ = R + r·cos v`, so
     /// `|dP/dv| ∈ [r, r(R − r)/√((R − r)² − offset²)]` — bounded away
-    /// from zero, a regular parameter on the oval.
+    /// from zero, a regular parameter on the oval ([`spiric_rate_bounds`]
+    /// is the bound's one spelling, over any window of it).
     ///
     /// Conventions (D2: carried as data, unchecked by the evaluators,
     /// decided at the mint):
@@ -241,6 +238,85 @@ pub enum Curve3<T: Real> {
     /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
     /// same all-poison evaluation behavior.
     Nurbs(Arc<NurbsCurve3<T>>),
+}
+
+/// Which [`Curve3`] variant a carrier is: the workspace's one fieldless
+/// mirror of the curve enum ([`Curve3::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Curve3`] reds [`Curve3::kind`]'s wildcard-free match until it has
+/// a kind here; [`Self::ALL`] is derived from this enum, so there is no
+/// roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum CurveKind {
+    /// A [`Curve3::Line`].
+    Line,
+    /// A [`Curve3::Circle`].
+    Circle,
+    /// A [`Curve3::Ellipse`].
+    Ellipse,
+    /// A [`Curve3::Spiric`].
+    Spiric,
+    /// A [`Curve3::Nurbs`], described or the placeholder.
+    Nurbs,
+}
+
+impl<T: Real> Curve3<T> {
+    /// Which variant this carrier is.
+    ///
+    /// **No wildcard arm**: a new [`Curve3`] variant is a compile error
+    /// here until [`CurveKind`] names it.
+    #[must_use]
+    pub fn kind(&self) -> CurveKind {
+        match self {
+            Self::Line { .. } => CurveKind::Line,
+            Self::Circle { .. } => CurveKind::Circle,
+            Self::Ellipse { .. } => CurveKind::Ellipse,
+            Self::Spiric { .. } => CurveKind::Spiric,
+            Self::Nurbs(_) => CurveKind::Nurbs,
+        }
+    }
+}
+
+impl CurveKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Circle => "circle",
+            Self::Ellipse => "ellipse",
+            Self::Spiric => "spiric",
+            Self::Nurbs => "nurbs",
+        }
+    }
+
+    /// The kind as an adjective for an edge or its curve, for prose
+    /// ("a circular edge").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Line => "straight",
+            Self::Circle => "circular",
+            Self::Ellipse => "elliptical",
+            Self::Spiric => "toric-section",
+            Self::Nurbs => "spline",
+        }
+    }
 }
 
 /// Typed refusal of [`Curve3::ellipse`] — the one place that decides an
@@ -749,7 +825,7 @@ impl<T: Real> Curve3<T> {
     /// `Circle` arm calls `circle_point` on the one frame it shares
     /// with its tangent half — so a caller that builds a point here
     /// builds the very node either door would. That is what
-    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
     /// delegation and not a transcription anyone has to keep in step.
@@ -794,25 +870,50 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     )
 }
 
-/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
-/// radian squared — the one spelling of the bound, read by the mesh
-/// chord sizing and by STEP export's node-count schedule.
+/// **Bounds on a spiric's speed and acceleration over a stretch of the
+/// oval whose `ρ = R + r·cos v` lies in `[rho_lo, rho_hi]` and whose
+/// `|sin v| ≤ sin_max`**, as `(S, A)` with `|C′| ≤ S` and `|C″| ≤ A`
+/// there — the one spelling of both bounds, over a whole period
+/// (`ρ ∈ [R − r, R + r]`, `sin_max = 1`: [`spiric_curvature_sup`]) or
+/// over one piece of an arc (`topo`'s spiric crossing row, whose pieces
+/// read their own window).
 ///
-/// From `C″ = m·f″ − axis·(r·sin v)` with
-/// `|f″| = r·|(ρ·cos v − r·sin²v)/f + r·ρ²·sin²v/f³|
-///        ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`,
-/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`, plus the axis
-/// channel's `r`. Plain `f64`: a sizing quantity, conservative by the
-/// bound's own slack rather than by rounding. Off-regime data
-/// (`f_min` poison or zero) yields a non-finite answer, which every
-/// caller reads as a refusal rather than a step.
+/// With `f = √(ρ² − d²)`, `ρ′ = −r·sin v` and `f′ = ρρ′/f`,
+/// `C′ = m·f′ + axis·(r·cos v)`, so
+/// `|C′|² = r²(cos²v + (ρ²/f²)·sin²v) = r²(1 + (d²/f²)·sin²v)`, largest
+/// at the smallest `f`: `S = r·√(1 + (d·sin_max/f(rho_lo))²)` — over a
+/// whole period, `r·(R − r)/f_min`. `C″ = m·f″ − axis·(r·sin v)` with
+/// `f″ = (ρ′² + ρρ″)/f − (ρρ′)²/f³` and `|ρ″| ≤ r`:
+/// `A = r·sin_max + (r²·sin_max² + r·rho_hi)/f(rho_lo) +
+/// r²·rho_hi²·sin_max²/f(rho_lo)³`. The `sin` factor is what keeps a
+/// near-tangent cut's pinch, where `f` is small but `ρ′` vanishes, from
+/// charging its `1/f³` to the pieces about it. Generic so the interval
+/// lane carries its enclosures; off-regime data (`rho_lo ≤ |d|`) yields
+/// poison.
+pub fn spiric_rate_bounds<T: Real>(
+    minor: T,
+    offset: T,
+    (rho_lo, rho_hi): (T, T),
+    sin_max: T,
+) -> (T, T) {
+    let f_lo = (rho_lo.powi(2) - offset.powi(2)).sqrt();
+    let speed = minor * (T::one() + (offset * sin_max / f_lo).powi(2)).sqrt();
+    let accel = minor * sin_max
+        + (minor.powi(2) * sin_max.powi(2) + minor * rho_hi) / f_lo
+        + minor.powi(2) * rho_hi.powi(2) * sin_max.powi(2) / f_lo.powi(3);
+    (speed, accel)
+}
+
+/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
+/// radian squared — [`spiric_rate_bounds`] over a whole period, read by
+/// the mesh chord sizing and by STEP export's node-count schedule.
+/// Plain `f64`: a sizing quantity, conservative by the bound's own slack
+/// rather than by rounding. Off-regime data (`f_min` poison or zero)
+/// yields a non-finite answer, which every caller reads as a refusal
+/// rather than a step.
 #[must_use]
 pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
-    let rho_max = major + minor;
-    let (f_min, _) = spiric_f_range(major, minor, offset);
-    minor
-        + (minor.powi(2) + minor * rho_max) / f_min
-        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3)
+    spiric_rate_bounds(minor, offset, (major - minor, major + minor), 1.0).1
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and

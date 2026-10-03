@@ -213,7 +213,7 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
         for &r in &[1e-4, 1e-2, 1.0, 1e2, 1e4] {
             for &c in &centers {
                 let carrier = circle(c, axis, r, u_ref);
-                let scale = r + c.x.abs().max(c.y.abs()).max(c.z.abs());
+                let scale = r + (c - Point3::origin()).norm_inf();
                 let dense =
                     r == 1.0 && c.x == 0.0 && c.y == 0.0 && c.z == 0.0 && fname.contains("octant");
                 let n = if dense { 5_000 } else { 200 };

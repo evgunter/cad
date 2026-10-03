@@ -175,6 +175,9 @@ fn powi_straddle_square_is_tight_at_zero() {
     // Exact squares stay exact (sqrt witness path).
     let four = DInterval::from_bounds(4.0, 4.0).sqrt();
     assert_eq!((four.lo(), four.hi()), (2.0, 2.0));
+    // So does zero, below the witness's magnitude floor.
+    let zero = DInterval::from_bounds(0.0, 0.0).sqrt();
+    assert_eq!((zero.lo(), zero.hi()), (0.0, 0.0), "{zero:?}");
 }
 
 #[test]

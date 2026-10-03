@@ -21,7 +21,27 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, FaceKey};
+use topo::{Body, EulerOpError, FaceKey, ReplaceFaceError};
+
+/// **The caps' refusal of a cone chart whose offset moves its rims off
+/// them**, read either way it arrives: `Some(Some(gap))` where a rim
+/// vertex's re-anchor refuses first (`ReanchorOffCarrier`, carrying the
+/// gap), `Some(None)` where a rim edge's re-chart onto the unmoved cap
+/// does (`RechartFalsifies` through the attach door, which carries no
+/// gap), `None` for anything else. Which of the two is reached first
+/// follows the order the door walks the rim — on a frustum whose caps
+/// are whole discs the narrowing one reaches the edge first — and is
+/// filed as `work/shell/cap-rim-refusal-order-follows-the-arena.md`.
+pub fn rim_refusal_gap(got: &Result<(), ReplaceFaceError<f64>>) -> Option<Option<f64>> {
+    match got {
+        Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => Some(Some(*gap)),
+        Err(ReplaceFaceError::Op {
+            error: EulerOpError::RechartFalsifies { .. },
+            ..
+        }) => Some(None),
+        _ => None,
+    }
+}
 
 /// The wall thickness the SHELL-6 rows offset by.
 pub const T: f64 = 1.0 / 128.0;

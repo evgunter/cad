@@ -14,6 +14,7 @@
 //!   and another crate's suites.
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
@@ -27,9 +28,16 @@ pub fn cyl(r: f64, h: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(2.0 * h), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0 * h,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 pub fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -77,4 +85,42 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
         spin(&a, Vec3::new(0.0, 0.0, 1.0), phi),
         spin(&b, Vec3::new(0.0, 1.0, 0.0), phi),
     )
+}
+
+/// **Whether two refusals of one configuration in two poses are one
+/// door** — the re-pose rows' comparison, for both scalar lanes. Their
+/// `Debug` agrees, except where a refusal carries a decided margin
+/// (the pierce curvature's, `CurvedSectorSideUnsupported`): each pose
+/// reads it off its own coordinates, so the twins' margins agree to
+/// within the zero band the verdict was classified against rather than
+/// bit for bit. A verdict of the other sign, or a margin a band-width
+/// away, is another door.
+pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
+    use geom_brep::recourse::Refused;
+    use geom_core::{ErrorTextReading, MarginDiag};
+    let zero = geom_core::Band::linear(Tol::witness())
+        .expect("a linear band")
+        .zero();
+    let near = |x: MarginDiag, y: MarginDiag| match (
+        x.diagnostic_f64_for_error_text(),
+        y.diagnostic_f64_for_error_text(),
+    ) {
+        (ErrorTextReading::Value(p), ErrorTextReading::Value(q)) => (p - q).abs() <= zero,
+        (
+            ErrorTextReading::Enclosure { lo: l1, hi: h1 },
+            ErrorTextReading::Enclosure { lo: l2, hi: h2 },
+        ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
+        _ => false,
+    };
+    match (a, b) {
+        (
+            topo::BooleanError::CurvedSectorSideUnsupported { verdict: va },
+            topo::BooleanError::CurvedSectorSideUnsupported { verdict: vb },
+        ) => match (va, vb) {
+            (Refused::Zero(x), Refused::Zero(y)) => near(x.margin, y.margin),
+            (Refused::Negative { margin: x }, Refused::Negative { margin: y }) => near(*x, *y),
+            _ => false,
+        },
+        _ => format!("{a:?}") == format!("{b:?}"),
+    }
 }

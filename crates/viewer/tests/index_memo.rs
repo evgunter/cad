@@ -979,8 +979,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let picked = &picked[0];
     let expected_point = ray.origin + ray.dir * hit.t();
     assert_eq!(
-        [picked.point.x, picked.point.y, picked.point.z].map(f64::to_bits),
-        [expected_point.x, expected_point.y, expected_point.z].map(f64::to_bits),
+        picked.point.to_array().map(f64::to_bits),
+        expected_point.to_array().map(f64::to_bits),
         "the hit point is the chord point as the ray reaches it: {:?}",
         picked.point
     );

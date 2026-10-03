@@ -28,10 +28,11 @@ is a second-class citizen in exactly the places draft's output would
 land next:
 
 - where the new cone meets a drafted plane neighbor at generic tilt,
-  `plane_cone_section` routes to rung 3 **permanently** — "parabola
-  and hyperbola are outside the conic inventory **by decision, not
-  by omission**" (R1, `intersect.rs:228-235`). Cone SSI coverage
-  is otherwise zero (cyl×cone, cone×cone, cone×sphere all
+  `plane_cone_section` builds the exact `Ellipse` (Ev, 2026-10-01:
+  "exact ellipses are certainly allowed there") and refuses a
+  parabolic or hyperbolic section typed — "parabola and hyperbola are
+  outside the conic inventory **by decision, not by omission**" (R1).
+  Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
   unimplemented in the C5 table).
 - a cone face is boolean-live only where the pair-scoped operand
   gate (VERBS-GATE, #1001) finds no unsupported PAIR it could

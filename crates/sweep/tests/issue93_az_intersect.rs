@@ -32,6 +32,7 @@ use geom_core::Tol;
 use geom_core::{Decide, OrthoFrame, Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
@@ -99,7 +100,7 @@ fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Va
 
 /// The A prism: profile on world xy, extruded z ∈ [-1/16, 2 + 1/16]
 /// (strictly covers Z's z-extent [0, 2]).
-fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
+fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(
         T::from_f64(0.0),
         T::from_f64(0.0),
@@ -107,7 +108,10 @@ fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
     )));
     extrude(
         &validated(plane, loops),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude A")
@@ -118,7 +122,7 @@ fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
 /// [1.5625, 2] spanning y ∈ [-0.0625, 2.5625] (strictly covers A's
 /// y-extent), diagonal at slope 3/5 — extruded x ∈ [-1/16, 2 + 1/16]
 /// (strictly covers A's x-extent).
-fn z_prism<T: Decide>() -> Body<T> {
+fn z_prism<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -138,7 +142,10 @@ fn z_prism<T: Decide>() -> Body<T> {
     )));
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude Z")
@@ -232,7 +239,10 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude flush Z")
@@ -250,7 +260,8 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     // Declared: pair the value-equal flush planes (both bodies' pure
     // ±y carriers at equal signed offsets — dyadic sketch data, so
     // offsets are exact bit-for-bit), then the intersect runs on the
-    // #93 anchors and is exact.
+    // #93 anchors and is exact. Each pair faces the same way, one
+    // carrier with aligned senses: a continuation, not a `Rest`.
     let mut decls = topo::BooleanDeclarations::none();
     let y_planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, f64)> {
         body.faces()
@@ -269,7 +280,7 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
             if da == db {
                 decls
                     .coincident_faces
-                    .push(topo::FacePairDeclaration::rest(fa, fb));
+                    .push(topo::FacePairDeclaration::continuation(fa, fb));
             }
         }
     }

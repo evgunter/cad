@@ -18,7 +18,7 @@
 //! purpose through the test-only stranding door: structural validation
 //! stays green over the surgery, no pcurve survives to be stranded, and
 //! the geometric-structural tier reports the stranded description on
-//! every reversed wall. It exists so that a caller who reads
+//! every reversed wall, and the rowless wall's re-derivation refusing. It exists so that a caller who reads
 //! `reversed_v`'s "What this does not do" paragraph can see what the
 //! door does not do, rather than take its word for it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -112,10 +112,10 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
          meant in the OLD chart ({errs:?})"
     );
     assert_eq!(
-        stale_pcurves, 0,
-        "no pcurve is stranded: `set_face_surface` drops a face's rows when the \
+        stale_pcurves, 4,
+        "one per reversed wall: `set_face_surface` drops a face's rows when the \
          new surface is not the chart they were stated in, so each reversed \
-         wall arrives rowless and the pass has nothing to measure on it; \
-         before that drop this read sixteen, four per wall ({errs:?})"
+         wall arrives rowless, and the pass re-derives it and names the first \
+         half-edge the reversed chart cannot place ({errs:?})"
     );
 }

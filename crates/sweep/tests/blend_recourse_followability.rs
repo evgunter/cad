@@ -58,6 +58,7 @@
 
 use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
@@ -477,8 +478,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
             query::edge_adjacent_matches(
                 &wedge,
                 e,
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Sphere),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Sphere),
             )
         })
         .expect("a wedge has an edge between a flat wall and the sphere zone");
@@ -506,6 +507,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     for condition in [
         "fully requested trivalent plane\u{2013}plane corners",
         "of one convexity",
+        "chains whose links share both faces",
         "junction carry-through and run-outs are not implemented",
     ] {
         assert!(
@@ -523,6 +525,44 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &query::all_edges(&boxy),
         0.1,
         "single plane–plane links at fully-requested corners",
+    );
+    // The joined clause: a cube whose bottom side was authored as a
+    // declared straight continuation, its walls merged — two of its
+    // rims are two links each on one support pair.
+    let t = tol();
+    let joined: profile::ProfileLoop<f64> = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|p| p.line(0.5, t))
+        .and_then(|p| p.continue_to(Point2::new(1.0, 0.0), t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.line_to(profile::Start, t))
+        .expect("the continuation authors")
+        .into();
+    let prof = Profile::new(SketchPlane::xy(), vec![joined])
+        .validate(t)
+        .expect("the profile validates");
+    let mut merged = sweep::extrude(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .expect("the prism extrudes")
+    .body;
+    merged
+        .merge_coplanar_faces(t)
+        .expect("the continuation's walls merge");
+    builds(
+        &merged,
+        &query::all_edges(&merged),
+        0.1,
+        "plane–plane links joined where consecutive links share both supports",
     );
     builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());

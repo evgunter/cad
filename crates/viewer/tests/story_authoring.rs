@@ -7,11 +7,9 @@
 //! cylindrical shaft, and a square crown block whose crenellations are
 //! cut by two crossing slots — every dimension chosen so the evaluated
 //! volume has a closed form the assertions derive beside the ops. (The
-//! crown is square deliberately: a slab cut through a cylinder WALL is
-//! the boolean's curved-sector frontier and refuses typed —
-//! `CurvedSectorSideUnsupported`, issue 1455's frontier — while the
-//! curved unions below are the supported boss class. The story stays
-//! on what the kernel ships. Stacked discs stand in for the revolved
+//! crown is square: the scene predates the join arm that lets a slab
+//! cut through a cylinder WALL, whose round-crown cut is `editor-core`'s
+//! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
 //! silhouette a rook naturally is: this scene predates
 //! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
 //! the user mis-picks a boolean (typed refusals), tries to crown the
@@ -243,7 +241,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .expect("a self-boolean refuses")
         .to_string();
     assert!(
-        rendered.contains(&format!("node {}", test_utils::refusal::tag(softened.0))),
+        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0))),
         "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
@@ -294,9 +292,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "… ∪ shaft: {v_u2}"
     );
     // The crown is a square block (a slab cut through a cylinder WALL
-    // is the boolean's curved-sector frontier, issue 1455 — the module
-    // docs carry the ruling), so its slots stay in the crossing-slots
-    // class.
+    // stops at the pierce ring's join door — the module docs carry the
+    // reason), so its slots stay in the crossing-slots class.
     let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
     let (_, drum) = common::box_in(&mut session, plane, [DRUM_S, DRUM_S, DRUM_H]);
     let u3 = session_insert(
@@ -422,9 +419,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                if node == pattern
+                if node.id() == pattern
         ),
         "{:?}",
         refused.refusal

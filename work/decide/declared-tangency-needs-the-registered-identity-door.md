@@ -2,9 +2,10 @@
 id: declared-tangency-needs-the-registered-identity-door
 kind: issue
 title: a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt
-status: open
+status: parked
 opened: 2026-09-05
 refs: [1828]
+blocked_on: [fillet-tangency-is-not-the-constructors-node]
 priority: P1
 cost: H
 ---
@@ -90,3 +91,13 @@ the Fillet step's own centre, there is nothing to register. Kept `open` rather t
 `parked` — the dependency is stated here and in `work/sym/plan.md`'s door lane.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Parked (2026-10-02)
+
+This row waits on ROUND's `fillet-tangency-is-not-the-constructors-node`:
+the `Fillet` constructor cannot register the tangency it declares while
+the fillet's centre is not the constructor's own node. When that row
+closes, this one opens again. The look at the bracket's 28 starts here
+(`the-brackets-fillet-decisions-owe-a-structural-look`, "Where the look
+starts").
+

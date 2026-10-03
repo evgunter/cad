@@ -83,14 +83,21 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// id of the node that minted it, so any authoring change that
 /// renumbers nodes moves every row). The companion below tells the
 /// two apart only in part — it drops the entry keys, not the ids — so
-/// a re-pin states which of the two it is. Last re-pinned for the ids:
-/// node ids became digests of the document's mint chain, so every id a
-/// name spells moved and the vocabulary did not.
-const DIE_TABLE_DIGEST: u64 = 0x46ff_fbb3_d481_e812;
+/// a re-pin states which of the two it is. Last re-pinned for both:
+/// the die's pips extrude against their sketch normal, whose sweep
+/// runs the loop backwards, and its walls, rims, struts and cap vertices are
+/// now named by the pieces at their CANONICAL positions (they were
+/// named by the swept positions, each wall by another piece); and node
+/// ids are digests of the document's mint chain, and the die's pip
+/// subtracts carry their declared pairs as their own payload, so every
+/// subtract's id, and every id minted after one, is the chain's
+/// without a declaration node in it; and every extrude carries its side
+/// as payload, which moves every extrude's id and every id after it.
+const DIE_TABLE_DIGEST: u64 = 0x06e4_606e_3b5a_4deb;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x2b81_90a8_18a7_4d6e;
+const DIE_NAMES_DIGEST: u64 = 0x9601_4ff6_7212_5945;
 
 #[test]
 fn die_name_tables_are_golden() {

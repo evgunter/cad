@@ -1113,7 +1113,7 @@ fn a_declaration_exempts_its_own_pair_only() {
         coincident_faces: vec![FacePairDeclaration {
             a: fa[0],
             b: fb[0],
-            class: crate::contact::ContactClass::Rest,
+            class: crate::contact::BooleanCoincidence::REST,
         }],
         ..BooleanDeclarations::default()
     };

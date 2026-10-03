@@ -181,18 +181,19 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` stays here because read-back hands it back,
-// `ProfileError` payloads point into it, and `validated`
-// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
-// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop` stays here because read-back hands it back and
+// `ProfileError` payloads point into it, and `ConstructedLoop` because
+// `validated` and `polygon` take and return one — a prelude user must be
+// able to name what the ladder passes around. What left is the raw
+// MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
 // FIXTURE door behind that crate's `test-support` feature — absent from
 // every shipped build, so there is nothing here to decline. Loops are
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ConstructedLoop, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the
@@ -239,12 +240,19 @@ pub use ::profile::{
 //   `PathError::Escalated`, whose Display selects the gate's own
 //   recourse from the predicate name rather than from a site
 //   discriminant.
-// - `SegmentRef` is the rung under that one, and under four arms
-//   besides: `DegenerateSegment` and `NearFullArc` carry one,
-//   `NonSimple` and `TangentialContact` two apiece. It is where in
+// - `SegmentRef` is the rung under that one, and under six arms
+//   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
+//   `ArcBelowSceneResolution` carry one, `NonSimple` and
+//   `TangentialContact` two apiece. It is where in
 //   the INPUT profile a refusal points — a loop index and a segment
 //   index, in the input's own ordering — so a caller that cannot name
 //   it cannot hold the site it was handed.
+// - `ArcCheck` is `InconsistentArc`'s and `ArcBelowSceneResolution`'s:
+//   which of the three consistency conditions a stored arc failed
+//   against its vertices — its start off the carrier, its sweep landing
+//   off its end, or its sweep out of range — or which one read a
+//   difference the scene could not resolve. Three conditions, and those
+//   arms are the only place the profile says which.
 // - `FilletLeg` is which side of a corner a fillet did not fit,
 //   incoming or outgoing: `CornerReason` names it in two arms and
 //   `PathError` in a third, and it is the one thing a caller
@@ -286,7 +294,7 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -371,19 +379,22 @@ pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // `Node.revolve` whose answer is a body — so there is nothing here to
 // split or pin, the `BlendError` reading on a value rather than a
 // refusal.
+// `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
+// — the one wall per run of pieces each verb builds — so a caller
+// reading those handles can name their element type.
 pub use sweep::{
-    ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
-    tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
+    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
+    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
-// `geom_brep::SurfaceKind` rides here on purpose: it is the payload
+// `geom::SurfaceKind` rides here on purpose: it is the payload
 // of `BooleanError::CurvedBooleanUnsupported`, so any code that
 // matches on a curved-Boolean refusal needs it in the same breath as
 // the error itself — the one-dependency contract's closure over
 // error payloads (crate docs, contract clause 1).
-pub use geom_brep::SurfaceKind;
+pub use geom::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
@@ -469,8 +480,9 @@ pub use geom_brep::SurfaceKind;
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, Surface, TransformError, VertexKey,
-    intersect, intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
+    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
+    union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -740,16 +752,16 @@ pub use editor_core::{NameTextError, StableName};
 // field IS, so without it the arm is matchable and its two lanes
 // are not.
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal,
-    ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
-    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
-    StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
-    vertex_position,
+    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding,
+    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError,
+    DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung,
+    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup,
+    PieceRole, PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds
@@ -758,8 +770,10 @@ pub use crate::select::{
 // names — `all_edges` above answers names from an evaluation,
 // `query::all_edges` answers keys from a body — and a prelude must
 // not make one shadow the other. The vocabulary types the doors speak
-// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
-// already above, one definition re-exported upward.
+// are already above, each one definition re-exported upward: the kinds
+// `CurveKind` and `SurfaceKind` from `geom`, beside the enums they
+// mirror, and the sets `CurveKindSet` and `SurfaceKindSet` from
+// `topo::query`.
 pub use topo::query;
 // The KERNEL flush seat (`topo::flush`): the same detect/declare
 // protocol as a pure function of two `Body`s, for the caller who holds
@@ -768,7 +782,7 @@ pub use topo::query;
 // seat's above (`find_flush_candidates`, `declare`, `declare_all`),
 // which answer names from an evaluation where `flush::` answers keys
 // from a body. The finding vocabulary the doors speak
-// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// (`BooleanCoincidence`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
 // already above, one definition re-exported upward: `FlushFinding` is
 // literally the same type at both seats, over each seat's pair.
 pub use topo::flush;

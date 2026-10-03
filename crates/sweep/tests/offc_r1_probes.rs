@@ -454,8 +454,8 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
         matches!(
             e,
             topo::BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Approx,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
                 face: f,
                 ..
             } if f == face

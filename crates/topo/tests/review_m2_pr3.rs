@@ -45,7 +45,8 @@ fn eps() -> f64 {
 
 /// The prism build, generic over the scalar lane. Sketch triangle
 /// a(0,0) b(1,0) c(0.3,0.8) placed at identity, extruded along +z by 1.
-fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
+fn triangle_prism<T: Decide + topo::AtRestPolicy>()
+-> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
     let sp = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
     let wp = common::identity_map::<T>;
     let (sa, sb, sc) = (sp(0.0, 0.0), sp(1.0, 0.0), sp(0.3, 0.8));

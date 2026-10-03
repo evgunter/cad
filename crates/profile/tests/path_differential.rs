@@ -64,7 +64,11 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         println!("    (");
         println!("        {name:?},");
         println!("        &[");
-        for (v, b) in algebra.vertices().iter().zip(algebra.bulges()) {
+        // The bulge column is READ BACK off the stored sweep, which is
+        // lossy (`tan(Δθ/4)` rounds away from the authored bulge), so a
+        // re-blessed table is a new recording and not the old one.
+        for (v, s) in algebra.vertices().iter().zip(algebra.segments()) {
+            let b = crate::common::quarter_tan(s);
             println!("            [{:?}, {:?}, {:?}],", v.x, v.y, b);
         }
         println!("        ],");
@@ -240,8 +244,8 @@ fn segment_bits(s: profile::Segment<f64>) -> Option<[u64; 4]> {
     }
 }
 
-/// Bit-level loop identity: vertex count, every coordinate and bulge
-/// by `to_bits`, and the declared-joint SET (declaration order is not
+/// Bit-level loop identity: vertex count, every coordinate and stored
+/// segment field by `to_bits`, and the declared-joint SET (declaration order is not
 /// semantic — `tangent_joints` documents set semantics).
 fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
     assert_eq!(
@@ -264,8 +268,6 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
             a.y,
             h.y
         );
-        let (ab, hb) = (algebra.bulges()[i], hand.bulges()[i]);
-        assert_eq!(ab.to_bits(), hb.to_bits(), "vertex {i} bulge: {ab} vs {hb}");
         // The two doors lower alike: the emission layer names each
         // segment's kind by the one lowering rule and `bulge_loop`
         // reaches that same rule, so the canonical segments agree bit
@@ -375,14 +377,18 @@ fn tangent_arc_leg_matches_loopbuilder() {
         .unwrap();
     let algebra = pinned(algebra);
     // The INDEPENDENT oracle (it used to be the hand chain's argument;
-    // now it is asserted directly): vertex 1's bulge is tan(delta/2)
-    // from the documented closed form, bit for bit.
+    // now it is asserted directly): vertex 1's arc is lowered from the
+    // bulge tan(delta/2) of the documented closed form, bit for bit, so
+    // its sweep is that bulge's 4·atan.
+    let profile::Segment::Arc(arc) = algebra.segments()[1] else {
+        panic!("vertex 1 leaves on an arc: {:?}", algebra.segments()[1]);
+    };
     assert_eq!(
-        algebra.bulges()[1].to_bits(),
-        expected_bulge.to_bits(),
-        "tangent-arc bulge: {} vs the closed form {}",
-        algebra.bulges()[1],
-        expected_bulge
+        arc.sweep.to_bits(),
+        (4.0 * expected_bulge.atan()).to_bits(),
+        "tangent-arc sweep: {} vs the closed form's {}",
+        arc.sweep,
+        4.0 * expected_bulge.atan()
     );
     let hand = recorded("tangent_arc_leg_matches_loopbuilder", &algebra);
     assert_loops_identical(&algebra, &hand);
@@ -817,7 +823,8 @@ fn angle_directors_drift_where_toward_is_exact() {
     for (&a, &b) in exact.vertices().iter().zip(drifted.vertices()) {
         assert!((a - b).norm_squared().sqrt() < 1e-12);
     }
-    for (a, b) in exact.bulges().iter().zip(drifted.bulges()) {
+    for (a, b) in exact.segments().iter().zip(drifted.segments()) {
+        let (a, b) = (crate::common::quarter_tan(a), crate::common::quarter_tan(b));
         assert!((a - b).abs() < 1e-12);
     }
     // … and NOT the same bits: the two trim vertices differ, which is

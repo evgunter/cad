@@ -149,6 +149,6 @@ word reads as a label: `two instances overlap:` on the at-rest
 (`a_lost_or_doubled_recourse_is_red`), so the chain test now holds
 every row to one; the `PartFault` rows above that state none are
 admitted by exact id in `FILED_NO_RECOURSE` under
-`work/edit/edit-refusals-short-of-the-shape-guard.md`, where a row still
+`work/recipe/edit-refusals-short-of-the-shape-guard.md`, where a row still
 does. `ADMISSIONS` (the exact-span admissions the same EDIT unit added
 for hex ids) carries its own must-fire through `problems_admitting`.

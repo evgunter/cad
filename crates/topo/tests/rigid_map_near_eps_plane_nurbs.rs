@@ -187,7 +187,7 @@ fn lamina(delta: f64) -> Body<f64> {
         .set_face_surface(closed.face, face_surface(Surface::Nurbs(Arc::new(wall()))))
         .unwrap();
     for (edge, carrier) in [(made.edge, forward), (closed.edge, arc(1.0 + delta, true))] {
-        body.set_edge_curve_nurbs_lane(
+        body.set_edge_curve(
             edge,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {

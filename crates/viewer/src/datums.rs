@@ -798,30 +798,16 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
     let Some(arm) = view.screen_metres_at(origin, FRAME_ARM_PX) else {
         return out;
     };
-    let o = [origin.x, origin.y, origin.z];
     let (back, wide) = (arm * FRAME_BARB_FRACTION, arm * FRAME_BARB_FRACTION * 0.5);
     for ((along, across), heads) in [(u, v), (v, u)].into_iter().zip(FRAME_HEADS) {
-        let at = |d: f64| {
-            [
-                origin.x + along.x * d,
-                origin.y + along.y * d,
-                origin.z + along.z * d,
-            ]
-        };
-        out.extend([o, at(arm)]);
+        let at = |d: f64| origin + along * d;
+        out.extend([origin.to_array(), at(arm).to_array()]);
         for head in 0..heads {
             let tip_at = arm - back * head as f64;
             let tip = at(tip_at);
             let root = at(tip_at - back);
             for side in [1.0_f64, -1.0] {
-                out.extend([
-                    tip,
-                    [
-                        root[0] + across.x * wide * side,
-                        root[1] + across.y * wide * side,
-                        root[2] + across.z * wide * side,
-                    ],
-                ]);
+                out.extend([tip.to_array(), (root + across * wide * side).to_array()]);
             }
         }
     }
@@ -881,14 +867,7 @@ fn grid(
     // not say which way the plane faces either — it says whatever the
     // substituted number happened to point at.
     if let Some(tick) = view.screen_metres_at(origin, NORMAL_TICK_PX) {
-        out.extend([
-            [origin.x, origin.y, origin.z],
-            [
-                origin.x + normal.x * tick,
-                origin.y + normal.y * tick,
-                origin.z + normal.z * tick,
-            ],
-        ]);
+        out.extend([origin.to_array(), (origin + normal * tick).to_array()]);
     }
     out
 }
@@ -1081,46 +1060,27 @@ fn axis_segments(origin: Point3<f64>, axis: UnitVec3<f64>, view: View) -> Vec<[f
     let dir = axis.get();
     // Centred and sized at the point of the axis the camera is
     // pointed at, for `plane_segments`' reason.
-    let to_target = Vec3::new(
-        view.look_at.x - origin.x,
-        view.look_at.y - origin.y,
-        view.look_at.z - origin.z,
-    );
-    let along = to_target.dot(dir);
-    let centre = Point3::new(
-        origin.x + dir.x * along,
-        origin.y + dir.y * along,
-        origin.z + dir.z * along,
-    );
+    let along = (view.look_at - origin).dot(dir);
+    let centre = origin + dir * along;
     // The segment IS the drawing here — there is no second mark to
     // fall back to — so a centre the view cannot scale draws nothing.
     let Some(half) = view.half_patch_at(centre, AXIS_COVER) else {
         return Vec::new();
     };
     let (u, _) = basis(axis);
-    let at = |t: f64| {
-        [
-            origin.x + dir.x * t,
-            origin.y + dir.y * t,
-            origin.z + dir.z * t,
-        ]
-    };
+    let at = |t: f64| origin + dir * t;
     // Centred on the looked-at point, not on the origin, so the
     // segment covers the window wherever along it the view is.
     let (lo, hi) = (along - half, along + half);
-    let mut out = vec![at(lo), at(hi)];
+    let mut out = vec![at(lo).to_array(), at(hi).to_array()];
     for end in [lo, hi] {
         let p = at(end);
         // Each tick is scaled at its own end of the segment, so each
         // refuses for itself the way a plane's tick does.
-        let Some(tick) = view.screen_metres_at(Point3::new(p[0], p[1], p[2]), AXIS_TICK_PX * 0.5)
-        else {
+        let Some(tick) = view.screen_metres_at(p, AXIS_TICK_PX * 0.5) else {
             continue;
         };
-        out.extend([
-            [p[0] - u.x * tick, p[1] - u.y * tick, p[2] - u.z * tick],
-            [p[0] + u.x * tick, p[1] + u.y * tick, p[2] + u.z * tick],
-        ]);
+        out.extend([(p - u * tick).to_array(), (p + u * tick).to_array()]);
     }
     out
 }
@@ -1134,7 +1094,7 @@ fn point_segments(position: Point3<f64>, view: View) -> Vec<[f64; 3]> {
     let Some(arm) = view.screen_metres_at(position, POINT_ARM_PX * 0.5) else {
         return Vec::new();
     };
-    let p = [position.x, position.y, position.z];
+    let p = position.to_array();
     let mut out = Vec::with_capacity(6);
     for axis in 0..3 {
         let (mut lo, mut hi) = (p, p);

@@ -24,6 +24,7 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{
     Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::validate_geometric;
 
@@ -179,8 +180,15 @@ fn transverse_cap_rims_validate_at_rest() {
     .validate(tol)
     .unwrap();
     for (name, profile) in [("square", rect(2.0, 2.0)), ("cylinder", circle)] {
-        let built = extrude(&profile, Extrusion::Distance(1.0), tol)
-            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let built = extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e:?}"));
         for d in cap_rim_descriptions(&built) {
             assert!(
                 matches!(d, EdgeDescription::Intersection { .. }),

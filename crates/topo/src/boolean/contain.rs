@@ -9,19 +9,20 @@
 //! typed (F6); definite margins walk on. Interior/exterior then comes
 //! from one walk over the outer loop and every ring, which reads each
 //! edge on its own CARRIER ([`crate::splitting::containment::carrier_loop_side`]): a line is its
-//! chord, a circle or ellipse arc is crossed on its conic, and an edge
-//! on a carrier with no crossing row refuses typed wherever it could
-//! matter.
+//! chord, a circle or ellipse arc is crossed on its conic, a spiric arc
+//! on its oval, and a spline edge, which has no crossing row, refuses
+//! typed wherever it could matter.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
 use crate::ray_parity::ParityRows;
-use crate::splitting::PointInLoopError;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
+use crate::splitting::spiric_arc::SpiricRows;
+use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -59,19 +60,9 @@ pub enum ContainError {
     RayExhausted,
     /// The face's topology could not be walked.
     Corrupt,
-    /// A **loop no available walk expresses at this point**: it has an
-    /// edge on a carrier the in-plane walk has no crossing row for (a
-    /// spiric, a spline), and the point lies within reach of that edge,
-    /// where a crossing could change the answer: every scheduled ray
-    /// from the point could meet a ball that edge lies in.
-    ///
-    /// The name is older than that meaning. It is kept because tier 3's
-    /// census renders this arm (`validate.rs`, RESTFRONT's ground), and a
-    /// rename has to move that match with it.
-    ArcLoopUnsupported {
-        /// The loop whose region no available walk expresses.
-        r#loop: crate::entity::LoopKey,
-    },
+    /// The walk could not read a loop at this point: an edge of it it
+    /// could not cross stood in the way of every ray.
+    Uncrossable(Uncrossable),
 }
 
 impl From<PointInLoopError> for ContainError {
@@ -80,6 +71,10 @@ impl From<PointInLoopError> for ContainError {
             PointInLoopError::Escalated { diag, .. } => Self::Escalated(diag),
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
+            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
+            PointInLoopError::OffPlane(_) => {
+                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
+            }
         }
     }
 }
@@ -104,7 +99,7 @@ impl core::fmt::Display for ContainError {
                 "contfp: every direction of the parity schedule grazed the face's \
                  boundary, so no ray read a definite crossing count — the point sits \
                  within ε of the boundary at this tolerance; move the point off the \
-                 boundary or lower the tolerance"
+                 boundary"
             ),
             Self::Corrupt => write!(
                 f,
@@ -113,13 +108,9 @@ impl core::fmt::Display for ContainError {
                  resolve; repair the body's topology before asking it a containment \
                  question"
             ),
-            Self::ArcLoopUnsupported { r#loop } => write!(
+            Self::Uncrossable(u) => write!(
                 f,
-                "contfp: loop {loop:?} has an edge on a spiric or spline carrier, which \
-                 the in-plane walk cannot cross, and the point lies within that edge's \
-                 reach, so no available walk expresses the region there — refused \
-                 rather than answered; model the boundary with lines, circles or \
-                 ellipses"
+                "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
             ),
         }
     }
@@ -156,11 +147,9 @@ pub fn contfp<T: Decide>(
     // Interior/exterior: inside the outer loop AND outside every ring,
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
-    // inside or outside. Its `None` is an edge it cannot cross standing
-    // in the way of every ray: a refusal, typed.
+    // inside or outside.
     let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
-        carrier_loop_side(*lk, lp, normal, q, band)?
-            .ok_or(ContainError::ArcLoopUnsupported { r#loop: *lk })
+        Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
     };
     let (outer, rings) = read.split_first().ok_or(ContainError::Corrupt)?;
     if !inside(outer)? {
@@ -172,37 +161,6 @@ pub fn contfp<T: Decide>(
         }
     }
     Ok(FaceContainment::In)
-}
-
-/// Which exact instrument expresses a loop's region. Tier 3's check 9
-/// reads its [`Self::Disc`] class to decide two whole-circle loops
-/// against each other from their centres and radii ([`LoopCircle`]);
-/// [`contfp`] does not ask it — the carrier walk reads every class
-/// below.
-pub(crate) enum LoopShape<T: geom_core::Real> {
-    /// Every edge is an arc of ONE circle: the region is that circle's
-    /// disc, exactly.
-    Disc(LoopCircle<T>),
-    /// No arc anywhere: the ray-parity walk's polygon IS this loop's
-    /// region, exactly.
-    Polygon,
-    /// Arc-bearing over at least three vertices: the polygon through
-    /// them is a proper region, but it is NOT this loop's region, and
-    /// saying so is this variant's whole job. An arc bowing OUTWARD
-    /// leaves region between the polygon and the boundary, and a point
-    /// there reads `Out` from the polygon when it is in: measured on a
-    /// bored D-rod's transverse cap, whose major arc dips past the chord
-    /// its vertices span and whose bore sits in the lune between them.
-    /// A consumer that would REFUSE a body on an `Out` must not read it
-    /// from that polygon: check 9 places its rings with the carrier walk
-    /// for exactly that reason.
-    ArcParity,
-    /// Arc-bearing over fewer than three vertices: the polygon through
-    /// them is a segment of ZERO AREA, so a polygon walk would answer
-    /// `Out` for every interior point — a half-disc cap, a
-    /// half-cylinder cap, a lens cap (two arcs of two DIFFERENT
-    /// circles, no line edge at all).
-    NoWalk,
 }
 
 /// The circle a disc-class loop bounds — its own type, because three
@@ -222,24 +180,11 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
     pub(crate) radius: T,
 }
 
-/// **Which exact instrument expresses this loop's region** — one
-/// carrier pass over the cycle, classifying the loop rather than the
-/// point.
-///
-/// [`crate::splitting::point_in_loop`]'s contract is the planar POLYGON
-/// through a loop's vertices, so a loop with an arc in it is outside
-/// its domain. Four outcomes:
-///
-/// - **[`LoopShape::Disc`]** — every edge is an arc of one circle. The
-///   region is that circle's disc exactly. The planar analog of the curved door's iso-bounded class
-///   ([`curved_face_containment`]).
-/// - **[`LoopShape::Polygon`]** — no arc at all: the polygon IS the
-///   region.
-/// - **[`LoopShape::ArcParity`]** — arcs over ≥ 3 vertices, where the
-///   polygon is a proper region but not the loop's: an arc bowing
-///   outward puts region between the polygon and the boundary.
-/// - **[`LoopShape::NoWalk`]** — arc-bearing over < 3 vertices, where
-///   the polygon has zero area.
+/// **The circle this loop bounds, if it bounds one**: `Some` when every
+/// edge is an arc of ONE circle, so the loop's region is that circle's
+/// disc exactly — the planar analog of the curved door's iso-bounded
+/// class ([`curved_face_containment`]) — and `None` for a loop with a
+/// line, a non-circular conic, a null edge, or arcs of two circles.
 ///
 /// The circle is read from the first edge; every later edge must agree
 /// with it on one metre-valued row folding centre offset, radius
@@ -249,34 +194,26 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 /// point set, which is all this asks.
 ///
 /// **That row classifies the loop, not a point.** Arcs whose circles
-/// agree to within the band are read as one circle, sound for anything
-/// definitely clear of every boundary arc by more than the band — such a
-/// point cannot lie between two circles that close; check 9 decides a
+/// agree to within the band are read as one circle; check 9 decides a
 /// PAIR of disc-class loops from the circles' centres and radii, a
-/// question the band's own width already bounds. A definite disagreement
-/// is simply not this class; an ESCALATION escalates, exactly as every row of
-/// [`curved_face_containment`] does — an in-band margin is not a
-/// licence to fall through to a walk whose domain this loop is
-/// outside.
+/// question the band's own width already bounds. A definite
+/// disagreement is `None`; an ESCALATION escalates, exactly as every
+/// row of [`curved_face_containment`] does.
 ///
 /// # Errors
 ///
 /// [`ContainError`] — a carrier-agreement escalation, or a loop this
 /// walk cannot read.
-pub(crate) fn loop_shape<T: Decide>(
+pub(crate) fn loop_circle<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
-) -> Result<LoopShape<T>, ContainError> {
-    let cycle = loop_cycle_points(body, r#loop)?;
-    let vertices = cycle.len();
-    // The WHOLE cycle is walked before anything is decided: a loop's
-    // first edge says nothing about its last, and a half-disc whose
-    // chord comes first would otherwise pass for a polygon.
+) -> Result<Option<LoopCircle<T>>, ContainError> {
+    // The WHOLE cycle is walked: an escalation on a later edge pair
+    // escalates even after an earlier edge has ruled the class out.
     let mut circle: Option<LoopCircle<T>> = None;
     let mut one_circle = true;
-    let mut bears_arc = false;
-    for (_, he, _) in cycle {
+    for (_, he, _) in loop_cycle_points(body, r#loop)? {
         let edge_key = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
         let carrier = body
             .get_edge(edge_key)
@@ -284,61 +221,41 @@ pub(crate) fn loop_shape<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .map(|c| c.carrier().clone());
         match carrier {
-            // A line edge IS its chord: it costs the polygon nothing
-            // and the disc class everything.
-            Some(geom::Curve3::Line { .. }) => one_circle = false,
             Some(geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
                 ..
-            }) => {
-                bears_arc = true;
-                match circle {
-                    None => {
-                        circle = Some(LoopCircle {
-                            center,
-                            axis,
-                            radius,
-                        });
-                    }
-                    Some(c) => {
-                        let (c0, a0, r0) = (c.center, c.axis, c.radius);
-                        let d =
-                            (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
-                        match decide("bool_face_disc_carrier", Margin::of(d), band) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                            Err(diag) => return Err(ContainError::Escalated(diag)),
-                        }
+            }) => match circle {
+                None => {
+                    circle = Some(LoopCircle {
+                        center,
+                        axis,
+                        radius,
+                    });
+                }
+                Some(c) => {
+                    let (c0, a0, r0) = (c.center, c.axis, c.radius);
+                    let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
+                    match decide("bool_face_disc_carrier", Margin::of(d), band) {
+                        Ok(Sign::Zero) => {}
+                        Ok(Sign::Positive | Sign::Negative) => one_circle = false,
+                        Err(diag) => return Err(ContainError::Escalated(diag)),
                     }
                 }
-            }
-            // A non-circular conic is an arc for the polygon's
-            // purposes — its chord is not its locus either, and
-            // elliptical caps are real (a tilted cut through a
-            // cylinder). It has no exact side row here, so it is never
-            // the disc class; the count decides whether the polygon
-            // may stand in for it.
+            },
+            // A line, a non-circular conic, or null scaffolding (which
+            // the operand gate refuses upstream): not one circle's arc.
             Some(
-                geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_),
-            ) => {
-                bears_arc = true;
-                one_circle = false;
-            }
-            // Null scaffolding: the operand gate refuses it upstream,
-            // and its chord is a segment like any other. Not the disc
-            // class, and not counted as an arc — this walk does not
-            // invent a refusal for a state it never sees.
-            None => one_circle = false,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_),
+            )
+            | None => one_circle = false,
         }
     }
-    Ok(match (one_circle, circle) {
-        (true, Some(c)) => LoopShape::Disc(c),
-        _ if bears_arc && vertices < 3 => LoopShape::NoWalk,
-        _ if bears_arc => LoopShape::ArcParity,
-        _ => LoopShape::Polygon,
-    })
+    Ok(circle.filter(|_| one_circle))
 }
 
 /// **Boundary containment** for an on-carrier point against a CURVED
@@ -373,16 +290,18 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// hit shadow a ring vertex, fixed here with its red-then-green row
 /// below) — then edge interiors over all loops, each edge on the row
 /// its carrier has: a `Line` is the distance to its closed segment
-/// ([`crate::ray_parity::on_segment`]), and a circle or an ellipse is asked its
-/// own conic and trim — both through
+/// ([`crate::ray_parity::on_segment`]), a circle or an ellipse is asked its
+/// own conic and trim, and a spiric is read piece by piece on its oval —
+/// all through
 /// [`crate::splitting::containment::LoopEdge::contact`], the one
 /// boundary reading the carrier walk runs too, so a point this pass
-/// places off an edge is off it for the walk. A spiric or spline edge gets no verdict: its
+/// places off an edge is off it for the walk. A spline edge gets no verdict: its
 /// chord is a different curve, and the region walk refuses inside a
 /// ball its locus lies in. This is [`contfp`]'s ONE boundary pass: the
 /// walk after it trusts it and runs none of its own. Rows, one home:
-/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, and — for the
-/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`.
+/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, — for the
+/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`, and for
+/// the spiric `bool_contact_spiric{,_end,_clear,_leaf}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],
@@ -392,17 +311,8 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = Margin::norm3(q - *p);
-            match decide("bool_contact_vertex", margin, band) {
-                Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band,
-                        "bool_contact_vertex",
-                    )));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
             }
         }
     }
@@ -418,10 +328,10 @@ fn boundary_pre_pass<T: Decide>(
             {
                 EdgeContact::On => return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]))),
                 EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
-                // Within the band of a conic's END, which the vertex pass
-                // above placed definitely clear of both of this edge's
+                // Within the band of a curved edge's END, which the vertex
+                // pass above placed definitely clear of both of this edge's
                 // vertices. The end is read exactly (a circle through its
-                // radius, an ellipse as a distance from `q`), so the two
+                // radius, an ellipse or a spiric as a distance from `q`), so the two
                 // passes disagree only by as much as the carrier's ends
                 // sit off the stored vertices, on its own row
                 // (`bool_contact_arc_end_vertex`). Certification pins each
@@ -433,8 +343,8 @@ fn boundary_pre_pass<T: Decide>(
                 // an escalation — on that margin where it is in band, and
                 // otherwise on the row itself.
                 EdgeContact::End => {
-                    let Some(carrier_ends) = edge.conic_ends() else {
-                        unreachable!("only a conic arc reads End")
+                    let Some(carrier_ends) = edge.carrier_ends() else {
+                        unreachable!("only a conic or spiric arc reads End")
                     };
                     for c in carrier_ends {
                         for v in [ends.0, ends.1] {
@@ -462,9 +372,10 @@ enum PrePass<T: geom_core::Real> {
     Off(Vec<(LoopKey, CarrierLoop<T>)>),
 }
 
-/// The distance from a conic edge's carrier end to one of the edge's
-/// stored vertices — a question about the body, apart from `q`'s own
-/// distance to that end (`bool_contact_arc_end`).
+/// The distance from a conic or spiric edge's carrier end to one of the
+/// edge's stored vertices — a question about the body, apart from `q`'s
+/// own distance to that end (`bool_contact_arc_end`,
+/// `bool_contact_spiric_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
 /// The pre-pass's rows for a straight edge: [`crate::ray_parity::on_segment`]
@@ -487,6 +398,12 @@ const ROWS: BoundaryRows = BoundaryRows {
         end: "bool_contact_arc_end",
         trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
+    },
+    spiric: SpiricRows {
+        end: "bool_contact_spiric_end",
+        clear: "bool_contact_spiric_clear",
+        on: "bool_contact_spiric",
+        leaf: "bool_contact_spiric_leaf",
     },
 };
 
@@ -522,10 +439,14 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// through the window crosses the boundary once on each level, so the
 /// face is exactly the rectangle `[az] × [h]` its boundary pins
 /// ([`super::solid_contain::cylinder_chart_trim`]). A third level is a
-/// stepped outline the rectangle over-covers. A wall closed by a
-/// tilted section takes its height extreme inside an edge, the
-/// rectangle then misstates the face in BOTH directions, and this door
-/// answers `None` rather than a verdict it cannot stand behind.
+/// stepped outline the rectangle over-covers.
+///
+/// A wall closed by a tilted section takes its height extreme inside an
+/// edge, so the rectangle would misstate it in BOTH directions; it is
+/// the ray lane's CHART outline instead (every boundary edge a meridian,
+/// a rim or a planar section, no ring, a window narrower than a period),
+/// and this door reads it the way the ray lane does: by parity along the
+/// point's ruling ([`super::solid_contain::point_on_wall_in_face`]).
 ///
 /// A face that ALONE wraps the azimuth has no window to trim by, and is
 /// served as the full-turn BAND
@@ -534,7 +455,8 @@ const ROWS: BoundaryRows = BoundaryRows {
 ///
 /// `None` is therefore the honest remainder throughout — a chart with no
 /// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// non-iso boundary, a wrapped face outside the band class, or a window
+/// boundary outside the rectangle and chart outlines, a wrapped face
+/// outside the band class, or a window
 /// that reads a whole period on a face that does not wrap alone, whose
 /// cosine comparison is an equivalence only under a period), or a
 /// margin on a trim boundary — and the caller keeps its typed frontier
@@ -682,7 +604,10 @@ pub(crate) fn curved_face_placement<T: Decide>(
     };
     // The ray lane's class predicates, asked of the same face, the
     // full-turn route first (`full_turn_outline`, the one home both
-    // doors call): this door serves the band and the rectangle only.
+    // doors call): this door serves the band, the rectangle, and the
+    // chart outline a planar section bounds (read by parity along the
+    // point's ruling, `point_on_wall_in_face`), never a wall it would
+    // have to read as its vertex rectangle.
     let outline =
         match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band)
             .map_err(solid_err)?
@@ -709,7 +634,11 @@ pub(crate) fn curved_face_placement<T: Decide>(
                     body, face, origin, axis, radius, az, h, band,
                 )
                 .map_err(solid_err)?;
-                if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+                if !matches!(
+                    outline,
+                    super::solid_contain::WallOutline::Rectangle { .. }
+                        | super::solid_contain::WallOutline::Chart { .. }
+                ) {
                     return Ok(CurvedPlacement::Trim(None));
                 }
                 outline
@@ -997,13 +926,13 @@ pub(super) fn point_on_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
     match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Zero) => {
+            let w = q - center;
+            let radial = w - axis * w.dot(axis);
+            Ok(Some((radial, radial.norm())))
+        }
         Ok(Sign::Positive) => Ok(None),
         Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),
@@ -1072,13 +1001,10 @@ mod tests {
                 let LoopBoundary::Cycle { first } = body.loops.get(f.outer)?.boundary else {
                     return None;
                 };
-                let top = body.loop_cycle(first)?.into_iter().all(|he| {
-                    body.half_edges
-                        .get(he)
-                        .and_then(|h| body.vertices.get(h.start))
-                        .and_then(|v| body.points.get(v.point))
-                        .is_some_and(|p| p.z == 1.0)
-                });
+                let top = body
+                    .loop_cycle(first)?
+                    .into_iter()
+                    .all(|he| body.half_edge_start_point(he).is_some_and(|p| p.z == 1.0));
                 (top).then_some((k, ring))
             })
             .expect("the holed box has a ringed top face");
@@ -1102,13 +1028,11 @@ mod tests {
         );
     }
 
-    /// The disc class is a CLASS, and this is its gate: a loop of
-    /// straight edges is not one, whatever its shape, so the walk that
-    /// can read it keeps the loop. Without this the radius row would
-    /// answer about a circle no boundary edge rides — and the `NoWalk`
-    /// gate must not fire on it either, however few vertices it has.
+    /// A loop of straight edges bounds no disc, whatever its shape:
+    /// read as one, check 9 would decide it against another loop from a
+    /// circle no boundary edge rides.
     #[test]
-    fn a_polygon_loop_is_neither_the_disc_class_nor_gated() {
+    fn a_polygon_loop_bounds_no_disc() {
         let holed = crate::fixtures::ops_holed_box(Tol::witness());
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1117,11 +1041,10 @@ mod tests {
             for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
                 loops += 1;
                 assert!(
-                    matches!(
-                        loop_shape(&body, lk, band).expect("the box walks"),
-                        LoopShape::Polygon
-                    ),
-                    "a straight-edged loop bounds no disc and needs no gate"
+                    loop_circle(&body, lk, band)
+                        .expect("the box walks")
+                        .is_none(),
+                    "a straight-edged loop bounds no disc"
                 );
             }
         }

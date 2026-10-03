@@ -167,12 +167,21 @@ new_key_type! {
     pub struct VertexKey;
 }
 
-/// A solid: a connected volume bounded by one or more shells.
+/// A solid: one piece of material (`docs/DESIGN.md`, "A solid is one
+/// piece of material") — its one outer shell and the void shells of the
+/// cavities in its material, which together bound that material and
+/// nothing else, so every point winds `0` or `1` (`validate_geometric`'s
+/// check 10).
 ///
-/// Multi-shell solids are constructible (a boolean's `A ∖ B` with `B`
+/// A body holds any number of solids. A boolean's `A ∖ B` with `B`
 /// strictly inside `A` yields an outer shell plus a reverted void
-/// shell). The outer-shell/cavity-shell distinction — which shell
-/// bounds material from outside versus which bound internal voids — is
+/// shell; a union of disjoint operands yields two solids, and so does
+/// an island inside a cavity, or two pieces that only touch. The verbs
+/// that build a result under one solid sort it into pieces before they
+/// return it ([`crate::pieces`]).
+///
+/// The outer-shell/cavity-shell distinction — which shell bounds
+/// material from outside versus which bound internal voids — is
 /// **not stored**: the shell list carries no designation and this
 /// structure does not enforce one. It is DERIVED from orientation
 /// wherever it is needed, by the sign of a shell's signed volume (the
