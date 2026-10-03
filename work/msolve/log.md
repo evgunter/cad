@@ -1228,3 +1228,20 @@ Two calls the lane made beyond the spec are with the review: Fillet,
 Chamfer and Shell are classified as carried, and a mixed route mints.
 Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
 One full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-13 review of `3610f0432`: APPROVE-WITH-FIXES, no MAJOR, C1–C5
+hold. `msolve1::a5`'s move is ruled right, not a regression: its old
+consistent pass was a fixture coincidence. Its `x2` is a quarter turn
+about the block's own centre, a symmetry of the footprint, so the
+contact happened to survive while the seat was rotated in the product.
+The calls the lane made beyond the spec stand: Fillet, Chamfer and
+Shell carried (probed), and mixed routes minting.
+
+Fix pass R1–R10, sent back to the implementer lane:
+- `Vanished { by }` prefers the consumer that lost the face;
+- A5's two overstatements corrected;
+- the recourse worded as "re-pick on {by}";
+- `msolve2::a4b` and `msolve1::a5` re-shaped to keep their subjects;
+- stale identity prose in `node.rs` and `refactor.rs`;
+- `lift` without field rests;
+- small nits.
