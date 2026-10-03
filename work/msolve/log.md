@@ -1074,3 +1074,21 @@ swept arms from 1 m up, so the bottom of the lever's range was never
 probed. A sweep over a levered decision owes the arms at and under the
 band's own thresholds.
 
+
+## 2026-10-03 — MSOLVE-12 MERGED (PR 3698)
+
+Two decidably non-parallel shapes now meet in closed form. Their only
+divisor is the number the table decided; six shapes used to divide by
+its square, and `inverse3` is gone. A meeting point beyond measurement
+refuses `PoseOutOfRange`, naming both mates. A lever inside the zero
+band refuses `BelowZeroBand` before any angle is decided. A mate's
+`Band` is reached by a loaded snapshot.
+
+The single full review found no MAJOR. Fix pass R1–R9. The main merge
+dropped §3 (overtaken by #3676) and guarded main's new offset check
+with R1. Closes MSOLVE-12,
+`near-parallel-planes-refuse-under-a-false-predicate`,
+`mate-band-fault-unreachable-on-a-mate` and
+`plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+Filed: `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2).
+The spec was deleted, with a note in `docs/doc-ledger/msolve-12-spec.md`.
