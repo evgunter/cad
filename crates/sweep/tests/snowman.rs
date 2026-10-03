@@ -575,11 +575,12 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     }
 }
 
-/// **The snowman builds with its seams spun apart.** Spin B about the
-/// shared axis by any angle off `0` and `π` and A's seam meridian
-/// pierces B's sphere at a point INSIDE B's half-band rather than on B's
-/// seam: that pierced face carries a ring of null scaffolding, which
-/// joins, and every op builds at its closed form.
+/// **The snowman builds spun, too.** Spin B about the shared axis by any
+/// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
+/// point INSIDE B's half-band rather than on B's seam: that pierced face
+/// carries a pierce ring, and its chords take their arc from the face's
+/// own azimuth window. The spin moves no volume, so every op meets the
+/// coplanar pose's closed form.
 #[test]
 fn a_spun_snowman_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
@@ -592,12 +593,17 @@ fn a_spun_snowman_builds_under_every_boolean() {
             angle,
         );
         let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
-        for (op, want) in [
-            (BooleanOp::Union, va + vb - lens),
-            (BooleanOp::Intersect, lens),
-            (BooleanOp::Subtract, va - lens),
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
         ] {
-            assert_body(&format!("spun by {angle}, {op:?}"), &run(op, &a, &b), want);
+            assert_body(
+                &format!("spun by {angle}: {label}"),
+                &run(op, x, y),
+                expected,
+            );
         }
     }
 }
@@ -605,11 +611,11 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
-/// sides certify, and the op goes on to the join. The pierced sphere
-/// face's rings join, and a chord of the bar's faces `z = ±0.3`, tilted
-/// against the ball's `y` pole, takes the run-side arc rule and meets a
-/// run end that is a reflex corner of the divided face (`ReflexRunEnd`).
-/// A refusal at the pierce door would mean the root lane went dark.
+/// sides certify, and the op goes on to the join, where the bar's faces
+/// cut the sphere in circles tilted against its polar axis. Those take
+/// the run-side arc rule, and a run end the bar's corner leaves reflex
+/// refuses there (`SectionArcSide { ReflexRunEnd }`), typed, for every
+/// op. A refusal at the pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
     let a = ball(R1, 0.0);

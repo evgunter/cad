@@ -22,10 +22,12 @@
 //! the sphere faces it leaves are measured by Gauss–Bonnet, and every op
 //! passes tier 3 at the two-ball closed form. Moved 0.05 along `z`
 //! instead, the tilted section misses both seams and passes through the
-//! faces as rings, which join, and refuses at the run-side rule
-//! (`SectionArcSide { TangentToRun }`). A head SPUN 0.9 rad about the
-//! shared axis, so the two revolves' seams are no longer coplanar,
-//! builds: its level section is a ring on the head's face, which joins.
+//! faces as a ring, so it refuses `SectionArcSide { NoCertifiedRun }`
+//! (`work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`).
+//! A head SPUN 0.9 rad about the shared axis, so the two revolves' seams
+//! are no longer coplanar, puts the level section through the head's face
+//! as a ring too; that ring builds, its chords' arcs chosen by the face's
+//! window, and every op meets the coaxial closed form.
 //!
 //! **The waist is selected by description, and the description is
 //! ambiguous.** `edge_adjacent_matches(Sphere, Sphere)` names the
@@ -344,7 +346,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              band is a torus on BlendArm::SphereSphereTorus, its spine at {R1} + r and \
              {R2} + r from the two centres. A head moved off the axis in the seam plane \
              builds too, tilted section and all, and so does one spun about the axis; one \
-             moved out of that plane stops at the run-side arc rule",
+             moved out of the seam plane still stops at its tilted section's ring",
             x = waist_height()
         )),
         view: View {
@@ -404,15 +406,45 @@ mod tests {
         }
     }
 
-    /// **A head moved out of the seam plane stops at the run-side arc
-    /// rule**, under every op. Moved 0.05 along `z`, the tilted section
-    /// passes through the balls' faces without crossing either seam; the
-    /// rings join, and a later chord's section leaves its run's end
-    /// tangent to the run (`SectionArcSide { TangentToRun }`). A pose
-    /// that starts building, or refuses elsewhere, means the narration
-    /// is stale.
+    /// **A head spun about the shared axis builds.** Spun 0.9 rad, the
+    /// head's seam leaves the bottom ball's plane, and the level section
+    /// passes through the head's face as a ring; its chords take their
+    /// arcs from the face's window. Every op passes tier 3 and meets the
+    /// coaxial closed form, which the spin does not move.
     #[test]
-    fn a_head_moved_out_of_the_seam_plane_refuses_at_the_run_side_rule() {
+    fn a_head_spun_about_the_axis_builds_to_its_closed_form() {
+        let tol = Tol::witness();
+        let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
+        let spin = Affine3::rotation_about_axis(
+            pncad::geom_core::Point3::origin(),
+            v3(0.0, 1.0, 0.0),
+            0.9,
+        );
+        let moved = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
+        let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
+        for (op, out, expected) in [
+            ("∪", pncad::topo::union(&bottom, &moved, tol), va + vb - vl),
+            ("∖", pncad::topo::subtract(&bottom, &moved, tol), va - vl),
+            ("∩", pncad::topo::intersect(&bottom, &moved, tol), vl),
+        ] {
+            let label = format!("head spun 0.9 rad, bottom {op} head");
+            let bb = seamed(&label, out);
+            pncad::topo::validate_geometric(&bb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3, {e:?}"));
+            assert_volume(&label, &bb.body, expected, tol);
+        }
+    }
+
+    /// **A head moved out of the seam plane stops at its tilted
+    /// section's ring**, under every op. Moved 0.05 along `z`, the tilted
+    /// section passes through the balls' faces without crossing either
+    /// seam, so the join is cross-loop and closes no run for the run-side
+    /// rule to read (`SectionArcSide { NoCertifiedRun }`,
+    /// `work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`).
+    /// A pose that starts building, or refuses elsewhere, means the
+    /// narration is stale.
+    #[test]
+    fn the_head_moved_out_of_the_seam_plane_refuses_at_the_tilted_ring() {
         use pncad::topo::{ArcSideCase, SplitJoinError};
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
@@ -426,40 +458,12 @@ mod tests {
         ] {
             match out {
                 Err(BooleanError::Join(SplitJoinError::SectionArcSide {
-                    case: ArcSideCase::TangentToRun,
+                    case: ArcSideCase::NoCertifiedRun,
                     ..
                 })) => {}
-                Err(e) => panic!("head moved 0.05 along z, {op}: refused elsewhere, {e:?}"),
-                Ok(_) => panic!("head moved 0.05 along z, {op}: builds now — retell the narration"),
+                Err(e) => panic!("head moved along z, {op}: refused elsewhere, {e:?}"),
+                Ok(_) => panic!("head moved along z, {op}: builds now — retell the narration"),
             }
-        }
-    }
-
-    /// **A head spun about the shared axis builds.** Spun 0.9 rad, the
-    /// head's seam leaves the bottom ball's plane and the level section
-    /// is a ring on the head's face, which joins. Every op passes tier 3
-    /// and meets the two-ball closed form: the spin moves no volume.
-    #[test]
-    fn a_head_spun_about_the_axis_builds_to_its_closed_form() {
-        let tol = Tol::witness();
-        let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
-        let spin = Affine3::rotation_about_axis(
-            pncad::geom_core::Point3::origin(),
-            v3(0.0, 1.0, 0.0),
-            0.9,
-        );
-        let spun = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
-        let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
-        for (op, out, expected) in [
-            ("∪", pncad::topo::union(&bottom, &spun, tol), va + vb - vl),
-            ("∖", pncad::topo::subtract(&bottom, &spun, tol), va - vl),
-            ("∩", pncad::topo::intersect(&bottom, &spun, tol), vl),
-        ] {
-            let label = format!("head spun 0.9 rad, bottom {op} head");
-            let bb = seamed(&label, out);
-            pncad::topo::validate_geometric(&bb.body, tol)
-                .unwrap_or_else(|e| panic!("{label}: tier 3, {e:?}"));
-            assert_volume(&label, &bb.body, expected, tol);
         }
     }
 }

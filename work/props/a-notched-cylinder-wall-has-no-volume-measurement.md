@@ -2,7 +2,8 @@
 id: a-notched-cylinder-wall-has-no-volume-measurement
 kind: issue
 title: a cylinder wall notched by rulings and an arc has neither a closed form nor a quadrature route
-status: open
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 ---
 
@@ -58,7 +59,8 @@ on a wall half-cylinder the cutter notches along two rulings and an arc.
 (Superseded the same day: BAND's one-wall-per-run sweeps, PR 3736,
 rebuilt the cup without the merge, and that cup's subtract refuses
 `Join(UnpairedLooseEnds { count: 4 })` on main and on JOIN-1 alike —
-`the_boolean_on_the_cup_reaches_the_join`. The witness above is the
+`the_boolean_on_the_cup_reaches_the_join` (since PR 3851
+`the_boolean_on_the_cup_builds_and_balances`). The witness above is the
 merged cup's.)
 
 ## Evidence (2026-10-01, TANG's circle × cylinder cell): Ev's engraving pose, slid across the rim
@@ -81,3 +83,18 @@ than at the join: `verbs_germarms`'s three bar-through-wall rows,
 `verbs_germarms_r1_probes::r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses`,
 `axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring` (the laps
 across the rulings) and `reach_wall_chord_rows`'s ∪ and A∖B at `c = 0.9`.
+
+## 2026-10-02 — closed: the cylinder flux is the chart Green form (`tang/pierce-ring`)
+
+The first arm of the fix above, for every cylinder face bounded by rims
+and rulings: `v du` is a global 1-form on the cylinder, so the face's
+signed chart area is `A = −Σ_loops ∮ v du` whatever the region's shape,
+rings included, and the flux is `R·(R·A) + origin·A⃗` with the side read
+off the traversal (`geom_brep::props::curved_face_loops`;
+`topo::props`' face walk hands a cylinder face its rings). The
+iso-rectangle premise no longer runs on a cylinder's flux; the shape
+door (`require_iso_rectangle`) and the material-side gate keep it.
+`reach_volume_backstop`'s notched half-disk builds at
+`2π − ½·(½·√3.75 + 4·asin ¼ − 1.5)`, the engraving pose across the rim
+at `πR²·0.5 − 0.005·segment(0.035)`, and #649's cylinder family
+(`geom-brep/tests/s58_iso_rectangle.rs`) at exact areas.

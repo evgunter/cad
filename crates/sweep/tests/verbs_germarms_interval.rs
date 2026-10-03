@@ -9,10 +9,10 @@
 //! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for
 //! the first time.
 //!
-//! Both arms are pinned: the pierce arm must reach the same door it
-//! reaches at `f64` (the lane BUILDS at the certified scalar rather
-//! than escalating out of it), and the clearance arm must still answer
-//! with a volume — asserted with an explicit WIDTH bound, because an
+//! Both arms are pinned: the pierce arm must build as it does at `f64`
+//! (the lane BUILDS at the certified scalar rather than escalating out
+//! of it), and both arms must answer with a volume — asserted with an
+//! explicit WIDTH bound, because an
 //! enclosure that contains the truth and spans a metre would pass a
 //! containment check while saying nothing.
 
@@ -43,39 +43,35 @@ fn pipe() -> Body<Interval> {
 }
 
 /// **The build arm.** The bar's crossings are found at the certified
-/// scalar too, so the union walks past the crossing layer and the join
-/// and refuses at the volume backstop, which cannot measure the notched
-/// wall (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`)
-/// — the same door the `f64` lane reaches. An escalation here would
-/// mean the enclosures, not the geometry, decided the lane.
+/// scalar too, the pierce rings join, and the union builds as the `f64`
+/// lane's does: its volume enclosure holds the closed form — the pipe
+/// and the bar less the bar's height times the strip `|y| ≤ ¼` of the
+/// unit disc — and is narrow enough to be a claim. An escalation here
+/// would mean the enclosures, not the geometry, decided the lane.
 ///
 /// Every coordinate here is dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
 /// points and this row measures the LANE rather than the fixture.
 #[test]
 fn the_ring_lane_builds_at_the_certified_scalar() {
-    let err = topo::union(
+    let tol = Tol::witness();
+    let out = topo::union(
         &pipe(),
-        &brick(
-            (-1.125, 1.125),
-            (-0.25, 0.25),
-            (-0.25, 0.25),
-            Tol::witness(),
-        ),
-        Tol::witness(),
+        &brick((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
+        tol,
     )
-    .expect_err("the notched wall has no measurement");
+    .unwrap_or_else(|e: BooleanError| panic!("the ring lane refused: {e:?}"));
+    let body = &out.body().expect("a body").body;
+    let v = topo::mass_properties(body, tol).unwrap().volume;
+    let strip = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let truth = PI * 4.0 + 2.25 * 0.5 * 0.5 - 0.5 * (strip(0.25) - strip(-0.25));
     assert!(
-        matches!(
-            err,
-            BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-            }
-        ),
-        "{err:?}"
+        v.lo() <= truth && truth <= v.hi(),
+        "the enclosure must contain the truth: {v:?} vs {truth}"
+    );
+    assert!(
+        v.hi() - v.lo() < 1e-6,
+        "the enclosure must be a claim, not a shrug: width {}",
+        v.hi() - v.lo()
     );
 }
 

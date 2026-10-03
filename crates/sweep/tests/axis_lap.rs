@@ -15,10 +15,9 @@
 //!   and has the analytic volume, at every depth — through the axis,
 //!   off it, and from either side;
 //! - a LAP (the cutter from `z = 3` past the far cap, so one end wall
-//!   sits inside the rod) off the axis refuses at the join where the
-//!   cutter's edges pierce the wall (`work/tang/pierce-ring-has-no-join-arm`);
-//!   through the axis across the rulings (`x = 0`) the pierce rings
-//!   join, and the notched wall has no volume measurement;
+//!   sits inside the rod) off the axis, or through the axis across the
+//!   rulings (`x = 0`), builds at the analytic volume: the cutter's
+//!   edges pierce the wall, and the pierce rings join;
 //! - a lap in the plane `y = 0`, which holds both ruling edges, builds
 //!   under every op at the analytic volume — and so does the all-planar
 //!   diamond prism whose side edges sit in that same plane: each section
@@ -154,41 +153,24 @@ fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
 /// Laps off the rulings: the cutter's end-wall edges pierce the rod's
 /// wall inside a face, the plane through the axis at `x = 0` included,
 /// so the axis alone is not what the lap above refuses on. Each pierce
-/// mints a ring in the wall. Off the axis (`y` from `0.2` or `0.35`)
-/// the run that divides the wall carries only null scaffolding, so it
-/// has no azimuth window (`work/tang/pierce-ring-has-no-join-arm`).
-/// Across the rulings (`x` from `0` or to `0`) the rings join, and the
-/// result's wall, notched by the cutter's ruling and arc, has no volume
-/// measurement (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+/// mints a ring in the wall, the ring's chords take their arcs from the
+/// wall face's window, and the lap is the rod less one metre of the
+/// disc segment.
 #[test]
-fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
-    for (x, y) in [(ACROSS, (0.2, 1.0)), (ACROSS, (0.35, 1.0))] {
-        let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
-                    ..
-                })
-            ),
-            "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
-        );
-    }
-    for (x, y) in [((0.0, 1.0), ACROSS), ((-1.0, 0.0), ACROSS)] {
-        let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
-        assert!(
-            matches!(
-                err,
-                BooleanError::VolumeUnmeasured {
-                    operand: None,
-                    source: topo::MassPropsError::Face {
-                        source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-                        ..
-                    },
-                }
-            ),
-            "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
+fn laps_off_the_rulings_build_at_the_analytic_volume() {
+    let rod_v = PI * R * R * LEN;
+    for (x, y, d) in [
+        (ACROSS, (0.2, 1.0), 0.2),
+        (ACROSS, (0.35, 1.0), 0.35),
+        ((0.0, 1.0), ACROSS, 0.0),
+        ((-1.0, 0.0), ACROSS, 0.0),
+    ] {
+        let body =
+            cut(&rod(), x, y, LAP).unwrap_or_else(|e| panic!("lap at x ∈ {x:?}, y ∈ {y:?}: {e:?}"));
+        assert_sound(
+            &body,
+            rod_v - segment(d) * (LEN - LAP.0),
+            &format!("lap at x ∈ {x:?}, y ∈ {y:?}"),
         );
     }
 }

@@ -286,8 +286,10 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 /// sphere pair has no section frame
 /// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), and
 /// a rod's parallel wall pair no join arm
-/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — a
-/// narrow rod's pierce ring in the drum's wall joins first. On the base the balls
+/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
+/// narrow rods too, since their pierce ring in the drum's wall joins
+/// (TANG, PR 3851; before it they stopped at the ring,
+/// `SectionArcWindow { NoChartedRun }`). On the base the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
 /// (bounded by the rim's arcs) could not place.

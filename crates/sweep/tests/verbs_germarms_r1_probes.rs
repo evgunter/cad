@@ -132,50 +132,45 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
 
 /// **PROBE 3 — the "shared absent arm" claim, measured.**
 ///
-/// The PR argues the curved ring's join refusal is the same absent arm
-/// the planar cap pierce already has. The two doors are measured here
-/// side by side: they are NOT the same sub-case. The planar cap pierce
-/// JOINS — its `SectionLoopMixed` was the role probe misreading the
-/// arc-bounded cap through `point_in_solid`'s planar arm, not a missing
-/// join arm, and it answers the truth now; the curved one joins too, and
-/// refuses at the volume backstop, which cannot measure the wall the
-/// bar notches (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+/// The PR argued the curved ring's join refusal was the same absent arm
+/// the planar cap pierce had. Measured side by side, both pierces now
+/// JOIN: the planar cap's `SectionLoopMixed` was the role probe
+/// misreading the arc-bounded cap through `point_in_solid`'s planar arm,
+/// and the wall's `NoChartedRun` was a cross-loop chord reading its
+/// window from a ring's scaffolding instead of the face. Each union is
+/// the two volumes less the overlap, counted once.
 #[test]
-fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
+fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     let tol = Tol::witness();
-    let cap = match topo::union(
-        &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-        &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
-        tol,
-    ) {
-        Ok(topo::BooleanResult::Body(out)) => out.body,
-        other => panic!("the planar cap pierce joins, got {other:?}"),
+    let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str| match r {
+        Ok(topo::BooleanResult::Body(out)) => topo::mass_properties(&out.body, tol).unwrap().volume,
+        other => panic!("{what} joins, got {other:?}"),
     };
-    // Measured on the short bar; the long one reaches the same door
-    // (`verbs_germarms::a_long_armed_bar_reaches_the_same_door`).
-    let wall = topo::union(
-        &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
-        tol,
-    )
-    .expect_err("the curved wall's notch has no measurement");
-    let v = topo::mass_properties(&cap, tol).unwrap().volume;
-    assert!(
-        (v - 6.643185307179586).abs() < 1e-12,
-        "planar sibling: the overlap is counted once, volume {v}"
+    let cap = volume(
+        topo::union(
+            &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
+            &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+            tol,
+        ),
+        "the planar cap pierce",
     );
     assert!(
-        matches!(
-            wall,
-            BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-            }
+        (cap - 6.643185307179586).abs() < 1e-12,
+        "planar sibling: the overlap is counted once, volume {cap}"
+    );
+    let wall = volume(
+        topo::union(
+            &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
+            &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
+            tol,
         ),
-        "curved lane: {wall:?}"
+        "the curved wall pierce",
+    );
+    let strip = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let truth = core::f64::consts::PI * 4.0 + 2.2 * 0.36 - 0.6 * (strip(0.3) - strip(-0.3));
+    assert!(
+        (wall - truth).abs() < 1e-12,
+        "curved lane: the overlap is counted once, volume {wall} vs {truth}"
     );
 }
 
