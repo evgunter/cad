@@ -84,8 +84,9 @@ pub use reach::{
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    MateRole, PoseRefusal, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
-    places, reading_edges, relative_freedom_components, root_of, solve_document,
+    MateRole, PoseRefusal, SolveScalar, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced,
+    gauge_chain, groups, places, reading_edges, relative_freedom_components, root_of,
+    solve_document, solve_document_at,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -175,13 +176,12 @@ impl FrameBase {
 /// the side, the instance and the part ([`MateFault::FaceUnresolved`])
 /// and keeps taking a part base.
 ///
-/// **A face base resolves at the nominal value only.** The pose is
-/// read off the part's evaluated product and crosses to the solve as
-/// `f64`; on an analysis lane — the `Dual64` passes of
-/// `stackup::sensitivities`, the `Interval` leaf of a certified
-/// `clearance` — the product's coordinates pin no single number, and
-/// the side refuses [`FacePoseRefusal::Unpinned`] rather than read the
-/// nominal and drop the pose's own sensitivity to the parameters.
+/// **A frame resolves on every lane.** A face base's pose is read off
+/// the part's evaluated product, and the offset folded onto it, at the
+/// evaluation's own scalar, as the solve runs at it (`ASSEMBLY.md` A11
+/// (5)): at `f64` the nominal, in a seed run the frame with its
+/// tangent, in a box run an enclosure — so a parameter an offset step
+/// reads moves the side in the run that binds it.
 ///
 /// **No frame the doors admit is improper.** A rigid step is proper by
 /// construction, and a literal step is held to A6
@@ -414,11 +414,19 @@ impl Alignment {
     /// never zero, so no floor guards this door.
     pub fn lever_arm(&self, a: [f64; 3], b: [f64; 3]) -> f64 {
         let norm = |[x, y, z]: [f64; 3]| (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
+        self.lever_terms(norm(a), norm(b))
+    }
+
+    /// [`Self::lever_arm`] over the two sides' `‖origin‖` terms as the
+    /// solve holds them: `f64` upper bounds of the resolved origins'
+    /// distances at the solve's scalar ([`SolveScalar::upper`]), the
+    /// distances themselves at `f64`.
+    pub(crate) fn lever_terms(&self, a_origin: f64, b_origin: f64) -> f64 {
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
-            .fold(norm(a) + norm(b), |lever, length| lever + length.abs())
+            .fold(a_origin + b_origin, |lever, length| lever + length.abs())
     }
 
     /// **Bit-semantic equality** (D7), the one comparator every reader
@@ -1182,9 +1190,9 @@ pub enum MateFault {
     /// mated part's own evaluation answered no pose for the face the
     /// side's head names ([`MateReach::face_pose`]), in the resolver's
     /// or the readback's own voice — the part not in hand, a name the
-    /// part's table lacks or ties, a carrier with no canonical frame, a
-    /// product on an analysis lane — or the head names no face of the
-    /// part at all ([`FaceRefusal`]). Raised
+    /// part's table lacks or ties, a carrier with no canonical frame —
+    /// or the head names no face of the part at all ([`FaceRefusal`]).
+    /// Raised
     /// where the solve reads the side's frame, before the coset table
     /// and before any lever is formed; the insert door raises it for
     /// a mate being inserted, and the solve at every evaluation for a

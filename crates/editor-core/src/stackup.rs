@@ -463,7 +463,30 @@ pub fn sensitivities(
     parallel: bool,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, measure, paired, chamber, parallel, tol).map(|d| d.entries)
+    driver(doc, measure, paired, chamber, parallel, None, tol).map(|d| d.entries)
+}
+
+/// [`sensitivities`] over a document that instantiates parts: every
+/// pass — the anchor, the unseeded base and each seeded one — resolves
+/// them through `resolver`, as an evaluation over options carrying it
+/// would (`crate::eval::EvalOptions::resolver`). An assembly's mates
+/// solve at each pass's own scalar (`ASSEMBLY.md` A11 (5)), so ∂m/∂pᵢ
+/// crosses a mate, a face frame's included. `paired`, when handed, is a
+/// build of `doc` over that same resolver.
+///
+/// # Errors
+///
+/// [`sensitivities`]'.
+pub fn sensitivities_resolved(
+    doc: &Doc<ProfileProgram>,
+    measure: RecipeNodeId,
+    paired: Option<&Evaluation<f64>>,
+    chamber: Option<&ParamBoxVerdict>,
+    parallel: bool,
+    resolver: &Arc<dyn crate::part::PartResolver>,
+    tol: Tol,
+) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
+    driver(doc, measure, paired, chamber, parallel, Some(resolver), tol).map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the anchored f64 build,
@@ -481,6 +504,7 @@ fn driver(
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
     if !matches!(doc.node(measure), Some(Node::Measure { .. })) {
@@ -503,7 +527,10 @@ fn driver(
         doc,
         paired,
         &CancelToken::new(),
-        &EvalOptions::default(),
+        &EvalOptions {
+            resolver: resolver.cloned(),
+            ..EvalOptions::default()
+        },
         tol,
     );
     if let Some(handed) = paired {
@@ -520,14 +547,20 @@ fn driver(
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
     // sequential one does.
-    let base: Evaluation<Dual64> = evaluate(doc, None, &CancelToken::new(), &pass_opts(None), tol);
+    let base: Evaluation<Dual64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &pass_opts(None, resolver),
+        tol,
+    );
 
     let one = |name: &ParamName| -> Result<Sensitivity, PairingViolation> {
         let pass: Evaluation<Dual64> = evaluate(
             doc,
             Some(&base),
             &CancelToken::new(),
-            &pass_opts(Some(name.clone())),
+            &pass_opts(Some(name.clone()), resolver),
             tol,
         );
         // DL3, per pass: the pass evaluates exactly the nodes the
@@ -563,11 +596,16 @@ fn driver(
 /// The pass options: the profile lift GUIDED (a seed on a profile
 /// dimension must move profile geometry — the exact silent zero
 /// `ProfileLift`'s docs warn about), sequential inside (the driver's
-/// parallelism is per pass), the seed as given.
-fn pass_opts(seed: Option<ParamName>) -> EvalOptions {
+/// parallelism is per pass), the seed and the parts' resolver as
+/// given.
+fn pass_opts(
+    seed: Option<ParamName>,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+) -> EvalOptions {
     EvalOptions {
         profile_lift: ProfileLift::Guided,
         seed,
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     }
 }
@@ -1787,7 +1825,7 @@ pub fn stackup(
         anchor,
         chamber,
         entries,
-    } = driver(doc, measure, paired, Some(verdict), parallel, tol)
+    } = driver(doc, measure, paired, Some(verdict), parallel, None, tol)
         .map_err(StackupRefusal::Sensitivity)?;
 
     // **The nominal, re-derived from the anchored build — and

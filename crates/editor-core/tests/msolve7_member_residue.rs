@@ -3,14 +3,15 @@
 //! key.
 //!
 //! The solve reads every number it needs — a pattern's count, a
-//! `Part`'s index, the slots a derived offset composes — at the
-//! document's own parameter bindings. That environment is built ONCE
-//! per `solve_document`, or handed in by the evaluation that already
-//! holds it (`solve_with_env`), and passed down as a parameter. The
+//! `Part`'s index, the slots a derived offset composes — in one
+//! environment. `solve_document` builds the document's own ONCE; the
+//! evaluation hands in its lane's, which it already holds
+//! (`solve_with_env`); either is passed down as a parameter. The
 //! build count is pinned here by the source rather than by a probe —
 //! no counter sees a `param_env` build — and the rows over parameters
-//! pin what the environment IS: the document's nominal, bit for bit,
-//! following an edit of the parameter and ignoring its distribution.
+//! pin what `solve_document`'s environment IS: the document's nominal,
+//! bit for bit, following an edit of the parameter and ignoring its
+//! distribution.
 //!
 //! `MatePrimitive` refuses a field this build lacks through the load
 //! door, in the typed arm the format uses for every stray field
@@ -60,7 +61,7 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
     code
 }
 
-/// **The nominal environment is built at one site of the solve**:
+/// **The solve's environment is built at one site of the solve**:
 /// `solve_document`'s body holds the one `param_env` build the solve
 /// makes, `solve_with_env` — the entry the evaluation uses — holds
 /// none, and `member.rs`, every reader of that environment, holds
@@ -133,11 +134,12 @@ fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
         "`solve_with_env` reads the environment it is handed"
     );
     // The entry the evaluation takes is the one that takes an
-    // environment, fed the nominal it already built.
+    // environment, fed the lane environment it already built — boxed
+    // or seeded, at its own scalar (`ASSEMBLY.md` A11 (5)).
     let eval = shipped(EVAL, &["pub fn evaluate"]);
     assert!(
-        eval.contains("solve_with_env(doc, &nominal_env,"),
-        "the evaluation hands its own nominal environment to the solve"
+        eval.contains("solve_with_env(doc, &env,"),
+        "the evaluation hands its own lane environment to the solve"
     );
     assert!(
         !eval.contains("solve_document("),

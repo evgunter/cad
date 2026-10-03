@@ -5565,12 +5565,9 @@ class MateFrame:
     step's expressions may read a document parameter, so a parameter
     can drive where a side sits.
 
-    A face base resolves at the NOMINAL value only. Under an analysis
-    lane — `stackup.sensitivities`' dual passes, a certified
-    `clearance`'s interval leaf — the part's product pins no single
-    number, so the side refuses `mate_face_unresolved` / `unpinned`
-    rather than drop the pose's own sensitivity: those doors refuse an
-    assembly that holds a face base, where a part base still solves."""
+    A face base resolves on every lane: a seed run reads the pose with
+    its tangent, a box run an enclosure of it, and so does a parameter
+    an offset step reads."""
 
     def __init__(
         self,
@@ -5883,7 +5880,7 @@ class MateFault:
         or `out_of_range` and `below_zero_band`, about the pair's lever
         rather than one part, with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
-        `ambiguous`, `not_a_face`, `readback`, `unpinned`,
+        `ambiguous`, `not_a_face`, `readback`,
         `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an

@@ -74,3 +74,18 @@ does, an escalating mate reaches read (2), not the catch-all. It
 bisects, and it reads `SliverTerminal` when the margin sits wholly in
 the band. The box-independent faults this item names would still fall
 to read (3).
+
+
+## Re-measured (MSOLVE-14, PR 3986)
+
+The solve now runs at the evaluation's scalar over its lane
+environment, so an undecided mate predicate in a box run escalates on
+the deciding mate's log, and a checked offset's on its placing mate's.
+The driver still carries no resolver (`drive::lane_opts`), so this
+row's `Budget` shape is still unreachable:
+`msolve11_mate_log::a_box_run_over_an_escalating_mate_refuses_at_its_witness`
+holds unchanged (`WitnessDoesNotBuild`, the mate `Unleverable` for want
+of a resolver). The two analysis doors that evaluate an assembly
+directly now take one (`stackup::sensitivities_resolved`,
+`ClearanceQuery::resolver`); the driver is the remaining door, and
+closing this row waits on it.

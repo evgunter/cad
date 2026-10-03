@@ -363,15 +363,10 @@ offset is any rigid motion, and the mate's contact class says which
 are legal: a `Rest` side set back from its face declares a contact
 that is not there, and the at-rest gate refutes it. A face with no
 canonical frame (a NURBS carrier) refuses typed and keeps taking a
-part base. A face base also resolves at the NOMINAL value only: under
-an analysis lane — `stackup.sensitivities`' dual passes, a certified
-`clearance`'s interval leaf — the part's product pins no single
-number, the face side refuses `unpinned`, and those two doors refuse
-an assembly that holds one. A part base whose offset reads no
-parameter solves on those lanes as it does at the nominal; one whose
-offset reads a parameter the lane binds is solved at the parameter's
-nominal value while the lane moves it, which is an open gap
-(`work/msolve/a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs.md`). The
+part base. Every frame resolves on every lane: `stackup.sensitivities`'
+dual passes read a pose with its tangent, and a certified
+`clearance`'s interval leaf an enclosure of it — a face base's pose,
+and an offset whose step reads a parameter the lane binds. The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
@@ -1218,14 +1213,11 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A face base resolves on the nominal lane only**, so sensitivities
-and certified clearance refuse an assembly that holds one. A part
-base solves on every lane, and pays for it the old way: nothing
-checks it against the faces the mate names, which is why the gate
-exists, and why a mate that solves is not yet a mate that certifies.
-A face base's in-plane axes are the witness ladder's: the carrier's
-reference is local +Y, not +X, so an offset along the face's
-reference is written along y.
+**A part base is not checked against the faces the mate names**,
+which is why the gate exists, and why a mate that solves is not yet a
+mate that certifies. A face base's in-plane axes are the witness
+ladder's: the carrier's reference is local +Y, not +X, so an offset
+along the face's reference is written along y.
 
 **A mate is a product root.** Roots are the live nodes nothing else
 consumes, and a mate is consumed by nothing, so `Doc.roots` on the
