@@ -1336,7 +1336,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// does.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Exempt<'r> {
-    /// Every in-scope pair is classified.
+    /// Every in-scope pair is classified: the test-support twins'
+    /// spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support"))]
     Nothing,
     /// The crossings path: a DECLARED pair, whose contact is the
     /// verified carrier the declared rungs walk along its edges.
@@ -1359,6 +1361,7 @@ impl Exempt<'_> {
     /// Does this exemption answer the pair `(A face, B face)`?
     pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
         match self {
+            #[cfg(any(test, feature = "test-support"))]
             Self::Nothing => false,
             Self::Declared(decls) => declares_pair(decls, fa, fb),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
