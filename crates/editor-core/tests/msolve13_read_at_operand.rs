@@ -290,7 +290,14 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
         panic!("A1(b): expected one reference refusal, got {refusals:?}");
     };
     assert_eq!((*m, *side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::MovedAbove { at: t1, by: t3 });
+    assert_eq!(
+        *why,
+        RefusedRef::MovedAbove {
+            at: t1,
+            by: t3,
+            copies: false,
+        }
+    );
 }
 
 // ---- A1 (c): a pick on the fused body ----
@@ -379,10 +386,11 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
 /// **`Part { P, 1 }` and `P` naming copy 1 are one placement.** The
 /// coaxial-with-rider mate read at the `Part`, the planar rest read at
 /// the pattern naming copy 1: one member, so the pair folds and
-/// determines.
+/// determines, and the gate holds both — the pattern's row lifts
+/// through the `Part` verbatim.
 #[test]
 fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
-    let s = scene("msolve13-a2-part");
+    let s = scene_with("msolve13-a2-part", false);
     let (doc, pattern) = insert(
         s.doc.clone(),
         Node::Pattern {
@@ -433,7 +441,12 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         member_of(&doc, &head_at(pattern, copy1)),
         "A2: one placement, one member"
     );
-    let _ = s.base2;
+    let ev = run(&doc, &s.opts);
+    let gated = gate(&doc, &ev);
+    assert!(
+        gated.is_ok(),
+        "A2: the gate holds both spellings: {gated:?}"
+    );
 }
 
 // ---- the lift, per consumer kind ----
@@ -491,4 +504,186 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
+}
+
+/// The one reference refusal a gate raised.
+fn the_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, RefusedRef) {
+    let AssemblyError::Mint { refusals } = err else {
+        panic!("expected the reference refusal, got {err:?}");
+    };
+    let [
+        MintRefusal::Reference {
+            mate, side, why, ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("expected one reference refusal, got {refusals:?}");
+    };
+    (*mate, *side, why.clone())
+}
+
+/// **`Vanished` blames the consumer that LOST the face, not a
+/// bystander.** A datum reads the seated block's top cap at `t1` — a
+/// seat that holds no face, inserted first — and an empty intersection
+/// with a far block is the root over `t1`. The boolean's table holds
+/// no `FromA` row for the mate's face, so the boolean is the node that
+/// consumed it; the datum merely reads beside it.
+#[test]
+fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
+    let s = scene_with("msolve13-lift-bystander", false);
+    let (doc, t1, mate) = seated_at_t1(&s);
+    let (doc, datum) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: t1,
+            face: in_part(s.top, s.top_body, CapEnd::End),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    let (doc, far) = local_block(doc, [10.0, 10.0, 10.0], 1.0, 1.0);
+    let (doc, empty) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Intersect,
+            a: t1,
+            b: far,
+            declare: Vec::new(),
+        },
+    );
+    let positions = doc.positions();
+    assert!(
+        positions[&datum] < positions[&empty],
+        "the premise: the datum is the earlier consumer"
+    );
+    let ev = run(&doc, &s.opts);
+    let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
+    assert_eq!(
+        the_refusal(&err),
+        (mate, MateSide::B, RefusedRef::Vanished { by: Some(empty) })
+    );
+}
+
+/// Every edge of the block, as `t1` names them.
+fn every_edge(ev: &editor_core::Evaluation<f64>, t1: RecipeNodeId) -> Vec<StableName> {
+    fixture::table(ev, t1)
+        .iter()
+        .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
+        .map(|(n, _)| n.clone())
+        .collect()
+}
+
+/// **A chamfer carries a face it trims as `FromTarget`** (a fillet
+/// is the same blend translation, `names::emit_blend`, under its own
+/// node). Chamfering every edge of the seated block — the blend's
+/// corner rule asks for all three edges at a corner — trims the mated
+/// bottom cap but keeps it one face: the mate read at `t1` lifts
+/// through the chamfer, and the gate holds. (A chamfer rather than a
+/// fillet because the census cannot yet decide a curved face beside
+/// another part.)
+#[test]
+fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
+    let s = scene_with("msolve13-lift-chamfer", false);
+    let (doc, t1, _) = seated_at_t1(&s);
+    let edges = every_edge(&run(&doc, &s.opts), t1);
+    let (doc, chamfer) = insert(
+        doc,
+        Node::Chamfer {
+            target: t1,
+            distance: len(0.1),
+            selection: edges,
+        },
+    );
+    assert!(doc.roots().contains(&chamfer), "{:?}", doc.roots());
+    let ev = run(&doc, &s.opts);
+    let gated = gate(&doc, &ev);
+    assert!(gated.is_ok(), "the chamfer carries the face: {gated:?}");
+}
+
+/// **A shell carries a surviving face as `FromTarget`, and an opened
+/// one vanishes, naming the shell.** Opening the block's top cap keeps
+/// the mated bottom cap as the outer wall's face, and the gate holds;
+/// opening the mated bottom cap itself leaves no face under its name,
+/// and the reference refuses `Vanished { by: shell }`.
+#[test]
+fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
+    let s = scene_with("msolve13-lift-shell", false);
+    let (doc0, t1, mate) = seated_at_t1(&s);
+    let shell = |open: StableName| {
+        insert(
+            doc0.clone(),
+            Node::Shell {
+                target: t1,
+                thickness: len(0.1),
+                open: vec![open],
+            },
+        )
+    };
+    let (doc, _) = shell(in_part(s.top, s.top_body, CapEnd::End));
+    let ev = run(&doc, &s.opts);
+    let gated = gate(&doc, &ev);
+    assert!(gated.is_ok(), "the shell carries the bottom cap: {gated:?}");
+
+    let (doc, opened) = shell(s.top_cap());
+    let ev = run(&doc, &s.opts);
+    let err = gate(&doc, &ev).expect_err("the shell opened the mated face");
+    assert_eq!(
+        the_refusal(&err),
+        (mate, MateSide::B, RefusedRef::Vanished { by: Some(opened) })
+    );
+}
+
+/// **A `Part` above a union selects nothing the walk could check, and
+/// the evaluation refuses it.** The member walk passes a `Part` and a
+/// transform down to the union, where it continues at the member the
+/// name says, so the `Part`'s index meets no pattern to agree with.
+/// That is because there is no copy to select: the union is one body,
+/// and a `Part` naming an instance of it refuses at evaluation
+/// (`wrong_operand`), so the gather refuses at that root before any
+/// mate's face is read.
+#[test]
+fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
+    let s = scene_with("msolve13-part-over-union", false);
+    let (doc, t1) = insert(
+        s.doc.clone(),
+        xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, far) = local_block(doc, [10.0, 10.0, 10.0], 1.0, 1.0);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: vec![t1, far],
+            declare: Vec::new(),
+        },
+    );
+    let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, part) = insert(
+        doc,
+        Node::Part {
+            of: moved,
+            select: PartSelect::Instance(Expr::count(0)),
+        },
+    );
+    let head = head_at(part, member_name(union, t1, s.top_cap()));
+    let m = member_of(&doc, &head).expect("the walk descends the union below the Part");
+    assert_eq!(m.instance, s.top);
+    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head));
+    assert!(
+        solve(&doc, &s.opts, Tol::witness()).fault(mate).is_none(),
+        "the solve has no index to check"
+    );
+    let ev = run(&doc, &s.opts);
+    assert!(
+        matches!(ev.result(part), Some(editor_core::NodeResult::Failed(_))),
+        "a Part over one body refuses: {:?}",
+        ev.result(part)
+    );
+    let err = gate(&doc, &ev).expect_err("the gather refuses the failed root");
+    assert!(
+        matches!(
+            &err,
+            AssemblyError::Product(e)
+                if matches!(**e, editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node }) if node == part)
+        ),
+        "the gather refuses at the Part, before any reference is read: {err:?}"
+    );
 }
