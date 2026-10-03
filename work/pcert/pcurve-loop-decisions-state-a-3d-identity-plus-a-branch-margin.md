@@ -2,8 +2,9 @@
 id: pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin
 kind: issue
 title: the chart's angular comparisons (loop continuity, closure, pole joint, trim containment) compare angles over a parameter box, so they widen there the way check 4 did
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-03
 priority: P0
 cost: H
 design: true
@@ -70,3 +71,30 @@ over a 3-D identity or a window identity.
 The trim-window part touches C4's "trim containment against the
 caller's `ChartWindow`" (`crates/geom-brep/README.md`), so it is the
 designer pair's question, weighed after 3759 and 3812 land.
+
+## Closed
+
+Implemented as ratified on [ev] PR 3919 (C4's domain-validity sentence,
+`crates/geom-brep/README.md`):
+
+- **Check 5 retired.** `PcurveCache::certify` and its siblings take no
+  `ChartWindow`; `PcurveCheck::TrimContainment` and
+  `PcurveCertifyError::TrimEscape` are gone, with every caller's window
+  lookup. The cone's azimuth lever reads the row's own box.
+- **A joint states its deck element** (`topo::pcurves::lift_joint`):
+  the whole periods per periodic channel, and on a sphere the
+  involution twin, by `whole_periods` with half a period of room,
+  metered at the joint vertex's own distance from the chart axis. Tier 3
+  requires the identity at every joint and a winding of 0 or ±1 at the
+  closing one; `chart_boundary` requires winding 0.
+  `pcurve_loop_closure` and `_closure_height` are gone, and
+  `pcurve_loop_continuity` is left on spline charts and on a joint whose
+  singular incidence and branch marks are both undecided.
+- **Pole joints are 3-D incidence** of the vertex on a sphere's poles or
+  a cone's apex (`singular_at`); cylinders, planes and ring tori decide
+  nothing there.
+
+Measured: `chaintol` at the default ε is back at `[1.0, 0.3702, 0.1851,
+0.1110]` with `dihedral_wedge` the wall (`[1.0, 0.3603, 0.1802, 0.1083]`
+at 1e-6; 1e-12 within 2% of the default row). On M10-7's plate (s = 0.2
+over the box) the loop decides only `pcurve_loop_branch`, 0/0/0/32.
