@@ -128,8 +128,7 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 }
 
 /// The rim's pairs with `b`'s torus faces in the A → B sweep:
-/// `(examined, accepted)`. On the base the sweep refused
-/// `CurvedPierceUnsupported` on the rim for every pose here.
+/// `(examined, accepted)`.
 fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
     let (ab, _) = sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: the reduction sweep refused: {e:?}"));
@@ -170,8 +169,6 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 /// Every op then stops at the extent scan, whose oblique torus × plane
 /// and torus × wall pairs have no section classification
 /// (`work/reach/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
-/// On the base every pose refused `CurvedPierceUnsupported` on the rim:
-/// the ellipse × torus cell had no root lane.
 #[test]
 fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
     let a = drum_lower();
@@ -202,8 +199,7 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
 /// accepted at its certified roots, the crossing layer passes, and every
 /// op stops at the join, whose oblique plane × torus and wall × torus
-/// germ pairs have no frame (the same filed door). On the base each
-/// refused `CurvedPierceUnsupported` on the rim.
+/// germ pairs have no frame (the same filed door).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();

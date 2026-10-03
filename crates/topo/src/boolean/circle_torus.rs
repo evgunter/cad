@@ -281,8 +281,10 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 speed_hi: radius,
                 noise: rounding_charge(h.terms) + dropped,
                 f_per_metre: h.f_per_metre_lo,
-                f_per_metre_hi: h.f_per_metre_surface,
-                residual_reach: Some(minor_radius / T::from_f64(2.0)),
+                // The clear margin is read through the FLOOR, which
+                // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
+                f_per_metre_hi: h.f_per_metre_lo,
+                residual_reach: None,
             },
             speed_lo: radius,
             lever,

@@ -468,49 +468,106 @@ mod tests {
         }
     }
 
-    /// **Against a torus, up to eight crossings.** The residual is of
-    /// degree four: an ellipse in the torus's equatorial plane, centred
-    /// on its axis, with semi-axes `0.53` and `0.5` against a tube of
-    /// radius `0.01` about the core circle of radius `0.515`, enters and
-    /// leaves the tube in each quadrant — eight crossings, which no
-    /// degree-2 residual has. Moved off the axis it crosses six or four
-    /// times; tilted and offset, two or four. Each count and place
-    /// against the true distance, at several arcs.
+    /// **Against a torus, up to eight crossings, certified wherever the
+    /// band can place them.** The residual is of degree four: an ellipse
+    /// in the torus's equatorial plane, centred on its axis, with
+    /// semi-axes `0.53` and `0.5` against a tube of radius `0.01` about
+    /// the core circle of radius `0.515`, enters and leaves the tube in
+    /// each quadrant — eight crossings, which no degree-2 residual has.
+    /// Moved off the axis it crosses six or four times; tilted and offset,
+    /// two or four. At several arcs, against the true distance:
+    ///
+    /// - the answer is never a `Miss`, and a certified one has the true
+    ///   count, every root on the torus and at its true crossing;
+    /// - it MUST be certified where the band resolves the pose: where the
+    ///   door's own noise in metres of residual (its harmonics' rounding
+    ///   charge over the floor on `|F|/|res|`), carried along the arc at
+    ///   the least true crossing slope, is two orders inside the zero
+    ///   band. Past that (the off-axis pose at ε 1e-12, whose noise places
+    ///   a root only to ~5e-12 m) an `Uncertain` is the honest answer.
     #[test]
     fn torus_crossings_match_the_true_distance() {
         let flat = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 0.53, 0.5);
         let tilted = ellipse([0.1, 0.2, 0.0], [0.3, -0.2, 1.0], [1.0, 1.0, 0.0], 0.8, 0.5);
-        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01);
-        for t0 in [0.0, 1.7, -2.9] {
-            assert_matches_oracle("flat × ring", &flat, &ring, t0, 8);
-            assert_matches_oracle(
+        let poses = [
+            (
+                "flat × ring",
+                &flat,
+                torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01),
+                8,
+            ),
+            (
                 "flat × ring, off the axis",
                 &flat,
-                &torus([0.012, 0.0, 0.0], [0.0, 0.0, 1.0], 0.515, 0.01),
-                t0,
+                torus([0.012, 0.0, 0.0], [0.0, 0.0, 1.0], 0.515, 0.01),
                 6,
-            );
-            assert_matches_oracle(
+            ),
+            (
                 "flat × ring, raised",
                 &flat,
-                &torus([0.0, 0.0, 0.007], [0.0, 0.0, 1.0], 0.515, 0.01),
-                t0,
+                torus([0.0, 0.0, 0.007], [0.0, 0.0, 1.0], 0.515, 0.01),
                 8,
-            );
-            assert_matches_oracle(
+            ),
+            (
                 "tilted × a torus through it",
                 &tilted,
-                &torus([0.9, 0.2, 0.0], [0.0, 1.0, 0.2], 0.3, 0.1),
-                t0,
+                torus([0.9, 0.2, 0.0], [0.0, 1.0, 0.2], 0.3, 0.1),
                 2,
-            );
-            assert_matches_oracle(
+            ),
+            (
                 "tilted × a fat torus about it",
                 &tilted,
-                &torus([0.1, 0.2, 0.0], [0.0, 0.0, 1.0], 0.6, 0.12),
-                t0,
+                torus([0.1, 0.2, 0.0], [0.0, 0.0, 1.0], 0.6, 0.12),
                 4,
-            );
+            ),
+        ];
+        let band = band();
+        for t0 in [0.0, 1.7, -2.9] {
+            for (label, e, s, want) in &poses {
+                let mid = t0 + 0.5;
+                let truth = oracle(e, s, mid - PI, mid + PI);
+                assert_eq!(truth.len(), *want, "{label}: the pose's own crossings");
+                // The door's noise in residual metres, and the least slope
+                // of the true distance per metre of arc at a crossing.
+                let geom::Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = *s
+                else {
+                    unreachable!("a torus")
+                };
+                let conic = geom_brep::Conic::of(e).unwrap();
+                let h = geom_brep::conic_torus_harmonics(
+                    &conic,
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                );
+                let noise = rounding_charge(h.terms) / h.f_per_metre_lo;
+                let slope = truth
+                    .iter()
+                    .map(|&r| {
+                        let d = 1e-7;
+                        let rise = distance(s, e.eval(r + d)) - distance(s, e.eval(r - d));
+                        (rise / (2.0 * d * e.deriv(r).norm())).abs()
+                    })
+                    .fold(f64::INFINITY, f64::min);
+                let resolvable = 100.0 * noise / slope <= band.zero();
+                match ellipse_roots(e, t0, t0 + 1.0, s, band).unwrap() {
+                    CircleRoots::Certified { .. } => {
+                        assert_matches_oracle(label, e, s, t0, *want);
+                    }
+                    CircleRoots::Uncertain if !resolvable => {}
+                    other => panic!(
+                        "{label} at {t0}: {other:?} where the band places a root to {:e} m",
+                        noise / slope
+                    ),
+                }
+            }
         }
     }
 

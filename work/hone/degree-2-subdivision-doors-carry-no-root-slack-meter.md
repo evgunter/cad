@@ -4,7 +4,7 @@ kind: issue
 title: The degree-2 subdivision doors (circle x torus, circle x tilted wall, ellipse x sphere and wall) carry no root-slack meter; the ellipse x torus door shows unplaceable roots are certified without one
 status: open
 opened: 2026-10-03
-priority: P2
+priority: P1
 cost: M
 refs: [line-roots-carry-no-root-slack-meter, ellipse-edge-crossing-a-torus-has-no-root-lane]
 ---
@@ -56,3 +56,16 @@ for the quadric doors, whose `F` IS the residual;
 `Uncertain` at ε 1e-12 on near-tangent poses; measure the lily and the
 snowman rows before and after. The line doors' missing meter is the
 same posture question (`line-roots-carry-no-root-slack-meter`).
+
+## Measured (dual review of PR 3973, reviewer r1)
+
+No longer only estimated on the degree-2 doors. Reviewer r1's
+differential (`probes/r1_circle_diff.rs` on
+`analysis/reach-dual/3973-r1`, against an mpmath oracle at 60 digits)
+found the circle × torus door certifying misplaced roots on 217 of
+3,600 poses at the PR's head (218 on main): 1 to 42 zero bands off, at
+ε 1e-9, ×1e3 grazes. These are wrong answers on main — certified roots
+off the true crossing — so the row is raised from P2 to P1 (a live
+wrong answer on unusual geometry; P0 is reserved for normal geometry).
+One of them moved in PR 3973 (ε 1e-12, ×1e3, inner graze: main
+certified roots 157,518 bands off; the PR answers `Uncertain`).
