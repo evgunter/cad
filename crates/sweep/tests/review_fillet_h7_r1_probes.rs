@@ -186,9 +186,9 @@ fn cap_above() -> f64 {
 }
 
 /// **What the boolean does with the ruled fixtures on a block** — the
-/// groove (`block ∖ cylinder`) refuses at the join, where the block's
-/// edges pierce the rod's wall and a pierce ring has no join arm yet
-/// (`work/tang/pierce-ring-has-no-join-arm`);
+/// groove (`block ∖ cylinder`) builds through the pierce rings the
+/// block's edges leave in the rod's wall, and is the block less the
+/// rod's section below the top plane over the block's length;
 /// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
 /// the block plus the rod's segment above the top plane over its
 /// length. The rod's end caps meet the top plane along chords with one
@@ -196,19 +196,19 @@ fn cap_above() -> f64 {
 /// The full-length fixtures the Phase-1 table carves come through the
 /// extrude door (below).
 #[test]
-fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
-    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol());
+fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
+    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol())
+        .expect("the groove builds")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    topo::validate_geometric_certificate(&groove, tol()).expect("the groove certifies at rest");
+    let expect = 2.0 * L - (core::f64::consts::PI * ROD_R * ROD_R - cap_above()) * L;
     assert!(
-        matches!(
-            groove,
-            Err(topo::BooleanError::Join(
-                topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
-                    ..
-                }
-            ))
-        ),
-        "the groove refuses at the boolean, got {groove:?}"
+        (volume(&groove) - expect).abs() < 1e-12,
+        "the groove's volume: {} vs {expect}",
+        volume(&groove)
     );
     let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol())
         .expect("the short sunk rod builds")

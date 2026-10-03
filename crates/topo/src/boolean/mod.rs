@@ -130,7 +130,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1588,11 +1588,14 @@ pub enum BooleanError {
         b_vertex: VertexKey,
     },
     /// Two vertex-vertex coincidences that share a vertex both cross
-    /// there: an operand holds two vertices at one point (its own
-    /// contact's) and the other operand's vertex at that point crosses
-    /// into both of their neighborhoods. Each pair's null edges would
-    /// split the shared vertex's orbit the other pair read, and the
-    /// insertion handles one crossing pair per vertex.
+    /// there, in a way the insertion cannot place: an operand holds
+    /// several vertices at one point (its own contact's) and the other
+    /// operand's vertex there crosses into more than one of their
+    /// neighborhoods, and either both operands hold several (two
+    /// crossing pairs share both their vertices), or the pairs' cuts
+    /// in the shared vertex's orbit interleave, cannot be ordered
+    /// within one corner, or fall between a dangling null edge's two
+    /// germs (`insert::reconcile_shared`).
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -2738,10 +2741,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
-                "a corner of the {} solid meets a point where the other solid holds two \
-                 corners that only touch each other, and cuts into both of them; the \
-                 Boolean cannot yet join one corner into two at once. There is no way \
-                 through this in the kernel yet",
+                "a corner of the {} solid meets a point where the other solid holds \
+                 several corners that only touch each other (or both solids do), and \
+                 cuts into more than one of them in a way the Boolean cannot yet join. \
+                 There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::ClassificationInvariant { what } => {
@@ -3275,9 +3278,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // insertion: a vertex may sit in more than one pair (an operand
     // whose own contact left two vertices at one point pairs both with
     // the other operand's vertex there), and an insertion moves its
-    // vertices' orbits. A pair that crosses nowhere inserts nothing, so
-    // its reading stays good; two that cross at one vertex would each
-    // need the orbit the other moved, and refuse.
+    // vertices' orbits. A pair that crosses nowhere inserts nothing;
+    // pairs that cross at one vertex are planned together
+    // (`insert::reconcile_shared`), so no mint moves a half-edge another
+    // pair's plan read.
     let mut classified = Vec::with_capacity(contacts.vv.len());
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
@@ -3298,6 +3302,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &mut covered,
             &mut held,
         )?;
+        let sector_read = (records.clone(), raw.clone());
         recl::recl_edges(
             &mut records,
             &mut raw,
@@ -3308,35 +3313,67 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             op,
             &declared,
             band,
+            &recl::Reversed::default(),
         )?;
-        classified.push((c, a_sectors, b_sectors, records, raw));
+        classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
-    let crosses: Vec<bool> = classified
+    // An edge of a shared vertex that two crossing pairs' edge-edge
+    // germs run along folds Out in each of them (`recl::Reversed`).
+    let edge_germs: Vec<[Vec<HalfEdgeKey>; 2]> = classified
         .iter()
-        .map(|(.., records, _)| records.iter().any(sectors::PairRecord::survives))
+        .map(|(_, a_s, b_s, records, raw, _)| {
+            [true, false].map(|a_side| {
+                records
+                    .iter()
+                    .zip(raw)
+                    .filter(|(r, _)| r.survives())
+                    .filter_map(|(_, w)| recl::edge_edge_bound(w, a_s, b_s, a_side))
+                    .collect()
+            })
+        })
         .collect();
-    for (i, c) in contacts.vv.iter().enumerate() {
-        let shared = |d: &VvContact| d.a == c.a || d.b == c.b;
-        if let Some(j) = (0..i).find(|&j| crosses[i] && crosses[j] && shared(&contacts.vv[j])) {
-            let d = contacts.vv[j];
-            return Err(if d.a == c.a {
-                BooleanError::SharedVertexCrossings {
-                    operand: Operand::A,
-                    vertex: c.a,
-                    partners: [d.b, c.b],
-                }
-            } else {
-                BooleanError::SharedVertexCrossings {
-                    operand: Operand::B,
-                    vertex: c.b,
-                    partners: [d.a, c.a],
-                }
-            });
+    let vv = &contacts.vv;
+    for i in 0..classified.len() {
+        let mut reversed = recl::Reversed::default();
+        for (slot, list) in [&mut reversed.a, &mut reversed.b].into_iter().enumerate() {
+            let key = |c: &VvContact| if slot == 0 { c.a } else { c.b };
+            list.extend(edge_germs[i][slot].iter().copied().filter(|he| {
+                (0..vv.len()).any(|j| {
+                    j != i && key(&vv[j]) == key(&vv[i]) && edge_germs[j][slot].contains(he)
+                })
+            }));
         }
+        if reversed.a.is_empty() && reversed.b.is_empty() {
+            continue;
+        }
+        let (_, a_sectors, b_sectors, records, raw, (sector_records, sector_raw)) =
+            &mut classified[i];
+        (*records, *raw) = (sector_records.clone(), sector_raw.clone());
+        recl::recl_edges(
+            records, raw, a_sectors, b_sectors, &a, &b, op, &declared, band, &reversed,
+        )?;
     }
-    for (c, a_sectors, b_sectors, records, raw) in &classified {
-        let out = insert::insert_null_pairs(
-            &mut a, &mut b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
+    let mut plans = classified
+        .iter()
+        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
+            insert::plan_null_pairs(
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let orbits: Vec<_> = classified
+        .iter()
+        .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
+        .collect();
+    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    // A strut at a shared vertex is minted before any fan there.
+    let mut order: Vec<usize> = (0..plans.len()).collect();
+    order.sort_by_key(|&i| !plans[i].hangs_shared_strut([orbits[i].0, orbits[i].1]));
+    let mut hung = insert::Hung::default();
+    for i in order {
+        let (_, a_sectors, b_sectors, ..) = &classified[i];
+        let out = insert::mint_plan(
+            &mut a, &mut b, &plans[i], a_sectors, b_sectors, &mut hung, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
