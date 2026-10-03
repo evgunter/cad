@@ -2643,3 +2643,83 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
         }])
     );
 }
+
+/// A 1 mm × 1 mm × 100 nm slab whose six carrier planes are re-anchored
+/// 5 km (and 1.85 km across) along themselves: the same planes, and so
+/// the same body, but each face's closed form now sums its vector area
+/// about an origin kilometres from the face, and the walk's `f64` sum
+/// reads the slab's volume as `−1.2e-12` m³ where it is exactly
+/// `+1e-13`.
+fn far_anchored_slab(tol: Tol) -> Body<f64> {
+    let mut body = crate::test_support::brick::<f64>((0.0, 1e-3), (0.0, 1e-3), (0.0, 1e-7), tol);
+    let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+    for key in surfaces {
+        let surface = body.surfaces.get_mut(key).unwrap();
+        let Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = *surface
+        else {
+            panic!("a brick's faces are planes");
+        };
+        let along = u_ref * 5e3 + normal.cross(u_ref) * 1.85e3;
+        *surface = Surface::Plane {
+            origin: origin + along,
+            normal,
+            u_ref,
+        };
+    }
+    body
+}
+
+/// **A sign is read off the volume only where its enclosure excludes
+/// zero.** The far-anchored slab's `f64` sum is negative, beyond the
+/// band at every ε this row runs at, while its exact volume
+/// (`1e-3 · 1e-3 · 1e-7`) is positive: the sum's rounding is larger than
+/// the volume. (ε ≤ 1e-9: wider, the slab is thinner than the band.) Its interval re-derivation straddles zero, so check 7
+/// does not refuse it, check 10's role read and the shell
+/// classification read no role, and neither reads the slab as a void.
+#[test]
+fn a_volume_below_its_own_rounding_decides_no_sign() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let body = far_anchored_slab(tol);
+    let exact = 1e-3 * 1e-3 * 1e-7;
+    let read = crate::mass_properties(&body, tol).expect("the slab measures");
+    assert!(
+        read.volume < -exact,
+        "the premise: the walk's sum reads the slab negative, past its exact \
+         volume {exact:e}: {read:?}"
+    );
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Ok(()),
+        "check 7 refuses only a certified negative"
+    );
+    let solid = body.solids().next().expect("one solid").0;
+    let faces = body.faces_of_solid(solid).expect("the slab's faces");
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let lane = Some(crate::props::QuadLane::certified());
+    assert_eq!(
+        crate::validate::shell_role(&body, &faces, band, tol, lane),
+        None,
+        "check 10's role read: no sign below the rounding"
+    );
+    assert!(
+        matches!(
+            crate::classify_shells(&body, tol),
+            Err(crate::ShellClassifyError::Escalated { .. }
+                | crate::ShellClassifyError::Straddles { .. }
+                | crate::ShellClassifyError::ZeroVolume { .. })
+        ),
+        "the shell classification refuses a role it cannot read: {:?}",
+        crate::classify_shells(&body, tol)
+    );
+}

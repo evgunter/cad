@@ -4364,6 +4364,17 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// that solid's enclosure's sign stops being in doubt, and the body
 /// certificate those walks assemble to.
 ///
+/// A refusal the walk's own sums read is certified before it stands
+/// ([`plus_v_certify`]): only a round whose interval re-derivation is
+/// definitely negative refuses, and one that straddles zero reads on as
+/// undecided. A pass takes no such step: the closed forms are one
+/// generic expression at the two scalars, and rounding to nearest keeps
+/// each arithmetic step of the `f64` evaluation inside its outward-rounded
+/// interval twin, so a positive `f64` sum cannot sit beside a definitely
+/// negative enclosure. A transcendental's last-ulp error is the one step
+/// that can leave the interval, and it reaches past the band only on
+/// coordinates of order `K·ε·2⁵²` metres (45 km at `ε = 1e-12`).
+///
 /// Every door makes check 7 here — [`validate_geometric`]
 /// with [`crate::QuadLane::certified`], the battery with
 /// whatever lane its door holds (none, at a `_structural` door) — so no body is admitted by one tier-3
@@ -4410,9 +4421,14 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             band,
             tol,
             quad,
-            |e| match plus_v_decide(e, band) {
+            |round| match plus_v_decide(round.enclosure(), band) {
                 PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
-                PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
+                PlusVOutcome::Refuse => match plus_v_certify(round, crate::props::ShellRole::Void, band) {
+                    Ok(Some(crate::props::ShellRole::Void)) => Some(PlusVVerdict::Refuse),
+                    Ok(Some(crate::props::ShellRole::Outer)) => Some(PlusVVerdict::Pass),
+                    Ok(None) => None,
+                    Err(source) => Some(PlusVVerdict::Uncomputable(source)),
+                },
                 PlusVOutcome::Undecided => None,
             },
             |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
@@ -4751,7 +4767,15 @@ pub(crate) fn shell_role<T: Decide>(
         band,
         tol,
         quad,
-        |e| plus_v_read(e, band).map(Some),
+        |round| {
+            plus_v_read(round.enclosure(), band).and_then(|proposed| {
+                match plus_v_certify(round, proposed, band) {
+                    Ok(None) => None,
+                    Ok(role) => Some(role),
+                    Err(_) => Some(None),
+                }
+            })
+        },
         |_| None,
     )
     .ok()
@@ -4913,6 +4937,37 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
             enclosure.volume_lo,
         )
     })
+}
+
+/// **A role [`plus_v_read`] proposed off a sign walk's own sums,
+/// certified**: the same round re-read through its interval
+/// re-derivation ([`crate::props::Round::interval`]), whose reading is
+/// the answer. `Ok(None)` is an enclosure that straddles zero, or sits
+/// in the band: no sign is decided there.
+///
+/// The walk's sums round at `f64` with nothing to say how far, and a
+/// body small against its coordinates (a 6e-19 m³ sliver 10 m from the
+/// origin) reads a rounding error as its sign. The re-derivation holds
+/// the exact value of the stored geometry, so its sign is the body's.
+///
+/// A walk holding no lane has no re-derivation to read; its proposal
+/// stands, and is honest exactly when the walk's scalar is itself an
+/// enclosure (the interval scalar). The `f64` lane-free reads are
+/// `work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`.
+///
+/// # Errors
+///
+/// The re-derivation's refusal of a face whose closed form does not
+/// hold at the interval scalar.
+pub(crate) fn plus_v_certify<T: geom_core::Decide>(
+    round: &crate::props::Round<'_, '_, T>,
+    proposed: crate::props::ShellRole,
+    band: Band,
+) -> Result<Option<crate::props::ShellRole>, crate::props::MassPropsError> {
+    match round.interval() {
+        None => Ok(Some(proposed)),
+        Some(enclosure) => Ok(plus_v_read(enclosure?, band)),
+    }
 }
 
 fn plus_v_decide<T: geom_core::Decide>(

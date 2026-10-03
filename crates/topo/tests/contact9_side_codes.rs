@@ -74,26 +74,19 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
     hits[0]
 }
 
+/// `r`'s body, which passes tier 3.
 fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64> {
-    body_checked(r, what, true)
-}
-
-/// `tier3`: whether to run tier 3, whose signed-volume check shares the
-/// volume door's floor ([`RESOLVED_VOLUME`]).
-fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: bool) -> Body<f64> {
     let r = r.unwrap_or_else(|e| panic!("{what}: an answer, got {e}"));
     let b = r
         .body()
         .unwrap_or_else(|| panic!("{what}: a body"))
         .body
         .clone();
-    if tier3 {
-        assert_eq!(
-            validate_geometric(&b, Tol::witness()),
-            Ok(()),
-            "{what}: tier 3"
-        );
-    }
+    assert_eq!(
+        validate_geometric(&b, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3"
+    );
     b
 }
 
@@ -133,12 +126,10 @@ fn volume(body: &Body<f64>) -> f64 {
 /// volume door's absolute error on a result spanning these fixtures'
 /// ~10 m is up to ~1e-15 m³, measured on exact slivers at ε from 1e-6
 /// to 1e-12 (it returns half of a 4e-19 m³ tetrahedron with exact
-/// corners, and −3e-16 for a 6e-19 one, which tier 3 then reads as
-/// negative). A thousand times that keeps the 1% check honest. Below it
-/// the corner set, which fixes the sliver and so its volume, is the
-/// oracle, and tier 3 runs on the other two results only. The door's
-/// error is filed:
-/// `work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`.
+/// corners, and −3e-16 for a 6e-19 one). A thousand times that keeps
+/// the 1% check honest. Below it the corner set, which fixes the sliver
+/// and so its volume, is the oracle. The door's error is filed:
+/// `work/geom/a-planar-face-sums-its-area-about-a-far-carrier-origin`.
 const RESOLVED_VOLUME: f64 = 1e-12;
 
 /// Every op on `(solid, tool)` answers: `solid ∩ tool` has exactly the
@@ -165,10 +156,9 @@ fn answers(
         SolidContainment::In,
         "{what}: q in the solid"
     );
-    let resolved = overlap >= RESOLVED_VOLUME;
-    let meet = body_checked(intersect(solid, tool, tol), &format!("{what}: ∩"), resolved);
+    let meet = body_of(intersect(solid, tool, tol), &format!("{what}: ∩"));
     has_corners(&meet, corners, &format!("{what}: ∩"));
-    if resolved {
+    if overlap >= RESOLVED_VOLUME {
         let v = volume(&meet);
         assert!(
             (v - overlap).abs() <= 1e-2 * overlap,

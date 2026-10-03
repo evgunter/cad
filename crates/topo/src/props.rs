@@ -496,7 +496,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
-    settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
+    settle: impl Fn(&Round<'_, 'b, T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let hook = round_hook(quad);
@@ -508,9 +508,15 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     })?;
     let mut round = 0usize;
     loop {
-        let (props, refused) = fold_runs(&runs);
+        let refused = fold_runs(&runs).1;
         let exhausted = !runs.iter().any(|r| r.open_at == Some(round));
-        let verdict = match settle(props.enclosure()) {
+        let reading = Round {
+            body,
+            band,
+            quad,
+            runs: &runs,
+        };
+        let verdict = match settle(&reading) {
             Some(verdict) => Some(verdict),
             // The schedule has nothing further to offer and `settle`
             // did not accept: the caller says what that means, with
@@ -628,56 +634,21 @@ impl<T: Decide> PastTarget<'_, T> {
         fold_runs(&self.walk.runs).0
     }
 
-    /// **The enclosure re-derived in interval arithmetic** —
-    /// `(volume, surface area)`, each an interval holding the exact
-    /// value of the body's stored geometry.
-    ///
-    /// [`Self::props`] is not that. Its closed-form faces are evaluated
-    /// at the walk's scalar and its fold sums in it, so at `f64` both
-    /// round, and the pads, which are the quadrature's half-widths
-    /// only, say nothing of it: two congruent bodies measured through
-    /// different face orders can differ by ulps with zero pads on
-    /// both. Here every closed-form face is re-derived at the interval
-    /// scalar over its own stored geometry (the walk's lane,
-    /// [`QuadLane`]'s `closed_form`), every quadrature face contributes
-    /// the enclosure its lane returned rather than the midpoint and
-    /// half-width rounded from it, and the sum is interval arithmetic.
-    /// The quadrature faces stay at the rounds this walk reached.
+    /// **The enclosure re-derived in interval arithmetic** ([`rederive`],
+    /// at the rounds this walk reached). [`Self::props`] is not that: its
+    /// closed-form faces and its fold round at the walk's scalar, and its
+    /// pads are the quadrature's half-widths only.
     ///
     /// `None` when the walk holds no certified lane, so has no interval
     /// door to re-derive through.
     ///
     /// # Errors
     ///
-    /// The property layer's refusal of a face whose closed form does
-    /// not hold at the interval scalar — the face's geometry read with
-    /// no rounding to hide behind, which can leave a classification
-    /// open that the walk's scalar decided.
+    /// [`rederive`]'s.
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
         let walk = &self.walk;
         let lane = walk.quad?;
-        let measure = || {
-            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-            for run in &walk.runs {
-                let (f, a) = match run.contribution.enclosure {
-                    Some(enclosure) => enclosure,
-                    None => {
-                        let (face, surface) = resolve_face(walk.body, run.face)?;
-                        let loops = face_loops(walk.body, face)?;
-                        let c = (lane.closed_form)(surface, &loops, face.sense, walk.band)
-                            .map_err(|source| MassPropsError::Face {
-                                face: run.face,
-                                source,
-                            })?;
-                        (c.flux, c.area)
-                    }
-                };
-                flux = flux + f;
-                area = area + a;
-            }
-            Ok((flux / Interval::from_f64(3.0), area))
-        };
-        Some(measure())
+        Some(rederive(walk.body, walk.band, lane, &walk.runs))
     }
 
     /// **One round further** on every face that met the target at a
@@ -722,6 +693,89 @@ impl<T: Decide> PastTarget<'_, T> {
             }
         }
     }
+}
+
+/// **One round of a sign walk, as its `settle` reads it**: the
+/// enclosure the walk's own sums give, and the same round re-derived in
+/// interval arithmetic.
+///
+/// The two are different claims. [`Self::enclosure`] is summed at the
+/// walk's scalar, where at `f64` a closed-form face's flux and the fold
+/// round with no pad to say so, so its ends bound the quadrature's
+/// uncertainty and nothing else. [`Self::interval`] holds the exact
+/// value of the stored geometry. A sign read off the first is a
+/// proposal; a sign stands only where the second excludes zero too.
+pub(crate) struct Round<'r, 'b, T: Decide> {
+    body: &'b Body<T>,
+    band: Band,
+    quad: Option<QuadLane<T>>,
+    runs: &'r [FaceRun<T>],
+}
+
+impl<T: Decide> Round<'_, '_, T> {
+    /// The walk's own enclosure at this round.
+    pub(crate) fn enclosure(&self) -> VolumeEnclosure<T> {
+        fold_runs(self.runs).0.enclosure()
+    }
+
+    /// This round re-derived in interval arithmetic ([`rederive`]), its
+    /// two ends one interval; `None` when the walk holds no certified
+    /// lane to re-derive through.
+    pub(crate) fn interval(&self) -> Option<Result<VolumeEnclosure<Interval>, MassPropsError>> {
+        let lane = self.quad?;
+        Some(rederive(self.body, self.band, lane, self.runs).map(|(volume, area)| {
+            VolumeEnclosure {
+                volume_lo: volume,
+                volume_hi: volume,
+                surface_area: area,
+            }
+        }))
+    }
+}
+
+/// **A walk's runs re-derived in interval arithmetic** —
+/// `(volume, surface area)`, each an interval holding the exact value of
+/// the stored geometry.
+///
+/// Every closed-form face is re-derived at the interval scalar over its
+/// own stored geometry (`lane`'s `closed_form`), every quadrature face
+/// contributes the enclosure its lane returned rather than the midpoint
+/// and half-width rounded from it, and the sum is interval arithmetic,
+/// in the runs' order. The quadrature faces stay at the rounds the runs
+/// reached.
+///
+/// # Errors
+///
+/// The property layer's refusal of a face whose closed form does not
+/// hold at the interval scalar — the face's geometry read with no
+/// rounding to hide behind, which can leave a classification open that
+/// the walk's scalar decided.
+fn rederive<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    lane: QuadLane<T>,
+    runs: &[FaceRun<T>],
+) -> Result<(Interval, Interval), MassPropsError> {
+    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    for run in runs {
+        let (f, a) = match run.contribution.enclosure {
+            Some(enclosure) => enclosure,
+            None => {
+                let (face, surface) = resolve_face(body, run.face)?;
+                let loops = face_loops(body, face)?;
+                let c = (lane.closed_form)(surface, &loops, face.sense, band).map_err(|source| {
+                    MassPropsError::Face {
+                        face: run.face,
+                        source,
+                    }
+                })?;
+                (c.flux, c.area)
+            }
+        };
+        flux = flux + f;
+        area = area + a;
+    }
+    Ok((flux / Interval::from_f64(3.0), area))
 }
 
 impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
@@ -2267,8 +2321,11 @@ impl std::error::Error for ShellClassifyError {}
 /// face list — never a second flux implementation. The sign is a
 /// decided predicate through the crate funnel (`chk_shell_volume_sign`)
 /// with check 7's margin convention: the comparand is `V/A`, the mean
-/// boundary displacement the volume corresponds to — a length. For
-/// quadrature faces the read is bracket-honest: `Outer` requires the
+/// boundary displacement the volume corresponds to — a length. The read
+/// is bracket-honest: the bracket is the shell re-derived in interval
+/// arithmetic (closed-form faces over their stored geometry, quadrature
+/// faces at their certified enclosures), so a shell whose volume is
+/// below its own rounding has no role. `Outer` requires the
 /// bracket's LOW end definitely positive, `Void` its HIGH end
 /// definitely negative; anything else refuses typed
 /// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]
@@ -2294,8 +2351,10 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// flux summed through the closed form alone
 /// ([`mass_properties_structural`]'s walk, per shell). A shell with a
 /// face that needs the certified quadrature refuses typed
-/// ([`ShellClassifyError::Props`]); a closed-form shell classifies
-/// exactly as it does through the certified door.
+/// ([`ShellClassifyError::Props`]). A closed-form shell's role is read
+/// off the walk's own sums, so at a rounding scalar a shell whose volume
+/// is below that rounding can read a role the certified door refuses
+/// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 ///
 /// # Errors
 ///
@@ -2388,38 +2447,20 @@ fn classify_shells_via<T: Decide>(
         }
         let (area, area_pad) = (sums.surface_area, sums.area_pad);
         let (volume, volume_pad) = (sums.volume, sums.volume_pad);
-        // The named sign read — ONE funnel site, evaluated at a
-        // bracket end. `V/A` is a length (check 7's margin
-        // convention): the mean displacement of this shell's boundary
-        // that the volume defect corresponds to.
-        let sign_at = |end: T| {
-            crate::validate::decide_reported(
-                "chk_shell_volume_sign",
-                Margin::over_lever(end, area),
-                band,
-            )
-        };
-        let role_at = |end, decided: Result<Decided, Indeterminate>| {
-            decided
-                .ok()
-                .and_then(|decided| ShellRole::decided_at(end, decided.sign))
-        };
-        // The low end first; the high end only when the low end decides
-        // nothing. Closed-form shells (pad = 0) reuse the one verdict.
-        let ends = sums.enclosure();
-        let lo = sign_at(ends.volume_lo);
-        let role = match role_at(BracketEnd::Low, lo) {
-            Some(role) => role,
-            None => {
-                let hi = if volume_pad == 0.0 {
-                    lo
-                } else {
-                    sign_at(ends.volume_hi)
+        // The walk's sums round at `f64` with no pad to say so, so where
+        // the lane offers the shell's interval re-derivation, that is the
+        // bracket the role is read off ([`crate::validate::plus_v_certify`]'s
+        // argument); a lane-free walk reads its own sums.
+        let role = match quad {
+            None => shell_role_at(shell_key, sums.enclosure(), volume_pad > 0.0, band)?,
+            Some(lane) => {
+                let (volume, area) = rederive(body, band, lane, &runs).map_err(props)?;
+                let ends = VolumeEnclosure {
+                    volume_lo: volume,
+                    volume_hi: volume,
+                    surface_area: area,
                 };
-                match role_at(BracketEnd::High, hi) {
-                    Some(role) => role,
-                    None => return Err(shell_role_refusal(shell_key, lo, hi, band)),
-                }
+                shell_role_at(shell_key, ends, false, band)?
             }
         };
         out.push(ShellClassification {
@@ -2433,6 +2474,38 @@ fn classify_shells_via<T: Decide>(
         });
     }
     Ok(out)
+}
+
+/// A shell's role read off its volume bracket `ends` — the named sign
+/// read, ONE funnel site (`chk_shell_volume_sign`), evaluated at a
+/// bracket end. `V/A` is a length (check 7's margin convention): the
+/// mean displacement of the shell's boundary that the volume
+/// corresponds to. The low end first; the high end only when the low
+/// end decides nothing, and an unpadded bracket reuses the one verdict.
+fn shell_role_at<U: Decide>(
+    shell: ShellKey,
+    ends: VolumeEnclosure<U>,
+    padded: bool,
+    band: Band,
+) -> Result<ShellRole, ShellClassifyError> {
+    let sign_at = |end: U| {
+        crate::validate::decide_reported(
+            "chk_shell_volume_sign",
+            Margin::over_lever(end, ends.surface_area),
+            band,
+        )
+    };
+    let role_at = |end, decided: Result<Decided, Indeterminate>| {
+        decided
+            .ok()
+            .and_then(|decided| ShellRole::decided_at(end, decided.sign))
+    };
+    let lo = sign_at(ends.volume_lo);
+    if let Some(role) = role_at(BracketEnd::Low, lo.clone()) {
+        return Ok(role);
+    }
+    let hi = if padded { sign_at(ends.volume_hi) } else { lo.clone() };
+    role_at(BracketEnd::High, hi.clone()).ok_or_else(|| shell_role_refusal(shell, lo, hi, band))
 }
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither
@@ -3750,7 +3823,7 @@ mod face_list_door_tests {
                         band,
                         tol,
                         Some(QuadLane::certified()),
-                        |e: VolumeEnclosure<f64>| (e.volume_lo > 0.0).then_some(true),
+                        |r: &Round<'_, '_, f64>| (r.enclosure().volume_lo > 0.0).then_some(true),
                         |_| false,
                     )
                     .unwrap();
