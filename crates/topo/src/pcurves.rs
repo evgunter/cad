@@ -3002,7 +3002,7 @@ pub(crate) fn site_rows<T: Decide>(
     // vertex may not exist before the surgery, so it enters at its
     // carrier's end, which the edge certificate pins to the vertex the
     // surgery makes (`carrier_endpoint_start` / `_end`).
-    let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool, Point3<T>), ItemFail> {
+    let traversal = |at: SiteHalf| -> Result<SiteTraversal<T>, ItemFail> {
         let held = |he| entry_vertex(body, he).map_err(|_| ItemFail::Corrupt);
         match at {
             SiteHalf::Existing(he) => {
@@ -3064,6 +3064,11 @@ pub(crate) fn site_rows<T: Decide>(
         Err(_) => Ok(SiteRows::Clear(every_half())),
     }
 }
+
+/// One half of a site mint's plan as its walk reads it: the carrier,
+/// its interval, whether the loop runs it forward, and its entry
+/// vertex's point.
+type SiteTraversal<T> = (geom::Curve3<T>, T, T, bool, Point3<T>);
 
 /// Why [`site_rows`] could not read or derive one half-edge of the
 /// walk.
