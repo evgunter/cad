@@ -1273,13 +1273,20 @@ impl MarginDiag {
                 num(&hi, f)?;
                 f.write_str("]")
             }
-            Reading::Invalid => f.write_str("invalid (NaN or a poisoned enclosure)"),
+            Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
         }
     }
 }
 
 /// The reading as text: `m`, `[lo, hi]`, or
-/// `invalid (NaN or a poisoned enclosure)`.
+/// `invalid (NaN or a refused enclosure)`.
+///
+/// **"Refused", not "poisoned", on the enclosure half.** The one way an
+/// enclosure reads [`MarginKind::Invalid`] is interval classification's
+/// uncertified arm, which a `Trv` clamp with ordinary endpoints reaches
+/// and which `Interval::is_poison` answers `false` for. Poison is the
+/// `f64` lane's word ([`crate::Real::is_poison`], a NaN margin), and it
+/// stays this reading's own name.
 impl fmt::Display for MarginDiag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.render(f, fmt::Display::fmt)
@@ -1358,27 +1365,21 @@ pub struct Indeterminate {
 /// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
 /// coincidence" and "in the ambiguity band" are ONE user situation —
 /// coincident at any precision the user could care about — with one
-/// three-lever recourse, phrased once, here. The margin rides the
-/// error payload as data; kernel semantics keep the distinction.
+/// recourse, phrased once, here. The margin rides the error payload as
+/// data; kernel semantics keep the distinction.
 ///
-/// Every site that refuses on a too-close-to-a-coincidence situation
-/// composes this fragment into its Display output — directly for
-/// definite arms (exactly-on refusals with no [`Indeterminate`]
-/// payload), or through [`Indeterminate`]'s own Display for escalated
-/// arms. Message-pinning tests pin the fragment with `contains`, never
-/// with full-string pins that rot.
+/// **The levers, and only the levers.** D4 ¶1 (i) offers *tighten the
+/// tolerance* on the band-decided arms alone, "phrased conditionally
+/// and with the value the margin gives", so no tolerance arm can be a
+/// `&'static str`: the value comes from the margin. A site holding the
+/// escalation composes the whole ending through
+/// [`Indeterminate::ending`], which adds that arm where the margin
+/// gives one; a site whose verdict is definite has no size to tighten
+/// below and composes this fragment alone.
+///
+/// Message-pinning tests pin the fragment with `contains`, never with
+/// full-string pins that rot.
 pub const COINCIDENCE_RECOURSE: &str = concat!(
-    crate::coincidence_declare_arm!(),
-    ", ",
-    crate::coincidence_move_arm!(),
-    ", or lower the tolerance"
-);
-
-/// [`COINCIDENCE_RECOURSE`] on a DEFINITE verdict of a coincidence a
-/// declaration settles: its declaration and geometry arms, without the
-/// tolerance, which a definite verdict gives no size to tighten below
-/// (D4 ¶1 (i)). The two are one spelling of the arms.
-pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
     crate::coincidence_declare_arm!(),
     ", or ",
     crate::coincidence_move_arm!()
@@ -1393,16 +1394,15 @@ pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
 pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
 /// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
-/// two levers left, the geometry and the tolerance. The chord join
-/// that a split and a Boolean share composes it, since the join cannot
-/// know whether its caller declares; the Boolean's own wrapper adds the
-/// declaration back (`topo::BooleanError::Join`).
-pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+/// one lever left, the geometry. The chord join that a split and a
+/// Boolean share composes it, since the join cannot know whether its
+/// caller declares; the Boolean's own wrapper adds the declaration
+/// back (`topo::BooleanError::Join`).
+pub const NO_DECLARATION_RECOURSE: &str = crate::coincidence_move_arm!();
 
 /// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
 /// lever: a split takes no declarations (`topo::split`'s signature).
-pub const SPLIT_PLANE_RECOURSE: &str =
-    "move the split plane or the geometry, or lower the tolerance";
+pub const SPLIT_PLANE_RECOURSE: &str = "move the split plane or the geometry";
 
 /// The one ending of a refusal that only a kernel defect reaches:
 /// nothing the user changes in the model is a way through, so the
@@ -1595,7 +1595,7 @@ impl fmt::Display for IndeterminatePayload<'_> {
             ),
             Reading::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
         }
@@ -1628,6 +1628,33 @@ impl Indeterminate {
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
     }
+
+    /// **The whole ending this escalation's refusal carries** (D4 ¶1
+    /// (i)): `levers` — the ones the door holding it has, such as
+    /// [`COINCIDENCE_RECOURSE`] — labelled `Recourse:`, and, where the
+    /// margin gives a value, the conditional tolerance arm below which
+    /// a smaller tolerance decides the margin passing.
+    ///
+    /// An escalation is a band-decided arm by construction (the margin
+    /// lies inside the ambiguity band, or is unreadable) and the
+    /// decision it refused passes on a nonzero sign — a coincidence it
+    /// could not rule out — so the arm belongs here and its value is
+    /// the margin's. The words are [`MarginDiag::sized_recourse`]'s,
+    /// which is also where a straddling enclosure and an unreadable
+    /// margin lose the offer: neither names a tolerance that decides.
+    #[must_use]
+    pub fn ending(&self, levers: &str) -> String {
+        self.margin.sized_recourse(
+            self.band,
+            SizedWords {
+                lever: levers,
+                size: "size",
+                passes: SizedPass::NonZero,
+                may_tighten: true,
+                otherwise: None,
+            },
+        )
+    }
 }
 
 impl fmt::Display for Indeterminate {
@@ -1637,10 +1664,12 @@ impl fmt::Display for Indeterminate {
 }
 
 /// An [`Indeterminate`] rendered with its margin kind's own advice and
-/// a recourse the door supplies in place of [`COINCIDENCE_RECOURSE`] —
+/// the LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`] —
 /// for a door that takes no declaration
-/// ([`NO_DECLARATION_RECOURSE`]). The bare [`Indeterminate`] Display
-/// is this view under [`COINCIDENCE_RECOURSE`].
+/// ([`NO_DECLARATION_RECOURSE`]). The ending itself, label and valued
+/// tolerance arm, is [`Indeterminate::ending`]'s; the bare
+/// [`Indeterminate`] Display is this view under
+/// [`COINCIDENCE_RECOURSE`].
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminateUnder<'a> {
     diag: &'a Indeterminate,
@@ -1660,20 +1689,28 @@ impl Indeterminate {
 
 impl fmt::Display for IndeterminateUnder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let recourse = self.recourse;
+        let levers = self.recourse;
         write!(f, "{}", self.diag.payload())?;
+        // Each kind's own first lever joins the door's, so everything
+        // the reader can act on sits under the one `Recourse:` label
+        // the ending carries: an enclosure can be subdivided, and a
+        // margin nobody could read is a question about the inputs.
         match self.diag.margin.kind() {
-            MarginKind::Value => write!(f, " — a near-coincidence; {recourse}"),
+            MarginKind::Value => {
+                write!(f, " — a near-coincidence; {}", self.diag.ending(levers))
+            }
             MarginKind::Enclosure => write!(
                 f,
-                " — subdivide the parameter box for a tighter enclosure, or {recourse}"
+                " — {}",
+                self.diag.ending(&format!(
+                    "subdivide the parameter box for a tighter enclosure, or {levers}"
+                ))
             ),
-            // Poison explains WHY the sign is indeterminate, but the
-            // user's levers at a coincidence site are unchanged — the
-            // Invalid arm carries the recourse like the others.
             MarginKind::Invalid => write!(
                 f,
-                " — check the operation's inputs upstream, then {recourse}"
+                " — {}",
+                self.diag
+                    .ending(&format!("check the operation's inputs upstream, then {levers}"))
             ),
         }
     }
@@ -1973,7 +2010,7 @@ mod tests {
         assert_eq!(format!("{}", MarginDiag::value(0.5)), "0.5");
         assert_eq!(
             MarginDiag::INVALID.to_string(),
-            "invalid (NaN or a poisoned enclosure)"
+            "invalid (NaN or a refused enclosure)"
         );
         assert_eq!(
             e.diagnostic_f64_for_error_text(),
@@ -2417,7 +2454,7 @@ mod tests {
         assert_eq!(
             invalid.to_string(),
             format!(
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             )
         );

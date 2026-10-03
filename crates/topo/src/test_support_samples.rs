@@ -416,7 +416,13 @@ fn props_errors() -> Vec<PropsError> {
             what: "the edge crosses the seam",
         },
         PropsError::DegenerateFace,
-        PropsError::Escalated { cause: diag() },
+        PropsError::OffSurface {
+            what: "a rim circle that is not on the cylinder",
+        },
+        PropsError::Escalated {
+            cause: diag(),
+            check: geom_brep::props::PropsCheck::Inventory,
+        },
         PropsError::QuadratureBudget {
             width_len: 1e-6,
             target_len: 1e-9,

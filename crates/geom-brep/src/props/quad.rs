@@ -157,7 +157,7 @@ use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use super::PropsError;
+use super::{PropsCheck, PropsError};
 
 /// The initial piece count of the composite rule (round 0).
 const QUAD_INIT_PIECES: usize = 16;
@@ -166,7 +166,7 @@ const QUAD_INIT_PIECES: usize = 16;
 const QUAD_MAX_ROUNDS: usize = 12;
 /// Convergence target as a multiple of ε, metered as the mean boundary
 /// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
-const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
+pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// **The rounds one call of a face lane runs** — the schedule's
 /// refinement made addressable, so a caller whose certification is
@@ -636,11 +636,12 @@ impl AbsEnclosure for Interval {
 /// scalar so every lane (f64 / Probe / Interval) records identically.
 fn classify_len<T: Decide>(
     name: &'static str,
+    check: PropsCheck,
     margin: Margin<f64>,
     band: Band,
 ) -> Result<Sign, PropsError> {
     geom_core::k_stats::decide(name, margin.lift::<T>(), band)
-        .map_err(|cause| PropsError::Escalated { cause })
+        .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
 /// The convergence meter: the flux enclosure's width expressed as the
@@ -843,6 +844,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
+            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
@@ -854,6 +856,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
+                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perim),
                 band,
             )? {
@@ -2981,6 +2984,7 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
     matches!(
         classify_len::<T>(
             "props_quad_last_round",
+            PropsCheck::Converged,
             Margin::of(target_len - last_round_len),
             band
         ),
@@ -3449,12 +3453,14 @@ fn rational_patch_face<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
+            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
+                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
@@ -3767,12 +3773,14 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
+            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
+                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
@@ -3850,12 +3858,14 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
+            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
+                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
@@ -4318,6 +4328,7 @@ fn piece_monotone<T: Decide>(
     // sliver.
     classify_len::<T>(
         "props_trim_piece_monotone",
+        PropsCheck::Inventory,
         Margin::metered(span, InfSpeed::new(rate)),
         band,
     )
@@ -5100,6 +5111,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
+            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
@@ -5111,6 +5123,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             // (#1368, open), and this one deliberately does not join it.
             match classify_len::<T>(
                 "props_quad_face_extent",
+                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
@@ -5235,7 +5248,7 @@ mod tests {
                 );
                 EpsPosture::Budget
             }
-            Err(PropsError::Escalated { cause }) => {
+            Err(PropsError::Escalated { cause, .. }) => {
                 assert_eq!(
                     cause.predicate,
                     Some("props_quad_converged"),
@@ -6909,7 +6922,7 @@ mod tests {
             general(&[(0.0, 1.0), (0.0, 1.0 + 40.0 * eps), (0.0, 0.0)], 0.0),
         ];
         match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
-            Err(PropsError::Escalated { cause }) => {
+            Err(PropsError::Escalated { cause, .. }) => {
                 assert!(
                     cause
                         .predicate

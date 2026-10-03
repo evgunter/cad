@@ -595,7 +595,7 @@ impl Coincide {
     const fn settled(self) -> Ending {
         match self {
             Self::OnPlanes => Ending::Lever(
-                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
+                geom_core::COINCIDENCE_RECOURSE,
                 LeverPass::ZeroOnly,
             ),
             Self::Sectors => Ending::Sized(SizedDecision {

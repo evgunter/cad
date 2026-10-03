@@ -625,7 +625,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             );
         }
         Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::Escalated { cause },
+            source: geom_brep::PropsError::Escalated { cause, .. },
             ..
         }) => assert_eq!(
             cause.predicate,

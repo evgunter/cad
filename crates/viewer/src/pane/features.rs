@@ -245,7 +245,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
             } => clicked = link_to(ui, row.depth, asserted.measure).or(clicked),
             AssertionVerdict::Unevaluated {
                 reason:
-                    reason @ (UnevaluatedReason::Indeterminate
+                    reason @ (UnevaluatedReason::Indeterminate { .. }
                     | UnevaluatedReason::WindowSuperset { .. }),
             } => advisory_line(ui, row.depth, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
@@ -1223,7 +1223,7 @@ mod tests {
         let fixture = measure_fixture();
         let reason = match verdict_of(&fixture, fixture.indeterminate) {
             AssertionVerdict::Unevaluated {
-                reason: reason @ UnevaluatedReason::Indeterminate,
+                reason: reason @ UnevaluatedReason::Indeterminate { .. },
             } => reason.to_string(),
             other => panic!("the premise: a margin of 2ε is in the sliver band: {other:?}"),
         };

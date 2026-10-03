@@ -2,8 +2,9 @@
 id: coincidence-recourse-says-lower-where-d4-says-tighten
 kind: issue
 title: geom-core: COINCIDENCE_RECOURSE's third arm says 'lower the tolerance' where D4 ¶1 names it 'tighten the tolerance', conditional and valued
-status: open
+status: review
 opened: 2026-09-28
+branch: props/recourse-grammar
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
@@ -30,3 +31,33 @@ This touches every coincidence site's text, so it needs its own
 decision on scope: whether the constant keeps a third arm at all, or
 whether each coincidence decision composes its own valued conditional
 from its margin (`Indeterminate` carries the margin and band).
+
+## Resolved (props/recourse-grammar)
+
+**Scope taken: the constant loses the arm it cannot carry, and the
+escalation composes it.** D4 ¶1 (i) wants the tolerance arm conditional
+and valued, and the value comes from the margin — so no `&'static str`
+can hold it. The three constants on this shape
+(`COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE`,
+`SPLIT_PLANE_RECOURSE`) are now the LEVERS alone, and
+`geom_core::Indeterminate::ending(levers)` composes the whole labelled
+ending through `MarginDiag::sized_recourse` — the one home for the
+valued offer, with no new spelling of any arm.
+
+So every site keeps the spelling it had and gets the right sentence:
+a site composing the constant bare is a definite arm, which D4 gives no
+size to tighten below; a site rendering an escalation gets the valued
+conditional from that escalation's own margin, and loses it exactly
+where the margin gives no value (a straddling enclosure, an unreadable
+one).
+
+`DEFINITE_COINCIDENCE_RECOURSE` retires into `COINCIDENCE_RECOURSE`:
+with the tolerance arm gone the two were one string, and two names for
+one string is the defect this unit closes. Its two callers moved.
+
+Also fixed on the same shape, inside the fence: `IndeterminateUnder`'s
+Display now folds each margin kind's own first lever ("subdivide the
+parameter box", "check the operation's inputs upstream") INTO the
+labelled recourse rather than leaving it in front of an unlabelled
+menu, which is `props-escalation-renders-the-coincidence-menu-unlabelled`'s
+complaint about the same rendering.

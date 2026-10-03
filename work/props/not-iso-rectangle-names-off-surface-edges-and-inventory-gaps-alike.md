@@ -2,8 +2,9 @@
 id: not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike
 kind: issue
 title: NotIsoRectangle carries both an edge off its own surface (a defect) and a valid face outside the inventory, and only the raising site can tell them apart
-status: open
+status: review
 opened: 2026-10-01
+branch: props/recourse-grammar
 ---
 
 
@@ -60,3 +61,53 @@ inventory premise, which it can. Mint a distinct variant for the first
 (e.g. `PropsError::OffSurface { what }`). Then `classify_mass_props`
 reads defect from the variant, and both tier 3 and the backstop follow
 it with no list to keep. Decide `mixed_levels` under the same rule.
+
+## Resolved (props/recourse-grammar) — decided as a typing question
+
+**Two arms, not better prose.** `PropsError::OffSurface { what }` is
+minted for the incidence reading, and the split is taken at the raising
+site: `require_zero` takes a `Premise` (`OnSurface` | `Inventory`) and
+the definite arm is `OffSurface` or `NotIsoRectangle` accordingly.
+
+**The premise is the one a residual CHECKS, and it is not a function of
+the predicate name** — which is why a census of the thirteen names could
+not have worked:
+
+| residual | surface | premise |
+|---|---|---|
+| `props_meridian_axial`, `props_meridian_on_surface` | cylinder | OnSurface |
+| `props_meridian_generator`, `props_meridian_apex` | cone | OnSurface |
+| `props_rim_fit` | cylinder, cone, sphere | OnSurface |
+| `props_rim_axis_parallel`, `props_rim_center_on_axis` | cylinder, cone | OnSurface |
+| `props_rim_axis_parallel`, `props_rim_center_on_axis` | sphere, torus | Inventory |
+| `props_rim_fit` | torus | Inventory |
+| `props_meridian_great` | sphere | Inventory |
+| `props_meridian_fit`, `props_meridian_plane` | torus | Inventory |
+| `props_du_consistent`, `props_rim_only_closed`, `props_rim_only_join` | all | Inventory |
+
+The test: is the residual NECESSARY for the edge to lie on the surface
+at all, or does it additionally demand iso-ness? On a cylinder or a cone
+the only circles on the surface are its cross-sections, so the radius
+fit and the two incidences are all necessary. On a sphere the radius fit
+alone is necessary (`‖w‖² + r_c² = R²` holds for every circle on the
+sphere) while the incidence pair asks for the iso-v rim, which an
+oblique-plane circle fails while lying on the surface. On a torus even
+the radius fit is an iso-v demand, which a Villarceau circle fails. This
+reproduces the finding's own three counterexamples exactly.
+
+`topo::validate::classify_mass_props` now reads defect from the variant:
+`P::OffSurface` is `defect: true` with the file-or-kernel ending, and no
+list is kept anywhere. REACH's backstop follows tier 3's classifier, so
+it follows too.
+
+**`mixed_levels` is decided and left alone, with its argument.** Under
+the same rule it checks no residual at all — its own doc says it is "not
+routed through the funnel ... the pair has no comparand, so there is
+nothing to decide" — so the premise split does not reach it. It is a
+kernel-bug-only state, and its own doc parks the CHOICE of how to
+express one (`unreachable!`, poison, or a typed refusal) on
+`work/verdict/props-curved-carries-two-readings-of-d9-unreachable-vs-poison`,
+noting that "a decision taken at one site would pre-empt it". Both
+alternatives that census may pick remove the refusal entirely, so
+routing it to a refusal variant now would be that pre-emption. Evidence
+appended to that row instead.

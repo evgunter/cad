@@ -4918,7 +4918,7 @@ fn at_infinity_side<T: Decide>(
                 // diagnostics and the face it happened on.
                 crate::props::MassPropsError::Face {
                     face,
-                    source: geom_brep::props::PropsError::Escalated { cause },
+                    source: geom_brep::props::PropsError::Escalated { cause, .. },
                 } => PointInSolidError::Escalated { face, diag: cause },
                 // Corruption-shaped: a face whose area enclosure will not
                 // certify a positive extent, a key the props walk could not

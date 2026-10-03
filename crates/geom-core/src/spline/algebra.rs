@@ -100,25 +100,36 @@ impl core::fmt::Display for KnotAlgebraError {
             KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
             KnotAlgebraError::ParameterOutsideDomain { u } => write!(
                 f,
-                "knot parameter {} is not strictly inside the domain",
+                "knot parameter {} is not strictly inside the domain. Recourse: ask for a \
+                 finite parameter strictly between the clamped ends, whose multiplicity is \
+                 already degree + 1",
                 Readable(*u)
             ),
             KnotAlgebraError::MultiplicityOverflow { u, have, budget } => write!(
                 f,
-                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}",
+                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}. \
+                 Recourse: ask for at most {left} more cop{plural} of it, or raise the degree",
+                Readable(*u),
+                left = budget.saturating_sub(*have),
+                plural = if budget.saturating_sub(*have) == 1 { "y" } else { "ies" },
+            ),
+            KnotAlgebraError::KnotNotPresent { u } => write!(
+                f,
+                "{} is not an interior knot. Recourse: ask for a value the knot vector \
+                 carries — a clamped vector's end values are not removable",
                 Readable(*u)
             ),
-            KnotAlgebraError::KnotNotPresent { u } => {
-                write!(f, "{} is not an interior knot", Readable(*u))
-            }
             KnotAlgebraError::RemovalExceedsMultiplicity { u, have, requested } => write!(
                 f,
-                "removing knot {} {requested} times exceeds its multiplicity {have}",
+                "removing knot {} {requested} times exceeds its multiplicity {have}. \
+                 Recourse: ask for at most {have} removals of it",
                 Readable(*u)
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
-                "removing a knot collapsed weight {index} out of the positive regime"
+                "removing a knot collapsed weight {index} out of the positive regime. \
+                 Recourse: drop this removal — the curve the chain would leave is not a \
+                 valid rational one, so keep the knot"
             ),
         }
     }
@@ -1598,5 +1609,57 @@ mod tests {
             bits(p2.last().unwrap().weights())
         );
         assert_eq!(p1.last().unwrap().knots(), p2.last().unwrap().knots());
+    }
+
+    /// **`KnotAlgebraError`'s recourse claim, made enforceable**: every
+    /// arm names the lever the caller turns, exactly once and labelled.
+    ///
+    /// `Structure` is asserted TRANSITIVELY, because `SplineError` has
+    /// an enforcement row of its own
+    /// (`every_spline_error_arm_names_a_recourse`, in `super::knots`);
+    /// this arm renders that carrier whole and adds four words of its
+    /// own, so the labelled repair the reader sees is the carrier's.
+    ///
+    /// The algebra is reached from the public fit door through
+    /// `geom::FitError::KnotAlgebra`, which renders this carrier whole,
+    /// and this row is what lets
+    /// `every_fit_error_arm_names_a_recourse` read that delegation
+    /// transitively.
+    #[test]
+    fn every_knot_algebra_error_arm_names_a_recourse() {
+        const RECOURSE_WORDS: &[&str] = &["supply", "ask", "drop", "raise", "keep"];
+        let arms = [
+            KnotAlgebraError::Structure(SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            }),
+            KnotAlgebraError::ParameterOutsideDomain { u: 1.5 },
+            KnotAlgebraError::MultiplicityOverflow {
+                u: 0.5,
+                have: 3,
+                budget: 3,
+            },
+            KnotAlgebraError::KnotNotPresent { u: 0.25 },
+            KnotAlgebraError::RemovalExceedsMultiplicity {
+                u: 0.5,
+                have: 1,
+                requested: 2,
+            },
+            KnotAlgebraError::WeightCollapse { index: 2 },
+        ];
+        assert_eq!(arms.len(), 6, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one labelled repair: {msg}"
+            );
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }
