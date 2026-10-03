@@ -405,7 +405,9 @@ fn join2_r2_ring_order_through_the_zip() {
 /// One union that must build sound, its join's matching having paired
 /// every germ (the join's surgery may still refuse, and the zip build).
 fn builds_paired(label: &str, x: &Body<f64>, y: &Body<f64>, want: f64) {
-    let d = declared(x, y).unwrap();
+    let d = declared(x, y);
+    assert!(d.is_ok(), "{label}: declarations: {d:?}");
+    let d = d.unwrap_or_default();
     let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
     assert!(
         !matches!(
