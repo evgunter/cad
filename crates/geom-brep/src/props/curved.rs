@@ -1585,7 +1585,12 @@ struct CylinderChart<T> {
 /// traversal end meets the next edge's start, `props_loop_closed`), and
 /// the face's loops together must wind the cylinder zero times
 /// (`Σ∮ du = 0`, `props_chart_loops_closed`): a closed face's boundary
-/// bounds it. That second fact is what makes the sum anchor-free, and
+/// bounds it. That check catches a face handed without a ring that
+/// WINDS the cylinder (a band's second rim); a contractible ring left
+/// out leaves a closed boundary of its own and cannot be seen here —
+/// the callers hand every loop. A contractible ring wound the same way
+/// as its face refuses (`props_ring_winding`,
+/// [`require_holes_wound_against`]). That second fact is what makes the sum anchor-free, and
 /// the sum is formed against the anchor `v_m` at the middle of the
 /// face's level range — `−Σ (v − v_m)·Δu`, equal to `−Σ v·Δu` in exact
 /// arithmetic — so a short face far along the axis keeps the
@@ -1605,7 +1610,11 @@ fn cylinder_chart<T: Decide>(
     let mut rims = Vec::new();
     let mut levels = Vec::new();
     let mut length = T::zero();
+    // Per loop: its first rim's index in `rims`, and its line length.
+    let mut spans: Vec<(usize, T)> = Vec::with_capacity(loops.len());
     for edges in loops {
+        let first_rim = rims.len();
+        let length_before = length;
         // The carriers first: an edge off the surface, or one this
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
@@ -1628,6 +1637,7 @@ fn cylinder_chart<T: Decide>(
             rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
         }
         levels.extend(b.levels);
+        spans.push((first_rim, length - length_before));
     }
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
@@ -1643,12 +1653,67 @@ fn cylinder_chart<T: Decide>(
         band,
     )?;
     let anchor = lo + (hi - lo) * T::from_f64(0.5);
-    let mut area = T::zero();
-    for &(v, du) in &rims {
-        area = area - (v - anchor) * du;
-        length = length + radius * du.abs();
+    // One loop's anchored chart area and boundary length.
+    let loop_chart = |rims: &[(T, T)], lines: T| {
+        rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {
+            (a - (v - anchor) * du, l + radius * du.abs())
+        })
+    };
+    let (area, length) = loop_chart(&rims, length);
+    if spans.len() > 1 {
+        require_holes_wound_against(&rims, &spans, (area, length), loop_chart, radius, band)?;
     }
     Ok(CylinderChart { area, length })
+}
+
+/// **A contractible ring winds against its face.** A hole's boundary is
+/// traversed opposite to the region it is cut from, so a ring that does
+/// not wind the cylinder (`props_ring_contractible` Zero) must carry a
+/// chart area of the opposite sign to the face's whole
+/// (`props_ring_winding`), each metered as a mean width `2·R·A/P`. A ring
+/// wound the same way would be ADDED to the face's area, silently. A
+/// ring that winds the cylinder is a band's second rim, whose sign alone
+/// depends on the anchor: the face's zero-winding check
+/// (`props_chart_loops_closed`) is what guards it.
+fn require_holes_wound_against<T: Decide>(
+    rims: &[(T, T)],
+    spans: &[(usize, T)],
+    (area, length): (T, T),
+    loop_chart: impl Fn(&[(T, T)], T) -> (T, T),
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    let two = T::from_f64(2.0);
+    let whole = classify(
+        "props_chart_area_side",
+        Margin::over_lever(radius * area * two, length),
+        band,
+    )?;
+    for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
+        let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
+        let ring = &rims[start..end];
+        let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+        if classify(
+            "props_ring_contractible",
+            Margin::levered(winding, radius),
+            band,
+        )? != Sign::Zero
+        {
+            continue;
+        }
+        let (a, l) = loop_chart(ring, lines);
+        let side = classify(
+            "props_ring_winding",
+            Margin::over_lever(radius * a * two, l),
+            band,
+        )?;
+        if side == Sign::Zero || whole == Sign::Zero || side == whole {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_ring_winding",
+            });
+        }
+    }
+    Ok(())
 }
 
 /// The material side a cylinder face's loops encode: the sign of its
