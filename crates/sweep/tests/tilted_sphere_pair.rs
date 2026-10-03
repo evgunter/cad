@@ -226,11 +226,9 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
 
 /// **Where a tilted section stops.** An offset with a component off the
 /// seam plane drives the pierce off the seam, into a half-band: the
-/// pierce lands as a ring (`work/tang/pierce-ring-has-no-join-arm.md`).
-/// Off the seam plane the ring joins, and a later chord's section leaves
-/// its run's end tangent to the run (`TangentToRun`); the smaller ball
-/// off every axis meets a chord whose run carries no certified edge for
-/// the run-side rule to read (`NoCertifiedRun`). A PLANE
+/// pierce lands as a ring, and the ring's chord is cross-loop, so it
+/// closes no run for the run-side rule to read
+/// (`work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`). A PLANE
 /// tilted against the ball's chart — a box face across the ball, and a
 /// pip whose poles land on the cube's top — refuses on the planar side,
 /// which selects its arc by the sphere face's azimuth window and has no
@@ -238,16 +236,14 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
 /// (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue.md`).
 #[test]
 fn a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side() {
-    for (pose, b, want) in [
+    for (pose, b) in [
         (
             "off the seam plane",
             ball(1.0, BASE + Vec3::new(1.3, 0.0, 0.2)),
-            topo::ArcSideCase::TangentToRun,
         ),
         (
             "a smaller ball off every axis",
             ball(0.7, BASE + Vec3::new(0.9, 0.3, 0.6)),
-            topo::ArcSideCase::NoCertifiedRun,
         ),
     ] {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
@@ -257,10 +253,12 @@ fn a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side() {
             assert!(
                 matches!(
                     e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide { case, .. })
-                        if case == want
+                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
+                        case: topo::ArcSideCase::NoCertifiedRun,
+                        ..
+                    })
                 ),
-                "{pose}, {op:?}: expected the run-side rule's {want:?}, got {e:?}"
+                "{pose}, {op:?}: expected the pierce ring's empty run, got {e:?}"
             );
         }
     }

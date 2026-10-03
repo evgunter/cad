@@ -1688,13 +1688,21 @@ fn choose_roles<T: Decide>(
     // plane on its chart, decided here, before the curve is computed in
     // the order it decides. An along-edge segment reads no section: a
     // curved face there refuses typed, before any chord is computed.
-    let planar = match closure {
-        RingClosure::Wall(_) => None,
-        RingClosure::Planar => Some(face_outward_normal(body, face).ok_or(desync(
-            "a planar germ face's ring lane found no planar carrier",
-        ))?),
+    enum RingFace<T: geom_core::Real> {
+        Plane(Vec3<T>),
+        Wall((Point3<T>, UnitVec3<T>)),
+    }
+    let ring = match closure {
+        RingClosure::Wall(section) => RingFace::Wall(section),
+        RingClosure::Planar => RingFace::Plane(
+            face_outward_normal(body, face)
+                .ok_or(desync(
+                    "a planar germ face's ring lane found no planar carrier",
+                ))?
+                .vec(),
+        ),
         RingClosure::AlongEdge(operand) => match face_outward_normal(body, face) {
-            Some(normal) => Some(normal),
+            Some(normal) => RingFace::Plane(normal.vec()),
             None => {
                 let kind = body
                     .get_face(face)
@@ -1741,18 +1749,12 @@ fn choose_roles<T: Decide>(
             };
         }
     }
-    match (planar, closure) {
-        (Some(normal), _) => Ok(RoleLane::Ring {
-            face,
-            normal: normal.vec(),
-        }),
-        (None, RingClosure::Wall(section)) => {
+    match ring {
+        RingFace::Plane(normal) => Ok(RoleLane::Ring { face, normal }),
+        RingFace::Wall(section) => {
             let ccw = ring_run_ccw(body, face, (ea, ra), IslandClosing::Wall(section), band)?;
             ring_order(body, (ea, ra), loose, ccw).map(RoleLane::Decided)
         }
-        (None, RingClosure::Planar | RingClosure::AlongEdge(_)) => Err(desync(
-            "a ring-lane face read no closing for its run",
-        )),
     }
 }
 
