@@ -505,3 +505,10 @@ Signed (PCERT orchestrator).
   - Deviation: the blinding byte (87) was drawn after the reports came in, not at dispatch. This is recorded on `analysis/design-fork/pcert-chart-angles-2026-10-03`.
   - My first commit on that branch overwrote README.md; the next two commits fixed it forward.
 - **Renders:** the nightly re-baselined the kernel, uv, mc and freecad cells after 3759 (e416e33de through a9732a08c).
+
+## 2026-10-03 — fillet-meridian: designer pair, not a fork; parked on PATHS 5b
+
+- I dispatched the pair with the byte drawn at dispatch (101, recorded on `analysis/design-fork/pcert-fillet-meridian-2026-10-03`).
+- Both designers came back with the same answer: the question is already ratified (D1, PR 3453), and the fix is PATHS 5b's fillet arm. So no `[ev]` PR goes out, and no fork-log row is written (protocol rule 1: only forks that go to Ev are rows).
+- The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
+- My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.
