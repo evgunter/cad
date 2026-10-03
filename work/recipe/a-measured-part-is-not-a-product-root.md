@@ -7,6 +7,7 @@ opened: 2026-10-03
 priority: P2
 cost: M
 design: true
+needs_ev: true
 ---
 
 

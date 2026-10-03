@@ -364,8 +364,17 @@ never persisted (`crates/viewer/src/display.rs`).
 **A10 — Explicit product roots.** `Doc::roots` is an ordered list of
 node ids, document data. Invariants (`roots::check`): coverage (every
 live node is ancestor-of-or-equal-to some root) and ancestor-freedom
-(no root is a strict ancestor of another); together the root set is
-exactly the DAG's sink set and the list adds only the solid order.
+(no root is a strict ancestor of another), both over CONSUMING edges;
+together the root set is exactly the sink set of the consuming relation
+and the list adds only the solid order. An edge is consuming when the
+consumer's output supersedes its input in what the document denotes (a
+Boolean's operands, a fillet's target, an extrude's profile, an
+assertion's measure), and reading when the consumer only reads the
+input's value and the input keeps denoting what it denoted (a measure's
+references, a face frame's `at`, a mate's operands, A12). Every stored
+edge orders evaluation, keys the memo, carries poison and refuses a
+dangling delete; only consuming edges decide the roots, so a body a
+requirement measures stays a product root.
 Maintenance: a new sink appends, a node consuming roots replaces them,
 deleting a root re-roots its orphaned inputs; `DocEdit::SetRoots` states
 the list outright. `product::product` gathers, in list order, every
