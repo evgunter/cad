@@ -1,11 +1,12 @@
 ---
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
-title: "SharedVertexCrossings' tie arm refuses a pinch line lying in a face of the shared corner, and its interleave and dangling-edge arms are reached by no witness"
-status: open
+title: SharedVertexCrossings' tie arm refuses a pinch line lying in a face of the shared corner, and its interleave and dangling-edge arms are reached by no witness
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: M
+branch: fuse/shared-vertex-tie
 ---
 
 
