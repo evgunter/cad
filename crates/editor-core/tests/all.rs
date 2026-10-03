@@ -473,6 +473,8 @@ mod p2_gauge_offsets_and_spaces;
 mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
+#[path = "p2_split.rs"]
+mod p2_split;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]

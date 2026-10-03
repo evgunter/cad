@@ -5036,8 +5036,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
+            "moved_member_offset",
             "name_on_dropped_step",
-            "needs_a_gauge",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
@@ -5813,7 +5813,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "split_error_tag",
         values: &[
             "body_name_crosses_cut",
-            "cut_holds_gauge",
             "dead_gauge_reference",
             "empty_cut",
             "hoisted_member_offset",
@@ -5821,6 +5820,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
+            "no_material",
             "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
@@ -5828,6 +5828,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placing_mate_left",
             "remainder_edit",
             "severed_edge",
+            "severed_gauge",
             "split_pin",
             "torn_group",
             "two_anchors",
@@ -10224,13 +10225,24 @@ fn a_split_node_map_reaches_python_in_document_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    // One instance gives the cut its material (a cut of frames alone
+    // refuses `no_material`); the frames give it its many ids.
+    let material = || {
+        insert(
+            ProfileDoc::empty_derived("place-node-map", Tol::witness()),
+            Node::instantiate_part(pncad::document::DocRef {
+                id: DocumentId::derive("place-node-map-ref"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            }),
+        )
+    };
     let (doc, cut) = (3..12u32)
         .map(|n| {
             (0..n).fold(
-                (
-                    ProfileDoc::empty_derived("place-node-map", Tol::witness()),
-                    Vec::new(),
-                ),
+                {
+                    let (doc, instance) = material();
+                    (doc, vec![instance])
+                },
                 |(doc, mut cut), i| {
                     let (doc, id) = insert(doc, frame(f64::from(i)));
                     cut.push(id);
