@@ -60,8 +60,10 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// The seat every row's mate declares.
 fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

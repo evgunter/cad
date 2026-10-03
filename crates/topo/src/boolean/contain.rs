@@ -13,6 +13,7 @@
 //! on its oval, and a spline edge, which has no crossing row, refuses
 //! typed wherever it could matter.
 
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -907,12 +908,9 @@ fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
 /// **`bool_contact_arc` has one body, and this is it.** The row's
 /// quantity is the exact distance from the point to the circle: the
 /// radial miss and the axial miss are orthogonal, so their hypotenuse
-/// is exact and one row covers both ways off the carrier. Its NEGATIVE
-/// arm is the reason the body is shared rather than transcribed — a
-/// negative distance is impossible, so that arm is not a verdict but a
-/// broken invariant, and a copy of the row that folded it in with the
-/// definite-positive one would silently answer "off the carrier" where
-/// this one escalates.
+/// is exact and one row covers both ways off the carrier. A distance
+/// has no negative sign, so the row is a magnitude
+/// ([`geom_core::k_stats::decide_magnitude`]).
 ///
 /// Its caller, the boolean reduction's point split, turns a definite
 /// miss into a broken-invariant refusal, because a split point was
@@ -928,15 +926,14 @@ pub(super) fn point_on_circle<T: Decide>(
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
     let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
-    match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => {
+    // A `sqrt`: the magnitude door's precondition.
+    match geom_core::k_stats::decide_magnitude("bool_contact_arc", Margin::of(d), band)? {
+        Magnitude::Zero => {
             let w = q - center;
             let radial = w - axis * w.dot(axis);
             Ok(Some((radial, radial.norm())))
         }
-        Ok(Sign::Positive) => Ok(None),
-        Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
-        Err(diag) => Err(diag),
+        Magnitude::Positive => Ok(None),
     }
 }
 

@@ -43,12 +43,11 @@
 //! a single bound is NOT overlap.
 
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::{
-    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SelfCheck,
-    SideCode,
+    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -152,12 +151,9 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let anchor = body
-        .get_vertex(vertex)
-        .and_then(|v| v.emanating)
-        .ok_or_else(|| corrupt(operand, vertex))?;
     let orbit = body
-        .vertex_orbit(anchor)
+        .vertex_orbit_of(vertex)
+        .filter(|orbit| !orbit.is_empty())
         .ok_or_else(|| corrupt(operand, vertex))?;
     // The outgoing direction of an orbit half-edge, scaled to the
     // edge's honest extent — the M3 chord for `Line` carriers
@@ -359,20 +355,6 @@ pub(super) fn sector_face<T: Decide>(
     Ok((resolved.face, resolved.normal))
 }
 
-/// The refusal of a norm read definitely negative: poisoned input, the
-/// kernel's ([`SelfCheck::Normals`]).
-fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
-    BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::Normals),
-        diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        },
-    }
-}
-
 /// The refusal for a bisector reading On between two bounds definitely
 /// on one side (`vtxfac`'s on-edge resolution,
 /// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
@@ -558,8 +540,9 @@ pub(super) fn side_code<T: Decide>(
 /// tolerance it offers decides both, logged under its own name
 /// (`"enters_material_rise"`). An exactly zero departure (a bound in the
 /// face's plane) reads `On` at every tolerance that decides the arm, so
-/// there the arm binds and keeps its own margin, the edge's length, as a
-/// poisoned arm does.
+/// there the arm binds and keeps its own margin, the edge's length, as an
+/// arm with no tolerance to offer does (poisoned, or no smaller tolerance
+/// decides it positive).
 fn at_departure<T: Decide>(
     escalation: geom_brep::LeverEscalation,
     arm: T,
@@ -569,12 +552,12 @@ fn at_departure<T: Decide>(
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
     if escalation.rung != geom_brep::LeverRung::Arm
-        || escalation.diag.margin.is_invalid()
+        || !escalation.diag.offers_tolerance()
         || !geom_core::is_finite_length(arm / departure)
     {
         return escalation;
     }
-    match geom_core::k_stats::decide_positive_reported(
+    match geom_core::k_stats::decide_positive(
         "enters_material_rise",
         Margin::of(departure.abs()),
         band,
@@ -955,11 +938,7 @@ pub(super) fn direction_sense<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide_nonzero_reported(
-        "bool_dir_same",
-        Margin::levered(u.dot(v), arm),
-        band,
-    ) {
+    match crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
         Ok(NonzeroSign::Positive) => Ok(true),
         Ok(NonzeroSign::Negative) => Ok(false),
         Err(diag) => Err(BooleanError::Escalated {
@@ -1035,16 +1014,14 @@ pub(super) fn pair_search<T: Decide>(
             // readings are not consulted — a far bound reading off would
             // make the record half a crossing, which no germ pairing
             // closes.
-            let coplanar = match decide(
+            // A norm levered by a minimum of chord norms: a magnitude.
+            let coplanar = match geom_core::k_stats::decide_magnitude(
                 "bool_faces_parallel",
                 Margin::levered(int.norm(), arm),
                 band,
             ) {
-                Ok(Sign::Zero) => true,
-                Ok(Sign::Positive) => false,
-                Ok(Sign::Negative) => {
-                    return Err(invalid_escalation(band, "bool_faces_parallel"));
-                }
+                Ok(Magnitude::Zero) => true,
+                Ok(Magnitude::Positive) => false,
                 Err(diag) => {
                     return Err(BooleanError::coincidence(
                         Coincide::Sectors,
