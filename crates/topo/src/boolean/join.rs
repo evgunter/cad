@@ -248,6 +248,7 @@ impl SolidJoin {
     /// with chart normal `normal`: one chord through
     /// [`JoinLane::Split`], its aux plane read from and minted into
     /// [`Self::aux`] under `datum`.
+    #[allow(clippy::too_many_arguments)] // one chord lane, each argument a named duty
     fn join_split<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,

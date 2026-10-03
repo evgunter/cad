@@ -2298,6 +2298,7 @@ impl ChordJoiner {
     /// conic arc leaving its first site along `leave`; the minted chord
     /// edges come back (the boolean joining records their germ — M3
     /// PR 5).
+    #[allow(clippy::too_many_arguments)] // the join core, each argument a named duty
     pub(crate) fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
