@@ -1131,3 +1131,22 @@ retires. The rider deletions stand. #3681 is updated in place to ask
 the revised question (fork-log row 60, all three rounds). The two
 designers differ only on which side the GUI composes a turn onto,
 which is a convention.
+
+Item 26's designers converged in one reconciliation round. The
+Fable/Opus labels are held off-file, since this fork goes to no
+`[ev]` PR. They agreed on the direction: the gate resolves a mate's
+face at its operand and lifts it up to the product, and the walk
+descends a union by member. They split on two points, and one
+designer moved to the other on both:
+- A transform above the operand refuses `MovedAbove`. The code decides
+  it: the member walk never composes a node above the operand, so
+  verifying the contact at the moved placement is a false refutation.
+- Member identity becomes the instance plus the placing nodes passed.
+  Otherwise a mate spelled at `t1` and one spelled at `U` would not
+  fold.
+
+`git log -S` shows both sentences that move are agent text: A5's from
+MSOLVE-5 and A11 (5)'s from MSOLVE-2. Ev ruled the defect, and both
+designers say no fork remains. So the fix is a unit, MSOLVE-13, and Ev
+is told rather than asked. The spec is on `msolve/13-read-at-operand`,
+and the unit dispatches once MSOLVE-12's lane frees the disk.

@@ -311,6 +311,13 @@ and CHROME; triaged 2026-10-01:**
     (P1, design): Ev's ruling on #3695. Two designers weigh how a mate
     reads a face whose operand sits under a root that re-mints names.
     A red row comes first.
+    Weighed 2026-10-03; converged in one round. The gate resolves at the
+    operand and lifts up to the product, a placer above the operand
+    refuses `MovedAbove`, the walk descends a union, and a member is
+    its instance plus the placing nodes passed. The sentences that move
+    are agent text, so Ev is told rather than asked. This is
+    `MSOLVE-13` (spec on `msolve/13-read-at-operand`), dispatched after
+    MSOLVE-12.
 
 EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
