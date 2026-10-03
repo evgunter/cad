@@ -177,7 +177,8 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// would not serialize, an insert that minted no id, a placement rule
 /// spelled through the wrong constructor.
 ///
-/// It has a `variant` and nothing else to carry, and the attributes
+/// It has a `variant`, the `inner_variant` the same kernel arm
+/// publishes at its own door, and nothing else to carry; the attributes
 /// the document layer's arms fill are present and `None`: the class's
 /// shape is one shape at every raise site, whichever side of the
 /// boundary decided it.
@@ -185,11 +186,12 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// **Where the `variant` comes from**, and it is not "always
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
-/// VALUE and the word is that enum's own map's, even though the raise
+/// VALUE and the words are that enum's own maps', even though the raise
 /// site is here — `Doc.insert`'s `no_minted_id` and
-/// `Node.placed_union`'s count-spelling refusal are the two live
-/// cases, and forwarding the value is what keeps each ONE word with
-/// the kernel door that publishes the same one. Where none does — a
+/// `Node.placed_union`'s count-spelling refusal (`variant` and
+/// `inner_variant` both) are the two live cases, and forwarding the
+/// value is what keeps each the words the kernel door that publishes
+/// the same refusal speaks. Where none does — a
 /// `serde_json` failure has no arm anywhere — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
 ///
@@ -208,7 +210,7 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
         &edit_fields(
             py,
             crate::tags::boundary_edit_tag(refusal),
-            None,
+            crate::tags::boundary_edit_inner_tag(refusal),
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
@@ -1103,9 +1105,12 @@ impl Doc {
     /// **A document a refactoring minted reads that refactoring's own
     /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
     /// `InlineOutcome.doc` are values produced by applying a whole
-    /// edit LIST, so each reports what ITS list did — the offset a
-    /// re-anchored mate cleared, the names a reshaping stranded. The
-    /// document and that record cross
+    /// edit LIST, so each reports what ITS list did, net of what a
+    /// later edit in the same list took back: the names a departing
+    /// node stranded and the remainder still carries. An offset a
+    /// carried mate's insert cleared is re-stated by a later edit in
+    /// the list, so it is not reported. The document and that record
+    /// cross
     /// together, so a caller reading here after either door reads the
     /// record the kernel has rather than an empty list.
     ///
@@ -2901,8 +2906,8 @@ impl Node {
     ///
     /// An `explicit` rule brings its OWN placements, so pairing it
     /// with a count is the two-sources-of-truth state: it refuses here
-    /// (`EditError`, `placement_rule_mismatch`) and
-    /// `Node.placed_union_at` is its door.
+    /// (`EditError`, `placement_rule_mismatch`, `inner_variant`
+    /// `listed_with_count`) and `Node.placed_union_at` is its door.
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
@@ -2914,7 +2919,9 @@ impl Node {
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
-                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling),
+                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
+                    shape: d::CountMismatch::ListedWithCount,
+                }),
                 "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
                     .to_owned(),
@@ -4126,12 +4133,15 @@ impl DocEdit {
     /// inserted, so the door is told rather than guessing.
     ///
     /// A name on a profile piece spells its step's id, so a name on a
-    /// kept step keeps denoting its piece and is not touched. A step
-    /// the new program does not keep takes its id with it: every name
-    /// on it — a fillet's selection, a shell's mouth, a derived
-    /// frame's face, a paint — keeps its spelling, resolves to nothing,
-    /// and is reported as a `strand` or a `stranded_appearance` until
-    /// `DocEdit.rebind` repairs it.
+    /// kept step keeps denoting its piece wherever the new program
+    /// draws it and is not touched. A step the new program does not
+    /// keep takes its id with it: every name on it — a fillet's
+    /// selection, a shell's mouth, a derived frame's face, a paint —
+    /// keeps its spelling, resolves to nothing, and is reported as a
+    /// `strand` or a `stranded_appearance` until `DocEdit.rebind`
+    /// repairs it. So is a name on a kept step's piece the new program
+    /// stops drawing, as a fillet inserted before a leg takes the
+    /// leg's segment.
     ///
     /// Raises `StepHandleError` `handle_off_program` for a handle that
     /// is not a step of its loop's new program. Refuses

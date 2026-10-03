@@ -307,7 +307,7 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
     body.edges()
         .filter_map(|(ek, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
-            if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+            if curve.description().is_scaffold() {
                 return None;
             }
             let start_v = body.get_half_edge(e.he_plus)?.start;

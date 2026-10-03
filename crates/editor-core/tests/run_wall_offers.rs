@@ -140,7 +140,10 @@ fn a_station_joining_or_splitting_a_run_offers_across_it() {
             &doc2,
             p,
             split,
-            ids(&doc2, p).into_iter().map(Some).collect(),
+            match doc2.node(p) {
+                Some(Node::Profile(pp)) => pp.kept_in_place().remove(0),
+                other => panic!("not a profile: {other:?}"),
+            },
         );
         let got = offers(&doc3, &run_wall);
         for k in 0..2 {

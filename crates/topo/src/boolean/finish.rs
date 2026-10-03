@@ -36,7 +36,9 @@ use slotmap::SecondaryMap;
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
-use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
+use super::shell_witness::{
+    ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
+};
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
@@ -129,7 +131,7 @@ fn promote_solid<T: Decide>(
 }
 
 /// Classifies one distributed shell: section-face seeds first (mixed ⇒
-/// typed error), else the uncut-shell witness against the pristine
+/// typed error), else the uncut-shell verdict against the pristine
 /// other operand.
 #[allow(clippy::too_many_arguments)]
 fn classify_shell<T: Decide>(
@@ -138,9 +140,10 @@ fn classify_shell<T: Decide>(
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
     operand: Operand,
+    coincident: &[super::SettledPair],
     band: Band,
     tol: Tol,
-) -> Result<SideCode, BooleanError> {
+) -> Result<ShellVerdict, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let shell_data = body
         .get_shell(shell)
@@ -158,24 +161,24 @@ fn classify_shell<T: Decide>(
         }
     }
     if let Some(s) = side {
-        return Ok(s);
+        return Ok(ShellVerdict::Side(s));
     }
-    shell_side(body, shell, other, operand, band, tol)
+    shell_verdict((body, shell, operand), other, coincident, band, tol)
 }
 
-/// Distributes, classifies, and selects one solid's kept shells;
-/// returns (kept shells, all shells' sides for the invariant check).
+/// Distributes and classifies one solid's shells; returns every
+/// distributed shell with its verdict.
 #[allow(clippy::too_many_arguments)]
-fn select_solid<T: Decide>(
+fn classify_solid<T: Decide>(
     body: &mut Body<T>,
     solid: SolidKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
     operand: Operand,
-    keep: SideCode,
+    coincident: &[super::SettledPair],
     band: Band,
     tol: Tol,
-) -> Result<Vec<ShellKey>, BooleanError> {
+) -> Result<Vec<(ShellKey, ShellVerdict)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let shells: Vec<ShellKey> = body
         .shells_of_solid(solid)
@@ -185,13 +188,13 @@ fn select_solid<T: Decide>(
     for shell in shells {
         all.extend(body.movefac(shell)?);
     }
-    let mut kept = Vec::new();
-    for shell in all {
-        if classify_shell(body, shell, side_of, other, operand, band, tol)? == keep {
-            kept.push(shell);
-        }
-    }
-    Ok(kept)
+    all.into_iter()
+        .map(|shell| {
+            let verdict =
+                classify_shell(body, shell, side_of, other, operand, coincident, band, tol)?;
+            Ok((shell, verdict))
+        })
+        .collect()
 }
 
 /// `setopfinish` (module docs): promotion → distribution → Eq. 15.1
@@ -242,26 +245,32 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         band,
         tol,
     );
-    let a_kept_shells = select_solid(
+    let a_verdicts = classify_solid(
         &mut red.a,
         a_solid,
         &a_sides,
         b_pristine,
         Operand::A,
-        kept_side(op, Operand::A),
+        &red.coincident,
         band,
         tol,
     )?;
-    let b_kept_shells = select_solid(
+    let b_verdicts = classify_solid(
         &mut red.b,
         b_solid,
         &b_sides,
         a_pristine,
         Operand::B,
-        kept_side(op, Operand::B),
+        &red.coincident,
         band,
         tol,
     )?;
+    check_mutual(
+        [(&red.a, &a_verdicts), (&red.b, &b_verdicts)],
+        [a_pristine, b_pristine],
+    )?;
+    let a_kept_shells = kept_shells(op, Operand::A, &a_verdicts);
+    let b_kept_shells = kept_shells(op, Operand::B, &b_verdicts);
     if a_kept_shells.is_empty() || b_kept_shells.is_empty() {
         // With ≥ 1 completed polygon both solids hold both components.
         return Err(desync("a seamed operand lost its kept component"));

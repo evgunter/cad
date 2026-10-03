@@ -379,6 +379,17 @@ pub enum SsiError {
         /// Which stepper.
         mode: &'static str,
     },
+    /// Newton refinement settled a seed onto the surface pair outside
+    /// the march domain: decided outside, or in the band's zero but
+    /// outside the domain's box. The seed is then no branch,
+    /// which the accounting pass decides was or was not a miss.
+    SeedOffDomain {
+        /// Which stepper.
+        mode: &'static str,
+        /// The settled state's signed distance to the domain, in metres
+        /// (negative: outside).
+        margin: f64,
+    },
     /// A step from a state already on the locus would not settle back
     /// onto the surface pair, so the march lost the branch it was
     /// tracing.
@@ -443,10 +454,11 @@ pub enum SsiError {
         rungs: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
-    /// over the tube chain (its enclosure straddles zero, or its
-    /// clearance lies inside the band): two branches pass within the
-    /// band of each other. A genuine sliver (F6), not a resolution
-    /// failure to retry.
+    /// over the tube chain at any rung (its enclosure straddles zero, or
+    /// its clearance lies inside the band). Either two branches pass
+    /// within the band of each other, a genuine sliver (F6), or the
+    /// enclosure's remaining slack does not resolve the pair; both
+    /// escalate, typed, never retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
         /// dimensionless sine-like lower bound levered by the tube
@@ -708,6 +720,12 @@ impl core::fmt::Display for SsiError {
                 "ssi: Newton refinement would not settle a {mode} seed onto the \
                  surface pair"
             ),
+            Self::SeedOffDomain { mode, margin } => write!(
+                f,
+                "ssi: Newton refinement settled a {mode} seed onto the surface pair \
+                 {:e} m outside the march domain",
+                -margin
+            ),
             Self::StepRefinementFailed { mode, step_meters } => write!(
                 f,
                 "ssi: a {mode} step of {step_meters:e} m from a state on the locus would \
@@ -955,6 +973,10 @@ impl SsiError {
             // The certifying doors read a seed that will not settle as no
             // branch; only a door seeded by its caller reports it.
             Self::SeedRefinementFailed { .. } => SEED_RECOURSE.to_owned(),
+            // A definite Negative on the settled seed, sign-certain; the
+            // certifying doors read it as no branch, so only a door seeded
+            // by its caller reports it.
+            Self::SeedOffDomain { .. } => SEED_OFF_DOMAIN_RECOURSE.to_owned(),
             // Settling a coordinate scale cannot resolve refuses first
             // (`SettlingUnresolvable`), so a step that still will not
             // settle is the march's own limit.
@@ -1390,6 +1412,11 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
 /// caller names the seed.
 const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where the surfaces meet";
 
+/// [`SsiError::SeedOffDomain`]'s ending, at the doors whose caller names
+/// the seed: the seed settled definitely outside the march domain.
+const SEED_OFF_DOMAIN_RECOURSE: &str = "Recourse: seed the trace at a point that settles inside \
+     the domain, or name a domain that holds where it settles";
+
 /// [`SsiError::WrongLane`]'s ending: each door traces one pairing of
 /// kinds, and the routing table ([`crate::intersect::route`]) names
 /// the door for a pair, or says no door traces it yet.
@@ -1554,8 +1581,9 @@ impl TraceDecision {
     ///   caller intends, so they end in their lever alone, as
     ///   [`SsiError::StepCollapsed`] and [`SsiError::SelfCrossingLocus`] do.
     /// - The open end passes on every definite sign, so only a marched
-    ///   state landing within the band of the domain's boundary refuses
-    ///   it: moving the boundary, or the geometry under it, moves that.
+    ///   state, or the settled seed, landing within the band of the
+    ///   domain's boundary refuses it: moving the boundary, or the
+    ///   geometry under it, moves that.
     /// - The return passes on every definite sign too, so only where an
     ///   untrusted marched sample landed against the seed refuses it,
     ///   which no lever the caller holds moves: the last resort.
@@ -1596,10 +1624,11 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
 };
 
 /// The open end (`ssi_branch_open_end`), refused only where a marched
-/// state lands within the band of the domain's boundary. The boundary
-/// is the caller's domain, or a spline operand's own edge, which moves
-/// with the geometry. Read on its sign-certain arm alone: where a state
-/// lands is the march's own, no size a caller intends.
+/// state, or the settled seed, lands within the band of the domain's
+/// boundary. The boundary is the caller's domain, or a spline operand's
+/// own edge, which moves with the geometry. Read on its sign-certain arm
+/// alone: where a state lands is the march's own, no size a caller
+/// intends.
 const OPEN_END: SizedDecision = SizedDecision {
     lever: "move the domain's boundary, or the geometry, a little, so the traced branch does \
             not leave the domain within a few tolerances of a marched state",
@@ -1815,11 +1844,12 @@ pub fn cylinder_sphere_ssi(
         }
         let trace = match march_both::<2, 3, _>(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
-            // A seed that will not settle is not a branch; the
-            // subdivision's accounting pass is what decides whether
-            // that was a miss. Every other refusal propagates, a march
-            // that lost its branch mid-trace included.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            // A seed that will not settle, or settles outside the
+            // domain, is not a branch; the subdivision's accounting
+            // pass is what decides whether that was a miss. Every other
+            // refusal propagates, a march that lost its branch mid-trace
+            // included.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
         let branch = finish_r3(&sys, &trace, a, b, &domain, ctx.tol, band)?;
@@ -2065,8 +2095,8 @@ pub fn plane_nurbs_ssi(
         let trace = match march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
             // As in `cylinder_sphere_ssi`: only a seed that will not
-            // settle is no branch.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            // settle inside the domain is no branch.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
         let branch = finish_r4(&sys, &trace, plane, &wall_op, &domain, ctx.tol, band)?;
@@ -2514,7 +2544,8 @@ mod ending_tests {
     /// and the geometry; the march's budget by the rungs that held its
     /// steps (the extent and the domain for the cap, the domain and the
     /// last resort for the curvature, all of them for both); a caller's
-    /// seed by the seed; the tube ladder by the extent alone, since it is
+    /// seed by the seed, and one settled off the domain by the seed and
+    /// the domain; the tube ladder by the extent alone, since it is
     /// decided exactly; a collapsed wall by the face; a step that will
     /// not settle, and a fit the f64 images can refuse, in the last
     /// resort; a short fit, a fit refusal interpolation cannot raise,
@@ -2630,6 +2661,11 @@ mod ending_tests {
             ),
             ("seed", super::SEED_RECOURSE, super::SEED_RECOURSE),
             (
+                "seed off domain",
+                super::SEED_OFF_DOMAIN_RECOURSE,
+                super::SEED_OFF_DOMAIN_RECOURSE,
+            ),
+            (
                 "step refinement",
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
@@ -2738,7 +2774,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 30;
+    const ARMS: usize = 31;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -2775,6 +2811,7 @@ mod ending_tests {
             SsiError::DomainUnusable { .. } => 27,
             SsiError::InvalidMarchTol { .. } => 28,
             SsiError::MarchTolMismatch { .. } => 29,
+            SsiError::SeedOffDomain { .. } => 30,
         }
     }
 
@@ -2897,6 +2934,13 @@ mod ending_tests {
                 "seed",
                 SsiError::SeedRefinementFailed {
                     mode: super::StepperMode::Idealized.name(),
+                },
+            ),
+            (
+                "seed off domain",
+                SsiError::SeedOffDomain {
+                    mode: super::StepperMode::Realized.name(),
+                    margin: -1.15e-3,
                 },
             ),
             (

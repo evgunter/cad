@@ -18,10 +18,10 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
 use crate::ray_parity::ParityRows;
-use crate::splitting::PointInLoopError;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
+use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -59,19 +59,9 @@ pub enum ContainError {
     RayExhausted,
     /// The face's topology could not be walked.
     Corrupt,
-    /// A **loop no available walk expresses at this point**: it has an
-    /// edge on a carrier the in-plane walk has no crossing row for (a
-    /// spiric, a spline), and the point lies within reach of that edge,
-    /// where a crossing could change the answer: every scheduled ray
-    /// from the point could meet a ball that edge lies in.
-    ///
-    /// The name is older than that meaning. It is kept because tier 3's
-    /// census renders this arm (`validate.rs`, RESTFRONT's ground), and a
-    /// rename has to move that match with it.
-    ArcLoopUnsupported {
-        /// The loop whose region no available walk expresses.
-        r#loop: crate::entity::LoopKey,
-    },
+    /// The walk could not read a loop at this point: an edge of it it
+    /// has no crossing row for stood in the way of every ray.
+    Uncrossable(Uncrossable),
 }
 
 impl From<PointInLoopError> for ContainError {
@@ -80,6 +70,7 @@ impl From<PointInLoopError> for ContainError {
             PointInLoopError::Escalated { diag, .. } => Self::Escalated(diag),
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
+            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
         }
     }
 }
@@ -113,13 +104,9 @@ impl core::fmt::Display for ContainError {
                  resolve; repair the body's topology before asking it a containment \
                  question"
             ),
-            Self::ArcLoopUnsupported { r#loop } => write!(
+            Self::Uncrossable(u) => write!(
                 f,
-                "contfp: loop {loop:?} has an edge on a spiric or spline carrier, which \
-                 the in-plane walk cannot cross, and the point lies within that edge's \
-                 reach, so no available walk expresses the region there — refused \
-                 rather than answered; model the boundary with lines, circles or \
-                 ellipses"
+                "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
             ),
         }
     }
@@ -156,11 +143,9 @@ pub fn contfp<T: Decide>(
     // Interior/exterior: inside the outer loop AND outside every ring,
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
-    // inside or outside. Its `None` is an edge it cannot cross standing
-    // in the way of every ray: a refusal, typed.
+    // inside or outside.
     let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
-        carrier_loop_side(*lk, lp, normal, q, band)?
-            .ok_or(ContainError::ArcLoopUnsupported { r#loop: *lk })
+        Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
     };
     let (outer, rings) = read.split_first().ok_or(ContainError::Corrupt)?;
     if !inside(outer)? {
@@ -441,10 +426,14 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// through the window crosses the boundary once on each level, so the
 /// face is exactly the rectangle `[az] × [h]` its boundary pins
 /// ([`super::solid_contain::cylinder_chart_trim`]). A third level is a
-/// stepped outline the rectangle over-covers. A wall closed by a
-/// tilted section takes its height extreme inside an edge, the
-/// rectangle then misstates the face in BOTH directions, and this door
-/// answers `None` rather than a verdict it cannot stand behind.
+/// stepped outline the rectangle over-covers.
+///
+/// A wall closed by a tilted section takes its height extreme inside an
+/// edge, so the rectangle would misstate it in BOTH directions; it is
+/// the ray lane's CHART outline instead (every boundary edge a meridian,
+/// a rim or a planar section, no ring, a window narrower than a period),
+/// and this door reads it the way the ray lane does: by parity along the
+/// point's ruling ([`super::solid_contain::point_on_wall_in_face`]).
 ///
 /// A face that ALONE wraps the azimuth has no window to trim by, and is
 /// served as the full-turn BAND
@@ -453,7 +442,8 @@ const ROWS: BoundaryRows = BoundaryRows {
 ///
 /// `None` is therefore the honest remainder throughout — a chart with no
 /// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// non-iso boundary, a wrapped face outside the band class, or a window
+/// boundary outside the rectangle and chart outlines, a wrapped face
+/// outside the band class, or a window
 /// that reads a whole period on a face that does not wrap alone, whose
 /// cosine comparison is an equivalence only under a period), or a
 /// margin on a trim boundary — and the caller keeps its typed frontier
@@ -601,7 +591,10 @@ pub(crate) fn curved_face_placement<T: Decide>(
     };
     // The ray lane's class predicates, asked of the same face, the
     // full-turn route first (`full_turn_outline`, the one home both
-    // doors call): this door serves the band and the rectangle only.
+    // doors call): this door serves the band, the rectangle, and the
+    // chart outline a planar section bounds (read by parity along the
+    // point's ruling, `point_on_wall_in_face`), never a wall it would
+    // have to read as its vertex rectangle.
     let outline =
         match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band)
             .map_err(solid_err)?
@@ -628,7 +621,11 @@ pub(crate) fn curved_face_placement<T: Decide>(
                     body, face, origin, axis, radius, az, h, band,
                 )
                 .map_err(solid_err)?;
-                if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+                if !matches!(
+                    outline,
+                    super::solid_contain::WallOutline::Rectangle { .. }
+                        | super::solid_contain::WallOutline::Chart { .. }
+                ) {
                     return Ok(CurvedPlacement::Trim(None));
                 }
                 outline
@@ -991,13 +988,10 @@ mod tests {
                 let LoopBoundary::Cycle { first } = body.loops.get(f.outer)?.boundary else {
                     return None;
                 };
-                let top = body.loop_cycle(first)?.into_iter().all(|he| {
-                    body.half_edges
-                        .get(he)
-                        .and_then(|h| body.vertices.get(h.start))
-                        .and_then(|v| body.points.get(v.point))
-                        .is_some_and(|p| p.z == 1.0)
-                });
+                let top = body
+                    .loop_cycle(first)?
+                    .into_iter()
+                    .all(|he| body.half_edge_start_point(he).is_some_and(|p| p.z == 1.0));
                 (top).then_some((k, ring))
             })
             .expect("the holed box has a ringed top face");

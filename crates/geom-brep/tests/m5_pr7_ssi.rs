@@ -2896,7 +2896,11 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
 ///   settle it, and the answer is `StepRefinementFailed` before the
 ///   re-march is reached;
 /// - a shorter branch is a step that collapses into the band, or a
-///   step whose progress the band cannot decide;
+///   step whose progress the band cannot decide, unless the branch's
+///   distance `spread/4` to the net's `z = 0` edge is in the band's
+///   escalation zone: then its seed's open end escalates before it is
+///   marched, as a branch running in the band of the domain's boundary
+///   does;
 /// - from `1e-100` down, the transversality margin is unreadable and
 ///   escalates `ssi_transversality`.
 #[test]
@@ -2938,6 +2942,17 @@ fn a_tiny_net_the_plane_meets_traces_or_refuses_by_the_kind_its_size_earns() {
             assert!(
                 (span - 3.0 * s).abs() <= 1.0e-6 * s,
                 "{at}: the carrier spans {span:e} m"
+            );
+        } else if 0.25 * s > band().zero() && 0.25 * s <= band().escalate() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(SsiError::Escalated {
+                        decision: TraceDecision::BranchOpenEnd,
+                        ..
+                    })
+                ),
+                "{at}: {r:?}"
             );
         } else {
             assert!(
@@ -3651,6 +3666,196 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
             (margin - delta).abs() < 1.0e-2 * delta.abs(),
             "δ = {delta:e}: the open end read {margin:e} m"
         );
+    }
+}
+
+/// **The ℝ³ lane drops a seed Newton settles outside the slab, and
+/// still finds the branch.** The slab's top face `z = 0.996` cuts the
+/// planted north loop, whose height runs from 0.9939 to 0.9988, at a
+/// shallow angle. Near the crossing the curve runs almost along the
+/// face, so min-norm Newton settles the subdivision's cell centre
+/// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
+/// the face. That seed is no branch. A seed further in marches the arc
+/// below the face, which certifies as the one branch, ending on the
+/// boundary.
+#[test]
+fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
+    let d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.896),
+        half_extent: 0.1,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let seed = Point3::new(0.0378125, -0.08046875, 0.9944375);
+    match ssi::idealized_trace_r3(&threaded_cylinder(), &sphere(), seed, d, band()) {
+        Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+            margin < -1.0e-5,
+            "the seed settles outside the slab: {margin:e} m"
+        ),
+        other => panic!("the seed at {seed:?} is no branch, got {other:?}"),
+    }
+    let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
+        Ok(out) => out,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            vacuity::stood_down(
+                &format!("the clipped north loop, ε {:e}", eps()),
+                "the arc wants more samples than the fit budget allows, so the door's \
+                 handling of the off-slab seed is not asserted at this ε",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
+    };
+    assert_eq!(out.branches.len(), 1, "the arc below the face");
+    assert_ne!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the arc ends on the face"
+    );
+}
+
+/// The dome `W(d)`: a clamped quadratic 3×3 net, weights 1, control
+/// points `(i/2, 0, j/2)` with the centre one moved to `y = −d`. Its
+/// surface is `x = s, z = t, y = −4d·s(1−s)·t(1−t)`, with section
+/// curvature `2d` per metre at the centre.
+fn dome_wall(d: f64) -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3u8 {
+        for j in 0..3u8 {
+            let y = if i == 1 && j == 1 { -d } else { 0.0 };
+            control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// The plane `x + y = 0.5 − d/8` across the dome's dip, and the domain
+/// centred on it.
+fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let at = Point3::new(0.5, -d / 8.0, 0.5);
+    let plane = Surface::Plane {
+        origin: at,
+        normal: Vec3::new(s2, s2, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let dom = SsiDomain {
+        center: at,
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    (plane, dom)
+}
+
+/// **A seed Newton settles off the wall's chart is no branch.** The
+/// subdivision hands the tilt cut of the dome `W(d)` a seed one cell
+/// from the wall's `t = 0` edge, at `(0.369, 0.00195)` for `d = 1` and
+/// `(0.243, 0.00098)` for `d = 2`, and min-norm Newton settles it at
+/// `t ≈ −1e-3`. Marched from there, the out-of-chart seed reached the
+/// fit, and the cut refused limb 1 by millimetres (1.6 mm and 3.4 mm)
+/// or as a trace of one sample. Settled outside, the seed is no
+/// branch, and a seed further in marches the branch to the edge.
+///
+/// What the cut does is pinned by ε:
+/// - at 1e-6 it certifies, one branch;
+/// - at 1e-9 it refuses limb 2, inferred but not traced to be cause 4
+///   of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - at 1e-12 it refuses the fit budget, that row's cause 2.
+///
+/// None of them is a carrier off the wall.
+#[test]
+fn a_seed_settled_off_the_walls_chart_is_no_branch() {
+    let b = band();
+    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
+        let (plane, dom) = dome_tilt(d);
+        let wall = dome_wall(d);
+        match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+                margin < -1.0e-4,
+                "d = {d}: the seed settles a millimetre off the chart: {margin:e} m"
+            ),
+            other => panic!("d = {d}: the seed {seed:?} is no branch, got {other:?}"),
+        }
+        let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, b);
+        let at = format!("d = {d}, ε {:e}", eps());
+        if let Err(
+            SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            }
+            | SsiError::TraceUnresolved { .. },
+        ) = r
+        {
+            panic!("{at}: a carrier off the wall's chart: {r:?}");
+        }
+        let pinned = match eps() {
+            1.0e-6 => matches!(r, Ok(ref o) if o.branches.len() == 1),
+            1.0e-9 => matches!(
+                r,
+                Err(SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    ..
+                } | SsiError::CertificateEscalated {
+                    limb: SsiLimb::HullSup,
+                    ..
+                })
+            ),
+            1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the cut's remaining refusal is measured at ε 1e-6, 1e-9 and 1e-12 only, \
+                     so which cause refuses it here is not pinned",
+                );
+                true
+            }
+        };
+        assert!(pinned, "{at}: the cut's outcome moved: {r:?}");
+    }
+}
+
+/// **A curved dome's cuts prove their tube at the widest rung.** The
+/// dome `W(d)` is one quadratic Bézier patch, so every tube window lies
+/// in its one span cell. Limb 3 reads the wall's derivative over each
+/// window cut to that window, and the plane's gradient along the chart
+/// stays zero-free there: the tilt cut (an open arc) and the level cut
+/// (an interior loop) certify at d = 1 and d = 3, each at the widest
+/// rung, `SSI_TUBE_RADIUS_MAX` of the extent. Read off the whole cell
+/// instead, `S_u.y` and `S_v.y` span `[−2d, 2d]`, and every rung down to
+/// the floor straddles.
+///
+/// The band is the row's own 1e-6: limbs 1 and 2 refuse these cuts at
+/// 1e-9 and the fit budget at 1e-12 before limb 3 runs.
+#[test]
+fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
+    let b = band_at(1e-6);
+    for d in [1.0, 3.0] {
+        let (tilt, dom) = dome_tilt(d);
+        let level = Surface::Plane {
+            origin: dom.center,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = dome_wall(d);
+        for (cut, plane) in [("tilt", tilt), ("level", level)] {
+            let at = format!("{cut} cut, d = {d}");
+            let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, b) {
+                Ok(out) => out,
+                Err(e) => panic!("{at}: expected one certified branch, got {e:?}"),
+            };
+            assert_eq!(out.branches.len(), 1, "{at}: {out:?}");
+            let cert = &out.branches[0].certificate;
+            match cert.tube {
+                SsiTube::Chart { rung, .. } => assert_eq!(
+                    rung,
+                    geom_brep::ssi::certify::SSI_TUBE_RADIUS_MAX * dom.extent,
+                    "{at}: the tube certified below the widest rung"
+                ),
+                SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
+            }
+        }
     }
 }
 
