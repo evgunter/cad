@@ -322,6 +322,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             param: p,
             cut_node,
             kept_node,
+            ..
         } => (
             id(cut_node),
             none(),
