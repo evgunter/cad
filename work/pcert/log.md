@@ -494,3 +494,14 @@ Signed (PCERT orchestrator).
 - **Closed:** S331, `validate-pcurves-cannot-tell-…`, `validate-pcurves-never-recertifies-…`, `site-rows-leaves-an-off-chart-edge-silent`, `extrude-mints-no-pcurve-rows`, `pcurve-certificate-states-incidence-and-fidelity`, SYM's `pcurve-certificate-checks-widen-…` (its residue rowed), and `circle-image-envelope-is-a-sole-bracket-door-…` (fixed on main by 467d4b42f).
 - **Regressions that landed, each rowed:** chaintol's certified wall (the tip box about 1.6e6× worse) until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`; M10-9's bracket and pad refusing (`fillet-meridian-radius-term-is-registered-only`, P0); the shallow-arc Interval grid (pctail's wide-arc row, given P2).
 - **Next:** the loop-decision unit, with a designer pair first (it touches C4's trim containment against the caller's ChartWindow); then the fillet-meridian P0.
+
+## 2026-10-03 — chart angular comparisons: designer pair, [ev] PR 3919
+
+- **Designer pair** dispatched on `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, from main at 82b52c36c, with one problem statement and no candidate answers.
+  - They agreed on the core: check 5 and the caller's `ChartWindow` retire, and joints and closure state the integer branch and winding.
+  - They differed on three points: the pole joint, `chart_boundary`'s polygon, and spline charts. After one reconciliation round they converged (one designer moved on all three; they did not cross).
+- **[ev] PR 3919** rewords C4's domain-validity sentence and records DESIGN-FORK-LOG row 47's recommendation half.
+  - Provenance: the trim-window sentence was agent-written on 2026-09-03 (585b3422f, the docs-to-README sweep), and I found no ratification. PR 3781 left it untouched.
+  - Deviation: the blinding byte (87) was drawn after the reports came in, not at dispatch. This is recorded on `analysis/design-fork/pcert-chart-angles-2026-10-03`.
+  - My first commit on that branch overwrote README.md; the next two commits fixed it forward.
+- **Renders:** the nightly re-baselined the kernel, uv, mc and freecad cells after 3759 (e416e33de through a9732a08c).
