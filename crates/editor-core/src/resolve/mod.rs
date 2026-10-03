@@ -2293,6 +2293,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }

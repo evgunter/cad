@@ -45,8 +45,8 @@ test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
+        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
+        UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
     ];
@@ -105,6 +105,10 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::NoMaterial {
             node: s(1, "Gauge"),
         },
+        SplitError::UnplaceableRoot {
+            root: s(6, "Measure"),
+            anchor: s(1, "Gauge"),
+        },
         SplitError::UnplacedAlone {
             group: s(2, "InstantiatePart"),
         },
@@ -112,14 +116,24 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::MateFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
+            promote: None,
         },
-        SplitError::HoistedMemberOffset {
-            instance: s(4, "InstantiatePart"),
+        SplitError::MateFrameCrosses {
+            mate: s(7, "Mate"),
+            side: MateSide::B,
+            promote: Some(Box::new(s(2, "InstantiatePart"))),
         },
         SplitError::UncutParamReference {
             param: param(),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
+            promote: false,
+        },
+        SplitError::UncutParamReference {
+            param: param(),
+            cut_node: s(4, "InstantiatePart"),
+            kept_node: s(6, "Gauge"),
+            promote: true,
         },
         SplitError::PartNameReachesRemainder {
             node: s(5, "Extrude"),

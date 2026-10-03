@@ -288,7 +288,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     };
     let err = split_err(&twin, &[base, top, seat_mate], label, &o);
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A } if mate.id() == twin_m),
+        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == twin_m),
         "{err:?}"
     );
 }
@@ -377,7 +377,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
     };
     let err = split_err(&twin, &[leg, pattern], label, &o);
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A } if mate.id() == twin_m),
+        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == twin_m),
         "{err:?}"
     );
 }
@@ -414,7 +414,7 @@ fn a_face_side_reading_an_unplaced_member_refuses_mate_frame_crosses() {
     );
     let err = split_err(&doc, &[base, loose], label, &o);
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A } if mate.id() == m),
+        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == m),
         "{err:?}"
     );
 

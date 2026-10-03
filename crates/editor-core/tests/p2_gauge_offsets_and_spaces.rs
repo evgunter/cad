@@ -1078,15 +1078,17 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     own_space_refuses(&doc, &ev);
 }
 
-/// **The group hoist leaves a parametric root offset in the host**
-/// (A4): the offset becomes the instance's, so a parameter driving it
-/// never trips `UncutParamReference` — here a kept gauge reads it too —
-/// and the part gets no copy of a parameter nothing in it reads.
+/// **A parametric root offset moves with the cut, and `Promote` keeps
+/// it in the host** (A4): the root's offset is a cut node's, so a
+/// parameter a kept gauge reads too refuses `UncutParamReference`;
+/// promoted, the offset is a kept gauge's placement, the group is cut
+/// leaving that gauge behind, and the part gets no copy of a parameter
+/// nothing in it reads.
 #[test]
-fn the_group_hoist_keeps_a_parametric_root_offset_in_the_host() {
-    let p = parts("r1-hoist-param");
+fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host() {
+    let p = parts("r1-promote-param");
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-hoist-param"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-promote-param"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
     let (doc, _) = insert(
         doc,
@@ -1109,17 +1111,43 @@ fn the_group_hoist_keeps_a_parametric_root_offset_in_the_host() {
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let cut: std::collections::BTreeSet<RecipeNodeId> = [base, top, mate].into_iter().collect();
-    let out = editor_core::split(
-        &doc,
-        &cut,
-        DocumentId::derive("r1-hoist-param-part"),
-        Tol::witness(),
-        o.resolver.as_ref(),
-    )
-    .expect("the hoist reads the parameter in the host only");
+    let split = |doc: &ProfileDoc| {
+        editor_core::split(
+            doc,
+            &cut,
+            DocumentId::derive("r1-promote-param-part"),
+            Tol::witness(),
+            o.resolver.as_ref(),
+        )
+    };
+    let err = split(&doc).expect_err("the cut root's offset reads a kept node's parameter");
     assert!(
-        offset_of(&out.remainder, out.instance).is_some_and(|o| o.bit_eq(&offset)),
-        "the instance takes the parametric offset"
+        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, promote: true, .. }
+            if *param == lift() && cut_node.id() == base),
+        "{err:?}"
+    );
+    assert!(
+        err.to_string().contains(&format!(
+            "Recourse: promote {} (Promote), so its offset stays in this document",
+            doc.spoken(base)
+        )),
+        "{err}"
+    );
+    let (doc, k) = step(doc, DocEdit::Promote { instance: base });
+    let k = k.expect("the promote mints its gauge");
+    let out = split(&doc).expect("the promoted offset stays in the host");
+    assert!(
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&offset)),
+        "the promoted gauge holds the parametric offset"
+    );
+    assert_eq!(
+        out.remainder.node(out.instance).and_then(Node::gauge_ref),
+        Some(k),
+        "the instance sits on the promoted gauge"
+    );
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY)
     );
     assert!(
         out.part.params().is_empty(),
@@ -1380,9 +1408,11 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
 /// **The gauge inline mints is the one a user would insert** (A4, the
 /// spec's I1): a host instance at an offset over a part of two lone
 /// instances inlines onto a gauge minted under its gauge holding its
-/// offset. Inserting that gauge by hand, putting the instance on it at
-/// the empty offset (which moves nothing) and inlining there gives the
-/// same document up to node ids, and no world pose moves.
+/// offset. Inserting that gauge by hand, listing it just ahead of the
+/// instance in the roots, putting the instance on it at the empty
+/// offset (which moves nothing) and inlining there gives the same
+/// document up to node ids, root order included, and no world pose
+/// moves.
 #[test]
 fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     let p = parts("minted-vs-hand");
@@ -1420,6 +1450,10 @@ fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     }
 
     let (hand, g) = insert(doc, Node::gauge(None, offset));
+    let mut roots: Vec<RecipeNodeId> = hand.roots().iter().copied().filter(|&r| r != g).collect();
+    let at = roots.iter().position(|&r| r == h).expect("h is a root");
+    roots.insert(at, g);
+    let (hand, _) = step(hand, DocEdit::SetRoots { roots });
     let hand = set_gauge(hand, h, Some(g));
     let hand = set_offset(hand, h, Some(Placement::IDENTITY));
     assert_eq!(

@@ -2443,9 +2443,9 @@ impl DocSession {
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
-        run.apply(edit)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
-        Ok(run.finish().maintenance)
+        let refused = |error| Refusal::Edit(Box::new(error));
+        run.apply(edit).map_err(refused)?;
+        Ok(run.finish().map_err(refused)?.maintenance)
     }
 
     /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
@@ -2835,6 +2835,8 @@ impl DocSession {
             // on, not a panel field's value.
             | DocEdit::SetOffset { .. }
             | DocEdit::SetGauge { .. }
+            | DocEdit::Promote { .. }
+            | DocEdit::Fold { .. }
             // The declaration doors that are not the value or the
             // notation half. `SetDocParam` is create-or-replace: a
             // redeclaration is an act — it is how a parameter's
@@ -2954,11 +2956,12 @@ impl DocSession {
     ///
     /// **All or nothing**: each edit is applied to the value the last
     /// one produced and nothing is recorded until [`Self::record_run`]
-    /// takes the result, so a refusal the action returns (every
-    /// `action` here ends on its first refusal with `?`) — or a caller
-    /// that drops the staged run — leaves the session on the document
-    /// it started from. That is purity doing the work — no rollback
-    /// exists to be got wrong.
+    /// takes the result. A refused edit ends the run — the recording
+    /// answers its refusal from then on, `finish` included — so a
+    /// refusal leaves the session on the document it started from
+    /// whether or not `action` stops at it, and so does a caller that
+    /// drops the staged run. That is purity doing the work — no
+    /// rollback exists to be got wrong.
     fn stage_run<T>(
         &self,
         action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
@@ -2970,11 +2973,14 @@ impl DocSession {
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         let mut run = Recording::start(self.history.doc(), self.tol, &reach);
-        let answer = action(&mut run).map_err(|error| Refusal::Edit(Box::new(error)))?;
-        if run.is_empty() {
+        let answer = action(&mut run);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        let staged = run.finish().map_err(refused)?;
+        let answer = answer.map_err(refused)?;
+        if staged.edits.is_empty() {
             unreachable!("an action commits at least one edit")
         }
-        Ok((run.finish(), answer))
+        Ok((staged, answer))
     }
 
     /// **A staged run, recorded**: the whole run is one history state,
@@ -3165,5 +3171,49 @@ impl core::fmt::Debug for DocSession {
             .field("derived", derived)
             .field("notation", notation)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::{DocSession, ProfilePlane, Refusal, datum_node};
+    use pncad::document::{Doc, Node, ProfileProgram};
+    use pncad::geom_core::Tol;
+
+    /// **An action that swallows a refusal commits nothing.** The
+    /// action lands a frame, has its profile refused (an empty loop
+    /// list), ignores the refusal, lands a second frame and answers
+    /// success; the door still refuses the whole action, so neither
+    /// frame is committed. This reds if the run goes on past a refusal,
+    /// which would commit the two frames around it.
+    #[test]
+    fn an_action_that_swallows_a_refusal_commits_nothing() {
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("swallowed-refusal", tol), tol);
+        let frame = || datum_node(ProfilePlane::world_xy().expect("the world frame"));
+        let before = session.history().len();
+        let outcome = session.commit_run(|run| {
+            let plane = run.insert(frame())?;
+            let _ = run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops: Vec::new(),
+                ids: Vec::new(),
+            }));
+            let _ = run.insert(frame());
+            Ok(())
+        });
+        assert!(
+            matches!(outcome.refusal, Some(Refusal::Edit(_))),
+            "the profile's refusal is the action's: {:?}",
+            outcome.refusal
+        );
+        assert!(outcome.committed.is_empty(), "nothing is committed");
+        assert_eq!(session.history().len(), before, "nothing is recorded");
+        assert!(
+            session.committed_doc().order().is_empty(),
+            "neither frame landed"
+        );
     }
 }

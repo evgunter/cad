@@ -703,8 +703,11 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::ClearAppearanceMeta { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
-        // A gauge reference is a node id.
+        // A gauge reference is a node id, and so is what a promote or a
+        // fold names.
         | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
