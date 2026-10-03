@@ -19,10 +19,11 @@
 //! one, and a pick that refused the straddle instead would turn every
 //! verdict into a partial-sphere refusal.
 //!
-//! A third row hands the slit to the Boolean, which serves closed
-//! solids only: a slit operand — the dome against a brick, and a slit
-//! ball on the cube's top face — refuses at the operand gate with tier
-//! 2's findings, naming its poles, while the unslit bodies pass it.
+//! A third row hands the slit to the Boolean, which serves finished
+//! bodies only: a slit operand — the dome against a brick, and a slit
+//! ball on the cube's top face — refuses at the at-rest gate that would
+//! finish it, with tier 2's findings, naming its poles, while the unslit
+//! bodies finish and reach a result.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -30,7 +31,7 @@ use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Tol, Vec3}
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult, Operand, SolidContainment,
+    Body, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult, SolidContainment,
     SweepStrategy, ValidationError, face_azimuth_window_traces, point_in_solid, validate,
     validate_closed,
 };
@@ -196,20 +197,17 @@ fn subtract<T: Decide + topo::AtRestPolicy + Bounds>(
     )
 }
 
-/// The refusal a slit operand owes: typed at the operand gate, on the
-/// slit operand, carrying tier 2's own findings — the poles, each
-/// named as the strut tip it is.
+/// The refusal a slit operand owes: typed at the at-rest gate that
+/// would finish it for the Boolean, carrying tier 2's own findings — the
+/// poles, each named as the strut tip it is.
 fn assert_refused_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(
     what: &str,
-    got: Result<BooleanResult<T>, BooleanError>,
     slit: &Body<T>,
-    operand: Operand,
     poles: &[(f64, f64, f64)],
 ) {
-    let Err(BooleanError::ScaffoldingOperand { operand: o, errors }) = got else {
-        panic!("{what}: want the operand gate's ScaffoldingOperand, got {got:?}");
+    let Err(errors) = T::gate_at_rest_kept(slit.clone(), Tol::witness()) else {
+        panic!("{what}: a slit body is not a finished body");
     };
-    assert_eq!(o, operand, "{what}: the refusal names the slit operand");
     assert_eq!(
         Err(errors.clone()),
         validate_closed(slit),
@@ -248,26 +246,18 @@ fn slit_operands_refuse_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(lan
     let brick =
         sweep::test_support::brick::<T>((-2.0, 2.0), (0.5, 2.0), (-2.0, 2.0), Tol::witness());
     for (i, slit) in slits::<T>().iter().enumerate() {
-        assert_refused_at_the_gate(
-            &format!("[{lane}] slit dome {i} ∖ brick"),
-            subtract(slit, &brick),
-            slit,
-            Operand::A,
-            &[(0.0, 1.0, 0.0)],
-        );
+        assert_refused_at_the_gate(&format!("[{lane}] slit dome {i}"), slit, &[(0.0, 1.0, 0.0)]);
     }
     let cube = sweep::test_support::cube::<T>(1.0, Tol::witness());
     for (i, slit) in slits_of(&ball::<T>(), 2).iter().enumerate() {
         assert_refused_at_the_gate(
-            &format!("[{lane}] cube ∖ slit ball {i}"),
-            subtract(&cube, slit),
+            &format!("[{lane}] slit ball {i}"),
             slit,
-            Operand::B,
             &[(0.5, 0.7, 0.5), (0.5, 1.3, 0.5)],
         );
     }
-    // The gate admits what is at rest: the same placements unslit
-    // reach a result.
+    // What is at rest finishes: the same placements unslit reach a
+    // result.
     for (what, got) in [
         ("dome ∖ brick", subtract(&dome::<T>(), &brick)),
         ("cube ∖ ball", subtract(&cube, &ball::<T>())),

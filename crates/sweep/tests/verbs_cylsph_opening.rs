@@ -401,24 +401,21 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
 /// that names them renders that one sentence, so there is no second
 /// Display left to disagree with.
 ///
-/// **The operand here is a NURBS wall, deliberately.** The variant is
-/// per-KIND and its Display carries no per-site branch, so any body
-/// that raises it serves. A NURBS wall is a construction that DOES
-/// reach it through the public `union` door — measured, by this row.
-/// What is NOT available is the germ pose the corrected clause is
-/// about: the cyl×sphere and sphere×sphere crossings are stopped two
-/// layers above (the rows at the top of this file are that
-/// measurement), so the join dispatch's catch-all cannot be reached
-/// end to end for them. No claim is made that a NURBS wall is the ONLY
-/// construction that reaches this variant — the error has several raise
-/// sites (`sectors.rs`, `vtxfac.rs`, `recl.rs`, `reduce.rs` beside
-/// `join.rs`) and this row measured one of them, not all.
+/// **The refusal is read off the variant, and the NURBS wall that once
+/// reached it end to end is pinned where it stops.** The variant is
+/// per-KIND and its Display carries no per-site branch, so the sentence
+/// is the variant's whatever raises it. A cylinder with one wall
+/// relabelled to the NURBS placeholder is not a finished body — the
+/// at-rest gate refuses the wall as uncertifiable — so it never reaches
+/// the crossing layer. The cyl×sphere and sphere×sphere crossings are
+/// stopped two layers above (the rows at the top of this file are that
+/// measurement), so the join dispatch's catch-all cannot be reached end
+/// to end for them either. The error has several raise sites
+/// (`sectors.rs`, `vtxfac.rs`, `recl.rs`, `reduce.rs` beside `join.rs`).
 #[test]
 fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
-    let a = cyl(1.0, -2.0, 2.0);
     let mut b = cyl(1.0, -0.5, 0.5);
     let (face, _) = b.faces().next().unwrap();
-    // Lifts both refusals: the relabelled face is the join dispatch's input.
     b.set_face_surface_stranding_for_tests(
         face,
         topo::FaceSurface::New {
@@ -427,20 +424,19 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    // The coaxial walls left on one carrier are declared as what the
-    // detector finds them to be, so the op reaches its crossing layer.
-    let found = topo::flush::find_flush_candidates(&a, &b, Tol::witness()).unwrap();
-    let flush = topo::flush::declare_all(&found);
-    let (a, b) = (
-        finished("the cylinder", a, Tol::witness()),
-        finished("the NURBS-walled cylinder", b, Tol::witness()),
-    );
-    let err = topo::union_with(&a, &b, &flush, Tol::witness())
-        .expect_err("a NURBS wall has no crossing layer in this build");
+    let errors = topo::AtRestBody::validate(b, Tol::witness())
+        .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
-        matches!(err, BooleanError::CurvedBooleanUnsupported { .. }),
-        "expected the crossing-layer refusal, got {err:?}"
+        errors.iter().any(
+            |e| matches!(e, topo::ValidationError::UncertifiableSurface { face: f } if *f == face)
+        ),
+        "the at-rest gate names the placeholder wall: {errors:?}"
     );
+    let err = BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: geom::SurfaceKind::Nurbs,
+    };
     let msg = format!("{err}");
     // What the JOIN dispatch wires, stated as the recourse: a plane
     // face against a plane, cylinder or sphere face — so the sentence

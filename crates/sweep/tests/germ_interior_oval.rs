@@ -808,18 +808,14 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 /// leaves NURBS out (no NURBS pair is examined) and against W0 reading
 /// any one control point clear of the plane rather than all.
 ///
-/// ∪ never reaches the guard today: the join's role resolution probes
-/// the clamp's regions against the bump block, and point-in-solid has
-/// no NURBS arm, so ∪ refuses there first (and the volume backstop
-/// stands behind it). The
-/// row pins that refusal, so the day containment serves NURBS it goes
-/// red and says whether the guard is what refuses. ∩ and ∖ refuse at
-/// the revert roster, which has no NURBS.
+/// The bump block is not a finished body: its top edges keep the line
+/// descriptions of the plane the bump replaced, so the at-rest gate
+/// refuses it there (and on the bump's pcurves) before any boolean takes
+/// it. The row pins that refusal, so the day the bump block is built as
+/// a finished body it goes red and the door legs return.
 #[test]
 fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
-    use topo::{BooleanOp as Op, PairRefusalSite as Site};
     let (a, b) = (nurbs_bump(), nurbs_clamp());
-    let nurbs = geom::SurfaceKind::Nurbs;
     assert_eq!(
         nurbs_verdicts(&a, &b),
         vec!["Nurbs × Plane: Err(Reach)".to_string()],
@@ -830,43 +826,24 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Reach)".to_string()],
         "the same with the operands swapped"
     );
-    let a = finished("the bump block", a, Tol::witness());
-    for (what, r) in [
-        ("a ∪ b", topo::union(&a, &b, Tol::witness())),
-        ("b ∪ a", topo::union(&b, &a, Tol::witness())),
-    ] {
-        match r {
-            Err(topo::BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind,
-                ..
-            })) => assert_eq!(kind, nurbs, "{what}"),
-            Err(e) => panic!("{what}: refused, but not at the join's containment probe: {e:?}"),
-            Ok(r) => panic!(
-                "{what}: answered {:?}",
-                r.body()
-                    .map(|x| (x.kind, in_solid(&x.body, Point3::new(0.0, 0.0, 0.9))))
-            ),
-        }
-    }
-    for (op, r, what) in [
-        (
-            Op::Intersect,
-            topo::intersect(&a, &b, Tol::witness()),
-            "a ∩ b",
-        ),
-        (
-            Op::Subtract,
-            topo::subtract(&a, &b, Tol::witness()),
-            "a ∖ b",
-        ),
-        (
-            Op::Subtract,
-            topo::subtract(&b, &a, Tol::witness()),
-            "b ∖ a",
-        ),
-    ] {
-        refuses_at(r, Site::RevertRoster, op, nurbs, what);
-    }
+    let errors = topo::AtRestBody::validate(a, Tol::witness())
+        .expect_err("the stranded bump block is not a finished body");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. }))
+            .count(),
+        4,
+        "the four top edges keep the replaced plane's descriptions: {errors:?}"
+    );
+    assert!(
+        errors.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::DescriptionNotAdjacent { .. }
+                | topo::ValidationError::Pcurve { .. }
+        )),
+        "every finding is the stranded top's: {errors:?}"
+    );
 }
 
 /// **A plane clear of the bump's control net is certified apart though

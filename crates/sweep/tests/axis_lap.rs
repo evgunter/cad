@@ -74,7 +74,11 @@ fn polygon(pts: &[(f64, f64)]) -> profile::ProfileLoop<f64> {
 /// The rod: an extruded circle.
 fn rod() -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), R, tol()).unwrap();
-    finished("the rod", extruded(SketchPlane::xy(), disc.into(), LEN), tol())
+    finished(
+        "the rod",
+        extruded(SketchPlane::xy(), disc.into(), LEN),
+        tol(),
+    )
 }
 
 /// The rod's all-planar twin: a square turned 45°, its corners where
@@ -82,7 +86,11 @@ fn rod() -> AtRestBody<f64> {
 /// the rod's rulings.
 fn diamond() -> AtRestBody<f64> {
     let square = polygon(&[(R, 0.0), (0.0, R), (-R, 0.0), (0.0, -R)]);
-    finished("the diamond", extruded(SketchPlane::xy(), square, LEN), tol())
+    finished(
+        "the diamond",
+        extruded(SketchPlane::xy(), square, LEN),
+        tol(),
+    )
 }
 
 fn cut(
@@ -92,8 +100,7 @@ fn cut(
     z: (f64, f64),
 ) -> Result<AtRestBody<f64>, BooleanError> {
     let cutter = finished("the cutter", brick(x, y, z, tol()), tol());
-    topo::subtract(a, &cutter, tol())
-        .map(|r| r.body().expect("a body remains").body.clone())
+    topo::subtract(a, &cutter, tol()).map(|r| r.body().expect("a body remains").body.clone())
 }
 
 /// The lap: the cutter starts inside the rod at `z = 3` and runs past

@@ -256,8 +256,8 @@ fn the_ringed_wall_rows_hold_off_the_origin() {
 /// review's MI3) and the union refuses `SeamOrientation` at the zip.
 /// With the exact closure the ∩ and bar ∖ pipe build, pass every tier
 /// and balance against the bar; the ∪ and pipe ∖ bar build too, and
-/// stop one layer later, at the volume backstop: their wall carries a
-/// ring trimmed by ellipse arcs, which no volume lane reads yet
+/// stop one layer later, at the result gate's check 7: their wall
+/// carries a ring trimmed by ellipse arcs, which no volume lane reads yet
 /// (`work/props/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`).
 #[test]
 fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
@@ -306,13 +306,15 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
     ] {
         assert!(
             matches!(
-                out,
-                Err(BooleanError::VolumeUnmeasured {
-                    source: topo::MassPropsError::RingOnCurvedFace { .. },
-                    ..
-                })
+                &out,
+                Err(BooleanError::ResultInvalid { errors })
+                    if matches!(errors.as_slice(), [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::RingOnCurvedFace { .. },
+                        ..
+                    }])
             ),
-            "turned thin bar, {op}: expected the ellipse-ringed wall's volume backstop, got {:?}",
+            "turned thin bar, {op}: expected the result gate's check 7 on the ellipse-ringed \
+             wall, got {:?}",
             out.map(|_| "a body")
         );
     }

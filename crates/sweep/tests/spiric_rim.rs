@@ -20,7 +20,6 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
@@ -309,7 +308,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 }
 
 /// **Row 11 — the census refusals reachable through public doors**,
-/// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
+/// on the vessel's cavity: the at-rest gate a boolean operand is
+/// finished through (check 7's spiric cap, the props door below), the mesh's trimmed
 /// lane (its torus/plane roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer, which now WRITES an export-only spline and
@@ -323,12 +323,20 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = finished("the vessel cavity", cavity, tol());
-    let other = finished("the klein elbow", klein_elbow_of_disc(0.1), tol());
-    let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
+    let errors = topo::AtRestBody::validate(cavity.clone(), tol())
+        .expect_err("the cavity is not a finished body, so no boolean takes it");
     assert!(
-        matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
-        "the operand gate names the spiric edge, got {e:?}"
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::Unimplemented,
+                    ..
+                },
+                ..
+            }]
+        ),
+        "the at-rest gate refuses the spiric cap's volume, as the props door does, got {errors:?}"
     );
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");

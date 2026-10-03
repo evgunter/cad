@@ -10,10 +10,10 @@
 //! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's.
 
 use geom_core::{Point3, Tol};
+use sweep::test_support::finished;
 use topo::test_support::{
     FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
 };
-use sweep::test_support::finished;
 use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
 
 /// The signed area of a simple polygon (positive counter-clockwise).

@@ -854,49 +854,37 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     }
 }
 
-/// **The routing reads the SECOND face's sense, not the first's
-/// twice.** `verify_tangent_declaration` resolves each declared face
-/// once and hands `classify_shared_rim` one bit per face. The two
-/// arguments are adjacent `bool`s of the same type, so a call site
-/// passing the plus face's bit in both positions compiles — and every
-/// row above still passes, because both fixtures there carry
-/// `sense: true` on every wall and the two arguments are equal by
-/// accident.
-///
-/// This row removes the accident. It is the kissing pair — whose
-/// unflipped verdict is the slit, the row above — with the SECOND
-/// body's walls reversed through the public `Body::set_face_sense`.
-/// The outward normals then agree across the rim, so the routing must
-/// answer the seam; a door reading the first bit twice would still
-/// answer the slit.
+/// **A torus whose walls' sense bits are reversed is not a finished
+/// body**, so it cannot carry the guard this row was: that the
+/// routing reads the SECOND face's sense and not the first's twice
+/// (`verify_tangent_declaration` hands `classify_shared_rim` one bit
+/// per face, two adjacent `bool`s a transposed call site compiles
+/// with). Reversing the outer torus's walls through `Body::set_face_sense`
+/// turns their outward normals inward, and the at-rest gate refuses
+/// exactly those walls. The guard waits on a finished fixture whose two
+/// sides carry different bits
+/// (`work/tang/the-rim-routings-sense-guard-has-no-finished-fixture.md`).
 #[test]
 fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
-    let (a, b) = kissing_pair();
+    let (_, b) = kissing_pair();
     let mut b = b.into_body();
-    for fb in torus_faces(&b, TUBE) {
+    let mut walls = torus_faces(&b, TUBE);
+    for &fb in &walls {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
-    let b = finished("the sense-flipped outer torus", b, Tol::witness());
-    // The premise, stated rather than assumed: the two operands' walls
-    // now carry DIFFERENT bits, so the second argument is load-bearing.
-    let sense_of = |body: &Body<f64>| {
-        let f = torus_faces(body, TUBE)[0];
-        body.get_face(f).expect("the wall face resolves").sense
-    };
-    assert_ne!(
-        sense_of(&a),
-        sense_of(&b),
-        "the fixture must put different sense bits on the two sides of the rim"
-    );
-
-    let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("aligned senses contradict a Tangent claim");
-    assert!(
-        is_tangent_on_a_seam(&err),
-        "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"
-    );
+    let errors = topo::AtRestBody::validate(b, Tol::witness())
+        .expect_err("inward walls are not a finished body");
+    let mut inverted: Vec<_> = errors
+        .iter()
+        .map(|e| match e {
+            topo::ValidationError::CurvedSenseInverted { face, .. } => *face,
+            other => panic!("a finding other than the reversed walls': {other:?}"),
+        })
+        .collect();
+    inverted.sort();
+    walls.sort();
+    assert_eq!(inverted, walls, "the gate names each reversed wall once");
 }
 
 /// The coincident planar end faces across the two operands, declared
