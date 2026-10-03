@@ -1671,12 +1671,12 @@ fn the_contact_class_mirror_matches_the_kernel() {
 #[test]
 fn declare_error_tags_are_stable() {
     use crate::tags::declare_error_tag;
-    use pncad::select::{DeclareError, declare_node};
+    use pncad::select::declare_all;
 
-    let empty =
-        declare_node::<pncad::document::ProfileProgram>(&[]).expect_err("an empty declare refuses");
+    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
+    let empty = declare_all(&doc, pncad::document::RecipeNodeId(1), &[], Tol::witness())
+        .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
-    assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
 /// The binding matches `Expr::literal`'s OWN refusals rather than
@@ -2706,6 +2706,22 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
+    carries(
+        &E::DeclaredSiteNotAnOperand {
+            node: sp(1),
+            name: named(),
+            site: sp(2),
+        },
+        &["node", "input", "name"],
+    );
+    carries(
+        &E::DeclaredNameNotUpstream {
+            node: sp(1),
+            name: named(),
+        },
+        &["node", "name"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -2801,13 +2817,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
     carries(
         &E::DuplicateInput {
-            node: sp(1),
-            input: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
-        &E::DeclareInputNotDeclare {
             node: sp(1),
             input: sp(2),
         },
@@ -4729,20 +4738,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_inner_tag",
         values: &[],
-        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
+        delegates: &["placement_rule_inner_tag"],
     },
     TagEntry {
         function: "boundary_edit_tag",
         values: &[
             "mate_head_not_a_face",
             "name_serialize",
+            "no_minted_id",
             "param_name_not_an_identifier",
         ],
-        delegates: &[
-            "declare_error_tag",
-            "label_fault_tag",
-            "placement_rule_fault_tag",
-        ],
+        delegates: &["label_fault_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4825,7 +4831,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "declare_error_tag",
-        values: &["no_findings", "no_minted_id"],
+        values: &["no_findings"],
         delegates: &["edit_error_tag"],
     },
     TagEntry {
@@ -4856,8 +4862,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_dimension",
             "assertion_target",
             "continuous_param_cannot_be_count",
-            "declare_input_not_declare",
             "declare_names_missing_node",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "delete_would_dangle",
             "dimension",
             "doc_param_count_has_no_distribution",
@@ -4915,6 +4922,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "repeated_designation",
             "selection_not_canonical",
+            "set_declare_on_non_declaring",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -5157,12 +5165,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &[
-            "offset_cleared",
-            "orphaned_declare",
-            "strand",
-            "stranded_appearance",
-        ],
+        values: &["offset_cleared", "strand", "stranded_appearance"],
         delegates: &[],
     },
     TagEntry {
@@ -5843,7 +5846,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_bound",
             "assertion_target",
             "dangling_input",
-            "declare_input",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",
@@ -6236,6 +6240,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // One fact at two doors: `node::declared_side_fault`, asked by the
+    // edit doors and by the load door.
+    ("declared_name_not_upstream", 2),
+    ("declared_site_not_an_operand", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
     // `unrepresentable_surface_datum` there); at the Boolean's pierce
@@ -9902,7 +9910,6 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "boolean_union",
     "chamfer",
     "datum",
-    "declare",
     "extrude",
     "fillet",
     "gauge",

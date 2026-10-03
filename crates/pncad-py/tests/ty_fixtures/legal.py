@@ -480,20 +480,22 @@ declared_stadium: ClosedLoop = (
 )
 
 # LIB-PYG5: the detect/declare protocol, typed end to end. Findings
-# are values; the declare doors consume THEM, not name text; the id
-# feeds the boolean's declare= input.
+# are values; the declare doors consume THEM, not name text: the
+# boolean's declare= list, and the doors that set it on a live node.
 findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
 first_relation: PlaneRelation = findings[0].relation
 first_class: BooleanCoincidence = findings[0].class_
 first_rung: FlushRung = findings[0].rung
 opaque_a: str = findings[0].a
 opaque_b: str = findings[0].b
-decl_one: NodeId = doc.declare(findings[0])
-decl_many: NodeId = doc.declare_all(findings)
-decl_node: NodeId = doc.insert(Node.declare(findings))
 glued: NodeId = doc.insert(
-    Node.boolean(BooleanOp.Union, plate, lightened, declare=decl_many)
+    Node.boolean(BooleanOp.Union, plate, lightened, declare=findings)
 )
+fused_declared: Node = Node.union([plate, lightened], declare=findings)
+declared_one: None = doc.declare(glued, findings[0])
+declared_many: None = doc.declare_all(glued, findings)
+redeclared: DocEdit = DocEdit.set_declare(glued, findings)
+cleared: DocEdit = DocEdit.set_declare(glued, [])
 
 # LIB-PYPU: the group boolean and its placement vocabulary. Lengths
 # and angles are typed; the count is a plain int (the structural-slot

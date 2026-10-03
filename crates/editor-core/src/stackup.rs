@@ -900,6 +900,9 @@ impl Digest {
 /// digest identically exactly when their value channels agree.
 fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
     let mut d = Digest::new();
+    // VALUE-DIGEST-ARMS BEGIN — the sentinels
+    // `value_digest_tags_reuse_no_retired_number` reads: each arm's
+    // first `d.u64` after its `=>` is its tag.
     match payload {
         ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
             d.u64(10);
@@ -997,10 +1000,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        ValuePayload::Declarations(pairs) => {
-            d.u64(20);
-            d.u64(pairs.len() as u64);
-        }
+        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
         ValuePayload::Mate(_) => d.u64(21),
         ValuePayload::Gauge => d.u64(26),
         ValuePayload::Measure { value, .. } => {
@@ -1030,8 +1030,14 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             }
         }
     }
+    // VALUE-DIGEST-ARMS END
     d.0
 }
+
+/// The tag numbers [`payload_digest`]'s arms may not use: retired with
+/// the payloads that held them, and dead for good.
+#[cfg(test)]
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 // ------------------------------------------------- the verdict's tie
 
@@ -1995,8 +2001,61 @@ fn worst_case(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
+    use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
     use crate::ParamName;
+
+    /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
+    /// A source census, for the reason `node_kind_vocabulary_is_injective`
+    /// gives: the tags live in a match over a payload, and constructing
+    /// one of every payload would be a fixture larger than the property.
+    /// An arm is a line at the match's own indent opening on
+    /// `ValuePayload::`; its tag is the first `d.u64(<number>)` after the
+    /// arm's `=>`. A nested match's numbers sit after that one, so they
+    /// are never read. What it cannot see: an arm whose tag is computed
+    /// rather than written. None exists.
+    #[test]
+    fn value_digest_tags_reuse_no_retired_number() {
+        const SOURCE: &str = include_str!("stackup.rs");
+        let region = test_utils::source::sentinel_region(
+            SOURCE,
+            "stackup.rs",
+            "VALUE-DIGEST-ARMS BEGIN",
+            "VALUE-DIGEST-ARMS END",
+        );
+        let code = test_utils::source::code_and_literals(SOURCE);
+        let code = &code[region];
+        let starts: Vec<usize> = code
+            .match_indices("\n        ValuePayload::")
+            .map(|(at, _)| at + 1)
+            .collect();
+        // A census that read nothing would pass vacuously.
+        assert!(
+            starts.len() >= 10,
+            "the arm census found only {} arms — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            starts.len()
+        );
+        for (i, &at) in starts.iter().enumerate() {
+            let arm = &code[at..starts.get(i + 1).copied().unwrap_or(code.len())];
+            let head = arm.lines().next().unwrap_or_default().trim();
+            let body = &arm[arm
+                .find("=>")
+                .unwrap_or_else(|| panic!("`{head}` has no `=>`"))..];
+            let digits: String = body
+                .split_once("d.u64(")
+                .unwrap_or_else(|| panic!("`{head}` writes no tag"))
+                .1
+                .chars()
+                .take_while(char::is_ascii_digit)
+                .collect();
+            let tag: u64 = digits
+                .parse()
+                .unwrap_or_else(|_| panic!("`{head}`'s tag is not a number literal"));
+            if let Some((_, held_by)) = RETIRED_VALUE_DIGEST_TAGS.iter().find(|(t, _)| *t == tag) {
+                panic!("`{head}` re-uses value-digest tag {tag}, retired with {held_by}");
+            }
+        }
+    }
 
     test_utils::f6_variants! {
         /// Every [`Unavailable`] arm, welded to the enum by the match

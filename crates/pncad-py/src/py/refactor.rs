@@ -4,9 +4,8 @@
 //! Both families are PURE. `split` and `inline` hand back the new
 //! document VALUES plus the ordinary recorded edits that produce them,
 //! and mutate nothing; `update_references` hands back an edit list and
-//! applies none of it. That is what makes each of them atomic at the
-//! caller's single step — there is no partially applied state to roll
-//! back from, because the caller applies the whole list or none of it.
+//! applies none of it, each edit one site's and independent of the
+//! rest.
 //!
 //! Persisting a result is the store's write side (`Workspace.create`
 //! for a new part document, `Workspace.resave` for a rewritten one).
@@ -967,10 +966,10 @@ pub(crate) fn mixed_pins(doc: &Doc) -> Vec<PinMultiplicity> {
 /// the caller's fact; `Workspace.update_to_store` is the door that
 /// computes one from disk, and it says exactly when it reads.
 ///
-/// The caller applies the whole list or none of it, and that
-/// all-or-nothing is what "atomic" means here: there is no partially
-/// applied state to roll back from, because applying is the caller's
-/// single step.
+/// Each edit moves one site and reads no other edit's result, so the
+/// edits apply in any order, and any subset leaves an authorable
+/// mixed-pin state (`mixed_pins` reads it). "Update everywhere" is the
+/// whole list.
 ///
 /// A site already pinning `new_pin` contributes NO edit — mixed-pin
 /// state is authorable, so "update everywhere" stays usable from the

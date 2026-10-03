@@ -39,3 +39,13 @@ the bulb only; the elbows it used to build left the scene.
 and un-banked, and a path node that carries this spine (an
 interpolated curve, or a join of two arcs) — and the audit's row 15
 flips back to YES with `TestKlein` building the loop.
+
+## A second scene on the same two doors
+
+SHOW's `long-turn-helix-has-no-demo` (2026-10-03) put a six-turn
+square-wire spring in `projectbox` (`demos/tour/src/projectbox.rs`,
+`coil` / `spring`): one `sweep_body` along a helix interpolated through
+32 points a turn. Same sweep bank, same missing interpolated-curve
+node — or a helix node, which would carry the exact curve rather than
+an interpolant of it. The audit's row 40 moved from YES to NO on it;
+it flips back with this row, `TestProjectbox` building the spring.

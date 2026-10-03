@@ -177,6 +177,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
+            "SetDeclareOnNonDeclaring",
+            EditError::SetDeclareOnNonDeclaring {
+                node: s(5, "Extrude"),
+            },
+        ),
+        (
             "SetProgramOnNonProfile",
             EditError::SetProgramOnNonProfile {
                 node: s(5, "Extrude"),
@@ -273,13 +279,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::AssertionTarget {
                 node: s(6, "Assertion"),
                 measure: s(5, "Extrude"),
-            },
-        ),
-        (
-            "DeclareInputNotDeclare",
-            EditError::DeclareInputNotDeclare {
-                node: s(6, "Union"),
-                input: s(5, "Extrude"),
             },
         ),
         (

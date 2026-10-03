@@ -272,6 +272,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
@@ -306,8 +307,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(input.id()),
             ..none
         },
-        EditError::DuplicateInput { node, input }
-        | EditError::DeclareInputNotDeclare { node, input } => EditPayload {
+        EditError::DuplicateInput { node, input } => EditPayload {
             node: Some(node.id()),
             input: Some(input.id()),
             ..none
@@ -484,6 +484,19 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // (the `ProductError` arm's precedent, same refusal one door
         // over).
         EditError::EvaluationOfAnotherDocument { .. } => none,
+        // The declaring node, the side's name, and the node the side
+        // is read at, which is not one of the node's operands.
+        EditError::DeclaredSiteNotAnOperand { node, name, site } => EditPayload {
+            node: Some(node.id()),
+            input: Some(site.id()),
+            name: Some(name.name()),
+            ..none
+        },
+        EditError::DeclaredNameNotUpstream { node, name } => EditPayload {
+            node: Some(node.id()),
+            name: Some(name.name()),
+            ..none
+        },
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }

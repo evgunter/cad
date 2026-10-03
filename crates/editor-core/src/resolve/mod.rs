@@ -2260,6 +2260,9 @@ pub fn apply_with_names<T: Decide>(
     match edit {
         DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
+        DocEdit::SetDeclare { pairs, .. } => {
+            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
