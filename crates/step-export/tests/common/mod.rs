@@ -10,6 +10,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
 
@@ -241,9 +242,16 @@ pub fn cut_cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let phi: f64 = 0.3;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
@@ -273,7 +281,10 @@ pub fn boss_union() -> Body<f64> {
     ]);
     let plate = extrude(
         &validated(SketchPlane::xy(), plate_loop),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -288,9 +299,16 @@ pub fn boss_union() -> Body<f64> {
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.2), Tol::witness())
-        .unwrap()
-        .body;
+    let boss = extrude(
+        &boss_profile,
+        Extrusion::Distance {
+            depth: 1.2,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let BooleanResult::Body(bb) = union(&plate, &boss, Tol::witness()).unwrap() else {
         panic!("the boss union yields a body");
     };
@@ -314,7 +332,10 @@ pub fn notched() -> Body<f64> {
     ]);
     extrude(
         &validated(SketchPlane::xy(), lp),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -343,7 +364,10 @@ pub fn two_stub_complement() -> Body<f64> {
                 Point2::new(0.0, 3.0),
             ]),
         ),
-        Extrusion::Distance(0.8),
+        Extrusion::Distance {
+            depth: 0.8,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -360,7 +384,10 @@ pub fn two_stub_complement() -> Body<f64> {
         &Profile::new(sketch, vec![boss_loop])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.2),
+        Extrusion::Distance {
+            depth: 1.2,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -501,9 +528,16 @@ pub fn filleted_die() -> Body<f64> {
     let prof = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol)
         .expect("the die's square");
-    let body = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the cube")
-        .body;
+    let body = sweep::extrude(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cube")
+    .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     sweep::blend::build::fillet_edges(&body, &edges, 0.12, Tol::witness())
         .expect("the die blank")

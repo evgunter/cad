@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_core::Tol;
@@ -53,9 +54,16 @@ fn revolved_tube() -> Body<f64> {
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &disc(),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -229,9 +237,16 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     let profile = Profile::new(SketchPlane::xy(), vec![square])
         .validate(Tol::witness())
         .unwrap();
-    let mut prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let mut prism = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     assert_eq!(prism.pcurves().count(), 0);
     topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
@@ -435,7 +450,10 @@ fn caches_certify_on_the_interval_lane() {
         .unwrap();
     let body = extrude(
         &profile,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

@@ -54,6 +54,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::seam_pairs::meeting;
 use geom::SurfaceKind;
@@ -135,7 +136,16 @@ fn rod_z(r: f64, z0: f64, len: f64) -> Body<f64> {
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
-    extrude(&p, Extrusion::Distance(len), tol).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// A revolved cap standing on `z = H`: the profile (sketch x radial,
@@ -794,7 +804,16 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
-    let rod = extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body;
+    let rod = extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     for e in union_both_orders(&slab, &rod, &[], &[], None) {
         // Which of the two the run's band lands on is ε-dependent: the
         // `B ∪ A` order escalates at the default ε on a contact-vertex

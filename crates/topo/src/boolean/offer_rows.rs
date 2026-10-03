@@ -1871,6 +1871,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
+        | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
         // to execute: this census does not reach them.
         | BooleanErrorKind::CrossingInsertion

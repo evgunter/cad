@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -56,6 +57,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -265,6 +267,7 @@ fn row1_split_plain_subtree_preserves_structure() {
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let opts = EvalOptions::default();
@@ -556,6 +559,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p1,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, f2) = insert(doc, xy_frame());
@@ -565,6 +569,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p2,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     match split(
@@ -931,6 +936,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let mut doc = doc;
@@ -1101,6 +1107,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: cut_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let straddler = StableName {
@@ -1126,6 +1133,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: kept_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -1596,6 +1604,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (part_doc, _) = insert(
@@ -1680,6 +1689,7 @@ fn reshaped_component(
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let program = match doc.node(p2) {

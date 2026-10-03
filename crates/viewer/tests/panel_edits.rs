@@ -12,6 +12,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use editor_core::ExtrudeSide;
 
 use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
@@ -58,6 +59,7 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -114,6 +116,7 @@ fn literal_and_pattern_doc(
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -461,6 +464,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -861,6 +865,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
         pncad::document::Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

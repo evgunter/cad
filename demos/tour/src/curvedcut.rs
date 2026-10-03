@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, p3, polygon, v3, validated};
 use pncad::geom_core::{OrthoFrame, Tol};
@@ -211,9 +212,16 @@ fn glyph_t<S: Scalar>(tol: Tol) -> Glyph<S> {
 /// normal so the tool straddles that face.
 fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol) -> Body<S> {
     let profile = validated(plane, vec![outline], tol).expect("a glyph validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(2.0 * DEPTH)), tol)
-        .expect("extrude a glyph")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(2.0 * DEPTH),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude a glyph")
+    .body
 }
 
 /// The xy sketch plane at height `z`.
@@ -247,9 +255,16 @@ fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (Body<S>, Body<S>) {
 /// Engraves the cap, then cuts the cylinder by the tilted plane
 /// through mid-height.
 pub fn build<S: Scalar>(tol: Tol) -> Cut<S> {
-    let cylinder = extrude(&disc::<S>(tol), Extrusion::Distance(S::from_f64(H)), tol)
-        .expect("extrude cylinder")
-        .body;
+    let cylinder = extrude(
+        &disc::<S>(tol),
+        Extrusion::Distance {
+            depth: S::from_f64(H),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude cylinder")
+    .body;
     let mut stages = vec![cylinder];
     for g in lettering::<S>(tol) {
         let last = stages.last().expect("the cylinder is the first stage");

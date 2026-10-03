@@ -1670,6 +1670,38 @@ const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
     }
 }
 
+/// Which side of its sketch plane a `Node.extrude` goes toward.
+///
+/// The binding of the kernel's `ExtrudeSide`, mirrored for the reason
+/// [`BooleanOp`] is, and held to it the same way
+/// ([`_binds_every_kernel_side`]).
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ExtrudeSide {
+    /// Along the sketch plane's normal `u × v`.
+    Along,
+    /// Against it.
+    Against,
+}
+
+impl ExtrudeSide {
+    fn to_document(self) -> d::ExtrudeSide {
+        match self {
+            Self::Along => d::ExtrudeSide::Along,
+            Self::Against => d::ExtrudeSide::Against,
+        }
+    }
+}
+
+/// Every kernel side has a member on the python mirror — the match is
+/// over the KERNEL enum. Never called.
+const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
+    match kernel {
+        d::ExtrudeSide::Along => ExtrudeSide::Along,
+        d::ExtrudeSide::Against => ExtrudeSide::Against,
+    }
+}
+
 /// **Which body of a multi-body value a `Node.part` selects**: the
 /// named half of a split, or one instance of a pattern by index.
 ///
@@ -2058,20 +2090,30 @@ impl Node {
         })
     }
 
-    /// Extrude an upstream profile along its sketch-plane normal.
+    /// Extrude an upstream profile to one side of its sketch plane.
     ///
-    /// `distance` is the node's `distance` slot, written at
-    /// authoring. `DocEdit.set_param(node, "distance", expr)` is what
-    /// moves it afterwards, and what makes it a named, editable
-    /// number: a literal is a new document per value, a parameter
-    /// reference is one `set_doc_param_value` per value.
+    /// `distance` is the node's `distance` slot, a depth: a size,
+    /// refused at `evaluate` unless definitely positive. Which way it
+    /// goes is `side` alone — along the plane's normal unless told
+    /// otherwise — and `DocEdit.set_extrude_side` moves it afterwards.
+    /// `DocEdit.set_param(node, "distance", expr)` is what moves the
+    /// depth, and what makes it a named, editable number: a literal is
+    /// a new document per value, a parameter reference is one
+    /// `set_doc_param_value` per value.
     #[staticmethod]
-    fn extrude(py: Python<'_>, profile: &NodeId, distance: &super::expr::Expr) -> PyResult<Self> {
+    #[pyo3(signature = (profile, distance, side = ExtrudeSide::Along))]
+    fn extrude(
+        py: Python<'_>,
+        profile: &NodeId,
+        distance: &super::expr::Expr,
+        side: ExtrudeSide,
+    ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
                 profile: profile.0,
                 distance,
+                side: side.to_document(),
             },
         })
     }
@@ -3898,6 +3940,19 @@ impl DocEdit {
         }
     }
 
+    /// Set which side of its sketch plane the extrude `node` goes
+    /// toward — the structural half of an extrude that no value of its
+    /// depth can flip. Refuses typed on a node that is not an extrude.
+    #[staticmethod]
+    fn set_extrude_side(node: &NodeId, side: ExtrudeSide) -> Self {
+        Self {
+            inner: d::DocEdit::SetExtrudeSide {
+                node: node.0,
+                side: side.to_document(),
+            },
+        }
+    }
+
     /// Bind `node`'s STRUCTURAL instance slot to the document
     /// parameter `name` — the edit that makes a `Node.part`'s index
     /// into a pattern a named, editable number.
@@ -4375,6 +4430,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;
+    m.add_class::<ExtrudeSide>()?;
     m.add_class::<PartSelect>()?;
     m.add_class::<TubeWindow>()?;
     m.add_class::<Loaded>()?;

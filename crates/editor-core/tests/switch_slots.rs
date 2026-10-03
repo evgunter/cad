@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
@@ -620,6 +621,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Extrude {
             profile: nid(1),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1),

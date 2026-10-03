@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fmt::Write as _;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
@@ -265,7 +266,10 @@ fn sample(kind: VerbKind) -> Verb<f64> {
             edges: Vec::new(),
             distance: 0.1,
         },
-        VerbKind::Extrude => Verb::Extrude { distance: 1.0 },
+        VerbKind::Extrude => Verb::Extrude {
+            distance: 1.0,
+            side: ExtrudeSide::Along,
+        },
         VerbKind::Revolve => Verb::Revolve {
             axis: x_axis(),
             revolution: Revolution::Full,
@@ -425,9 +429,12 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     );
 
     let cube = sweep::test_support::cube(1.0, tol());
-    let err = Verb::Extrude { distance: 1.0_f64 }
-        .run(&cube, tol())
-        .expect_err("an extrude is not a one-body verb");
+    let err = Verb::Extrude {
+        distance: 1.0_f64,
+        side: ExtrudeSide::Along,
+    }
+    .run(&cube, tol())
+    .expect_err("an extrude is not a one-body verb");
     assert_eq!(
         err.to_string(),
         "the Extrude verb was run through the One door; the door that answers it is Profile"
@@ -650,10 +657,21 @@ fn a_split_refusal_crosses_the_dispatch_unaltered() {
 #[test]
 fn the_extrude_dispatch_is_the_extrude_door() {
     let profile = disc(0.5);
-    let door = sweep::extrude(&profile, Extrusion::Distance(1.0), tol()).unwrap();
-    let via = Verb::Extrude { distance: 1.0 }
-        .run_profile(&profile, tol())
-        .unwrap();
+    let door = sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap();
+    let via = Verb::Extrude {
+        distance: 1.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&profile, tol())
+    .unwrap();
 
     let VerbRecord::Extrude(via) = via else {
         panic!("an extrude run produced another family's record");
@@ -714,10 +732,21 @@ fn the_revolve_dispatch_is_the_revolve_door() {
 #[test]
 fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
     let profile = disc(0.5);
-    let door = sweep::extrude(&profile, Extrusion::Distance(0.0), tol()).unwrap_err();
-    let via = Verb::Extrude { distance: 0.0 }
-        .run_profile(&profile, tol())
-        .unwrap_err();
+    let door = sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap_err();
+    let via = Verb::Extrude {
+        distance: 0.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&profile, tol())
+    .unwrap_err();
     let VerbError::Extrude(carried) = via else {
         panic!("an extrude refusal crossed as another family's: {via:?}");
     };

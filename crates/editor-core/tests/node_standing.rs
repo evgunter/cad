@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
+use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
@@ -76,6 +77,7 @@ impl Standings {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, poisoned) = insert(
@@ -350,6 +352,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
         Node::Extrude {
             profile,
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(

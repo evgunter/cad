@@ -29,7 +29,7 @@ mod certified {
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
-    use sweep::{Extrusion, extrude};
+    use sweep::{ExtrudeSide, Extrusion, extrude};
     use topo::{Body, mass_properties};
 
     use crate::common::interval::{iv, p2, p3};
@@ -57,7 +57,10 @@ mod certified {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(iv(1.0)),
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -154,9 +157,16 @@ mod certified {
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let b = extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
-            .unwrap()
-            .body;
+        let b = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(0.4),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
 
         let notch = PI * 0.25 / 2.0;
         let out = topo::intersect(&a, &b, Tol::witness()).expect("the split decides at Interval");

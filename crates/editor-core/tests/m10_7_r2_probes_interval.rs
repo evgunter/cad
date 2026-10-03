@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
@@ -131,6 +132,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let _body = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
 
     let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
@@ -145,6 +147,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         r.insert(Node::Extrude {
             profile,
             distance: thickness.clone(),
+            side: ExtrudeSide::Along,
         })
     };
     let bore_a = bore(&mut r, BORE_A_X, "bore_a");
@@ -495,6 +498,7 @@ fn collinear_walls() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }

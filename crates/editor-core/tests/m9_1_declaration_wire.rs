@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
 };
@@ -166,6 +167,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: fixture::len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

@@ -81,7 +81,7 @@ let (next, profile) = insert(
     Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
+let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along });
 doc = next;
 // The datum the position rule is written against — one argument,
 // and the rule now moves WITH the part.
@@ -196,6 +196,7 @@ let (next, cube) = insert(
     Node::Extrude {
         profile,
         distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -365,6 +366,7 @@ let (next, cube) = insert(
     Node::Extrude {
         profile,
         distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -459,10 +461,10 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, ground) = insert(&doc, frame_at(0.0));
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0), side: ExtrudeSide::Along });
 let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5), side: ExtrudeSide::Along });
 
 // Undeclared, the union refuses — coincidence is never inferred
 // from values (the coincidence ladder).

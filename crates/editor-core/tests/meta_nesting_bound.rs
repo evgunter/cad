@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -230,6 +231,7 @@ fn extrude_body() -> (Recorder, StableName) {
     let extrude = r.insert(Node::Extrude {
         profile,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let body = StableName {
         kind: EntityKind::Body,

@@ -49,6 +49,7 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -384,6 +385,7 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -1575,6 +1577,7 @@ fn arc_prism(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, exprs)
@@ -1873,6 +1876,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1983,6 +1987,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2257,6 +2262,7 @@ fn rotated_arc_prism(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, vec![r1, r2])
@@ -2652,6 +2658,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2752,6 +2759,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

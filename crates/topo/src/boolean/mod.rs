@@ -1829,11 +1829,9 @@ pub enum BooleanError {
     /// there, in a way the insertion cannot place: an operand holds
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and either both operands hold several (two
-    /// crossing pairs share both their vertices), or the pairs' cuts
-    /// in the shared vertex's orbit interleave, cannot be ordered
-    /// within one corner, or fall between a dangling null edge's two
-    /// germs (`insert::reconcile_shared`).
+    /// neighborhoods, and the pairs' cuts in the shared vertex's orbit
+    /// interleave, cannot be ordered within one corner, or fall between
+    /// a dangling null edge's two germs (`insert::reconcile_shared`).
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -1843,6 +1841,24 @@ pub enum BooleanError {
         /// crosses into, in classification order: the first two, when
         /// it crosses into more.
         partners: [VertexKey; 2],
+    },
+    /// The result would hold a non-manifold vertex: both operands hold
+    /// several vertices at one point, and A's crosses into two of B's
+    /// (two crossing pairs share both their vertices). Each solid's
+    /// pinch line runs into the point, one from below with its pieces'
+    /// corners at the far end, so its two coincident edges pair each
+    /// piece's own faces, while the corners the union leaves empty at
+    /// the point are each bounded by a face of both pieces: every
+    /// such edge ends at one vertex whose orbit passes the line twice.
+    /// That shared-entity wedge fan is unrepresentable
+    /// (`docs/DESIGN.md`, D1 tier 3′, "Representability boundary"), so
+    /// this refusal is permanent at any tolerance
+    /// (`insert::reconcile_shared`).
+    NonManifoldResult {
+        /// A's vertex at the point.
+        a_vertex: VertexKey,
+        /// Two of B's vertices there that it crosses into.
+        b_vertices: [VertexKey; 2],
     },
     /// A classification invariant failed (e.g. a surviving record
     /// without one IN and one OUT code per side) — a kernel bug
@@ -2367,6 +2383,8 @@ pub enum BooleanErrorKind {
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
+    /// [`BooleanError::NonManifoldResult`].
+    NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
     /// [`BooleanError::CorruptOperand`].
@@ -2560,6 +2578,7 @@ impl BooleanError {
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
+            Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3000,6 +3019,13 @@ impl core::fmt::Display for BooleanError {
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::NonManifoldResult { .. } => write!(
+                f,
+                "the result would meet itself in a fan of faces around one point, where \
+                 both solids' pinch lines overlap: no boundary representation can hold \
+                 that, at any tolerance. Recourse: move the parts so their pinch lines do \
+                 not overlap along a length (meeting end to end at a point builds)"
             ),
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
@@ -5214,6 +5240,10 @@ mod tests {
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
             },
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
+            },
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
@@ -5381,6 +5411,7 @@ mod tests {
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
+                BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

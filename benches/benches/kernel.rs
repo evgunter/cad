@@ -149,7 +149,10 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         .expect("the slab profile validates");
     extrude(
         &profile,
-        Extrusion::Distance(real(z.1 - z.0)),
+        Extrusion::Distance {
+            depth: real(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("the slab extrudes")
