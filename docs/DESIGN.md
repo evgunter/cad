@@ -386,7 +386,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. Which solids are one part stays recipe
+  operand. A product (gathered, possibly mated parts) is not a boolean
+  operand: the editor refuses it, naming the explicit cross-instance
+  union that makes its members one body
+  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
   The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
