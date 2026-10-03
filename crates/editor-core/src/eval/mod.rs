@@ -3437,8 +3437,17 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         crate::mate::solve::quoted_residual(g, band)
     }
 
+    /// Across the negative `x` axis the principal branch's cut widens
+    /// the enclosure to the whole circle, so there the angle is read on
+    /// the branch about `π`: the solve reads an angle only through its
+    /// sine and cosine, which every branch encloses alike.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        geom_core::Real::atan2(y, x)
+        use geom_core::{Bounds, Real};
+        if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
+            Self::pi() + Real::atan2(-y, -x)
+        } else {
+            Real::atan2(y, x)
+        }
     }
 }
 
@@ -3478,7 +3487,11 @@ where
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
-/// own `atan2`, which records the expression.
+/// own `atan2`, which records the expression. Its value channel is
+/// therefore `Real::atan2` (`libm`'s at `f64`), not the platform one the
+/// `f64` and dual lanes keep, and may differ from the `f64` lane's by an
+/// ulp: `Sym` mints its value and its recorded node together inside
+/// `geom-core`, which has no door to set one beside the other.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Sym<T>
 where
     geom_core::Sym<T>: geom_core::Decide,

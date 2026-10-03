@@ -61,8 +61,13 @@ use crate::placement::{Frame, Motion};
 /// never decides one; an interval definitely or by escalating).
 ///
 /// What a scalar answers here beyond deciding is per scalar, like
-/// `eval`'s `SectionScalar`, and none of it is a decision: no method is
-/// read inside a branch.
+/// `eval`'s `SectionScalar`. No pose value is derived from
+/// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
+/// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
+/// refusal branches — `LeverRefusal::OutOfRange` where the arm is
+/// formed, `Unleverable` where it is asked to decide
+/// ([`Arm::decides_over`]) — and there an over-stated arm refuses
+/// sooner, never wrongly.
 pub trait SolveScalar: Decide {
     /// **The number a refusal quotes for a measurement made at this
     /// scalar** — a [`Clash`]'s length or residual, which the fault's
@@ -77,8 +82,8 @@ pub trait SolveScalar: Decide {
     /// reach, only ever needs to over-state: the length itself at
     /// `f64`; a dual's value channel, the `f64` lane's number; an
     /// interval's `hi`, read through `Bounds` at the seam as the
-    /// reach's is. Never decided on: it enters only the arm a verdict
-    /// is levered over.
+    /// reach's is. It enters only the arm, and through it the lever's
+    /// refusals.
     fn upper(self) -> f64;
 
     /// **Whether `map` is the stored identity, bit for bit** — the
@@ -100,11 +105,13 @@ pub trait SolveScalar: Decide {
     fn quoted_residual(g: Subgroup<Self>, band: Band) -> Result<Subgroup, FrameError>;
 
     /// **The solve's two-argument arctangent** — the angle the coset
-    /// fold solves for where two rotation constraints meet. At `f64`
-    /// the platform's `atan2`, the one the nominal solve has always
-    /// read; a dual's value channel reads that same one, so its value
-    /// is the `f64` lane's bits and its tangent is the dual's own; an
-    /// interval's is its certified enclosure.
+    /// fold solves for where two rotation constraints meet, read only
+    /// through its sine and cosine, and asked only of two radii decided
+    /// nonzero, never at the origin. At `f64` the platform's `atan2`,
+    /// the one the nominal solve has always read; a dual's value
+    /// channel reads that same one, so its value is the `f64` lane's
+    /// bits and its tangent is the dual's own; an interval's is an
+    /// enclosure on a branch its arguments do not cross.
     fn solve_atan2(y: Self, x: Self) -> Self;
 }
 

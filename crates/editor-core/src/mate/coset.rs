@@ -1014,7 +1014,7 @@ fn candidate_rotation<T: SolveScalar>(
                     // then refuses an assemblable pair: review MAJOR-1's
                     // two-pin pattern, inter-axis invariants matching but
                     // the patterns clocked apart.
-                    clocking_about(held, added, a1) * q1
+                    clocking_about(held, added, a1, band)? * q1
                 } else {
                     // Two distinct rotation axes. Write the unknown as
                     // `rot(a1, α)·Q1`; requiring it to fix a2 after the
@@ -1035,10 +1035,16 @@ fn candidate_rotation<T: SolveScalar>(
                             clash: reach.clash(),
                         });
                     }
-                    let vp = v.reject_from(a1);
-                    let tp = a2.reject_from(a1);
-                    let alpha = T::solve_atan2(vp.cross(tp).dot(a1), vp.dot(tp));
-                    Mat3::rotation_about(a1, alpha) * q1
+                    let lever = T::from_f64(arm.get());
+                    let alpha = turn_between(
+                        v.reject_from(a1),
+                        a2.reject_from(a1),
+                        a1,
+                        |r: Vec3<T>| Margin::levered(r.norm(), lever),
+                        "mate_rotation_two_axis_radius",
+                        band,
+                    )?;
+                    rotation_about(a1, alpha) * q1
                 }
             }
         },
@@ -1070,18 +1076,67 @@ fn candidate_rotation<T: SolveScalar>(
 /// Two arms need no angle: a side whose subgroup carries NO axis point
 /// states no position constraint (planar), and a held side with
 /// perpendicular translation freedom (planar again) can satisfy the
-/// added position constraint by TRANSLATING in stage two. Both return
-/// the identity, and `atan2(0, 0) = 0` makes the degenerate radii fall
-/// out the same way with no branch.
-fn clocking_about<T: SolveScalar>(held: Coset<T>, added: Coset<T>, u: UnitVec3<T>) -> Mat3<T> {
+/// added position constraint by TRANSLATING in stage two. A radius the
+/// band calls zero names no direction to turn: the added axis point
+/// lies on the held axis (a shaft in two coaxial bores), or `w` does.
+/// All three return the identity ([`turn_between`]).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when a radius lands in the band.
+fn clocking_about<T: SolveScalar>(
+    held: Coset<T>,
+    added: Coset<T>,
+    u: UnitVec3<T>,
+    band: Band,
+) -> Result<Mat3<T>, Indeterminate> {
     let (Some(p1), Some(p2)) = (axis_point(held.subgroup), axis_point(added.subgroup)) else {
-        return Mat3::identity();
+        return Ok(Mat3::identity());
     };
     let u = u.get();
     let w = (held.representative * added.representative.inverse()).transform_point(p2);
-    let from = (w - p1).reject_from(u);
-    let to = (p2 - p1).reject_from(u);
-    Mat3::rotation_about(u, T::solve_atan2(from.cross(to).dot(u), from.dot(to)))
+    let alpha = turn_between(
+        (w - p1).reject_from(u),
+        (p2 - p1).reject_from(u),
+        u,
+        Margin::norm3,
+        "mate_clocking_radius",
+        band,
+    )?;
+    Ok(rotation_about(u, alpha))
+}
+
+/// **The angle about `u` turning `from` onto `to`**, both normal to
+/// `u`, or `None` when either radius decides zero at `band` under the
+/// predicate `name`: no direction to turn, so no angle — the identity,
+/// whose radius mismatch (if any) the membership check measures. An
+/// angle is taken only between two radii decided nonzero, so the
+/// arctangent never reads the origin, where no scalar but `f64` has an
+/// answer (a dual's tangent is `0/0`, an interval's the whole circle).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when a radius lands in the band.
+fn turn_between<T: SolveScalar>(
+    from: Vec3<T>,
+    to: Vec3<T>,
+    u: Vec3<T>,
+    radius: impl Fn(Vec3<T>) -> Margin<T>,
+    name: &'static str,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    for r in [to, from] {
+        if decide(name, radius(r), band)? == Sign::Zero {
+            return Ok(None);
+        }
+    }
+    Ok(Some(T::solve_atan2(from.cross(to).dot(u), from.dot(to))))
+}
+
+/// The rotation about `u` by `alpha`, the identity where no angle was
+/// taken.
+fn rotation_about<T: Real>(u: Vec3<T>, alpha: Option<T>) -> Mat3<T> {
+    alpha.map_or_else(Mat3::identity, |alpha| Mat3::rotation_about(u, alpha))
 }
 
 /// The point a subgroup's axis is pinned through, `None` for the

@@ -337,6 +337,110 @@ fn lifted(label: &str) -> Lifted {
     }
 }
 
+/// **A shaft in two coaxial bores**: the bolt held by two coaxial mates
+/// on ONE line, so the second bore's axis point lies on the first's
+/// axis and the fold meets a clocking with no radius to turn
+/// (`clocking_about`'s degenerate arm). The clocking is then fixed
+/// either by a clocked coaxial rider and a planar rest
+/// ([`ShaftShape::ClockedRider`]), or by a planar rest and a third pin
+/// on a parallel axis a quarter off the first ([`ShaftShape::ParallelPin`]).
+/// The rest's slab frame rises with `rise`, which lifts the shaft one
+/// for one; `idle` is declared and read by nothing.
+struct Shaft {
+    doc: ProfileDoc,
+    opts: EvalOptions,
+    bolt: RecipeNodeId,
+    mates: Vec<RecipeNodeId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ShaftShape {
+    ClockedRider,
+    ParallelPin,
+}
+
+const RISE: f64 = 1.0;
+const IDLE: f64 = 0.5;
+
+fn rise() -> ParamName {
+    ParamName::from_static("rise")
+}
+
+fn idle() -> ParamName {
+    ParamName::from_static("idle")
+}
+
+/// The two bores' bolt-side and slab-side axis points, on the bolt's
+/// and the slab's own axis lines.
+type Bores = ([[f64; 3]; 2], [[f64; 3]; 2]);
+
+/// The bores on one line exactly: `(0.5, 0.5)` through the bolt,
+/// `(4, 4)` through the slab.
+const BORES: Bores = (
+    [[0.5, 0.5, 0.0], [0.5, 0.5, 2.0]],
+    [[4.0, 4.0, SLAB_HEIGHT], [4.0, 4.0, -1.0]],
+);
+
+fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
+    let p = parts(label);
+    let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
+    let bolt = bolts[0];
+    let doc = declare(doc, rise(), RISE, Dimension::Length);
+    let doc = declare(doc, idle(), IDLE, Dimension::Length);
+    let bore = |a: [f64; 3], b: [f64; 3], clocking: Option<f64>| Node::Mate {
+        a: head(p.bolt_foot(bolt)),
+        b: head(p.slab_top(slab)),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: authored(a, [0.0, 0.0, -1.0]),
+            b: authored(b, [0.0, 0.0, 1.0]),
+            primitive: MatePrimitive::Coaxial,
+            sense: AxisSense::Opposed,
+            clocking,
+        },
+    };
+    let rest = Node::Mate {
+        a: head(p.bolt_foot(bolt)),
+        b: head(p.slab_top(slab)),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+            b: MateFrame::on_part(Step::Rigid {
+                translation: [len(0.0), len(0.0), Expr::param(rise(), Dimension::Length)],
+                axis: [0.0, 0.0, 1.0].map(scl),
+                angle: ang(0.0),
+            }),
+            primitive: MatePrimitive::PlanarRest { offset: 0.25 },
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    };
+    let quarter = |x: [f64; 3]| [x[0] + 0.25, x[1], x[2]];
+    let then = match shape {
+        ShaftShape::ClockedRider => [bore(bolt_at[0], slab_at[0], Some(0.3)), rest],
+        ShaftShape::ParallelPin => [rest, bore(quarter(bolt_at[0]), quarter(slab_at[0]), None)],
+    };
+    let mut doc = doc;
+    let mut mates = Vec::new();
+    for node in [
+        bore(bolt_at[0], slab_at[0], None),
+        bore(bolt_at[1], slab_at[1], None),
+    ]
+    .into_iter()
+    .chain(then)
+    {
+        let (next, mate) = insert(doc, node);
+        doc = next;
+        mates.push(mate);
+    }
+    Shaft {
+        doc,
+        opts: p.opts(),
+        bolt,
+        mates,
+    }
+}
+
 // ---- The mate corpus ----
 
 /// **The mate corpus the fence is taken over** — one document per shape
@@ -678,6 +782,16 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         },
     );
     out.push(("cross-pin", doc, p.opts()));
+
+    // A shaft in two coaxial bores on one line, clocked by a rider or by
+    // a third pin: the fold's clocking with no radius to turn.
+    for (label, shape) in [
+        ("shaft-clocked-rider", ShaftShape::ClockedRider),
+        ("shaft-parallel-pin", ShaftShape::ParallelPin),
+    ] {
+        let s = shaft(&format!("msolve14-c-{label}"), shape, BORES);
+        out.push((label, s.doc, s.opts));
+    }
     out
 }
 
@@ -755,9 +869,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x268f_5381_0521_3733),
-    (1e-6, 0xd176_201a_fc8e_85a0),
-    (1e-12, 0x6f9e_46a1_13ef_c283),
+    (1e-9, 0x34d3_06c3_11f3_2995),
+    (1e-6, 0x6cc1_89f7_e1bf_79fd),
+    (1e-12, 0x3daf_7b67_cacc_631f),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
