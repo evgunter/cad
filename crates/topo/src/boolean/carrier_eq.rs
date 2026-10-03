@@ -52,6 +52,7 @@
 //! `Undeclared`, exactly as two bit-equal planes do — the declaration
 //! is what makes them one carrier, and nothing else is.
 
+use geom_brep::recourse::Classified;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::Contradiction;
@@ -106,10 +107,8 @@ pub enum CarrierEqError {
     /// LIB-PYG5 R3) — without re-running any decide on the error
     /// path.
     Undeclared {
-        /// The coincidence predicate's diagnostics (a decided-zero
-        /// margin encodes as `MarginKind::Invalid`; an in-band margin
-        /// rides as measured).
-        diag: Indeterminate,
+        /// What the coincidence measure read.
+        coincidence: CoincidenceMeasure,
         /// The decided orientation: [`CarrierRelation::SameOriented`]
         /// or [`CarrierRelation::SameOpposite`], never `Distinct`.
         relation: CarrierRelation,
@@ -133,6 +132,45 @@ pub enum CarrierEqError {
         /// verdict is definite, and the rung keeps no measure.
         diag: Indeterminate,
     },
+}
+
+/// What an undeclared coincidence's measure read
+/// ([`CarrierEqError::Undeclared`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CoincidenceMeasure {
+    /// Every datum decided zero: the pair would verify if declared.
+    /// The margin is the one the band decided for the named datum
+    /// (the plane's offset; a curved kind's first datum).
+    Zero {
+        /// The datum's predicate.
+        predicate: &'static str,
+        /// Its decided margin, with the band that decided it.
+        decided: Classified,
+    },
+    /// A datum, or the declared reading of the pair, did not decide
+    /// zero: in band, past it where the declared reading stands off,
+    /// or poisoned.
+    Undecided(Indeterminate),
+}
+
+impl CoincidenceMeasure {
+    /// The margin the measure read, with its band, as the payload a
+    /// refusal quotes.
+    #[must_use]
+    pub const fn reported(self) -> Indeterminate {
+        match self {
+            Self::Zero {
+                predicate,
+                decided: Classified { margin, band },
+            } => Indeterminate {
+                margin,
+                band,
+                predicate: Some(predicate),
+                terminal_sliver: false,
+            },
+            Self::Undecided(diag) => diag,
+        }
+    }
 }
 
 /// One carrier's conventional oriented description.
@@ -312,10 +350,20 @@ pub(super) fn pair_door_verdict<T: Decide>(
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
     match carrier_eq_verdict(c1, c2, id, extent, band) {
-        Err(CarrierEqError::Undeclared { diag, relation }) if diag.margin.is_invalid() => {
-            coincident_as_declared(c1, c2, extent, relation, band)
-                .map_err(|diag| CarrierEqError::Undeclared { diag, relation })?;
-            Err(CarrierEqError::Undeclared { diag, relation })
+        Err(CarrierEqError::Undeclared {
+            coincidence: coincidence @ CoincidenceMeasure::Zero { .. },
+            relation,
+        }) => {
+            coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
+                CarrierEqError::Undeclared {
+                    coincidence: CoincidenceMeasure::Undecided(diag),
+                    relation,
+                }
+            })?;
+            Err(CarrierEqError::Undeclared {
+                coincidence,
+                relation,
+            })
         }
         verdict => verdict,
     }
@@ -1052,28 +1100,43 @@ fn data_rungs<T: Decide>(
     } else {
         CarrierRelation::SameOpposite
     };
+    let mut first_zero: Option<CoincidenceMeasure> = None;
     let mut any_in_band: Option<Indeterminate> = None;
     for &(name, _, margin) in margins {
-        match decide(name, margin, band) {
-            Ok(Sign::Positive | Sign::Negative) => {
+        match decide_reported(name, margin, band) {
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            }) => {
                 return Ok((CarrierRelation::Distinct, ContactVerdict::Definite));
             }
-            Ok(Sign::Zero) => {}
+            Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => {
+                first_zero = first_zero.or(Some(CoincidenceMeasure::Zero {
+                    predicate: name,
+                    decided: Classified { margin, band },
+                }));
+            }
             Err(diag) => any_in_band = any_in_band.or(Some(diag)),
         }
     }
     // Rung 4: coincident-or-near with no identity rung — near
     // coincidence NEVER silently becomes contact, and bit-equal data
-    // without a shared source stays unglued.
-    //
-    // The predicate named is the first IN-BAND margin when there is
-    // one (that is the margin the reader wants). When every datum
-    // decided definitely zero there is no such margin, and the
-    // fallback names the kind's FIRST datum rather than inventing a
-    // predicate name no `decide` call ever used — an invented name
-    // would read as a measurement that never happened.
+    // without a shared source stays unglued. The first datum that did
+    // not decide zero is the margin the reader wants; when every datum
+    // decided zero, the first one's decided margin rides.
+    let coincidence = match (any_in_band, first_zero) {
+        (Some(diag), _) => CoincidenceMeasure::Undecided(diag),
+        (None, Some(zero)) => zero,
+        (None, None) => unreachable!(
+            "every curved kind reads at least two data, and each datum decides zero, decides \
+             nonzero (returned above) or does not decide"
+        ),
+    };
     Err(CarrierEqError::Undeclared {
-        diag: any_in_band.unwrap_or_else(|| definite(margins[0].0, band)),
+        coincidence,
         // The alignment this traversal was run under: the relation a
         // declaration of this pair would verify with (R3).
         relation: same,
@@ -1197,13 +1260,19 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
         match carrier_eq_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared { diag, .. }) => {
-                assert!(diag.margin.is_invalid(), "every datum zero: {diag:?}");
+            Err(CarrierEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Zero { predicate, .. },
+                ..
+            }) => {
+                assert_eq!(predicate, "carrier_sphere_center", "every datum zero");
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
         match pair_door_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared { diag, .. }) => {
+            Err(CarrierEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Undecided(diag),
+                ..
+            }) => {
                 assert!(
                     !diag.margin.is_invalid() && diag.predicate == Some("carrier_sphere_reach"),
                     "the sum in band: {diag:?}"

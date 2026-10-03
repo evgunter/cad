@@ -1,15 +1,23 @@
 //! **A decided zero and a poisoned offset are two outcomes.** Two
 //! bricks meet on `z = 1`; the rows ask [`pair_finding`] about their
 //! two caps, once as built and once with the lower cap's plane datum
-//! poisoned.
+//! poisoned, and read what the Boolean's undeclared coincidence says
+//! on each.
+//!
+//! The poisoned operand is built through the failure-injection door:
+//! the public re-charting doors refuse a plane no edge of the face
+//! certifies against, so no NaN datum reaches a stored face there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point3, Tol};
+use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::{FlushRung, pair_finding};
 use crate::body::Body;
-use crate::boolean::{CarrierDesc, CarrierRelation, face_carrier};
+use crate::boolean::{
+    BooleanError, BooleanOp, CarrierDesc, CarrierRelation, ConsumedExtent, Operand, PlaneDesc,
+    PlaneEqError, PlaneIdentity, boolean_reduce, face_carrier, oriented_plane_eq,
+};
 use crate::entity::FaceKey;
 use crate::euler::FaceSurface;
 use crate::query::all_faces;
@@ -43,63 +51,33 @@ fn cap(body: &Body<f64>, sign: f64) -> FaceKey {
     f
 }
 
-/// `face`'s plane, its origin's `x` replaced by NaN: the offset datum
-/// `n·origin` is poisoned while the normal stays readable, so the
-/// ladder reaches the offset rung.
-fn poisoned_plane(body: &Body<f64>, face: FaceKey) -> FaceSurface<f64> {
-    let f = body.get_face(face).unwrap();
+/// `a` with its cap on `z = 1` re-charted onto the same plane, its
+/// origin's `x` replaced by NaN: the offset datum `n·origin` is
+/// poisoned while the normal stays readable, so the ladder reaches the
+/// offset rung. Returns the cap.
+fn poison_cap(a: &mut Body<f64>) -> FaceKey {
+    let top = cap(a, 1.0);
+    let f = a.get_face(top).unwrap();
     let Some(geom::Surface::Plane {
         origin,
         normal,
         u_ref,
-    }) = body.get_surface(f.surface).cloned()
+    }) = a.get_surface(f.surface).cloned()
     else {
         panic!("the cap is planar");
     };
-    FaceSurface::New {
+    let surface = FaceSurface::New {
         surface: geom::Surface::Plane {
             origin: Point3::new(f64::NAN, origin.y, origin.z),
             normal,
             u_ref,
         },
         sense: f.sense,
-    }
-}
-
-#[test]
-fn probe_public_doors() {
-    let (a, _) = stacked();
-    let top = cap(&a, 1.0);
-    let mut via_set = a.clone();
-    eprintln!(
-        "PROBE set_face_surface: {:?}",
-        via_set.set_face_surface(top, poisoned_plane(&a, top))
-    );
-    let mut via_describing = a.clone();
-    let FaceSurface::New { surface, sense } = poisoned_plane(&a, top) else {
-        unreachable!()
     };
-    eprintln!(
-        "PROBE set_face_surfaces_describing: {:?}",
-        via_describing.set_face_surfaces_describing(
-            vec![crate::attach::Rechart::new(surface, top, sense)],
-            &[],
-            Tol::witness()
-        )
-    );
-}
-
-#[test]
-fn probe_boolean() {
-    let (mut a, b) = stacked();
-    let top = cap(&a, 1.0);
-    a.set_face_surface_stranding_for_tests(top, poisoned_plane(&a, top))
+    // Lifts both refusals: a plane whose offset datum is NaN is the row's premise, and no edge certifies against it.
+    a.set_face_surface_stranding_for_tests(top, surface)
         .unwrap();
-    match crate::boolean::boolean_reduce(crate::boolean::BooleanOp::Union, &a, &b, Tol::witness())
-    {
-        Ok(_) => eprintln!("PROBE boolean: Ok"),
-        Err(e) => eprintln!("PROBE boolean: {e:?}\nDISPLAY: {e}"),
-    }
+    top
 }
 
 /// **The no-regression half.** The caps decide coincident at zero
@@ -111,7 +89,11 @@ fn a_decided_zero_offset_is_a_decided_coincident_finding() {
     let Ok(Some(evidence)) = found else {
         panic!("two caps on one plane are a definite finding: {found:?}");
     };
-    assert_eq!(evidence.relation, CarrierRelation::SameOpposite, "the caps rest");
+    assert_eq!(
+        evidence.relation,
+        CarrierRelation::SameOpposite,
+        "the caps rest"
+    );
     assert_eq!(
         evidence.rung,
         FlushRung::DecidedCoincident,
@@ -125,10 +107,7 @@ fn a_decided_zero_offset_is_a_decided_coincident_finding() {
 #[test]
 fn a_poisoned_offset_is_no_finding() {
     let (mut a, b) = stacked();
-    let top = cap(&a, 1.0);
-    // Lifts both refusals: a plane whose offset datum is NaN is the row's premise, and no edge certifies against it.
-    a.set_face_surface_stranding_for_tests(top, poisoned_plane(&a, top))
-        .unwrap();
+    let top = poison_cap(&mut a);
     let found = pair_finding(&a, top, &b, cap(&b, -1.0), band());
     let Err(diag) = found else {
         panic!("a poisoned offset decides nothing, so it is no finding: {found:?}");
@@ -142,4 +121,66 @@ fn a_poisoned_offset_is_no_finding() {
         Some("bool_plane_offset"),
         "the offset rung refused: {diag:?}"
     );
+}
+
+/// **The Boolean's undeclared coincidence quotes what its measure
+/// read, on a decided zero.** The undeclared union of the stack
+/// refuses on a pair of side walls whose offset decides zero, and
+/// quotes that decided margin.
+#[test]
+fn the_boolean_refusal_on_a_decided_zero_quotes_its_margin() {
+    let (a, b) = stacked();
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+        Err(err) => err,
+        Ok(_) => panic!("an undeclared flush stack does not reduce"),
+    };
+    let BooleanError::UndeclaredCoincidence { diag, .. } = &err else {
+        panic!("the stack meets the coincidence door: {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("bool_plane_offset"), "{err:?}");
+    let text = err.to_string();
+    assert!(text.contains("lies within the zero band"), "{text}");
+    assert!(!text.contains("exactly zero"), "{text}");
+}
+
+/// **The Boolean's undeclared coincidence quotes what its measure
+/// read, on a poisoned offset.** The plane ladder's public door refuses
+/// a NaN offset datum `Undeclared`, and the Boolean raises that refusal
+/// as it raises every undeclared coincidence: the text says the margin
+/// is invalid, and never that the measure is exactly zero. (No Boolean
+/// reaches it with a poisoned operand: the stack above refuses on its
+/// side walls first.)
+#[test]
+fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
+    let plane = |x| PlaneDesc {
+        origin: Point3::new(x, 0.0, 1.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let extent = ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), 1.0));
+    let err = oriented_plane_eq(
+        &plane(0.0),
+        &plane(f64::NAN),
+        PlaneIdentity::NONE,
+        &extent,
+        band(),
+    )
+    .unwrap_err();
+    let PlaneEqError::Undeclared {
+        coincidence,
+        relation,
+    } = err
+    else {
+        panic!("a NaN offset reaches the offset rung: {err:?}");
+    };
+    let text = BooleanError::UndeclaredCoincidence {
+        diag: coincidence.reported(),
+        pair: [
+            (Operand::A, FaceKey::default()),
+            (Operand::B, FaceKey::default()),
+        ],
+        relation,
+    }
+    .to_string();
+    assert!(text.contains("margin is invalid"), "{text}");
+    assert!(!text.contains("exactly zero"), "{text}");
 }

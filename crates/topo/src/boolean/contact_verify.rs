@@ -189,7 +189,9 @@ fn rest_pair_verdict<T: Decide>(
         Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
             Err(ContactRefusal::Escalated { diag })
         }
-        Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
+        Err(CarrierEqError::Undeclared { coincidence, .. }) => Err(ContactRefusal::Undeclared {
+            diag: coincidence.reported(),
+        }),
     }
 }
 

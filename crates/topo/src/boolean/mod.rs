@@ -136,7 +136,9 @@ use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
-pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, ConsumedExtent, carrier_eq};
+pub use carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
+};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
@@ -2955,26 +2957,12 @@ impl core::fmt::Display for BooleanError {
                 offset.ending()
             ),
             Self::UndeclaredCoincidence { diag, .. } => {
-                f.write_str(
-                    "a face of the first operand and a face of the second coincide, or nearly (",
-                )?;
-                // The rung-4 definite arm synthesizes `MarginKind::Invalid`
-                // for a decided-zero offset (plane_eq keeps the decision
-                // machinery); rendering that payload verbatim would claim a
-                // poisoned margin on clean geometry. Say the honest thing
-                // instead: the measure is definitely zero (S6 review,
-                // MAJOR-1).
-                if diag.margin.is_invalid() {
-                    f.write_str(
-                        "the coincidence measure is exactly zero — the geometry coincides",
-                    )?;
-                } else {
-                    write!(f, "{}", diag.payload())?;
-                }
                 write!(
                     f,
-                    "), and the Boolean never assumes that touching faces are the same \
-                     face. Recourse: {COINCIDENCE_RECOURSE}"
+                    "a face of the first operand and a face of the second coincide, or nearly \
+                     ({}), and the Boolean never assumes that touching faces are the same face. \
+                     Recourse: {COINCIDENCE_RECOURSE}",
+                    diag.payload()
                 )
             }
             // The fact, where the carrier ladder found one; otherwise
@@ -3946,13 +3934,14 @@ fn verify_one_carrier_declaration<T: Decide>(
         }
         Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(class, diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
-        Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
-            Err(BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, fa), (Operand::B, fb)],
-                relation,
-            })
-        }
+        Err(carrier_eq::CarrierEqError::Undeclared {
+            coincidence,
+            relation,
+        }) => Err(BooleanError::UndeclaredCoincidence {
+            diag: coincidence.reported(),
+            pair: [(Operand::A, fa), (Operand::B, fb)],
+            relation,
+        }),
     }
 }
 
@@ -4138,8 +4127,14 @@ fn verify_tangency_declaration<T: Decide>(
         }
         // One carrier, geometrically: the diag keeps the predicate that
         // measured it and its value, and the fact names the finding.
-        Ok(Err(carrier_eq::CarrierEqError::Undeclared { diag, .. })) => {
-            return Err(claim.contradicted_by(fa, fb, Some(Contradiction::OneCarrier), diag, None));
+        Ok(Err(carrier_eq::CarrierEqError::Undeclared { coincidence, .. })) => {
+            return Err(claim.contradicted_by(
+                fa,
+                fb,
+                Some(Contradiction::OneCarrier),
+                coincidence.reported(),
+                None,
+            ));
         }
         Ok(Err(carrier_eq::CarrierEqError::Escalated { rung, diag })) => {
             return Err(BooleanError::plane_identity(
@@ -5009,36 +5004,47 @@ mod tests {
                 "{msg}"
             );
         }
-        // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
-        // exactly-on refusal (Invalid margin, as synthesized) and the
-        // in-band refusal (Value margin) — one message, one recourse.
-        // Payload for the R3 fields: a null-key pair (the message
-        // renders neither keys nor relation — the typed payload is
-        // the document layer's to name).
+        // The undeclared arm, in every shape rung 4 produces: a
+        // decided zero with its decided margin, an in-band margin, and
+        // a poisoned one — one message, one recourse, and the margin
+        // the measure read as the payload. Payload for the R3 fields: a
+        // null-key pair (the message renders neither keys nor relation
+        // — the typed payload is the document layer's to name).
         let pair = [
             (Operand::A, FaceKey::default()),
             (Operand::B, FaceKey::default()),
         ];
-        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (coincidence, says) in [
+            (
+                carrier_eq::CoincidenceMeasure::Zero {
+                    predicate: "bool_plane_offset",
+                    decided: geom_brep::recourse::Classified {
+                        margin: MarginDiag::value(2.5e-10),
+                        band,
+                    },
+                },
+                "lies within the zero band",
+            ),
+            (
+                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::value(5e-9))),
+                "lies inside the ambiguity band",
+            ),
+            (
+                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::INVALID)),
+                "margin is invalid",
+            ),
+        ] {
             let msg = BooleanError::UndeclaredCoincidence {
-                diag: diag(margin),
+                diag: coincidence.reported(),
                 pair,
                 relation: PlaneRelation::SameOpposite,
             }
             .to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+            assert!(msg.contains(says), "{coincidence:?}: {msg}");
+            assert!(!msg.contains("exactly zero"), "{coincidence:?}: {msg}");
         }
-        // The synthesized-Invalid definite arm renders the honest
-        // statement, never the poisoned-margin text (S6 review,
-        // MAJOR-1).
-        let msg = BooleanError::UndeclaredCoincidence {
-            diag: diag(MarginDiag::INVALID),
-            pair,
-            relation: PlaneRelation::SameOpposite,
-        }
-        .to_string();
-        assert!(msg.contains("exactly zero"), "{msg}");
-        assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
     /// The non-finite chord arm gives the cause and a recourse that can

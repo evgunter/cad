@@ -533,9 +533,9 @@ impl MergeCoplanarError {
                 diag,
             },
             // Unreachable with `declared: true`; refuse loudly anyway.
-            PlaneEqError::Undeclared { diag, .. } => Self::Escalated {
+            PlaneEqError::Undeclared { coincidence, .. } => Self::Escalated {
                 decision: MergeDecision::DeclaredOffset,
-                diag,
+                diag: coincidence.reported(),
             },
         }
     }
