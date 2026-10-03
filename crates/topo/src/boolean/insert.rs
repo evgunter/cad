@@ -1519,11 +1519,10 @@ fn mint_run<T: Decide>(
     // the half FACING a germ is UP (starts at `below_end`) iff that
     // germ's own forward-wedge code is Out. Non-dangling: he_plus
     // (old → new) faces the from-germ whose forward code is the run
-    // side, so `created` is the below end exactly for In-runs.
-    // Dangling struts in the default spike order swap the facing
-    // (he_minus at the from-germ), so the SIDE swaps with it; the
-    // angular `spike_from_first` order restores the non-dangling
-    // facing. The attribute is derived sense data, never a mint-slot
+    // side, so `created` is the below end exactly for In-runs. A
+    // dangling strut whose he_minus faces the from-germ
+    // (`spike_from_first` false) swaps the SIDE with the facing. The
+    // attribute is derived sense data, never a mint-slot
     // echo; the mint side follows so the body's scaffold attribute and
     // the pipeline record stay one datum.
     let attr_side = match (new_side, dangling && !spike_from_first) {
@@ -1556,10 +1555,8 @@ fn mint_run<T: Decide>(
     // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
     // from-germ cut and he_minus at the to-germ cut; a strut's spike
     // splices [he_plus, he_minus] into one corner, and which germ the
-    // loop-first half (he_plus) faces is the angular spike order
-    // decided at the mint site (`spike_from_first`; the default — the
-    // corner walk arriving through the to-germ — was pinned
-    // empirically by the joining fixtures).
+    // loop-first half (he_plus) faces is decided at the mint site
+    // ([`strut_faces_first`]).
     let germs = if dangling && !spike_from_first {
         [germ(0, created.he_minus), germ(1, created.he_plus)]
     } else {
