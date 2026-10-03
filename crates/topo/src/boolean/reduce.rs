@@ -144,6 +144,8 @@ pub(super) struct SweepKnobs {
 #[derive(Default)]
 pub(super) struct ContactAcc {
     records: ContactRecords,
+    /// Every edge split the sweep made, in split order.
+    pub(super) splits: Vec<super::EdgeSplit>,
     seen_vv: std::collections::BTreeSet<(VertexKey, VertexKey)>,
     seen_ab: std::collections::BTreeSet<(VertexKey, FaceKey)>,
     seen_ba: std::collections::BTreeSet<(VertexKey, FaceKey)>,
@@ -1129,18 +1131,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 match at {
                     FaceContainment::Out => continue,
                     FaceContainment::In => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         contacts.vf(x_is, VfContact { vertex: w, face });
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
                     FaceContainment::OnEdge(ey) => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
-                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                         push_vv(contacts, x_is, w, wy);
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
                     FaceContainment::OnVertex(vy) => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vv(contacts, x_is, w, vy);
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
@@ -1294,21 +1296,28 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match containment {
                                 FaceContainment::Out => {}
                                 FaceContainment::In => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     contacts.vf(x_is, VfContact { vertex: w, face });
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
-                                    let wy =
-                                        split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                                    let wy = split_other_at_point(
+                                        y,
+                                        x_is.other(),
+                                        ey,
+                                        p,
+                                        band,
+                                        tol,
+                                        contacts,
+                                    )?;
                                     push_vv(contacts, x_is, w, wy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     push_vv(contacts, x_is, w, vy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -1377,20 +1386,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     match containment {
                         FaceContainment::Out => {}
                         FaceContainment::In => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             contacts.vf(x_is, VfContact { vertex: w, face });
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
-                            let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                            let wy =
+                                split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vv(contacts, x_is, w, vy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
@@ -3454,7 +3464,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             return Ok((Placement::Recorded, Some(vy)));
         }
         Some(FaceContainment::OnEdge(ey)) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
             push_vv(contacts, x_is, vx, wy);
             return Ok((Placement::Recorded, Some(wy)));
         }
@@ -3571,7 +3581,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
             push_vv(contacts, x_is, vx, wy);
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy),
@@ -3579,20 +3589,30 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     Ok(true)
 }
 
+/// Splits `x`'s `edge` at `t` and logs the split, the lineage a
+/// carried `(vertex, edge)` record follows onto the piece it rests on.
 fn split_at<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
     t: T,
     tol: Tol,
+    contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
-    x.split_edge(edge, t, tol)
-        .map(|c| c.vertex)
+    let created = x
+        .split_edge(edge, t, tol)
         .map_err(|source| BooleanError::CrossingInsertion {
             operand: x_is,
             edge,
             source,
-        })
+        })?;
+    contacts.splits.push(super::EdgeSplit {
+        operand: x_is,
+        parent: edge,
+        vertex: created.vertex,
+        child: created.new_edge,
+    });
+    Ok(created.vertex)
 }
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
@@ -3630,6 +3650,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     p: Point3<T>,
     band: Band,
     tol: Tol,
+    contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let (t0, t1) = curve.params();
@@ -3696,7 +3717,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             operand: y_is,
             edge,
         })?;
-    split_at(y, y_is, edge, t, tol)
+    split_at(y, y_is, edge, t, tol, contacts)
 }
 
 /// Requeues both children of a just-split edge (parent keeps the
@@ -5137,8 +5158,16 @@ mod lying_on_rows {
         );
         let bottom = edge_between(&y, from, to);
         let mid = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
-        split_other_at_point(&mut y, Operand::B, bottom, mid, band(), Tol::witness())
-            .expect("the arc splits");
+        split_other_at_point(
+            &mut y,
+            Operand::B,
+            bottom,
+            mid,
+            band(),
+            Tol::witness(),
+            &mut super::ContactAcc::default(),
+        )
+        .expect("the arc splits");
         let reach = |circle| {
             arc_chain_reaches(&y, from, to, Vec3::unit_y(), circle, band()).expect("no escalation")
         };

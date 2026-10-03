@@ -180,9 +180,10 @@
 //!   (`vv_face_backed`), or is one vertex or two on one point —
 //!   structural. Where only one edge holds a vertex there — the
 //!   endpoint rests on the other edge's INTERIOR — the bound is a
-//!   vertex-on-edge event and is backed by exactly that lane's rung: a
-//!   declared face pair holding the vertex on one boundary and naming a
-//!   face the other edge bounds (`ve_face_backed`). Derivation: the
+//!   vertex-on-edge event and is backed as that lane's events are: its
+//!   `(vertex, edge)` record, or a declared face pair holding the vertex
+//!   on one boundary and naming a face the other edge bounds
+//!   (`ve_face_backed`). Derivation: the
 //!   overlap of two collinear spans is an interval whose each bound is
 //!   an endpoint of at least one span, so one of the two arms applies
 //!   at every bound. Between two backed bounds the carriers coincide
@@ -195,12 +196,14 @@
 //!   vertex must be v-on-f-declared on this face, v-v-declared with a
 //!   coincident vertex of the face's boundary, backed by a declared
 //!   face pair naming this face and one holding the vertex
-//!   (`vf_face_backed`), or itself a vertex of the face's boundary or
-//!   on one point with one (structural). Where it holds none — the
+//!   (`vf_face_backed`), `(vertex, edge)`-declared onto an edge of the
+//!   face's boundary, or itself a vertex of the face's boundary or on
+//!   one point with one (structural). Where it holds none — the
 //!   bound falls where a boundary vertex of the face rests on the edge
-//!   — the bound is a vertex-on-edge event and is backed by exactly
-//!   that lane's rung: a declared face pair holding that vertex on one
-//!   boundary and naming a face the edge bounds (`ve_face_backed`).
+//!   — the bound is a vertex-on-edge event and is backed as that
+//!   lane's events are: its `(vertex, edge)` record, or a declared face
+//!   pair holding that vertex on one boundary and naming a face the
+//!   edge bounds (`ve_face_backed`).
 //!   Same argument as the edge-edge bullet's, one dimension up: a bound
 //!   of the overlap is a point where some entity of the pair ends, and
 //!   which side's entity that is is a fact about the configuration, not
@@ -222,39 +225,33 @@
 //! `CensusUnsupported` with an inventory cause; no counterexample
 //! exists on the F5 corpus.)
 //!
-//! # The D4 vertex-on-edge derivation (why there is no record type)
+//! # The D4 vertex-on-edge event
 //!
-//! Reduction's sweep splits the *other* edge at every on-edge event
-//! (`split_other_at_point`) in **both** lanes that can discover one —
-//! the proper-crossing lane (`FaceContainment::OnEdge`) and the
-//! vertex-on-plane lane (`dovertexonface` → `OnEdge`) — so in the
-//! BOOLEAN lane every vertex-on-edge(-interior) contact is refined
-//! into a v-v record before records are emitted. That is why no
-//! vertex-granularity record type names this configuration: in the
-//! lane that mints them, it never survives to be named.
+//! A vertex resting on an edge's interior is backed two ways:
 //!
-//! **That premise is the boolean lane's, and it does not carry to
-//! rest.** At rest nothing refines — no boolean runs, nothing is
-//! zipped, the bodies arrive as they were placed — so the raw induced
-//! configuration reaches the certifier intact. Its status there is:
+//! - **Its own record**, the cell pair `(vertex, edge)`
+//!   ([`crate::boolean::VeContact`]). The reduction never mints one: it
+//!   splits the *other* edge at every on-edge event
+//!   (`split_other_at_point`) and records a v-v pair instead. A join
+//!   mints one, from the v-v record whose vertex it joined away, and an
+//!   edge split moves it onto the piece the vertex rests on; carried
+//!   into a later op, it backs the event there.
+//! - **The face rung**: a declared face pair holding the vertex on one
+//!   boundary and naming a face the edge bounds (`ve_face_backed`) holds
+//!   the whole event — the vertex on one side of the interface, the
+//!   edge on the other — exactly as `vv_face_backed` holds a coincident
+//!   vertex pair. At rest nothing refines, so a seat whose two faces
+//!   share a boundary induces this event raw, and the declaration that
+//!   says the faces rest says it once for everything the seat induces
+//!   — including where the event is a BOUND of a continuous overlap
+//!   rather than a finding of its own: the D3 bullets read this event's
+//!   backing at such a bound, in both the edge-edge and the
+//!   edge-on-face lane.
 //!
-//! - **Certifiable through the face rung, and only through it**: a
-//!   declared face pair holding the vertex on one boundary and naming
-//!   a face the edge bounds (`ve_face_backed`) holds the whole event
-//!   — the vertex on one side of the interface, the edge on the other
-//!   — exactly as `vv_face_backed` holds a coincident vertex pair.
-//!   A seat whose two faces share a boundary induces this event by
-//!   construction, and the declaration that says the faces rest says
-//!   it once for everything the seat induces — including where the
-//!   event is a BOUND of a continuous overlap rather than a finding of
-//!   its own: the D3 bullets read this same rung at such a bound, in
-//!   both the edge-edge and the edge-on-face lane.
-//! - **Otherwise an undeclarable defect**: with no face pair holding
-//!   it, there is no record that can name the configuration, and the
-//!   census reports [`CensusContact::VertexOnEdge`] as
-//!   `UndeclaredContact`. The rung consults DECLARATIONS, never the
-//!   geometry's own agreement with itself — a configuration nobody
-//!   declared stays the F1 hard error however exactly it coincides.
+//! With neither, the census reports [`CensusContact::VertexOnEdge`] as
+//! `UndeclaredContact`. Both consult DECLARATIONS, never the geometry's
+//! own agreement with itself — a configuration nobody declared stays
+//! the F1 hard error however exactly it coincides.
 //!
 //! Cross-reference: the face rung is CONTACT-DESIGN C3's declared
 //! rung read at the granularity the records already carry, not a new
@@ -795,6 +792,7 @@ fn census_with<T: Decide + Bounds>(
 struct Declared {
     vv: BTreeSet<(VertexKey, VertexKey)>,
     vf: BTreeSet<(VertexKey, FaceKey)>,
+    ve: BTreeSet<(VertexKey, EdgeKey)>,
     /// Face-granularity keys (M9-2): the face pairs the body's
     /// curve/patch records name, both orientations. A face-pair
     /// record backs the vertex-granular events SUBORDINATE to it —
@@ -817,6 +815,7 @@ impl Declared {
         for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
             vf.insert((c.vertex, c.face));
         }
+        let ve = contacts.ve.iter().map(|c| (c.vertex, c.edge)).collect();
         let mut faces = BTreeSet::new();
         for (a, b) in contacts
             .curves
@@ -827,7 +826,7 @@ impl Declared {
             faces.insert((a, b));
             faces.insert((b, a));
         }
-        Self { vv, vf, faces }
+        Self { vv, vf, ve, faces }
     }
 
     /// The face rung for a v-v event: some declared face pair holds
@@ -869,6 +868,12 @@ impl Declared {
     /// `ef_bound_backed`'s scheduled step).
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
+    }
+
+    /// A vertex-on-edge event's backing: its own `(vertex, edge)`
+    /// record, or the face rung.
+    fn ve_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
+        self.ve.contains(&(v, e.key)) || self.ve_face_backed(geo, v, e)
     }
 }
 
@@ -1318,10 +1323,9 @@ fn pair_vertex_vertex<T: Decide>(
     }
 }
 
-/// Census pass 2: vertex on an edge's **interior** — certifiable only
-/// through the face rung (module docs, D4), and otherwise a hard
-/// finding: there is no vertex-granularity record type that can name
-/// this configuration.
+/// Census pass 2: vertex on an edge's **interior** — backed by its
+/// `(vertex, edge)` record or the face rung (module docs, D4), and
+/// otherwise a hard finding.
 fn sweep_vertex_edge<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
@@ -1378,7 +1382,7 @@ fn pair_vertex_edge<T: Decide>(
             }
         }
     }
-    if interior && !declared.ve_face_backed(geo, vk, e) {
+    if interior && !declared.ve_backed(geo, vk, e) {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexOnEdge {
                 vertex: vk,
@@ -1611,14 +1615,15 @@ fn any_boundary_vertex_at<T: Decide>(
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
-/// boundary vertex of `f`, face-backed onto `f`, or the vertex is
-/// itself on `f`'s boundary or shares its point with a boundary vertex
-/// of `f` at the bound (structural).
+/// boundary vertex of `f`, face-backed onto `f`, `(vertex, edge)`-declared
+/// onto an edge bounding `f` (it rests on `f`'s boundary), or the
+/// vertex is itself on `f`'s boundary or shares its point with a
+/// boundary vertex of `f` at the bound (structural).
 ///
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
-/// event is a vertex-on-edge, and it takes that lane's rung
-/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
-/// incidence step further out, exactly as [`ee_bound_backed`]'s
+/// event is a vertex-on-edge, and it takes that lane's backing
+/// ([`Declared::ve_backed`]: its record, or the same declared face
+/// pair one incidence step further out), exactly as [`ee_bound_backed`]'s
 /// asymmetric arm reads it for a collinear overlap. A bound is a bound
 /// of the overlap because some entity ends there; which side's entity
 /// that is, is a fact about the configuration, not about what a
@@ -1642,13 +1647,14 @@ fn ef_bound_backed<T: Decide>(
 ) -> bool {
     let q = e.p0 + e.dir * s;
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_face_backed(geo, w, e)
-        });
+        return any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.ve_backed(geo, w, e));
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
         || declared.vf_face_backed(geo, ve, f.key)
+        || geo.edges.iter().any(|g| {
+            (g.f_plus == f.key || g.f_minus == f.key) && declared.ve.contains(&(ve, g.key))
+        })
     {
         return true;
     }
@@ -2275,16 +2281,16 @@ fn ee_collinear_lane<T: Decide>(
 /// vertex at the bound and the pair is declared (or is one vertex, or
 /// two on one point — structural), or — where only ONE edge has a vertex there,
 /// so the bound rests on the other edge's interior — that vertex is
-/// face-backed onto the other edge.
+/// `(vertex, edge)`-declared or face-backed onto the other edge.
 ///
 /// The two arms are one rule at two granularities: a bound of a
 /// collinear overlap is an endpoint of at least one span, and whether
 /// the other span happens to end there too is a fact about the
 /// configuration, not about what a declaration can hold. Both edges
 /// with a vertex is a v-v event and takes the v-v rungs; one edge with
-/// a vertex is a vertex-on-edge event and takes that lane's rung
-/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
-/// incidence step further out.
+/// a vertex is a vertex-on-edge event and takes that lane's backing
+/// ([`Declared::ve_backed`]: its record, or the same declared face
+/// pair one incidence step further out).
 fn ee_bound_backed<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -2304,8 +2310,8 @@ fn ee_bound_backed<T: Decide>(
                 || declared.vv.contains(&(va, vb))
                 || declared.vv_face_backed(geo, va, vb)
         }
-        (Some(va), None) => declared.ve_face_backed(geo, va, eb),
-        (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
+        (Some(va), None) => declared.ve_backed(geo, va, eb),
+        (None, Some(vb)) => declared.ve_backed(geo, vb, ea),
         // Neither edge resolves a vertex at the bound: an escalated
         // span (already pushed), never a backing.
         (None, None) => false,
@@ -5502,6 +5508,9 @@ fn confirm_declarations<T: Decide>(
         }
     }
     confirm_curve_and_patch_records(body, contacts, band, region, errors);
+    for c in &contacts.ve {
+        confirm_vertex_on_edge(body, geo, *c, band, errors);
+    }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -5533,6 +5542,72 @@ fn confirm_declarations<T: Decide>(
             Some(FaceContainment::In) => {}
             Some(_) => errors.push(stale),
             None => {}
+        }
+    }
+}
+
+/// One `(vertex, edge)` record's witness: both cells live, the vertex
+/// not an end of the edge, on the edge's line and strictly inside its
+/// span (pass 2's two decisions, so the two directions agree). The
+/// lane is pass 2's: a record on a live edge whose carrier is not a
+/// line refuses typed.
+fn confirm_vertex_on_edge<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::VeContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnEdge {
+            vertex: c.vertex,
+            edge: c.edge,
+        },
+    };
+    let Some(&q) = geo.vmap.get(&c.vertex) else {
+        errors.push(stale);
+        return;
+    };
+    let Some(e) = geo.edges.iter().find(|e| e.key == c.edge) else {
+        if body.get_edge(c.edge).is_some() {
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(c.edge)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a vertex-on-edge record is certified on a line edge only",
+                    },
+                ),
+            });
+        } else {
+            errors.push(stale);
+        }
+        return;
+    };
+    if c.vertex == e.v0 || c.vertex == e.v1 {
+        errors.push(stale);
+        return;
+    }
+    let off = Margin::norm3((q - e.p0).cross(e.dir));
+    match gap_is_zero("pm_census_ve_line_gap", off, band, errors) {
+        Some(true) => {}
+        Some(false) => {
+            errors.push(stale);
+            return;
+        }
+        None => return,
+    }
+    let s = (q - e.p0).dot(e.dir);
+    for m in [s, e.len - s] {
+        match decide("pm_census_ve_span", Margin::of(m), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                errors.push(stale);
+                return;
+            }
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                return;
+            }
         }
     }
 }
@@ -5971,6 +6046,67 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
+    }
+
+    /// **A `(vertex, edge)` record on a curved edge refuses typed**:
+    /// pass 2's lane is the line edge, so the confirm pass cannot
+    /// witness the record and says so rather than calling it stale.
+    /// Red when the arm reads a live curved edge as a dead one (a
+    /// `StaleContactDeclaration`) or skips it.
+    #[test]
+    fn a_vertex_on_edge_record_on_a_curved_edge_is_census_unsupported() {
+        let mut body = Body::<f64>::new();
+        unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let rim = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                body.get_edge(e)
+                    .and_then(|d| body.get_curve_geom(d.curve))
+                    .and_then(|g| g.certified())
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+            })
+            .expect("the sheet has a rim arc");
+        let far = body
+            .vertices()
+            .map(|(k, _)| k)
+            .find(|&v| {
+                let d = body.get_edge(rim).unwrap();
+                v != body.get_half_edge(d.he_plus).unwrap().start
+                    && v != body.get_half_edge(d.he_minus).unwrap().start
+            })
+            .expect("a vertex off the rim");
+        let records = ContactRecords {
+            ve: vec![crate::boolean::VeContact {
+                vertex: far,
+                edge: rim,
+            }],
+            ..ContactRecords::default()
+        };
+        let errors = census_and_certify(&body, &records, band(), Tol::witness(), None);
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::Entity(EntityId::Edge(edge)),
+                    ..
+                } if *edge == rim
+            )),
+            "{errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "{errors:?}"
+        );
     }
 
     #[test]

@@ -295,6 +295,8 @@ mod stated_general_image_mint;
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "vertex_on_edge_records.rs"]
+mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
 

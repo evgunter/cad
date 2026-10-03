@@ -3150,6 +3150,7 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
     match declaration {
         StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
         StaleDeclaration::CurveLocus { .. } => "curve_locus",
         StaleDeclaration::Patch { .. } => "patch",
     }

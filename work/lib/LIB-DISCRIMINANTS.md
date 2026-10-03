@@ -38,7 +38,7 @@ projection stops at the discriminant.
   classifying map (`validation_error_tag`) is exhaustive, so a kernel
   arm added with a payload stops this crate compiling there, in front
   of the person who then decides what it projects.
-- **The words.** `stale_kind` is `vertex_vertex`, `vertex_on_face`,
+- **The words.** `stale_kind` is `vertex_vertex`, `vertex_on_face`, `vertex_on_edge`,
   `curve_locus`, `patch` — the arms' own names, which are the record
   GRANULARITY the kernel's `Display` names too. `ring_contact_kind` is
   `vertex_vertex`, `vertex_on_edge`, `edge_along_edge` — Ev's own

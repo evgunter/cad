@@ -316,13 +316,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      point key) is the coincidence ladder's first rung and needs no
      record: an op that cuts one vertex into copies hands each copy the
      original's point, as it hands a cut face's fragments one surface.
-   - Contact records carry two granularities: vertex (`VvContact`,
-     `VfContact`) — edge-on-face and coincident-edge *segments*
-     certified by reconstruction from their bounding vertex records
-     (between two backed bounds, two lines sharing two points are one
-     line; a missing bounding record is `UndeclaredContact`, never
-     inferred) — and face (`CurveContact`, `PatchContact`; CONTACT-DESIGN
-     C3), whose rungs back a subordinate vertex event.
+   - A contact record is a pair of cells, one from each touching
+     side, whose interiors meet. Records carry two granularities:
+     vertex (`VvContact`, `VeContact`, `VfContact`: a vertex on a
+     vertex, on an edge's interior, on a face's interior) — edge-on-face
+     and coincident-edge *segments* certified by reconstruction from
+     their bounding vertex records (between two backed bounds, two lines
+     sharing two points are one line; a missing bounding record is
+     `UndeclaredContact`, never inferred) — and face (`CurveContact`,
+     `PatchContact`; CONTACT-DESIGN C3), whose rungs back a subordinate
+     vertex event. An op that replaces a cell rewrites every record
+     naming it onto the replacement, by substitution; an edge split
+     moves a `(vertex, edge)` record onto the piece the vertex rests on,
+     by the split's own lineage.
    - **Certification strength equals its skeleton**: a `CurveContact`
      is certified at its jet samples plus hull bounds, a `PatchContact`
      by definitely-positive region overlap in the shared chart, a

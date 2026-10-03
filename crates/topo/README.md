@@ -40,8 +40,8 @@ qualified (`CURVED-DESIGN C7`). Setting: two bodies whose boundaries
 touch, at rest or as boolean operands. The **census** (tier 3′,
 `validate_pseudomanifold`) finds every cross-entity coincidence; a
 **declaration** is recipe data asserting a contact class on a named face
-pair; a **record** (`ContactRecords`: `VvContact`, `VfContact`,
-`CurveContact`, `PatchContact`) is the verified form a result body
+pair; a **record** (`ContactRecords`: `VvContact`, `VeContact`,
+`VfContact`, `CurveContact`, `PatchContact`) is the verified form a result body
 carries. The coincidence ladder: structural (shared key or same
 `GeomSource`) is intent by construction; declared is intent plus
 non-contradiction; value equality never glues. Certification runs both
