@@ -1615,13 +1615,13 @@ pub enum BooleanError {
     /// edge cannot be cleared against a curved face, and the curved
     /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// and an ELLIPSE crossing a cylinder wall or a sphere, whose
+    /// and an ELLIPSE crossing any of the three, whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, `boolean::circle_roots`' doors and
     /// `boolean::ellipse_roots`) and whose landing point the chart trim
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a cone face or a conic
-    /// against one, an ellipse near a torus, an undeclared on-carrier
+    /// against one, an undeclared on-carrier
     /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
@@ -2178,8 +2178,9 @@ pub enum BooleanError {
     /// **Two sphere faces of the two solids meet** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), or their spheres
-    /// cross and the section certificate certifies the circle they cross
+    /// the smaller inside the larger (a decided zero), at a touch the
+    /// section certificate does not certify off either face, or their
+    /// spheres cross and the certificate certifies the circle they cross
     /// in inside both faces (its R-loop). Whatever the faces share lies
     /// off every edge, so the join's sphere-pair arm (the radical plane,
     /// `join::bool_connect`) had no chord to run. A crossing whose circle

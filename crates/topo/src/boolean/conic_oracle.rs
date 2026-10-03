@@ -20,6 +20,25 @@ pub(super) fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
     }
 }
 
+/// The ring torus `(center, axis, big, small)`, its axis normalized and
+/// its `u_ref` any unit vector square to it — the one torus fixture the
+/// conic rows build.
+pub(super) fn torus(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    big: f64,
+    small: f64,
+) -> geom::Surface<f64> {
+    let axis = axis.normalize();
+    geom::Surface::Torus {
+        center,
+        axis,
+        major_radius: big,
+        minor_radius: small,
+        u_ref: axis.orthonormal_basis().0,
+    }
+}
+
 /// The true signed distance from a sphere, a cylinder wall or a torus
 /// of the point whose offset from a given point is `from(anchor)`, read
 /// from the surface's own STORED anchor (its centre or origin). A
