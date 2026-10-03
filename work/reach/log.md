@@ -709,6 +709,22 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-03 — an ellipse edge meets a torus face (PR 3973)
+
+- The ellipse door's torus arm answers on the shared root core at degree
+  four (`geom_brep::ConicTorusHarmonics`), each root's slack charged
+  from the residual's running bound; no body is newly built (the
+  tilted-cut torus is filed).
+- Dual review: R1 APPROVE-WITH-FIXES (0/4/5), R2 NOT-MERGEABLE-AS-IS
+  (1/2/5); R2's MAJOR (the crossing row red at ε 1e-12) was R1's MINOR,
+  so it is bilateral and untallied (DR row on this commit).
+- Last fix pass: every slack-meter term pinned by a pose, the graze and
+  fuzz rows exact, the crossing row demands certificates only where the
+  band resolves them, and the circle door keeps main's clear reading
+  (the one moved verdict filed on HONE).
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its note: at ε 1e-12 no row pins the door's
+  liveness.
 ## 2026-10-03 — the split gate reads its boxes in the cut's frame (PR 3982)
 
 - The split gate reads every unarmed face's reach in the cut plane's own

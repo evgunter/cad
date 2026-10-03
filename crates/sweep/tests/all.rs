@@ -232,6 +232,8 @@ mod contained_flush_cylinder;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "copied_carriers_at_interval.rs"]
 mod copied_carriers_at_interval;
+#[path = "ellipse_torus.rs"]
+mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "euler_site_row_frontiers.rs"]
