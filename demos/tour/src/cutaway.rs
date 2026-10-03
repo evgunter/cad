@@ -87,6 +87,8 @@ pub(crate) struct SectionNumbers {
     /// The half-width of `area`'s certified bracket: the bores' walls
     /// are measured by quadrature.
     pub area_pad: f64,
+    /// The translation the below half took off the section plane.
+    pub below_pull: Vec3<f64>,
 }
 
 /// How far each half is pulled off the section plane, along its
@@ -203,6 +205,7 @@ pub(crate) fn build<S: Scalar>(
             gap,
             area,
             area_pad,
+            below_pull: (-n).map(Scalar::f),
         },
     )
 }
@@ -303,14 +306,14 @@ pub(crate) fn sectioned_beside(
     tol: Tol,
 ) -> (Vec<SceneBody>, String) {
     let ((moved_above, moved_below), n) = build(boxbody, tol);
-    let spring_cut = split(spring, &section_plane::<f64>(tol), tol).expect("split of the spring");
+    let spring_cut = split(spring, &section_plane(tol), tol).expect("split of the spring");
     let (SplitPart::Empty, SplitPart::Body(spring_below)) = (&spring_cut.above, &spring_cut.below)
     else {
         panic!("the section plane passes over the spring: all of it is below");
     };
-    let pull = Affine3::translation(section_plane::<f64>(tol).normal.get() * -PULL);
-    let spring_below = pncad::topo::transform_rigid(spring_below, &pull, tol)
-        .expect("pull the spring with the below half");
+    let spring_below =
+        pncad::topo::transform_rigid(spring_below, &Affine3::translation(n.below_pull), tol)
+            .expect("pull the spring with the below half");
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \

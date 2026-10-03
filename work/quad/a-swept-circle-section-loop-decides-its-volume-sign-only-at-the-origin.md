@@ -81,7 +81,11 @@ At the scene's placement (axis through (0.625, 0.625), base z ≈ 0.9)
 and six turns the width is **1.68e-3 m at ε = 1e-6, 1e-9 and 1e-12
 alike**, past even 1e-6's 1.024e-3 target — 7 % of the wire's radius,
 on a body whose square-wire twin (same spine, stations and placement)
-certifies its volume with a pad of 1e-14. So on a long spine the
+certifies its volume with a pad of 1e-14. The refusal is also slow:
+`mass_properties` takes 10.9 s to refuse (the round coil builds in
+2.6 s), so the live wall costs the tour about 13.4 s a run, most of
+the 14 s the spring adds (measured by the PR's review). So on a long
+spine the
 quartered section stops being the remedy, and no ε row decides. Pinned
 live as `projectbox` wall 1 (`demos/tour/src/projectbox.rs`,
 `standing_spring`); the scene ships the square wire.

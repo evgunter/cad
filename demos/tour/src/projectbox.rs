@@ -64,23 +64,23 @@ pub(crate) const BORED_HEIGHT: f64 = BOSS_Z.1;
 
 /// The boss the spring stands on: a far corner's, which the section
 /// passes over, so the spring rides whole with the below half.
-pub(crate) const SPRING_AXIS: (f64, f64) = BOSS_AXES[0];
+const SPRING_AXIS: (f64, f64) = BOSS_AXES[0];
 
 /// The coil's mean radius (m): its wire clears the bore inside and
 /// the boss's rim outside.
-pub(crate) const COIL_R: f64 = 0.14;
+const COIL_R: f64 = 0.14;
 
 /// The wire's half-side (m): a square section.
-pub(crate) const WIRE_H: f64 = 0.025;
+const WIRE_H: f64 = 0.025;
 
 /// The coil's rise per turn (m).
-pub(crate) const PITCH: f64 = 0.08;
+const PITCH: f64 = 0.08;
 
 /// The spring's render colour: steel.
 pub(crate) const SPRING_COLOR: [f64; 3] = [0.62, 0.62, 0.66];
 
 /// The coil's turns.
-pub(crate) const TURNS: u32 = 6;
+const TURNS: u32 = 6;
 
 /// The coil's stations per turn, and its spine's exact points per turn.
 const PER_TURN: u32 = 32;
@@ -116,10 +116,16 @@ fn square_wire(tol: Tol) -> ConstructedLoop<f64> {
 /// The coil starts at the height that puts the square section's lowest
 /// corner on the boss top. The frame's axes do not depend on that
 /// height, so it is read off the coil at `z0 = 0`. That corner is the
-/// spring's lowest point: the spine climbs at `sin α` a unit of arc,
-/// and the frame's roll about it (`τ = sin α cos α / R` a unit of arc)
-/// can lower a corner of the square by at most `√2 WIRE_H τ`, which is
-/// `sin α · √2 WIRE_H cos α / R` < `sin α`.
+/// spring's lowest point, because every corner climbs along the coil.
+/// With `α` the helix angle and `φ` the frame's roll from the Frenet
+/// frame, whose normal is horizontal and whose binormal rises at
+/// `cos α`, a corner sits `WIRE_H cos α (±sin φ ± cos φ)` above the
+/// spine. The roll turns at `τ = sin α cos α / R` per unit of arc, so
+/// that height changes at most `√2 WIRE_H cos α τ` per unit of arc,
+/// while the spine climbs `sin α`. Every corner therefore rises at no
+/// less than `sin α (1 − √2 WIRE_H cos² α / R)`, which is positive:
+/// `√2 WIRE_H / R ≈ 0.25`. [`standing_spring`] asserts the walls'
+/// convex hulls clear the boss top as well.
 fn spring<S: Scalar>(
     wire: &[ConstructedLoop<f64>],
     per_turn: u32,
@@ -156,10 +162,15 @@ fn coil_volume(area: f64) -> f64 {
 
 /// The kernel's coil against [`coil_volume`]: the body is a stack of
 /// station-to-station skinned slabs, not the continuum tube, and falls
-/// short of it by a discretization gap, measured 3.6e-3 at [`PER_TURN`]
+/// SHORT of it (the gap is negative) by a discretization gap, measured 3.6e-3 at [`PER_TURN`]
 /// stations a turn (1.7e-4 at twice that, 1.1e-5 at four times). The
 /// spine's own length is 1.8e-6 short of the helix's, below all three.
 const COIL_GAP: f64 = 5e-3;
+
+/// The cap on the gap at twice [`PER_TURN`] stations a turn, measured
+/// 1.7e-4.
+#[cfg(test)]
+const FINE_GAP: f64 = 5e-4;
 
 /// The spring: a square-wire compression spring of [`TURNS`] turns,
 /// one `sweep_body` along the whole coil, standing on [`SPRING_AXIS`]'s
@@ -198,7 +209,7 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let want = coil_volume(4.0 * WIRE_H * WIRE_H);
     let gap = (props.volume - want) / want;
     assert!(
-        gap.abs() <= COIL_GAP && props.volume_pad <= want * 1e-6,
+        (-COIL_GAP..0.0).contains(&gap) && props.volume_pad <= want * 1e-6,
         "the coil's volume {} ± {:.1e} against A·L = {want}: relative gap {gap:.3e}",
         props.volume,
         props.volume_pad
@@ -217,6 +228,27 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
          on the boss top (z = {}) between the bore ({BORE_R}) and the rim ({BOSS_R})",
         BOSS_Z.1
     );
+    // …and nothing between the corners dips below it: each wall is a
+    // NURBS patch with positive weights, so it lies in the convex hull
+    // of its control points, and those all clear the boss top. (The
+    // caps are planar and bounded by the corners above.)
+    let mut walls = 0;
+    for (_, surface) in body.surfaces() {
+        if let pncad::geom::Surface::Nurbs(patch) = surface {
+            walls += 1;
+            let lowest = patch
+                .control()
+                .iter()
+                .map(|p| p.z)
+                .fold(f64::INFINITY, f64::min);
+            assert!(
+                patch.weights().iter().all(|&w| w > 0.0) && lowest >= BOSS_Z.1 - 1e-12,
+                "a wall's control net reaches z = {lowest}, below the boss top {}",
+                BOSS_Z.1
+            );
+        }
+    }
+    assert_eq!(walls, 4, "the square wire's four walls");
     (body, gap)
 }
 
@@ -420,8 +452,10 @@ mod tests {
     /// **The coil's gap to `A·L` is discretization, not a volume
     /// error.** The stop caps the gap at [`COIL_GAP`]; a cap alone
     /// cannot tell a skinning gap from a wrong volume, so this doubles
-    /// the stations a turn and asserts the gap shrinks at least at
-    /// second order (measured: 21×).
+    /// the stations a turn and asserts the gap stays negative (the
+    /// slabs fall short of the tube), shrinks at least at second order
+    /// (measured: 21×), and lands under an absolute cap: a volume bias
+    /// of either sign larger than the cap reds it.
     #[test]
     fn the_coils_volume_gap_converges_at_least_at_second_order() {
         let tol = Tol::witness();
@@ -431,11 +465,13 @@ mod tests {
             let v = pncad::topo::mass_properties(&body, tol)
                 .expect("the coil's volume")
                 .volume;
-            ((v - want) / want).abs()
+            (v - want) / want
         };
         let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));
         assert!(
-            coarse <= COIL_GAP && fine <= coarse / 4.0,
+            (-COIL_GAP..0.0).contains(&coarse)
+                && (-FINE_GAP..0.0).contains(&fine)
+                && fine.abs() <= coarse.abs() / 4.0,
             "the coil's A·L gap went {coarse:.3e} -> {fine:.3e} on doubling the stations"
         );
     }
