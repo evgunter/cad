@@ -52,7 +52,7 @@ edge → half-edges → vertices → points and folds every failure into
 there can follow the `merge_faces` shape (pass the resolved ends in, or
 return the key that failed) and still owes its scale twin.
 
-## The reduce.rs sites are gone (branch `topo/merge-orientation-rung-levers-at-the-extent`, 2026-10-03)
+## The reduce.rs sites are gone (PR 3992, 2026-10-03)
 
 `boolean/reduce.rs`'s `edge_chord_len` and its `unwrap_or_else(T::one)`
 default are deleted. The maximal-faces gate now levers at the shared
