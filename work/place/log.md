@@ -74,3 +74,14 @@ The fix pass, run from the union of both reviews:
 - `regauge` has one home.
 
 Waiting on `[ev]` #3888: ruling 3 (the gauge hoist) or its retirement, the removal of the group hoist and inline's sugar, and P2-face.
+
+## 2026-10-03 — the gauge-rest row goes to Ev (`[ev]` #3920)
+
+A designer pair weighed `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` (design-fork row 47) and converged in one round:
+- a `FromFace` mate side carries an offset `Placement` in its face's frame;
+- the crate goes on the shelf's gauge with a placing mate;
+- no new gauge kind, and A11 (2) unchanged.
+
+The alternative, a gauge parented on a face, was dropped: every touching item would be written twice, and gauge frames would read solved poses.
+
+#3920 is stacked on #3888, whose `FromFace` sentence it extends. Filed off the question: `work/msolve/a-declaring-mates-alignment-is-never-read.md`.
