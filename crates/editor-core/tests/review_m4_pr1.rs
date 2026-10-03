@@ -5,6 +5,7 @@
 #![allow(clippy::float_cmp)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
     SlotId, eval, eval_count,
@@ -554,6 +555,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             node: Box::new(Node::Extrude {
                 profile: phantom,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),
@@ -583,6 +585,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 node: Box::new(Node::Extrude {
                     profile: ids[0],
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),

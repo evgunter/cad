@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
+use sweep::ExtrudeSide;
 
 use geom::Curve3;
 use geom_core::{Point2, Tol, Vec3};
@@ -55,9 +56,16 @@ fn plate_with_hole() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), tol())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn is_circle(body: &Body<f64>, k: EdgeKey) -> bool {

@@ -16,6 +16,7 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -80,6 +81,7 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

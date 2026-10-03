@@ -49,6 +49,7 @@ test_utils::roster! {
 }
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -155,6 +156,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::transform(
         solid,
@@ -289,6 +291,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         r_.insert(Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         })
     };
     let a = pin(0.0);
@@ -398,6 +401,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let c = r.insert(Node::Extrude {
         profile: c_profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     let block_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -410,6 +414,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let block = r.insert(Node::Extrude {
         profile: block_profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(
         Node::measure(

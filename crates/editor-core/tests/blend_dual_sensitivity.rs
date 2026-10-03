@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
@@ -111,6 +112,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: Expr::param(name("depth"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::fillet(
         cube,

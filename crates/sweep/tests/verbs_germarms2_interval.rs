@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v3};
 use geom_core::{Affine3, Interval, Tol, Vec3};
@@ -51,9 +52,16 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
     let lp = profile::circle(p2(0.0, 0.0), iv(r), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -h)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(2.0 * h)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(2.0 * h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {

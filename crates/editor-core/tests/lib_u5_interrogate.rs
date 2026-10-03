@@ -51,6 +51,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::NodeStanding;
@@ -101,6 +102,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -353,6 +355,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: square,
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = fixture::insert(

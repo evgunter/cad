@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::FRAC_PI_2;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
@@ -61,7 +62,15 @@ fn subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    extrude(&v, Extrusion::Distance(2.0), t).unwrap()
+    extrude(
+        &v,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
 }
 
 /// An axis-aligned cube of side `s` with its low corner at `(x0, y0, z0)`.
@@ -79,9 +88,16 @@ fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> Body<f64> {
     let v = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&v, Extrusion::Distance(s), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &v,
+        Extrusion::Distance {
+            depth: s,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 fn key_of(body: &Body<f64>, f: FaceKey) -> topo::SurfaceKey {

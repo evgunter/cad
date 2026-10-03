@@ -29,6 +29,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, BooleanOp, CheckId, ChecksConfig, ChecksError, ChecksReport,
@@ -577,6 +578,7 @@ fn twin(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0
@@ -617,6 +619,7 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -677,6 +680,7 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {
@@ -717,6 +721,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: first,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, second) = on_frame(
@@ -731,6 +736,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: second,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0

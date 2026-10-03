@@ -13,6 +13,7 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::ExtrudeSide;
 
 use editor_core::CapEnd;
 use editor_core::{
@@ -54,6 +55,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

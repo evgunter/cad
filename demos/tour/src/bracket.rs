@@ -46,6 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
@@ -152,6 +153,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(DEPTH),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

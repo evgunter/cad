@@ -1129,6 +1129,7 @@ mod tests {
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
+    use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -1410,7 +1411,10 @@ mod tests {
         lp = lp.with_tangent_joints((0..n).collect());
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1430,7 +1434,10 @@ mod tests {
         ]);
         let slab = extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()

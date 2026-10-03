@@ -11,6 +11,7 @@ use crate::common::approx::band;
 use crate::common::three_arc;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
 use sweep::test_support::{disc_of_arcs, extruded, sketch_from_axes};
@@ -407,7 +408,14 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 continue;
             }
         };
-        let built = match extrude(&profile, Extrusion::Distance(h), tol()) {
+        let built = match extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: h,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        ) {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("(d={d:e}, L={l}, h={h}) the extrude door refuses: {e}");
@@ -529,9 +537,16 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(tol())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        )
+        .unwrap()
+        .body
     };
     // The boss: a 0.5-radius cylinder standing on z = 1, its sketch
     // plane turned about x by an angle whose departure at the rim's

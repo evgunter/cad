@@ -11,6 +11,7 @@ use geom_core::Tol;
 use geom_core::{OrthoFrame, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
 
@@ -86,7 +87,10 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
     ]);
     let cylinder = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(2.5),
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -117,7 +121,10 @@ pub fn boss_plate() -> Body<f64> {
     ]);
     let plate = extrude(
         &validated(vec![plate_loop]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -132,9 +139,16 @@ pub fn boss_plate() -> Body<f64> {
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.2), Tol::witness())
-        .unwrap()
-        .body;
+    let boss = extrude(
+        &boss_profile,
+        Extrusion::Distance {
+            depth: 1.2,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let out = topo::union(&plate, &boss, Tol::witness()).unwrap();
     match out {
         BooleanResult::Body(bb) => bb.body,
@@ -165,7 +179,10 @@ pub fn az_intersect() -> Body<f64> {
         &Profile::new(xy(-0.0625), vec![a_outline, a_counter])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -190,7 +207,10 @@ pub fn az_intersect() -> Body<f64> {
         )
         .validate(Tol::witness())
         .unwrap(),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -212,7 +232,10 @@ pub fn l_prism() -> Body<f64> {
     ]);
     extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -234,7 +257,10 @@ pub fn holed_prism() -> Body<f64> {
     ]);
     extrude(
         &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

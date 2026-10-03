@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -64,6 +65,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_profile) = on_frame(
@@ -78,6 +80,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: boss_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(

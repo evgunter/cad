@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
@@ -345,6 +346,7 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tol = Tol::witness();
     let at = |doc| {

@@ -9,6 +9,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, mass_properties, validate_closed};
@@ -29,9 +30,16 @@ fn extruded(loops: Vec<Loop>) -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), lps)
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 fn plane(o: (f64, f64), n: (f64, f64)) -> SplitPlane<f64> {
@@ -217,9 +225,16 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let pi4 = std::f64::consts::PI / 4.0;
     for (o, n, above) in [
         (p3(0.0, 0.5, 0.0), v3(0.0, 1.0, 0.0), false),
@@ -498,7 +513,16 @@ fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0), t).unwrap().body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
+    .body;
     let v = w * h - (4.0 - std::f64::consts::PI) * r * r;
     let c = (w - r, h - r);
     for phi in [
