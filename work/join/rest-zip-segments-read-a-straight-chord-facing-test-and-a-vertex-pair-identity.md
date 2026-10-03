@@ -2,12 +2,13 @@
 id: rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity
 kind: issue
 title: The REST zip's enumerate_segments faces germs by a straight-chord test the join no longer uses, and identifies a segment by its vertex pair, so two arcs between one pair refuse ParallelSeamEdges
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 refs: [dumbbell-joint-union-leaves-four-loose-ends]
 parent: JOIN-2
+closed: 2026-10-03
 ---
 
 
@@ -52,10 +53,19 @@ the PR's fix-pass head, those among them. The straight-chord test matches every 
 segments) would replace both; whether this row closes on that branch or
 on JOIN-2 is the owner's call.
 
-## Note (JOIN-3's fix pass)
+## Built (JOIN-2, PR 3880)
 
-The REST zip's arc spec (`boolean/rest.rs`, the `spec(from)` arm that
-runs a circle back) spells "θ ↦ −θ about the flipped axis" by hand. The
-reversal has one home now, `geom::Curve3::reversed`, which every
-`chord_join` site reads; when this row reworks the zip's segments, read
-it there too.
+`rest.rs` reads `join::section_segments`. A segment's `OnEdge` cell is
+its seam edge, its `InFace` cell is the chord's host face (or the
+fragment of it an earlier chord split off), and the other solid's edge
+along it is the chord's twin, all by key. `enumerate_segments`, its
+straight-chord facing test, the arc pass and `arc_along` are gone.
+`fan_edge_between` is gone too: `mirror_edges`, the one remaining lookup
+by vertex pair, asks only whether some edge already joins the two
+vertices, and `pair_patches` verifies the result by cycle congruence.
+`RestZipFrontier::ParallelSeamEdges` is deleted. No declared-REST pose
+with two arcs between one vertex pair reaches the zip: the dumbbell and
+the aligned half-rod stack build in the join. The twin's arc runs
+back through `geom::Curve3::reversed`, the reversal's one home.
+
+Closed with JOIN-2, PR 3880, 2026-10-03.

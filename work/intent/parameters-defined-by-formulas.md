@@ -7,6 +7,6 @@ opened: 2026-10-03
 priority: P0
 cost: M
 parent: d10-one-way-to-say-intent-is-unbuilt
-blocked_on: [variables-are-identities-with-labels]
+blocked_on: [variables-replace-the-parameter-table]
 ---
 
