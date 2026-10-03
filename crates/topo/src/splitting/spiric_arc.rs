@@ -50,12 +50,14 @@ const CROSS_SIDE: &str = "point_in_arc_loop_spiric_side";
 const CROSS_TURN: &str = "point_in_arc_loop_spiric_turn";
 const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
 
-/// How many times a piece is halved before a reading gives up on it.
-/// The ray count reaches it only where a crossing sits within the band
-/// of a halving point or the ray grazes the oval; the boundary reading,
-/// whose pieces stop at the band, only on a carrier whose bounds outrun
-/// `2⁴⁰` band widths.
-const MAX_DEPTH: u32 = 40;
+/// How many times a piece is halved before a reading gives up on it:
+/// past the point where `f64` can halve a window of a few radians at all
+/// (its parameters are then neighbouring floats), so the depth never
+/// binds before the arithmetic does. The ray count reaches it only where
+/// a crossing sits within the band of a halving point or the ray grazes
+/// the oval; the boundary reading, whose pieces stop at the band, only
+/// on a carrier whose bounds outrun `2⁶⁰` band widths.
+const MAX_DEPTH: u32 = 60;
 
 /// How many pieces one reading visits before it gives up — a bound on
 /// the work. A reading that converges holds a handful of unsettled

@@ -22,23 +22,30 @@ use topo::Body;
 use crate::common::torus_walls::vessel_cavity;
 use crate::pis_arc_capped_poses::{body_surface, loop_carriers, loop_half_edges, loop_vertex};
 
+/// How far the dense polyline can sit from the true boundary: a chord of
+/// the finest sampling sags by at most `κ·ℓ²/8`, far under this for every
+/// fixture here.
+const POLYLINE: f64 = 1e-8;
+
 fn tol() -> Tol {
     Tol::witness()
 }
 
 /// **Every spiric-bounded planar face of the vessel cavity at three
 /// wall thicknesses, and of the hollowed Klein wall pair, read near and
-/// far.** Points
-/// are placed `δ ∈ [10⁻⁷, 10⁻³]` m off the spiric along its in-plane
-/// normal — the band the dense-grid row above skips — and at random over
-/// the face's neighbourhood, and every answer is checked against the
-/// face's boundary sampled densely from its edges' own carriers. A
-/// refusal is counted, never a wrong answer.
+/// far.** Points are placed `δ ∈ [10^-1.5, 10^2.5]` escalation
+/// thresholds off the spiric along its in-plane normal — through the
+/// band and out past it — and at random over the face's neighbourhood,
+/// and every answer is checked against the face's boundary sampled
+/// densely from its edges' own carriers: past the band an answer is the
+/// region, within the coincidence threshold it is the boundary, and
+/// between it is never the wrong side. A refusal is counted, never a
+/// wrong answer.
 #[test]
 fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut rng = test_utils::fuzz::start("spiric_faces");
-    let (mut asked, mut refused, mut faces) = (0usize, 0usize, 0usize);
+    let (mut asked, mut refused, mut refused_far, mut faces) = (0usize, 0usize, 0usize, 0usize);
     let mut wrong = Vec::new();
     let mut bodies: Vec<(String, Body<f64>)> = [1.0 / 128.0, 1.0 / 64.0, 1.0 / 32.0]
         .into_iter()
@@ -111,7 +118,7 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
                     if is_spiric {
                         spirics.push((curve.carrier().clone(), t0, t1));
                     }
-                    let n = if is_spiric { 20_000 } else { 2000 };
+                    let n = if is_spiric { 20_000 } else { 4000 };
                     let at = |k: usize| {
                         planar(curve.carrier().eval(t0 + (t1 - t0) * k as f64 / n as f64))
                     };
@@ -148,7 +155,6 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
                 probes.push((
                     rng.range(lo.0 - pad, hi.0 + pad),
                     rng.range(lo.1 - pad, hi.1 + pad),
-                    1e-6,
                 ));
             }
             for (carrier, t0, t1) in &spirics {
@@ -158,29 +164,35 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
                     let tg = carrier.deriv(v);
                     let (tx, ty) = (tg.dot(across), tg.dot(up));
                     let l = tx.hypot(ty);
-                    let delta = 10f64.powf(rng.range(-7.0, -3.0))
+                    let delta = band.escalate()
+                        * 10f64.powf(rng.range(-1.5, 2.5))
                         * if rng.below(2) == 0 { 1.0 } else { -1.0 };
-                    probes.push((
-                        p.0 - ty / l * delta,
-                        p.1 + tx / l * delta,
-                        0.5 * delta.abs(),
-                    ));
+                    probes.push((p.0 - ty / l * delta, p.1 + tx / l * delta));
                 }
             }
-            for (x, y, min_gap) in probes {
+            for (x, y) in probes {
                 let (want, gap) = truth((x, y));
-                if gap < min_gap.clamp(5e-8, 1e-6) {
-                    continue;
-                }
                 asked += 1;
                 let q = origin + across * x + up * y;
-                match topo::test_support::point_in_face(&cavity, face, q, band) {
-                    Ok(Some(got)) if got == want => {}
+                let got = topo::test_support::point_in_face(&cavity, face, q, band);
+                // Past the band (and the polyline's own error) an answer
+                // is the region; within the coincidence threshold it is
+                // the boundary or a refusal; between, anything but the
+                // wrong side.
+                let far = gap > 2.0 * band.escalate() + POLYLINE;
+                let on = gap + POLYLINE < band.zero();
+                // Within the polyline's own error its side is no truth.
+                let judged = gap > POLYLINE;
+                match got {
+                    _ if !judged => {}
+                    Ok(Some(got)) if got == want && !on => {}
+                    Ok(None) if !far => {}
                     Ok(got) => wrong.push(format!(
                         "t={t} {face:?} ({x}, {y}) gap {gap}: want {want}, got {got:?}"
                     )),
                     Err(e) => {
                         refused += 1;
+                        refused_far += usize::from(far);
                         if refused <= 5 {
                             println!("t={t} {face:?} ({x}, {y}) gap {gap}: refused {e:?}");
                         }
@@ -189,7 +201,9 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
             }
         }
     }
-    println!("{faces} spiric faces, {asked} probes asked, {refused} refused");
+    println!(
+        "{faces} spiric faces, {asked} probes asked, {refused} refused ({refused_far} past the band)"
+    );
     assert!(
         faces >= 3 && asked >= 500,
         "not vacuous: {faces} faces, {asked} asked"
