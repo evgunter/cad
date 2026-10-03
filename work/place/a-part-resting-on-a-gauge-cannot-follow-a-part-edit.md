@@ -81,6 +81,21 @@ A mate frame is a base composed with an offset, a `Placement` written in the bas
 
 The crate sits on the shelf's gauge, with a placing mate whose shelf side is the shelf's top face offset in that face's frame. It follows any edit of the shelf. Gauges are unchanged, and A11 (2) is unchanged. The offset can be any rigid motion; the mate's contact class decides which offsets are legal. A3 and A11 (5) state this, and the design-fork log records it as row 53. The tour's shelf-top gauge goes when this is built.
 
+## MSOLVE builds the frame shape (2026-10-03)
+
+Ev's ruling on MSOLVE's `[ev]` PR 3681 rests on this row's
+`MateFrame { base: Part | Face, offset: Placement }`. A mate's roll
+lives in the sides' offsets, `MatePrimitive` names only the residual
+subgroup, and the rider and `PlanarRest`'s standoff retire. The frame
+shape lives in `crates/editor-core/src/mate.rs`, which is MSOLVE's
+ground, so MSOLVE builds it in the unit that lands that ruling
+(`work/msolve/a-face-frame-cannot-turn-its-roll.md`, plan item 22).
+What stays this row's: the crate on the shelf's gauge with a placing
+mate, the tour's shelf-top gauge going away, and the edit that
+rewrites a committed mate's side offset, if PLACE wants to own it. If
+PLACE has already started on the frame shape, say so on MSOLVE's
+tracker and MSOLVE will build on it instead.
+
 ## Closed
 
 Built on `place/mate-frame-offset` (PR 3961). A mate frame is a base
@@ -94,3 +109,7 @@ The residue is filed: the face base's local-+Y convention is
 `work/msolve/a-face-base-puts-its-reference-on-local-y.md`, and the
 `PlanarRest` standoff's retirement is the build Ev ruled on `[ev]` PR
 3681, tracked in `work/msolve/a-face-frame-cannot-turn-its-roll.md`.
+The edit that rewrites a committed mate's side offset is the
+slot edit (`SetParam`/`SetExpression` at a `SlotId::MateFrameStep`),
+admitted as the insert is. MSOLVE builds its ruling on this shape
+(said on `work/msolve/a-face-frame-cannot-turn-its-roll.md`).

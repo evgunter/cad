@@ -1206,6 +1206,45 @@ first. Two things the MSOLVE-12 lane noted:
 - One merge commit on that branch (`84db7bf21`) lacks the trailers. It
   is merged history now, and merge-only means it stays.
 
+Ev approved the revised roll on #3681 ("the new plan makes sense"),
+and fork-log row 60 carries the decision. The `MateFrame { base,
+offset }` shape from PLACE's row 53 is unbuilt and lives in `mate.rs`,
+so MSOLVE builds it with the roll unit. A note on PLACE's row says so
+and leaves PLACE the crate, the tour gauge and, if it wants it, the
+offset edit.
+
+## 2026-10-03 — MSOLVE-13 handed back; review dispatched
+
+PR 3969 came back green at `3610f0432`, and the head is frozen. None
+of the STOP clause's conditions fired. The `t3` false refutation
+reproduced on main. Every consumer kind classifies without reading a
+slot. The member-identity change, instrumented across the editor-core
+suite, moved one existing tree: `msolve2::a3b`, the two-spellings case
+it was meant to fold. One pinned verdict moved and gets scrutiny:
+`msolve1::a5`'s consistent half used to pass the gate and now refuses
+`MovedAbove`, because its `x2` is a transform of the operand.
+
+Two calls the lane made beyond the spec are with the review: Fillet,
+Chamfer and Shell are classified as carried, and a mixed route mints.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+One full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-13 review of `3610f0432`: APPROVE-WITH-FIXES, no MAJOR, C1–C5
+hold. `msolve1::a5`'s move is ruled right, not a regression: its old
+consistent pass was a fixture coincidence. Its `x2` is a quarter turn
+about the block's own centre, a symmetry of the footprint, so the
+contact happened to survive while the seat was rotated in the product.
+The calls the lane made beyond the spec stand: Fillet, Chamfer and
+Shell carried (probed), and mixed routes minting.
+
+Fix pass R1–R10, sent back to the implementer lane:
+- `Vanished { by }` prefers the consumer that lost the face;
+- A5's two overstatements corrected;
+- the recourse worded as "re-pick on {by}";
+- `msolve2::a4b` and `msolve1::a5` re-shaped to keep their subjects;
+- stale identity prose in `node.rs` and `refactor.rs`;
+- `lift` without field rests;
+- small nits.
 
 ## 2026-10-03 — MSOLVE-13 fix pass (PR 3969)
 
@@ -1249,3 +1288,10 @@ Closes MSOLVE-13 and
 `a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
 Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
 The spec is deleted, with a note in `docs/doc-ledger/msolve-13-spec.md`.
+
+MSOLVE-13 merged on PR 3969. Its MERGED entry rode the unit branch.
+MSOLVE-14 (item 19: the solve at the run's scalar) was dispatched on
+Opus, red rows first, with the `f64` bit-fence green on every push. Its
+review tier is dual. One build fits the disk, so if both reviewer arms
+cannot run beside each other the protocol's late-trigger fallback
+applies again.
