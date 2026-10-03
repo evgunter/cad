@@ -5,13 +5,11 @@
 //! the margin — a lever arm that must be definitely positive, a
 //! discriminant that must be definitely nonzero — states that condition
 //! by choosing a GATE door (`k_stats::decide_positive`,
-//! `decide_positive_reported`, `decide_nonzero`, `gate_measured`). The
-//! gate's refusal is therefore the funnel's own escalation, recorded on
-//! the open frame beside the definite verdict the classifier reached,
-//! and no op mints an `Indeterminate` its caller's log cannot see. The
-//! lever-arm gates are `decide_positive_reported`'s: an arm is a length
-//! the user may intend, so a collapsed one escalates with the zero the
-//! funnel decided.
+//! `decide_nonzero`, `gate_measured`). The gate's refusal is therefore
+//! the funnel's own escalation, recorded on the open frame beside the
+//! definite verdict the classifier reached, and no op mints an
+//! `Indeterminate` its caller's log cannot see. A rejection carries the
+//! margin the funnel decided: a collapsed arm escalates with its zero.
 //!
 //! The rows below drive that through the public doors. The census at
 //! the end says a narrower thing than it looks: no file under this
@@ -169,7 +167,7 @@ fn the_material_pairing_gate_records_its_escalation() {
     assert_eq!(verdicts(&recorded), [("material_wedge_side", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("material_wedge_side", MarginDiag::INVALID)
+        ("material_wedge_side", MarginDiag::value(0.0))
     );
 }
 

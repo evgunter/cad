@@ -264,11 +264,8 @@ pub(crate) fn wedge_decided<T: Decide>(
     let sin_theta = n1.cross(n2).norm() / magnitudes;
     let arm = folded_lever_arm(s1, s2, p, extent);
     // The collapsed-arm gate (module docs): the wedge margin is only
-    // meaningful through a definitely-positive arm. A Zero arm escalates
-    // with its decided margin, a (for a true magnitude, unreachable)
-    // Negative one as Invalid, and an in-band or poisoned arm as the
-    // funnel's own escalation.
-    crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band).map_err(|diag| {
+    // meaningful through a definitely-positive arm.
+    decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|diag| {
         WedgeEscalation::Lever(LeverEscalation::arm(at_wedge(diag, arm, sin_theta, band)))
     })?;
     let margin = Margin::levered(sin_theta, arm);
@@ -323,11 +320,7 @@ fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) ->
     {
         return gate;
     }
-    match geom_core::k_stats::decide_positive_reported(
-        "dihedral_arm_wedge",
-        Margin::of(wedge.abs()),
-        band,
-    ) {
+    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
         Err(diag) => diag,
         // Unreachable: the wedge is no longer than an arm that did not
         // read positive.
@@ -825,10 +818,9 @@ pub enum MaterialPairing {
 /// # Errors
 ///
 /// [`Indeterminate`]: predicate `"material_wedge_side"` — the margin
-/// landed in the band or was poisoned, or (as
-/// [`geom_core::MarginKind::Invalid`]) classified `Zero`, which on a
-/// definitely-smooth sample means the two encodings contradict each
-/// other: unit normals whose tangent planes coincide cannot be
+/// landed in the band or was poisoned, or (carrying the decided
+/// margin) classified `Zero`, which on a definitely-smooth sample means
+/// the two encodings contradict each other: unit normals whose tangent planes coincide cannot be
 /// perpendicular, so the pairing question is not validly posed at this
 /// site — the collapsed-arm gate's posture, one order over.
 pub fn classify_material_pairing<T: Decide>(

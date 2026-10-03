@@ -122,6 +122,7 @@
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -803,10 +804,8 @@ impl<T: Decide> ConicArc<T> {
         if self.kind == ConicKind::Circle {
             let rho = (x.powi(2) + y.powi(2)).sqrt();
             let miss = circle_miss(q, self.center, self.axis, self.lever);
-            match decide(rows.on, Margin::of(miss), band)? {
-                Sign::Zero => {}
-                Sign::Positive => return Ok(ConicHit::Off),
-                Sign::Negative => return Err(crate::invalid_margin::invalid(band, rows.on)),
+            if decide_magnitude(rows.on, Margin::of(miss), band)? == Magnitude::Positive {
+                return Ok(ConicHit::Off);
             }
             let trim = ArcTrimRows {
                 end: rows.end,
@@ -839,11 +838,9 @@ impl<T: Decide> ConicArc<T> {
         // a definite OFF needs nothing else.
         let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / b.powi(2)).sqrt());
         let lower = (lower.powi(2) + axial.powi(2)).sqrt();
-        let far = decide(rows.on, Margin::of(lower), band);
-        match far {
-            Ok(Sign::Positive) => return Ok(ConicHit::Off),
-            Ok(Sign::Negative) => return Err(crate::invalid_margin::invalid(band, rows.on)),
-            Ok(Sign::Zero) | Err(_) => {}
+        let far = decide_magnitude(rows.on, Margin::of(lower), band);
+        if far == Ok(Magnitude::Positive) {
+            return Ok(ConicHit::Off);
         }
         // Within the escalation band of the conic by the lower bound, so
         // `∇F` is nonzero here and the Newton foot is defined.
@@ -858,33 +855,28 @@ impl<T: Decide> ConicArc<T> {
         // the band — the two bounds agree to within the band's own ratio
         // there — and is wrong on one that bends tighter
         // (`tests::an_ellipse_tighter_than_the_band_straddles_it`).
-        match (decide(rows.on, Margin::of(upper), band), far) {
-            (Ok(Sign::Zero), _) => {}
-            (Ok(Sign::Negative), _) => return Err(crate::invalid_margin::invalid(band, rows.on)),
+        match (decide_magnitude(rows.on, Margin::of(upper), band), far) {
+            (Ok(Magnitude::Zero), _) => {}
             (_, Err(diag)) | (Err(diag), _) => return Err(diag),
             // The lower bound within the zero band, the upper definitely
             // beyond it: the two straddle the whole band, which only an
             // ellipse bending tighter than the band resolves (`b²/a`
             // within a few `ε`) allows.
-            (Ok(Sign::Positive), _) => {
+            (Ok(Magnitude::Positive), _) => {
                 return Err(crate::invalid_margin::invalid(band, rows.straddle));
             }
         }
         let (t0, t1) = self.span;
         let at = [
-            decide(rows.end, Margin::norm3(q - self.point(t0)), band),
-            decide(rows.end, Margin::norm3(q - self.point(t1)), band),
+            decide_magnitude(rows.end, Margin::norm3(q - self.point(t0)), band),
+            decide_magnitude(rows.end, Margin::norm3(q - self.point(t1)), band),
         ];
-        if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        if at.contains(&Ok(Magnitude::Zero)) {
             return Ok(ConicHit::End);
         }
+        // Past the end check, each is `Positive` or escalated.
         for end in at {
-            match end? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => {
-                    return Err(crate::invalid_margin::invalid(band, rows.end));
-                }
-            }
+            end?;
         }
         let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
         Ok(

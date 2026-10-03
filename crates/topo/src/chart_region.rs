@@ -142,6 +142,7 @@
 //! escalates typed.
 
 use geom::Surface;
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
 
 use crate::body::Body;
@@ -1109,9 +1110,8 @@ fn face_boundary_points<T: Decide>(
 ///   simply too big for it.
 /// - in-band — [`ChartRegionError::Escalated`], the genuine residue.
 ///
-/// A definitely-NEGATIVE margin is unreachable (a max of absolute
-/// values), so it is poisoned input and escalates as `Invalid` — the
-/// `bool_plane_parallel` precedent.
+/// The margin is a max of absolute values from zero: a magnitude
+/// ([`geom_core::k_stats::decide_magnitude`]), with no negative sign.
 ///
 /// # Errors
 ///
@@ -1134,15 +1134,9 @@ fn carrier_agreement<T: Decide + Bounds>(
                 .max((p - o_b).dot(n_b).abs());
         }
     }
-    match decide("chart_region_carrier_tilt", Margin::of(worst), band) {
-        Ok(Sign::Zero) => Ok(()),
-        Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-        Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("chart_region_carrier_tilt"),
-            terminal_sliver: false,
-        })),
+    match decide_magnitude("chart_region_carrier_tilt", Margin::of(worst), band) {
+        Ok(Magnitude::Zero) => Ok(()),
+        Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
 }
@@ -1453,19 +1447,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    // A gate over an UNSIGNED margin (a norm): a definite Negative is
-    // unreachable, so it is poisoned input and escalates `Invalid` —
-    // the `chart_region_carrier_tilt` precedent.
+    // A gate over an UNSIGNED margin (a norm, or a max of norms from
+    // zero): a magnitude, with no negative sign.
     let norm_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
-        match decide(name, margin, gate_band) {
-            Ok(Sign::Zero) => Ok(()),
-            Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-            Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band: gate_band,
-                predicate: Some(name),
-                terminal_sliver: false,
-            })),
+        match decide_magnitude(name, margin, gate_band) {
+            Ok(Magnitude::Zero) => Ok(()),
+            Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };

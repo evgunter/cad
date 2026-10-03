@@ -1031,6 +1031,20 @@ enum Reading {
     Invalid,
 }
 
+/// Where a [`MarginDiag`] stands against a band, as classification
+/// places it: what the error text of an escalation may claim about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Placement {
+    /// Decided zero: a gate that does not pass at zero rejected it.
+    ZeroBand,
+    /// Decided nonzero: a gate rejected the side it lies on.
+    Past,
+    /// Inside the ambiguity band, or an enclosure straddling a threshold.
+    Undecided,
+    /// Poisoned.
+    Invalid,
+}
+
 /// Which shape a [`MarginDiag`] has — and no number.
 ///
 /// Closed by design (the set of scalar instantiations is closed, per
@@ -1058,7 +1072,9 @@ pub enum MarginKind {
     /// a domain violation somewhere in the computation (see the
     /// totality/NaN policy in [`crate::real`]). A poisoned value carries
     /// no sign information at all — this is not "too close to call", it
-    /// is "the question was never validly posed". For the subdivision
+    /// is "nothing was measured". It means poison and nothing else: a
+    /// definite sign a gate rejects carries the margin it was decided
+    /// on ([`crate::k_stats::decide_positive`]). For the subdivision
     /// driver the causes differ in curability: a domain-clamp `Invalid`
     /// (a `Trv` decoration from a partially out-of-domain enclosure) may
     /// cure under subdivision as the violating sub-box shrinks away,
@@ -1205,6 +1221,20 @@ impl MarginDiag {
         self.kind() == MarginKind::Invalid
     }
 
+    /// Where this reading stands against `band`, as the classifier
+    /// would place it — for composing error text only.
+    fn placement(self, band: Band) -> Placement {
+        let (zero, escalate) = (band.zero, band.escalate);
+        match self.0 {
+            Reading::Value(m) if m.abs() <= zero => Placement::ZeroBand,
+            Reading::Enclosure { lo, hi } if -zero <= lo && hi <= zero => Placement::ZeroBand,
+            Reading::Value(m) if m.abs() >= escalate => Placement::Past,
+            Reading::Enclosure { lo, hi } if lo >= escalate || hi <= -escalate => Placement::Past,
+            Reading::Value(_) | Reading::Enclosure { .. } => Placement::Undecided,
+            Reading::Invalid => Placement::Invalid,
+        }
+    }
+
     /// **The one door to the numbers, for error text only.** A call
     /// outside a message or a payload conversion is a decision on a
     /// reporting margin, which the type exists to prevent; production
@@ -1224,9 +1254,10 @@ impl MarginDiag {
     /// the margin passing — "or, if this {size} is intended, tighten
     /// the tolerance below `|m|/K`", `K` the band's multiplier. A point
     /// margin tightens where it is nonzero on a side the decision
-    /// accepts; an enclosure where both ends do, below its nearer end.
-    /// Otherwise the lever alone, with [`SizedWords::otherwise`] where
-    /// given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
+    /// accepts; an enclosure where both ends do, below its nearer end;
+    /// neither where it lies past the band, decided at this tolerance
+    /// already. Otherwise the lever alone, with [`SizedWords::otherwise`]
+    /// where given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
     ///
     /// The choice is made here, from the number, and only a sentence
     /// leaves. Because the sentence is chosen from the number, reading
@@ -1243,6 +1274,9 @@ impl MarginDiag {
             otherwise,
         } = words;
         let below = match self.0 {
+            // Decided nonzero at this band already: a smaller tolerance
+            // decides it the same, so no size is tightened below.
+            _ if self.placement(band) == Placement::Past => None,
             Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
             Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
             Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
@@ -1579,34 +1613,33 @@ impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
         let margin = self.0.margin;
-        match margin.0 {
+        let noun = match margin.kind() {
+            MarginKind::Enclosure => "enclosure",
+            MarginKind::Value | MarginKind::Invalid => "margin",
+        };
+        match margin.placement(self.0.band) {
             // A zero verdict of a decision that does not pass at zero,
             // carried with the margin its band decided.
-            Reading::Value(m) if m.abs() <= zero => {
-                write!(f, "margin {margin:e} lies within the zero band (±{zero:e})")
+            Placement::ZeroBand => {
+                write!(f, "{noun} {margin:e} lies within the zero band (±{zero:e})")
             }
-            Reading::Enclosure { lo, hi } if -zero <= lo && hi <= zero => {
-                write!(
-                    f,
-                    "enclosure {margin:e} lies within the zero band (±{zero:e})"
-                )
-            }
-            // A bound reported where it stands past the band (a
-            // declared pair's reach, read above as no sign passes).
-            Reading::Value(m) if m.abs() >= escalate => write!(
+            // A decided sign on the side the decision does not pass, or
+            // a bound reported where it stands past the band (a declared
+            // pair's reach, read above as no sign passes).
+            Placement::Past => write!(
                 f,
-                "margin {margin:e} lies past the ambiguity band ({zero:e}, {escalate:e})"
+                "{noun} {margin:e} lies past the ambiguity band ({zero:e}, {escalate:e})"
             ),
-            Reading::Value(_) => write!(
+            Placement::Undecided if margin.kind() == MarginKind::Value => write!(
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
             ),
-            Reading::Enclosure { .. } => write!(
+            Placement::Undecided => write!(
                 f,
                 "enclosure {margin:e} cannot be classified against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
-            Reading::Invalid => write!(
+            Placement::Invalid => write!(
                 f,
                 "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
@@ -1704,22 +1737,32 @@ impl fmt::Display for IndeterminateUnder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let levers = self.recourse;
         write!(f, "{}", self.diag.payload())?;
-        // Each kind's own first lever joins the door's, so everything
+        // Each reading's own first lever joins the door's, so everything
         // the reader can act on sits under the one `Recourse:` label
-        // the ending carries: an enclosure can be subdivided, and a
-        // margin nobody could read is a question about the inputs.
-        match self.diag.margin.kind() {
-            MarginKind::Value => {
+        // the ending carries: an undecided enclosure can be subdivided,
+        // and a margin nobody could read is a question about the
+        // inputs. A decided reading is neither: subdivision keeps its
+        // sign, and a decided nonzero sign is sign-certain, so no
+        // tolerance arm rides with it (D4 ¶1 (i)).
+        let margin = self.diag.margin;
+        match (margin.placement(self.diag.band), margin.kind()) {
+            (Placement::Past, _) => write!(
+                f,
+                " — a decided sign this decision cannot use; {}",
+                self.diag.ending(levers)
+            ),
+            (Placement::ZeroBand | Placement::Undecided, MarginKind::Value)
+            | (Placement::ZeroBand, _) => {
                 write!(f, " — a near-coincidence; {}", self.diag.ending(levers))
             }
-            MarginKind::Enclosure => write!(
+            (Placement::Undecided, _) => write!(
                 f,
                 " — {}",
                 self.diag.ending(&format!(
                     "subdivide the parameter box for a tighter enclosure, or {levers}"
                 ))
             ),
-            MarginKind::Invalid => write!(
+            (Placement::Invalid, _) => write!(
                 f,
                 " — {}",
                 self.diag.ending(&format!(
@@ -1996,6 +2039,16 @@ mod tests {
             ),
             (
                 MarginDiag::value(-5e-10),
+                words(true, None),
+                "Recourse: L".to_owned(),
+            ),
+            (
+                MarginDiag::value(5e-8),
+                words(true, None),
+                "Recourse: L".to_owned(),
+            ),
+            (
+                MarginDiag::enclosure(2e-8, 5e-8),
                 words(true, None),
                 "Recourse: L".to_owned(),
             ),

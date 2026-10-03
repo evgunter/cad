@@ -2254,8 +2254,9 @@ fn run_checks<T: Decide>(
         // reparametrized `t → 2t` halves the rate and doubles the
         // domain), which the bare rate is not, and it is the quantity
         // ε classifies under D4. The two failure modes stay distinct:
-        // a collapsed or poison meter answers `Invalid`/escalates,
-        // while a backwards or zero span is `IntervalNotForward` below.
+        // a collapsed meter escalates with its decided margin and a
+        // poison one as `Invalid`, while a backwards or zero span is
+        // `IntervalNotForward` below.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
