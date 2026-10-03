@@ -46,3 +46,12 @@ One placement-step address with an owner, step 0 included, and the
 wire, the goldens and the Python slot alphabet moved with it — or a
 ruling that step 0's legacy spelling stays and the other two fold into
 one `{ owner, step, arg }` address.
+
+## Held (2026-10-03)
+
+Re-homed from PLACE at its close: the slot alphabet is `node.rs`'s,
+which is RECIPE's ground. The row falls under the hold on placement
+and `Expr` slots (`[ev]` PR #3990, "every slot holds a typed
+variable"), which may re-spell every slot anyway. Park it on
+`one-way-to-say-dependency-and-intent` once that row is on main; the
+blocker is not set here because the row does not exist yet.

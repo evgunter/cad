@@ -244,7 +244,8 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    decide_arm("enters_material_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
+    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
     let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
     Ok(
         match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
@@ -299,7 +300,8 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    decide_arm("tangent_sector_order2_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
+    crate::dihedral::decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(
         match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
@@ -393,7 +395,7 @@ pub fn bends_into_material<T: Decide>(
             return Err(WallBendError::Indefinite(kind));
         }
     }
-    decide_arm("wall_bend_order2_arm", Margin::of(arm), band)
+    crate::dihedral::decide_positive("wall_bend_order2_arm", Margin::of(arm), band)
         .map_err(|d| WallBendError::Lever(LeverEscalation::arm(d)))?;
     let g = crate::implicit_gradient(surface, p);
     let g_norm = g.norm();
@@ -421,22 +423,6 @@ fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
-}
-
-/// The collapsed-arm gate through the same funnel
-/// ([`geom_core::k_stats::decide_positive_reported`]): a lever arm a
-/// reading is metered over must classify definitely positive. The arm
-/// is a length the user may intend, so a decided `Zero` escalates with
-/// the margin the funnel decided (its refusal offers the tolerance that
-/// margin gives), and a definite `Negative`, no length at all, as
-/// `INVALID`. Shared by this file's sector predicates and
-/// [`crate::classify_dihedral`].
-pub(crate) fn decide_arm<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<(), Indeterminate> {
-    geom_core::k_stats::decide_positive_reported(name, margin, band)
 }
 
 #[cfg(test)]

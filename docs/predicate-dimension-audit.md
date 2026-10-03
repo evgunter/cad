@@ -239,14 +239,14 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
 
 ```sh
-# code half — every funnel site, all thirteen spellings, both crates.
+# code half — every funnel site, all fourteen spellings, both crates.
 # It also matches doc-comment prose and `fn` definitions; the ledger
 # above says which, and they are subtractions, not sites.
-# `decide_positive` / `decide_negative` / `decide_nonzero` are `decide` with the caller's
-# sign requirement folded in, so their sites are rows of this table
+# `decide_positive` / `decide_negative` / `decide_nonzero` / `decide_magnitude` are `decide`
+# with the caller's sign requirement folded in, so their sites are rows of this table
 # like any other; `gate_measured` is deliberately absent — it classifies
 # no margin and has no comparand to dimension.
-grep -rnE '\b(decide|decide_flagged|decide_invariant|decide_positive|decide_negative|decide_nonzero|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+grep -rnE '\b(decide|decide_flagged|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_magnitude|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
@@ -347,7 +347,7 @@ which is what actually moves the number.
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
 | pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
 | pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
-| pcurve_cache.rs:2310 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (**`metered_sup` door**: `chart_arms_at` answers a `SupSpeed` pair, and an escape metred through a certified upper bound can only refuse) |
+| pcurve_cache.rs `trim_containment` (:5772) | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (**`metered_sup` door**: `chart_arms_at` answers a `SupSpeed` pair, and an escape metred through a certified upper bound can only refuse) |
 | pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
 | pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
@@ -426,7 +426,7 @@ which is what actually moves the number.
 | boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex — any in-band value escalates, and a definite one escalates too (a body certified at a coarser band carries up to that band's ε) | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::LoopEdge::contact`) | bool_contact_arc_span / bool_contact_arc / bool_contact_arc_end / bool_contact_arc_trim | `(τ − w)` levered by the smaller semi-axis. A CIRCLE: the distance from the circle `√(((ρ − 1)·r)² + axial²)` (the quantity `point_on_circle` meters under this name), the unit-circle chord to either end and the chordal-defect sum, each levered by the radius — exact. An ELLIPSE: the distance bounded on both sides, `on` decided on the upper bound (a point of the ellipse one Newton step and a radial snap from `q`) for ON and on the lower bound `2|F|/(g + √(g² + 4|F|/b²))` for OFF; `end` the exact distance from `q` to the end point; `trim` the chordal defect of the foot levered by the LARGER semi-axis, so it bounds the arc length to the nearer end from above | m | OK (CONTACT-4) |
 | boolean/insert.rs (`strut_order`) | bool_strut_side | `n̂·(ĝ × ê)`: the sine of a strut germ's angle from the arrival edge, × min sector arm — its distance at that arm from the arrival edge's line; a decided zero is placed by `bool_dir_same` (`sectors::direction_sense`) | m | OK (JOIN reflex corner) |
-| boolean/insert.rs (`strut_order`) | bool_strut_order | `n̂·(ĝ₀ × ĝ₁)`: the sine of the angle between two strut germs in one half-turn, × min sector arm; a decided zero refuses (`decide_nonzero_reported`) | m | FIXED (JOIN reflex corner: was the cosine difference `(ĝ₀ − ĝ₁)·ê` × arm, second order in the spacing beside 0 and π, with a decided zero read as an order; before that, dimensionless) |
+| boolean/insert.rs (`strut_order`) | bool_strut_order | `n̂·(ĝ₀ × ĝ₁)`: the sine of the angle between two strut germs in one half-turn, × min sector arm; a decided zero refuses (`decide_nonzero`) | m | FIXED (JOIN reflex corner: was the cosine difference `(ĝ₀ − ĝ₁)·ê` × arm, second order in the spacing beside 0 and π, with a decided zero read as an order; before that, dimensionless) |
 | boolean/insert.rs (`walks_after`) | bool_shared_cut_order | (unit cut dir × unit cut dir)·(unit sector normal) × sector arm — two crossing pairs' cuts in one corner of a vertex both cut, ordered along the corner; a decided zero (the cuts along one direction, checked one ray by `bool_dir_same`) is placed by the runs: held only when the other pair's run leaves the direction the same way and is the same arc (`tied_held`), and not when the two runs are struts one of which holds the other whole (`holds_whole`); and an in-band reading refuses as a `Coincide::Sectors` coincidence, as `bool_strut_order` does | m | OK |
 | boolean/insert.rs (`germ_dir`) | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm — the margin `pair_search` read definite before it recorded the pair as a crossing | m | OK |
 | boolean/join.rs:567/803 | bool_join_chord | germ-site chord LENGTH (the degeneracy gate: Zero ⇒ coincident sites, no polygon edge) | m | OK |
@@ -446,6 +446,7 @@ which is what actually moves the number.
 | boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach / carrier_sphere_reach / carrier_cyl_reach / carrier_torus_reach | the declared pair's displacement over its consumed extent, bounded above at every point of the ball: the position datum read at the pivot + the axes' or normals' chord `\|a₁ − σa₂\|` × the reach from it (a levered value, through `Margin::levered`) + the radius differences, summed; a sum of lengths | m | OK (TANG; replaces deciding each datum on its own, which bridged nearly twice the band) |
 | boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach_floor / carrier_*_reach_floor | the larger of the radius difference less the rest of the upper bound (a bound across the whole ball) and each face vertex's distance from the other carrier less its own; floored at zero | m | OK (TANG) |
 | boolean/recl.rs:224–748 | side_code / bool_dir_same / bool_ee_collinear | side_code as in the sectors.rs row (`flank_key`, edge-edge membership); cos/sin × sector arms for the rest | m | OK |
+| boolean/recl.rs (`wedge_is_reflex`) | bool_wedge_reflex | `n̂₀·r̂₁`: the sine of an edge-edge site's dihedral wedge angle (the second flanker's projected representative against the first flanker's outward normal), × min sector arm — the second face's distance at that arm from the first face's plane; asked only when a representative splits the two planes' verdicts, and a decided zero refuses (`decide_nonzero`) | m | OK (JOIN reflex wedge) |
 | boolean/recl.rs (`resolve_bisector_graze`) | bool_sector_bisector_side | refusal only: a grazing bisector between keys definitely on one side, reachable only at K ≤ 2 (argument at `vtxfac`'s on-edge resolution) | — | OK (CONTACT-9) |
 | boolean/reduce.rs:548–802 | bool_vertex_face_side / circle & line clearances | plane residuals, /2r residual extremes, sagitta dips | m | OK |
 | boolean/reduce.rs (`bool_conic_curved_clearance`'s ARC half) | bool_conic_curved_clearance | `geom_brep::conic_arc_residual_range`: a hull of `implicit_residual` samples (m) widened by the chord-dip charge `f2·h²/8`, `f2` in **m/rad²** and `h` in rad — a residual's second derivative with respect to an ANGLE, so the product is a length and the comparand stays a length | m | OK |
@@ -461,9 +462,7 @@ which is what actually moves the number.
 | boolean/arcs.rs (`arcs_along`) | bool_arc_along / bool_arc_ahead | `\|t̂ × d̂\|` and `t̂ · d̂` of two unit tangents, each levered at the arc's radius (`Margin::levered`): sin and cos of the angle between them × radius, the offset the arc's far side swings by | m | OK |
 | boolean/reduce.rs (`arc_chain_reaches`, `boundary_meets_circle_only_at`) | bool_arc_chain_on_circle / bool_arc_boundary_off_circle | a point's distance from a circle, `√(h² + (ρ − r)²)` (`arcs::circle_miss`): its height over the circle's plane and its axial distance minus the radius, both m | m | OK |
 | boolean/reduce.rs (`boundary_meets_circle_only_at`) | bool_arc_plane_side | a vertex's signed height over the circle's plane, `(p − c) · â` with `â` unit; a conic's own plane offset from it (`ConicPlaneMeet::Parallel`) | m | OK |
-| boolean/rest.rs:401 | bool_join_chord | germ-site chord LENGTH | m | OK |
-| boolean/rest.rs:411/413 | bool_join_facing | unit dir · chord | m | FIXED (was bare cosine) |
-| boolean/rest.rs:421 | bool_join_nearest | a DIFFERENCE of two chord lengths | m | OK |
+| boolean/sectors.rs (`runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
 | boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
