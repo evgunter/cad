@@ -4,6 +4,10 @@ kind: issue
 title: A4's round trip moves the root order of a cut whose roots a kept root separates
 status: open
 opened: 2026-10-03
+needs_ev: true
+design: true
+cost: M
+priority: P1
 ---
 
 
