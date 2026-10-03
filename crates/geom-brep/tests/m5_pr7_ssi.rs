@@ -3738,7 +3738,7 @@ fn one_branch(
 #[test]
 fn a_walls_weights_move_no_answer() {
     let (eps, k_eps) = (band().zero(), band().escalate());
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let nets: [(&str, [f64; 4]); 6] = [
         ("weights ¼", [0.25; 4]),
         ("weights 2", [2.0; 4]),
@@ -3837,7 +3837,7 @@ fn plane_off(at: Point3<f64>, n: Vec3<f64>, off: f64) -> Surface<f64> {
 #[test]
 fn a_region_is_reported_only_within_its_reach_cap() {
     let k_eps = band().escalate();
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let wall = flat_wall(1.0, 1.0);
     let origin = Point3::new(0.0, 0.0, 0.0);
     let run = |plane: &Surface<f64>| ssi::plane_nurbs_ssi(plane, &wall, wall_box(1.0, 1.0), band());
@@ -3892,7 +3892,7 @@ fn a_region_is_reported_only_within_its_reach_cap() {
     let what = "normal (0.02, 1, 0), 0.3Kε off the u = 0 side";
     let n = Vec3::new(0.02, 1.0, 0.0);
     let r = run(&plane_off(Point3::new(0.0, 0.0, 0.5), n, 0.3 * k_eps));
-    let Err(SsiError::RegionUnbounded { side, reach, limit }) = r else {
+    let Err(SsiError::RegionUnbounded { side, reach }) = r else {
         panic!("{what}: expected the unbounded region, got {r:?}");
     };
     assert_eq!(
@@ -3904,8 +3904,8 @@ fn a_region_is_reported_only_within_its_reach_cap() {
         "{what}"
     );
     assert!(
-        reach > limit && limit == cap,
-        "{what}: reach {reach:e}, limit {limit:e}"
+        reach > cap,
+        "{what}: reach {reach:e}"
     );
 }
 
@@ -3942,7 +3942,7 @@ fn rational_biquad(b: f64, weights: [f64; 9]) -> NurbsSurface<f64> {
 #[test]
 fn a_rational_walls_corner_and_side_in_band_answer_a_region_or_nothing() {
     let (eps, k_eps) = (band().zero(), band().escalate());
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let twisted = NurbsSurface::new(
         knots(),
@@ -4028,7 +4028,7 @@ fn a_short_clip_takes_the_hermite_candidate_and_certifies() {
     let mut regions = 0;
     let mut hermites = 0;
     for i in 0..=24 {
-        let length = s2 * k_eps + (ssi::SSI_SHORT_CLIP - s2) * k_eps * f64::from(i) / 25.0;
+        let length = s2 * k_eps + (5.0 - s2) * k_eps * f64::from(i) / 25.0;
         let d = length / s2;
         let at = format!("|AB| = {:.3} Kε at ε {eps:e}", length / k_eps);
         let r = ssi::plane_nurbs_ssi(
