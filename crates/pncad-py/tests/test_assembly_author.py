@@ -1948,6 +1948,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             "carried-unmintable", class_=ContactClass.Tangent
         )
         outer, instance = self.instantiated("carried-unmintable-outer", ref)
+        outer.apply(DocEdit.set_label(instance, "left bracket"))
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
@@ -1964,6 +1965,13 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.assertEqual(row.of, str(inner.id))
         self.assertEqual(row.via, [instance])
         self.assertIn("at rest", str(err))
+        # The route's first instance is the outer document's, so the
+        # row says it as that document holds it; the inner mate keeps
+        # its tag.
+        through = f'through InstantiatePart "left bracket" ({tag(instance)})'
+        self.assertIn(through, str(row))
+        self.assertIn(f"mate {tag(inner_mate)}", str(row))
+        self.assertIn(through, str(err))
 
     def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
         # Two stands side by side, each certifying: the assembly keeps

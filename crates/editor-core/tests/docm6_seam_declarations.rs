@@ -1151,16 +1151,25 @@ fn stand_over(
 
 /// **A part whose mate id the outer document also holds**: the outer
 /// document is the same stand (labelled "outer seat") plus an instance
-/// of the part (labelled "inner seat"), placed clear of it. Every
-/// document's mint starts at the zero chain, so the two stands mint
-/// the same ids. A carried row speaks the part's ids by tag; one spoken
-/// from the outer document would name the outer mate.
+/// of the part (labelled "inner seat"), placed clear of it, the
+/// instance labelled "left bracket". Every document's mint starts at the
+/// zero chain, so the two stands mint the same ids. A carried row speaks
+/// the part's ids by tag; one spoken from the outer document would name
+/// the outer mate. Its route's first instance is the outer document's,
+/// so that document speaks it.
 ///
-/// Returns the store, the part, the outer document and the shared id.
+/// Returns the store, the part, the outer document, the shared id and
+/// the instance.
 fn outer_over_twin(
     class: ContactClass,
     seat: [f64; 3],
-) -> (PartStore, ProfileDoc, ProfileDoc, RecipeNodeId) {
+) -> (
+    PartStore,
+    ProfileDoc,
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-cube"), Tol::witness());
     let (inner, mate) = stand_over(cube, cube_body, "speak-inner", class, seat, "inner seat");
@@ -1169,15 +1178,32 @@ fn outer_over_twin(
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, instance, [10.0, 0.0, 0.0]);
-    (store, inner, outer, mate)
+    let (outer, _) = step(
+        outer,
+        DocEdit::SetLabel {
+            node: instance,
+            label: Some(editor_core::Label::new("left bracket").expect("a valid label")),
+        },
+    );
+    (store, inner, outer, mate, instance)
+}
+
+/// The route's first instance as the outer document says it.
+fn left_bracket(instance: RecipeNodeId) -> String {
+    format!(
+        "through InstantiatePart \"left bracket\" ({})",
+        test_utils::refusal::tag(instance.0)
+    )
 }
 
 /// The part's own mint refusal speaks its labelled mate from the part;
 /// the same row carried to the outer gate keeps the part's tag, though
-/// the outer document holds that id as its own labelled mate.
+/// the outer document holds that id as its own labelled mate, and its
+/// route's first instance is spoken from the outer document.
 #[test]
 fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the_id() {
-    let (store, inner, outer, mate) = outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
+    let (store, inner, outer, mate, instance) =
+        outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
     let t = test_utils::refusal::tag(mate.0);
 
     let inner_ev = run(&inner, &with_resolver(store.clone()));
@@ -1221,6 +1247,17 @@ fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the
         !spoken.contains("seat"),
         "a carried row is never spoken from the outer document: {spoken}"
     );
+    assert!(
+        spoken.contains(&left_bracket(instance)),
+        "the route's first instance is spoken from the outer document: {spoken}"
+    );
+    assert!(
+        carried.to_string().contains(&format!(
+            "through instance {}",
+            test_utils::refusal::tag(instance.0)
+        )),
+        "with no document at hand the instance is said by its tag: {carried}"
+    );
 }
 
 /// Both stands' declared rests are refuted (seat 0.5: the cubes
@@ -1229,7 +1266,7 @@ fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the
 /// though the outer document holds that id.
 #[test]
 fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() {
-    let (store, _, outer, mate) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
+    let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
     let t = test_utils::refusal::tag(mate.0);
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
@@ -1252,6 +1289,10 @@ fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() 
     assert!(
         carried_line.starts_with(&format!("mate {t}'s declared")) && !carried_line.contains("seat"),
         "{carried_line}"
+    );
+    assert!(
+        carried_line.contains(&left_bracket(instance)),
+        "the route's first instance is spoken from the outer document: {carried_line}"
     );
     let whole = result.expect_err("refuted").spoken(&outer);
     assert_eq!(
