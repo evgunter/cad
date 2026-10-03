@@ -842,6 +842,26 @@ fn body_operand<T: Decide>(
     read_body(results, input)
 }
 
+/// **A body operand, finished** for a door that takes finished bodies
+/// (the Boolean's): [`body_operand`]'s body through the at-rest gate
+/// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
+/// node. The evaluator holds the bodies its nodes built with no verdict
+/// kept beside them, so the consuming node pays the gate here.
+///
+/// # Errors
+///
+/// [`body_operand`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
+/// gate refuses the body.
+fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+    tol: Tol,
+) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
+    let body = body_operand(results, input)?;
+    T::gate_at_rest_kept((*body).clone(), tol)
+        .map_err(|errors| NodeErrorKind::UnfinishedOperand { input, errors })
+}
+
 /// **A body read for its geometry**: a Body value, or a boolean's
 /// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
 /// other in its own one-body word. A reader consumes no material (a
@@ -2802,8 +2822,8 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let sided = side_by_operand(declare, a, b, doc)?;
         resolve_declarations(&sided, doc, &a_table, &b_table)?
     };
-    let body_a = body_operand(results, a)?;
-    let body_b = body_operand(results, b)?;
+    let body_a = finished_operand(results, a, tol)?;
+    let body_b = finished_operand(results, b, tol)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
@@ -2837,7 +2857,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
-            let mut body = out.body;
+            let mut body = out.body.into_body();
             stamp_minted(&mut body, id);
             Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
@@ -2912,7 +2932,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .iter()
         .map(|&m| {
             Ok((
-                body_operand(results, m)?,
+                Arc::new(finished_operand(results, m, tol)?),
                 Arc::new(
                     names::member_view(id, m, &value_of(results, m)?.name_table)
                         .map_err(NodeErrorKind::Naming)?,
@@ -3053,7 +3073,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (table, published_groups) =
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
-    let mut body = (*acc_body).clone();
+    let mut body = (*acc_body).clone().into_body();
     // ONCE, over the finished body: the stamp numbers from zero, so a
     // per-step pass would reuse an earlier step's index.
     stamp_minted(&mut body, id);

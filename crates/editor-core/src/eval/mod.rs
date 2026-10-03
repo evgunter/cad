@@ -1484,6 +1484,19 @@ pub enum NodeErrorKind {
         /// How many parts its document gathered.
         parts: usize,
     },
+    /// A body operand is not a finished body: the at-rest gate
+    /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
+    /// body its input node built, so a door that takes finished bodies
+    /// (the Boolean) cannot take it (`docs/DESIGN.md`, tier 3: a finished
+    /// body pays the gate at the door that built it). The input's own
+    /// door shipped a body it should have refused, so nothing an author
+    /// set on either node is the cause.
+    UnfinishedOperand {
+        /// The operand node.
+        input: RecipeNodeId,
+        /// The validator's findings, each naming its entity.
+        errors: Vec<topo::ValidationError>,
+    },
     /// A [`crate::Node::Part`] selected a split half that holds no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
@@ -2398,6 +2411,16 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} gathers {parts} parts, and this op takes one body. Recourse: union the \
                  parts explicitly in their document and use that union",
                 by.node_as(*input, "input")
+            ),
+            Self::UnfinishedOperand { input, errors } => write!(
+                f,
+                "{} is not a finished body: the at-rest gate refuses it ({}), and this op \
+                 takes finished bodies. The node that built it shipped a body its own gate \
+                 should have refused",
+                by.node_as(*input, "input"),
+                errors
+                    .first()
+                    .map_or_else(|| "no finding".to_string(), ToString::to_string)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,

@@ -960,6 +960,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::WrongOperand => "wrong_operand",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
+        C::UnfinishedOperand => "unfinished_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -1145,6 +1146,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
+        NodeErrorKind::UnfinishedOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
