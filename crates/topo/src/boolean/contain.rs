@@ -9,9 +9,9 @@
 //! typed (F6); definite margins walk on. Interior/exterior then comes
 //! from one walk over the outer loop and every ring, which reads each
 //! edge on its own CARRIER ([`crate::splitting::containment::carrier_loop_side`]): a line is its
-//! chord, a circle or ellipse arc is crossed on its conic, and an edge
-//! on a carrier with no crossing row refuses typed wherever it could
-//! matter.
+//! chord, a circle or ellipse arc is crossed on its conic, a spiric arc
+//! on its oval, and a spline edge, which has no crossing row, refuses
+//! typed wherever it could matter.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -21,6 +21,7 @@ use crate::ray_parity::ParityRows;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
+use crate::splitting::spiric_arc::SpiricRows;
 use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
@@ -60,7 +61,7 @@ pub enum ContainError {
     /// The face's topology could not be walked.
     Corrupt,
     /// The walk could not read a loop at this point: an edge of it it
-    /// has no crossing row for stood in the way of every ray.
+    /// could not cross stood in the way of every ray.
     Uncrossable(Uncrossable),
 }
 
@@ -98,7 +99,7 @@ impl core::fmt::Display for ContainError {
                 "contfp: every direction of the parity schedule grazed the face's \
                  boundary, so no ray read a definite crossing count — the point sits \
                  within ε of the boundary at this tolerance; move the point off the \
-                 boundary or lower the tolerance"
+                 boundary"
             ),
             Self::Corrupt => write!(
                 f,
@@ -289,16 +290,18 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// hit shadow a ring vertex, fixed here with its red-then-green row
 /// below) — then edge interiors over all loops, each edge on the row
 /// its carrier has: a `Line` is the distance to its closed segment
-/// ([`crate::ray_parity::on_segment`]), and a circle or an ellipse is asked its
-/// own conic and trim — both through
+/// ([`crate::ray_parity::on_segment`]), a circle or an ellipse is asked its
+/// own conic and trim, and a spiric is read piece by piece on its oval —
+/// all through
 /// [`crate::splitting::containment::LoopEdge::contact`], the one
 /// boundary reading the carrier walk runs too, so a point this pass
-/// places off an edge is off it for the walk. A spiric or spline edge gets no verdict: its
+/// places off an edge is off it for the walk. A spline edge gets no verdict: its
 /// chord is a different curve, and the region walk refuses inside a
 /// ball its locus lies in. This is [`contfp`]'s ONE boundary pass: the
 /// walk after it trusts it and runs none of its own. Rows, one home:
-/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, and — for the
-/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`.
+/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, — for the
+/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`, and for
+/// the spiric `bool_contact_spiric{,_end,_clear,_leaf}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],
@@ -325,10 +328,10 @@ fn boundary_pre_pass<T: Decide>(
             {
                 EdgeContact::On => return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]))),
                 EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
-                // Within the band of a conic's END, which the vertex pass
-                // above placed definitely clear of both of this edge's
+                // Within the band of a curved edge's END, which the vertex
+                // pass above placed definitely clear of both of this edge's
                 // vertices. The end is read exactly (a circle through its
-                // radius, an ellipse as a distance from `q`), so the two
+                // radius, an ellipse or a spiric as a distance from `q`), so the two
                 // passes disagree only by as much as the carrier's ends
                 // sit off the stored vertices, on its own row
                 // (`bool_contact_arc_end_vertex`). Certification pins each
@@ -340,8 +343,8 @@ fn boundary_pre_pass<T: Decide>(
                 // an escalation — on that margin where it is in band, and
                 // otherwise on the row itself.
                 EdgeContact::End => {
-                    let Some(carrier_ends) = edge.conic_ends() else {
-                        unreachable!("only a conic arc reads End")
+                    let Some(carrier_ends) = edge.carrier_ends() else {
+                        unreachable!("only a conic or spiric arc reads End")
                     };
                     for c in carrier_ends {
                         for v in [ends.0, ends.1] {
@@ -369,9 +372,10 @@ enum PrePass<T: geom_core::Real> {
     Off(Vec<(LoopKey, CarrierLoop<T>)>),
 }
 
-/// The distance from a conic edge's carrier end to one of the edge's
-/// stored vertices — a question about the body, apart from `q`'s own
-/// distance to that end (`bool_contact_arc_end`).
+/// The distance from a conic or spiric edge's carrier end to one of the
+/// edge's stored vertices — a question about the body, apart from `q`'s
+/// own distance to that end (`bool_contact_arc_end`,
+/// `bool_contact_spiric_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
 /// The pre-pass's rows for a straight edge: [`crate::ray_parity::on_segment`]
@@ -394,6 +398,12 @@ const ROWS: BoundaryRows = BoundaryRows {
         end: "bool_contact_arc_end",
         trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
+    },
+    spiric: SpiricRows {
+        end: "bool_contact_spiric_end",
+        clear: "bool_contact_spiric_clear",
+        on: "bool_contact_spiric",
+        leaf: "bool_contact_spiric_leaf",
     },
 };
 

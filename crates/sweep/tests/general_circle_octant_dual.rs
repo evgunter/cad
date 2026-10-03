@@ -9,6 +9,7 @@
 
 use geom_core::{Affine3, Dual, Dual64, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -27,9 +28,16 @@ fn oblique_clip() -> Body<Dual64> {
         let profile = Profile::new(SketchPlane::<Dual64>::xy(), vec![lp.map_scalar(lift)])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(lift(h)), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: lift(h),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);

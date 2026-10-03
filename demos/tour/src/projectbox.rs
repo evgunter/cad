@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use pncad::document::ExtrudeSide;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;
@@ -260,9 +261,16 @@ fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::t
         .into();
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![circle], tol).expect("the rod profile validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)), tol)
-        .expect("extrude the rod")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude the rod")
+    .body
 }
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
@@ -417,13 +425,13 @@ mod tests {
     /// halves' section rings, `plane_section`'s areas against their
     /// closed forms and the spring's volume and footing; this adds what `crate::run_body`
     /// asserts on the tour pass (tier 3′ on the box with its declared
-    /// contacts, tier 3 on every other body), and the shell roles the
-    /// above half's STEP pin rests on: the cut frees the two bored
-    /// bosses' tops, so that half is the walls' piece and two caps,
-    /// each bounding material.
+    /// contacts, tier 3 on every other body), and the above half's
+    /// pieces: the cut frees the two bored bosses' tops, so that half is
+    /// the walls' piece and two caps, each bounding material, and each a
+    /// solid of its own.
     #[test]
-    fn the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_outer_shells()
-     {
+    fn the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids()
+    {
         use pncad::topo::ShellRole;
         let tol = Tol::witness();
         let stop = stop(tol);
@@ -447,6 +455,7 @@ mod tests {
             .map(|c| c.role)
             .collect();
         assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
+        assert_eq!(above.body.solids().count(), 3, "one solid per piece");
     }
 
     /// **The coil's gap to `A·L` is discretization, not a volume

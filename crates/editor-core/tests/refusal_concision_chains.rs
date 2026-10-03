@@ -21,8 +21,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
-use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
+use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
 
@@ -355,7 +356,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Finish/Corrupt",
     "Split/Finish/DegenerateSide",
     "Split/Finish/Euler",
-    "Split/Finish/NotSingleSolid",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
@@ -385,7 +385,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Revolve/VoidInsertion",
     "Skin/BadDegree",
     "Skin/DomainNotUnit",
-    "Skin/KnotAlgebra",
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
@@ -669,15 +668,31 @@ fn every_node_refusal_renders_within_the_budget() {
         if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
             assert!(!text.contains("declare"), "{name}: {text}");
         }
-        // Every arm whose split rendering offers the join's recourse
-        // offers the declaration under the Boolean instead.
+        // Every arm whose split rendering offers the join's SHARED
+        // recourse offers the declaration under the Boolean instead.
+        //
+        // The shared one is the escalated arm's: `Indeterminate::ending`
+        // composed over the levers the door has, so the split's text
+        // carries the margin payload beside it. An arm with a lever of
+        // its own — `SectionArcSide`'s "move the geometry", for a
+        // definite verdict no declaration would change — is NOT it, and
+        // the levers alone no longer tell the two apart now that
+        // `NO_DECLARATION_RECOURSE` is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
                 .iter()
                 .find(|(n, _)| *n == format!("Split/Join/{arm}"))
                 .map(|(_, t)| t)
                 .expect("every Boolean join row has its split twin");
-            if split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+            let escalated = [
+                "lies inside the ambiguity band",
+                "lies within the zero band",
+                "cannot be classified against",
+                "margin is invalid",
+            ]
+            .iter()
+            .any(|p| split.contains(p));
+            if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),
                     "{name}: {text}"
@@ -1052,6 +1067,55 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::NonPositiveCount { count: 0 },
         ),
         row(
+            "NegativeSpacing",
+            NodeErrorKind::NegativeSpacing {
+                spacing: geom_core::MarginDiag::value(-4.0),
+                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+            },
+        ),
+        row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
+        row("DegenerateStep", NodeErrorKind::DegenerateStep),
+        row(
+            "FullRangeStep(whole)",
+            NodeErrorKind::FullRangeStep {
+                step: "360 deg".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Whole,
+            },
+        ),
+        row(
+            "FullRangeStep(whole, evaluated)",
+            NodeErrorKind::FullRangeStep {
+                step: "720 deg * scalar(blades)".to_owned(),
+                evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
+                turns: StepTurns::Whole,
+            },
+        ),
+        row(
+            "FullRangeStep(within)",
+            NodeErrorKind::FullRangeStep {
+                step: "760 deg".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Within("40 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(within, evaluated)",
+            NodeErrorKind::FullRangeStep {
+                step: "360 deg / scalar(blades) - 400 deg".to_owned(),
+                evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
+                turns: StepTurns::Within("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(unresolved)",
+            NodeErrorKind::FullRangeStep {
+                step: "1e20 rad".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Unresolved,
+            },
+        ),
+        row(
             "PlacementsUncertified",
             NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),
@@ -1141,6 +1205,13 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
+        (
+            "NegativeDepth",
+            E::NegativeDepth {
+                side: sweep::ExtrudeSide::Along,
+                depth: geom_core::MarginDiag::value(-0.25),
+            },
+        ),
         ("ObliqueExtrusion", E::ObliqueExtrusion),
         (
             "ExtrusionEscalated",
@@ -1507,7 +1578,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
     });
     let shell = ShellKey::default();
     let finish = [
-        ("NotSingleSolid", F::NotSingleSolid { count: 2 }),
         (
             "DegenerateSide",
             F::DegenerateSide {
@@ -1554,7 +1624,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([("Pcurves".to_owned(), SplitError::Pcurves(pcurve()))])
+        .chain([
+            ("Pcurves".to_owned(), SplitError::Pcurves(pcurve())),
+            (
+                "Pieces".to_owned(),
+                SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
+            ),
+        ])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()
@@ -3386,6 +3462,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         moved(moved(doc, body, 2.0), body, 4.0)
@@ -3397,6 +3474,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, plane) = insert(
@@ -3631,6 +3709,22 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceUnresolved/NoPartFace",
+            M::FaceUnresolved {
+                mate: n(9),
+                side: MateSide::A,
+                refusal: Box::new(editor_core::FaceRefusal::NoPartFace {
+                    instance: n(6),
+                    head: editor_core::FaceName::new(editor_core::StableName {
+                        kind: editor_core::EntityKind::Face,
+                        node: n(6),
+                        path: vec![],
+                    })
+                    .expect("a face"),
+                }),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),
@@ -3706,10 +3800,16 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Pieces",
+            S::Pieces {
+                error: topo::PieceSortError::Crossing { shell },
+            },
+        ),
+        (
             "OperandOuterShells",
             S::OperandOuterShells {
                 solid: SolidKey::default(),
-                outer: 2,
+                outer: 0,
             },
         ),
         (
@@ -3831,6 +3931,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));
@@ -3969,7 +4070,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "invalid margin",
             escalated(MarginDiag::INVALID),
             format!(
-                "{head}{sign}margin is invalid (NaN or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
                  unreadable or collapsed margin may indicate a kernel bug worth reporting"
             ),
         ),

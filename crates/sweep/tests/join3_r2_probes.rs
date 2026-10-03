@@ -22,7 +22,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, extrude};
+use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::Body;
 
 fn tol() -> Tol {
@@ -39,7 +39,16 @@ fn body_of(plane: SketchPlane<f64>, shape: &Shape, h: f64) -> Body<f64> {
             .collect(),
     );
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&p, Extrusion::Distance(h), tol()).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Signed area of a bulge loop: the chord polygon plus each arc's
@@ -477,7 +486,16 @@ fn j3r2_groove_battery() {
             let p = Profile::new(SketchPlane::new(place), vec![disc.into()])
                 .validate(tol())
                 .unwrap();
-            let rod = extrude(&p, Extrusion::Distance(3.0), tol()).unwrap().body;
+            let rod = extrude(
+                &p,
+                Extrusion::Distance {
+                    depth: 3.0,
+                    side: ExtrudeSide::Along,
+                },
+                tol(),
+            )
+            .unwrap()
+            .body;
             let vr = topo::mass_properties(&rod, tol()).unwrap().volume;
             // The disc's part inside z ∈ [0, 1] (y is inside the block).
             let below = |h: f64| {

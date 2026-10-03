@@ -52,6 +52,7 @@
 
 use crate::common;
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
@@ -133,7 +134,10 @@ fn holed_loops() -> Vec<ProfileLoop<f64>> {
 fn notched() -> sweep::Extruded<f64> {
     extrude(
         &validated(notched_loops()),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -225,7 +229,10 @@ fn downward_extrusion_keeps_the_same_senses() {
 fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
     let t = extrude(
         &validated(holed_loops()),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -563,7 +570,10 @@ fn loft_pair(loops: &[ProfileLoop<f64>], h: f64) -> Lofted<f64> {
 fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
     extrude(
         &validated(loops.to_vec()),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -625,7 +635,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             );
         }
         Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::Escalated { cause },
+            source: geom_brep::PropsError::Escalated { cause, .. },
             ..
         }) => assert_eq!(
             cause.predicate,
@@ -820,9 +830,16 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let pellet = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let pellet = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
 
     let err = match topo::boolean::union(&lofted.body, &pellet, Tol::witness()) {
         Err(e) => e.to_string(),

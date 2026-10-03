@@ -124,7 +124,7 @@ mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    MarginDiag, Point3, Real, Tol,
+    Margin, MarginDiag, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -285,7 +285,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_window"
         | "point_in_arc_loop_conic_disc"
-        | "point_in_arc_loop_conic_advance" => BooleanDecision::Containment.subject(),
+        | "point_in_arc_loop_conic_advance"
+        | "point_in_arc_loop_spiric_end"
+        | "point_in_arc_loop_spiric_clear"
+        | "point_in_arc_loop_spiric_on"
+        | "point_in_arc_loop_spiric_leaf"
+        | "point_in_arc_loop_spiric_side"
+        | "point_in_arc_loop_spiric_turn"
+        | "point_in_arc_loop_spiric_advance" => BooleanDecision::Containment.subject(),
         _ => return None,
     })
 }
@@ -585,6 +592,11 @@ impl FacePairDeclaration {
     pub fn continuation(a: FaceKey, b: FaceKey) -> Self {
         Self::new(a, b, BooleanCoincidence::Continuation)
     }
+
+    /// The seam pair: distinct carriers joining G1, aligned senses.
+    pub fn seam(a: FaceKey, b: FaceKey) -> Self {
+        Self::new(a, b, BooleanCoincidence::Seam)
+    }
 }
 
 /// The classification stages' symmetric declared-face-pair index
@@ -606,11 +618,11 @@ pub(crate) struct DeclaredPairs<T: Real> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), BooleanCoincidence>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
     verified: VerifiedDeclarations,
-    /// The ORDERED one-sided cover ([`Self::one_sided`]): `(parent,
+    /// The ORDERED one-sided cover ([`Self::cover`]): `(parent,
     /// target)`, where the parent face's carrier is certified to lie in
-    /// one closed side of the target's. C4 states the certificate one
-    /// way, so the key is directed.
-    one_sided: std::collections::BTreeSet<(OperandFace, OperandFace)>,
+    /// one closed side of the target's, and which side. C4 states the
+    /// certificate one way, so the key is directed.
+    one_sided: std::collections::BTreeMap<(OperandFace, OperandFace), CoverSide>,
     /// Each declared pair's consumed extent, measured on the operands
     /// at rest ([`rest::pair_extent`]), `(A face, B face)`. Every
     /// declared pair has one: the production constructor
@@ -623,7 +635,7 @@ impl<T: Real> Default for DeclaredPairs<T> {
         Self {
             map: std::collections::BTreeMap::new(),
             verified: VerifiedDeclarations::default(),
-            one_sided: std::collections::BTreeSet::new(),
+            one_sided: std::collections::BTreeMap::new(),
             extent: std::collections::BTreeMap::new(),
         }
     }
@@ -659,36 +671,172 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
     (o == Operand::A, f)
 }
 
-/// **Which structural tangencies certify a GLOBAL side** (C4's strut
-/// source). A `TangentIntersection` edge certifies that its two faces'
-/// carriers are tangent ALONG THE EDGE — a local fact. The cover needs a
-/// global one: the strut face's (`parent`'s) carrier lies in one closed
-/// side of its partner's (`partner`'s) carrier, which the door verified
-/// one carrier with the target. Local implies global exactly for these
-/// carrier-kind pairs, and each is admitted for its own reason:
+/// **Which tangencies along a curve certify a GLOBAL side** — the one
+/// table C4's strut and seam sources share. C4's cover records an
+/// edge's endpoints "only when the edge's parent carrier is certified to
+/// lie in one closed side of that carrier". A structural tangency (an
+/// edge described `TangentIntersection`) and a verified seam each
+/// certify that two carriers are tangent along a CURVE — a local fact.
+/// The cover needs the global one: `parent`'s carrier in one closed side
+/// of `partner`'s everywhere. Tangency along a curve fixes the geometry
+/// enough that local implies global exactly for these pairs, both ways
+/// round:
 ///
-/// - **cylinder or sphere tangent to a plane**: both are convex
-///   surfaces, and a convex surface lies in the closed half-space of
-///   any plane tangent to it. The cylinder or sphere is on one closed
-///   side of the plane.
-/// - **plane tangent to a cylinder or sphere**: every point of a plane
-///   tangent to a cylinder is at least the radius from the axis (the
-///   plane's distance to the axis IS the radius, tangency being where
-///   it is attained). Every point of a plane tangent to a sphere is at
-///   least the radius from the centre. So the plane lies in the
-///   cylinder's or sphere's closed exterior, one closed side.
+/// - **plane and cylinder**: the cylinder is convex, so it lies in the
+///   closed half-space of any plane tangent to it; every point of that
+///   plane is at least the radius from the axis, the plane's distance to
+///   it, so the plane lies in the cylinder's closed exterior.
+/// - **two cylinders**: tangent along a curve only with parallel axes,
+///   along a ruling — externally each lies outside the other, internally
+///   the smaller lies in the larger and the larger outside the smaller.
+/// - **sphere and cylinder**: tangent along a circle only centred on the
+///   axis with the cylinder's radius, so the sphere lies in the closed
+///   solid cylinder, and the cylinder keeps at least the radius from the
+///   centre.
+/// - **sphere and torus**: tangent along a circle in two ways. Centred
+///   on the torus's axis, at a centre `c` every point of the centre
+///   circle `C` is equidistant from, at `d`: the torus is `{x : dist(x,
+///   C) = r}`, so every point of it lies between `d − r` and `d + r` of
+///   `c`, on one side of a sphere of radius `d ∓ r`, and that sphere
+///   keeps at least `r` from `C`, outside the open solid torus. Or
+///   centred ON the centre circle with the minor radius `r` (the
+///   ball-ended elbow, tangent along a meridian): every torus point is
+///   `r` from `C`, so at least `r` from the centre, outside the open
+///   ball, and the sphere lies within `r` of `C`, inside the closed
+///   solid torus. Both are a global side.
+/// - **plane and torus**: tangent along a circle only at a top or bottom
+///   plane, with the torus in one half-space and the plane at least the
+///   minor radius from the centre circle.
 ///
 /// Every other pair gives no cover, and its crossing stays a typed
-/// frontier. A cone's tangent plane passes through the apex and leaves
-/// the second nappe on its other side. A torus has tangent planes that
-/// cut it. A spline (a strut minted by STEP adoption or by a blend)
-/// carries no global convexity the strut could stand on.
-fn strut_certifies_side(parent: geom::SurfaceKind, partner: geom::SurfaceKind) -> bool {
-    use geom::SurfaceKind::{Cylinder, Plane, Sphere};
-    matches!(
+/// frontier. Two tori, or a torus and a cylinder, joined G1 along a
+/// meridian diverge quadratically past it, so each crosses the other's
+/// continuation. **That exclusion is conservative**, since the table
+/// answers by KIND: a cylinder coaxial with a torus, of radius `R ± r`,
+/// is tangent to it along an equator and is a global side. A kind row
+/// cannot tell the coaxial cylinder from the tube chain, and admitting
+/// the chain would cover a crossing, so the row stays out and the
+/// coaxial case keeps its typed frontier. A cone's tangent plane leaves its second nappe on the
+/// other side. A spline (STEP adoption, blends) carries no global
+/// convexity. Two planes, two spheres or a plane and a sphere are never
+/// tangent along a curve on distinct carriers.
+///
+/// **The source column.** A seam certifies every row above. A
+/// structural tangency (the strut source) certifies only plane and
+/// cylinder, both ways: that is what it covered before the seam came
+/// and what a fixture exercises. The other rows are as true for a strut
+/// as for a seam, but nothing yet reaches them through one, so they
+/// wait for a witness (filed: `the-strut-cover-on-cylinder-pairs`).
+/// The old strut row for plane and sphere is not restored: those are
+/// never tangent along a curve on distinct carriers.
+fn tangency_certifies_side(
+    source: TangencySource,
+    parent: geom::SurfaceKind,
+    partner: geom::SurfaceKind,
+) -> bool {
+    use geom::SurfaceKind::{Cylinder, Plane, Sphere, Torus};
+    let global = matches!(
         (parent, partner),
-        (Cylinder | Sphere, Plane) | (Plane, Cylinder | Sphere)
-    )
+        (Plane, Cylinder | Torus)
+            | (Cylinder, Plane | Cylinder | Sphere)
+            | (Sphere, Cylinder | Torus)
+            | (Torus, Plane | Sphere)
+    );
+    global
+        && match source {
+            TangencySource::Seam => true,
+            TangencySource::Strut => {
+                matches!((parent, partner), (Plane, Cylinder) | (Cylinder, Plane))
+            }
+        }
+}
+
+/// Which certificate a tangency along a curve comes from
+/// ([`tangency_certifies_side`]'s source column).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TangencySource {
+    /// An operand edge described `TangentIntersection`.
+    Strut,
+    /// A verified seam declaration.
+    Seam,
+}
+
+/// **What the one-sided cover certifies** about a parent face's carrier
+/// against a target face's: which closed side of the target's implicit
+/// residual ([`geom_brep::implicit_residual`]) holds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CoverSide {
+    /// One carrier: the parent lies ON the target's carrier, residual ≡ 0.
+    On,
+    /// One closed side, of this sign: read off the parent face's
+    /// boundary once the certificate (a kind fact) says one side holds
+    /// it all.
+    Off(Sign),
+    /// One closed side, but no definite reading said which.
+    Unread,
+}
+
+impl CoverSide {
+    /// Whether a point of the parent whose target residual decided
+    /// `sign` is consistent with the certificate: on the carrier always,
+    /// off it only on the certified side. A point on the other side is a
+    /// crossing the certificate rules out, so it keeps its door.
+    pub(crate) fn admits(self, sign: Sign) -> bool {
+        match (self, sign) {
+            (_, Sign::Zero) => true,
+            (Self::Off(side), sign) => side == sign,
+            (Self::On | Self::Unread, _) => false,
+        }
+    }
+}
+
+/// The side of `target`'s carrier the parent face lies on: the sign of
+/// the target's implicit residual at the parent's boundary arc ends and
+/// midpoints, required to agree, and every sample decided (on the
+/// carrier, or definitely off it). Only consulted where a certificate
+/// already says one closed side holds the whole parent carrier, so any
+/// definite reading names it; readings that disagree contradict the
+/// certificate and leave the side unread.
+///
+/// **Reading the side off boundary samples is sound HERE and nowhere
+/// the side is only local.** The seam's departure read once sampled a
+/// face's boundary the same way, and a face whose outline reached round
+/// to the other bank of its locus fooled it: there the question was
+/// which side the face leaves on AT the locus, a local fact the far
+/// boundary says nothing about. This question is global by the time it
+/// is asked: [`tangency_certifies_side`] has certified that every point
+/// of the parent's CARRIER lies in one closed side of the target's,
+/// so every point of the face, boundary samples included, lies there
+/// too, and one definite sample names the side. A face cannot bulge to
+/// the other side between samples because no point of its carrier is
+/// there.
+fn read_cover_side<T: Decide>(
+    parent: &Body<T>,
+    face: FaceKey,
+    target: &geom::Surface<T>,
+    band: Band,
+) -> CoverSide {
+    let (mut pos, mut neg) = (false, false);
+    for (_, curve) in rim_wedge::face_boundary_arcs(parent, face) {
+        let (t0, t1) = curve.params();
+        for t in [t0, (t0 + t1) * T::from_f64(0.5), t1] {
+            let r = geom_brep::implicit_residual(target, curve.carrier().eval(t));
+            match crate::validate::decide("cover_side", Margin::of(r), band) {
+                Ok(Sign::Positive) => pos = true,
+                Ok(Sign::Negative) => neg = true,
+                Ok(Sign::Zero) => {}
+                // An in-band sample is a reading that did not decide;
+                // the side stays unread rather than resting on the
+                // samples that did.
+                Err(_) => return CoverSide::Unread,
+            }
+        }
+    }
+    match (pos, neg) {
+        (true, false) => CoverSide::Off(Sign::Positive),
+        (false, true) => CoverSide::Off(Sign::Negative),
+        _ => CoverSide::Unread,
+    }
 }
 
 /// What [`verify_declared_contacts`] certified, per declared pair
@@ -700,6 +848,15 @@ pub(crate) struct VerifiedDeclarations {
     pub(crate) one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     /// `Tangent` pairs the witness lane verified.
     pub(crate) tangent: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    /// Seam pairs the witness lane verified, with their carriers' kinds
+    /// (A's first).
+    pub(crate) seam:
+        std::collections::BTreeMap<(FaceKey, FaceKey), (geom::SurfaceKind, geom::SurfaceKind)>,
+    /// The first verified `Tangent` pair whose locus runs through a
+    /// plane face, and that face's operand; or the first refusal of
+    /// that read. Only a union consumes it.
+    pub(crate) through_a_face:
+        Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
 }
 
 impl<T: Decide> DeclaredPairs<T> {
@@ -735,8 +892,8 @@ impl<T: Decide> DeclaredPairs<T> {
         // A structural tangency on either operand, between a strut face
         // and a partner the door verified one carrier with a face of
         // the other operand. Each direction is its own certificate,
-        // admitted only for the kinds where the strut's local tangency
-        // is a global side ([`strut_certifies_side`]): strut face →
+        // admitted only for the kinds where a tangency along a curve is
+        // a global side ([`tangency_certifies_side`]): strut face →
         // other face when the strut face lies on one side of the
         // partner, other face → strut face when the partner lies on
         // one side of the strut face.
@@ -753,15 +910,34 @@ impl<T: Decide> DeclaredPairs<T> {
                     let (strut_face, other_face) = (tagged(o, f), tagged(target.0, target.1));
                     // The strut face's carrier on one side of the
                     // partner's, which IS the other face's carrier.
-                    if strut_certifies_side(f_kind, partner_kind) {
-                        pairs.one_sided.insert((strut_face, other_face));
+                    if tangency_certifies_side(TangencySource::Strut, f_kind, partner_kind) {
+                        pairs
+                            .one_sided
+                            .entry((strut_face, other_face))
+                            .or_insert(CoverSide::Unread);
                     }
                     // The partner's carrier (the other face's) on one
                     // side of the strut face's.
-                    if strut_certifies_side(partner_kind, f_kind) {
-                        pairs.one_sided.insert((other_face, strut_face));
+                    if tangency_certifies_side(TangencySource::Strut, partner_kind, f_kind) {
+                        pairs
+                            .one_sided
+                            .entry((other_face, strut_face))
+                            .or_insert(CoverSide::Unread);
                     }
                 }
+            }
+        }
+        // Which side each one-sided certificate holds its parent on.
+        let body = |(is_a, _): OperandFace| if is_a { a } else { b };
+        for (&(parent, target), side) in &mut pairs.one_sided {
+            if *side != CoverSide::Unread {
+                continue;
+            }
+            if let Some(surface) = body(target)
+                .get_face(target.1)
+                .and_then(|f| body(target).get_surface(f.surface))
+            {
+                *side = read_cover_side(body(parent), parent.1, surface, band);
             }
         }
         Ok(pairs)
@@ -780,7 +956,7 @@ impl<T: Real> DeclaredPairs<T> {
             decls,
             VerifiedDeclarations {
                 one_carrier,
-                tangent: std::collections::BTreeSet::new(),
+                ..VerifiedDeclarations::default()
             },
         )
     }
@@ -790,18 +966,38 @@ impl<T: Real> DeclaredPairs<T> {
     /// structural tangencies and without the extents.
     fn index(decls: &BooleanDeclarations, verified: VerifiedDeclarations) -> Self {
         // Both directions for a verified one-carrier pair (one carrier:
-        // each lies in, so on one closed side of, the other) and for a
-        // verified `Tangent` pair (the witness lane's kinds, plane ×
-        // cylinder along a ruling and parallel cylinders, each lie in
-        // one closed side of the other — the separation invariant).
-        let one_sided: std::collections::BTreeSet<(OperandFace, OperandFace)> = verified
+        // each lies ON the other) and for a verified `Tangent` pair (the
+        // witness lane's kinds, plane × cylinder along a ruling and
+        // parallel cylinders, each lie in one closed side of the other —
+        // the separation invariant). A verified seam gives each
+        // direction its kinds certify ([`tangency_certifies_side`]).
+        // Which side an off-carrier certificate holds is read in
+        // [`Self::build`], where the bodies are.
+        let both = |(fa, fb): (FaceKey, FaceKey), side| {
+            let (x, y) = (tagged(Operand::A, fa), tagged(Operand::B, fb));
+            [((x, y), side), ((y, x), side)]
+        };
+        let one_sided: std::collections::BTreeMap<(OperandFace, OperandFace), CoverSide> = verified
             .one_carrier
             .iter()
-            .chain(&verified.tangent)
-            .flat_map(|&(fa, fb)| {
+            .flat_map(|&pair| both(pair, CoverSide::On))
+            .chain(
+                verified
+                    .tangent
+                    .iter()
+                    .flat_map(|&pair| both(pair, CoverSide::Unread)),
+            )
+            .chain(verified.seam.iter().flat_map(|(&(fa, fb), &(ka, kb))| {
                 let (x, y) = (tagged(Operand::A, fa), tagged(Operand::B, fb));
-                [(x, y), (y, x)]
-            })
+                [
+                    tangency_certifies_side(TangencySource::Seam, ka, kb)
+                        .then_some(((x, y), CoverSide::Unread)),
+                    tangency_certifies_side(TangencySource::Seam, kb, ka)
+                        .then_some(((y, x), CoverSide::Unread)),
+                ]
+                .into_iter()
+                .flatten()
+            }))
             .collect();
         Self {
             map: decls
@@ -879,18 +1075,32 @@ impl<T: Real> DeclaredPairs<T> {
 
     /// **The crossing layer's one-sided cover** (C4): is the PARENT
     /// face `f1`'s carrier certified to lie in one closed side of the
-    /// target `f2`'s? Directed: the answer for `(f1, f2)` says nothing
-    /// about `(f2, f1)`.
+    /// target `f2`'s, and which side? Directed: the answer for
+    /// `(f1, f2)` says nothing about `(f2, f1)`.
     ///
     /// The certificate has exactly these sources, and no value reading:
     /// a verified `Rest` or continuation (residual ≡ 0), a verified
-    /// `Tangent` (the witness lane's separation invariant), or a
-    /// structural tangency — an edge described `TangentIntersection` —
-    /// on EITHER operand, from the parent to a face the door verified
-    /// one carrier with the target, on a carrier-kind pair where that
-    /// tangency is a global side ([`strut_certifies_side`]).
-    pub(crate) fn one_sided(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
-        o1 != o2 && self.one_sided.contains(&(tagged(o1, f1), tagged(o2, f2)))
+    /// `Tangent` (the witness lane's separation invariant), a verified
+    /// seam, or a structural tangency — an edge described
+    /// `TangentIntersection` — on EITHER operand, from the parent to a
+    /// face the door verified one carrier with the target; the last two
+    /// only on kinds where a tangency along a curve is a global side
+    /// ([`tangency_certifies_side`]). WHICH side is read off the
+    /// parent's boundary once the certificate says one side holds it
+    /// ([`CoverSide`]).
+    pub(crate) fn cover(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<CoverSide> {
+        if o1 == o2 {
+            return None;
+        }
+        self.one_sided
+            .get(&(tagged(o1, f1), tagged(o2, f2)))
+            .copied()
     }
 
     /// The coincidence the (operand-tagged) face pair is declared under,
@@ -927,7 +1137,10 @@ impl<T: Real> DeclaredPairs<T> {
             let relation = match self.map.get(&(a, b))? {
                 BooleanCoincidence::Contact(ContactClass::Rest) => CarrierRelation::SameOpposite,
                 BooleanCoincidence::Continuation => CarrierRelation::SameOriented,
-                BooleanCoincidence::Contact(ContactClass::Tangent) => return None,
+                // Never verified one carrier: no settled relation.
+                BooleanCoincidence::Contact(ContactClass::Tangent) | BooleanCoincidence::Seam => {
+                    return None;
+                }
             };
             Some(SettledPair { a, b, relation })
         })
@@ -1032,7 +1245,9 @@ pub struct HalfGerm<T: Real> {
 pub struct BoolNullEdgeRecord<T: Real> {
     /// Which operand's clone the keys index.
     pub operand: Operand,
-    /// The classified vertex whose neighborhood minted this edge.
+    /// The vertex this edge was minted at: the classified vertex whose
+    /// neighborhood minted it, or, for a dangling null edge whose
+    /// segment another's holds whole at a shared vertex, that one's tip.
     pub at_vertex: VertexKey,
     /// The null edge.
     pub edge: EdgeKey,
@@ -1044,6 +1259,45 @@ pub struct BoolNullEdgeRecord<T: Real> {
     /// The two germ facings ([`HalfGerm`]), in mint order (the from-
     /// germ first).
     pub germs: [HalfGerm<T>; 2],
+}
+
+/// **One operand's null-edge copies**: the vertices its null edges join,
+/// each on one point by construction. A vertex's copies are read
+/// transitively, since a dangling null edge can hang at another's tip.
+#[derive(Clone, Debug, Default)]
+pub(super) struct NullCopies(std::collections::BTreeMap<VertexKey, Vec<VertexKey>>);
+
+impl NullCopies {
+    /// `operand`'s null edges among `null_edges`.
+    pub(super) fn of_operand<T: Real>(
+        null_edges: &[BoolNullEdgeRecord<T>],
+        operand: Operand,
+    ) -> Self {
+        let mut map: std::collections::BTreeMap<VertexKey, Vec<VertexKey>> =
+            std::collections::BTreeMap::new();
+        for r in null_edges.iter().filter(|r| r.operand == operand) {
+            let (u, w) = (r.attr.below_end, r.attr.above_end);
+            map.entry(u).or_default().push(w);
+            map.entry(w).or_default().push(u);
+        }
+        Self(map)
+    }
+
+    /// `v`, then every vertex null edges join it to, transitively, in
+    /// the order the walk meets them.
+    pub(super) fn of(&self, v: VertexKey) -> Vec<VertexKey> {
+        let mut out = vec![v];
+        let mut i = 0;
+        while let Some(&at) = out.get(i) {
+            for &c in self.0.get(&at).into_iter().flatten() {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+            i += 1;
+        }
+        out
+    }
 }
 
 /// The site a corresponding null-edge pair was minted at.
@@ -1519,35 +1773,46 @@ pub enum BooleanError {
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
-    /// A declaration names a contact class in a configuration this
-    /// op's classification cannot act on: a `Tangent` pair outside
-    /// the DEV-1 closed-form witness lane (plane×cylinder along a
-    /// ruling, parallel cylinders) — no witness locus derives, so no
-    /// verification can run and no arm can consume the claim. Refused
+    /// A declaration names a coincidence in a configuration this op's
+    /// classification cannot act on: a `Tangent` or seam pair with no
+    /// witness locus (neither the DEV-1 closed-form lane — plane×cylinder
+    /// along a ruling, parallel cylinders — nor, for a seam, a shared
+    /// rim circle), so no verification can run and no arm can consume
+    /// the claim. Refused
     /// at the door rather than carried into stages that would ignore
     /// it — the vocabulary is wider than this op's envelope, and the
     /// gap is typed, not silent.
     UnsupportedDeclarationClass {
-        /// The class that was declared.
-        class: ContactClass,
+        /// The coincidence that was declared: `TANGENT` or `Seam`, the
+        /// two classes verified along a witness locus. `Rest` and a
+        /// continuation are verified on the carrier ladder, which always
+        /// runs, so they never lack a witness. The field keeps the seat's
+        /// own type so the refusal names the declaration exactly as it
+        /// was written; a two-variant type would only spell the same two
+        /// values a second way.
+        class: BooleanCoincidence,
     },
-    /// **A declared shared rim the routing classified as the wedge-π
-    /// SEAM** (`docs/MATE-7-TANGENCY-DESIGN.md`, RATIFIED).
+    /// A declared SEAM meets definite counter-evidence at the op (C4's
+    /// seam clause): the two faces are one carrier, or no G1 locus joins
+    /// them, or their senses are opposed along it — which makes them a
+    /// `Tangent` contact, not a seam — or the material wedge at their
+    /// rim is not π.
     ///
-    /// The π arm IS built — this refusal is not a gap in the design and
-    /// not a gap in the classification, which ran and answered. Two
-    /// things are true at once and the message says both: a wedge-π rim
-    /// is a seam of one composite wall and takes NO declaration, so a
-    /// `Tangent` claim on it is the wrong instrument; and the join
-    /// wiring that would consume this verdict while zipping is not
-    /// built, so the op cannot proceed on it either.
-    ///
-    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`] because
-    /// the two are different facts. One variant covering both would
-    /// have to call the π arm unbuilt, which is false.
-    RimSeamNotDeclarable {
-        /// The declaration whose face pair carries the rim.
-        declaration: crate::contact::DeclaredContact,
+    /// Beside [`Self::ContactContradicted`] rather than inside it, as
+    /// [`Self::ContinuationContradicted`] is: a seam is not a contact.
+    SeamContradicted {
+        /// The A-operand face.
+        a: FaceKey,
+        /// The B-operand face.
+        b: FaceKey,
+        /// The fact that contradicted it, where it is a carrier fact (the
+        /// two faces lie on one carrier, or on carriers the ladder found
+        /// distinct in a way a seam's sense cannot be); `None` where the
+        /// witness lane's own finding is the evidence, which the
+        /// margin's predicate labels.
+        fact: Option<Contradiction>,
+        /// The margin that decided, and its predicate.
+        margin: Indeterminate,
     },
     /// **A declared shared rim routed to the cusp family, which is
     /// DEFINED but not BUILT** (the same ruling).
@@ -1567,6 +1832,27 @@ pub enum BooleanError {
         /// Which end of the wedge range the rim's material subtends —
         /// the routing's own verdict, taken on the geometry.
         wedge: geom_brep::MaterialWedge,
+    },
+    /// **A verified `Tangent` union whose locus runs through a face's
+    /// interior** (`docs/DESIGN.md` D1 tier 3, the #131 ruling).
+    ///
+    /// The witness lane derived the ruling and the C4 table verified it,
+    /// and the locus crosses the interior of a plane face of one operand.
+    /// The union then has material on both sides of the ruling: the
+    /// doubled cusp, two coincident distinct edges on the locus, each a
+    /// wedge-2π slit. That arm is unbuilt, and two vertex-on-face records
+    /// would certify two points of a line contact, so the union refuses.
+    /// Subtract and intersect leave material on at most one side of the
+    /// ruling and are not refused here.
+    ///
+    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
+    /// is raised where no locus derives and the faces share a rim; here
+    /// the locus derived and runs through a face.
+    TangentSlitArmUnbuilt {
+        /// The declaration whose verified locus runs through a face.
+        declaration: crate::contact::DeclaredContact,
+        /// The operand whose declared face the locus runs through.
+        interior: Operand,
     },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
@@ -1591,11 +1877,11 @@ pub enum BooleanError {
     /// there, in a way the insertion cannot place: an operand holds
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and either both operands hold several (two
-    /// crossing pairs share both their vertices), or the pairs' cuts
-    /// in the shared vertex's orbit interleave, cannot be ordered
-    /// within one corner, or fall between a dangling null edge's two
-    /// germs (`insert::reconcile_shared`).
+    /// neighborhoods, and one pair has no run in the shared vertex's
+    /// orbit that holds none of another pair's cuts: two dangling null
+    /// edges with one segment, or a null edge both of whose ways round
+    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
+    /// segment holds another's whole builds: the inner hangs at its tip.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -1605,6 +1891,24 @@ pub enum BooleanError {
         /// crosses into, in classification order: the first two, when
         /// it crosses into more.
         partners: [VertexKey; 2],
+    },
+    /// The result would hold a non-manifold vertex: both operands hold
+    /// several vertices at one point, and A's crosses into two of B's
+    /// (two crossing pairs share both their vertices). Each solid's
+    /// pinch line runs into the point, one from below with its pieces'
+    /// corners at the far end, so its two coincident edges pair each
+    /// piece's own faces, while the corners the union leaves empty at
+    /// the point are each bounded by a face of both pieces: every
+    /// such edge ends at one vertex whose orbit passes the line twice.
+    /// That shared-entity wedge fan is unrepresentable
+    /// (`docs/DESIGN.md`, D1 tier 3′, "Representability boundary"), so
+    /// this refusal is permanent at any tolerance
+    /// (`insert::reconcile_shared`).
+    NonManifoldResult {
+        /// A's vertex at the point.
+        a_vertex: VertexKey,
+        /// Two of B's vertices there that it crosses into.
+        b_vertices: [VertexKey; 2],
     },
     /// A classification invariant failed (e.g. a surviving record
     /// without one IN and one OUT code per side) — a kernel bug
@@ -2046,6 +2350,11 @@ pub enum BooleanError {
     /// bitwise-identical inputs make this unreachable for well-formed
     /// grafts; loud, never a dangling reference).
     GraftRecertify(geom_brep::CertifyError),
+    /// The result sort could not read which piece of material a shell
+    /// of the result belongs to ([`crate::pieces`]): a solid is one
+    /// piece, and the result is not handed back under a guessed
+    /// grouping.
+    Pieces(crate::pieces::PieceSortError),
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -2117,16 +2426,20 @@ pub enum BooleanErrorKind {
     ContinuationContradicted,
     /// [`BooleanError::UnsupportedDeclarationClass`].
     UnsupportedDeclarationClass,
-    /// [`BooleanError::RimSeamNotDeclarable`].
-    RimSeamNotDeclarable,
+    /// [`BooleanError::SeamContradicted`].
+    SeamContradicted,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
+    /// [`BooleanError::TangentSlitArmUnbuilt`].
+    TangentSlitArmUnbuilt,
     /// [`BooleanError::InvalidDeclaration`].
     InvalidDeclaration,
     /// [`BooleanError::PairingMismatch`].
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
+    /// [`BooleanError::NonManifoldResult`].
+    NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
     /// [`BooleanError::CorruptOperand`].
@@ -2185,6 +2498,8 @@ pub enum BooleanErrorKind {
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
     GraftRecertify,
+    /// [`BooleanError::Pieces`].
+    Pieces,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -2314,11 +2629,13 @@ impl BooleanError {
             Self::UnsupportedDeclarationClass { .. } => {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
-            Self::RimSeamNotDeclarable { .. } => BooleanErrorKind::RimSeamNotDeclarable,
+            Self::SeamContradicted { .. } => BooleanErrorKind::SeamContradicted,
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::TangentSlitArmUnbuilt { .. } => BooleanErrorKind::TangentSlitArmUnbuilt,
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
+            Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -2348,6 +2665,7 @@ impl BooleanError {
             Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
+            Self::Pieces(_) => BooleanErrorKind::Pieces,
         }
     }
 }
@@ -2461,7 +2779,7 @@ impl core::fmt::Display for BooleanError {
                  settle where or whether it passes through. Recourse: \
                  {}",
                 operand_word(*operand),
-                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
+                geom_core::COINCIDENCE_RECOURSE,
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -2696,20 +3014,20 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
-                "a declared contact of class {} lies outside the envelope this \
-                 op's classification acts on (Rest on the plane/sphere/cylinder carrier \
-                 inventory; Tangent where the closed-form witness lane reaches — \
-                 plane×cylinder along a ruling, parallel cylinders) — the declaration is \
-                 refused at the door rather than ignored inside",
+                "a declared {} lies outside the envelope this op's classification acts \
+                 on (Rest on the plane/sphere/cylinder carrier inventory; Tangent where \
+                 the closed-form witness lane reaches — plane×cylinder along a ruling, \
+                 parallel cylinders; Seam there or along a rim circle the two faces \
+                 share) — the declaration is refused at the door rather than ignored \
+                 inside",
                 class.name()
             ),
-            Self::RimSeamNotDeclarable { declaration } => write!(
+            Self::SeamContradicted { fact, .. } => write!(
                 f,
-                "the declared faces continue smoothly into each other across their \
-                 shared rim, so they are one wall and the {} declaration on them is \
-                 wrong; and the Boolean cannot yet join two solids across such a rim \
-                 with or without it. There is no way through this in the kernel yet",
-                declaration.class.name()
+                "the declared seam between the operands' faces is contradicted: \
+                 {}. {}",
+                fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
+                crate::contact::CONTRADICTION_RECOURSE,
             ),
             Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
                 f,
@@ -2727,6 +3045,19 @@ impl core::fmt::Display for BooleanError {
                 },
                 declaration.class.name()
             ),
+            Self::TangentSlitArmUnbuilt {
+                declaration,
+                interior,
+            } => write!(
+                f,
+                "the declared faces touch along a line that runs through the interior of \
+                 the {} operand's face, so their union has material on both sides of \
+                 that line, and the Boolean cannot yet build the pair of edges such a \
+                 {} contact needs. The declaration is the right one; there is no way \
+                 through this in the kernel yet",
+                operand_word(*interior),
+                declaration.class.name()
+            ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
                 "a declaration on the {} operand is invalid: {what}",
@@ -2742,10 +3073,17 @@ impl core::fmt::Display for BooleanError {
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
                 "a corner of the {} solid meets a point where the other solid holds \
-                 several corners that only touch each other (or both solids do), and \
+                 several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::NonManifoldResult { .. } => write!(
+                f,
+                "the result would meet itself in a fan of faces around one point, where \
+                 both solids' pinch lines overlap: no boundary representation can hold \
+                 that, at any tolerance. Recourse: move the parts so their pinch lines do \
+                 not overlap along a length (meeting end to end at a point builds)"
             ),
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
@@ -2908,6 +3246,7 @@ impl core::fmt::Display for BooleanError {
                     e.render(geom_brep::recourse::Reading::Build)
                 )
             }
+            Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
         }
     }
 }
@@ -3155,7 +3494,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let mut verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    if let (BooleanOp::Union, Some(through)) = (op, verified.through_a_face.take()) {
+        let (declaration, interior) = through?;
+        return Err(BooleanError::TangentSlitArmUnbuilt {
+            declaration,
+            interior,
+        });
+    }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
@@ -3335,18 +3681,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
-    // A strut at a shared vertex is minted before any fan there.
-    let mut order: Vec<usize> = (0..plans.len()).collect();
-    order.sort_by_key(|&i| !plans[i].hangs_shared_strut([orbits[i].0, orbits[i].1]));
-    let mut hung = insert::Hung::default();
-    for i in order {
-        let (_, a_sectors, b_sectors, ..) = &classified[i];
-        let out = insert::mint_plan(
-            &mut a, &mut b, &plans[i], a_sectors, b_sectors, &mut hung, band,
-        )?;
-        null_edges.extend(out.edges);
-        null_pairs.extend(out.pairs);
-    }
+    let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
+    null_edges.extend(out.edges);
+    null_pairs.extend(out.pairs);
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .coincident_faces
@@ -3466,13 +3803,28 @@ fn verify_declared_contacts<T: Decide>(
     {
         match class {
             BooleanCoincidence::Contact(ContactClass::Tangent) => {
-                verify_tangent_declaration(a, fa, b, fb, band)?;
+                let (_, through) =
+                    verify_tangency_declaration(a, fa, b, fb, Tangency::Contact, band)?;
+                if verified.through_a_face.is_none() {
+                    let declaration = crate::contact::DeclaredContact {
+                        a: fa,
+                        b: fb,
+                        class: ContactClass::Tangent,
+                    };
+                    verified.through_a_face = through
+                        .transpose()
+                        .map(|through| through.map(|operand| (declaration, operand)));
+                }
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
                 if verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
                     verified.one_carrier.insert((fa, fb));
                 }
+            }
+            BooleanCoincidence::Seam => {
+                let (kinds, _) = verify_tangency_declaration(a, fa, b, fb, Tangency::Seam, band)?;
+                verified.seam.insert((fa, fb), kinds);
             }
         }
     }
@@ -3501,6 +3853,14 @@ pub(super) fn sense_contradiction(
             b: fb,
             fact: None,
             margin: margin("continuation_senses_aligned"),
+        },
+        // Not a one-carrier class: its door is the witness lane, which
+        // labels its own sense finding.
+        BooleanCoincidence::Seam => BooleanError::SeamContradicted {
+            a: fa,
+            b: fb,
+            fact: None,
+            margin: margin("seam_senses_aligned"),
         },
         BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
             declaration: crate::contact::DeclaredContact {
@@ -3560,6 +3920,12 @@ fn verify_one_carrier_declaration<T: Decide>(
                 fact: Some(fact),
                 margin: diag,
             },
+            BooleanCoincidence::Seam => BooleanError::SeamContradicted {
+                a: fa,
+                b: fb,
+                fact: Some(fact),
+                margin: diag,
+            },
             BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a: fa,
@@ -3601,108 +3967,200 @@ fn screen_contradiction(diag: Indeterminate) -> BooleanError {
     }
 }
 
-/// The `Tangent` half of [`verify_declared_contacts`] — admitted
-/// exactly where the DEV-1 closed-form witness lane reaches
-/// ([`geom_brep::tangent_locus`]: plane×cylinder along a ruling, parallel
-/// cylinders), and refused typed everywhere else:
-///
-/// 1. **The conformal screen.** The carrier ladder runs first in its
-///    DETECTOR posture: a pair it can call one carrier — structurally
-///    (rung 1) or geometrically (rung 4's coincidence refusal) — is
-///    one carrier (a `Rest` or a continuation), and a `Tangent` claim
-///    on a conformal pair is
-///    CONTRADICTED, not class-refused (a flush pair declared Tangent
-///    is the wrong class, and the geometry says so).
-/// 2. **The witness.** The closed-form locus derives, or the class is
-///    refused typed ([`BooleanError::UnsupportedDeclarationClass`] —
-///    outside the witness lane no verification can run, so no
-///    declaration is admitted). A definitely-apart or
-///    definitely-crossing pair is CONTRADICTED (the deciding row is
-///    the locus lane's own `tangent_locus_gap`).
-/// 3. **The C4 `Tangent` table** ([`contact_verify`]) along the
-///    witness, over the pair's honest extent (both faces' boundary
-///    vertices projected onto the locus).
-fn verify_tangent_declaration<T: Decide>(
+/// Which tangency a declaration asserts: the `Tangent` contact (senses
+/// opposed, C4's `Tangent` table) or the seam (senses aligned, C4's
+/// seam clause). One witness lane serves both, the sense bit reversed
+/// for the seam.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tangency {
+    /// A declared `Tangent` contact.
+    Contact,
+    /// A declared seam.
+    Seam,
+}
+
+impl Tangency {
+    /// The coincidence it is declared as.
+    fn coincidence(self) -> BooleanCoincidence {
+        match self {
+            Self::Contact => BooleanCoincidence::TANGENT,
+            Self::Seam => BooleanCoincidence::Seam,
+        }
+    }
+
+    /// The refusal of the claim the geometry contradicts on `margin`.
+    fn contradicted(
+        self,
+        a: FaceKey,
+        b: FaceKey,
+        margin: Indeterminate,
+        steer: Option<&'static str>,
+    ) -> BooleanError {
+        self.contradicted_by(a, b, None, margin, steer)
+    }
+
+    /// [`Self::contradicted`], naming the carrier fact that did it.
+    fn contradicted_by(
+        self,
+        a: FaceKey,
+        b: FaceKey,
+        fact: Option<Contradiction>,
+        margin: Indeterminate,
+        steer: Option<&'static str>,
+    ) -> BooleanError {
+        match self {
+            Self::Contact => BooleanError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact {
+                    a,
+                    b,
+                    class: ContactClass::Tangent,
+                },
+                steer,
+                fact,
+                margin,
+            },
+            Self::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
+        }
+    }
+
+    /// The label of a pair the conformal screen calls one carrier.
+    fn conformal(self) -> &'static str {
+        match self {
+            Self::Contact => "contact_tangent_conformal",
+            Self::Seam => "seam_conformal",
+        }
+    }
+
+    /// The class refusal: no witness locus derives.
+    fn unsupported(self) -> BooleanError {
+        BooleanError::UnsupportedDeclarationClass {
+            class: self.coincidence(),
+        }
+    }
+}
+
+/// The `Tangent` door alone, for the unit rows that drive it.
+#[cfg(test)]
+pub(crate) fn verify_tangent_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let declaration = crate::contact::DeclaredContact {
-        a: fa,
-        b: fb,
-        class: ContactClass::Tangent,
+    verify_tangency_declaration(a, fa, b, fb, Tangency::Contact, band).map(|_| ())
+}
+
+/// The `Tangent` and seam half of [`verify_declared_contacts`]: one
+/// door, the declared sense its parameter.
+///
+/// 1. **The conformal screen** (detector posture): a pair the carrier
+///    ladder calls one carrier — structurally (rung 1) or geometrically
+///    (rung 4's coincidence refusal) — is a `Rest` pair or a
+///    continuation, and either claim on it is CONTRADICTED, labelled
+///    with what failed (the two faces share one carrier), not with the
+///    rung that passed.
+/// 2. **The witness locus.** The DEV-1 closed-form line where it
+///    derives ([`geom_brep::tangent_locus`]: plane×cylinder along a
+///    ruling, parallel cylinders); a definitely-apart or crossing pair
+///    is contradicted, labelled with the row that refused it. Elsewhere, the rim circle
+///    the two faces share; with neither the class is refused typed
+///    ([`BooleanError::UnsupportedDeclarationClass`]).
+/// 3. **The C4 `Tangent` table** ([`contact_verify`]) along the locus,
+///    over the pair's honest extent, with B's sense bit reversed for a
+///    seam: opposed senses then read as aligned and contradict it
+///    (`seam_senses_aligned`).
+/// 4. **Which way the faces leave the locus.** A seam's two faces must
+///    leave it on opposite sides: along a rim, their boundaries run it
+///    in opposite directions, and along a line likewise
+///    ([`rim_wedge::departures`]), read WHERE THE TWO FACES TOUCH: on
+///    every stretch of the locus both faces contain, each must have a
+///    boundary edge running along it, and their traversals there decide.
+///    The same side is a cusp (`seam_cusp`); opposite along one stretch
+///    and the same along another, or a face running one stretch both
+///    ways, is `seam_sides_mixed` (it was `seam_traversal_mixed`, a
+///    within-face escalation, before the read was tied to the touch); a
+///    face that runs on through the locus where the other touches it is
+///    `seam_locus_no_edge`. A pair meeting only at a point is read there
+///    when both faces END at that point, and a pair sharing no stretch
+///    and no such point is `seam_locus_untouched`. Each carries its fact. A face bounded by a
+///    curve the read does not place against the locus (an ellipse, a
+///    spline) is refused as outside the envelope
+///    ([`BooleanError::UnsupportedDeclarationClass`]).
+///
+/// A `Tangent` claim along a rim takes the ratified routing instead of
+/// steps 3 and 4: the material wedge decides which arm the rim earns,
+/// and its refusal names it. A wedge-π rim is aligned senses, which
+/// contradicts `Tangent`, and the steer names the seam only where the
+/// faces also leave the rim on opposite sides.
+///
+/// Returns the two carriers' kinds, A's first: what a verified seam
+/// certifies about sides is a fact about those kinds
+/// ([`tangency_certifies_side`]). For a `Tangent` along a line it also
+/// returns the operand whose plane face the locus runs through
+/// ([`locus_through_plane_face`]), which a union refuses
+/// ([`BooleanError::TangentSlitArmUnbuilt`]); that read's own refusal is
+/// the inner one, consumed only by a union.
+fn verify_tangency_declaration<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    claim: Tangency,
+    band: Band,
+) -> Result<TangencyVerified, BooleanError> {
+    let spent = DeclarationRead::Spent(claim.coincidence());
+    // Display-only labels: the deciding `decide` calls ran under their
+    // own names, so these name the FINDING for the reader and never
+    // enter the K funnel (the `contact_rest_senses_opposed` precedent).
+    let label = |predicate| Indeterminate {
+        margin: MarginDiag::INVALID,
+        band,
+        predicate: Some(predicate),
+        terminal_sliver: false,
     };
     // 1. The conformal screen (detector posture).
-    let screen = match rest::carrier_pair_relation(a, fa, b, fb, false, band) {
-        Ok(outcome) => Some(outcome),
-        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+    match rest::carrier_pair_relation(a, fa, b, fb, false, band) {
         // No description to compare: the witness lane below answers
         // for the kinds it holds.
-        Err(rest::PairUnread::OutsideInventory) => None,
-    };
-    if let Some(outcome) = screen {
-        match outcome {
-            Ok(CarrierRelation::Distinct) => {}
-            // One carrier, structurally: conformal contact is Rest.
-            Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
-                return Err(BooleanError::ContactContradicted {
-                    declaration,
-                    steer: None,
-                    fact: None,
-                    margin: Indeterminate {
-                        margin: MarginDiag::INVALID,
-                        band,
-                        // Display-only by design: no `decide` ran here
-                        // (the sameness was STRUCTURAL), so this label
-                        // names the finding for the reader and never
-                        // enters the K funnel — the
-                        // `contact_rest_senses_opposed` precedent.
-                        predicate: Some("contact_tangent_conformal"),
-                        terminal_sliver: false,
-                    },
-                });
-            }
-            // One carrier, geometrically (the detector's coincidence
-            // refusal): the diag carries the margins that decided.
-            Err(carrier_eq::CarrierEqError::Undeclared { diag, .. }) => {
-                return Err(BooleanError::ContactContradicted {
-                    declaration,
-                    steer: None,
-                    fact: None,
-                    margin: diag,
-                });
-            }
-            Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    PlaneDoor::Screen(DeclarationRead::Spent(BooleanCoincidence::Contact(
-                        declaration.class,
-                    ))),
-                    diag,
-                ));
-            }
-            // Unreachable with `declared: false`; refuse loudly anyway.
-            Err(
-                carrier_eq::CarrierEqError::Contradicted { diag, .. }
-                | carrier_eq::CarrierEqError::Unsettled { diag },
-            ) => {
-                return Err(screen_contradiction(diag));
-            }
+        Ok(Ok(CarrierRelation::Distinct)) | Err(rest::PairUnread::OutsideInventory) => {}
+        // One carrier, structurally: no `decide` ran, so the label
+        // names the finding (the `contact_rest_senses_opposed`
+        // precedent), and the fact says it in words.
+        Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => {
+            return Err(claim.contradicted_by(
+                fa,
+                fb,
+                Some(Contradiction::OneCarrier),
+                label(claim.conformal()),
+                None,
+            ));
         }
+        // One carrier, geometrically: the diag keeps the predicate that
+        // measured it and its value, and the fact names the finding.
+        Ok(Err(carrier_eq::CarrierEqError::Undeclared { diag, .. })) => {
+            return Err(claim.contradicted_by(fa, fb, Some(Contradiction::OneCarrier), diag, None));
+        }
+        Ok(Err(carrier_eq::CarrierEqError::Escalated { rung, diag })) => {
+            return Err(BooleanError::plane_identity(
+                rung,
+                PlaneDoor::Screen(spent),
+                diag,
+            ));
+        }
+        // Unreachable with `declared: false`; refuse loudly anyway.
+        Ok(Err(
+            carrier_eq::CarrierEqError::Contradicted { diag, .. }
+            | carrier_eq::CarrierEqError::Unsettled { diag },
+        )) => return Err(screen_contradiction(diag)),
+        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
     }
-    // 2. The DEV-1 witness locus.
-    //
     // **One resolution per declared face, carrying both halves.** The
     // carrier and the orientation BIT are two facts about the same
-    // `&Face`, and everything below reads them off this one lookup: a
-    // key that does not resolve refuses typed HERE, so no later stage
-    // can answer from a sense it invented for a face that is not
-    // there. The two ways a key can fail are different findings and
-    // are named apart, in `validate_declarations`' own vocabulary: a
-    // key with no FACE behind it did not resolve, and a face whose
-    // surface key is stale lost its surface.
+    // `&Face`, read off this one lookup: a key that does not resolve
+    // refuses typed HERE, so no later stage answers from a sense it
+    // invented. The two ways a key can fail are named apart, in
+    // `validate_declarations`' vocabulary.
     let face_of =
         |body: &Body<T>, f: FaceKey, operand| -> Result<(geom::Surface<T>, bool), BooleanError> {
             let invalid = |what| BooleanError::InvalidDeclaration { operand, what };
@@ -3716,167 +4174,303 @@ fn verify_tangent_declaration<T: Decide>(
         };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
+    let kinds = (sa.kind(), sb.kind());
+    // 2. The witness locus.
     let reach = rest::pair_extent(a, fa, b, fb, band)
         .map_err(unreadable_extent)?
         .reach;
-    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
-        Ok(geom_brep::TangentLocus::Line { origin, dir }) => (origin, dir),
+    let mut overlap = None;
+    let (carrier, t0, t1, rim) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir }) => {
+            let ((t0, t1), both) = witness_span(a, fa, b, fb, origin, dir)?;
+            overlap = Some(both);
+            (geom::Curve3::Line { origin, dir }, t0, t1, None)
+        }
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
-                DeclarationRead::Spent(BooleanCoincidence::Contact(declaration.class)),
+                spent,
                 diag,
             ));
         }
-        Err(geom_brep::TangentLocusError::NotTangent { .. }) => {
-            return Err(BooleanError::ContactContradicted {
-                declaration,
-                steer: None,
-                fact: None,
-                margin: Indeterminate {
-                    margin: MarginDiag::INVALID,
-                    band,
-                    predicate: Some("tangent_locus_gap"),
-                    terminal_sliver: false,
-                },
-            });
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(claim.contradicted(fa, fb, label(predicate), None));
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
-            // **The ratified routing, before the class refusal.** A
-            // pair the witness lane cannot serve may still be a
-            // configuration the design has already ruled on: two faces
-            // meeting along ONE circle. Where they do, the material
-            // wedge decides which arm the rim earns and the refusal
-            // names it, so an author reading it learns what the
-            // geometry IS rather than only that a witness is missing.
-            // Where there is no shared rim — or the samples cannot
-            // settle one — the bare class refusal stands, verbatim.
             // An UNDECIDABLE rim identity escalates typed rather than
-            // reading as "no rim here": the two are different findings
-            // and only one of them means the geometry was examined and
-            // cleared.
-            let rim = rim_wedge::shared_rim(a, fa, b, fb, band).map_err(|diag| {
-                BooleanError::coincidence(
-                    Coincide::Rim,
-                    DeclarationRead::Spent(BooleanCoincidence::Contact(declaration.class)),
-                    diag,
-                )
-            })?;
-            if let Some(rim) = rim {
-                // The rim's own diameter is the extent every angular
-                // margin here is metered at — the screen's, the
-                // material arm's and the rim identification's alike:
-                // it is the reach over which this contact's verdict is
-                // consumed, and three stages levering against three
-                // different arms would not be comparable.
-                let extent = rim.radius + rim.radius;
-                match rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
-                {
-                    // Wedge π: the arm is built and it answered; the
-                    // declaration is what is wrong.
-                    Ok(rim_wedge::RimRouting::Seam) => {
-                        return Err(BooleanError::RimSeamNotDeclarable { declaration });
-                    }
-                    // Wedge 0/2π: the ruling's unbuilt arm.
-                    Ok(rim_wedge::RimRouting::Cusp(wedge)) => {
-                        return Err(BooleanError::RimCuspArmUnbuilt { declaration, wedge });
-                    }
-                    // **Definite counter-evidence CONTRADICTS**, and
-                    // this is C4's invariant rather than a new rule:
-                    // every definite verdict wins over every
-                    // declaration. A rim whose tangent planes are
-                    // definitely distinct at every station is a
-                    // crossing, and a rim whose opposed sheets osculate
-                    // is conformal contact — a `Rest` claim wearing a
-                    // rim's clothes. Neither is a tangency, and saying
-                    // so is strictly better than reporting the CLASS as
-                    // unsupported: the geometry, not the kernel's
-                    // coverage, is what refuses.
-                    Ok(
-                        routing @ (rim_wedge::RimRouting::Transverse
-                        | rim_wedge::RimRouting::Lamina),
-                    ) => {
-                        return Err(BooleanError::ContactContradicted {
-                            declaration,
-                            steer: None,
-                            fact: None,
-                            margin: Indeterminate {
-                                margin: MarginDiag::INVALID,
-                                band,
-                                // Display-only, the `contact_tangent_
-                                // conformal` precedent: the deciding
-                                // `decide` calls ran inside the routing
-                                // and are already in the funnel under
-                                // their own names, so this labels the
-                                // FINDING for the reader rather than
-                                // claiming a second measurement.
-                                predicate: Some(match routing {
-                                    rim_wedge::RimRouting::Lamina => "contact_tangent_rim_lamina",
-                                    _ => "contact_tangent_rim_transverse",
-                                }),
-                                terminal_sliver: false,
-                            },
-                        });
-                    }
-                    // The samples could not settle the rim: the bare
-                    // class refusal below stands, verbatim.
-                    Err(_) => {}
-                }
+            // reading as "no rim here": only the second means the
+            // geometry was examined and cleared.
+            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
+                .map_err(|diag| BooleanError::coincidence(Coincide::Rim, spent, diag))?
+                .ok_or_else(|| claim.unsupported())?;
+            if claim == Tangency::Contact {
+                return Err(tangent_rim_refusal(
+                    a, fa, &sa, sense_a, b, fb, &sb, sense_b, rim, band,
+                ));
             }
-            return Err(BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent,
-            });
+            let circle = geom::Curve3::Circle {
+                center: rim.center,
+                axis: rim.axis,
+                radius: rim.radius,
+                u_ref: rim.u_ref,
+            };
+            (
+                circle,
+                T::zero(),
+                T::from_f64(core::f64::consts::TAU),
+                Some(rim),
+            )
         }
     };
-    // 3. The C4 table along the witness, over the pair's extent.
-    let mut t_lo: Option<T> = None;
-    let mut t_hi: Option<T> = None;
-    for (body, f, operand) in [(a, fa, Operand::A), (b, fb, Operand::B)] {
-        for p in face_boundary_points(body, f, operand)? {
-            let t = (p - origin).dot(dir);
-            t_lo = Some(t_lo.map_or(t, |lo| t.min(lo)));
-            t_hi = Some(t_hi.map_or(t, |hi| t.max(hi)));
-        }
-    }
-    let (Some(t0), Some(t1)) = (t_lo, t_hi) else {
-        return Err(BooleanError::InvalidDeclaration {
-            operand: Operand::A,
-            what: "declared face pair has no boundary vertex to meter the tangent witness",
-        });
-    };
-    let carrier = geom::Curve3::Line { origin, dir };
-    match contact_verify::contact_pair_verdict(
-        a,
-        fa,
-        b,
-        fb,
-        ContactClass::Tangent,
-        Some((&carrier, t0, t1)),
-        band,
+    // 3. The C4 `Tangent` table along the witness, B's sense reversed
+    // for a seam.
+    let sense_b = sense_b != (claim == Tangency::Seam);
+    match contact_verify::tangent_locus_relation(
+        &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
     ) {
-        Ok(_) => Ok(()),
+        Ok(_) => {}
         Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-            Err(BooleanError::ContactContradicted {
-                declaration,
-                steer,
-                fact: None,
-                margin: diag,
-            })
+            let margin = match (claim, diag.predicate) {
+                // The reversed bit's opposition IS the seam's alignment.
+                (Tangency::Seam, Some("contact_tangent_opposed")) => Indeterminate {
+                    predicate: Some("seam_senses_aligned"),
+                    ..diag
+                },
+                _ => diag,
+            };
+            return Err(claim.contradicted(fa, fb, margin, steer));
         }
-        Err(crate::contact::ContactRefusal::Escalated { diag })
-        | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-            Err(BooleanError::coincidence(
-                Coincide::Contact,
-                DeclarationRead::Spent(BooleanCoincidence::Contact(declaration.class)),
-                diag,
-            ))
-        }
+        Err(
+            crate::contact::ContactRefusal::Escalated { diag }
+            | crate::contact::ContactRefusal::Undeclared { diag },
+        ) => return Err(BooleanError::coincidence(Coincide::Contact, spent, diag)),
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
-            Err(BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent,
-            })
+            return Err(claim.unsupported());
         }
     }
+    // 4. Which way a seam's two faces leave its locus, read at the locus.
+    if claim == Tangency::Seam {
+        let locus = match (rim, &carrier) {
+            (Some(rim), _) => rim_wedge::Locus::Rim(rim),
+            (None, geom::Curve3::Line { origin, dir }) => rim_wedge::Locus::Line {
+                origin: *origin,
+                dir: *dir / dir.norm(),
+            },
+            (None, _) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "declaration door: a seam witness is a line or a rim",
+                });
+            }
+        };
+        let site = match locus {
+            rim_wedge::Locus::Rim(_) => Coincide::Rim,
+            rim_wedge::Locus::Line { .. } => Coincide::TangentLocus,
+        };
+        let departure = rim_wedge::departures(a, fa, b, fb, locus, band)
+            .map_err(|diag| BooleanError::coincidence(site, spent, diag))?;
+        let finding = match departure {
+            rim_wedge::Departure::Opposite => None,
+            rim_wedge::Departure::Same => Some((Contradiction::SeamCusp, "seam_cusp")),
+            rim_wedge::Departure::Mixed => {
+                Some((Contradiction::SeamSidesMixed, "seam_sides_mixed"))
+            }
+            rim_wedge::Departure::NoEdge => {
+                Some((Contradiction::SeamFaceRunsOn, "seam_locus_no_edge"))
+            }
+            rim_wedge::Departure::Untouched => {
+                Some((Contradiction::SeamUntouched, "seam_locus_untouched"))
+            }
+            rim_wedge::Departure::EdgeKindUnread => return Err(claim.unsupported()),
+        };
+        if let Some((fact, finding)) = finding {
+            return Err(claim.contradicted_by(fa, fb, Some(fact), label(finding), None));
+        }
+    }
+    // A verified `Tangent` whose line locus runs through a plane face is
+    // the doubled cusp a union refuses (CLEAVE); the read's own refusal
+    // is the inner one, consumed only by a union. A seam never reaches
+    // this: a locus through a face's interior is `seam_locus_no_edge`
+    // at step 4.
+    let through = match (claim, overlap) {
+        (Tangency::Contact, Some(both)) => locus_through_plane_face(
+            [(a, fa, Operand::A), (b, fb, Operand::B)],
+            &carrier,
+            both,
+            band,
+        ),
+        _ => Ok(None),
+    };
+    Ok((kinds, through))
+}
+
+/// What [`verify_tangency_declaration`] certified: the two carriers'
+/// kinds (A's first), and for a `Tangent` along a line the operand
+/// whose plane face the locus runs through, or that read's refusal.
+type TangencyVerified = (
+    (geom::SurfaceKind, geom::SurfaceKind),
+    Result<Option<Operand>, BooleanError>,
+);
+
+/// The refusal a `Tangent` claim along a shared rim earns: the ratified
+/// routing names what the geometry IS rather than only that a witness
+/// is missing. The rim's diameter is the extent every angular margin
+/// here is metered at, the reach the contact's verdict is consumed
+/// over.
+#[allow(clippy::too_many_arguments)]
+fn tangent_rim_refusal<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    sa: &geom::Surface<T>,
+    sense_a: bool,
+    b: &Body<T>,
+    fb: FaceKey,
+    sb: &geom::Surface<T>,
+    sense_b: bool,
+    rim: rim_wedge::Rim<T>,
+    band: Band,
+) -> BooleanError {
+    let claim = Tangency::Contact;
+    let declaration = crate::contact::DeclaredContact {
+        a: fa,
+        b: fb,
+        class: ContactClass::Tangent,
+    };
+    let label = |predicate| Indeterminate {
+        margin: MarginDiag::INVALID,
+        band,
+        predicate: Some(predicate),
+        terminal_sliver: false,
+    };
+    let extent = rim.radius + rim.radius;
+    match rim_wedge::classify_shared_rim(sa, sense_a, sb, sense_b, rim, extent, band) {
+        // Wedge π by its normals: aligned senses, which contradict
+        // `Tangent` as they contradict `Rest`. Where the faces also
+        // leave the rim on opposite sides it is a seam and the steer
+        // says so; on the same side it is a nested touch, and no
+        // declaration fits it.
+        Ok(rim_wedge::RimRouting::Seam) => {
+            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band) {
+                Ok(rim_wedge::Departure::Opposite) => claim.contradicted(
+                    fa,
+                    fb,
+                    label("contact_tangent_rim_seam"),
+                    Some(crate::contact::SEAM_STEER),
+                ),
+                Ok(rim_wedge::Departure::Same) => {
+                    claim.contradicted(fa, fb, label("contact_tangent_rim_nested"), None)
+                }
+                // The same findings a seam's door names, for a
+                // `Tangent` claim: no declaration along the rim fits.
+                Ok(rim_wedge::Departure::Mixed) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamSidesMixed),
+                    label("contact_tangent_rim_mixed"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::NoEdge) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamFaceRunsOn),
+                    label("contact_tangent_rim_no_edge"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::Untouched) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamUntouched),
+                    label("contact_tangent_rim_untouched"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::EdgeKindUnread) => claim.unsupported(),
+                Err(diag) => BooleanError::coincidence(
+                    Coincide::Rim,
+                    DeclarationRead::Spent(claim.coincidence()),
+                    diag,
+                ),
+            }
+        }
+        // Wedge 0/2π: the ruling's unbuilt arm.
+        Ok(rim_wedge::RimRouting::Cusp(wedge)) => {
+            BooleanError::RimCuspArmUnbuilt { declaration, wedge }
+        }
+        // **Definite counter-evidence CONTRADICTS** (C4's invariant:
+        // every definite verdict wins over every declaration): a rim
+        // whose tangent planes are definitely distinct is a crossing,
+        // and one whose opposed sheets osculate is conformal contact.
+        Ok(rim_wedge::RimRouting::Transverse) => {
+            claim.contradicted(fa, fb, label("contact_tangent_rim_transverse"), None)
+        }
+        Ok(rim_wedge::RimRouting::Lamina) => {
+            claim.contradicted(fa, fb, label("contact_tangent_rim_lamina"), None)
+        }
+        // The samples could not settle the rim: the bare class refusal.
+        Err(_) => claim.unsupported(),
+    }
+}
+
+/// The parameter spans of the line `origin + t·dir` the two declared
+/// faces' boundary vertices project onto: their union, the extent a
+/// witness along it is metered over, and their overlap, where both
+/// faces' extents meet ([`locus_through_plane_face`]'s schedule).
+#[allow(clippy::type_complexity)]
+fn witness_span<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    origin: Point3<T>,
+    dir: geom_core::Vec3<T>,
+) -> Result<((T, T), (T, T)), BooleanError> {
+    let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
+        let mut ts = face_boundary_points(body, f, operand)?
+            .into_iter()
+            .map(|p| (p - origin).dot(dir));
+        let first = ts.next().ok_or(BooleanError::InvalidDeclaration {
+            operand,
+            what: "declared face pair has no boundary vertex to meter the tangent witness",
+        })?;
+        Ok(ts.fold((first, first), |(lo, hi), t| (t.min(lo), t.max(hi))))
+    };
+    let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
+    Ok((
+        (sa.0.min(sb.0), sa.1.max(sb.1)),
+        (sa.0.max(sb.0), sa.1.min(sb.1)),
+    ))
+}
+
+/// The operand whose declared PLANE face a verified tangent locus runs
+/// through: some point of the locus, sampled on the certificate
+/// schedule over `overlap` (where both faces' extents along it meet),
+/// lies strictly inside the face. `None` when every sample is outside
+/// a plane face or on its boundary, or the pair has no plane face.
+fn locus_through_plane_face<T: Decide>(
+    faces: [(&Body<T>, FaceKey, Operand); 2],
+    locus: &geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+) -> Result<Option<Operand>, BooleanError> {
+    for (body, face, operand) in faces {
+        let planar = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
+        if !planar {
+            continue;
+        }
+        let (_, normal) =
+            solid_contain::face_plane(body, face).map_err(BooleanError::Containment)?;
+        for i in 0..geom_brep::CERT_SAMPLES {
+            let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
+            if solid_contain::point_in_face(body, face, normal, p, band)
+                .map_err(BooleanError::Containment)?
+                == Some(true)
+            {
+                return Ok(Some(operand));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
@@ -4007,15 +4601,12 @@ fn validate_declarations<T: Decide>(
 mod tests {
     use super::*;
 
-    /// **A strut gives cover only where its local tangency is a global
-    /// side.** The table is exhaustive over both kinds, so a kind added
-    /// to `SurfaceKind` fails here until someone decides its arm. The
-    /// admitted four are plane against cylinder or sphere, either way
-    /// round. A spline strut (STEP adoption, blends), a cone, a torus
-    /// or a fitted stand-in gives no cover, so its crossing stays a
-    /// typed frontier.
+    /// **A tangency along a curve gives cover only where it is a global
+    /// side** ([`tangency_certifies_side`], shared by the strut and
+    /// seam sources). The table is exhaustive over both kinds, so a kind
+    /// added to `SurfaceKind` fails here until someone decides its arm.
     #[test]
-    fn only_plane_against_cylinder_or_sphere_struts_certify_a_side() {
+    fn only_tangencies_that_are_a_global_side_certify_one() {
         use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
         let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
         let visit = |k: SurfaceKind| match k {
@@ -4024,20 +4615,271 @@ mod tests {
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()
             .flat_map(|&p| all.iter().map(move |&q| (visit(p), q)))
-            .filter(|&(p, q)| strut_certifies_side(p, q))
+            .filter(|&(p, q)| tangency_certifies_side(TangencySource::Seam, p, q))
             .collect();
         assert_eq!(
             admitted,
             [
                 (Plane, Cylinder),
-                (Plane, Sphere),
+                (Plane, Torus),
                 (Cylinder, Plane),
-                (Sphere, Plane)
+                (Cylinder, Cylinder),
+                (Cylinder, Sphere),
+                (Sphere, Cylinder),
+                (Sphere, Torus),
+                (Torus, Plane),
+                (Torus, Sphere),
             ]
         );
-        for k in [Nurbs, Approx, Cone, Torus] {
-            assert!(!strut_certifies_side(k, Plane), "{k:?} strut on a plane");
-            assert!(!strut_certifies_side(Plane, k), "plane strut on a {k:?}");
+        // The strut source's column: plane and cylinder only.
+        let struts: Vec<(SurfaceKind, SurfaceKind)> = all
+            .iter()
+            .flat_map(|&p| all.iter().map(move |&q| (p, q)))
+            .filter(|&(p, q)| tangency_certifies_side(TangencySource::Strut, p, q))
+            .collect();
+        assert_eq!(struts, [(Plane, Cylinder), (Cylinder, Plane)]);
+        for k in [Nurbs, Approx, Cone] {
+            for o in all {
+                for source in [TangencySource::Strut, TangencySource::Seam] {
+                    assert!(
+                        !tangency_certifies_side(source, k, o),
+                        "{k:?} against {o:?}"
+                    );
+                    assert!(
+                        !tangency_certifies_side(source, o, k),
+                        "{o:?} against {k:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **Every row of the table, measured rather than argued**: for each
+    /// ordered kind pair, a G1 pair of carriers tangent along a curve,
+    /// sampled over the whole parent carrier (a plane, cylinder or
+    /// cylinder axis over ±4 m) against the partner's implicit residual.
+    /// An admitted row must keep to one closed side on every fixture;
+    /// each excluded torus row has a fixture reaching both sides. The
+    /// fixtures cover every admitted row and every torus exclusion, so
+    /// flipping any of them reds here:
+    ///
+    /// - plane `z = r` on a cylinder along `x`;
+    /// - two parallel cylinders, tangent externally and internally;
+    /// - a sphere on the axis of a cylinder of its radius;
+    /// - a sphere centred on a torus's axis, tangent along its inner
+    ///   equator, and the ball-ended elbow: a sphere of the minor radius
+    ///   centred on the centre circle, tangent along a meridian;
+    /// - the plane `z = r` on a torus;
+    /// - excluded: the G1 tube chain, a straight tube leaving a torus's
+    ///   end meridian, and the S-bend, two tori sharing a meridian and
+    ///   bending opposite ways. Each carrier reaches both sides of the
+    ///   other. (A cylinder coaxial with a torus, of radius `R ± r`, is
+    ///   tangent along an equator and IS a global side: the exclusion
+    ///   is conservative, see the table's doc.)
+    #[test]
+    fn the_table_matches_which_carriers_keep_to_one_side() {
+        use geom::Surface;
+        use geom::SurfaceKind::{self, Cylinder, Plane, Sphere, Torus};
+        use geom_core::{Point3, Vec3};
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let p = |a: f64, b: f64, c: f64| Point3::new(a, b, c);
+        let (big, r) = (2.0_f64, 0.5_f64);
+        let plane = |h: f64| Surface::Plane {
+            origin: p(0.0, 0.0, h),
+            normal: z,
+            u_ref: x,
+        };
+        let cyl =
+            |o: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Surface::Cylinder {
+                origin: o,
+                axis,
+                radius,
+                u_ref,
+            };
+        let ball = |c: Point3<f64>, radius: f64| Surface::Sphere {
+            center: c,
+            radius,
+            axis: z,
+            u_ref: x,
+        };
+        let torus = |c: Point3<f64>| Surface::Torus {
+            center: c,
+            axis: z,
+            major_radius: big,
+            minor_radius: r,
+            u_ref: x,
+        };
+        let samples = |s: &Surface<f64>| -> Vec<Point3<f64>> {
+            let tau = core::f64::consts::TAU;
+            let (us, vs): (Vec<f64>, Vec<f64>) = match s {
+                Surface::Plane { .. } => (
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                ),
+                Surface::Cylinder { .. } => (
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                ),
+                Surface::Sphere { .. } => (
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                    (1..24)
+                        .map(|i| {
+                            -core::f64::consts::FRAC_PI_2
+                                + f64::from(i) * core::f64::consts::PI / 24.0
+                        })
+                        .collect(),
+                ),
+                _ => (
+                    (0..96).map(|i| f64::from(i) * tau / 96.0).collect(),
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                ),
+            };
+            us.iter()
+                .flat_map(|&u| vs.iter().map(move |&v| s.eval(u, v)))
+                .collect()
+        };
+        let one_side = |parent: &Surface<f64>, partner: &Surface<f64>| {
+            let rs: Vec<f64> = samples(parent)
+                .into_iter()
+                .map(|q| geom_brep::implicit_residual(partner, q))
+                .collect();
+            !(rs.iter().any(|&v| v > 1e-9) && rs.iter().any(|&v| v < -1e-9))
+        };
+        // The straight tube leaving the torus's end meridian at `+x`
+        // (heading `+y`), and the torus bending the other way from it.
+        let fixtures: Vec<(&str, Surface<f64>, Surface<f64>)> = vec![
+            (
+                "plane on a cylinder",
+                plane(r),
+                cyl(p(0.0, 0.0, 0.0), x, r, y),
+            ),
+            (
+                "cylinders outside",
+                cyl(p(0.0, 0.0, 0.0), z, 1.0, x),
+                cyl(p(2.0, 0.0, 0.0), z, 1.0, x),
+            ),
+            (
+                "cylinders inside",
+                cyl(p(0.0, 0.0, 0.0), z, 1.0, x),
+                cyl(p(0.5, 0.0, 0.0), z, 0.5, x),
+            ),
+            (
+                "sphere in a cylinder",
+                ball(p(0.0, 0.0, 0.0), r),
+                cyl(p(0.0, 0.0, 0.0), z, r, x),
+            ),
+            (
+                "sphere in a torus's hole",
+                ball(p(0.0, 0.0, 0.0), big - r),
+                torus(p(0.0, 0.0, 0.0)),
+            ),
+            (
+                "the ball-ended elbow",
+                ball(p(big, 0.0, 0.0), r),
+                torus(p(0.0, 0.0, 0.0)),
+            ),
+            ("plane on a torus", plane(r), torus(p(0.0, 0.0, 0.0))),
+            (
+                "the tube chain",
+                torus(p(0.0, 0.0, 0.0)),
+                cyl(p(big, 0.0, 0.0), y, r, x),
+            ),
+            (
+                "the S-bend",
+                torus(p(0.0, 0.0, 0.0)),
+                torus(p(2.0 * big, 0.0, 0.0)),
+            ),
+        ];
+        let mut seen = std::collections::BTreeSet::new();
+        for (label, s1, s2) in &fixtures {
+            for (parent, partner) in [(s1, s2), (s2, s1)] {
+                let kinds = (parent.kind(), partner.kind());
+                let held = one_side(parent, partner);
+                if tangency_certifies_side(TangencySource::Seam, kinds.0, kinds.1) {
+                    assert!(
+                        held,
+                        "{label}: {kinds:?} is admitted, yet both sides are reached"
+                    );
+                } else {
+                    assert!(!held, "{label}: {kinds:?} is excluded, yet one side holds");
+                }
+                seen.insert(kinds);
+            }
+        }
+        let all = [Plane, Cylinder, Sphere, Torus];
+        let rows: std::collections::BTreeSet<(SurfaceKind, SurfaceKind)> = all
+            .iter()
+            .flat_map(|&a| all.iter().map(move |&b| (a, b)))
+            .filter(|&(a, b)| tangency_certifies_side(TangencySource::Seam, a, b))
+            .chain([(Torus, Cylinder), (Cylinder, Torus), (Torus, Torus)])
+            .collect();
+        assert_eq!(seen, rows, "a fixture for every row and torus exclusion");
+    }
+
+    /// **An undecided sample leaves the cover's side unread.** The top
+    /// face of the unit brick against the plane `x = −m`, `m` mid-band
+    /// at the run's ε: the samples on `x = 0` sit in the band, those on
+    /// `x = 1` and `x = ½` are definitely Positive. A side read off the definite ones alone
+    /// would be `Off(Positive)`; the in-band ones keep it `Unread`. The
+    /// plane `x = −1` reads every sample definitely, and the side is read.
+    #[test]
+    fn an_escalated_sample_leaves_the_cover_side_unread() {
+        use geom_core::{Point3, Tol, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let body: crate::Body<f64> =
+            crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+        let top = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if origin.z > 0.5 && normal.z.abs() > 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let wall = |x: f64| geom::Surface::Plane {
+            origin: Point3::new(x, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        assert_eq!(
+            read_cover_side(
+                &body,
+                top,
+                &wall(-(band.zero() + band.escalate()) * 0.5),
+                band
+            ),
+            CoverSide::Unread
+        );
+        assert_eq!(
+            read_cover_side(&body, top, &wall(-1.0), band),
+            CoverSide::Off(Sign::Positive)
+        );
+    }
+
+    /// **The cover carries its side, and admits an off-carrier point
+    /// only there** ([`CoverSide::admits`]): a cover certified Positive
+    /// whose end reads Negative keeps its door, as does any off point
+    /// under a one-carrier cover or an unread side.
+    #[test]
+    fn a_cover_admits_an_off_point_only_on_its_certified_side() {
+        use CoverSide::{Off, On, Unread};
+        for cover in [On, Unread, Off(Sign::Positive), Off(Sign::Negative)] {
+            assert!(cover.admits(Sign::Zero), "{cover:?}: a touch");
+        }
+        assert!(Off(Sign::Positive).admits(Sign::Positive));
+        assert!(!Off(Sign::Positive).admits(Sign::Negative));
+        assert!(Off(Sign::Negative).admits(Sign::Negative));
+        assert!(!Off(Sign::Negative).admits(Sign::Positive));
+        for s in [Sign::Positive, Sign::Negative] {
+            assert!(!On.admits(s), "one carrier, off it: {s:?}");
+            assert!(!Unread.admits(s), "unread, off it: {s:?}");
         }
     }
 
@@ -4049,12 +4891,16 @@ mod tests {
         let mut faces: slotmap::SlotMap<FaceKey, ()> = slotmap::SlotMap::with_key();
         let (f, g) = (faces.insert(()), faces.insert(()));
         let mut pairs = DeclaredPairs::<f64>::default();
-        pairs
-            .one_sided
-            .insert((tagged(Operand::A, f), tagged(Operand::B, g)));
-        assert!(pairs.one_sided(Operand::A, f, Operand::B, g));
-        assert!(!pairs.one_sided(Operand::B, g, Operand::A, f));
-        assert!(!pairs.one_sided(Operand::A, f, Operand::A, g));
+        pairs.one_sided.insert(
+            (tagged(Operand::A, f), tagged(Operand::B, g)),
+            CoverSide::On,
+        );
+        assert_eq!(
+            pairs.cover(Operand::A, f, Operand::B, g),
+            Some(CoverSide::On)
+        );
+        assert_eq!(pairs.cover(Operand::B, g, Operand::A, f), None);
+        assert_eq!(pairs.cover(Operand::A, f, Operand::A, g), None);
     }
 
     /// **The conformal screen's ladder contradicting an undeclared pair
@@ -4320,7 +5166,7 @@ mod tests {
     /// enums and `&'static str` — everything the projection can be
     /// checked on without reaching into another crate's error type.
     /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
-    /// `Revert`, `GraftRecertify`, `CrossingInsertion`) are absent by
+    /// `Revert`, `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
     /// the same rule.
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4423,9 +5269,14 @@ mod tests {
                 margin: diag,
             },
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent,
+                class: BooleanCoincidence::TANGENT,
             },
-            BooleanError::RimSeamNotDeclarable { declaration },
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: None,
+                margin: diag,
+            },
             BooleanError::InvalidDeclaration {
                 operand: Operand::A,
                 what: "a stale key",
@@ -4438,6 +5289,10 @@ mod tests {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+            },
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
             },
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
@@ -4600,11 +5455,13 @@ mod tests {
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
-                BooleanErrorKind::RimSeamNotDeclarable => "RimSeamNotDeclarable",
+                BooleanErrorKind::SeamContradicted => "SeamContradicted",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::TangentSlitArmUnbuilt => "TangentSlitArmUnbuilt",
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
+                BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
@@ -4634,6 +5491,7 @@ mod tests {
                 BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
+                BooleanErrorKind::Pieces => "Pieces",
             }
         }
         /// The variant name `Debug` opens with.

@@ -21,6 +21,7 @@
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Open, Profile, ProfileLoop, Start};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
@@ -54,7 +55,15 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Extruded<f64> {
     let profile = Profile::new(sketch_at(z0), loops)
         .validate(tol())
         .expect("the fixture's profile validates");
-    extrude(&profile, Extrusion::Distance(h), tol()).expect("the fixture extrudes")
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the fixture extrudes")
 }
 
 /// The 6 × 6 × 1 plate with a unit round hole on the z axis; the

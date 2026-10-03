@@ -32,6 +32,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::f64::consts::PI;
+use sweep::ExtrudeSide;
 use sweep::test_support::brick;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
@@ -50,9 +51,16 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(len), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// PROBE 1 (charter A3): a TORUS operand. Union has no per-class door;

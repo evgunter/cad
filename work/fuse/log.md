@@ -279,6 +279,12 @@ lane, because both edit `remap_contacts`.
   `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
   inside-out operand is cleave's (P1).
 
+- 2026-10-03 — PR 3935 lands. Two pinches crossing on one line have no
+  representable union: it would be a shared-entity wedge fan, which D1's
+  representability boundary rules out. The case now refuses with its own
+  permanent kind, `NonManifoldResult`. The P0 row closes, and the
+  end-to-end variant and the crossing pair's ∖ and ∩ are pinned as
+  builds.
 - 2026-10-03 — Dispatched `two-pinches-crossing-on-one-line-refuse-their-union`
   (P0) to a cloud implementer on `fuse/two-pinches-one-line`. The row's
   "what is the result at rest" question is settled by D-tier 3′:
@@ -294,3 +300,81 @@ lane, because both edit `remap_contacts`.
   because an explicit union is the recourse. Fork-log row 48 records
   Ev's decision and the mapping (byte 93, A=fable B=opus). PR 3891 is
   reworked to the piece rule rather than landed.
+
+- 2026-10-03 — Dispatched `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`
+  (P0) to a cloud implementer on `fuse/shared-vertex-tie`. The lane
+  builds the tie arm from the pieces' own faces, with certified
+  readings only, and either proves the three unreached arms are
+  invariants or pins them. The #3891 rework runs in parallel on the
+  piece rule.
+
+- 2026-10-03 — PR 3891 lands: a solid is one piece (Ev, PR 3901).
+  - Review: dual. The editor lane's MAJOR (the product fence leaked
+    through a nested sub-assembly, a `Transform` and `PlacedUnion`) was
+    fixed with a carried `NodeValue::parts`, and re-checked by
+    execution.
+  - A face-frame datum regression from that fix is fixed too: only
+    callers that fuse or reshape material refuse a product.
+  - Closed: the hollow-island unit, and the two rows filed during the
+    first pass.
+  - Residue: P3 connectedness, P2 one home for where a shell stands,
+    restfront P1 for overlapping solids, and the STEP voids writer.
+- 2026-10-03 — PR 3891, dual review of the one-piece rework:
+  - Kernel lane: mergeable with fixes.
+  - Editor/baselines lane: not mergeable. The product fence leaks through
+    a nested sub-assembly, a `Transform`, and `PlacedUnion` (confirmed by
+    execution).
+  - Adjudication, all sent as one fix pass:
+    - the part count becomes a value property that every body-passing op
+      carries;
+    - an `Outer` nested in an `Outer` is overlapping material and refuses
+      typed (not two pieces);
+    - cross-solid overlap passing tier 3 is filed P1 on the validator's
+      owner;
+    - the stale work rows and the editor README are fixed in the PR.
+  - The editor lane re-checks the MAJOR after the fix.
+- 2026-10-03 — PR 3943 (shared-vertex tie): FULL review, mergeable. Its
+  fix pass covers:
+  - angular `leaves` for strut cuts;
+  - the vertex pin;
+  - a red row for the lower-germ splice;
+  - re-checking the face-interior attribution;
+  - `reconcile_shared` to a fixed point or an assert.
+- 2026-10-03 — PR 3943 lands. The shared-vertex tie arms are built: the
+  flat-in-face tie, three pieces, and two dangling null edges.
+  - Review: single FULL, with one fix pass (angular strut sides, a
+    fixed-point reconcile, a red row for the lower-germ splice).
+  - The row stays open at P0 for its one reachable arm, a dangling null
+    edge holding another pair's cut. That arm needs a nested-null-edge
+    structure, which is a design question for the next designer pair.
+  - The pinch-end 3′ failure is filed separately (P1,
+    `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
+
+- 2026-10-03 — Dispatched the tie row's reachable arm, a dangling null
+  edge holding another pair's cut, to a cloud implementer on
+  `fuse/strut-holding-a-cut`. The nested-null-edge structure is internal
+  to the insertion, and no ratified text governs it, so the orchestrator
+  decides it is the implementer's call rather than a designer fork. The
+  lane stops if it finds ratified text that binds it.
+
+- 2026-10-03 — PR 3950 lands: a dangling null edge nests another at its
+  tip.
+  - The FULL review's MAJOR: the one-arc tie depended on insertion
+    order, and in one order regressed a typed refusal to `JoinDesync`.
+    It is answered by returning the one-arc tie to a typed refusal (own
+    row), with witnesses built both ways.
+  - The notched witnesses refuse typed, and the old pair order is
+    restored.
+  - The tie row drops to P3: only the unreached interleave arm remains,
+    and it waits on cleave's `PairingMismatch` row.
+
+- 2026-10-03 — Both PR 3950 and PR 3891 have landed. Dispatched two lanes
+  in parallel; they touch different stages:
+  - `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings`
+    (P0) on `fuse/one-arc-struts`: an order-free holder rule, plus a
+    permutation row across every tied-strut witness.
+  - Step 1 of Ev's PR 3881 build on `fuse/cell-pair-contacts`: cell-pair
+    contact records, including `VeContact`; census certification; one
+    substitution door replacing `remap_contacts`/`remap_carried`; and
+    edge-split lineage. It folds in the P1
+    `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.

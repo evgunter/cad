@@ -58,6 +58,7 @@
 
 use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
@@ -544,9 +545,16 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     let prof = Profile::new(SketchPlane::xy(), vec![joined])
         .validate(t)
         .expect("the profile validates");
-    let mut merged = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0), t)
-        .expect("the prism extrudes")
-        .body;
+    let mut merged = sweep::extrude(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .expect("the prism extrudes")
+    .body;
     merged
         .merge_coplanar_faces(t)
         .expect("the continuation's walls merge");

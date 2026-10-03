@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
@@ -19,9 +20,16 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// **PROBE 1 — the tangency finding, re-derived from the surfaces
@@ -255,10 +263,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     assert!(
         text.starts_with(&format!(
             "an edge of the {which} operand touches or crosses a curved face"
-        )) && text.ends_with(&format!(
-            "Recourse: {}",
-            geom_core::DEFINITE_COINCIDENCE_RECOURSE
-        )),
+        )) && text.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{text}"
     );
     let owner = match operand {

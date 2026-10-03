@@ -20,6 +20,7 @@
 
 use crate::common;
 use crate::common::plate_index;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -64,6 +65,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -925,6 +927,7 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             Node::Extrude {
                 profile,
                 distance: common::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         )

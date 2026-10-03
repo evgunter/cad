@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{Recorder, ang, len, scl};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr, Node,
@@ -45,6 +46,7 @@ fn block(
     r.insert(Node::Extrude {
         profile: p,
         distance: len(h),
+        side: ExtrudeSide::Along,
     })
 }
 

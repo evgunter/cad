@@ -169,6 +169,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `RefusalReason::MeasureRefused`'s closed class, which replaced a
+    # `&'static str`. The carry owes a Python word and a decision about
+    # `ClearanceRefusal`, the eleven-arm enum its engine arm holds.
+    "MeasureRefusalClass": ("filed", "work/lib/measure-refusal-class-is-a-rung-under-"
+                            "refusal-reason.md"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
     "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "

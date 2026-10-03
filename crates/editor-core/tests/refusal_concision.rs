@@ -10,6 +10,7 @@
 
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use editor_core::ExtrudeSide;
 
 use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
 
@@ -44,6 +45,7 @@ fn cone_block_union_refusal() -> String {
     let block = r.insert(Node::Extrude {
         profile: block_p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
@@ -486,6 +488,60 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "SeamContradicted",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: None,
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (one carrier)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::OneCarrier),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (cusp)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamCusp),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (sides mixed)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamSidesMixed),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (face runs on)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamFaceRunsOn),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (untouched)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamUntouched),
+                margin: diag,
+            },
+        ),
+        (
             "CoincidentShell (unpaired)",
             BooleanError::CoincidentShell {
                 operand: Operand::A,
@@ -510,14 +566,17 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "RimSeamNotDeclarable",
-            BooleanError::RimSeamNotDeclarable { declaration },
-        ),
-        (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
                 declaration,
                 wedge: MaterialWedge::Slit,
+            },
+        ),
+        (
+            "TangentSlitArmUnbuilt",
+            BooleanError::TangentSlitArmUnbuilt {
+                declaration,
+                interior: Operand::A,
             },
         ),
         (
@@ -526,6 +585,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "NonManifoldResult",
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
             },
         ),
     ];

@@ -160,7 +160,8 @@ verified records in the `BooleanBody` wrapper, never persisted. Replay
 is scalar-generic; an indeterminate verification at an interval scalar
 aborts. Failures, all typed: `UndeclaredContact` (the census) and
 `UndeclaredCoincidence` (the boolean), `ContactContradicted`
-(at use and at rest), `ContinuationContradicted` (at use),
+(at use and at rest), `ContinuationContradicted` and
+`SeamContradicted` (at use),
 `StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.
 
@@ -191,7 +192,14 @@ aligned-sense twin of `Tangent`, as a continuation is of `Rest`, and
 like a continuation it is not a contact: a boolean node declares it
 and a mate cannot. Its verification is the `Tangent` witness lane
 along the same locus with the sense bit reversed; opposed senses
-contradict it. Rim routing by material wedge (C7) then decides the
+contradict it. Wherever the two faces touch along the curve, each must
+END there and the two must leave it on opposite sides: a cusp, a face
+running on through the curve where the other touches it, sides that
+differ along the curve, and a pair touching nowhere each contradict it,
+with the fact named. A pair that meets the curve only at a point (two
+faces of two face sets across a vertex of the curve) is read at that
+point when both faces end there; one that shares no point at all is the
+pair touching nowhere. Rim routing by material wedge (C7) then decides the
 rim, and the zip mints it as the smooth seam carrying
 `TangentIntersection`. A G1 joint authored inside one profile is the
 structural form of the same fact and needs no declaration.
@@ -204,7 +212,19 @@ has exactly these sources: a verified `Rest` (residual ≡ 0), a
 verified `Tangent` (the witness lane), a verified continuation, a
 verified seam, or a structural tangency (an edge described
 `TangentIntersection`) on either operand, to a face verified as one
-carrier with the target. It is never read from values: a root
+carrier with the target. A seam and a structural tangency are tangencies
+along a curve, and the condition asks for a certified side, not a local
+touch: they count only where such a tangency is a global side for their
+carriers' kinds (plane, cylinder and sphere with one another, and a
+sphere or a plane with a torus); a structural tangency counts only for a
+plane with a cylinder. A torus with a cylinder or a torus does not count.
+That exclusion is conservative: the condition is read per pair of KINDS,
+and while a cylinder coaxial with a torus (radius `R ± r`, tangent along
+an equator) does lie on one side of it, a straight tube leaving a torus's
+end meridian G1 crosses its continuation, and a kind cannot tell the two
+apart. Which side the certificate holds is read off the parent
+face, and an endpoint off the carrier is eventless only on that side.
+It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band
 refuses, and an exact tangency is reached only through structure or a
 declaration. A covered LINE touching a cylinder or a sphere inside
@@ -262,6 +282,9 @@ additive at full engagement. A rim with a determinate G1 jet carries
 structural;
 0/2π ⇒ the declared cusp family, defined but unbuilt,
 `BooleanError::RimCuspArmUnbuilt`) is `docs/MATE-7-TANGENCY-DESIGN.md`.
+A verified `Tangent` union whose ruling runs through a plane face's
+interior is #131's doubled cusp, unbuilt, and refuses
+(`BooleanError::TangentSlitArmUnbuilt`).
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
 

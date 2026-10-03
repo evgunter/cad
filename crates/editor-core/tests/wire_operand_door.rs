@@ -42,6 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssertionDir, Datum, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, PartSelect, PatternKind,
@@ -102,6 +103,7 @@ fn wired() -> (
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(
@@ -233,6 +235,7 @@ fn wired() -> (
         Node::Extrude {
             profile: plane,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         plane,
     );

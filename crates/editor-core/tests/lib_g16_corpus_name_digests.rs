@@ -129,34 +129,34 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xa2b2_a066_44d5_b41a),
-    ("corner_table", 0x3799_5a30_3006_7754),
-    ("heat_sink", 0xc27b_6076_aa92_b048),
-    ("crossing_slots", 0x045a_a35f_7ffb_0917),
-    ("nested_islands_105", 0x78ec_775b_bb90_0ef0),
-    ("nested_islands_106_depth1", 0x95e1_84f1_6732_94ad),
-    ("nested_islands_106_depth2", 0xc372_da0a_3e72_3723),
-    ("declared_tangency", 0x10e3_3436_e0dd_f2ca),
-    ("kitchen_sink", 0xeac0_dc07_2a2b_518d),
-    ("cut_cylinder", 0x4fc1_3f27_d303_0751),
-    ("measured_web", 0x6a3e_d351_0833_d5e8),
-    ("boss_union", 0x0c9a_9265_78cb_ccf6),
-    ("die_fillet", 0x9604_14fb_3d8d_dbf8),
-    ("die_chamfer", 0x6ec4_d463_dbda_f46c),
-    ("die_pips", 0x0c4b_f7fa_1d64_a3ee),
-    ("heat_sink_fins", 0xde1b_5e70_e134_c51f),
-    ("die_tool", 0x3cfd_3326_58c3_914f),
-    ("face_sketch", 0x8969_aadc_d370_4777),
+    ("die", 0x06e4_606e_3b5a_4deb),
+    ("corner_table", 0xe29a_7605_d42b_6b99),
+    ("heat_sink", 0x3aaa_91e3_47ef_c27a),
+    ("crossing_slots", 0xa504_5ebd_fc02_2177),
+    ("nested_islands_105", 0xacc7_1b27_90de_1ff6),
+    ("nested_islands_106_depth1", 0xa5ef_f96f_7c11_f8a8),
+    ("nested_islands_106_depth2", 0xd1fb_7c2e_0b16_cbe9),
+    ("declared_tangency", 0x9669_c317_71c9_2a49),
+    ("kitchen_sink", 0xd732_ebb4_45f9_d932),
+    ("cut_cylinder", 0x41db_1192_9026_3bed),
+    ("measured_web", 0x1721_fe2f_f026_bf22),
+    ("boss_union", 0x2c43_ee7d_87cb_6d6d),
+    ("die_fillet", 0xf37b_a47b_ed71_31d2),
+    ("die_chamfer", 0x33f7_333d_4be4_662e),
+    ("die_pips", 0xa8a6_77b2_ab17_e12e),
+    ("heat_sink_fins", 0xd244_b58c_02dc_3b3f),
+    ("die_tool", 0x2376_5b8f_0b08_085c),
+    ("face_sketch", 0xe17f_467e_cf2c_0119),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x2367_de71_295e_bf33),
+    ("part_select", 0xe1c4_b5f0_17f3_eb7f),
     ("loft_prism", 0x74db_6889_4c07_172b),
-    ("die_composed", 0xab17_b650_d73d_ea22),
-    ("die_composed_tour", 0x4285_e851_34e0_a537),
-    ("plate_param", 0xf4e8_8394_a29a_4348),
-    ("kiss_carry", 0xbfa2_4a45_375c_3a04),
+    ("die_composed", 0x9708_fe3b_47e9_4d63),
+    ("die_composed_tour", 0x1e94_e904_622c_8027),
+    ("plate_param", 0x826c_231e_04ba_1ab7),
+    ("kiss_carry", 0xd74f_677f_841f_f8b1),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
     // its maps — so these two rows are the revolve role vocabulary
@@ -171,7 +171,7 @@ const PINNED: &[(&str, u64)] = &[
     // under a fillet. Its table is minted over the crease name the
     // door REBOUND, which is the fact this row makes golden; its
     // arrival moved no other row.
-    ("reshaped_rod", 0x6bd0_82fa_e3bc_3bde),
+    ("reshaped_rod", 0x8379_4d89_2ebf_929a),
 ];
 
 #[test]

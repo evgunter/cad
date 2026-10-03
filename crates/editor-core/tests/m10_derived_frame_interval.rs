@@ -36,6 +36,7 @@
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
@@ -154,6 +155,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,
@@ -167,6 +169,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     (r.doc, boss_p, boss)
 }
@@ -194,6 +197,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     (r.doc, boss)
 }
@@ -213,6 +217,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let lifted = r.insert(Node::transform(
         cube,
@@ -238,6 +243,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }

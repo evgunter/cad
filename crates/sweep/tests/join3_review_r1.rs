@@ -30,7 +30,7 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
-use sweep::{Extrusion, extrude};
+use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::Body;
 
 fn tol() -> Tol {
@@ -49,9 +49,16 @@ fn tool(plane: SketchPlane<f64>, chain: &[(f64, f64, f64)], h: f64) -> Option<Bo
             .collect(),
     );
     let profile = Profile::new(plane, vec![lp]).validate(tol()).ok()?;
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .ok()
-        .map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .ok()
+    .map(|e| e.body)
 }
 
 fn volume(b: &Body<f64>) -> Option<f64> {

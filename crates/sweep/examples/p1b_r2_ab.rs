@@ -30,6 +30,7 @@ use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
@@ -54,9 +55,16 @@ fn cube(l: f64) -> Body<f64> {
     let validated = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the square is a valid profile");
-    extrude(&validated, Extrusion::Distance(l), Tol::witness())
-        .expect("the square extrudes")
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: l,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the square extrudes")
+    .body
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {

@@ -2411,29 +2411,17 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
     );
 }
 
-/// **A solid holding SEVERAL outer boundaries certifies, and that is
-/// the ratified posture rather than a gap** — the executable form of
-/// `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
+/// **A solid holding SEVERAL outer boundaries refuses: a solid is one
+/// piece of material** (`docs/DESIGN.md`, "A solid is one piece of
+/// material"; check 10's count).
 ///
 /// One solid, three shells: the outer cube, a cavity wall inside it,
-/// and an island inside that cavity — the hollow-operand subtraction's
-/// shape
-/// (`work/fuse/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
-/// Two of those shells enclose definitely-positive volume.
-///
-/// Four doors produce this state on purpose — `graft onto`, the
-/// boolean coplanar split (which asserts three shells under one solid
-/// in so many words), `subtract`, and the editor's placed union — and
-/// how many material components a product should have is answered
-/// one layer up, as `editor_core`'s `CheckId::Connectedness` finding
-/// against an authored expectation. So tier 3 admits it, and this row
-/// reds if a count-level refusal is ever put back at this tier.
-///
-/// The NESTING is read too, by check 10, and admits it on the merits:
-/// inside the island the shells wind `+1 - 1 + 1 = 1`, so the island is
-/// material and every region winds 0 or 1.
+/// and an island inside that cavity. Two of those shells enclose
+/// definitely-positive volume, so the island is a second piece, and its
+/// own solid. The winding alone would admit the shape (`+1 - 1 + 1 = 1`
+/// inside the island), which is why the count is its own refusal.
 #[test]
-fn a_solid_holding_several_outer_shells_still_certifies() {
+fn a_solid_holding_several_outer_shells_refuses() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -2498,7 +2486,13 @@ fn a_solid_holding_several_outer_shells_still_certifies() {
             > 0.0,
         "check 7's subject is this solid, and its volume is positive"
     );
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::SolidOuterShells {
+            solid: keeper,
+            outer: 2
+        }])
+    );
 }
 
 /// **Check 7 sums a solid's whole boundary, cavity included**: a solid
@@ -2607,52 +2601,47 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
 }
 
 /// **Check 10 skips a witness where two shells TOUCH, and reads the
-/// next one.** A unit cube hangs from the ceiling of a larger cube,
-/// both `Outer` and under one solid, so the space inside the unit cube
-/// winds `2` — and its top lies ON the larger cube's top. The first
-/// vertex the check reads is on that face (asserted below, from the
-/// body), where the walk answers `OnBoundary`; a check that stopped
-/// there would be silent. The cube's lower vertices touch nothing, and
-/// one of them refuses the body.
+/// next one.** A small cavity hangs from the ceiling of a larger one in
+/// a cube, all under one solid, so the space inside the small cavity
+/// winds `-1` — and its top lies ON the larger cavity's ceiling. The
+/// first vertex the check reads is on that face (asserted below, from
+/// the body), where the walk answers `OnBoundary`; a check that stopped
+/// there would be silent. The small cavity's lower vertices touch
+/// nothing, and one of them refuses the body.
 #[test]
 fn check_10_reads_past_a_witness_where_two_shells_touch() {
     use crate::boolean::SolidContainment;
     use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
     let tol = Tol::witness();
-    let mut body: Body<f64> =
-        crate::test_support_fixtures::brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol);
-    let [outer_solid] = solids_of(&body)[..] else {
-        panic!("a brick is one solid");
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 3.0, false, tol);
+    cube_solid(&mut body, (0.5, 0.5, 0.5), 2.0, true, tol);
+    cube_solid(&mut body, (1.0, 1.0, 2.0), 0.5, true, tol);
+    let [keeper, big, small] = solids_of(&body)[..] else {
+        panic!("three cubes are three solids");
     };
-    let outer = body.shells_of_solid(outer_solid).expect("live")[0];
-    let inner_body: Body<f64> =
-        crate::test_support_fixtures::brick((1.0, 2.0), (1.0, 2.0), (2.0, 3.0), tol);
-    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body)
-        .expect("the graft");
-    let inner = *body
-        .shells_of_solid(outer_solid)
-        .expect("live")
-        .iter()
-        .find(|&&s| s != outer)
-        .expect("the grafted cube");
+    let big_void = body.shells_of_solid(big).expect("live")[0];
+    let small_void = body.shells_of_solid(small).expect("live")[0];
+    refile_shells(&mut body, big, keeper);
+    refile_shells(&mut body, small, keeper);
 
     let band = geom_core::Band::linear(tol).expect("a band");
-    let sel = SolidFaces::of_shell(&body, outer).expect("a selection");
-    let first = crate::validate::shell_vertices(&body, inner)
+    let sel = SolidFaces::of_shell(&body, big_void).expect("a selection");
+    let first = crate::validate::shell_vertices(&body, small_void)
         .next()
         .expect("the cube has vertices");
     assert_eq!(
         point_in_solid_faces(&body, &sel, first, band, tol).expect("the walk answers"),
         SolidContainment::OnBoundary,
-        "the premise: the first witness {first:?} touches the larger cube"
+        "the premise: the first witness {first:?} touches the larger cavity"
     );
     assert_eq!(
         validate_geometric(&body, tol),
         Err(vec![ValidationError::ShellWinding {
-            solid: outer_solid,
-            shell: inner,
-            winding: 1,
-            bounded: 2,
+            solid: keeper,
+            shell: small_void,
+            winding: 0,
+            bounded: -1,
         }])
     );
 }

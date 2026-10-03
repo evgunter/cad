@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -161,6 +162,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let lifted = r.insert(Node::transform(
         cube,
@@ -276,6 +278,7 @@ fn an_interval_extrude_of_a_widened_height() {
         r.insert(Node::Extrude {
             profile,
             distance: Expr::param(ParamName::from_static("hh"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         let doc = r.doc;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -339,6 +342,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,

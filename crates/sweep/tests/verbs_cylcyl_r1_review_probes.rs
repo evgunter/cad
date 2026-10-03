@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
@@ -22,9 +23,16 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -479,9 +487,16 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: thick,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the

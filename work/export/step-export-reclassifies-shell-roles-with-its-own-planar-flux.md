@@ -76,3 +76,11 @@ and the review measured the same for square bosses and for cuts at
 this body would EXPORT, so its pin fails as a success and says to drop it,
 unlike the hollow-body pins (`hollowring`, `hollowtorus`,
 `torusvessel`, `fivewall`), which flip to `VoidShellUnsupported`.
+
+**2026-10-03 — the `projectbox` cut exports another way (FUSE, PR
+3891).** Under Ev's ruling that a solid is one piece of material (PR
+3901), `split` sorts each side into pieces, so the above half is now
+three solids of one shell each and the writer classifies no shell at
+all: it exports. Its `step_at_frontier` pin is dropped
+(`demos/tour/src/cutaway.rs`). The writer's own classification gap this
+item names is untouched; this body just no longer reaches it.

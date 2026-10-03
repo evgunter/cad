@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use crate::wire::doctored;
@@ -62,6 +63,7 @@ pub(crate) fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -527,7 +529,7 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     // `Fragment`: the union names a member edge's pieces by their ends
     // over the finished body (`emit_union::group_member_edges`), and
     // qualifies them where that member edge is held in several pieces,
-    // which is `a`'s in both orders.
+    // which is the A-side member's in both orders.
     let fragmented_members = |ev: &Evaluation<f64>, id: RecipeNodeId| {
         let mut out: Vec<RecipeNodeId> = table(ev, id)
             .iter()
@@ -541,8 +543,12 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         out.dedup();
         out
     };
-    assert_eq!(fragmented_members(&ev, union), vec![a]);
-    assert_eq!(fragmented_members(&ev2, union2), vec![a]);
+    // The A side is the lower member id (the union's pair fold), and
+    // ids are digests of the mint chain, so which of the two it is is
+    // read off the ids rather than pinned.
+    let a_side = a.min(b);
+    assert_eq!(fragmented_members(&ev, union), vec![a_side]);
+    assert_eq!(fragmented_members(&ev2, union2), vec![a_side]);
     // The two documents are built separately, so the ids are the same
     // ones in the same seats: `a` is the first block of both.
     assert_eq!((a, b), (a2, b2));

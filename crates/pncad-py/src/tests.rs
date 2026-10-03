@@ -17,6 +17,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::document::ExtrudeSide;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1467,6 +1469,7 @@ fn resolution_status_tags_are_stable() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
 
@@ -2329,6 +2332,7 @@ fn node_error_tags_are_the_published_words() {
         SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         EmptyOperand => "empty_operand",
+        ProductOperand => "product_operand",
         EmptyHalf => "empty_half",
         InstanceOutOfRange => "instance_out_of_range",
         DegenerateDirection => "degenerate_direction",
@@ -2340,6 +2344,10 @@ fn node_error_tags_are_the_published_words() {
         Escalated => "escalated",
         AxisInDifferentPlane => "axis_in_different_plane",
         NonPositiveCount => "non_positive_count",
+        NegativeSpacing => "negative_spacing",
+        DegenerateSpacing => "degenerate_spacing",
+        DegenerateStep => "degenerate_step",
+        FullRangeStep => "full_range_step",
         PlacementsUncertified => "placements_uncertified",
         PlacementRuleCountSpelling => "placement_rule_mismatch",
         PlacementRuleNoPlacements => "empty_placement_list",
@@ -2734,6 +2742,32 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
     carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
+    carries(&E::PromoteOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PromoteWithoutOffset { node: sp(1) }, &["node"]);
+    carries(&E::FoldOnNonGauge { node: sp(1) }, &["node"]);
+    // A promote or a fold names its target and the other node the
+    // refusal is about.
+    carries(
+        &E::PromoteNonRoot {
+            node: sp(1),
+            root: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::PromoteMemberOffset {
+            node: sp(1),
+            member: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::FoldWouldStartPlacing {
+            node: sp(1),
+            mate: sp(2),
+        },
+        &["node", "input"],
+    );
     // A gauge reference names the node it is written on and the id it
     // names.
     carries(
@@ -2806,6 +2840,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DeleteWouldDangle {
             id: sp(1),
+            referenced_by: sp(2),
+        },
+        &["node", "referenced_by"],
+    );
+    carries(
+        &E::FoldWouldDangle {
+            node: sp(1),
             referenced_by: sp(2),
         },
         &["node", "referenced_by"],
@@ -4681,22 +4722,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_desync",
             "merge",
             "non_finite_sector_chord",
+            "non_manifold_result",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "pcurves",
+            "pieces",
             "point_split_carrier_unsupported",
             "rest_zip_unsupported",
             "result_invalid",
             "result_volume_implausible",
             "revert",
             "rim_cusp_arm_unbuilt",
-            "rim_seam_not_declarable",
             "scaffolding_operand",
+            "seam_contradicted",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
+            "tangent_slit_arm_unbuilt",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -4850,6 +4894,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
+            "fold_on_non_gauge",
+            "fold_would_dangle",
+            "fold_would_start_placing",
             "gauge_cycle",
             "gauge_not_live",
             "gauge_on_non_placed",
@@ -4879,6 +4926,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_axis",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "promote_member_offset",
+            "promote_non_root",
+            "promote_on_non_instance",
+            "promote_without_offset",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4890,6 +4941,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "repeated_designation",
             "selection_not_canonical",
             "set_declare_on_non_declaring",
+            "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -5000,6 +5052,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_extrusion",
             "extrusion_escalated",
+            "negative_depth",
             "oblique_extrusion",
             "op",
             "pcurve",
@@ -5024,7 +5077,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "face_refusal_tag",
-        values: &["not_an_instance"],
+        values: &["no_part_face", "not_an_instance"],
         delegates: &["face_pose_refusal_tag"],
     },
     TagEntry {
@@ -5070,7 +5123,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
-            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
@@ -5132,7 +5184,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &["offset_cleared", "strand", "stranded_appearance"],
+        values: &[
+            "label_dropped",
+            "offset_cleared",
+            "strand",
+            "stranded_appearance",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5221,6 +5278,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_site_not_an_operand",
             "declare_unsupported_pair",
             "degenerate_direction",
+            "degenerate_spacing",
+            "degenerate_step",
             "derived_frame_section",
             "empty_half",
             "empty_operand",
@@ -5236,6 +5295,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "full_range_step",
             "improper_placement",
             "instance_out_of_range",
             "loft",
@@ -5266,6 +5326,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_input",
             "missing_slot",
             "naming",
+            "negative_spacing",
             "non_finite_direction",
             "non_finite_placement",
             "non_positive_count",
@@ -5284,6 +5345,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_refused",
             "placement_rule_mismatch",
             "placements_uncertified",
+            "product_operand",
             "profile",
             "profile_anchor",
             "profile_lane_replay",
@@ -5737,6 +5799,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_outer_shells",
             "partition",
             "pcurve",
+            "pieces",
             "rim",
             "roles",
             "thickness",
@@ -5855,8 +5918,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
-            "hoisted_member_offset",
-            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
@@ -5874,6 +5935,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "two_anchors",
             "uncut_param_reference",
             "unknown_cut_node",
+            "unplaceable_root",
             "unplaced_alone",
             "would_start_placing",
         ],
@@ -5881,7 +5943,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "reduce"],
+        values: &["finish", "join", "pcurves", "pieces", "reduce"],
         delegates: &[],
     },
     TagEntry {
@@ -6121,6 +6183,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
+            "solid_outer_shells",
             "solid_without_shells",
             "split_vertex_orbit",
             "stale_contact_declaration",
@@ -6254,7 +6317,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("join", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
-    ("mate_face_frame_crosses", 2),
     ("mate_frame_crosses", 2),
     ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
@@ -6284,6 +6346,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_unknown_doc_param", 2),
     ("pcurve", 6),
     ("pcurves", 3),
+    // One fact for the boolean, the shell and the split: the result sort
+    // (`topo::PieceSortError`) could not read a shell's piece, carried
+    // whole by each verb. The profile program's word is a coincidence.
+    ("pieces", 4),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),

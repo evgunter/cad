@@ -46,6 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -160,6 +161,7 @@ fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64
     r.insert(Node::Extrude {
         profile,
         distance: len(height),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -569,7 +571,6 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
             .all(|v| matches!(v, AssertionVerdict::Holds { .. })),
         "a straddle inside the band reads Holds: {seen:?}"
     );
-    let _ = UnevaluatedReason::Indeterminate;
     let report = stackup(
         &doc,
         measure,
@@ -623,6 +624,7 @@ fn report_key_tells_two_budgets_apart() {
     r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(name("depth"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let starved = drive(
@@ -1330,6 +1332,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
@@ -1343,6 +1346,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0e-3),
+            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(

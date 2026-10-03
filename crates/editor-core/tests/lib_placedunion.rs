@@ -18,6 +18,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
@@ -47,6 +48,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let fin = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     (r.doc, fin)
 }
@@ -88,11 +90,10 @@ fn the_fin_group_is_one_node_and_one_body() {
         payload.kind_name()
     );
     let body = body_of(&ev, root);
-    // Five disjoint fins fuse into the PROTOTYPE's solid structure —
-    // one solid, five shells — which is what the pairwise-union chain
-    // this replaces also produces, and the only shape the seamed
-    // boolean path accepts as an operand.
-    assert_eq!(body.solids().count(), 1, "one solid");
+    // Five disjoint fins are five pieces, so five solids — what the
+    // pairwise-union chain this replaces also produces, and a boolean
+    // operand like any other body.
+    assert_eq!(body.solids().count(), 5, "one solid per fin");
     assert_eq!(body.shells().count(), 5, "five shells, one per placement");
     assert!(
         topo::validate_geometric(body, Tol::witness()).is_ok(),
@@ -325,6 +326,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(Node::placed_union_at(solid, frames));
     (r.doc, group)
@@ -410,6 +412,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(
         Node::placed_union(
@@ -840,6 +843,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let solid = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
         (r.doc, solid)
     };
@@ -942,7 +946,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
 /// the middle of an action, [`editor_core::Recording::insert`] refuses an
 /// empty placement list, a non-finite frame, a mirror and a stretched
 /// frame with exactly the error `apply` gives the same insert against
-/// the same document, records nothing for it, and the action goes on.
+/// the same document, records nothing for it, and ends the action on it.
 /// The placement rule is checked by the whole-document backstop every
 /// edit passes through after it is written, not by the insert's own
 /// arm, so an insert that skipped that backstop would land here.
@@ -956,11 +960,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
     let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
     stretched.columns[0] = [2.0, 0.0, 0.0];
 
-    let mut action =
-        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
-    let first = action
-        .insert(with(vec![Frame::IDENTITY]))
-        .expect("one placement is legal");
     for (what, node) in [
         ("an empty placement list", with(Vec::new())),
         (
@@ -970,6 +969,11 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
         ("a mirror", with(vec![mirror])),
         ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
     ] {
+        let mut action =
+            editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+        let first = action
+            .insert(with(vec![Frame::IDENTITY]))
+            .expect("one placement is legal");
         let before = action.doc().clone();
         let want = apply(
             &before,
@@ -992,7 +996,7 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
         );
         assert_eq!(
             action.insert(node),
-            Err(want),
+            Err(want.clone()),
             "the typed insert refuses {what} as `apply` does"
         );
         assert!(
@@ -1000,9 +1004,10 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
             "a refused insert of {what} leaves the action where it stood"
         );
         assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
+        assert_eq!(
+            action.finish().map(|done| done.minted),
+            Err(want),
+            "the refused insert of {what} ends the action"
+        );
     }
-    let last = action
-        .insert(with(vec![Frame::translation([4.0, 0.0, 0.0])]))
-        .expect("the action goes on after the refusals");
-    assert_eq!(action.finish().minted, vec![Some(first), Some(last)]);
 }

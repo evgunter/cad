@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -63,6 +64,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -219,6 +221,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -312,6 +315,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,
@@ -1100,6 +1104,7 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         Node::Extrude {
             profile: bp,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, tr) = insert(
@@ -1435,6 +1440,7 @@ fn one_node_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,

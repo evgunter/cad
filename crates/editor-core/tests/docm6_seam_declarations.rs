@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CapEnd, CarriedRefusal,
@@ -55,6 +56,7 @@ fn block_part(label: &str, w: f64, d: f64, h: f64) -> (ProfileDoc, RecipeNodeId)
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -909,54 +911,185 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
 /// declaration rows, so a finding against one of them is
 /// `Unattributed` — which is correct there, because no mate authored
 /// them. What could make it wrong is a declaration row reaching a
-/// boolean operand, and today nothing can: an instance that CARRIES a
-/// declaration is a product of at least two solids (a mate is between
-/// two members of the document that authored it), and the pair boolean
-/// refuses a multi-solid operand outright.
+/// boolean operand, and nothing can: an instance that CARRIES a
+/// declaration is a product of at least two parts (a mate is between
+/// two members of the document that authored it), a product keeps its
+/// part count through the placers and through a sub-assembly that
+/// instantiates it, and every op that takes one body refuses a product
+/// (`NodeErrorKind::ProductOperand`), naming the explicit union as the
+/// recourse.
 ///
-/// Every seat, so what refuses is the boolean's rule and not this
-/// geometry: penetrating, resting, gapped.
+/// Every seat, so what refuses is the rule and not this geometry:
+/// penetrating, resting, gapped.
 #[test]
 fn no_carried_declaration_can_reach_a_boolean_operand() {
     for (label, seat) in [("pen", 0.5), ("rest", 1.0), ("gap", 1.5)] {
-        let mut store = PartStore::default();
-        let (inner_ref, ..) = stand(
-            &mut store,
-            &format!("docm6-bool-{label}"),
-            ContactClass::Rest,
-            [0.0, 0.0, seat],
-            [0.0, 0.0, 1.0],
-        );
-        let (cube, _) = store.insert_part(
-            cube_part(&format!("docm6-bool-{label}-cube")),
-            Tol::witness(),
-        );
+        let (store, inner_ref, cube) = product_and_cube(label, seat);
         let doc = ProfileDoc::empty(
             DocumentId::derive(&format!("docm6-bool-{label}-outer")),
             Tol::witness(),
         );
         let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
-        let (doc, far) = insert(doc, Node::instantiate_part(cube));
-        let doc = place(doc, far, [50.0, 0.0, 0.0]);
-        let (doc, union) = insert(
-            doc,
-            Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: instance,
-                b: far,
-                declare: Vec::new(),
-            },
-        );
-        let ev = run(&doc, &with_resolver(store));
-        let failure = ev
-            .node_error(union)
-            .expect("the boolean does not evaluate over a two-solid instance");
-        assert!(
-            format!("{:?}", failure.kind).contains("not one solid"),
-            "the boolean refuses the multi-solid instance: {:?}",
-            failure.kind
+        let (doc, union) = union_with_far_cube(doc, instance, cube);
+        refuses_as_product(
+            &doc,
+            store,
+            union,
+            instance,
+            &format!("{label}: the instance"),
         );
     }
+}
+
+/// A stand (two mated cubes: a product of two parts, carrying the mate's
+/// declaration) and a lone cube, both in one store.
+fn product_and_cube(label: &str, seat: f64) -> (PartStore, DocRef, DocRef) {
+    let mut store = PartStore::default();
+    let (inner_ref, ..) = stand(
+        &mut store,
+        &format!("docm6-bool-{label}"),
+        ContactClass::Rest,
+        [0.0, 0.0, seat],
+        [0.0, 0.0, 1.0],
+    );
+    let (cube, _) = store.insert_part(
+        cube_part(&format!("docm6-bool-{label}-cube")),
+        Tol::witness(),
+    );
+    (store, inner_ref, cube)
+}
+
+/// `Boolean(Union, a, cube placed far off)`.
+fn union_with_far_cube(
+    doc: ProfileDoc,
+    a: RecipeNodeId,
+    cube: DocRef,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, far) = insert(doc, Node::instantiate_part(cube));
+    let doc = place(doc, far, [50.0, 0.0, 0.0]);
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a,
+            b: far,
+            declare: Vec::new(),
+        },
+    )
+}
+
+/// `node` fails with `ProductOperand` naming `input`, two parts.
+fn refuses_as_product(
+    doc: &ProfileDoc,
+    store: PartStore,
+    node: RecipeNodeId,
+    input: RecipeNodeId,
+    what: &str,
+) {
+    let ev = run(doc, &with_resolver(store));
+    let failure = ev
+        .node_error(node)
+        .unwrap_or_else(|| panic!("{what}: the op does not evaluate over a product"));
+    assert!(
+        matches!(
+            failure.kind,
+            editor_core::NodeErrorKind::ProductOperand { input: i, parts: 2 } if i == input
+        ),
+        "{what}: refused as a product: {:?}",
+        failure.kind
+    );
+}
+
+/// **A sub-assembly carries the count through.** A document whose ONE
+/// root instantiates the stand is still two parts when it is itself
+/// instantiated, so the union of that instance refuses too.
+#[test]
+fn a_product_inside_a_sub_assembly_still_refuses() {
+    let (mut store, inner_ref, cube) = product_and_cube("nested", 1.0);
+    let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
+    let (wrap, _) = insert(wrap, Node::instantiate_part(inner_ref));
+    let wrap_ref = store.insert(wrap, Tol::witness());
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("docm6-bool-nested-outer"),
+        Tol::witness(),
+    );
+    let (doc, instance) = insert(doc, Node::instantiate_part(wrap_ref));
+    let (doc, union) = union_with_far_cube(doc, instance, cube);
+    refuses_as_product(&doc, store, union, instance, "the sub-assembly's instance");
+}
+
+/// **A placer carries the count through.** A transformed product is
+/// still a product, so the union of it refuses, naming the transform.
+#[test]
+fn a_transformed_product_still_refuses() {
+    let (store, inner_ref, cube) = product_and_cube("moved", 1.0);
+    let doc = ProfileDoc::empty(DocumentId::derive("docm6-bool-moved-outer"), Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
+    let (doc, moved) = insert(
+        doc,
+        Node::Transform {
+            input: instance,
+            placement: editor_core::Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
+        },
+    );
+    let (doc, union) = union_with_far_cube(doc, moved, cube);
+    refuses_as_product(&doc, store, union, moved, "the transformed instance");
+}
+
+/// **A placed union of a product refuses too**: its prototype is a body
+/// operand like any other.
+#[test]
+fn a_placed_union_of_a_product_refuses() {
+    let (store, inner_ref, _) = product_and_cube("placed", 1.0);
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("docm6-bool-placed-outer"),
+        Tol::witness(),
+    );
+    let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
+    let (doc, group) = insert(
+        doc,
+        Node::PlacedUnion {
+            input: instance,
+            count: None,
+            kind: editor_core::PatternKind::Explicit(vec![
+                Frame::IDENTITY,
+                Frame::translation([20.0, 0.0, 0.0]),
+            ]),
+        },
+    );
+    refuses_as_product(&doc, store, group, instance, "the placed union's prototype");
+}
+
+/// **A datum reads a product.** A face frame consumes no material — it
+/// reads a face — so the product refusal is not its: a frame on the
+/// top cap of the stand's upper cube, read through an instance of the
+/// two-part stand, evaluates.
+#[test]
+fn a_face_frame_on_a_product_evaluates() {
+    let mut store = PartStore::default();
+    let (inner_ref, _, cubes, _, cube_body) = resting(&mut store, "docm6-datum-stand");
+    let doc = ProfileDoc::empty(DocumentId::derive("docm6-datum-outer"), Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
+    let (doc, datum) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: instance,
+            face: wrap(instance, in_part(cubes[1], cube_body, CapEnd::End)),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    let ev = run(&doc, &with_resolver(store));
+    assert_eq!(
+        ev.value(instance).map(|v| v.parts),
+        Some(2),
+        "the stand is a product"
+    );
+    assert!(
+        ev.node_error(datum).is_none(),
+        "the frame reads the product: {:?}",
+        ev.node_error(datum).map(|e| &e.kind)
+    );
+    assert!(ev.value(datum).is_some(), "the frame has a value");
 }
 
 /// R-I: a CERTIFIED assembly keeps the carried rows, so it can say

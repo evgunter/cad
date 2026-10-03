@@ -143,12 +143,6 @@ pub struct SplitNaming {
 /// Typed failure of the finish step.
 #[derive(Debug)]
 pub enum SplitFinishError {
-    /// The operand must hold exactly one solid (the split contract;
-    /// multi-solid models split solid-by-solid at the caller).
-    NotSingleSolid {
-        /// How many solids the operand holds.
-        count: usize,
-    },
     /// A component consists only of section faces, so it bounds no
     /// volume (kernel bug, loudly: the join's area certificate refuses
     /// every zero-area section before the finish runs). No degenerate
@@ -247,10 +241,6 @@ impl From<EulerOpError> for SplitFinishError {
 impl core::fmt::Display for SplitFinishError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotSingleSolid { count } => write!(
-                f,
-                "the body holds {count} solids, and a split takes exactly one"
-            ),
             Self::DegenerateSide { side, .. } => write!(
                 f,
                 "the piece on the {} side of the plane bounds no volume: it holds only \
@@ -858,16 +848,14 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     Ok(())
 }
 
-/// The operand's single solid.
+/// The operand's single solid. The pipelines read every operand as one
+/// solid (`split` and the boolean hand them over through
+/// [`Body::merge_all_solids`]), so any other count is a desync.
 pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
     let mut it = body.solids();
-    let first = it.next();
-    let extra = it.count();
-    match (first, extra) {
-        (Some((k, _)), 0) => Ok(k),
-        (first, extra) => Err(SplitFinishError::NotSingleSolid {
-            count: usize::from(first.is_some()) + extra,
-        }),
+    match (it.next(), it.next()) {
+        (Some((k, _)), None) => Ok(k),
+        _ => Err(SplitFinishError::Corrupt),
     }
 }
 

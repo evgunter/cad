@@ -42,6 +42,7 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
@@ -94,6 +95,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
         Node::Extrude {
             profile,
             distance: len(ROD_L),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, fillet) = if creases.is_empty() {
@@ -888,6 +890,7 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -919,6 +922,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: profile_node,
                 distance: len(ROD_L),
+                side: ExtrudeSide::Along,
             }),
         },
         DocEdit::InsertNode {
@@ -1384,6 +1388,7 @@ fn extrude_of(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -2193,6 +2198,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, b) = insert(
@@ -2200,6 +2206,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);

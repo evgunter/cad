@@ -18,6 +18,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
@@ -31,9 +32,16 @@ fn prism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(z.1 - z.0), tol())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body;
     topo::transform_rigid(
         &body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, z.0)),

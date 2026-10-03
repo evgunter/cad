@@ -1057,22 +1057,22 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
     # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a `from_face` frame's face answered no pose
+    # arm publishes: why a `from_face` side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `unpinned`, `not_an_instance`). The instance crosses
-    # as `MateFault.instance`, the face as `MateFault.face`.
+    # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
+    # instance crosses as `MateFault.instance`, the face as
+    # `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",
     # The reach's own refusal of a face pose, named against the part
     # alone; the solve wraps it into `FaceRefusal` with the instance
     # and the face, which is the shape Python reads.
     "FacePoseRefusal": "MateFault.inner_variant",
-    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or a face
-    # of the part resolved at the solve. `MateFrame` is one Python
+    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or the
+    # side's head face resolved at the solve. `MateFrame` is one Python
     # class whose `variant` says which (`authored`, `from_face`); the
-    # authored vectors are its `origin`/`axis`/`reference` and the face
-    # its `face`, so neither inner struct is a class of its own.
+    # authored vectors are its `origin`/`axis`/`reference`, so the
+    # inner struct is not a class of its own.
     "AuthoredFrame": "MateFrame.variant",
-    "FaceFrame": "MateFrame.variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -2813,6 +2813,13 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
+    # turn or more lands every copy on the master or names an angle
+    # within the turn. Carried in Rust so a consumer matching that
+    # variant can name the field's type; interior here because Python
+    # never holds one. The refusal crosses as `full_range_step` plus
+    # its sentence, which names the angle.
+    "StepTurns": INTERIOR,
     # `BooleanError::CoincidentShell`'s orientation: why the settled
     # coincidence pairs did not certify a shell lying on the other
     # operand. Carried in Rust so a consumer matching that variant can
@@ -2891,6 +2898,14 @@ NOT_BOUND = {
     "face_name": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
+    # The same walk with the name it reached at the member's instance:
+    # what the viewer's mate tool reads a picked face's pose by.
+    "member_reading": INTERIOR,
+    # The strip a face frame reads its head's face by: a Python author
+    # never spells the face (`MateFrame.from_face()` takes nothing),
+    # and the face a refusal is about crosses already stripped, as
+    # `MateFault.face`.
+    "head_face": INTERIOR,
     # The coset table's static gaps (a clocking rider on a planar rest,
     # a standalone clocking), the one home the coset table and the
     # viewer's mate tool read. A Python caller meets the same sentence
@@ -3408,9 +3423,9 @@ MEMBERS_BOUND_AS = {
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     # --- a wrapping arm flattened into its payload's words ---------
     # `BooleanCoincidence::Contact(ContactClass)` crosses as the
-    # contact class's own words beside `Continuation`: the Python enum
-    # is flat, `Rest`, `Tangent`, `Continuation`, so the arm is every
-    # contact word.
+    # contact class's own words beside `Continuation` and `Seam`: the
+    # Python enum is flat, `Rest`, `Tangent`, `Continuation`, `Seam`, so
+    # the arm is every contact word.
     "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
@@ -3469,6 +3484,7 @@ MEMBERS_BOUND_AS = {
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
+    "Maintenance::LabelDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3482,6 +3498,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
+    "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
@@ -3538,6 +3555,13 @@ MEMBERS_BOUND_AS = {
     "EditError::NotAGauge": "EditError.variant",
     "EditError::GaugeCycle": "EditError.variant",
     "EditError::WouldStartPlacing": "EditError.variant",
+    "EditError::PromoteOnNonInstance": "EditError.variant",
+    "EditError::PromoteWithoutOffset": "EditError.variant",
+    "EditError::PromoteNonRoot": "EditError.variant",
+    "EditError::PromoteMemberOffset": "EditError.variant",
+    "EditError::FoldOnNonGauge": "EditError.variant",
+    "EditError::FoldWouldStartPlacing": "EditError.variant",
+    "EditError::FoldWouldDangle": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3575,7 +3599,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::MovedMemberOffset": "InlineError.variant",
     "InlineError::PartDeadGauge": "InlineError.variant",
     "InlineError::MateFrameCrosses": "InlineError.variant",
-    "InlineError::MateFaceFrameCrosses": "InlineError.variant",
     "InlineError::MatePairSplits": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
@@ -3597,7 +3620,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::FaceUnresolved": "MateFault.variant",
     # A mate frame's two arms cross as `MateFrame.variant`
     # (`authored`, `from_face`); the constructor `MateFrame(...)` is
-    # the authored arm and `MateFrame.from_face(...)` the other.
+    # the authored arm and `MateFrame.from_face()` the other.
     "MateFrame::Authored": "MateFrame.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
@@ -3712,12 +3735,11 @@ MEMBERS_BOUND_AS = {
     "SplitError::TwoAnchors": "SplitError.variant",
     "SplitError::DeadGaugeReference": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
+    "SplitError::UnplaceableRoot": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
-    "SplitError::MateFaceFrameCrosses": "SplitError.variant",
-    "SplitError::HoistedMemberOffset": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
@@ -3818,6 +3840,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
     "ValidationError::ShellWinding": "ValidationFinding.variant",
+    "ValidationError::SolidOuterShells": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

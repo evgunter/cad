@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
 };
@@ -66,6 +67,48 @@ fn an_unknown_class_spelling_refuses_typed() {
             .contains("unknown declared coincidence 'fit'"),
         "the refusal names the spelling it could not read: {err}"
     );
+}
+
+/// **Every coincidence a boolean node can declare rides the wire**,
+/// the seam and the continuation beside the contacts: one pair per
+/// coincidence, each read back as itself, each under its own spelling.
+#[test]
+fn every_coincidence_round_trips_under_its_own_spelling() {
+    let doc = ProfileDoc::empty_derived("m9_1_declaration_wire_all", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
+    let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
+    let pairs: Vec<_> = BooleanCoincidence::ALL
+        .iter()
+        .map(|&class| ((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class))
+        .collect();
+    assert!(pairs.iter().any(|p| p.1 == BooleanCoincidence::Seam));
+    let applied = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: Box::new(Node::<editor_core::ProfileProgram>::Boolean {
+                    op: BooleanOp::Union,
+                    a,
+                    b,
+                    declare: pairs.clone(),
+                }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the declaring union inserts");
+    let decl = applied.record.minted.expect("an id is minted");
+    let text = save(&applied.doc, &[], Tol::witness()).expect("saves");
+    for spelling in ["\"rest\"", "\"tangent\"", "\"continuation\"", "\"seam\""] {
+        assert!(text.contains(spelling), "{spelling} rides the wire: {text}");
+    }
+    let back: ProfileDoc = load(&text, Tol::witness())
+        .expect("the saved text loads")
+        .doc;
+    let Some(Node::Boolean { declare: read, .. }) = back.node(decl) else {
+        panic!("the declaring union survives the round trip");
+    };
+    assert_eq!(*read, pairs, "each coincidence reads back as itself");
 }
 
 /// A document whose union declares one `Rest` pair and one `Tangent`
@@ -124,6 +167,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: fixture::len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

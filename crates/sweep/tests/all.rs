@@ -105,6 +105,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "pieces_oblique_bore.rs"]
+mod pieces_oblique_bore;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]
@@ -151,6 +153,8 @@ mod shallow_arc_extrude_grid_interval;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "spiric_faces_fuzz.rs"]
+mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
 #[path = "tilted_sphere_pair.rs"]

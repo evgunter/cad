@@ -39,6 +39,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -55,9 +56,16 @@ fn tol() -> Tol {
 
 fn extruded(plane: SketchPlane<f64>, lp: profile::ProfileLoop<f64>, h: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn polygon(pts: &[(f64, f64)]) -> profile::ProfileLoop<f64> {
@@ -360,7 +368,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         text.starts_with(
             "whether the curve is a circle or an ellipse is undecided for the section through \
              a curved face: "
-        ) && text.ends_with("Recourse: move the geometry, or lower the tolerance"),
+        ) && text.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
         "{text}"
     );
     assert!(

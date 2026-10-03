@@ -369,6 +369,35 @@ PR 3823's state-sync.
 - **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   is dispatched now that the cover rungs have landed.
 
+## 2026-10-03 — `BooleanCoincidence::Seam` lands (PR 3849) (TANG orchestrator)
+
+**What landed.** The declared G1 seam between two operands, as Ev ruled
+on PR 3756:
+- verified by the `Tangent` witness lane with the sense bit reversed;
+- the two faces must leave the locus on opposite sides wherever they
+  both lie on it (a coverage read along the rim angle or line
+  parameter);
+- a cover source only for kinds that keep one global side.
+
+The hemisphere on a tube, the plane×torus puck and the D-bar build; the
+lily stops at two filed gaps.
+
+**Review.**
+- A concurrent dual review (H). Both reviews returned APPROVE-WITH-FIXES.
+  The vacuous rim-wedge check (a cusp verified as a seam) was raised by
+  both, MAJOR on one side and MINOR on the other, so it is bilateral and
+  the tally is unchanged.
+- Three delta reviews followed. Two were NOT-MERGEABLE, each on a false
+  seam passing the declaration door. These were introduced by the fix
+  passes, not missed by the pair:
+  1. the boundary-sample line side (the dodge plate);
+  2. an edge anywhere on the locus standing in for the face where the
+     faces touch (the tab, partial and far plates).
+- The third delta found no further instance. The last pass was read by
+  the orchestrator.
+- Lesson recorded for briefs: a door that reads "which side" must read
+  it where the faces meet, and every cut in its parameter must have a
+  row that turns red without it.
 ## 2026-10-03 — the pierce ring joins on a curved face (PR 3851) (TANG orchestrator)
 
 **Review.** A concurrent dual review (H); both reviewers returned
@@ -404,3 +433,12 @@ orchestrator.
 
 **Closed in the PR.** `pierce-ring-has-no-join-arm` (P0) and PROPS'
 notched-wall row.
+
+## 2026-10-03 — `tangent_locus` consumes the section classifiers' tangency (TANG implementer)
+
+The witness lane's plane×cylinder and parallel-cylinder tangency now
+run on the section classifiers' rows (`pc_*`, `cc_*`), not its own.
+Two band-edge disagreements resolved and pinned. One issue filed: the
+plane×cylinder section reads its gap at the stored origin.
+
+**Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
