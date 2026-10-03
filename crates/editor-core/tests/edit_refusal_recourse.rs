@@ -13,8 +13,8 @@ use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
     BooleanOp, Dimension, Distribution, DocEdit, DocParam, DocumentId, EditError, Expr, Node,
-    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
-    UnitSym, UpstreamCause, apply,
+    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, UnitSym,
+    UpstreamCause, apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};

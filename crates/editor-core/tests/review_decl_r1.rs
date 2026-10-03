@@ -20,8 +20,8 @@ use crate::docm7_union_declare::{
 };
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
-    RoleSeg, SitedRef, find_flush_candidates,
+    BooleanOp, CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    ResolveError, RoleSeg, SitedRef, find_flush_candidates,
 };
 use geom_core::Tol;
 

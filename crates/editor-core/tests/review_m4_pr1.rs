@@ -477,18 +477,16 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         ],
     );
     let (target, a, b) = (ids[0], ids[1], ids[2]);
+    // Each side is read at an operand; the name is `node`'s.
     let pairs = |node| {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![],
+        };
         editor_core::declare_rest(vec![(
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
+            SitedRef::new(a, name.clone()),
+            SitedRef::new(b, name),
         )])
     };
     let boolean = |node| Edit::InsertNode {
