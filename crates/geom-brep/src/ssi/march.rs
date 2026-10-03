@@ -2310,4 +2310,32 @@ mod tests {
             "the fit saw {seen} samples"
         );
     }
+
+    /// REVIEW PROBE (PR 3998): a certificate whose refusal creeps one
+    /// gap per round, as the PR body reports. How many rounds does the
+    /// fixed rule allow?
+    #[test]
+    fn probe_review_creep_round_count() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = unit_ctx(band);
+        let tau = 1.0e-3;
+        let mut rounds = 0usize;
+        let mut last_len = 0usize;
+        let t = |x: f64| (x + 0.8) / 1.6;
+        let r = super::refine_by_certificate(&sys, axis_states(), &ctx, band, |states: &[[f64; 3]]| {
+            rounds += 1;
+            last_len = states.len();
+            // refuse only the leftmost gap longer than tau
+            match states.windows(2).find(|g| g[1][0] - g[0][0] > tau) {
+                Some(g) => Err(super::Located {
+                    error: SsiError::CellBudget { budget: 0 },
+                    at: vec![crate::ssi::certify::RefusedSpan { lo: t(g[0][0]) + 1e-12, hi: t(g[1][0]) - 1e-12 }],
+                }),
+                None => Ok(()),
+            }
+        });
+        eprintln!("[probe] creep: rounds = {rounds}, final samples = {last_len}, result ok = {}", r.is_ok());
+        assert!(rounds < 50, "creep took {rounds} rounds");
+    }
 }

@@ -4918,3 +4918,90 @@ fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
         assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
     }
 }
+
+// ---------------------------------------------------------------------
+// REVIEW PROBES (PR 3998 review, not for merge)
+// ---------------------------------------------------------------------
+
+/// Re-certify every branch a certifying door returned, through the
+/// public door, at the same band: claim 1 (no stale verdict).
+fn probe_recertify(plane: &Surface<f64>, wall: &NurbsSurface<f64>, out: &ssi::SsiOutcome, extent: f64, b: geom_core::Band, at: &str) {
+    for (k, br) in out.branches.iter().enumerate() {
+        let Curve3::Nurbs(c) = &br.carrier else { panic!("{at}: carrier not NURBS") };
+        let cert = ssi::certify_rung3(
+            c,
+            br.pcurve_b.as_ref(),
+            &SsiOperand::Analytic(plane),
+            &SsiOperand::nurbs(wall).unwrap(),
+            TubeScale::uniform(extent),
+            b,
+        )
+        .unwrap_or_else(|e| panic!("{at} branch {k}: the returned carrier does not recertify: {e}"));
+        assert_eq!(cert.hull_sup.to_bits(), br.certificate.hull_sup.to_bits(), "{at} branch {k}: hull_sup differs");
+        assert_eq!(cert.on_locus_max.to_bits(), br.certificate.on_locus_max.to_bits(), "{at} branch {k}: on_locus differs");
+        let n = br.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        eprintln!("[probe] {at} branch {k}: {n} samples, hull_sup {:e}, recertified", br.certificate.hull_sup);
+    }
+}
+
+#[test]
+fn probe_review_refined_branches_recertify() {
+    for eps in [1e-6, 1e-9] {
+        let b = band_at(eps);
+        for d in [1.0, 2.0] {
+            let (_, dom) = dome_tilt(d);
+            let zcut = Surface::Plane {
+                origin: Point3::new(0.5, -d / 8.0, 0.2),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let w = dome_wall(d);
+            match ssi::plane_nurbs_ssi(&zcut, &w, dom, b) {
+                Ok(out) => probe_recertify(&zcut, &w, &out, dom.extent, b, &format!("zcut d={d} eps={eps:e}")),
+                Err(e) => eprintln!("[probe] zcut d={d} eps={eps:e}: refused {e:?}"),
+            }
+            let (tilt, tdom) = dome_tilt(d);
+            match ssi::plane_nurbs_ssi(&tilt, &w, tdom, b) {
+                Ok(out) => probe_recertify(&tilt, &w, &out, tdom.extent, b, &format!("tilt d={d} eps={eps:e}")),
+                Err(e) => eprintln!("[probe] tilt d={d} eps={eps:e}: refused {e:?}"),
+            }
+        }
+        let (p, w) = (cutting_plane(), nurbs_wall());
+        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b) {
+            Ok(out) => probe_recertify(&p, &w, &out, wall_domain().extent, b, &format!("inflected eps={eps:e}")),
+            Err(e) => eprintln!("[probe] inflected eps={eps:e}: refused {e:?}"),
+        }
+    }
+}
+
+/// REVIEW PROBE: the idealized door's spent budget is held by the
+/// extent's idealized step (StepBound::Cap). What does the ending say?
+#[test]
+fn probe_review_idealized_cap_ending() {
+    use geom_brep::recourse::Reading;
+    let (s, c) = (sphere(), threaded_cylinder());
+    let seed = Point3::new(0.11, 0.0, 0.994);
+    let dom = SsiDomain { extent: 1e-4, ..slab() };
+    match ssi::idealized_trace_r3(&c, &s, seed, dom, band()) {
+        Err(ref e @ SsiError::StepBudget { bound, .. }) => {
+            eprintln!("[probe] idealized bound = {bound:?}\n[probe] ending: {}", e.render(Reading::Build));
+        }
+        other => eprintln!("[probe] idealized: {other:?}"),
+    }
+}
+
+/// REVIEW PROBE: STEP_SCALE's domain clause on the short-branch fixture
+/// of ssi-step-scale-recourse-cannot-help-a-re-marched-short-branch.
+#[test]
+fn probe_review_step_scale_domain_lever() {
+    use geom_brep::recourse::Reading;
+    let (s, c) = (sphere(), threaded_cylinder());
+    let p = Point3::new(0.11, 0.0, (1.0f64 - 0.11 * 0.11).sqrt());
+    for l in [3e-5, 1e-4, 3e-4, 3e-3] {
+        let dom = SsiDomain { center: p, half_extent: l / 2.0, extent: 0.2, floor_scale: 1.0 };
+        match ssi::cylinder_sphere_ssi(&c, &s, dom, band_at(1e-6)) {
+            Ok(o) => eprintln!("[probe] L={l:e}: Ok, {} branches", o.branches.len()),
+            Err(e) => eprintln!("[probe] L={l:e}: {:?}\n[probe]   {}", e, e.render(Reading::Build)),
+        }
+    }
+}
