@@ -1,7 +1,7 @@
 ---
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
-title: "zip: none of the rest zip's sixteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
+title: "zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
 status: open
 opened: 2026-10-01
 priority: P3
@@ -11,17 +11,17 @@ cost: M
 ## Finding
 
 `topo::RestZipFrontier` (`crates/topo/src/boolean/refusal_routes.rs`)
-names sixteen sub-frontiers the declared-REST zip
+names fifteen sub-frontiers the declared-REST zip
 (`crates/topo/src/boolean/rest.rs`) refuses at. One is reached by an
 end-to-end fixture: `ChordBetweenIsolatedPierces`
-(`crates/topo/tests/seat3_flush_detector.rs`). The other fifteen are
+(`crates/topo/tests/seat3_flush_detector.rs`). The other fourteen are
 constructed only as values, by the refusal-text rows in
 `boolean/mod.rs` (`every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration`
 and the display table), which assert their wording and reach none of
 their sites:
 
-- seam realization (`realize_seam`, `fan_edge_between`, `mint_chord`):
-  `ParallelSeamEdges`, `ChordMefRefused`, `ChordMekrRefused`,
+- seam realization (`realize_seam`, `mint_chord`):
+  `ChordMefRefused`, `ChordMekrRefused`,
   `PierceRingMekrRefused`, `ChordEndpointAbsent`,
   `ChordEndpointRevisited`;
 - patch pairing (`pair_patches`): `PatchVertexUnmatched`,

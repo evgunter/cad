@@ -354,6 +354,24 @@ pub mod test_support {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
+    /// The join's own refusal of `op` under `decls`, before the
+    /// declared-REST door may take it over (`boolean::join_refusal`):
+    /// `None` where the join connects. A declared union that builds
+    /// while this is `Some` was built by the zip.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn boolean_join_refusal(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        decls: &crate::BooleanDeclarations,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
+        crate::boolean::join_refusal(op, a, b, decls, tol)
+    }
+
     /// The direct split run through its join: the scratch body with
     /// every null edge killed, before the finish and the closing mint
     /// (`splitting::through_the_join`).

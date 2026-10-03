@@ -22,8 +22,8 @@ use geom_core::{Point2, Tol};
 use profile::{Open, ProfileLoop, RawLoop, Start};
 use sweep::test_support::{extruded, sketch_at};
 use topo::{
-    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    FacePairDeclaration, Operand, PlaneRelation,
+    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanOp,
+    BooleanResult, FacePairDeclaration, Operand, PlaneRelation,
 };
 
 const W: f64 = 6.0;
@@ -424,7 +424,12 @@ fn corner(r: f64) -> f64 {
 /// ends there) and the upper one has none. Whichever operand's edges
 /// are swept first, the touch is read on the edge's fragments once both
 /// directions have split it, and the `Rest` seam along each fillet's rim
-/// carries the fillet's arc on both sides.
+/// carries the fillet's arc on both sides. The join pairs the fillet's
+/// germs: the straight bottom edge passing the tangent point reads
+/// along the germ to first order, but its far end touches nothing, so
+/// only the arc carries the segment. The join's surgery then refuses
+/// the germ's tangent face pair (the wall and the fillet), and the
+/// declared-REST zip builds the union on the join's segments.
 ///
 /// The poses: the 6 × 4 sharp plate on its rounded twin, and the 6 × 6
 /// sharp L (a 3 × 3 notch: five convex corners and a concave one, whose
@@ -484,6 +489,17 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
             let ab = with(&mate, &walls);
             let (mate, walls) = findings(b, a);
             let ba = with(&mate, &walls);
+            let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &ab, tol());
+            assert!(
+                matches!(
+                    join,
+                    Ok(Some(BooleanError::Join(
+                        topo::SplitJoinError::SectionInvariant { .. }
+                    )))
+                ),
+                "{label}: A ∪ B, the join pairs every germ and its surgery refuses the fillet's \
+                 tangent faces, which the zip takes over: {join:?}"
+            );
             builds(
                 &format!("{label}: A ∪ B"),
                 topo::union_with(a, b, &ab, tol()),

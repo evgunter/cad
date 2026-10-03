@@ -168,6 +168,23 @@ fn a_shaft_a_quarter_turn_off_the_bores_seam_unions() {
     unions_at(&collar(), 90.0, "one-face bore");
 }
 
+/// **Off the seam, the zip builds the mate**: the join's surgery
+/// refuses it, and the declared-REST zip builds it on the join's own
+/// segments.
+#[test]
+fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
+    let (c, (_, y0, h)) = (collar(), SPANS[0]);
+    let p = shaft(60.0, y0, h);
+    let decls = wall_decls(&c, &p);
+    let join =
+        topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
+    assert!(
+        matches!(join, Ok(Some(_))),
+        "the join refuses the mate, got {join:?}"
+    );
+    unions_both_ways(&c, &p, h, "the zip's row");
+}
+
 /// The collar with its bore split into two full-turn faces by the
 /// circle at `y = 1.5`: the circle is an edge between two faces of ONE
 /// carrier, so no other face of the collar meets it.

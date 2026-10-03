@@ -291,6 +291,19 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
 #[test]
 fn an_exactly_plugged_hole_merges_to_whole_caps() {
     let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), Tol::witness());
+    let block = holed();
+    let decls = flush_declarations(&block, &plug, Tol::witness());
+    let join = topo::test_support::boolean_join_refusal(
+        topo::BooleanOp::Union,
+        &block,
+        &plug,
+        &decls,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(join, Ok(Some(_))),
+        "the declared-REST zip builds the exact plug: the join refuses it, got {join:?}"
+    );
     assert_plug_merges(plug, 12.0, "exact plug");
 }
 

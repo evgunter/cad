@@ -3138,6 +3138,35 @@ pub(crate) fn through_the_join(
     )
 }
 
+/// **The join's own refusal** of `op` under `decls`: what its matching
+/// or its surgery refuses on the reduction, before the declared-REST
+/// door may take it over. `None` where the join connects, or where the
+/// reduction leaves no null pair to join. Test vocabulary
+/// (`topo::test_support`): a declared union that builds while its join
+/// refuses was built by the zip.
+///
+/// # Errors
+///
+/// The reduction's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn join_refusal(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &BooleanDeclarations,
+    tol: Tol,
+) -> Result<Option<BooleanError>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    if red.null_pairs.is_empty() {
+        return Ok(None);
+    }
+    red.enter_join_surgery();
+    let connected = join::bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    Ok(connected.err())
+}
+
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins

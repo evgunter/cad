@@ -2419,7 +2419,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
-    ("rest.rs", "enumerate_segments", "Coincide::Join", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",

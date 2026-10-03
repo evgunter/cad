@@ -1113,8 +1113,6 @@ impl NeighbourOffset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum RestZipFrontier {
-    /// Two edges of one operand span one segment of the seam.
-    ParallelSeamEdges,
     /// The Euler operator minting a seam chord across its host face
     /// refused.
     ChordMefRefused,
@@ -1160,7 +1158,6 @@ impl RestZipFrontier {
     #[must_use]
     pub const fn what(self) -> &'static str {
         match self {
-            Self::ParallelSeamEdges => "two parallel operand edges span one seam segment",
             Self::ChordMefRefused => "seam chord mef refused on its host face",
             Self::ChordMekrRefused => "seam chord mekr refused on its host face",
             Self::PierceRingMekrRefused => "seam chord mekr (pierce ring) refused",
@@ -1199,8 +1196,7 @@ impl RestZipFrontier {
             // the seam no move of the parts is known to avoid while
             // keeping the contact: a contact already planar can meet
             // them (two isolated pierce points).
-            Self::ParallelSeamEdges
-            | Self::ChordMefRefused
+            Self::ChordMefRefused
             | Self::ChordMekrRefused
             | Self::PierceRingMekrRefused
             | Self::ChordEndpointAbsent

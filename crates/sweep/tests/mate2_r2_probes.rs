@@ -267,6 +267,17 @@ fn r2_full_period_peg_unions() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
+    let join = topo::test_support::boolean_join_refusal(
+        topo::BooleanOp::Union,
+        &c,
+        &p,
+        &decls,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(join, Ok(Some(_))),
+        "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
+    );
     let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);
     assert!(e.is_none(), "the full-period peg mate refused: {e:?}");
 }
