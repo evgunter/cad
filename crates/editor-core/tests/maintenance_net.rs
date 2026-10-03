@@ -4,9 +4,8 @@
 //! `Applied::maintenance` answers what ONE edit did. An action of
 //! several edits can report a row an edit later in the same action
 //! takes back, and the net is what is true of the document the action
-//! ends at. These rows drive real edits through `Recording`, the one
-//! recorder every caller that commits an action of several edits
-//! applies them through.
+//! ends at. These rows drive real edits through `Recording`, the
+//! kernel's recorder for an action of several edits.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

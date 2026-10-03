@@ -3170,10 +3170,12 @@ impl MaintenanceNet {
 /// its maintenance is folded into a [`MaintenanceNet`].
 /// [`Self::finish`] answers the action as a [`Recorded`].
 ///
-/// All or nothing: a refused edit records nothing, and nothing is
-/// written anywhere until a caller takes the [`Recorded`] up, so a
-/// caller that drops the recording — on a refusal, or by choice — still
-/// holds the document it started from.
+/// A refused edit records nothing and the recording stays usable, so
+/// an action may go on past a refusal. Nothing is written anywhere
+/// until a caller takes the [`Recorded`] up, so a caller that drops the
+/// recording still holds the document it started from: whether an
+/// action is all or nothing is the caller's, by dropping it on the
+/// first refusal.
 pub struct Recording<'a, P> {
     start: &'a Doc<P>,
     produced: Option<Doc<P>>,

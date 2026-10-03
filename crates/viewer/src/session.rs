@@ -2954,9 +2954,10 @@ impl DocSession {
     ///
     /// **All or nothing**: each edit is applied to the value the last
     /// one produced and nothing is recorded until [`Self::record_run`]
-    /// takes the result, so a refusal anywhere — or a caller that
-    /// drops the staged run — leaves the session on the document it
-    /// started from. That is purity doing the work — no rollback
+    /// takes the result, so a refusal the action returns (every
+    /// `action` here ends on its first refusal with `?`) — or a caller
+    /// that drops the staged run — leaves the session on the document
+    /// it started from. That is purity doing the work — no rollback
     /// exists to be got wrong.
     fn stage_run<T>(
         &self,
