@@ -262,7 +262,7 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
-        "set_face_surface_stranding_for_tests",
+        "set_face_surface_unvouched_for_tests",
         "the failure-injection twin of `set_face_surface`: the same door run inside \
          `lifting_rechart_refusals_for_tests`, so the same postcondition",
     ),

@@ -740,7 +740,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
     // Lifts RechartStrandsDescriptions: the memo must miss when the surface changes under the same edges.
     after
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(std::sync::Arc::new(moved)),

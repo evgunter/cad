@@ -5456,11 +5456,11 @@ mod place_tests {
         };
         // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let stamped = b
-            .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
+            .set_face_surface_unvouched_for_tests(faces[0], cylinder(0.25))
             .unwrap();
         // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let pending = b
-            .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
+            .set_face_surface_unvouched_for_tests(faces[1], cylinder(0.3))
             .unwrap();
         let axis = AxisSource::from_lowered(b"D");
         b.set_surface_axis_source(stamped, axis.clone()).unwrap();
