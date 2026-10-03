@@ -156,10 +156,11 @@ fn clause_before(text: &str, end: usize) -> String {
     head[start..].trim().to_owned()
 }
 
-/// Every escalation payload in `text` — `margin <number> lies inside…`
-/// or `…lies within the zero band`, `margin is invalid…`,
-/// `enclosure [lo, hi] cannot be classified…` or `…lies within the zero
-/// band`, what `geom_core::IndeterminatePayload` renders — whose clause does
+/// Every escalation payload in `text` — `margin <number> lies inside…`,
+/// `…lies within the zero band` or `…lies past the ambiguity band`,
+/// `margin is invalid…`, `enclosure [lo, hi] cannot be classified…`,
+/// `…lies within the zero band` or `…lies past the ambiguity band`, what
+/// `geom_core::IndeterminatePayload` renders — whose clause does
 /// not say what was being decided, as that clause. The payload names no
 /// decision of its own (its predicate's name is routing, kept to
 /// `Debug`), so the clause in front of it has to: a question or its
@@ -177,12 +178,14 @@ pub fn subjectless_escalations(text: &str) -> Vec<String> {
             r.split_once(' ').is_some_and(|(_, after)| {
                 after.starts_with("lies inside the ambiguity band")
                     || after.starts_with("lies within the zero band")
+                    || after.starts_with("lies past the ambiguity band")
             })
         });
         let enclosure = rest.starts_with("enclosure [")
             && rest.split_once(']').is_some_and(|(_, after)| {
                 after.starts_with(" cannot be classified")
                     || after.starts_with(" lies within the zero band")
+                    || after.starts_with(" lies past the ambiguity band")
             });
         valued || enclosure || rest.starts_with("margin is invalid")
     };
