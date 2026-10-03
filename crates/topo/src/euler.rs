@@ -1005,8 +1005,7 @@ pub enum EulerOpError {
     /// `next` step disagrees with the loop's members: the member it
     /// would anchor the loop at is killed or lies in another loop, or
     /// the loop it would empty keeps a member, or empties at a vertex
-    /// the kill does not leave lone or another loop's lone vertex
-    /// ([`Body::kef`], [`Body::kev`],
+    /// the kill does not leave lone ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
     /// [`Body::mekr`]'s `Empty` ring sites remove, or that
     /// [`Body::movefac`]'s labelling reaches, is claimed by a half-edge.
@@ -1100,7 +1099,9 @@ pub enum EulerOpError {
     /// [`Body::kemr`] when both split components are empty and would
     /// anchor at one vertex (a segment loop whose edge is a self-loop)
     /// and by [`Body::mekr`]'s `BothEmpty` site when the two lone
-    /// vertices coincide. Believed unreachable through valid operator
+    /// vertices coincide, and by a kill that would empty a loop at a
+    /// vertex another loop is already `Empty` at ([`Body::kef`],
+    /// [`Body::kev`], [`Body::kemr`]). Believed unreachable through valid operator
     /// sequences (the offending inputs are already tier-1-invalid);
     /// checked defensively.
     EmptyAnchorsCollide {
@@ -1474,7 +1475,7 @@ impl EulerOpError {
                 "loop {loop:?}'s next cycle disagrees with the half-edges that \
                  claim it: a walk of it fails to close, strays into another \
                  loop or misses one of its members, or it is empty at a vertex \
-                 another loop also holds or a half-edge starts at. {}",
+                 a half-edge starts at. {}",
                 geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
@@ -3374,13 +3375,15 @@ impl<T: Decide> Body<T> {
     ///
     /// One `(loop, boundary)` per loop the kill keeps and re-anchors,
     /// and the loop the run mints if it mints one
-    /// ([`KillInto::Minted`]), refusing `LoopCycleBroken` naming the
-    /// loop (for a minted loop, the run's) at the first that fails. A
+    /// ([`KillInto::Minted`]), refusing at the first that fails. A
     /// `Cycle`'s `first` is not killed and lies in the loop once the
     /// kill has run: its `parent_loop`, or the run's destination for a
     /// member of the run. An `Empty` loop holds a vertex that `writes`
-    /// anchors [`KillAnchor::Lone`], keeps no member once the kill has
-    /// run, and is the only loop `Empty` at that vertex.
+    /// anchors [`KillAnchor::Lone`] and keeps no member once the kill
+    /// has run. Either failing refuses `LoopCycleBroken` naming the loop
+    /// (for a minted loop, the run's). An `Empty` loop that passes both
+    /// is then the only loop `Empty` at its vertex, or the kill refuses
+    /// [`EulerOpError::EmptyAnchorsCollide`] naming the vertex.
     ///
     /// Each kill reads an anchor one `next` step from a killed half, and
     /// reads "no anchor" where that step lands on a killed half. A torn
@@ -3469,11 +3472,15 @@ impl<T: Decide> Body<T> {
                             .half_edges
                             .iter()
                             .any(|(he, data)| stays_in(he, data, target))
-                        && self.empty_at_besides(vertex, target.as_slice()).is_none()
                 }
             };
             if !holds {
                 return Err(EulerOpError::LoopCycleBroken { r#loop: name });
+            }
+            if let LoopBoundary::Empty { vertex } = boundary
+                && self.empty_at_besides(vertex, target.as_slice()).is_some()
+            {
+                return Err(EulerOpError::EmptyAnchorsCollide { vertex });
             }
         }
         Ok(())

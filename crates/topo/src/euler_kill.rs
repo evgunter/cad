@@ -814,13 +814,14 @@ impl<T: Decide> Body<T> {
     /// anchor is its first member, which the orbit proof covers); each
     /// loop's new anchor holds: its `first` is not killed and lies in the
     /// loop, and the segment kill's loop keeps no member but the killed
-    /// two and empties at a survivor written `None` that no other loop
-    /// holds ([`EulerOpError::LoopCycleBroken`] naming the loop —
+    /// two and empties at a survivor written `None`
+    /// ([`EulerOpError::LoopCycleBroken`] naming the loop —
     /// tier-1-invalid input: a torn `next` can land the step on the mate
     /// or in another loop, or read the loop as `[he, mate]` while it
     /// keeps other members or while the merge moves a fan onto the
-    /// survivor, and a torn start can put the survivor on another loop's
-    /// lone vertex);
+    /// survivor), and no other loop is `Empty` at that survivor
+    /// ([`EulerOpError::EmptyAnchorsCollide`] — a torn start can put the
+    /// survivor on another loop's lone vertex);
     /// where the halves are adjacent in `next` order, both lie in one
     /// loop (`LoopCycleBroken` naming the mate's loop, which that arm
     /// does not re-anchor); no half-edge but the killed two names the
@@ -828,12 +829,11 @@ impl<T: Decide> Body<T> {
     /// half-edge off the far vertex's orbit starts at it (`OrbitBroken`
     /// naming the first), and no loop is `Empty` at it
     /// (`KillLeavesDangling` from the loop); nothing the kill keeps names
-    /// a killed half: no `next` or `prev` as the unsplice leaves it, and
-    /// no loop's `first` but those it re-anchors (`LoopCycleBroken`
-    /// naming the half-edge's loop, or the loop), then no vertex's
-    /// `emanating` but the survivor's and no other edge's slot
-    /// ([`EulerOpError::KillLeavesDangling`]), each first in arena
-    /// order. Then, where the merged fan is
+    /// a killed half: no `next` or `prev` as the unsplice leaves it, no
+    /// loop's `first` but those it re-anchors, no vertex's `emanating`
+    /// but the survivor's and no other edge's slot
+    /// ([`EulerOpError::KillLeavesDangling`] from the first record, in
+    /// that order and in arena order within each). Then, where the merged fan is
     /// not empty: the killed
     /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
     /// and unless it is a null edge, per merged member in orbit order,
@@ -1396,21 +1396,20 @@ impl<T: Decide> Body<T> {
     /// a member, which the kill would leave naming a dead loop); then
     /// the surviving loop's new anchor holds: its `first` is not killed
     /// and lies in it once the remnant has moved in, and in the `Lone`
-    /// inverse it keeps no member but the killed two and no other loop
-    /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
-    /// loop — a torn `next(m)` can land on a killed half or in another
-    /// loop, or read the mate as alone in a loop that keeps other
-    /// members); then no face but the dying one lists the dying loop, no
+    /// inverse it keeps no member but the killed two (`LoopCycleBroken`
+    /// naming the surviving loop — a torn `next(m)` can land on a killed
+    /// half or in another loop, or read the mate as alone in a loop that
+    /// keeps other members) and no other loop is `Empty` at its vertex
+    /// ([`EulerOpError::EmptyAnchorsCollide`]); then no face but the dying one lists the dying loop, no
     /// loop but it names the dying face, and no shell but the dying
     /// face's own lists that face ([`EulerOpError::KillLeavesDangling`]
     /// naming the first in arena order); then no half-edge but the
     /// killed two names the edge (`UnclaimedHalfEdge` naming the first in
     /// arena order); then nothing the kill keeps names a killed half: no
-    /// `next` or `prev` as the splice leaves it, and no loop's `first`
-    /// but the surviving loop's (`LoopCycleBroken` naming the half-edge's
-    /// loop, or the loop), then no vertex's `emanating` but the
-    /// endpoints' and no other edge's slot (`KillLeavesDangling`), each
-    /// first in arena order; then, where the surviving face would be re-minted,
+    /// `next` or `prev` as the splice leaves it, no loop's `first` but
+    /// the surviving loop's, no vertex's `emanating` but the endpoints'
+    /// and no other edge's slot (`KillLeavesDangling` from the first
+    /// record, in that order and in arena order within each); then, where the surviving face would be re-minted,
     /// the
     /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
     /// [`EulerOpError::PcurveMint`] naming the surviving face among
@@ -4224,8 +4223,7 @@ mod tests {
         // The review's S8: a segment beside a lone vertex `x` (a second
         // `mvfs`), with the segment's plus half torn to start at `x`.
         // The kill reads `x` as the survivor and the segment's loop as
-        // emptying there, but `x` is already another loop's lone vertex,
-        // and the segment's own start would keep a dead anchor.
+        // emptying there, but `x` is already another loop's lone vertex.
         let tol = Tol::witness();
         let mut body = Body::new();
         let seed = body.mvfs(p(0.0), true).unwrap();
@@ -4240,8 +4238,8 @@ mod tests {
             .unwrap();
         let other = body.mvfs(p(5.0), true).unwrap();
         body.get_half_edge_mut(seg.he_plus).unwrap().start = other.vertex;
-        let torn = EulerOpError::LoopCycleBroken {
-            r#loop: seed.r#loop,
+        let torn = EulerOpError::EmptyAnchorsCollide {
+            vertex: other.vertex,
         };
         assert_kev_doors_refuse(&mut body, seg.he_plus, &[], &torn);
     }
