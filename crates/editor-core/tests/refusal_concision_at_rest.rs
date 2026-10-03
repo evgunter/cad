@@ -228,7 +228,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
             let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
                 row: &name,
                 span: CARRIED_FROM,
-                filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+                filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
             });
             problems.extend(test_utils::refusal::problems_admitting(
                 &name,

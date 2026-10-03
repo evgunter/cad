@@ -40,7 +40,7 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
                 let start = body.get_half_edge(he).expect("a half-edge").start;
                 let vertex = body.get_vertex(start).expect("a vertex");
                 let pt = *body.get_point(vertex.point).expect("a point");
-                for (i, c) in [pt.x, pt.y, pt.z].into_iter().enumerate() {
+                for (i, c) in pt.to_array().into_iter().enumerate() {
                     out[i].0 = out[i].0.min(c);
                     out[i].1 = out[i].1.max(c);
                 }
@@ -261,18 +261,39 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 5: is `OperandOuterShells { outer != 1 }` reachable?
+// Claim 5: two `Outer` shells under one solid are sorted, not refused.
 // ---------------------------------------------------------------------
 
-/// **The PR's own §5 body, handed to the verb.** `subtract(box 6³,
-/// shell(box 2³, 0.25))` yields ONE solid with THREE shells that
-/// classify to two `Outer` and one `Void` — the island inside B's
-/// cavity filed as a shell of A's solid. The verb refuses it typed,
-/// so the variant is reachable from the public doors and is not dead
-/// code. (R2's row; R1's `r1p5` measured the same body.)
+/// **Two `Outer` shells under one solid, handed to the verb.** A cube
+/// filed into the cavity of a hollow box's solid (the `sweep-testing`
+/// merge door) is ONE solid with THREE shells that classify to two
+/// `Outer` and one `Void`. The verb takes bodies and sorts its operand
+/// into pieces first, so the island is thickened as a solid of its
+/// own: three solids come back, one per operand shell's wall. The
+/// boolean's own product, `subtract(box 6³, shell(box 2³, 0.25))`,
+/// arrives already sorted and shells the same way.
 #[test]
-fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
+fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
     let tol = Tol::witness();
+    let mut body = hollow_box();
+    topo::graft_disjoint_all_keyed(
+        &mut body,
+        &brick((-0.25, 0.25), (-0.25, 0.25), (-0.25, 0.25), Tol::witness()),
+    )
+    .expect("the island grafts");
+    let body = body.with_solids_merged_for_tests();
+    assert_eq!(body.solids().count(), 1, "one solid");
+    assert_eq!(body.shells().count(), 3, "three shells in it");
+    let roles = topo::classify_shells(&body, tol).expect("classifies");
+    let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
+    assert_eq!(outer, 2, "two Outer shells under one solid");
+    let shelled = topo::shell(&body, 0.05, tol).expect("the verb sorts, then shells");
+    assert_eq!(
+        shelled.body.solids().count(),
+        3,
+        "the wall's two thin solids and the island's one"
+    );
+
     let inner = topo::shell(
         &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
         0.25,
@@ -280,21 +301,21 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
     )
     .expect("the small box shells")
     .body;
-    let body = cut(
+    let cut_body = cut(
         "hollow inner box",
         &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
         &inner,
     );
-    assert_eq!(body.solids().count(), 1, "one solid");
-    assert_eq!(body.shells().count(), 3, "three shells in it");
-    let roles = topo::classify_shells(&body, tol).expect("classifies");
-    let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-    assert_eq!(outer, 2, "two Outer shells under one solid");
-
-    let e = topo::shell(&body, 0.05, tol).expect_err("the verb refuses");
-    assert!(
-        matches!(e, topo::ShellError::OperandOuterShells { outer: 2, .. }),
-        "expected OperandOuterShells {{ outer: 2 }}, got {e}"
+    assert_eq!(
+        cut_body.solids().count(),
+        2,
+        "the island is a solid of its own"
+    );
+    let shelled = topo::shell(&cut_body, 0.05, tol).expect("each solid shells");
+    assert_eq!(
+        shelled.body.solids().count(),
+        3,
+        "the hollow wall's two thin solids and the island's one"
     );
 }
 

@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -109,6 +110,7 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -127,9 +129,11 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
             let dx = 10.0 * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -242,11 +246,11 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::PinUnchanged { node, pin }) => {
-            assert_eq!(node, ids[0]);
+            assert_eq!(node, doc.spoken(ids[0]));
             assert_eq!(pin, v1);
             let msg = EditError::PinUnchanged { node, pin }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                msg.contains(&format!("{} already pins", doc.spoken(ids[0]))),
                 "{msg}"
             );
             assert!(msg.contains(&pin.hex()), "{msg}");
@@ -264,10 +268,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::UpdateOnNonInstance { node }) => {
-            assert_eq!(node, profile);
+            assert_eq!(node, doc.spoken(profile));
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                msg.contains(&format!("{} does not instantiate", doc.spoken(profile))),
                 "{msg}"
             );
         }
@@ -285,10 +289,13 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => {
-            assert_eq!(id, ghost);
+            assert_eq!(id, editor_core::SpokenNode::absent(ghost));
             let msg = EditError::UnknownNode { id }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(id.0))),
+                msg.contains(&format!(
+                    "node {} is not live",
+                    test_utils::refusal::tag(ghost.0)
+                )),
                 "{msg}"
             );
         }
@@ -784,9 +791,11 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::SetPlacement {
-        node: ids[0],
-        frame: Frame::translation([1.0, 2.0, 3.0]),
+    let unrelated = DocEdit::SetOffset {
+        instance: ids[0],
+        offset: Some(editor_core::Placement::literal(&Frame::translation([
+            1.0, 2.0, 3.0,
+        ]))),
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],

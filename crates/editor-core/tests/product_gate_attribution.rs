@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     Node, NodeResult, PatternKind, ProductError, ProfileDoc, RecipeNodeId, SourceFinding,
@@ -102,6 +103,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -193,9 +195,11 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, Node::instantiate_part(p));
         let (next, _) = step(
             next,
-            DocEdit::SetPlacement {
-                node: id,
-                frame: Frame::translation([dx, 0.0, 0.0]),
+            DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::literal(&Frame::translation([
+                    dx, 0.0, 0.0,
+                ]))),
             },
         );
         sub = next;

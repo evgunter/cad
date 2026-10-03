@@ -29,6 +29,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, BooleanOp, CheckId, ChecksConfig, ChecksError, ChecksReport,
@@ -108,30 +109,51 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     let tol = Tol::witness();
     let doc = one_body_under_two_roots("docm5-collide");
     let ev: Evaluation<f64> = corpus::eval(&doc);
-    let refusal = product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
+    let gathered = || product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
+    let refusal = gathered();
     assert!(
         matches!(refusal, ProductError::PlacedUnderTwoRoots { .. }),
         "the premise: {refusal:?}"
     );
-
-    // Through the wrapper, which gathers.
-    match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses") {
-        ChecksError::Product { kind, reason } => {
-            assert_eq!(reason, refusal.to_string(), "the gather's own sentence");
+    let carries_the_gathers_refusal = |err: ChecksError| match &err {
+        ChecksError::Product {
+            refusal: Some(carried),
+        } => {
             assert_eq!(
-                kind,
-                Some(refusal.kind()),
-                "and the class of that same refusal"
+                format!("{:?}", carried.error()),
+                format!("{refusal:?}"),
+                "the gather's own refusal, whole"
+            );
+            assert_eq!(err.to_string(), format!("checks: {refusal}"));
+            assert_eq!(
+                err.spoken(&doc),
+                format!("checks: {}", refusal.spoken(&doc)),
+                "said by the frame holding the checked document"
             );
         }
         other => panic!("expected the subject refusal, got {other}"),
+    };
+
+    // The assembly gate forwards the same refusal, said by the same
+    // frame.
+    match assemble(&doc, &ev, tol).expect_err("the gate inherits the gather's refusal") {
+        err @ AssemblyError::Product(_) => assert_eq!(
+            err.spoken(&doc),
+            refusal.spoken(&doc),
+            "the gate's arm is the gather's refusal, said from the document"
+        ),
+        other => panic!("expected the gather's arm, got {other}"),
     }
+
+    // Through the wrapper, which gathers.
+    carries_the_gathers_refusal(
+        run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
+    );
 
     // And through the door, handed the same fact directly. The arm is
     // the same, and it is raised whether or not the connectedness
     // resident ran: what it is NOT raised by is a resident that reads
     // no subject.
-    let unavailable = || Subject::refused(&refusal);
     for cfg in [
         ChecksConfig::default(),
         ChecksConfig {
@@ -139,13 +161,10 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
             ..ChecksConfig::default()
         },
     ] {
-        match run_checks_on(&doc, &ev, unavailable(), &cfg, tol).expect_err("the door refuses") {
-            ChecksError::Product { kind, reason } => {
-                assert_eq!(reason, refusal.to_string());
-                assert_eq!(kind, Some(refusal.kind()));
-            }
-            other => panic!("expected the subject refusal, got {other}"),
-        }
+        carries_the_gathers_refusal(
+            run_checks_on(&doc, &ev, Subject::refused(gathered()), &cfg, tol)
+                .expect_err("the door refuses"),
+        );
     }
 }
 
@@ -467,8 +486,9 @@ fn the_assembly_gathers_in_one_place() {
 
 /// **Nothing shares the product to get around the ordering.** The
 /// landing's three consumers are ordered so that one gather is enough;
-/// a `Clone` or an `Arc` on `Product` would be the other answer, and
-/// these modules do not take it.
+/// a `Clone` or an `Arc` on `Product<T>` would be the other answer, and
+/// these modules do not take it. The needles end at the generic's `<`,
+/// so a type that only shares the prefix (`ProductError`) is not one.
 ///
 /// Read through the shared reader's CODE view
 /// ([`test_utils::source::code_only`]), because every needle here is a
@@ -476,7 +496,7 @@ fn the_assembly_gathers_in_one_place() {
 /// an item — and the claim is about what these modules DO, not about
 /// what their prose says they do not. The view keeps every code byte
 /// at its own offset and blanks comments and literals, so a real
-/// `Arc<Product>` is still seen exactly where it is written while a
+/// `Arc<Product<T>>` is still seen exactly where it is written while a
 /// sentence naming one stops answering for it. This site's ledger row
 /// is in `crates/test-utils/tests/reader_census.rs`.
 #[test]
@@ -488,17 +508,17 @@ fn nothing_clones_or_shares_the_product() {
     ] {
         let code = test_utils::source::code_only(source);
         assert!(
-            !code.contains("Arc<Product"),
+            !code.contains("Arc<Product<"),
             "{path}: the product is handed on, never shared"
         );
         assert!(
-            !code.contains("Clone for Product"),
+            !code.contains("Clone for Product<"),
             "{path}: and never cloned"
         );
     }
     assert!(
         !test_utils::source::code_only(include_str!("../src/product.rs"))
-            .contains("#[derive(Debug, Clone)]\npub struct Product"),
+            .contains("#[derive(Debug, Clone)]\npub struct Product<"),
         "product.rs: the derive would be the same answer by another spelling"
     );
 }
@@ -558,6 +578,7 @@ fn twin(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0
@@ -579,7 +600,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -598,6 +619,7 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -658,6 +680,7 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {
@@ -698,6 +721,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: first,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, second) = on_frame(
@@ -712,6 +736,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: second,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0

@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
@@ -29,7 +30,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -38,11 +39,11 @@ fn circle_doc(r: f64) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane: doc.order()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
-            }),
+            })),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -220,7 +221,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, doc.order()[1]);
+            assert_eq!(node.id(), doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -255,7 +256,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -265,14 +266,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -322,7 +323,7 @@ fn insert_node_checks_program_dimensions() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -340,7 +341,7 @@ fn insert_node_checks_program_dimensions() {
     };
     match doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(bad),
+            node: Box::new(Node::Profile(bad)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -422,7 +423,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -504,7 +505,9 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // transition, so no `SetParam`/`SetExpression`/`expr_at` row
         // can exist for these three roles.
         match doc.apply(
-            &DocEdit::InsertNode { node: program },
+            &DocEdit::InsertNode {
+                node: Box::new(program),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
@@ -548,8 +551,8 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
+        Gauge,
         Mate,
         Measure,
         Assertion,
@@ -618,6 +621,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Extrude {
             profile: nid(1),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1),
@@ -679,11 +683,11 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             op: BooleanOp::Union,
             a: nid(1),
             b: nid(2),
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![nid(1), nid(2)],
-            declare: None,
+            declare: Vec::new(),
         },
         Node::transform(
             nid(1),
@@ -755,7 +759,6 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             of: nid(1),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
-        Node::Declare { pairs: Vec::new() },
         Node::InstantiatePart {
             doc_ref: DocRef {
                 id: DocumentId::derive("switch-slots-census"),
@@ -764,7 +767,21 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
+            gauge: None,
+            offset: Some(Placement::from(Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            })),
         },
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), len(2.0), len(0.0)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(0.25),
+            },
+        ),
         Node::Mate {
             a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
@@ -910,21 +927,6 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
     }
 }
 
-/// **Every node shape's slot table, pinned: its slots in order, and the
-/// field each one addresses.** The golden is
-/// `tests/golden/slot_tables.txt`: per shape, the node's `Debug` with
-/// slot `#i`'s expression written in the field it lands in, then the
-/// slots in `slots()` order.
-///
-/// Slot order is observable (the first faulting slot is the one
-/// `Node::slot_dimension_fault` and the load re-check report, and the
-/// property panel lists `slots()` in order), and so is the field a slot
-/// addresses. The censuses above cannot see either kind of move when it
-/// keeps every slot readable at its own dimension: two rows of one
-/// dimension trading fields, or two rows trading places. Each slot is
-/// written a distinct tag through `expr_mut` and read back through
-/// `expr`, so the render names the field by what landed in it, whatever
-/// the two fields held before.
 /// **The mint's preimage is pinned for every node shape**: the id each
 /// shape draws from an empty document's mint. `mint.rs`'s pin freezes
 /// one profile's bytes; a node shape whose serde form moves — a field
@@ -957,6 +959,21 @@ fn every_node_shapes_mint_is_pinned() {
     );
 }
 
+/// **Every node shape's slot table, pinned: its slots in order, and the
+/// field each one addresses.** The golden is
+/// `tests/golden/slot_tables.txt`: per shape, the node's `Debug` with
+/// slot `#i`'s expression written in the field it lands in, then the
+/// slots in `slots()` order.
+///
+/// Slot order is observable (the first faulting slot is the one
+/// `Node::slot_dimension_fault` and the load re-check report, and the
+/// property panel lists `slots()` in order), and so is the field a slot
+/// addresses. The censuses above cannot see either kind of move when it
+/// keeps every slot readable at its own dimension: two rows of one
+/// dimension trading fields, or two rows trading places. Each slot is
+/// written a distinct tag through `expr_mut` and read back through
+/// `expr`, so the render names the field by what landed in it, whatever
+/// the two fields held before.
 #[test]
 fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;

@@ -79,11 +79,41 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 
     let operand = MateToolError::NotAnInstancePick {
         side: MateSide::A,
-        node: pncad::document::RecipeNodeId(0),
+        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId(0)),
     }
     .to_string();
     assert!(
         !operand.contains("face") && !operand.contains("edge"),
         "the operand arm must stay silent about the kind: {operand:?}"
     );
+}
+
+/// **A face name at an instance that is not the instance's own
+/// wrapping of a part face is refused at the pre-check.** The member
+/// walk stands a member on any name headed at a live instance, so a
+/// hand-built selection naming a face there with no `InPart` is a
+/// member; the instance's product holds only its part's rows, each
+/// in its one `InPart`, so the pose pre-check answers `NoSuchName`
+/// before any frame is authored, and the solve never meets a head it
+/// cannot strip.
+#[test]
+fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_at_the_pre_check() {
+    let tol = Tol::witness();
+    let bench = asm::bench("rv-matehead-bare", tol);
+    let session = asm::open_bench(&bench, tol);
+    let (mut a, b) = asm::seat_picks(&session, &bench);
+    assert_eq!(a.name.node, a.node, "pick a is read at its own instance");
+    a.name.path = Vec::new();
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, eval) = session.landed_pair().expect("landed");
+    match tool.proposal(doc, eval, asm::seat_choice()) {
+        Err(MateToolError::Frame {
+            side: MateSide::A,
+            error: pncad::select::InterrogateError::NoSuchName,
+            ..
+        }) => {}
+        other => panic!("a bare face name at an instance refuses at the pre-check, got {other:?}"),
+    }
 }

@@ -16,7 +16,7 @@ use geom_core::{
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{arc_apex, arc_span, decide};
+use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
 
 /// The classified axis in both coordinate systems: the sketch-plane
@@ -195,17 +195,13 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     for lp in profile.loops() {
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if let SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre: center,
-                        radius,
-                        sweep,
-                    },
-                turn,
-            } = s.kind
-            {
-                let apex = arc_apex(s.start, s.end, sweep, turn);
+            if let SegmentKind::Arc { arc, .. } = s.kind {
+                let Arc2 {
+                    centre,
+                    radius,
+                    sweep,
+                } = arc;
+                let apex = arc.apex(s.start, s.end);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
                 // c ± R·ê_r, each folded in iff on the arc. A
@@ -217,7 +213,7 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
                 let chord = s.end - s.start;
                 let n = Vec2::new(T::zero() - chord.y, chord.x);
                 for dir in [T::one(), T::zero() - T::one()] {
-                    let p = center + e_r * (radius * dir);
+                    let p = centre + e_r * (radius * dir);
                     let margin = T::zero() - sweep * (p - s.start).dot(n);
                     r_max = r_max.max(frame.r(p).abs().copysign(margin));
                 }
@@ -277,7 +273,11 @@ impl<T: Real> WallClass<T> {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WallKind<T: Real> {
     /// Line ⊥ axis: a plane annulus/disc.
-    Plane,
+    Plane {
+        /// The swept chord runs away from the axis (its radial delta
+        /// decided positive), so its start is the wall's inner circle.
+        outward: bool,
+    },
     /// Line ∥ axis: a cylinder.
     Cylinder {
         /// Radius = the start vertex's radial coordinate.
@@ -416,7 +416,7 @@ fn classify_segment<T: Decide>(
     // A stored sign in the CANONICAL basis: the swept reversal negated
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
-    match s.kind {
+    match s.kind.get() {
         SegmentKind::Line => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
@@ -437,7 +437,9 @@ fn classify_segment<T: Decide>(
             }
             if matches!(sz, Sign::Zero) {
                 return Ok(WallClass::Wall {
-                    kind: WallKind::Plane,
+                    kind: WallKind::Plane {
+                        outward: matches!(sr, Sign::Positive),
+                    },
                     sense: !matches!(canonical(sr), Sign::Positive),
                 });
             }
@@ -454,19 +456,12 @@ fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    sweep,
-                },
-            turn,
-        } => {
+        SegmentKind::Arc { arc, turn } => {
+            let Arc2 { centre, radius, .. } = arc;
             // Arc walls' sense (doc above), through the shared rule —
             // the same body extrude's cylinder walls read.
             let sense = crate::swept::centre_on_material_side(canonical(turn));
-            let rc = frame.r(center);
+            let rc = frame.r(centre);
             match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
                 Sign::Zero => {
                     // Sphere class. Arc-interior half-plane checks: the
@@ -474,7 +469,7 @@ fn classify_segment<T: Decide>(
                     // exactly half its period, so a span definitely
                     // beyond π must dip below; the apex pins which
                     // half-circle branch the arc occupies.
-                    let span_margin = Margin::levered(T::pi() - arc_span(turn, sweep), radius);
+                    let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
                     match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
@@ -484,7 +479,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(s.a, s.b, sweep, turn));
+                    let r_apex = frame.r(arc.apex(s.a, s.b));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing
@@ -498,7 +493,7 @@ fn classify_segment<T: Decide>(
                     }
                     Ok(WallClass::Wall {
                         kind: WallKind::Sphere {
-                            center_sk: center,
+                            center_sk: centre,
                             radius,
                         },
                         sense,
@@ -512,7 +507,7 @@ fn classify_segment<T: Decide>(
                     {
                         Sign::Positive => Ok(WallClass::Wall {
                             kind: WallKind::Torus {
-                                center_sk: center,
+                                center_sk: centre,
                                 major: rc,
                                 minor: radius,
                             },

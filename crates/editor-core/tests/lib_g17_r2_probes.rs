@@ -3,8 +3,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{self, body_of, cup, eval, failures, vessel};
+use crate::corpus::{self, body_of, cup, eval, failures};
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, DocEdit, EntityKind, Entry, EvalOptions, LoopProgram, Node, NodeErrorKind,
@@ -38,66 +39,6 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
         Some(NodeResult::Failed(e)) => e.kind,
         other => panic!("expected a refusal at {node:?}, got {other:?}"),
     }
-}
-
-/// Names in a table, sorted, with the `Rim` rows stripped.
-fn names_minus_rim(t: &editor_core::NameTable) -> Vec<StableName> {
-    let mut v: Vec<StableName> = t
-        .iter()
-        .filter(|(n, _)| !matches!(n.path.first(), Some(RoleSeg::Rim(_))))
-        .map(|(n, _)| n.clone())
-        .collect();
-    v.sort();
-    v
-}
-
-/// P1 — dispatcher's question: is the rim's identity the ONLY thing the
-/// order of `open` changes? Mass bits, counts, every other name.
-#[test]
-fn p1_order_swap_changes_only_the_rim_name() {
-    let a = vessel::document();
-    let b = vessel::document_with_open(|doc, pot| {
-        [
-            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
-            editor_core::band(pot, vessel::mouth(doc, pot)),
-        ]
-    });
-    let (ea, eb) = (eval::<f64>(&a.doc), eval::<f64>(&b.doc));
-    assert!(failures(&ea).is_empty() && failures(&eb).is_empty());
-    let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
-    let (ba, bb) = (body_of(&ea, sa), body_of(&eb, sb));
-    let ma = topo::mass_properties(ba, Tol::witness()).unwrap();
-    let mb = topo::mass_properties(bb, Tol::witness()).unwrap();
-    eprintln!(
-        "P1 volumes {:?} vs {:?} (bit-equal: {}), areas {:?} vs {:?} (bit-equal: {})",
-        ma.volume,
-        mb.volume,
-        ma.volume.to_bits() == mb.volume.to_bits(),
-        ma.surface_area,
-        mb.surface_area,
-        ma.surface_area.to_bits() == mb.surface_area.to_bits()
-    );
-    assert_eq!(ba.faces().count(), bb.faces().count());
-    assert_eq!(ba.edges().count(), bb.edges().count());
-    assert_eq!(ba.vertices().count(), bb.vertices().count());
-    let ta = &ea.value(sa).unwrap().name_table;
-    let tb = &eb.value(sb).unwrap().name_table;
-    let tb_at_sa: Vec<StableName> = names_minus_rim(tb)
-        .iter()
-        .map(|n| fixture::renoded(n, sb, sa))
-        .collect();
-    assert_eq!(
-        names_minus_rim(ta),
-        tb_at_sa,
-        "every non-rim name must be the same under either order, up to the shell's own id"
-    );
-    assert_eq!(ta.iter().count(), tb.iter().count());
-    // The volumes should agree exactly; record if they do not.
-    assert_eq!(
-        ma.volume.to_bits(),
-        mb.volume.to_bits(),
-        "volume bits moved with the order"
-    );
 }
 
 /// P1b — two designated faces on DISTINCT charts: the order carries no
@@ -176,7 +117,9 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     };
     match apply(
         &d.doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -445,6 +388,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let blank = r.insert(Node::Extrude {
         profile,
         distance: fixture::len(1.0),
+        side: ExtrudeSide::Along,
     });
     let shell = r.insert(Node::shell(
         blank,

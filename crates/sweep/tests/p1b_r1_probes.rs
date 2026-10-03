@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::shell_operands::tube;
 use geom::Surface;
@@ -41,12 +42,9 @@ use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(CurveGeom::certified)
-                    .map(topo::EdgeCurve::description),
-                Some(EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect()
@@ -104,9 +102,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
@@ -749,10 +754,11 @@ fn coplanar_split_products_carry_no_scaffold_at_rest() {
     fence_crosscheck(&body, "notched block (extruded)");
     let result = topo::split(
         &body,
-        &topo::SplitPlane {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the face-coplanar split runs");

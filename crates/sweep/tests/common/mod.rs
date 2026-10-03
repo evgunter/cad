@@ -70,9 +70,20 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`seam_pairs`] — the face pairs of two face sets that meet along
+//!   a curve, so a seam or `Tangent` declaration names only those: what
+//!   a suite drives a door WITH, as [`revert_ops`];
+//! - [`differential`] — the differential batteries' polygon oracles,
+//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   truth derived without the kernel plus the check every battery
+//!   prints, so beside [`oracles`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -233,11 +244,23 @@ pub mod revert_ops;
 /// turn. Body authoring, so it routes here.
 pub mod bead;
 
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
+/// The differential batteries' polygon oracles, per-pose outcome line
+/// and reflex-corner pose.
+pub mod differential;
+/// The pairs of two face sets that meet along a curve, kept from a
+/// cross product of seam or `Tangent` declarations. What a suite drives
+/// a door WITH, so it routes here.
+pub mod seam_pairs;
+
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use profile::{RawLoop, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
 use topo::Body;
 
@@ -444,16 +467,24 @@ pub fn tilted_cut_upper() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the disc profile validates");
-    let cylinder = sweep::extrude::<f64>(&disc, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body;
+    let cylinder = sweep::extrude::<f64>(
+        &disc,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cylinder extrudes")
+    .body;
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
-        &topo::splitting::SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the tilted cut splits");
@@ -494,10 +525,11 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: tilted_cut_normal(),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        tilted_cut_normal(),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
     let part = if above { result.above } else { result.below };
     let topo::splitting::SplitPart::Body(half) = part else {
@@ -524,9 +556,16 @@ pub fn bulged_extrusion() -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
+    sweep::extrude::<f64>(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 /// The **sup-norm distance** between two points — the largest
@@ -537,10 +576,7 @@ pub fn bulged_extrusion() -> Body<f64> {
 /// exactness row in this tree wants, and a fourth hand-rolled copy is
 /// how a suite ends up with a subtly different one.
 pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// **A margin strictly inside the run's ambiguity band** — the
@@ -671,4 +707,20 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// sections reproduce the EXTRUSION of that section exactly.
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
+}
+
+/// The extrusion whose far cap sits at signed offset `d` along the
+/// sketch normal: depth `|d|`, toward the side `d`'s sign names — how
+/// a row that runs "both directions" over one signed offset spells it
+/// at the door, which takes the pair. What a suite drives a door WITH,
+/// so it routes here.
+pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
+    sweep::Extrusion::Distance {
+        depth: d.abs(),
+        side: if d < 0.0 {
+            sweep::ExtrudeSide::Against
+        } else {
+            sweep::ExtrudeSide::Along
+        },
+    }
 }

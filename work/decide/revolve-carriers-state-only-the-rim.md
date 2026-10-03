@@ -2,7 +2,7 @@
 id: revolve-carriers-state-only-the-rim
 kind: issue
 title: the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint
-status: open
+status: deferred
 opened: 2026-09-06
 priority: P1
 cost: H
@@ -64,3 +64,12 @@ the builder is never handed the far endpoint the span identity would be stated
 about. The door the registration goes through is SYM's and is named in the body.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Deferred (2026-10-02)
+
+Not-now under ERROR-DESIGN E6, the ratified rule against machinery for
+zero certificate content. As "What is owed" above says, no measured
+document is bounded by a revolve carrier's endpoint pinning. The row
+opens again when one is, for example when an M10 driver document or a
+PROPS study revolves a profile whose ceiling a revolve carrier sets.
+

@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
@@ -48,6 +49,7 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -61,9 +63,11 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
     let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, _) = fixture::step(
         doc,
-        DocEdit::SetPlacement {
-            node: b,
-            frame: Frame::translation([4.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: b,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                4.0, 0.0, 0.0,
+            ]))),
         },
     );
     (doc, vec![a, b])
@@ -393,8 +397,13 @@ fn solved_poses_placement_refuses_another_document() {
         .placement(&a, ids_a[1])
         .expect("its own document places");
 
-    match *poses.placement(&b, ids_a[1]).expect_err("refuses") {
-        MateFault::PosesOfAnotherDocument { expected, found } => {
+    match poses.placement(&b, ids_a[1]).expect_err("refuses") {
+        editor_core::PoseRefusal::Mate(fault)
+            if matches!(*fault, MateFault::PosesOfAnotherDocument { .. }) =>
+        {
+            let MateFault::PosesOfAnotherDocument { expected, found } = *fault else {
+                unreachable!("matched above")
+            };
             assert_eq!((expected, found), (b.id(), a.id()));
         }
         other => panic!("expected the pairing refusal, got {other:?}"),
@@ -461,9 +470,11 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
 
     let (moved, _) = fixture::step(
         asm.clone(),
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
         },
     );
     let after = run(&moved, Some(&warm), &opts);

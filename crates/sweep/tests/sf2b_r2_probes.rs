@@ -167,12 +167,18 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
         let faces = cone_faces(&body);
         for signed in [-T, T] {
             let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
-                Ok(()) => panic!(
+            let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
+            match (&got, crate::common::cone_nappe::rim_refusal_gap(&got)) {
+                (Ok(()), _) => panic!(
                     "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
                      in front of the cone chart, which is the measurement this row carries"
                 ),
-                Err(topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
+                // The rim's re-chart reached first: the same refusal,
+                // carrying no gap to measure.
+                (_, Some(None)) => {
+                    println!("[r2] per-chart {what} d={signed}: REFUSED at the rim's re-chart");
+                }
+                (_, Some(Some(gap))) => {
                     println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
                     assert!(
                         (gap - T * alpha.sin()).abs() <= 1e-15,
@@ -187,7 +193,7 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
                         band().zero()
                     );
                 }
-                Err(e) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
+                (Err(e), None) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
             }
         }
     }

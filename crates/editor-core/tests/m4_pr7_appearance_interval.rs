@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
@@ -36,6 +37,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -58,14 +60,14 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = declare_x_offset_flush(doc, a, b);
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, uni) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's
@@ -89,7 +91,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
                 node: uni,
                 path: vec![RoleSeg::OutputBody],
             },
-            Attr::Label("union".into()),
+            Attr::Label(editor_core::Label::new("union").unwrap()),
         ),
         (uni_face.clone(), Attr::Color(Rgba8::opaque(10, 200, 10))),
         (uni_face, Attr::Visibility(true)),

@@ -679,11 +679,10 @@ fn the_cavity_pcurves_certify_on_both_charts() {
         (2, 2),
         "two rims, one wall side and one cap side each"
     );
-    // The face's cache set is minted WHOLE, which is the regression
-    // the missing arm caused: `mint_faces` answers one
-    // `UnsupportedCarrier` half-edge by clearing the entire face, so
-    // before this lane the torus wall's two CIRCLE rims lost their
-    // harmonic caches along with the spirics that had none.
+    // The face's cache set is minted WHOLE: `mint_faces` answers one
+    // `UnsupportedCarrier` half-edge by leaving the entire face
+    // uncached, so a spiric with no image would cost the torus wall's
+    // two CIRCLE rims their harmonic caches too.
     let torus_face = cavity
         .faces()
         .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))

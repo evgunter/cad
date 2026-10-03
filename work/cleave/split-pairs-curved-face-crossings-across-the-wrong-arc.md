@@ -2,11 +2,13 @@
 id: split-pairs-curved-face-crossings-across-the-wrong-arc
 kind: issue
 title: a steep split of a cylinder pairs the two crossings on one wall face across the arc outside the face, so the section comes back as an ellipse face plus two coplanar segment faces cancelling it
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: H
 branch: cleave/wrong-arc
+pr: 3718
+closed: 2026-10-02
 ---
 
 
@@ -49,3 +51,8 @@ correct section is one 6-vertex face.
 face's own section curve, or refuse a candidate partner whose arc
 leaves the face (axial extent as well as azimuth) so the half waits
 for the right one. `chord_join` is shared with the boolean lane.
+
+**Rows that flip when this is fixed** (both in
+`crates/sweep/tests/split_section_rings.rs`):
+`a_clockwise_section_nothing_places_keeps_its_face` and
+`plane_section_refuses_a_hole_nothing_places`.

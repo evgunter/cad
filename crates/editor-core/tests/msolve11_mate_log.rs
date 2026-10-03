@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
@@ -50,6 +51,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -134,7 +136,13 @@ impl Scene {
     /// Inserts `node` through the door, levered by the scene's parts.
     fn add(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
-        let (doc, id) = fixture::step_with(self.doc.clone(), DocEdit::InsertNode { node }, &reach);
+        let (doc, id) = fixture::step_with(
+            self.doc.clone(),
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            &reach,
+        );
         self.doc = doc;
         id.unwrap()
     }
@@ -231,10 +239,11 @@ const OWN_FRAMES: [&str; 4] = [
 /// - The fold's intersection is decided while the PIN is added to what
 ///   the rest left (`mate_axis_normal_perpendicular`, then the
 ///   membership checks), so it is the pin's and not the rest's.
-/// - The pair's left factor — the pattern's direction, derived for
-///   the pair once its mates are folded (`eval_direction_norm`) — is
-///   the pair's first mate's: the rest's, the mate an UNDER on this
-///   pair would name, and not the pin's.
+/// - The pair's left factor — the pattern's direction and the sign of
+///   its spacing, derived for the pair once its mates are folded
+///   (`eval_direction_norm`, `pattern_spacing`) — is the pair's first
+///   mate's: the rest's, the mate an UNDER on this pair would name,
+///   and not the pin's.
 /// - The rider on the coincidence (`mate_clocking_redundant`) is its
 ///   own mate's.
 #[test]
@@ -274,15 +283,17 @@ fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
             .any(|p| p.starts_with("mate_member_") || p.starts_with("mate_axis")),
         "the first mate's log holds no intersection: {rest_log:?}"
     );
-    assert_eq!(
-        rest_log.last(),
-        Some(&"eval_direction_norm"),
+    const LEFT_FACTOR: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
+    assert!(
+        rest_log.ends_with(&LEFT_FACTOR),
         "the pair's left factor is the first mate's, decided after the fold: {rest_log:?}"
     );
-    assert!(
-        !on(&pin_log, "eval_direction_norm") && !on(&coincidence_log, "eval_direction_norm"),
-        "the left factor is on no other mate's log: {pin_log:?} {coincidence_log:?}"
-    );
+    for p in LEFT_FACTOR {
+        assert!(
+            !on(&pin_log, p) && !on(&coincidence_log, p),
+            "the left factor's {p} is on no other mate's log: {pin_log:?} {coincidence_log:?}"
+        );
+    }
     assert_eq!(
         coincidence_log[OWN_FRAMES.len()..],
         ["mate_clocking_redundant"],
@@ -435,7 +446,13 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let err = s
         .doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &reach,
+        )
         .expect_err("the door refuses the lever");
     let editor_core::EditError::MateRefused { fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");

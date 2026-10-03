@@ -8,6 +8,7 @@ the guide's own executed blocks.
 
 from pncad import (
     MeasurePrimitive,
+    Placement,
     MeasureExpr,
     AssertionDir,
     Advisory,
@@ -29,6 +30,7 @@ from pncad import (
     AxisSense,
     Bulge,
     ClosedLoop,
+    BooleanCoincidence,
     BooleanOp,
     CancelToken,
     CapEnd,
@@ -478,20 +480,22 @@ declared_stadium: ClosedLoop = (
 )
 
 # LIB-PYG5: the detect/declare protocol, typed end to end. Findings
-# are values; the declare doors consume THEM, not name text; the id
-# feeds the boolean's declare= input.
+# are values; the declare doors consume THEM, not name text: the
+# boolean's declare= list, and the doors that set it on a live node.
 findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
 first_relation: PlaneRelation = findings[0].relation
-first_class: ContactClass = findings[0].class_
+first_class: BooleanCoincidence = findings[0].class_
 first_rung: FlushRung = findings[0].rung
 opaque_a: str = findings[0].a
 opaque_b: str = findings[0].b
-decl_one: NodeId = doc.declare(findings[0])
-decl_many: NodeId = doc.declare_all(findings)
-decl_node: NodeId = doc.insert(Node.declare(findings))
 glued: NodeId = doc.insert(
-    Node.boolean(BooleanOp.Union, plate, lightened, declare=decl_many)
+    Node.boolean(BooleanOp.Union, plate, lightened, declare=findings)
 )
+fused_declared: Node = Node.union([plate, lightened], declare=findings)
+declared_one: None = doc.declare(glued, findings[0])
+declared_many: None = doc.declare_all(glued, findings)
+redeclared: DocEdit = DocEdit.set_declare(glued, findings)
+cleared: DocEdit = DocEdit.set_declare(glued, [])
 
 # LIB-PYPU: the group boolean and its placement vocabulary. Lengths
 # and angles are typed; the count is a plain int (the structural-slot
@@ -574,15 +578,22 @@ recomputed_nodes: int = both.recomputed
 crossings: int = both.part_evaluations
 
 # LIB-G18b: the assembly authoring vocabulary. A reference becomes an
-# instance, an edit places its group, a mate says how two instances
-# meet, and the gate says whether the result is valid at rest.
+# instance, an offset or a gauge places it, a mate says how two
+# instances meet, and the gate says whether the result is valid at
+# rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference))
-placed: DocEdit = DocEdit.set_placement(instance, here)
+placed: DocEdit = DocEdit.set_offset(instance, Placement.literal(here))
+unplaced_edit: DocEdit = DocEdit.set_offset(instance, None)
+stand_on: NodeId = doc.insert(Node.gauge(Placement.identity()))
+on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
+to_world: DocEdit = DocEdit.set_gauge(instance, None)
+promoted: DocEdit = DocEdit.promote(instance)
+folded: DocEdit = DocEdit.fold(stand_on)
 designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
 product_roots: list[NodeId] = doc.roots
-group_frame: Frame = doc.placement(instance)
-registry: dict[NodeId, Frame] = doc.placements()
+offset_read: Placement | None = doc.offset(instance)
+gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[Maintenance] = doc.last_maintenance
@@ -601,6 +612,9 @@ seat_pose: Frame = side_a.placement()
 joint: NodeId = doc.insert(
     Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
 )
+regauged: NodeId = doc.regauge_then_mate(
+    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
+)
 
 # The solve's read side, and the admission table a tool asks first.
 poses: SolvedPoses = solve_document(doc)
@@ -608,6 +622,8 @@ root: NodeId | None = poses.root(instance)
 role: MateRole | None = poses.role(joint)
 refusal: MateFault | None = poses.fault(joint)
 world: Frame = poses.placement(doc, instance)
+why_unplaced: str | None = poses.unplaced(instance)
+in_space: tuple[NodeId, str] | None = evaluate(doc).unplaced(instance)
 placed_groups: list[list[NodeId]] = groups(doc)
 keyed_by: NodeId = root_of(doc, instance)
 edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)

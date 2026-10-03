@@ -85,8 +85,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let post = oracle(&bench.post, &bench.post_top);
     assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "a names the post's own cap, the row the standalone part answers"
     );
     let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
@@ -95,8 +95,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
         "the cap fixes a reference of its own"
     );
     assert_eq!(
-        proposal.alignment.b,
-        asm::from_face(&bench.shelf_bottom),
+        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        Some(bench.shelf_bottom.clone()),
         "b names the shelf's own underside (the shelf placement's 0.08 m \
          y-translation is the solve's, applied to the resolved pose, never \
          baked into the frame)"
@@ -271,7 +271,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         matches!(
             tool.proposal(doc, eval, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
-                if head == bench.post_b
+                if head.id() == bench.post_b
         ),
         "a mate needs a PAIR of instances"
     );
@@ -476,7 +476,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == bench.post_b && !mates.is_empty()
+                if instance.id() == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

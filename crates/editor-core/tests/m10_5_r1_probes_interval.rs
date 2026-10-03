@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -109,6 +110,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     r.insert(Node::Extrude {
         profile: p,
         distance: len(depth),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -396,6 +398,7 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let placed = r.insert(translated(solid, [param("place"), len(0.0), len(0.0)]));
     (r.doc, solid, placed)

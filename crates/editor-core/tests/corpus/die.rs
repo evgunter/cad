@@ -1,10 +1,10 @@
 //! Corpus document **die** — the M3 exact-oracle die as a recipe
-//! (77 nodes), reused verbatim from the shared `fixture::die()`
+//! (63 nodes), reused verbatim from the shared `fixture::die()`
 //! authoring so the corpus and the PR 2/5/6 acceptance rows can never
 //! drift apart.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Declare, Boolean
-//! (Subtract), `SetDocParam`, `InsertNode`.
+//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract,
+//! declared), `SetDocParam`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
 //! 0.25 × 0.25 × 0.125):
@@ -28,7 +28,7 @@ pub fn document() -> CorpusDoc {
     let d = die();
     CorpusDoc {
         name: "die",
-        about: "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
+        about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes)",
         edits: d.edits,
         doc: d.doc,
         result: Some(d.final_node),
@@ -41,7 +41,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: d.pz_extrude,
             slot: SlotId::Distance,
-            expr: len(-0.1875),
+            expr: len(0.1875),
         },
         bump_root: d.pz_extrude,
     }

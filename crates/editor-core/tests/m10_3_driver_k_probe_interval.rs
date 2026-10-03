@@ -48,6 +48,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::io::Write;
 
@@ -92,6 +93,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: editor_core::Expr::param(ParamName::from_static("depth"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }

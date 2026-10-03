@@ -2,20 +2,21 @@
 //! its evidence enums, crossing Rust → Python.
 //!
 //! A finding is a REPORT — `Evaluation.find_flush_candidates` answers
-//! with these values, the caller INSPECTS them, and `Node.declare` /
-//! `Doc.declare` / `Doc.declare_all` turn inspected findings into the
-//! shipped `Declare` vocabulary. The no-fusion boundary is kept
+//! with these values, the caller INSPECTS them, and `Node.boolean` /
+//! `Node.union`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
+//! `DocEdit.set_declare` put inspected findings on a boolean or union
+//! as its declared pairs. The no-fusion boundary is kept
 //! across the language boundary: no door here both detects and
 //! declares. The same value also rides the boolean's
 //! refusal MENU: an `EvaluationError` with `kind ==
-//! "undeclared_contact"` carries one as its `finding` attribute
+//! "undeclared_coincidence"` carries one as its `finding` attribute
 //! — the recourse is in the error.
 //!
 //! The pair's names cross as the SAME opaque texts every other door
 //! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an
 //! identifier to store and hand back, never parsed. Nothing here
-//! requires reading inside one: the finding itself is what
-//! `Node.declare` consumes, typed.
+//! requires reading inside one: the finding itself is what `declare=`
+//! consumes, typed.
 
 use pyo3::prelude::*;
 
@@ -48,6 +49,24 @@ pub(crate) enum ContactClass {
     Tangent,
 }
 
+/// What a boolean node may declare about a face pair: a contact of a
+/// class (`Rest`, `Tangent`), a `Continuation` — one carrier with
+/// aligned senses, two stacked parts' outer walls — or a `Seam` — two
+/// carriers joining G1 with aligned senses, a cap on a tube. A mate
+/// takes a `ContactClass`; a union's declaration takes this.
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(
+    missing_docs,
+    reason = "each variant mirrors the documented `topo::BooleanCoincidence` value of the same name"
+)]
+pub(crate) enum BooleanCoincidence {
+    Rest,
+    Tangent,
+    Continuation,
+    Seam,
+}
+
 /// Which rung of the verify ladder decided a finding.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,23 +79,24 @@ pub(crate) enum FlushRung {
     DecidedCoincident,
 }
 
-/// One flush finding: "this face pair would verify as declared
-/// contact" — a VALUE to inspect and pass to `Node.declare` /
-/// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
-/// The detector's reach is the `Rest` ladder's, so the pair may be
-/// cosurface on a plane, a sphere, a cylinder or a torus.
+/// One flush finding: "this face pair would verify as declared" — a
+/// VALUE to inspect and pass to a boolean's or union's `declare=`,
+/// `Doc.declare` / `Doc.declare_all` or `DocEdit.set_declare`, never
+/// itself a declaration. The detector's reach
+/// is the carrier ladder's, so the pair may be cosurface on a plane, a
+/// sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second). Each side also carries
 /// the NODE it was read at, which is what makes a finding declarable
-/// straight back through `Doc.declare` / `Node.declare` — the site is
+/// straight back through `Doc.declare` / `declare=` — the site is
 /// the side, so nothing downstream has to recover it. That site is
 /// not exposed as an attribute: a name here is opaque text, and a
 /// node id beside it would be the one part a caller could act on
 /// wrongly. `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
-/// material sides; `SameOriented` = flush walls, the merge-stage
-/// flavor); `class_` names the contact class (trailing underscore:
+/// material sides; `SameOriented` = flush walls, a continuation);
+/// `class_` names what a declaration would assert (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
 /// identity, `DecidedCoincident` = the geometric trilean).
@@ -159,6 +179,24 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
     }
 }
 
+/// Crossing helper: the kernel coincidence as the Python mirror. A
+/// contact crosses through [`contact_class`], so a class this binding
+/// predates refuses typed there; the continuation and the seam cross
+/// as themselves.
+pub(crate) fn boolean_coincidence(
+    py: Python<'_>,
+    c: s::BooleanCoincidence,
+) -> PyResult<BooleanCoincidence> {
+    match c {
+        s::BooleanCoincidence::Contact(class) => Ok(match contact_class(py, class)? {
+            ContactClass::Rest => BooleanCoincidence::Rest,
+            ContactClass::Tangent => BooleanCoincidence::Tangent,
+        }),
+        s::BooleanCoincidence::Continuation => Ok(BooleanCoincidence::Continuation),
+        s::BooleanCoincidence::Seam => Ok(BooleanCoincidence::Seam),
+    }
+}
+
 /// Crossing helper: the kernel rung as the Python mirror. Exhaustive
 /// over the KERNEL enum, no wildcard arm — kernel growth stops the
 /// build here.
@@ -190,10 +228,11 @@ impl FlushFinding {
         plane_relation(self.0.evidence.relation)
     }
 
-    /// The contact class the pair would verify as.
+    /// What the pair would verify as when declared: `Rest` for opposed
+    /// senses, `Continuation` for aligned ones.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<ContactClass> {
-        contact_class(py, self.0.class)
+    fn class_(&self, py: Python<'_>) -> PyResult<BooleanCoincidence> {
+        boolean_coincidence(py, self.0.class)
     }
 
     /// Which ladder rung decided.
@@ -215,6 +254,7 @@ impl FlushFinding {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlaneRelation>()?;
     m.add_class::<ContactClass>()?;
+    m.add_class::<BooleanCoincidence>()?;
     m.add_class::<FlushRung>()?;
     m.add_class::<FlushFinding>()?;
     Ok(())

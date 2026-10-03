@@ -36,12 +36,12 @@ fn accessors_read_back_everything_the_doors_wrote() {
     ];
     let lp: ProfileLoop<f64> = bulge_loop(vs.clone());
 
-    // vertices() and bulges() return the chain's positions and
-    // bulges, bit for bit.
-    for ((got, b), (pos, bulge)) in lp.vertices().iter().zip(lp.bulges()).zip(&vs) {
+    // vertices() returns the chain's positions bit for bit, and each
+    // segment's kind is its bulge's: a line exactly at a zero bulge.
+    for ((got, s), (pos, bulge)) in lp.vertices().iter().zip(lp.segments()).zip(&vs) {
         assert_eq!(got.x.to_bits(), pos.x.to_bits());
         assert_eq!(got.y.to_bits(), pos.y.to_bits());
-        assert_eq!(b.to_bits(), bulge.to_bits());
+        assert_eq!(matches!(s, profile::Segment::Line), *bulge == 0.0);
     }
 
     // ProfileLoop: vertices() is the chain in traversal order;
@@ -62,7 +62,6 @@ fn accessors_read_back_everything_the_doors_wrote() {
         Point2::new(0.0, 2.0),
     ]);
     assert_eq!(poly.vertices().len(), 3);
-    assert!(poly.bulges().iter().all(|&b| b == 0.0));
     assert!(
         poly.segments()
             .iter()
@@ -77,16 +76,15 @@ fn accessors_read_back_everything_the_doors_wrote() {
     for (a, b) in there_and_back.vertices().iter().zip(declared.vertices()) {
         assert_eq!(a.x.to_bits(), b.x.to_bits());
     }
-    for (a, b) in there_and_back.bulges().iter().zip(declared.bulges()) {
-        assert_eq!(a.to_bits(), b.to_bits());
+    for (a, b) in there_and_back.segments().iter().zip(declared.segments()) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
 }
 
 /// **The canonical door writes the stored form verbatim.** Every
-/// segment it is handed reads back bit for bit, with the bulge kept
-/// beside it zero for a line and tan(Δθ/4) for an arc. It can also
-/// write a table the bulge form cannot — a one-segment full circle —
-/// and deciding that table is `validate`'s: it refuses it by arity.
+/// segment it is handed reads back bit for bit. It can also write a
+/// table the bulge form cannot — a one-segment full circle — and
+/// deciding that table is `validate`'s: it refuses it by arity.
 #[test]
 fn the_canonical_door_writes_the_stored_form_verbatim() {
     let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
@@ -104,10 +102,6 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
     for (k, &(pos, segment)) in chain.iter().enumerate() {
         assert_eq!(bits(&lp.vertices()[k]), bits(&pos), "vertex {k}");
         assert_eq!(bits(&lp.segments()[k]), bits(&segment), "segment {k}");
-    }
-    let want = [0.0, (std::f64::consts::PI / 4.0).tan(), 0.0];
-    for (k, (got, want)) in lp.bulges().iter().zip(want).enumerate() {
-        assert_eq!(got.to_bits(), want.to_bits(), "bulge {k}");
     }
     assert!(lp.tangent_joints().is_empty());
 
