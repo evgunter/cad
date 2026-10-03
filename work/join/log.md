@@ -245,3 +245,90 @@ Filed: `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-cens
 The ZIP wrong-volume row gains its wider class.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3895 lands: JOIN-3, the segment's chord curve
+
+JOIN-3 closed, and with it
+`blind-d-pocket-subtract-refuses-with-join-internal-words`. Review tier:
+DUAL (two cloud sessions, frozen head `3191f2ee`), both
+APPROVE-WITH-FIXES with no MAJOR; coded blind, tally 0. A fix pass
+took both reviews' minors and style and filed R2's ring re-homing
+pockets. A delta review
+(`3191f2ee..2cc1455c`) executed the reversal rows and mutations: one
+MINOR (the winding unit row never reached `running_from`'s reversal
+arm) and style (two spellings of the boolean adjacency skip, a second
+reversal spelling in the scaffold-line arm and in
+`blend::surgery::scaled`, a silent fallback in `oriented_arc`, a dead
+error arm, a stale module doc). A second fix pass, in a fresh cloud session,
+closed them all: one `between_is_segment`, one reversal through
+`Curve3::reversed`, `oriented_arc` refusing `SectionInvariant`, and the
+winding row run from both halves so the reversal arm is read. The
+orchestrator read that diff.
+
+Two main merges after the review: TANG #3851 (the pierce ring on a
+curved face) rewrote the same ring lane, and the merge composed it
+(TANG's run kind lives on JOIN-3's chord plan; one `ring_run_ccw` with
+a planar arm closed by the segment's curve and a wall arm wound on its
+chart); no row moved against both parents. The slow set then showed
+`viewer::review_pick_r2` moved deterministically, −6/−6 refusals per
+landing in `die_composed_tour`, from 1-ulp vertex shifts of the chord
+curve; no genuine crossing refused. Re-pinned, with `m10_p_fence`'s
+interval digest (f64 unmoved). Main's three red nightly rows (eps 1e-6
+and 1e-12) fail identically on main; the arc-loft one filed on EXCH.
+
+`docs/JOIN-3-SPEC.md` deleted at merge, and `docs/JOIN-1-SPEC.md`
+with it (missed at JOIN-1's merge); both under `docs/doc-ledger/`.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — PR 3967 lands: the reflex corner a hair off flush passes its own census
+
+`a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0) closed, and with it HONE's claimed
+`point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`.
+Measured first: 15 of the 16 poses already built SOUND on main since
+CLEAVE's PR 3866 (the polygon walk abandons in-band ray readings). The
+sixteenth built the right body; tier 3′ escalated on `point_in_loop_arm`,
+a reading about one schedule member at a 1e-4 sliver face, not about
+the point. `walk_schedule` now abandons an in-band arm into
+`ray_parity::Abandoned` in both walks (`ArmBand` gone); the band is not
+widened. `docm2_part_interval`'s ε/16 rung now certifies (re-baselined).
+
+Review tier: single FULL, cloud session. APPROVE, 0/0/6. The reviewer
+proved the arm depends on q only through the extent, so an in-band arm
+on every member puts q within band of every vertex, which the boundary
+pre-pass answers first; 2 488 320 containment queries per lane against
+a signed-distance oracle: 0 wrong on head (f64 and Interval), 3 692
+`Esc(point_in_loop_arm)` → correct answers; 25 344 near-flush booleans
+byte-identical main vs head.
+
+Signed (JOIN orchestrator).

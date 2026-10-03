@@ -2,7 +2,7 @@
 //! two answers `ASSEMBLY.md` A11 rule 5 lets cross into the solve: a
 //! part's EXTENT, the body term of the lever a mate's angular
 //! decisions turn on, and a named FACE's canonical pose, the frame a
-//! `FromFace` side resolves to.
+//! face-based side resolves to.
 //!
 //! A parallelism verdict is consumed as "the separation is constant
 //! across the parts", so its margin is `sin θ · L` where `L` is the
@@ -103,7 +103,7 @@ pub trait MateReach {
     /// names**, in the part's own coordinates: the name resolved in
     /// the part's own product table to its face, then
     /// `topo::readback::face_pose` on the part's own body — the
-    /// frame a `FromFace` mate frame resolves to
+    /// frame a face-based mate frame resolves to
     /// ([`super::MateFrame`]). The pose is the CARRIER's, read off
     /// its surface parameters exactly, with the face's orientation
     /// sense beside the axis and not folded into it.
@@ -294,7 +294,7 @@ impl core::fmt::Display for ReachRefusal {
 
 /// **The refusing reach** — the reach of a door with no resolver in
 /// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
-/// so a solve through it levers no mate, resolves no `FromFace`
+/// so a solve through it levers no mate, resolves no face-based
 /// frame, and refuses each one in the resolver's own voice, and an
 /// edit whose maintenance needs a solved frame refuses at the door.
 /// What `eval::mate_reach` answers over options carrying no resolver,

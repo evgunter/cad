@@ -372,7 +372,7 @@ pub(crate) fn entity_point<T: Decide>(
 /// doors because there is one site that builds it. The TABLE's half
 /// of the ladder ([`key_in`]) is its own door, for a reader that holds
 /// a table and a body but no evaluation node (a mated part's cached
-/// product, read for a `FromFace` mate frame).
+/// product, read for a face-based mate frame).
 ///
 /// # Errors
 ///

@@ -628,10 +628,11 @@ fn replay_deterministic_all_kinds() {
     );
 }
 
-/// Corpus extension for the A∖B ≡ A∩revert(B) oracle: the review's
-/// new fixture family (side-face pocket, edge notch, deep pocket).
+/// Corpus extension for the partition oracle
+/// ([`crate::m3_pr5_boolean_ops::partition_oracle`]): the review's new
+/// fixture family (side-face pocket, edge notch, deep pocket).
 #[test]
-fn revert_oracle_extended_corpus() {
+fn partition_oracle_extended_corpus() {
     let corpus: Vec<(&str, Body<f64>, Body<f64>)> = vec![
         (
             "minus-x-pocket",
@@ -661,26 +662,7 @@ fn revert_oracle_extended_corpus() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b, Tol::witness()).unwrap();
-        let via = topo::intersect(&a, &b.revert().unwrap(), Tol::witness()).unwrap();
-        let (d, v) = (body_of(&direct), body_of(&via));
-        let md = mass_properties(&d.body, Tol::witness()).unwrap();
-        let mv = mass_properties(&v.body, Tol::witness()).unwrap();
-        assert_eq!(md.volume, mv.volume, "{name}: volume");
-        assert_eq!(md.surface_area, mv.surface_area, "{name}: area");
-        assert_eq!(
-            (
-                d.body.faces().count(),
-                d.body.edges().count(),
-                d.body.vertices().count()
-            ),
-            (
-                v.body.faces().count(),
-                v.body.edges().count(),
-                v.body.vertices().count()
-            ),
-            "{name}: census"
-        );
+        crate::m3_pr5_boolean_ops::partition_oracle(name, &a, &b);
     }
 }
 

@@ -161,13 +161,19 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
+/// main's shared copy points: each moved it alone — the split halves'
+/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// an op's copies of one vertex share its point, so the arena order the
+/// digest hashes moved (main) — and the merged tree is neither value.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x1676_4144_da9e_6975u64),
-        ("part_select", 0xf3bf_580c_ea92_21c3),
-        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
+        ("part_select", 0x5979_9ec4_a0a9_0c18),
+        ("kitchen_sink", 0x4451_36a7_db54_a9a7),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
