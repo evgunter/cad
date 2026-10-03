@@ -73,7 +73,10 @@
 // hold what it carries. `MaintenanceNet` rides with it: a consumer
 // that applies several edits as one action (a cascade delete) folds
 // their rows into what is true of the document the action ends at, and
-// that rule has one spelling.
+// that rule has one spelling. `Recording` and `Recorded` are that
+// action whole — the edits applied in order, their rows netted, the
+// ids they minted — so a consumer composing one does not re-write the
+// loop.
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
@@ -86,8 +89,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, RegaugeThenMateOutcome, StepId,
-    StepIdFault, apply, apply_replayed, regauge_then_mate,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
+    RegaugeThenMateOutcome, StepId, StepIdFault, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
