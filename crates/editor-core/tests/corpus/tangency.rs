@@ -31,6 +31,7 @@
 //!
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
+use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId};
 
 use crate::fixture::{frame, len, len2, scl, xy_frame};
@@ -71,6 +72,7 @@ pub fn document() -> CorpusDoc {
     let fillet_body = r.insert(Node::Extrude {
         profile: fillet_p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let _ = fillet_body;
 
@@ -108,6 +110,7 @@ pub fn document() -> CorpusDoc {
     let tangent_body = r.insert(Node::Extrude {
         profile: tangent_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
 
     CorpusDoc {

@@ -36,6 +36,7 @@
 use geom_core::{Interval, Point2, Real, Tol};
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::validate_geometric;
 
@@ -67,7 +68,14 @@ fn outcome(off: f64, l: f64, b: f64) -> Outcome {
     else {
         return Outcome::ProfileRefuses;
     };
-    match extrude(&vp, Extrusion::Distance(iv(l)), Tol::witness()) {
+    match extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(l),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    ) {
         Ok(t) => match validate_geometric(&t.body, Tol::witness()) {
             Ok(()) => Outcome::Certifies,
             Err(_) => Outcome::GeometryRefuses,

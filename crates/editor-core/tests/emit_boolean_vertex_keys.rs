@@ -22,6 +22,7 @@
 //!   pin which side each name belongs to.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
@@ -213,6 +214,7 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: lp,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     // Drawn on the plane through the apex normal to (1, 1, 0), and
@@ -229,6 +231,7 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: tp,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, ell, tip)
@@ -288,6 +291,7 @@ fn an_assembly_names_the_touch_vertex_by_its_partner_in_either_order() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, cube_first) = union(doc, cube, wedge);
@@ -323,6 +327,7 @@ pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile: tp,
             distance: len(0.4),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, bl, tip)
@@ -339,13 +344,14 @@ pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, 
         [0.0, 0.0, 1.0],
         vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
     );
-    // The frame normal points into the block; a negative distance
-    // extrudes the tip away from it.
+    // The frame normal points into the block; the tip extrudes
+    // against it, away from the block.
     let (doc, tip) = insert(
         doc,
         Node::Extrude {
             profile: tp,
-            distance: len(-0.5),
+            distance: len(0.5),
+            side: ExtrudeSide::Against,
         },
     );
     (doc, bl, tip)
@@ -375,6 +381,7 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: lp,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let n = (1.0f64 + 1.0 + 0.09).sqrt();
@@ -400,6 +407,7 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, ell, wedge)
@@ -450,6 +458,7 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: tp,
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, bar, tip)

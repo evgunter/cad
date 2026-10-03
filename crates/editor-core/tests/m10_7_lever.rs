@@ -38,6 +38,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
@@ -132,6 +133,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
             Node::Extrude {
                 profile,
                 distance: len(THICKNESS),
+                side: ExtrudeSide::Along,
             },
         );
         doc = next;

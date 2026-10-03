@@ -17,6 +17,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::document::ExtrudeSide;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1467,6 +1469,7 @@ fn resolution_status_tags_are_stable() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
 
@@ -4714,6 +4717,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_desync",
             "merge",
             "non_finite_sector_chord",
+            "non_manifold_result",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
@@ -4931,6 +4935,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "repeated_designation",
             "selection_not_canonical",
             "set_declare_on_non_declaring",
+            "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -5041,6 +5046,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_extrusion",
             "extrusion_escalated",
+            "negative_depth",
             "oblique_extrusion",
             "op",
             "pcurve",

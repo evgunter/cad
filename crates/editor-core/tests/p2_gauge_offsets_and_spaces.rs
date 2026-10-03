@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -42,6 +43,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -855,6 +857,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             Node::Extrude {
                 profile: prof,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
@@ -979,6 +982,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
         Node::Extrude {
             profile: prof,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let o = p.opts();

@@ -50,6 +50,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
 
 use crate::corpus;
 use crate::fixture;
@@ -126,6 +127,7 @@ fn cylinder(doc: ProfileDoc, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(2.0 * H),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -179,6 +181,7 @@ fn both_sweeps() -> BothSweeps {
     let extruded = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The revolve's own profile: a square clear of the axis, drawn on
     // its own frame, spun about an axis written in that same frame.
@@ -289,11 +292,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xe35a_3144_bad2_96ca),
-        ("corner_table", 0xac66_617c_0e53_d4f0),
-        ("cut_cylinder", 0x799c_caf4_ccb8_33de),
-        ("boss_union", 0x23a9_86ad_2ab0_dc9a),
-        ("kitchen_sink", 0xf0c8_760c_ff31_b7ba),
+        ("die", 0xb23f_de75_dcfd_65e9),
+        ("corner_table", 0x246c_30e8_519e_c23f),
+        ("cut_cylinder", 0x1676_4144_da9e_6975),
+        ("boss_union", 0x9149_8127_2c43_ed66),
+        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -454,6 +457,7 @@ fn a_polygon_profile_attaches_nothing() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval::<f64>(&doc);
@@ -693,6 +697,7 @@ fn extruded(
         Node::Extrude {
             profile,
             distance: len(2.0 * H),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1263,9 +1268,16 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     let sketch = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol())
         .unwrap();
-    sweep::extrude(&sketch, sweep::Extrusion::Distance(2.0 * h), tol())
-        .unwrap()
-        .body
+    sweep::extrude(
+        &sketch,
+        sweep::Extrusion::Distance {
+            depth: 2.0 * h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A kernel-direct rigid spin, for the twin.

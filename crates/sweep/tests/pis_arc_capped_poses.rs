@@ -22,6 +22,7 @@
 
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{
     ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
@@ -768,9 +769,16 @@ fn holed_plate() -> Body<f64> {
     )
     .validate(tol())
     .expect("the holed plate validates");
-    let body = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), tol())
-        .expect("the plate extrudes")
-        .body;
+    let body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body;
     assert!(
         body.faces().any(|(_, f)| !f.rings.is_empty()),
         "the hole is a ring of the top and bottom faces"

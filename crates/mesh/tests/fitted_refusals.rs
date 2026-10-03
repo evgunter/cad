@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
@@ -172,9 +173,16 @@ fn split_cylinder_half() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),

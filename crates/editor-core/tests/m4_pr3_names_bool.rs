@@ -10,6 +10,7 @@
 )]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -252,6 +254,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(

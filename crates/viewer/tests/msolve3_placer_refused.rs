@@ -13,6 +13,7 @@
 
 use crate::common;
 use crate::fixture;
+use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
@@ -35,6 +36,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )

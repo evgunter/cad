@@ -38,6 +38,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use sweep::ExtrudeSide;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
@@ -824,7 +825,10 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         .expect("a square is a valid profile");
     let mut body = sweep::extrude(
         &profile,
-        sweep::Extrusion::Distance(iv(1.0)),
+        sweep::Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
