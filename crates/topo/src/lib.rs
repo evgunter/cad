@@ -1,0 +1,707 @@
+//! Topology arenas, [`Body<T>`], and the structural validation harness —
+//! the `topo` layer with M1's half-edge representation (D1 in
+//! `docs/DESIGN.md`).
+//!
+//! A B-rep body is a plain value: typed generational arenas
+//! (slotmap-style, D1) for the seven manifold topology kinds — solid,
+//! shell, face, loop, half-edge, edge, vertex — plus geometry arenas,
+//! plus a D5 provenance record per entity from birth. M1 PR 1 landed the
+//! half-edge structure itself (adjacency, orientation conventions, the
+//! tier-1 structural validator); PR 2 added the first Euler operators —
+//! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
+//! sanctioned construction path; PR 3 added the ring/genus operators —
+//! [`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`] — and the non-Euler
+//! [`Body::ring_move`] helper (see [`euler_ring`]); PR 4 completed the
+//! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
+//! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
+//! plus the make/kill roundtrip property-test machinery; PR 5 completed
+//! the validator (validity tiers — [`fn@validate`] accepts every
+//! Euler-reachable state, [`validate_closed`] the finished closed
+//! solids) and retired the raw-insertion builder to `pub(crate)`: **the
+//! Euler operators are the only public construction path** (D1).
+//!
+//! **M2 PR 3 — real geometry.** The M0 placeholder geometry retired:
+//! the curve arena holds certified `geom_brep::EdgeCurve`s (D2
+//! intensional description + carrier cache + certification record) and
+//! the surface arena holds `geom::Surface`s. Edge-minting
+//! operators take an uncertified `EdgeCurveSpec` and run the D4 ¶2
+//! certification gate before mutating (chord-line sugar:
+//! [`Body::mev_line`] / [`Body::mef_chord`] / [`Body::mekr_chord`] /
+//! [`Body::mfkrh_plug`]); face-minting operators take a
+//! [`FaceSurface`] spec; the two attachment setters
+//! ([`Body::set_face_surface`], [`Body::set_edge_curve`] — see
+//! [`attach`]) cover the construction-order cases mint-time attachment
+//! cannot reach. Tier 3 ([`validate_geometric`]) re-runs every
+//! certification at rest and adds the dihedral classification pass.
+//!
+//! # Orientation conventions
+//!
+//! Documented **once**, in the [`entity`] module docs: the interior-left
+//! rule (counterclockwise outer loops viewed from outside), antiparallel
+//! half-edge pairs, derived end vertices, the vertex-orbit step, and the
+//! GWB-is-mirrored transcription warning. Start there before touching
+//! topology code.
+//!
+//! # The genericity boundary (Q1, settled by this crate's shape)
+//!
+//! `Body<T>` is **scalar-free topology plus geometry arenas over `T`**.
+//! Topology entities contain no scalar values and no comparisons — only
+//! typed keys — while the geometry arenas (points, curves, surfaces) are
+//! the only `T`-carrying storage. Topology never branches on `T`: every
+//! topology-determining decision was made at construction time through
+//! named predicates (Q1 in `docs/DESIGN.md`), and a body is the *result*
+//! of those decisions. An interval replay therefore materializes a
+//! `Body<Interval>` with identical topology keys and interval-valued
+//! geometry.
+//!
+//! # Determinism (D9)
+//!
+//! Arena iteration is slot-index order — deterministic given identical
+//! construction history, which the pure-replay model guarantees. The
+//! standing invariant (documented at [`body`]): no arena iteration may
+//! feed a geometry decision unless the construction sequence is itself
+//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`
+//! in any position that can feed a decision. One `HashSet` does exist —
+//! `transform.rs`'s `rewritten` set, which tracks which curve keys the
+//! walk remapped so an orphaned entry is refused as corruption. It is
+//! **membership-only and never iterated**, so no hash order can reach
+//! an output; a `SecondaryMap` would be both cheaper and consistent
+//! with the rule, and is the preferred form for anything new.
+//! Half-edge traversal is **bounded** — the walks cap at the arena
+//! length and fail loud instead of spinning on corrupt input (the kernel
+//! never hangs, D9).
+//!
+//! # Example
+//!
+//! Build the unit cube through the Euler operators — the §9.4.2-minimal
+//! sequence, 1 `mvfs` + 7 `mev` + 5 `mef` — and validate it at both
+//! tiers. Every intermediate state is tier-1 valid ([`fn@validate`]); the
+//! finished cube is a tier-2 closed solid ([`validate_closed`]).
+//!
+//! ```
+//! use geom_core::Point3;
+//! use topo::{Body, MefSite, MevSite};
+//! use geom_core::Tol;
+//!
+//! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
+//! let pt = Point3::new;
+//! let mut body = Body::<f64>::new();
+//!
+//! // The seed: solid + shell + one face holding lone vertex A.
+//! let seed = body.mvfs(pt(0.0, 0.0, 0.0), true)?;
+//! // The bottom rim A → B → C → D, grown by three mev …
+//! let e_ab = body.mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0), tol)?;
+//! let strut = |he| MevSite::Fan { he1: he, he2: he };
+//! let e_bc = body.mev_line(strut(e_ab.he_minus), pt(1.0, 1.0, 0.0), tol)?;
+//! let e_cd = body.mev_line(strut(e_bc.he_minus), pt(0.0, 1.0, 0.0), tol)?;
+//! // … and closed by a mef splitting off the bottom face.
+//! let he_dc = body.find_half_edge(seed.face, e_cd.vertex, e_bc.vertex).unwrap();
+//! let f_bot = body.mef_chord(MefSite::Chords { he1: he_dc, he2: e_ab.he_plus }, tol)?;
+//! // Four vertical struts up from the rim …
+//! let e_aa = body.mev_line(strut(e_ab.he_plus), pt(0.0, 0.0, 1.0), tol)?;
+//! let e_bb = body.mev_line(strut(e_bc.he_plus), pt(1.0, 0.0, 1.0), tol)?;
+//! let e_cc = body.mev_line(strut(e_cd.he_plus), pt(1.0, 1.0, 1.0), tol)?;
+//! let e_dd = body.mev_line(strut(f_bot.he_plus), pt(0.0, 1.0, 1.0), tol)?;
+//! // … and four mef close the side faces (the seed face becomes the top).
+//! let chord = |he1, he2| MefSite::Chords { he1, he2 };
+//! let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus), tol)?;
+//! body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), tol)?;
+//! body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), tol)?;
+//! body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), tol)?;
+//!
+//! assert_eq!(body.vertices().count(), 8);
+//! assert_eq!(body.edges().count(), 12);
+//! assert_eq!(body.faces().count(), 6);
+//! assert_eq!(topo::validate(&body), Ok(()));        // tier 1: euler-valid
+//! assert_eq!(topo::validate_closed(&body), Ok(())); // tier 2: closed solid
+//!
+//! // Mid-construction scaffolding is tier-1 legal but not tier-2: a
+//! // strut fails `validate_closed` with a typed, entity-named error.
+//! let scaffold = body.mev_line(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0), tol)?;
+//! assert_eq!(topo::validate(&body), Ok(()));
+//! assert_eq!(
+//!     topo::validate_closed(&body),
+//!     Err(vec![topo::ValidationError::ScaffoldingStrutVertex {
+//!         vertex: scaffold.vertex,
+//!     }]),
+//! );
+//! # Ok(()) }
+//! # run().unwrap();
+//! ```
+
+pub mod attach;
+pub mod body;
+pub mod boolean;
+pub(crate) mod census;
+pub mod chart;
+pub mod chart_bound;
+pub(crate) mod chart_groups;
+pub mod chart_iso;
+pub mod chart_region;
+// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
+// section-chord geometry, a top-level sibling of `boolean/` and
+// `splitting/` for the reason its own docs give. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod chord_join;
+pub mod coherence;
+pub mod contact;
+pub mod entity;
+pub mod euler;
+pub mod euler_kill;
+pub mod euler_ring;
+// The one door for a planar face's outward normal — at the crate root
+// because its consumers now span both halves and the shared sector
+// walk; its own docs carry the argument. Non-doc comment for the same
+// rustdoc reason as the sector modules below.
+pub mod face_normal;
+#[cfg(test)]
+pub(crate) mod fixtures;
+pub mod flush;
+// This crate's own sources, read as source. A sibling of `fixtures`
+// rather than a section of it: that module's subject is canonical
+// bodies, this one's is a Rust reader. Non-doc comment for the
+// same rustdoc reason as the sector modules below.
+pub mod geometry;
+#[cfg(test)]
+pub(crate) mod source_walk;
+
+#[cfg(test)]
+mod cert_m3r1_probes;
+pub mod instance;
+pub(crate) mod invalid_margin;
+#[cfg(test)]
+pub(crate) mod iso;
+pub(crate) mod live;
+// The one statement of a stored planar loop's signed winding, shared by
+// the merge's role assigner and tier 3's check 6. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod loop_winding;
+pub mod merge_faces;
+pub mod movefac;
+#[cfg(test)]
+mod n2r1_probes;
+pub mod null;
+pub mod offset_axial;
+pub mod offset_nappe;
+pub mod offset_together;
+pub mod param_source;
+pub mod pcurves;
+pub(crate) mod policy_lane;
+pub mod props;
+pub mod provenance;
+pub mod query;
+pub(crate) mod ray_parity;
+pub mod readback;
+pub mod replace_face;
+pub mod revert;
+#[cfg(test)]
+mod review_d18;
+#[cfg(test)]
+mod review_d18_probes;
+#[cfg(test)]
+mod review_d21_probes;
+#[cfg(test)]
+mod review_m0_pr7;
+#[cfg(test)]
+mod review_m1_pr1;
+#[cfg(test)]
+mod review_m1_pr2;
+#[cfg(test)]
+mod review_m1_pr3;
+#[cfg(test)]
+mod review_m1_pr4;
+#[cfg(test)]
+pub(crate) mod review_m1_pr5_internal;
+// The shared vertex-neighborhood sector modules — top-level siblings
+// of `boolean/` and `splitting/` on purpose: both lanes ask these
+// questions, so neither hosts them. Each module's own docs carry
+// the placement argument. Non-doc comments deliberately: an outer
+// `///` here would merge into the module's own `//!` docs and make
+// rustdoc resolve their intra-doc links in THIS module's scope instead
+// of that one's.
+pub(crate) mod sector_face;
+pub(crate) mod sector_shape;
+pub mod separation;
+#[cfg(test)]
+pub(crate) mod seqgen;
+pub mod shell;
+pub mod source;
+pub mod split;
+pub mod splitting;
+pub mod surgery;
+// Existence and visibility are two questions, gated separately; the
+// module's own docs are the statement of both. EXISTENCE: the items
+// must be compiled wherever any of their three consumers is — the
+// debug postcondition, the in-crate oracles, and this crate's `tests/`
+// binaries through the feature.
+#[cfg(any(debug_assertions, test, feature = "test-support"))]
+// `doc(hidden)` for the same reason as the door below. This module is
+// the ONLY private module of the crate that a doc build renders — not
+// because `--document-private-items` shows everything private, but
+// because the others (`fixtures`, `seqgen`, `tier3_tests`) are
+// `#[cfg(test)]` and do not exist in a doc build at all, while this one
+// exists whenever `debug_assertions` does.
+#[doc(hidden)]
+mod test_support_impl;
+// The Euler-op fixture family, a sibling of the module above rather
+// than a section of it: nothing here has a non-test consumer, so it is
+// gated on the test arms alone and its file-level `#![allow]` stays
+// exactly as wide as the code that earns it. Its own docs state what
+// separates it from `fixtures`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_fixtures;
+// One `ValidationError` of every arm, for the rows that render them —
+// this crate's Display-coverage row and a downstream refusal-budget
+// row — so it sits behind the same door, on the same gate.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_samples;
+// VISIBILITY: the only reason to export them is a test naming them from
+// another crate, so the public door opens on the test arms alone —
+// `topo::test_support` does not resolve in a plain build of any profile.
+#[cfg(any(test, feature = "test-support"))]
+// `doc(hidden)` because this repo's own rustdoc gate (scripts/doc-gate.sh)
+// runs `--all-features`, which turns `test-support` ON: without this the
+// gate would publish, as public API, a module whose first line says it is
+// not one. Hiding it keeps the rendered docs and the door's own claim
+// saying the same thing. It hides nothing from a test — `doc(hidden)` is
+// a rustdoc directive, not a visibility one.
+#[doc(hidden)]
+pub mod test_support {
+    //! The public door onto this crate's test vocabulary, open exactly
+    //! when a test needs to name it from another crate. Two modules
+    //! come through it: [`crate::test_support_impl`], whose docs state
+    //! both gates, why they differ and which home a new item belongs
+    //! in, and [`crate::test_support_fixtures`], the Euler-op fixture
+    //! family, which carries this module's own gate exactly.
+    use geom_core::Real;
+
+    use crate::body::Body;
+    // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
+    // is the only suite that wants the literal, and it restates it on
+    // purpose — a guard that reached for the constant the builder uses
+    // would be comparing that constant against itself.
+    pub use crate::test_support_fixtures::{
+        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
+        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
+        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
+        prism, prism_ops, prism_z, split_plane, straddle_seat,
+    };
+    pub use crate::test_support_impl::ArenaCounts;
+    pub use crate::test_support_samples::validation_error_samples;
+
+    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
+    /// pipeline gates a finished body
+    /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
+    /// suite plants a wrong result through.
+    ///
+    /// # Errors
+    ///
+    /// The backstop's refusal, or a tolerance that forms no band.
+    pub fn volume_backstop<T: crate::AtRestPolicy>(
+        op: crate::BooleanOp,
+        a: &Body<T>,
+        b: &Body<T>,
+        result: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
+        let band = geom_core::Band::linear(tol)?;
+        T::gate_volume_backstop(op, a, b, result, band, tol)
+    }
+
+    /// The two operand clones as the boolean's join leaves them, A's
+    /// first.
+    pub type JoinedOperands = (Body<f64>, Body<f64>);
+
+    /// The boolean pipeline through its join: both operand clones with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`boolean::through_the_join`). `None` where the pipeline answers
+    /// without a join to stop at.
+    ///
+    /// # Errors
+    ///
+    /// The pipeline's refusal on the way to its join.
+    pub fn boolean_through_the_join(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Option<JoinedOperands>, crate::BooleanError> {
+        crate::boolean::through_the_join(op, a, b, tol)
+    }
+
+    /// The direct split run through its join: the scratch body with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`splitting::through_the_join`).
+    ///
+    /// # Errors
+    ///
+    /// The reduction's or the join's refusal.
+    pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        operand: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, crate::SplitError> {
+        crate::splitting::through_the_join(operand, plane, tol)
+    }
+
+    /// **Which decision a Boolean refusal came from**, as the executed-
+    /// offer harness keys it (`test_utils::offer`), and whether it is the
+    /// kernel's own defect. Two refusals of one decision carry one key: a
+    /// coincidence's key drops what its door read of the declaration, and
+    /// a definite arm carries its decision's (D4 ¶1 (iv): one story).
+    pub fn offer_key(err: &crate::BooleanError) -> (String, bool) {
+        use crate::{BooleanDecision, BooleanError, BooleanErrorKind, SphereQuestion};
+        let decision = decision_key;
+        let key = match err {
+            BooleanError::Escalated { decision: d, .. } => decision(*d),
+            BooleanError::SpheresMeet { .. } => {
+                decision(BooleanDecision::Sphere(SphereQuestion::Nested))
+            }
+            BooleanError::CurvedSectorSideUnsupported { .. } => {
+                decision(BooleanDecision::PierceCurvature)
+            }
+            BooleanError::DegenerateTorus { convention, .. } => {
+                decision(BooleanDecision::Torus(*convention))
+            }
+            other => format!("{:?}", other.kind()),
+        };
+        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+            || matches!(
+                err.kind(),
+                BooleanErrorKind::ClassificationInvariant
+                    | BooleanErrorKind::CorruptOperand
+                    | BooleanErrorKind::JoinDesync
+            );
+        (key, defect)
+    }
+
+    /// A decision's [`offer_key`]: a coincidence's drops what its door
+    /// read of the declaration.
+    fn decision_key(d: crate::BooleanDecision) -> String {
+        match d {
+            crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
+            other => format!("{other:?}"),
+        }
+    }
+
+    /// Whether two [`offer_key`]s name one decision: equal, or a lever
+    /// gate and the reading it meters (the gate passing leaves the same
+    /// question to that reading), each pair derived from the map the
+    /// raisers route by (`LeverArm::reading`).
+    pub fn offer_same_decision(a: &str, b: &str) -> bool {
+        use crate::{BooleanDecision, DeclarationRead, LeverArm};
+        let key = decision_key;
+        a == b
+            || LeverArm::ALL.into_iter().any(|gate| {
+                let (g, r) = (
+                    key(BooleanDecision::LeverArm(gate)),
+                    key(gate.reading(DeclarationRead::Moot)),
+                );
+                (a, b) == (g.as_str(), r.as_str()) || (a, b) == (r.as_str(), g.as_str())
+            })
+    }
+
+    /// **The refusals an executed offer meets further along whose own
+    /// story is not yet true**, each with the row that owns it: the
+    /// earlier offer is true of its decision (its decision no longer
+    /// refuses at 0.9 × its value), and the later refusal's story is that
+    /// refusal's obligation (`test_utils::offer::judge_laters`).
+    pub const LATER_STORIES_OWNED: &[(&str, &str)] = &[(
+        "Containment",
+        "work/contact/contain-escalation-carries-no-decision.md",
+    )];
+
+    /// The offers the executed-offer census counts as run in `sweep`,
+    /// whose doors build the solids they need (a ball): each decision's
+    /// key, the side of zero its margin lies on, and the child row of
+    /// `sweep`'s `offer_rows` that executes it. That suite checks it runs
+    /// each one.
+    pub const OFFERS_EXECUTED_IN_SWEEP: &[(&str, bool, &str)] = &[
+        ("Sphere(Apart)", true, "apart_in_band"),
+        ("Sphere(Apart)", true, "apart_in_the_zero_band"),
+        ("Sphere(Nested)", true, "nested_in_band"),
+        ("Sphere(Nested)", true, "nested_in_the_zero_band"),
+        ("Sphere(AgainstPlane)", false, "clear_of_a_slab_in_band"),
+        ("Sphere(AgainstPlane)", true, "into_a_slab_in_band"),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_union",
+        ),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_subtract",
+        ),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_intersect",
+        ),
+        ("Sphere(Apart)", true, "apart_off_axis_in_band_union"),
+        ("Sphere(Apart)", true, "apart_off_axis_in_band_subtract"),
+        (
+            "Sphere(Nested)",
+            true,
+            "nested_off_axis_in_the_zero_band_union",
+        ),
+        (
+            "Sphere(Nested)",
+            true,
+            "nested_off_axis_in_the_zero_band_subtract",
+        ),
+        ("Sphere(Nested)", true, "nested_off_axis_in_band_subtract"),
+        (
+            "Coincidence(EdgeOnPlane)",
+            false,
+            "ball_under_a_slab_in_band_union",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            true,
+            "ball_under_a_slab_in_band_subtract",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            false,
+            "ball_beside_a_slab_in_band_union",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            true,
+            "ball_beside_a_slab_in_band_subtract",
+        ),
+        (
+            "Coincidence(EdgeOnCurvedFace)",
+            true,
+            "brick_below_a_tube_union",
+        ),
+    ];
+
+    /// The topology-arena lengths of `body`. A free function because
+    /// `Body::arena_counts` is `pub(crate)` — an inherent method's
+    /// reach follows its own visibility, not its module's, so making
+    /// that one `pub` would be public API on [`Body`] in every profile.
+    /// This lives behind the door instead.
+    pub fn arena_counts<T: Real>(body: &Body<T>) -> ArenaCounts {
+        body.arena_counts()
+    }
+
+    /// **The section certificate's per-pair report** on the crossings
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
+    /// the events of the reduction `op` would run, as
+    /// `(A face, B face, outcome)`. The outcome is `Ok` with each
+    /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
+    /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
+    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's own refusals.
+    pub fn section_report(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::section_report(op, a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
+    /// The no-crossings path's certificates on `a` × `b` — the sphere
+    /// extent scan, then the section pass — as that path runs them
+    /// before its vertex probe, whatever the crossing layer would find.
+    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    ///
+    /// # Errors
+    ///
+    /// Either certificate's refusal.
+    pub fn no_crossings_certificates(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<usize, crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(a, b, tol)
+    }
+
+    /// Does `face` describe for the section certificate's W2 — its
+    /// `chart_boundary` answers, or, on a cone face, its apex closure
+    /// closes? The verdict the certificate reads per face.
+    pub fn face_describes<T: crate::props::AtRestPolicy>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        band: geom_core::Band,
+    ) -> bool {
+        let Some(surface) = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return false;
+        };
+        crate::boolean::ChartCache::default().describes(
+            crate::Operand::A,
+            body,
+            face,
+            &surface.clone(),
+            band,
+        )
+    }
+
+    /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
+    /// planar in-face test, which the ray sweep reaches only through a
+    /// hit it decides to take — named here so a row can ask it about a
+    /// point directly: `Some(true)` inside, `Some(false)` outside,
+    /// `None` on the boundary.
+    ///
+    /// # Errors
+    ///
+    /// The walk's own [`crate::PointInSolidError`]; a face that is not
+    /// planar is `KindUnsupported`.
+    pub fn point_in_face<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<bool>, crate::PointInSolidError> {
+        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
+    }
+}
+#[cfg(test)]
+mod r2_probes;
+#[cfg(test)]
+mod tier3_tests;
+pub mod transform;
+pub mod validate;
+
+pub use body::Body;
+pub use boolean::{
+    BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction, Corruption,
+    CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
+    LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
+    PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
+    SweepTrace, TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq,
+    point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
+    tangent_pair_relation, union, union_with,
+};
+pub use surgery::Surgery;
+// The contact vocabulary (C3/C4), defined once at the lowest crate
+// that can hold it: upward layers RE-EXPORT these, never redefine.
+#[cfg(feature = "sweep-testing")]
+pub use boolean::{PlantedDegradation, sweep_records, sweep_traces, sweep_traces_with_pad};
+#[cfg(feature = "sweep-testing")]
+pub use chord_join::face_azimuth_window_traces;
+// The census's idealized/realized pair (its `Candidates`): the
+// vocabulary always, the door on the boolean sweep's terms.
+pub use attach::Rechart;
+pub use census::{CensusStrategy, CensusTrace, SweepPairs};
+#[cfg(feature = "sweep-testing")]
+pub use census::{census_traces, census_traces_planted};
+pub use contact::{
+    BooleanCoincidence, CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE,
+    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+    FIT_DEFERRAL_FOR_USERS,
+};
+pub use entity::{
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+};
+pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
+pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
+// The types that appear in this crate's own operator signatures, so a
+// consumer of the ops needs no direct geom-* imports for the common
+// path (the full geometry vocabulary still lives in those crates).
+pub use chart::{Chart, ChartKind};
+pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
+pub use chart_region::{
+    ChartOverlap, ChartRegionError, RegionLane, WITNESS_BUDGET, WitnessBudget,
+    chart_region_overlap, declared_pair_overlap,
+};
+pub use coherence::{
+    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
+    examine_chart_coherence, gap_is_noise,
+};
+pub use geom::Curve3;
+pub use geom::Surface;
+pub use geom_brep::{
+    CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
+    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
+};
+pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use instance::{
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
+    graft_disjoint_all_onto_keyed, per_part_gate_owed,
+};
+pub use merge_faces::{
+    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
+    OutlineVerdict, SkippedMerge,
+};
+pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
+pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_nappe::{Nappe, face_nappe, group_nappe};
+pub use offset_together::{ChartMove, offset_planes_together};
+pub use pcurves::{
+    PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
+};
+pub use props::{
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
+    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
+};
+pub use provenance::{Provenance, SplitLineageCycle};
+// The query VOCABULARY rides at the root like every other type;
+// the query DOORS (materializers, predicates) keep their module
+// identity, like `readback`'s.
+pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
+pub use query::{
+    CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
+    SurfaceKind, SurfaceKindSet,
+};
+pub use readback::{
+    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
+};
+pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
+pub use revert::{RevertError, RevertLink};
+pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
+pub use shell::{
+    HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
+};
+pub use source::{
+    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, GeomOrigin, GeomSource, Or,
+    SourceAttachError, SourceExpr,
+};
+pub use split::SplitEdgeCreated;
+pub use splitting::{
+    ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
+    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionEdge,
+    SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section,
+    point_in_loop, split, split_reduce, vertex_sides,
+};
+pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
+pub use validate::{
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
+    validate_geometric_certificate_structural, validate_geometric_structural,
+    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
+};

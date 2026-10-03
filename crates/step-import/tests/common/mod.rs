@@ -1,0 +1,258 @@
+//! Shared helpers for the acceptance suites: fixture loading, sidecar
+//! parsing (both the OCC-side `EXPECT_*` and kernel-side `KERNEL_*`
+//! field families), and censuses.
+//!
+//! **Comparison discipline (M7-1 spec §2 row 3):** every comparison in
+//! these suites is counts, certified scalars, or structural
+//! invariants. Nothing here pairs arena order against the writer's
+//! walk order — the known trap (`memories/step-curved-subset.md`): the
+//! two coincide on simple extrusions and diverge on boolean results.
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::path::PathBuf;
+
+use geom_core::Tol;
+use topo::Body;
+
+/// The committed solid corpus, in `fixture_corpus()` file order.
+/// `loft_prism` joined at M7-3 (14 → 15): the first NURBS-walled
+/// fixture, whose row-1 exclusion reason — the
+/// `B_SPLINE_SURFACE_WITH_KNOTS` vocabulary refusal — that unit
+/// retired (the S9 flip recorded in `review_k3_probe.rs`).
+///
+/// `nonuniform_loft` and `swept_elbow` joined at the #210 corpus fold
+/// (15 → 17): the exportable class #207's skin-fit fix opened — a loft
+/// whose sections are NON-uniformly spaced, and the tree's first
+/// curved-path `sweep_body`. Both are non-rational NURBS-walled, so
+/// they put M7-3's surface arm, its IsoCurve seam rung and its rim
+/// pcurve re-mint on bodies the writer could not produce until #210.
+pub const SOLID_FIXTURES: [&str; 17] = [
+    "cube",
+    "die",
+    "kiss_assembly",
+    "cut_cylinder",
+    "boss_union",
+    "notched",
+    "washer",
+    "ball",
+    "cone",
+    "donut",
+    "lily_lantern",
+    "filleted_die",
+    "die_pips",
+    "composed_die",
+    "loft_prism",
+    "nonuniform_loft",
+    "swept_elbow",
+];
+
+/// A fixture file's text.
+pub fn fixture(name: &str, ext: &str) -> String {
+    let path: PathBuf = [
+        env!("CARGO_MANIFEST_DIR"),
+        "..",
+        "step-export",
+        "tests",
+        "fixtures",
+        &format!("{name}.{ext}"),
+    ]
+    .iter()
+    .collect();
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"))
+}
+
+/// A parsed `.expect` sidecar.
+///
+/// Two censuses live in one sidecar: `EXPECT_*` records what
+/// FreeCAD/OCC *reports after importing* the exported file (degenerate
+/// pole edges added, periodic carriers seam-split — normalisations
+/// that are exactly the healing D7 forbids, so the kernel keeps its
+/// own census), and `KERNEL_*` records the NATIVE body's census plus
+/// its certified volume at FULL precision (the literal is the export
+/// writer's round-tripping float printer's output). The `KERNEL_*`
+/// fields cannot rot: step-export's `tests/kernel_sidecars.rs`
+/// staleness row asserts them against the live kernel every run.
+#[derive(Clone, Debug)]
+pub struct Expect {
+    pub solids: usize,
+    pub shells: usize,
+    pub faces: usize,
+    pub edges: usize,
+    pub vertices: usize,
+    pub volume_mm3: f64,
+    pub kernel_solids: usize,
+    pub kernel_shells: usize,
+    pub kernel_faces: usize,
+    pub kernel_edges: usize,
+    pub kernel_vertices: usize,
+    /// Parses back to the exact bits of (native certified volume ×
+    /// 1e9) — the printer's round-trip guarantee. For quadrature
+    /// bodies this is the enclosure MIDPOINT at the corpus's declared
+    /// uncertainty ε = 1e-9 (the enclosure is a function of ambient
+    /// ε); the bracket is `± kernel_volume_pad_mm3`.
+    pub kernel_volume_mm3: f64,
+    /// The certified half-width of the native volume enclosure at
+    /// ε = 1e-9, in mm³ — `0.0` for closed-form-only bodies.
+    pub kernel_volume_pad_mm3: f64,
+}
+
+/// Parses a `.expect` sidecar's `KEY=value` lines.
+pub fn expect_sidecar(name: &str) -> Expect {
+    let text = fixture(name, "expect");
+    let get = |key: &str| -> String {
+        text.lines()
+            .find_map(|l| l.strip_prefix(&format!("{key}=")).map(str::to_owned))
+            .unwrap_or_else(|| panic!("{name}.expect: missing {key}= line"))
+    };
+    Expect {
+        solids: get("EXPECT_SOLIDS").parse().unwrap(),
+        shells: get("EXPECT_SHELLS").parse().unwrap(),
+        faces: get("EXPECT_FACES").parse().unwrap(),
+        edges: get("EXPECT_EDGES").parse().unwrap(),
+        vertices: get("EXPECT_VERTICES").parse().unwrap(),
+        volume_mm3: get("EXPECT_VOLUME_MM3").parse().unwrap(),
+        kernel_solids: get("KERNEL_SOLIDS").parse().unwrap(),
+        kernel_shells: get("KERNEL_SHELLS").parse().unwrap(),
+        kernel_faces: get("KERNEL_FACES").parse().unwrap(),
+        kernel_edges: get("KERNEL_EDGES").parse().unwrap(),
+        kernel_vertices: get("KERNEL_VERTICES").parse().unwrap(),
+        kernel_volume_mm3: get("KERNEL_VOLUME_MM3").parse().unwrap(),
+        kernel_volume_pad_mm3: get("KERNEL_VOLUME_PAD_MM3").parse().unwrap(),
+    }
+}
+
+/// The body's `(solids, shells, faces, edges, vertices)` — order-free
+/// arena lengths, the five a STEP file states.
+///
+/// **Named for the quantity, not for "the census".** `step-export`'s
+/// suites carry a three-component census of the same body and neither
+/// is the other's tuple; one name over two field sets is the drift
+/// `topo-arena-census-duplicate-spellings` is about. Both read the
+/// kernel's ONE producer of arena lengths rather than re-walking the
+/// arenas, so a transposition here is a transposition of named fields.
+pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
+    let c = topo::test_support::arena_counts(body);
+    (c.solids, c.shells, c.faces, c.edges, c.vertices)
+}
+
+/// **The options an own-corpus fixture imports under**, and the single
+/// declaration of which fixture needs what.
+///
+/// Exactly one fixture needs anything: `kiss_assembly`, the corpus's
+/// only touching assembly, whose corner kiss at (1, 1, 1) is DECLARED
+/// through the M9-2 import-side channel (D7 step 4) — the shared
+/// tier-3′ gate then certifies the touch instead of refusing it
+/// undeclared. A suite walking the corpus with options of its own
+/// calls this rather than restating the anchor: two spellings of which
+/// fixture is the exception drift apart silently, and the drift
+/// surfaces as one fixture refusing in one suite and importing in
+/// another.
+///
+/// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
+/// which every caller but the coherence-channel suite leaves `false`.
+pub fn own_import_options(name: &str, examine: bool) -> step_import::ImportOptions {
+    step_import::ImportOptions {
+        declared_contacts: if name == "kiss_assembly" {
+            vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }]
+        } else {
+            Vec::new()
+        },
+        examine_chart_coherence: examine,
+        ..step_import::ImportOptions::default()
+    }
+}
+
+/// Imports a fixture's committed `.step`, panicking on refusal (the
+/// suites' entry point for files that must import).
+pub fn import_fixture(name: &str) -> step_import::StepImport {
+    let text = fixture(name, "step");
+    step_import::import_step(&text, &own_import_options(name, false), Tol::witness())
+        .unwrap_or_else(|e| panic!("importing {name}: {e}"))
+}
+
+/// A committed half-cap fixture's text — issue 723's π-rad witness,
+/// one solid stated at four coordinate precisions under
+/// `tests/fixtures/halfcap/`. `name` carries its extension.
+pub fn halfcap_fixture(name: &str) -> String {
+    let path = format!(
+        "{}/tests/fixtures/halfcap/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
+}
+
+/// The imported solid body, panicking on a wireframe disposition.
+pub fn import_body(name: &str) -> (Body<f64>, f64) {
+    match import_fixture(name) {
+        step_import::StepImport::Solid { body, eps_in, .. } => (body, eps_in),
+        step_import::StepImport::Wireframe { .. } => {
+            panic!("{name} imported as a wireframe, expected a solid")
+        }
+    }
+}
+
+/// The committed FreeCAD 1.1.2 corpus (M7-2), in generator order.
+pub const FREECAD_FIXTURES: [&str; 13] = [
+    "box",
+    "cylinder",
+    "cone_trunc",
+    "cone_apex",
+    "sphere",
+    "torus",
+    "box_hole",
+    "fuse_boxes",
+    "box_fillet_edge",
+    "box_fillet_corner",
+    "compound_two",
+    "box_importexport",
+    "twobody_importexport",
+];
+
+/// A committed FreeCAD fixture's text.
+pub fn freecad_fixture(name: &str) -> String {
+    let path: PathBuf = [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests",
+        "fixtures",
+        "freecad",
+        &format!("{name}.step"),
+    ]
+    .iter()
+    .collect();
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"))
+}
+
+/// **The arc section**: a square of half-width `s` with a
+/// quarter-circle bulge on the `+x` side — the arc-bearing profile
+/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
+/// 45° sub-arcs), and so the cheapest profile these suites have that
+/// puts an imported body's enclosure on the QUADRATURE lane rather
+/// than on a closed form.
+///
+/// One copy for this crate's suites. `sweep`'s own copy lives in
+/// `crates/sweep/tests/common/`; the two are not folded together
+/// because cross-crate constant deduplication is LIB-U6's territory
+/// and that module's routing rule says so out loud.
+pub fn arc_section(s: f64) -> sweep::Section {
+    use profile::test_support::bulge_loop;
+    let v = |x: f64, y: f64, bulge: f64| (geom_core::Point2::new(x, y), bulge);
+    vec![bulge_loop(vec![
+        v(-s, -s, 0.0),
+        // tan(π/8): a quarter-circle bulge-out.
+        v(s, -s, 0.4142135623730951),
+        v(s, s, 0.0),
+        v(-s, s, 0.0),
+    ])]
+}
+
+/// Loft placements: the given heights, each scaled by `s`, as pure
+/// `+z` translations.
+pub fn stacked(z: &[f64], s: f64) -> Vec<geom_core::Affine3<f64>> {
+    z.iter()
+        .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, h * s)))
+        .collect()
+}

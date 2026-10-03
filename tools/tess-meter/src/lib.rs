@@ -1,0 +1,1484 @@
+//! **The tessellation budget meter, consumer half** (issue #320):
+//! where a mesh's triangles actually go, and how much of the deviation
+//! budget that bought.
+//!
+//! `mesh::budget` measures — the trim box, the cells the schedule
+//! built, the certified bounds the sizing read, the worst certificate,
+//! the sampled deviation. This crate does everything downstream of
+//! that: the counterfactual schedules, the split optimizer, the row
+//! for every face (including the charts the meter says nothing about,
+//! whose chart and triangle count are in the body and the mesh), and
+//! the CSV `tools/tess-lint` reads.
+//!
+//! The split is where the privilege is. Nothing here needs to run
+//! inside a tessellation, so nothing here is in the kernel: a change
+//! to how the numbers are READ cannot reach the lane that produces
+//! them.
+//!
+//! **The rule, with its one exception.** The rule is: the kernel reports what
+//! nothing downstream can recover. `FaceMeasure::patch_steps` and
+//! `CellMeasure::steps` BREAK it — they are `grid_steps(delta_s)` over
+//! `(muu, muv, mvv)`, and all four values ride in the same struct, so
+//! this crate could compute them. They are reported anyway, on a
+//! narrower rule: **the lane's own schedule rule is not re-spelled
+//! outside the lane.** `grid_steps` is the point selection the shipped
+//! sizing uses; a second copy here would be a second schedule that
+//! could drift from the one being measured, and a column comparing
+//! the two would then be reporting on the copy. Reporting the answer
+//! keeps one derivation. Everything else in the row is derived here.
+//!
+//! # The slack factors
+//!
+//! Per face the meter records what the lane used (the grid, the
+//! triangle count, the certified bounds) and this crate derives what
+//! it could have used. The arithmetic is deliberately kept OUT of the
+//! kernel — the row carries measurements, `tools/tess-lint` names the
+//! findings.
+//!
+//! **TESS-SPAN moved the shipped schedule onto per-knot-span-cell
+//! sizing**, so the columns are derived to keep both regression kinds
+//! visible (spec D-4). The shipped grid is `grid_cells`, the cell
+//! count the lane actually built; `patch_cells` is the retired
+//! whole-patch-sup schedule kept as a COUNTERFACTUAL column, computed
+//! here from the whole-patch bound the lane still holds, so the gain
+//! the promotion holds stays a number and a silent revert to
+//! whole-patch sizing cannot hide.
+//!
+//! **Where the guards live, named — and what they do NOT cover**
+//! (issue #667's Q6). `ci.yml`'s `k-lint (gate)` job runs `mesh budget
+//! meter + certificate falsifier (feature = budget)` — the gated half
+//! of `mesh::budget`, which the default `cargo test -p mesh` row
+//! cannot reach — and `tess-meter tool fmt + clippy + tests`, this
+//! crate's own derivations; then it re-tessellates the whole tour with
+//! `tessellation-budget sweep (every tour scene, per face)`
+//! (`scripts/tess_budget_sweep.sh`) and lints the fresh CSV against
+//! `docs/tess-budget-data/tess-budget-baseline.csv` in
+//! `tessellation-budget lint (gate — a grown budget fails this row)`.
+//!
+//! **Those rows are UNCONDITIONAL since 2026-09-04.** Each carries an
+//! `if:` naming its `k-lint (gate)` matrix leg — the sweep and its lint
+//! on `release-budget`, this crate's derivations on `dev-default` — and
+//! every code-tier run has all five legs. From 2026-08-22 to that day
+//! one row was DRAWN per run from the head SHA, so the SIZING columns —
+//! triangle counts and `grid_cells / span_opt_cells`, which is what
+//! `compare` reads — were re-measured on about one merge in five, and so
+//! was the guard on the split scan's two constants below. Neither
+//! quantity drifts between merges: both are functions of this tree
+//! alone, which is why the sampling cost latency and not staleness — a
+//! retune could land unmeasured and be caught by a later draw. That was
+//! a weaker thing than the per-merge register the sizing columns had
+//! been read as, and the per-merge register is what they are again.
+//!
+//! **The deviation half is not.** CI runs that sweep with
+//! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
+//! is empty on every fresh row and `tess_lint::Row::total_slack` is
+//! `None` for all of them. `docs/TESS-BUDGET.md`'s `total` column and
+//! its total-slack factors therefore come from a `--deviation` run
+//! nothing re-takes: that document is a one-shot writeup wrapped
+//! around a re-measured sizing gate, not a register end to end. Read
+//! its sizing columns as live and its deviation columns as dated.
+//!
+//! **What guards `band_schedule` itself, and the blind spot that is
+//! left** (it moved here with the columns, because this is where their
+//! meaning now lives): the per-triangle certificate reads the raw
+//! per-cell bounds independent of the schedule, so an undersizing bug
+//! ends in refinement then a typed refusal; `tools/tess-lint`'s growth
+//! rules against the committed baseline; and the committed render
+//! cells. **The blind spot: a schedule bug that makes the grid COARSER
+//! while still certifying is invisible to a growth-only gate.**
+//! Accepted because the certificate is the guarantee; stated so the
+//! gate is not read as more than it is.
+//!
+//! **No column reports the lane's REALISATION of the schedule**, and
+//! that is deliberate rather than owed — `docs/TESS-BUDGET.md`, "Why
+//! there is no realisation column". The short form: such a ratio
+//! divides what the lane built by what the schedule asked for, so it
+//! is blind to the schedule bug above by construction; a lane that
+//! realises the schedule too coarsely fails the per-triangle
+//! certificate exactly, and one that realises it too densely grows
+//! the triangle count, which the gate bounds at a scene total rather
+//! than catches; and a realised point count matches no stated value
+//! anyway, because a shared band cut carries the union of both bands'
+//! columns, so a ratio built on it could not be given a tighter
+//! tolerance than the one already there.
+//!
+//! | factor | ratio | what it says |
+//! |---|---|---|
+//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing (both sides through the shipped selection). Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
+//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. Since TESS-SPLIT the shipped selection IS the cell-minimizing point under the ratified A = 16 aspect cap, so this reads ~1.0 where no constraint is active; the residue above 1.0 is the PRICE of the cap and the sliver snap (the denominator is the UNCONSTRAINED optimum — the anisotropy caveat below), attributed per face by `cap_bands` / `snap_bands`. |
+//! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
+//! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
+//!
+//! `opt_cells` (cheapest split under the WHOLE-PATCH bound) rides
+//! along with the counterfactual for continuity with the #547
+//! measurement; `span_opt_cells` (per-cell sizing AND the cheapest
+//! split per cell) is the recoverable-slack denominator the gate
+//! compares.
+//!
+//! **The anisotropy caveat on split slack, stated because the number
+//! is otherwise too flattering**: the cheapest point on the constraint
+//! curve is genuinely certified, but on a ruled wall it is a STRIP —
+//! one division across the flat direction and thousands along the
+//! curved one (measured on #320's leaf: `70 × 328` becomes `1 × 4905`,
+//! a parameter aspect near 5·10³). Nothing in the certificate objects,
+//! and nothing downstream of it has been asked whether it minds.
+//! `opt_cells` is therefore an UPPER BOUND on what a practical
+//! schedule recovers; since TESS-SPLIT the shipped schedule IS the
+//! aspect-capped point (through the first fundamental form, since
+//! parameter aspect is not 3-D aspect), so it lands between the strip
+//! optimum and the retired AM-GM point, and the gap that remains
+//! against `opt_cells`/`span_opt_cells` is the cap's deliberate,
+//! indicated price. The span factor carries no such caveat — it
+//! changes where divisions go, not how elongated a cell is.
+//!
+//! The product of the last two, `delta / worst_dev`, is the **total
+//! slack**: the factor by which the deviation budget went unspent.
+//! Because a triangle's deviation scales like `h²` and its count like
+//! `1/h²`, a first-order extrapolation of "what an oracle-sized
+//! uniform grid would have cost" is `triangles · worst_dev / delta`.
+//!
+//! **That extrapolation is an estimate, and the row says so**: it holds
+//! only while the local Hessian is what it is, so it is a sizing
+//! signal, never a bound. `worst_dev` is likewise a SAMPLED sup
+//! (barycentric samples per triangle, at the density the meter was
+//! armed with), so it under-reports the true deviation and therefore
+//! over-reports the available saving. The counted-grid columns carry
+//! no such caveat: they are computed from certified bounds and the
+//! lane's own step rule, with each cell's `ceil` paid honestly.
+//!
+//! # Which columns may carry a fallback: none of them
+//!
+//! **Every column here is read by a DIFFERENTIAL gate, so a reading
+//! this crate could not take has two ways to lie and not one.**
+//! `tools/tess-lint` fires on `now > was · GROWTH_TOLERANCE`. In the
+//! FRESH row an invented in-band number pushes the verdict one way; in
+//! the COMMITTED BASELINE the same number pushes it the other, by
+//! inflating `was` until a real regression fits underneath. A
+//! disposition that reasons about the direction on one of those rows
+//! has answered half the question and reads as if it answered all of
+//! it, so the question is settled here for every column at once rather
+//! than per site.
+//!
+//! **The line is not which column, it is what the value means.** An
+//! unconstrained direction is a READING: `h = ∞`, or a certified
+//! `Q(t) = 0`, says this direction constrains nothing, the answer is
+//! one division, and that answer is as correct in the gated
+//! `span_opt_cells` as in the counterfactual `nu`. A value that could
+//! not be read is not a reading, and nothing here answers one: a NaN
+//! sup, a negative or zero step, a NaN extent, a cell box with a NaN
+//! corner. Those panic. The reason they may not fall back is
+//! arithmetic rather than taste — every fallback available is a small
+//! count, the gate fires only on GROWTH, and a small count is in band
+//! on the fresh row and hides growth on the baseline row. `divisions`'
+//! fallback was `1.0`, and **nothing downstream would have caught
+//! it**: `tess-lint`'s `Admissible::CellCount` admits
+//! `v.is_finite() && v >= 1.0`, so `1.0` is exactly the smallest value
+//! it calls a reading. A parse guard bounds what a column may SAY; it
+//! cannot know whether the producer measured it.
+//!
+//! **The counterfactual columns are not an exception to this, and the
+//! argument that they were has since expired.** `nu`, `nv`,
+//! `patch_cells` and `opt_cells` were written as diagnostics no rule
+//! read, so a fabricated value there decided nothing — a safety that
+//! was a property of the CONSUMER ROSTER and not of the column, which
+//! is a fallback waiting for a consumer. The consumers arrived:
+//! `tess-lint`'s `IDENTITY_MEASURES` makes `nu` and `nv` gate inputs
+//! (its rule 4 keys a face on them), its report prints the
+//! `patch_cells` total as the whole-patch counterfactual, and its
+//! `parse` now refuses a row whose columns disagree about either of
+//! the two identities [`columns`] writes. Nothing here changed when
+//! they did, which is the whole reason the fallbacks were refused
+//! before there was a consumer to point at.
+//!
+//! # What is measured for which chart
+//!
+//! Every face gets a row (chart kind + triangle count) — the question
+//! "which face IS the scene's cost" needs the planar and cylinder rows
+//! to be answerable. Only the NURBS lane fills the sizing columns:
+//! it is the lane whose grid is Hessian-sized, and the one #320 is
+//! about. Non-NURBS rows leave those columns empty rather than
+//! reporting a zero that would read as a measurement.
+//!
+//! An empty tail is therefore a statement about the face's LANE, and
+//! it is typed as one ([`Sizing`]) so that a missing measurement
+//! cannot borrow it: a sized-lane face `measures` does not cover is a
+//! refusal, not a row.
+
+use std::collections::HashMap;
+
+use geom::SurfaceKind;
+use mesh::Mesh;
+use mesh::budget::{CellMeasure, FaceMeasure};
+use topo::Body;
+
+/// Barycentric samples per triangle edge for a sizing sweep's
+/// deviation pass. 6 is a judgment call about cost: the leaf of #320
+/// is a quarter-million triangles, and 28 samples each is already 7M
+/// surface evaluations.
+///
+/// **The triangle count is a reading of one corpus at one time and
+/// nothing re-takes it** — it moves with every scene added to the demo
+/// tour and with every δ. It is written to show the ORDER the judgment
+/// was made against, not as a figure anyone should compute with; the
+/// 28 beside it is arithmetic on this constant (the barycentric lattice
+/// at edge samples 6) and follows it. Nothing is guarded here and
+/// nothing should be: this constant costs only the deviation pass,
+/// which is what `--sizing-only` skips, and the CI gate reads none of
+/// the columns it fills (`scripts/tess_budget_sweep.sh` says so at the
+/// flag). What a reader chasing the current triangle count wants is a
+/// sweep's own output, not this line.
+pub const DEV_SAMPLES: usize = 6;
+
+/// Is a face of this chart one the meter measures — i.e. does its
+/// row OWE the Hessian-sized columns?
+///
+/// This is the meter's contract read from the chart alone, which
+/// is all a row has: `mesh` hands a `FaceMeasure` over for exactly
+/// the faces its trimmed lane took on the NURBS arm, and that arm
+/// is chosen by surface kind — a described NURBS face, or an
+/// approximating surface meshed on its fit. Every other chart is
+/// measured by nothing, so its sizing columns are empty because
+/// there is nothing to put in them.
+///
+/// **No wildcard arm.** A surface kind added to `geom` is a face kind
+/// whose lane nobody has yet decided, and the compiler is the
+/// right party to ask.
+pub fn sized_lane(chart: SurfaceKind) -> bool {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    match chart {
+        Plane | Cylinder | Cone | Sphere | Torus => false,
+        Nurbs | Approx => true,
+    }
+}
+
+/// The Hessian-sized lane's own columns (module docs).
+#[derive(Clone, Copy, Debug)]
+pub struct NurbsColumns {
+    /// The trim box the grid spans: `u` extent.
+    pub u: (f64, f64),
+    /// The trim box the grid spans: `v` extent.
+    pub v: (f64, f64),
+    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions a
+    /// whole-patch-sup schedule would use over the trim box, `u`
+    /// direction — through the SHIPPED point selection
+    /// (`FaceMeasure::patch_steps`, since TESS-SPLIT the aspect-capped
+    /// one), so the column keeps meaning "what per-cell sizing saves"
+    /// as the selection moves.
+    pub nu: f64,
+    /// The whole-patch counterfactual's `v` divisions.
+    pub nv: f64,
+    /// `sup ‖S_uu‖` of the whole-patch bound (the counterfactual's
+    /// input; still the chord pass's boundary schedule).
+    pub muu: f64,
+    /// `sup ‖S_uv‖` of that bound.
+    pub muv: f64,
+    /// `sup ‖S_vv‖` of that bound.
+    pub mvv: f64,
+    /// `sup ‖S_u‖` of that bound — the first-fundamental-form sample
+    /// the shipped selection's 3-D aspect cap reads (TESS-SPLIT).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` of that bound.
+    pub mv1: f64,
+    /// Analysis cells the per-cell bound reported (knot spans for the
+    /// integral arm, refined cells for the rational one).
+    pub cells: usize,
+    /// The grid the lane ACTUALLY built (TESS-SPAN: per-cell sizing),
+    /// as a cell count.
+    pub grid_cells: f64,
+    /// `nu · nv` — the whole-patch counterfactual's cell count (the
+    /// pre-TESS-SPAN `uniform_cells` column, kept so the held span
+    /// gain stays a number — module docs).
+    pub patch_cells: f64,
+    /// The cheapest uniform grid the SAME whole-patch bound admits,
+    /// over the same box (rides with the counterfactual).
+    pub opt_cells: f64,
+    /// Per-cell sizing AND the cheapest split in each cell — the two
+    /// recoverable factors together, which is not their product.
+    pub span_opt_cells: f64,
+    /// The largest per-triangle certificate the face emitted.
+    pub worst_cert: f64,
+    /// The largest SAMPLED `|S − Π|`, or `f64::NAN` when the meter was
+    /// not armed for deviation.
+    pub worst_dev: f64,
+    /// How many deviation samples that maximum is over (0 when not
+    /// armed for deviation).
+    pub dev_samples: u64,
+    /// Bands the shipped schedule emitted.
+    pub bands: usize,
+    /// **The constraint-activity indicator (TESS-SPLIT D-3), A-cap
+    /// kind**: bands whose step selection the 3-D aspect cap clamped.
+    /// Reported by the lane, never re-derived — the selection rule is
+    /// not re-spelled outside it.
+    pub cap_bands: usize,
+    /// The indicator's sliver/snap kind: bands the malign-band snap
+    /// projected onto the patch column schedule with changed counts
+    /// (either direction — columns added, or columns traded for rows).
+    pub snap_bands: usize,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v` — the realized aspect `SAFE_ASPECT` judges,
+    /// reported so "which faces sit above the sliver line, under which
+    /// protection" is read off the CSV.
+    pub realized_aspect: f64,
+}
+
+/// What a row says about the Hessian-sized lane's columns.
+///
+/// **The type has two states because only two of them are lane facts.**
+/// The CSV spells [`Self::OffLane`] as empty columns, and a reader —
+/// `tools/tess-lint` included — takes that as *"this face is not on
+/// the sized lane"*. An `Option` cannot hold that claim apart from
+/// *"nobody looked, or the lookup missed"*, and the two are opposite
+/// readings of the same row: the first says the budget has no sizing
+/// to account for here, the second says the accounting is short by a
+/// face nobody will notice. So the miss is not a state of this enum —
+/// it is refused rather than carried to a consumer that cannot tell it
+/// apart.
+///
+/// **The type is not itself the guarantee, and where the guarantee is
+/// matters.** Nothing here ties a variant to a [`SurfaceKind`]: both
+/// variants are `pub`, [`FaceRow`]'s fields are `pub`, and
+/// `FaceRow { chart: SurfaceKind::Nurbs, sizing: Sizing::OffLane, .. }` is a
+/// legal struct literal. The pairing is refused at the two sites that
+/// can see both halves — `sizing_of`, where [`face_rows`] DERIVES the
+/// state from a lookup, and [`FaceRow::csv_row`], where the state is
+/// WRITTEN. The second is what makes the claim about the CSV rather
+/// than about one constructor: a row assembled field by field never
+/// passes the first, and the writer is the last place the claim is
+/// still checkable.
+#[derive(Clone, Copy, Debug)]
+pub enum Sizing {
+    /// The face's chart is not the sized lane's ([`sized_lane`]),
+    /// so there is nothing to report and the CSV's sizing columns are
+    /// EMPTY — not zero, which would read as a measured zero.
+    OffLane,
+    /// The sized lane's columns, derived from that face's measurement.
+    Measured(NurbsColumns),
+}
+
+impl Sizing {
+    /// The columns, where there are any.
+    pub fn columns(self) -> Option<NurbsColumns> {
+        match self {
+            Sizing::OffLane => None,
+            Sizing::Measured(n) => Some(n),
+        }
+    }
+}
+
+/// A durable per-face name, as the CSV carries it: an opaque token
+/// the gate joins on and never decodes.
+///
+/// **What this type guarantees is that the token can be a CSV field,
+/// and only that.** The inner text is private, so every value came
+/// through [`FaceName::new`] and carries no comma, no newline and no
+/// emptiness — the three ways a token would widen a row, split a row,
+/// or spell the absence an empty column already means. Unlike
+/// [`Sizing`], whose pairing is refused where the row is WRITTEN
+/// because its fields are `pub`, this one needs no second check: the
+/// only door is the constructor.
+///
+/// **It guarantees nothing about INJECTIVITY, and cannot.** Two faces
+/// answering to one token is a defect in whatever minted them, in
+/// another crate, and this crate has no way to see it — the same
+/// boundary `tools/README.md`'s `CC4` draws for the lint. What the
+/// producer owes is that distinct faces get distinct tokens; what this
+/// crate owes is that a token it accepts survives the file format.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FaceName(String);
+
+/// Why a would-be [`FaceName`] is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaceNameError {
+    /// Empty: the spelling an ABSENT name already has, so a present
+    /// one may not wear it.
+    Empty,
+    /// Carries a `,` or a newline: the field separator and the row
+    /// separator, either of which would re-shape the row.
+    NotOneField,
+}
+
+impl FaceName {
+    /// A name from a producer's rendering of it.
+    ///
+    /// # Errors
+    ///
+    /// [`FaceNameError`], whose two arms are the whole invariant.
+    pub fn new(text: impl Into<String>) -> Result<Self, FaceNameError> {
+        let text = text.into();
+        if text.is_empty() {
+            return Err(FaceNameError::Empty);
+        }
+        if text.contains(',') || text.contains('\n') || text.contains('\r') {
+            return Err(FaceNameError::NotOneField);
+        }
+        Ok(Self(text))
+    }
+
+    /// The token.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The producer's per-face names for ONE body, by the key the mesh's
+/// patches carry.
+pub type FaceNames = HashMap<topo::FaceKey, FaceName>;
+
+/// One face's budget row.
+#[derive(Clone, Debug)]
+pub struct FaceRow {
+    /// The face's ordinal in the body's face arena (D9 order — stable
+    /// for a given body, and printable, which a slotmap key is not).
+    pub face: usize,
+    /// The durable name of that face, where the producer had one.
+    ///
+    /// **`None` is a claim about the PRODUCER, not about the face.**
+    /// A tour scene built outside the document layer has no evaluation
+    /// to name its faces from, and the honest column there is empty;
+    /// every face of a body that DOES arrive with a name table gets a
+    /// name, because [`face_rows`] refuses a table that misses one.
+    pub name: Option<FaceName>,
+    /// The chart its lane used.
+    pub chart: SurfaceKind,
+    /// The δ the mesh was requested at.
+    pub delta: f64,
+    /// Triangles the face contributed.
+    pub triangles: usize,
+    /// The Hessian-sized lane's columns, or the lane fact that there
+    /// are none.
+    pub sizing: Sizing,
+}
+
+/// The CSV header the sweep writes and `tools/tess-lint` reads.
+///
+/// **Where `name` sits is forced, not chosen for looks.** Everything
+/// after `triangles` is the NURBS lane's tail, and
+/// [`FaceRow::csv_row`]'s off-lane arm writes that whole tail as
+/// `nurbs_column_count()` empty fields — so a column placed there
+/// would be blank on every plane, cylinder, cone, sphere and torus row
+/// whatever the producer knew, and its emptiness would be the LANE's
+/// claim rather than the name's. A per-face name belongs to every row,
+/// so it belongs at or before `triangles`. Within that head block it
+/// goes beside `face`, because `(scene, face)` is the gate's join key
+/// and this is the durable half of it: the identity reads contiguously
+/// and ahead of everything measured, which is the order the rest of
+/// the header already keeps.
+pub const CSV_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
+                              muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
+                              opt_cells,span_opt_cells,worst_cert,worst_dev,\
+                              dev_samples,bands,cap_bands,snap_bands,realized_aspect";
+
+/// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
+/// column after `triangles`, which is the last one every row fills.
+fn nurbs_column_count() -> usize {
+    CSV_HEADER.split(',').count()
+        - CSV_HEADER
+            .split(',')
+            .take_while(|c| *c != "triangles")
+            .count()
+        - 1
+}
+
+impl FaceRow {
+    /// This row as CSV under `scene`, in [`CSV_HEADER`] order. NURBS
+    /// columns are EMPTY (not zero) on a non-NURBS row — a zero there
+    /// would read as a measured zero, and an empty tail is a claim
+    /// about the LANE ([`Sizing`]), never about the lookup.
+    ///
+    /// Floats print `{:e}`, which round-trips through `str::parse`.
+    ///
+    /// # Panics
+    ///
+    /// On a row whose `chart` and `sizing` disagree about the lane —
+    /// the same 2×2 `sizing_of` refuses, checked again where the claim
+    /// is WRITTEN. This struct's fields are `pub`, so the pairing the
+    /// lookup cannot produce is still a legal struct literal and
+    /// reaches here: a `nurbs` chart carrying [`Sizing::OffLane`]
+    /// would print the empty tail — the spelling every consumer reads
+    /// as *"not on the sized lane"* — over a face that is on it.
+    pub fn csv_row(&self, scene: &str) -> String {
+        match (sized_lane(self.chart), self.sizing) {
+            (true, Sizing::OffLane) => panic!(
+                "face {} is chart `{}`, the Hessian-sized lane's, and carries no columns: \
+                 the empty tail this would write says the face is OFF that lane",
+                self.face,
+                self.chart.name()
+            ),
+            (false, Sizing::Measured(_)) => panic!(
+                "face {} is chart `{}`, which the meter measures nothing about, and \
+                 carries the sized lane's columns anyway",
+                self.face,
+                self.chart.name()
+            ),
+            (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
+        }
+        let head = format!(
+            "{scene},{},{},{},{:e},{}",
+            self.face,
+            self.name.as_ref().map_or("", FaceName::as_str),
+            self.chart.name(),
+            self.delta,
+            self.triangles
+        );
+        match self.sizing {
+            // The empty tail is COUNTED from the header rather than
+            // written as a run of commas, so a new column cannot make
+            // the two arms disagree about the row's width.
+            Sizing::OffLane => format!("{head}{}", ",".repeat(nurbs_column_count())),
+            Sizing::Measured(n) => format!(
+                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
+                 {:e},{:e},{:e},{:e},{:e},{:e},{},{},{},{},{:e}",
+                n.u.0,
+                n.u.1,
+                n.v.0,
+                n.v.1,
+                n.nu,
+                n.nv,
+                n.muu,
+                n.muv,
+                n.mvv,
+                n.mu1,
+                n.mv1,
+                n.cells,
+                n.grid_cells,
+                n.patch_cells,
+                n.opt_cells,
+                n.span_opt_cells,
+                n.worst_cert,
+                n.worst_dev,
+                n.dev_samples,
+                n.bands,
+                n.cap_bands,
+                n.snap_bands,
+                n.realized_aspect
+            ),
+        }
+    }
+}
+
+/// One row per face of `body`, in face-arena order (D9), from the mesh
+/// it produced and the measurements the meter took while producing it.
+///
+/// The head columns come from the body and the mesh, not from the
+/// kernel: a face's chart and triangle count are already in what
+/// `tessellate` returned, so the meter is not asked to report them.
+///
+/// # Panics
+///
+/// If `mesh` did not come from tessellating `body` — a patch naming a
+/// face the body does not have is harness breakage, not a measurement.
+///
+/// If `measures` names one face twice — two tessellations' output in
+/// one slice, where the row can carry one reading.
+///
+/// If `measures` and `body` disagree about which faces the sized lane
+/// took: a face on that lane no measurement covers, or a measurement
+/// naming a face that is not. Both are the same breakage one field
+/// over — a mesh, a body and a measurement slice that did not come
+/// from one armed tessellation — and [`sizing_of`] argues why neither
+/// may become a row instead.
+pub fn face_rows(
+    delta: f64,
+    body: &Body<f64>,
+    mesh: &Mesh,
+    measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
+) -> Vec<FaceRow> {
+    let by_face: HashMap<topo::FaceKey, &FaceMeasure> =
+        measures.iter().map(|m| (m.face, m)).collect();
+    // A `collect` into a map DROPS a collision, and the collision it
+    // would drop here is a face measured twice: two readings of one
+    // face where the row carries one, picked by iteration order. The
+    // meter hands each face over exactly once per tessellation, so
+    // this is measurements from two of them in one slice.
+    assert_eq!(
+        by_face.len(),
+        measures.len(),
+        "{} measurements name only {} distinct faces: a face measured twice is two \
+         tessellations' measurements in one slice",
+        measures.len(),
+        by_face.len()
+    );
+    mesh.patches
+        .iter()
+        .enumerate()
+        .map(|(ordinal, patch)| {
+            let surface = body
+                .get_face(patch.face)
+                .and_then(|f| body.get_surface(f.surface))
+                .expect("the mesh's patches name this body's faces");
+            let chart = surface.kind();
+            FaceRow {
+                face: ordinal,
+                name: name_of(ordinal, patch.face, names),
+                chart,
+                delta,
+                triangles: patch.triangles.len(),
+                sizing: sizing_of(ordinal, chart, by_face.get(&patch.face).copied()),
+            }
+        })
+        .collect()
+}
+
+/// One face's name, from whatever the producer handed over.
+///
+/// **The two absences are not the same, and only one of them is a
+/// row.** A caller with `None` has no name source at all — a tour
+/// scene built outside the document layer, which is the ruled-
+/// acceptable outcome for this column — and every row it writes is
+/// honestly unnamed. A caller that DID hand over a table has claimed
+/// the table is this body's, and the N4 table of a node covers every
+/// boundary entity of its output body; so a face missing from it is
+/// the wrong body's table, whose every other row would then be a name
+/// attached to the wrong face. That is the same breakage
+/// [`sizing_of`] refuses one field over, and it is refused here for
+/// the same reason: it cannot become a row.
+///
+/// # Panics
+///
+/// If `names` is `Some` and does not name `face`.
+fn name_of(ordinal: usize, face: topo::FaceKey, names: Option<&FaceNames>) -> Option<FaceName> {
+    let table = names?;
+    let name = table.get(&face).unwrap_or_else(|| {
+        panic!(
+            "face {ordinal} has no name in the table the caller handed over: a name table \
+             that misses a face of this body is another body's table, and its other rows \
+             name the wrong faces"
+        )
+    });
+    Some(name.clone())
+}
+
+/// One face's [`Sizing`], from the chart its row already carries and
+/// whatever measurement the lookup found for it.
+///
+/// **The 2×2 is the point, and two of its cells are refusals.** Only
+/// two of the four combinations are a state this crate can write down;
+/// the other two are the chart and the meter disagreeing about which
+/// lane a face took, and each would otherwise leave the CSV saying
+/// something false and saying it quietly:
+///
+/// - a sized-lane face no measurement covers would take the EMPTY
+///   sizing tail, which is [`Sizing::OffLane`]'s spelling and reads
+///   everywhere as *"this face is not on the sized lane"* — so the
+///   face would drop out of the budget's accounting without appearing
+///   anywhere as missing. **The reachable way in is an ARMED run whose
+///   measurements are not THIS tessellation's**: `mesh::budget::take`
+///   disarms as it drains, so a slice held across a second
+///   `tessellate`, or taken for another body or another δ, covers
+///   faces this mesh does not — and every face it misses reads as a
+///   plane's. A caller that armed nothing at all lands here too, over
+///   the whole corpus rather than a face. What CANNOT reach it is a
+///   build without the `budget` feature: `arm` and `take` do not exist
+///   there, so a caller of either does not compile.
+/// - an off-lane face WITH a measurement would hang the sized lane's
+///   columns on a chart nothing sizes that way.
+///
+/// A fallback cannot improve either, and the reason is the one stated
+/// once for every column (module docs, *Which columns may carry a
+/// fallback: none of them*): these columns are read by a DIFFERENTIAL
+/// gate, so a value this crate could not take has two ways to lie.
+fn sizing_of(ordinal: usize, chart: SurfaceKind, measure: Option<&FaceMeasure>) -> Sizing {
+    match (sized_lane(chart), measure) {
+        (false, None) => Sizing::OffLane,
+        (true, Some(m)) => Sizing::Measured(columns(m)),
+        (true, None) => panic!(
+            "face {ordinal} is chart `{}`, the Hessian-sized lane's, and no measurement \
+             covers it: the meter was not armed for this tessellation, or these are not \
+             the measurements it took",
+            chart.name()
+        ),
+        (false, Some(_)) => panic!(
+            "face {ordinal} is chart `{}`, which the meter measures nothing about, and a \
+             measurement names it anyway",
+            chart.name()
+        ),
+    }
+}
+
+/// The whole CSV for one scene, header included.
+pub fn csv(
+    scene: &str,
+    delta: f64,
+    body: &Body<f64>,
+    mesh: &Mesh,
+    measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
+) -> String {
+    let mut out = String::from(CSV_HEADER);
+    out.push('\n');
+    for row in face_rows(delta, body, mesh, measures, names) {
+        out.push_str(&row.csv_row(scene));
+        out.push('\n');
+    }
+    out
+}
+
+/// The NURBS columns of one face's measurements: the counterfactual
+/// schedules and the cheapest splits, derived from the certified
+/// bounds the lane read.
+///
+/// **Two of these columns are RELATIONS the consumer refuses a row
+/// for breaking**, and they are stated here because here is where
+/// they are made: `patch_cells` is exactly `nu · nv`, and `opt_cells`
+/// can never exceed it, since [`best_split_scan`] seeds its running
+/// minimum with the same whole-patch schedule `nu` and `nv` count.
+/// `tools/tess-lint`'s `parse` checks both at its reading boundary
+/// (`tools/README.md`'s `CC3`), in the harness voice — it may not
+/// assume this function computed them, which is the same posture the
+/// module header takes toward every column. Changing either identity
+/// here reds that gate, and this note is the only warning a reader in
+/// this cargo root gets.
+fn columns(m: &FaceMeasure) -> NurbsColumns {
+    let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
+    // The retired whole-patch schedule, re-derived as the
+    // counterfactual (TESS-SPAN D-4): same steps, same ceil.
+    let (nu, nv) = (
+        divisions(du, m.patch_steps.0),
+        divisions(dv, m.patch_steps.1),
+    );
+    let patch = Bound {
+        muu: m.muu,
+        muv: m.muv,
+        mvv: m.mvv,
+        steps: m.patch_steps,
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let grid_cells = m.grid_cells as f64;
+    NurbsColumns {
+        u: m.u,
+        v: m.v,
+        nu,
+        nv,
+        muu: m.muu,
+        muv: m.muv,
+        mvv: m.mvv,
+        mu1: m.mu1,
+        mv1: m.mv1,
+        cells: m.cells.len(),
+        grid_cells,
+        patch_cells: nu * nv,
+        opt_cells: best_split_cells(patch, du, dv, m.delta_s),
+        span_opt_cells: span_opt_cells(&m.cells, m.u, m.v, m.delta_s),
+        worst_cert: m.worst_cert,
+        worst_dev: m.worst_dev,
+        dev_samples: m.dev_samples,
+        bands: m.bands,
+        cap_bands: m.cap_bands,
+        snap_bands: m.snap_bands,
+        realized_aspect: m.realized_aspect,
+    }
+}
+
+/// A certified Hessian bound and the grid steps it admits at the
+/// face's sizing target — the shape [`best_split_steps`] optimizes
+/// around, whether it came from the whole patch or from one cell.
+#[derive(Clone, Copy, Debug)]
+pub struct Bound {
+    /// `sup ‖S_uu‖`.
+    pub muu: f64,
+    /// `sup ‖S_uv‖`.
+    pub muv: f64,
+    /// `sup ‖S_vv‖`.
+    pub mvv: f64,
+    /// The lane's own `(h_u, h_v)` for this bound, as the kernel
+    /// reported them — the schedule the optimizer must never lose to.
+    pub steps: (f64, f64),
+}
+
+impl From<&CellMeasure> for Bound {
+    fn from(c: &CellMeasure) -> Self {
+        Bound {
+            muu: c.muu,
+            muv: c.muv,
+            mvv: c.mvv,
+            steps: c.steps,
+        }
+    }
+}
+
+/// Grid divisions an extent needs at step `h`. An unconstrained
+/// direction (`h = ∞`, e.g. the ruled direction of a wall with
+/// `muv = 0`) takes one, and `ceil(extent / ∞)` floored at one already
+/// says so — the arithmetic answers it, so no arm decides it.
+///
+/// **It is the second spelling of the lane's `sizing::ceil_count`, and
+/// it deliberately does not match it.** They cannot share an import —
+/// two cargo roots — so the divergence is stated instead of left to be
+/// discovered: `ceil_count` REFUSES a count at or above its
+/// `MAX_COUNT` (2^24) with a typed error, because it is about to
+/// allocate that many grid points. This one counts and returns,
+/// because it sizes nothing: an absurd counterfactual is a large
+/// number in a diagnostic column, and turning it into a refusal would
+/// make the meter able to fail a tessellation that succeeded.
+///
+/// The shared part — `ceil(extent / h)`, floored at one — is the part
+/// the columns are comparable through, and it is identical. The
+/// different NAME is the tell: the lane says *count* for a `usize`
+/// division count it is about to allocate for, and this says
+/// *divisions* for an `f64` counterfactual that allocates nothing.
+///
+/// # Panics
+///
+/// On a step or an extent that is not a reading — a NaN or non-positive
+/// step, a non-finite or negative extent. That is this crate's fallback
+/// rule (module docs) applied where the number is produced: every
+/// column here is read by a differential gate on TWO rows, so an
+/// invented in-band value hides a regression on one of them whichever
+/// way it leans. Note that without the step assertion `.max(1.0)` would
+/// swallow a NaN silently — `f64::max` prefers its non-NaN argument —
+/// and hand the gate a fabricated single division, which `tess-lint`
+/// ADMITS (`Admissible::CellCount` is `v.is_finite() && v >= 1.0`)
+/// rather than refuses.
+///
+/// This is the meter's second divergence from `ceil_count`, in the
+/// stricter direction: the lane refuses a NaN and a zero step (both
+/// make its `raw` non-finite) and answers ONE for a negative step,
+/// whose `raw` is negative, finite and floored. A negative step is not
+/// a smaller counterfactual; it is a reading that did not happen.
+///
+/// **Nothing in the tree reaches these assertions, and that is a trace
+/// rather than a hope.** Two kernel gates run strictly before
+/// `mesh::budget::note_face` and admit strictly less than this refuses:
+/// `mesh::tessellate` returns `InvalidChordalTolerance` unless
+/// `chordal` is finite and positive, and `δ_s` is `chordal · 0.5`; and
+/// `nurbs_cert`'s `nurbs_face_bound` and `nurbs_cell_grid` both return
+/// `UnsupportedNurbsFace` (*"second-derivative hull is
+/// unbounded/refused"*) unless every component of the bound is finite.
+/// Non-negativity rides along with those components being sups of
+/// norms. So the refusals guard the meter against a kernel that stopped
+/// doing that, not against inputs it meets today.
+pub fn divisions(extent: f64, h: f64) -> f64 {
+    assert!(
+        h > 0.0,
+        "a grid step of {h} is not a reading: the meter has no division count to report"
+    );
+    assert!(
+        extent.is_finite() && extent >= 0.0,
+        "an extent of {extent} is not a reading: the meter has no division count to report"
+    );
+    (extent / h).ceil().max(1.0)
+}
+
+/// How many `t = h_v / h_u` aspect ratios [`best_split_cells`] tries,
+/// and over how many decades either side of square. A SCAN, not a
+/// closed form, and deliberately: the closed-form interior optimum
+/// (`h_v/h_u = √(muu/mvv)`, from `∇(h_u·h_v) ∥ ∇Q`) degenerates
+/// exactly where these walls live — a ruled direction has `muu = 0`
+/// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
+/// two `ceil`s make the true objective a step function anyway.
+///
+/// # What boxes these two, and what nothing can box
+///
+/// **What they guarantee is a resolution in aspect ratio, and not a
+/// bound on the answer** — so that is what carries the guard, and
+/// `tests/derivations.rs` boxes its two failure modes separately: a
+/// RANGE too narrow to bracket the optimum (the scan's argmin lands on
+/// an endpoint) and a STEP too coarse to resolve it
+/// ([`unfloored_worst_excess`] over the ceiling the split column's
+/// consumer can absorb).
+///
+/// **The guarantee is analytic on both classes, and the difference
+/// between them is `divisions`' one-division floor.** Where the optimum
+/// is the interior stationary point ([`optimum_is_unfloored`]) the
+/// excess is bounded by [`unfloored_worst_excess`]; where the floor
+/// binds the objective has a KINK instead, the excess grows linearly
+/// rather than quadratically in the distance to the nearest sample, and
+/// [`floored_worst_excess`] bounds that from the kink's two exact
+/// branch ratios. At the shipped pair they are 0.11876% and 1.75540%,
+/// and the second is a supremum rather than a sample — derived, not
+/// searched. A random search over drawn floored bounds found nothing
+/// above it, which is corroboration and not the argument; the draw is
+/// not recorded, so no figure from it is quoted here (see
+/// [`floored_worst_excess`]).
+///
+/// # What these two constants do NOT hold, and what the sample count
+/// is chosen against
+///
+/// **Both bounds are on the CONTINUOUS objective**, which is what these
+/// constants govern smoothly. `tools/tess-lint` divides by
+/// `span_opt_cells`, which is the `ceil`'d one, and no closed form here
+/// bounds THAT. What the sample count answers to instead is the
+/// ONE-SIDED envelope `10^(decades/(samples − 1)) − 1`: the factor one
+/// whole sampling step in aspect ratio costs on the CONTINUOUS cost,
+/// which is the resolution these two constants buy and the whole of
+/// what they buy. At `SPLIT_SCAN_DECADES = 8` it is **4.9939%** at 379
+/// samples and 5.0075% at 378, so 379 is the smallest count that puts
+/// that envelope inside `tess_lint::GROWTH_TOLERANCE − 1 = 5%` — the
+/// consumer's ENTIRE margin, which it documents as the allowance for an
+/// honest small mover. Below that count the continuous excess ALONE
+/// could spend the gate's whole margin on the instrument, with no
+/// schedule change at all.
+///
+/// **THE ENVELOPE IS NOT A BOUND ON THE `ceil`'d EXCESS, AND NOTHING
+/// HERE IS.** It bounds the continuous cost of a missed aspect ratio;
+/// [`divisions`]' two `ceil`s sit on top of it, and a division is an
+/// integer — a scan that misses the optimal aspect by a fraction of a
+/// division still pays a WHOLE one, which is a larger relative move the
+/// fewer divisions the answer has. The derivations suite's
+/// `the_ceild_excess_can_exceed_the_one_sided_envelope` exhibits that
+/// in closed numbers: `muu = 100, muv = 0, mvv = 0.1` over a `1 × 10`
+/// box at `δ_s = 1` admits a 13 × 5 grid at `t = 26`, which the lattice
+/// does not contain, and the shipped scan reports **70** cells against
+/// that **65** — **7.6923%**, half again the envelope. Any sentence
+/// here calling the envelope the largest factor a `ceil`'d count can
+/// inherit from the lattice is false, and this is the counterexample.
+///
+/// **How far over it goes is set by the DIVISION count, and the corpus's
+/// is small.** One missed division out of `n` costs `1/n`, so the
+/// SMALLEST excess a miss can cost is set by the coarsest axis of the
+/// answer, and nothing about how fine the aspect lattice is changes
+/// that quantum. `span_opt_cells` is a sum of per-ANALYSIS-CELL
+/// optima, and on the committed baseline the
+/// median per-cell optimum is **44.4 cells** — near seven divisions an
+/// axis if square — with **56 of the 64 sized faces averaging under
+/// 100** and eleven under 25. A whole division out of seven is 14%,
+/// three times the envelope, and that arithmetic is a reading of the
+/// baseline rather than a draw. It is also why the exhibit above is at
+/// 65 cells and not at 65,000.
+///
+/// **Random searches say the same thing and agree on nothing else.**
+/// Three independent ones, each drawing bounds against a far finer
+/// lattice on the same range, all found exceedances, all found both
+/// their frequency and their size falling as the answer's division
+/// counts rise, and all put the large excesses — tens of percent —
+/// below a hundred true cells against single digits above. They
+/// disagree about whether the highest band is clean: two found no
+/// exceedance above `1e5` true cells and the third did, at 6%. None of
+/// the three draws is recorded, which is exactly why they cannot be
+/// reconciled, and no proportion from any of them is quoted here as a
+/// reading.
+///
+/// **So what the sample count bought is stated exactly.** It bounds the
+/// aspect scan's resolution, which is the continuous half; on the
+/// derivations suite's eight bounds it also takes the `ceil`'d worst
+/// from 5.88% at 321 samples to 2.94% at 379, which is a measurement
+/// over that family and not a bound over the class. The `ceil`
+/// quantisation on top is neither bounded here nor bounded anywhere,
+/// and `tools/tess-lint`'s margin is not protected from it.
+///
+/// **The other lever is narrowing the range, and that question is
+/// open**: 3.7 decades would bring the same envelope to 2.2794% and
+/// every claim in the derivations suite stays green, because no family
+/// member's optimum lives above `t = 1`. Nothing in this tree
+/// characterises what `muu/mvv` ratios real certified bounds produce,
+/// so narrowing to the family's spread would be fitting the constant to
+/// the test — the range question needs that characterisation first, and
+/// the sample count costs no range at all.
+///
+/// **The cell count these columns report cannot carry a guard, and
+/// nobody should re-attempt one.** The two `ceil`s in [`divisions`]
+/// make it DISCONTINUOUS in the parameters a guard would be written
+/// against: the worst relative excess over the family moves whole
+/// percentage points between ADJACENT sample counts (379: 2.94%,
+/// 380: 4.11%, 381: 1.95%, 382: 2.03%, 383: 3.19%) and does not
+/// converge — 2,000 samples is still 0.79%. A tolerance wide enough to
+/// survive the jumps catches nothing; one tight enough to catch a
+/// degradation is a lottery on which lattice the count lands. Two
+/// instruments were built against that quantity and both failed. The
+/// `ceil` quantisation sits on TOP of the resolution these constants
+/// buy and is not theirs to control, which is why the shipped pair is
+/// not even locally best on the cell count — 381 is better on this
+/// family and buys nothing bounded.
+///
+/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are four kinds of
+/// number and only two kinds are re-taken.** The closed-form envelopes
+/// — the one-sided `10^(decades/(samples − 1)) − 1` and the two class
+/// bounds — are DERIVED from `(decades, samples)` alone by
+/// [`unfloored_worst_excess`] and [`floored_worst_excess`], so the
+/// derivations suite re-takes them on every run of the rows named below
+/// and a wrong one goes red. The exceedance exhibit — 70 cells against
+/// 65 at `t = 26` — is EXACT and driven through this crate's own scan,
+/// so it is re-taken the same way. The `ceil`'d family figures — the
+/// adjacent-sample-count row (379: 2.94%, 380: 4.11%, …) and the 5.88%
+/// → 2.94% worst — are MEASURED over the derivations suite's eight
+/// bounds against a lattice far finer than any scan under test; no
+/// closed form covers the `ceil`'d count, so nothing in this crate
+/// re-takes them, and each is a reading of THAT family rather than a
+/// statement about the class. The band structure of the exceedances
+/// above is SAMPLED, over three draws none of which is recorded — which
+/// is why it is stated as a direction and carries no percentage. The
+/// last two kinds are left unguarded deliberately, and what they
+/// establish is a direction rather than a bound. `D206`'s residue
+/// `tess-meter-sampled-retune-figure-unreproducible` owns the question
+/// of what this crate does with a figure over an unrecorded draw.
+///
+/// **A fifth kind used to be quoted here and is gone: a scan-to-true
+/// ratio along a scaled member.** It reads as a ceiling over the range
+/// it names and is a SAMPLE of that range at whatever density was
+/// swept. Sweeping `anisotropic, live cross term` with `mvv` scaled 1×
+/// to 100×, shipped scan against a 40,001-point reference on the same
+/// range: 301 sample points reach 1.02956 and 4,001 reach 1.03241,
+/// both above the 1.02320 this paragraph used to carry as the ratio
+/// "staying under" along that change. Nothing says a denser sweep
+/// stops there. No figure of that kind is quoted here any more; the
+/// exceedance exhibit says the same thing exactly.
+///
+/// **The guard on this pair runs on the merge that moves it.** What
+/// boxes these two is this crate's own derivations suite, and the only
+/// k-lint unification that runs that suite is `dev-default` — which
+/// every code-tier run gates, since the five unifications stopped being
+/// sampled on 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`).
+/// Between 2026-08-22 and then the row was drawn 1 in 5 and a `tools/`
+/// change PINNED it instead, which was the narrower answer to the same
+/// question; that pin is retired with the draw it pre-empted.
+pub const SPLIT_SCAN_DECADES: f64 = 8.0;
+/// Samples per scan (fixed, so the answer is deterministic — D9).
+/// SAMPLES, not steps: a step in this crate's vocabulary is a UV
+/// increment, and these are trial aspect ratios.
+///
+/// **Provenance and guard are the PAIR's, at [`SPLIT_SCAN_DECADES`]
+/// directly above** — what the two buy is one quantity (the resolution
+/// of the aspect-ratio scan), no derivation reaches either alone, and
+/// the boxing test asserts them together. Read that paragraph before
+/// retuning this: it also records why the cell count these constants
+/// feed cannot carry a guard, and that the CI row that runs the box is
+/// gated by every code-tier run. Stated
+/// as a pointer and not a second copy, because the two constants moving
+/// apart in their documentation is the first step to their moving apart
+/// in fact.
+pub const SPLIT_SCAN_SAMPLES: usize = 379;
+
+/// The aspect ratios `t = h_v / h_u` a scan of `decades` either side of
+/// square visits at `samples` points, log-uniformly and in order.
+///
+/// **The one derivation of the scan's lattice**, driven at the shipped
+/// pair by [`shipped_split_scan_aspects`] and at other pairs by the
+/// derivations suite, to measure what those two constants buy. A second
+/// spelling of the placement would turn that measurement into a
+/// statement about the copy.
+///
+/// # Panics
+///
+/// If `samples < 2`: a scan of one point has no sampling step, and the
+/// resolution these constants exist to set is undefined without one.
+pub fn split_scan_aspects(decades: f64, samples: usize) -> impl Iterator<Item = f64> {
+    let spans = split_scan_spans(samples);
+    // Spelled `decades·(2k/spans − 1)` rather than through the step, so
+    // the lattice is bit-identical to the loop this was factored out
+    // of. The two groupings differ by up to tens of ulps at 95 of the
+    // 379 points, which is invisible to the continuous objective and is
+    // exactly the kind of thing a `ceil` turns into a whole division.
+    (0..samples).map(move |k| {
+        #[allow(clippy::cast_precision_loss)]
+        let f = k as f64 / spans;
+        10.0f64.powf(decades * f.mul_add(2.0, -1.0))
+    })
+}
+
+/// The aspect lattice the shipped optimizer scans.
+///
+/// **One call site for the pair, and it is this one.** The derivations
+/// suite drives [`split_scan`] through this same function, so the
+/// lattice the guard measures is the lattice [`best_split_steps`] uses.
+/// A second call site carrying its own literals would be invisible to
+/// that guard — the constants would still be boxed and the scan would
+/// still be wrong — which is the failure this function exists to make
+/// unspellable.
+pub fn shipped_split_scan_aspects() -> impl Iterator<Item = f64> {
+    split_scan_aspects(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES)
+}
+
+/// Sampling intervals in a scan of `samples` points, as an `f64` — the
+/// one place the scan's shape is checked.
+///
+/// # Panics
+///
+/// If `samples < 2`: a scan of one point has no sampling step, and the
+/// resolution these constants exist to set is undefined without one.
+fn split_scan_spans(samples: usize) -> f64 {
+    assert!(
+        samples >= 2,
+        "a split scan of {samples} sample(s) has no sampling step"
+    );
+    #[allow(clippy::cast_precision_loss)]
+    let spans = (samples - 1) as f64;
+    spans
+}
+
+/// Half the scan's sampling step, in decades of aspect ratio: the
+/// furthest any aspect can sit from the nearest sample, and the only
+/// thing [`SPLIT_SCAN_DECADES`] and [`SPLIT_SCAN_SAMPLES`] jointly fix.
+fn split_scan_half_step(decades: f64, samples: usize) -> f64 {
+    decades / split_scan_spans(samples)
+}
+
+/// The worst relative excess a scan at `(decades, samples)` can leave on
+/// the CONTINUOUS objective — [`best_split_cells`]'s cost with the two
+/// `ceil`s of [`divisions`] removed — **over the bounds whose optimum
+/// lies strictly above the one-division floor**, which is the domain
+/// [`optimum_is_unfloored`] answers and NOT every bound.
+///
+/// **Derivation, and the domain is where it comes from.** Above the
+/// floor the continuous cost at aspect `t` is
+/// `U·V·(muu/t + 2·muv + mvv·t) / δ_s`, whose interior stationary point
+/// is `t* = √(muu/mvv)`. Writing `t = t*·10^x`, the ratio to the
+/// optimum is `1 + (cosh(x·ln 10) − 1) / (1 + muv/√(muu·mvv))`, so a
+/// live cross term only ever shrinks it and the worst case is
+/// `muv = 0`; no aspect sits further than half a sampling step from a
+/// sample, and half the step is `decades/(samples − 1)` decades. **Every
+/// line of that assumes `t*` is the optimum**, and it is not when
+/// `divisions`' floor binds there: the objective then has a KINK rather
+/// than a smooth minimum, its excess grows linearly in the distance to
+/// the nearest sample rather than quadratically, and this value bounds
+/// nothing. For `muv = 0` and a unit box the condition is
+/// `muu ≥ δ_s/2` and `mvv ≥ δ_s/2`.
+///
+/// **On its own domain it is attained, not conservative**: an isotropic
+/// bound puts `t*` at exactly `1`, and at an even `samples` the lattice
+/// straddles `1` half a step either side. The derivations suite
+/// measures a family against it for that reason — a closed form nothing
+/// witnesses is theory, not a guard — and carries the floored class as
+/// its own members, measured rather than bounded.
+///
+/// It bounds nothing either when the optimum lies OUTSIDE `10^±decades`;
+/// that is the range failure, guarded separately.
+///
+/// # Panics
+///
+/// If `samples < 2`.
+#[must_use]
+pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
+    (split_scan_half_step(decades, samples) * std::f64::consts::LN_10).cosh() - 1.0
+}
+
+/// The worst relative excess a scan at `(decades, samples)` can leave
+/// on the FLOORED class — the bounds whose continuous optimum is a kink
+/// on [`divisions`]' one-division floor rather than the interior
+/// stationary point [`unfloored_worst_excess`] assumes.
+///
+/// # The derivation
+///
+/// Take `muv = 0` and a unit box, and let the `u` floor bind, so
+/// `r = muu/δ_s ∈ (0, ½)`. The optimum is the kink at
+/// `t₁ = √((δ_s − muu)/mvv)`, where `Q(t₁) = δ_s` and `h_u` is exactly
+/// the extent. Writing `u = t/t₁`, the cost RATIO to that optimum is
+/// exact on each side and needs no slope approximation:
+///
+/// * left of the kink the `u` divisions are floored, so the cost is the
+///   `v` count alone and `R(u) = √(r + (1 − r)·u²)/u`;
+/// * right of it neither floor binds, so the cost is the product and
+///   `R(u) = (r + (1 − r)·u²)/u`.
+///
+/// The scan sees whichever of the two neighbouring samples is cheaper,
+/// so the worst placement equalises the two branch ratios across one
+/// sampling step, and the worst bound maximises that over `r`. Both are
+/// solved here — a bisection on the placement inside a sweep over `r` —
+/// because the equalisation is transcendental. The linearised form,
+/// `10^(step·r(1−2r)/(1−r)) − 1`, has its maximum at
+/// `r = (2 − √2)/2 = 0.29289` and is worth knowing as the anchor: at
+/// the shipped pair it gives 1.68628% where the exact value below gives
+/// **1.75540%**, the curvature of the two branches being the
+/// difference. Both move with the pair — at 321 samples they read
+/// 1.99494% and 2.09180% — so neither is a constant of the class.
+///
+/// **It is a supremum, not a sample, and the derivation is what makes
+/// it one.** The family member `floored, cross-term-free` sits at
+/// `r = 0.29808`, which is this function's own argmax, so the
+/// derivations suite carries the class's worst RATIO rather than a
+/// sample of it. The `muv > 0` case only dilutes the ratio, exactly as
+/// in the unfloored derivation, and the mirrored `v`-floor case is the
+/// same expression with the extents exchanged.
+///
+/// **Random searches over the class have found no exceedance, and that
+/// is corroboration rather than evidence.** Each was over a draw the
+/// tree does not record — distribution, count and seed all unwritten —
+/// so a re-take cannot be compared with it and no figure from one is
+/// quoted here. `D206`'s residue
+/// `work/meter/tess-meter-sampled-retune-figure-unreproducible` owns
+/// what this crate should do about that; until it is answered, the
+/// argument above stands on the derivation and on the argmax member,
+/// both of which the suite re-takes.
+///
+/// # Panics
+///
+/// If `samples < 2`.
+#[must_use]
+pub fn floored_worst_excess(decades: f64, samples: usize) -> f64 {
+    // Converged: the value is stable to eight significant figures from
+    // 1,024 `r` samples upward, and D9 wants a fixed structure rather
+    // than a tolerance-driven loop.
+    //
+    // THAT CONVERGENCE IS A ONE-TIME READING, TAKEN BY RAISING THIS
+    // CONSTANT AND WATCHING THE ANSWER, AND NOTHING RE-TAKES IT. It can
+    // be re-taken in one edit — raise `RATIOS`, run this crate's
+    // derivations suite, compare — which is why it earns a note rather
+    // than a guard: a test pinning the value to eight figures would pin
+    // the ARITHMETIC of this function, not its convergence, and would
+    // red on any legitimate refinement of the bound. The margin the
+    // constant is chosen against is generous by a factor of four
+    // deliberately, so a reader retuning it is moving away from the
+    // measured plateau rather than toward its edge.
+    const RATIOS: usize = 4096;
+    const PLACEMENT_STEPS: usize = 100;
+    let step = 2.0 * split_scan_half_step(decades, samples) * std::f64::consts::LN_10;
+    // Left branch at distance `a` below the kink, right branch at `a`
+    // above it, both as ratios to the optimum.
+    let left = |r: f64, a: f64| (2.0 * a).exp().mul_add(r, 1.0 - r).sqrt();
+    let right = |r: f64, a: f64| (-a).exp().mul_add(r, (1.0 - r) * a.exp());
+    let mut worst: f64 = 0.0;
+    for i in 1..RATIOS {
+        #[allow(clippy::cast_precision_loss)]
+        let r = 0.5 * i as f64 / RATIOS as f64;
+        let (mut lo, mut hi) = (0.0, step);
+        for _ in 0..PLACEMENT_STEPS {
+            let mid = 0.5 * (lo + hi);
+            if left(r, mid) < right(r, step - mid) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        worst = worst.max(left(r, lo).min(right(r, step - lo)));
+    }
+    worst - 1.0
+}
+
+/// Whether `bound`'s continuous optimum over `du × dv` at `delta_s` is
+/// the interior stationary point `t* = √(muu/mvv)` rather than a kink
+/// on [`divisions`]' one-division floor — i.e. whether
+/// [`unfloored_worst_excess`] says anything about it.
+///
+/// It takes `delta_s` and the box because the condition is on them: the
+/// steps at `t*` are `h_u = √(δ_s/Q(t*))` and `h_v = t*·h_u`, and the
+/// floor binds exactly when either exceeds its extent. A bound with no
+/// interior stationary point at all — a ruled direction's `muu = 0`, or
+/// a vanishing `mvv` — is outside the domain by the same test.
+#[must_use]
+pub fn optimum_is_unfloored(bound: Bound, du: f64, dv: f64, delta_s: f64) -> bool {
+    let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
+    if !(muu > 0.0 && mvv > 0.0) {
+        return false;
+    }
+    let t = (muu / mvv).sqrt();
+    let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+    let hu = (delta_s / q).sqrt();
+    hu <= du && t * hu <= dv
+}
+
+/// One split scan's answer: the cheapest grid it found, the steps that
+/// give it, and which sample won — `None` when the seed did.
+#[derive(Clone, Copy, Debug)]
+pub struct SplitScan {
+    /// The counted grid at [`SplitScan::steps`], in whatever `count`
+    /// the scan was driven with.
+    pub cells: f64,
+    /// The `(h_u, h_v)` that count belongs to.
+    pub steps: (f64, f64),
+    /// The index into `aspects` that won, or `None` for the seed.
+    pub sample: Option<usize>,
+}
+
+/// **The split scan, once, with its counting function as a parameter.**
+///
+/// [`best_split_steps`] is this over [`shipped_split_scan_aspects`],
+/// counting with [`divisions`] and seeded with the lane's own grid. The
+/// derivations suite is this over the same aspects, counting with the
+/// same expression MINUS its `ceil`, and unseeded — which is the only
+/// way a guard on the scan's resolution can be a guard on THIS scan.
+/// Everything that could drift between the two is derived once, here:
+/// the lattice, `Q(t)`, the step the constraint fixes, the running
+/// minimum. A guard that re-spelled any of them would be measuring its
+/// own copy, which is this crate's own rule about the lane's schedule
+/// applied to itself.
+///
+/// # Panics
+///
+/// On a bound or a sizing target that is not a reading (module docs).
+/// The certified sups are non-negative by construction — they are sups
+/// of norms — so a NEGATIVE one is a sign error rather than a
+/// measurement, and it is checked HERE rather than through `Q(t)`,
+/// which a negative `muv` passes at every sampled `t` whenever
+/// `muv² ≤ muu·mvv`.
+pub fn split_scan<F: Fn(f64, f64) -> f64>(
+    bound: Bound,
+    du: f64,
+    dv: f64,
+    delta_s: f64,
+    aspects: impl Iterator<Item = f64>,
+    seed: Option<(f64, f64)>,
+    count: F,
+) -> SplitScan {
+    let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
+    assert!(
+        muu >= 0.0
+            && muv >= 0.0
+            && mvv >= 0.0
+            && muu.is_finite()
+            && muv.is_finite()
+            && mvv.is_finite(),
+        "a certified bound of muu={muu}, muv={muv}, mvv={mvv} is not a reading: \
+         the meter has no cheapest split to report"
+    );
+    assert!(
+        delta_s > 0.0 && delta_s.is_finite(),
+        "a sizing target of {delta_s} is not a reading: \
+         the meter has no cheapest split to report"
+    );
+    let mut best = seed.map(|(hu, hv)| SplitScan {
+        cells: count(du, hu) * count(dv, hv),
+        steps: (hu, hv),
+        sample: None,
+    });
+    for (k, t) in aspects.enumerate() {
+        // The steps at aspect ratio `t = h_v / h_u`: the constraint is
+        // homogeneous of degree 2 in h_u, so h_u falls straight out.
+        // `Q(t) = 0` is a reading — a certified-flat cell constrains
+        // nothing and takes one division per axis, which is what an
+        // infinite step gives.
+        let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+        assert!(
+            q.is_finite(),
+            "the certificate overflows at t={t}: a scan this wide cannot be \
+             evaluated on muu={muu}, muv={muv}, mvv={mvv}"
+        );
+        let hu = if q > 0.0 {
+            (delta_s / q).sqrt()
+        } else {
+            f64::INFINITY
+        };
+        let (hu, hv) = (hu, t * hu);
+        let cells = count(du, hu) * count(dv, hv);
+        if best.is_none_or(|b| cells < b.cells) {
+            best = Some(SplitScan {
+                cells,
+                steps: (hu, hv),
+                sample: Some(k),
+            });
+        }
+    }
+    best.expect("a split scan visits at least two aspects")
+}
+
+/// The cheapest uniform grid a bound admits over one box: minimize
+/// `divisions(U, h_u) · divisions(V, h_v)` subject to the SAME
+/// certificate the lane checks,
+/// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`.
+///
+/// That constraint is the per-triangle bound `Q/4` at the lane's own
+/// two-cells-per-axis budgeting (`a_u ≤ 2h_u`), so a grid found here
+/// certifies EXACTLY as the shipped one does — the difference is only
+/// which `(h_u, h_v)` on the constraint ellipse gets picked. Since
+/// TESS-SPLIT the shipped selection is the cell minimizer under the
+/// A = 16 first-fundamental-form aspect cap, so this UNCONSTRAINED
+/// optimum differs from it exactly where the cap (or the sliver snap)
+/// binds — which is what the split column now measures.
+///
+/// The lane's own steps are evaluated too, so the answer can never
+/// come out worse than what the lane already does.
+pub fn best_split_cells(bound: Bound, du: f64, dv: f64, delta_s: f64) -> f64 {
+    best_split_steps(bound, du, dv, delta_s).0
+}
+
+/// [`best_split_cells`] with the steps it chose: `(cells, h_u, h_v)`.
+/// Split out so the constraint can be asserted on the ANSWER and not
+/// merely on the formula that produced it (see this crate's tests).
+///
+/// It is [`split_scan`] over [`shipped_split_scan_aspects`], counted
+/// with [`divisions`] and seeded with the lane's own grid so the answer
+/// can never come out worse than what the lane already does. Written as
+/// that composition and not as its own loop, so the derivations suite
+/// can drive the same scan with the same lattice and a different count.
+///
+/// # Panics
+///
+/// On a bound or a sizing target that is not a reading — see
+/// [`split_scan`] and [`divisions`].
+pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f64, f64) {
+    let best = best_split_scan(bound, du, dv, delta_s);
+    (best.cells, best.steps.0, best.steps.1)
+}
+
+/// [`best_split_steps`] with the scan's own answer, sample index and
+/// all — the SHIPPED composition, named so a test can hold it against
+/// the composition it is supposed to be.
+///
+/// **Boxing the constants is not enough and this is why.** A guard that
+/// checks [`shipped_split_scan_aspects`] checks a helper; the three
+/// retunes that matter live at the CALL SITE below — a different sample
+/// count, a different range, a dropped seed — and each leaves both the
+/// constants and the helper untouched. Measured on the shipped `ceil`'d
+/// count over 200,000 random bounds, a 21-sample call site alone moves
+/// the reported cell count by +14.93% on average and +100% at worst,
+/// several times the growth margin `tools/tess-lint` allows.
+///
+/// **PROVENANCE OF THAT PAIR, since it is what makes the guard below
+/// worth its cost.** It was measured once, off-CI, by driving the
+/// retuned call site against the shipped one over drawn bounds; nothing
+/// re-takes it, no register carries it, and no run would go red if it
+/// drifted — a sampling statistic over random bounds is not a property
+/// this crate exposes. What IS re-taken is the thing it argued for: the
+/// derivations suite pins the composition exactly, on a family chosen so
+/// each of the three retunes moves an assertion, and the k-lint row that
+/// runs that suite (`dev-default`) is gated by every code-tier run since
+/// 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`). So the number is
+/// history and the guard is live, which is the right way round. The
+/// figure is stated HERE and nowhere else — the derivations row that
+/// holds this composition points at this paragraph rather than restating
+/// the pair, so the two cannot part.
+///
+/// So the derivations suite asserts this function EQUALS
+/// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),
+/// Some(bound.steps), divisions)`, bit for bit and sample index
+/// included, on bounds that tell the three retunes apart.
+#[must_use]
+pub fn best_split_scan(bound: Bound, du: f64, dv: f64, delta_s: f64) -> SplitScan {
+    split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        shipped_split_scan_aspects(),
+        Some(bound.steps),
+        divisions,
+    )
+}
+
+/// The pure per-cell ideal over the trim box: each cell's own RAW
+/// bound through [`best_split_cells`], clipped to the box with the
+/// `ceil` paid per cell.
+///
+/// This is the recoverable-slack denominator; the banding's
+/// max-across-u cost stays visible in it.
+///
+/// **Why aligning rows to the band cuts is enough for the
+/// certificate**: with rows on the band boundaries, every grid
+/// triangle's UV box lies inside one band, so the band's own certified
+/// bounds are the ones its certificate uses. Cells are half-open — a
+/// knot is exactly where a C¹ surface's second derivative jumps — but
+/// the shared boundary is measure-zero, and the Taylor remainder the
+/// certificate is built on needs only an a.e. bound. That is the same
+/// fact the shipped whole-patch assembly already rests on at its own
+/// interior knots (`mesh::nurbs_cert` docs).
+///
+/// # Panics
+///
+/// On a trim box or a cell box that is not a reading. The overlap test
+/// below is an EMPTINESS test and nothing else: written as
+/// `!(du > 0.0 && dv > 0.0)` it also swallows a NaN extent, dropping
+/// the cell from a sum the gate divides by — which lowers the
+/// denominator, raises the reported slack, and so hides a regression
+/// wherever it lands in the committed baseline.
+fn span_opt_cells(cells: &[CellMeasure], u: (f64, f64), v: (f64, f64), delta_s: f64) -> f64 {
+    assert!(
+        u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite(),
+        "a trim box of {u:?} x {v:?} is not a reading: the meter has no per-cell ideal to report"
+    );
+    let mut opt = 0.0;
+    for c in cells {
+        assert!(
+            c.u.0.is_finite() && c.u.1.is_finite() && c.v.0.is_finite() && c.v.1.is_finite(),
+            "a cell box of {:?} x {:?} is not a reading: the meter has no per-cell ideal to report",
+            c.u,
+            c.v
+        );
+        let du = c.u.1.min(u.1) - c.u.0.max(u.0);
+        let dv = c.v.1.min(v.1) - c.v.0.max(v.0);
+        if du <= 0.0 || dv <= 0.0 {
+            continue; // cell outside the trim box
+        }
+        opt += best_split_cells(c.into(), du, dv, delta_s);
+    }
+    opt
+}

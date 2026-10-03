@@ -1,0 +1,423 @@
+//! Preferences: the format, the resolution, and the store.
+//!
+//! Renderer-free like the module it exercises — no `app` feature, no
+//! toolkit. The file store is exercised through a real path in a
+//! temporary directory rather than a fake, because the one thing that
+//! matters about it is whether it reads and writes what it says.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use std::path::PathBuf;
+
+use pncad::quantity::{CM, DEG, IN, M, MM, PI, RAD};
+use viewer::input::InputMap;
+use viewer::prefs::{Absent, Notice, Prefs, PrefsError, PrefsStore, file::FileStore};
+use viewer::props::Notation;
+use viewer::theme::Theme;
+
+/// A scratch path unique to one test, under the OS temp directory.
+fn scratch(tag: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!("pncad-prefs-{}-{tag}", std::process::id()));
+    path.push("viewer.toml");
+    path
+}
+
+/// An empty document is valid and means "all defaults".
+#[test]
+fn an_empty_document_is_the_default() {
+    let (prefs, notices) = Prefs::from_toml("").expect("empty TOML parses");
+    assert_eq!(prefs, Prefs::default());
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(prefs.resolve_theme().0, Theme::DEFAULT);
+    assert_eq!(prefs.resolve_keys().0, InputMap::DEFAULT);
+    assert_eq!(prefs.resolve_notation(), (Notation::DEFAULT, Vec::new()));
+}
+
+/// **The working notation round-trips through the preferences, by
+/// unit symbol**: every length and angle row of the unit table is
+/// written as its symbol and resolves back to the same unit, and the
+/// default is metres and half turns.
+#[test]
+fn the_working_notation_round_trips_by_symbol() {
+    assert_eq!(
+        Notation::DEFAULT,
+        Notation {
+            length: M,
+            angle: PI
+        }
+    );
+    for length in [MM, CM, M, IN] {
+        for angle in [DEG, RAD, PI] {
+            let notation = Notation { length, angle };
+            let written = Prefs {
+                length_unit: Some(length.symbol().to_owned()),
+                angle_unit: Some(angle.symbol().to_owned()),
+                ..Prefs::default()
+            };
+            let text = written.to_toml();
+            let (read, notices) = Prefs::from_toml(&text).expect("its own output parses");
+            assert!(notices.is_empty(), "{notices:?}");
+            assert_eq!(read, written, "{text}");
+            assert_eq!(
+                read.resolve_notation(),
+                (notation, Vec::new()),
+                "{} and {} read back as themselves",
+                length.symbol(),
+                angle.symbol()
+            );
+        }
+    }
+}
+
+/// **An unknown unit symbol reports and falls back, unit by unit**,
+/// as an unknown theme does: a length key naming an angle unit, or a
+/// symbol no row has, leaves the default standing for that quantity
+/// alone and says so; a known symbol beside it still applies.
+#[test]
+fn an_unknown_unit_symbol_is_reported_and_the_default_stands() {
+    let (prefs, notices) =
+        Prefs::from_toml("[notation]\nlength = \"furlong\"\nangle = \"deg\"\n").expect("parses");
+    assert!(notices.is_empty(), "the file itself is fine: {notices:?}");
+    let (notation, notices) = prefs.resolve_notation();
+    assert_eq!(
+        notation,
+        Notation {
+            length: Notation::DEFAULT.length,
+            angle: DEG
+        }
+    );
+    assert_eq!(
+        notices,
+        vec![Notice::UnknownUnit {
+            quantity: "length",
+            symbol: "furlong".to_owned(),
+            default: "m",
+        }]
+    );
+    assert_eq!(
+        notices[0].to_string(),
+        "preferences: no length unit called `furlong`; using `m`"
+    );
+
+    let (prefs, _) =
+        Prefs::from_toml("[notation]\nlength = \"deg\"\nangle = \"mm\"\n").expect("parses");
+    let (notation, notices) = prefs.resolve_notation();
+    assert_eq!(
+        notation,
+        Notation::DEFAULT,
+        "a unit of the wrong quantity is unknown"
+    );
+    assert_eq!(notices.len(), 2, "{notices:?}");
+}
+
+/// Both settings round-trip through the rendered document.
+///
+/// The renderer is hand-written, so this is the row that says its
+/// output is something the parser accepts — the failure it prevents
+/// is a viewer that writes a file it cannot read back.
+#[test]
+fn what_is_written_is_what_is_read() {
+    let written = Prefs {
+        theme: Some("colorblind-safe".to_owned()),
+        keys: Some("default".to_owned()),
+        last_dir: Some(PathBuf::from("/home/someone/models")),
+        length_unit: Some("mm".to_owned()),
+        angle_unit: Some("deg".to_owned()),
+    };
+    let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written);
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// The names are carried back from the file unvalidated — an unknown
+/// preset is kept so the next write does not drop it — so a name read
+/// back can hold a quote or a backslash too. Every value is rendered by
+/// the TOML library; a hand-written `"{name}"` goes red here.
+#[test]
+fn a_name_with_a_quote_and_a_backslash_round_trips() {
+    let written = Prefs {
+        theme: Some(r#"dark "neutral"\x"#.to_owned()),
+        keys: Some(r#"say "hi"\now"#.to_owned()),
+        last_dir: None,
+        length_unit: Some(r#"fur"long\"#.to_owned()),
+        angle_unit: None,
+    };
+    let (read, _unknown_names) =
+        Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written, "the names read back are the ones written");
+}
+
+/// The remembered directory is a path a person chose, not a name from
+/// a registry, so it can hold the two characters a TOML basic string
+/// has to escape. A renderer that wrote `"{dir}"` by hand would write
+/// a document its own parser refuses — or, worse, one that parses to
+/// a different directory.
+#[test]
+fn a_directory_with_a_quote_and_a_backslash_round_trips() {
+    let written = Prefs {
+        theme: None,
+        keys: None,
+        last_dir: Some(PathBuf::from(r#"/models/say "hi"\now"#)),
+        ..Prefs::default()
+    };
+    let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written, "the directory read back is the one written");
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// A directory whose name is not UTF-8 cannot be spelled in a TOML
+/// string. It is left out and the file says so — never rendered
+/// lossily, because a path with a character replaced names a
+/// different directory.
+#[cfg(unix)]
+#[test]
+fn a_directory_the_file_cannot_spell_is_left_out_and_says_so() {
+    use std::os::unix::ffi::OsStrExt;
+    let written = Prefs {
+        theme: None,
+        keys: None,
+        last_dir: Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/models/\xff"))),
+        ..Prefs::default()
+    };
+    let text = written.to_toml();
+    assert!(
+        text.contains("not kept"),
+        "the file says what it left out:\n{text}"
+    );
+    let (read, notices) = Prefs::from_toml(&text).expect("the document still parses");
+    assert_eq!(read.last_dir, None, "nothing lossy was written");
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// The commented-out default document also round-trips — to nothing.
+///
+/// A file written before anybody chose anything is all comments, and
+/// a parser that choked on it would break the first save.
+#[test]
+fn the_untouched_document_round_trips_to_defaults() {
+    let (read, notices) = Prefs::from_toml(&Prefs::default().to_toml()).expect("parses");
+    assert_eq!(read, Prefs::default());
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// Malformed TOML refuses, and the refusal carries the parser's words.
+#[test]
+fn malformed_toml_refuses() {
+    let error = Prefs::from_toml("[appearance\ntheme = ").expect_err("refuses");
+    let PrefsError::Syntax(message) = &error else {
+        panic!("expected a syntax refusal, got {error:?}");
+    };
+    assert!(!message.is_empty(), "the refusal says nothing");
+    // The refusal is a value with a sentence, like every other one in
+    // this crate.
+    assert!(error.to_string().contains("not valid TOML"));
+}
+
+/// An unknown key reports and the rest of the file still applies.
+///
+/// The posture that separates a preferences file from a document: a
+/// newer viewer's key must not stop an older one from opening.
+#[test]
+fn an_unknown_key_reports_and_the_file_still_loads() {
+    let (prefs, notices) = Prefs::from_toml(
+        "[appearance]\ntheme = \"light-neutral\"\nsparkle = true\n\n[nonsense]\nx = 1\n",
+    )
+    .expect("loads");
+    assert_eq!(prefs.theme.as_deref(), Some("light-neutral"));
+    assert!(
+        notices.contains(&Notice::UnknownKey("appearance.sparkle".to_owned())),
+        "{notices:?}",
+    );
+    assert!(
+        notices.contains(&Notice::UnknownKey("nonsense".to_owned())),
+        "{notices:?}",
+    );
+}
+
+/// A key of the wrong type reports and the default stands.
+#[test]
+fn a_wrongly_typed_setting_reports_and_defaults() {
+    let (prefs, notices) = Prefs::from_toml("[appearance]\ntheme = 7\n").expect("loads");
+    assert_eq!(prefs.theme, None);
+    assert_eq!(prefs.resolve_theme().0, Theme::DEFAULT);
+    assert!(
+        notices.iter().any(|n| matches!(
+            n,
+            Notice::WrongType { key, .. } if key == "appearance.theme"
+        )),
+        "{notices:?}",
+    );
+}
+
+/// A theme name nobody registers reports and falls back — it does not
+/// refuse.
+///
+/// **The asymmetry with the command line is deliberate** and is the
+/// module header's rule: a name in a file is a memory of an older
+/// session and may have been renamed since, where a name typed just
+/// now is a typo worth showing. Same word, different provenance.
+#[test]
+fn an_unregistered_theme_name_falls_back_with_a_notice() {
+    let (prefs, notices) =
+        Prefs::from_toml("[appearance]\ntheme = \"solarized\"\n").expect("loads");
+    assert!(notices.is_empty(), "parsing itself has no complaint");
+    let (theme, notice) = prefs.resolve_theme();
+    assert_eq!(theme, Theme::DEFAULT);
+    assert_eq!(notice, Some(Notice::UnknownTheme("solarized".to_owned())));
+    assert!(
+        notice
+            .expect("the notice is there")
+            .to_string()
+            .contains("solarized")
+    );
+}
+
+/// Every registered theme is reachable through a preferences file.
+///
+/// The registry, the picker and the file are one set: a theme that
+/// shipped but could not be named here would be unreachable to
+/// anybody who does not click.
+#[test]
+fn every_registered_theme_resolves_from_a_document() {
+    for theme in Theme::ALL {
+        let document = format!("[appearance]\ntheme = \"{}\"\n", theme.name);
+        let (prefs, notices) = Prefs::from_toml(&document).expect("loads");
+        assert!(notices.is_empty(), "{}: {notices:?}", theme.name);
+        let (resolved, notice) = prefs.resolve_theme();
+        assert_eq!(resolved, *theme);
+        assert_eq!(notice, None);
+    }
+}
+
+/// The same for input presets — one today, and the row is what makes
+/// a second one arrive already reachable.
+#[test]
+fn every_registered_input_preset_resolves_from_a_document() {
+    for (name, map) in viewer::input::PRESETS {
+        let document = format!("[keys]\npreset = \"{name}\"\n");
+        let (prefs, notices) = Prefs::from_toml(&document).expect("loads");
+        assert!(notices.is_empty(), "{name}: {notices:?}");
+        assert_eq!(prefs.resolve_keys(), (*map, None));
+    }
+}
+
+/// An unregistered preset name falls back with a notice, like a theme.
+#[test]
+fn an_unregistered_preset_name_falls_back_with_a_notice() {
+    let (prefs, _) = Prefs::from_toml("[keys]\npreset = \"vim\"\n").expect("loads");
+    let (map, notice) = prefs.resolve_keys();
+    assert_eq!(map, InputMap::DEFAULT);
+    assert_eq!(notice, Some(Notice::UnknownPreset("vim".to_owned())));
+}
+
+/// A store with nothing behind it says so instead of pretending, and
+/// says it as a READ rather than only as the answer to a write.
+///
+/// The read is what the chrome shows (`frame::prefs_badge`); the
+/// refusal is what a caller that saves without asking gets. **Both
+/// come from one value**, which is the row below.
+#[test]
+fn an_absent_store_reports_rather_than_pretends() {
+    let store = Absent;
+    let unusable = store.unusable().expect("this store keeps nothing");
+    assert!(unusable.to_string().contains("nowhere to keep them"));
+    assert_eq!(store.load(), Ok(None));
+    let error = store.save("[appearance]\n").expect_err("cannot save");
+    assert!(error.to_string().contains("nowhere to keep them"));
+}
+
+/// The native store in an environment that names no config directory
+/// is the SECOND member of that class, and the browser is not its
+/// subject.
+///
+/// `platform::prefs_path` answers `None` there, `FileStore::new` keeps it,
+/// and everything the chrome does about it keys on this read rather
+/// than on `target_family` — which is why one fix covers both. A
+/// `FileStore` reached only through `FileStore::at` cannot be built
+/// this way, which is why the suite had no row here.
+#[test]
+fn a_pathless_file_store_reports_rather_than_pretends() {
+    let store = FileStore::new(None);
+    let unusable = store
+        .unusable()
+        .expect("a store with no config directory keeps nothing");
+    assert!(
+        unusable.to_string().contains("no config directory"),
+        "{unusable}"
+    );
+    assert_eq!(store.load(), Ok(None), "never having saved is not a fault");
+    let error = store.save("[appearance]\n").expect_err("cannot save");
+    assert!(error.to_string().contains("no config directory"), "{error}");
+}
+
+/// **One value, two renderings** — the sentence a reader is shown and
+/// the sentence a caller that asks anyway receives are the same words,
+/// for both stores that can be unusable.
+///
+/// This is the row that would go red if either store re-worded its
+/// refusal at the `save` site instead of rendering the read, which is
+/// the state this crate was in when the refusals were dead: two
+/// written statements of one condition, free to drift.
+#[test]
+fn the_words_a_store_shows_and_the_words_it_refuses_with_are_one() {
+    let absent = Absent;
+    let pathless = FileStore::new(None);
+    for (which, unusable, error) in [
+        (
+            "absent",
+            absent.unusable().expect("keeps nothing"),
+            absent.save("").expect_err("cannot save"),
+        ),
+        (
+            "pathless file",
+            pathless.unusable().expect("keeps nothing"),
+            pathless.save("").expect_err("cannot save"),
+        ),
+    ] {
+        assert_eq!(
+            unusable.refusal(),
+            error,
+            "the {which} store's refusal is its standing fact rendered"
+        );
+        assert!(
+            error.to_string().contains(&unusable.because),
+            "the {which} store's two sentences share their words: \
+             {error} / {unusable}"
+        );
+    }
+}
+
+/// Never having saved is not a failure.
+#[test]
+fn a_missing_file_loads_as_nothing() {
+    let store = FileStore::at(scratch("missing"));
+    assert_eq!(
+        store.load(),
+        Ok(None),
+        "a file nobody wrote is not an error"
+    );
+}
+
+/// The file store actually writes and reads back, creating the
+/// directory it needs.
+#[test]
+fn the_file_store_round_trips_through_a_real_path() {
+    let path = scratch("roundtrip");
+    let store = FileStore::at(path.clone());
+    assert_eq!(store.unusable(), None, "a store with a path keeps things");
+    let prefs = Prefs {
+        theme: Some("colorblind-safe".to_owned()),
+        keys: None,
+        last_dir: Some(PathBuf::from("/models")),
+        ..Prefs::default()
+    };
+    store.save(&prefs.to_toml()).expect("saves");
+    let text = store.load().expect("loads").expect("something is there");
+    let (read, notices) = Prefs::from_toml(&text).expect("parses");
+    assert_eq!(read, prefs);
+    assert!(notices.is_empty(), "{notices:?}");
+    std::fs::remove_dir_all(path.parent().expect("has a parent")).ok();
+}

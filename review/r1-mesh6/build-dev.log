@@ -1,0 +1,25 @@
+   Compiling libm v0.2.16
+   Compiling version_check v0.9.5
+   Compiling autocfg v1.5.1
+   Compiling foldhash v0.2.0
+   Compiling equivalent v1.0.2
+   Compiling allocator-api2 v0.2.21
+   Compiling slotmap v1.1.1
+   Compiling num-traits v0.2.19
+   Compiling hashbrown v0.16.1
+   Compiling robust v1.2.0
+   Compiling smallvec v1.15.2
+   Compiling geom-core v0.0.0 (/root/lanes/mesh-6r1/crates/geom-core)
+   Compiling test-utils v0.0.0 (/root/lanes/mesh-6r1/crates/test-utils)
+   Compiling spade v2.15.1
+   Compiling bvh v0.0.0 (/root/lanes/mesh-6r1/crates/bvh)
+   Compiling profile v0.0.0 (/root/lanes/mesh-6r1/crates/profile)
+   Compiling geom v0.0.0 (/root/lanes/mesh-6r1/crates/geom)
+   Compiling geom-brep v0.0.0 (/root/lanes/mesh-6r1/crates/geom-brep)
+   Compiling topo v0.0.0 (/root/lanes/mesh-6r1/crates/topo)
+   Compiling sweep v0.0.0 (/root/lanes/mesh-6r1/crates/sweep)
+   Compiling mesh v0.0.0 (/root/lanes/mesh-6r1/crates/mesh)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 39.74s
+  Executable unittests src/lib.rs (target/debug/deps/mesh-529a9a701d475703)
+  Executable tests/all.rs (target/debug/deps/all-16a20949e5e8fdf1)
+exit 0

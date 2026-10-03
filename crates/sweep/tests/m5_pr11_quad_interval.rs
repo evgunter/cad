@@ -1,0 +1,64 @@
+//! M5 PR 11 Interval enclosure row: the certified quadrature lane at
+//! the interval scalar — the tiltedcut halves' brackets
+//! (`volume ± volume_pad` around the Interval value's own enclosure)
+//! must contain the closed form πr²H/2, and tier 3 passes.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::Tol;
+use geom_core::{Bounds, Interval};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::{Extrusion, extrude};
+use topo::splitting::{SplitPart, split};
+use topo::{Body, validate_geometric};
+
+use crate::common::interval::{iv, p2, p3, v3};
+
+const R: f64 = 0.5;
+const H: f64 = 1.0;
+const PHI: f64 = 0.3;
+
+fn halves() -> (Body<Interval>, Body<Interval>) {
+    let lp = bulge_loop(vec![(p2(-R, 0.0), iv(1.0)), (p2(R, 0.0), iv(1.0))]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let cylinder = extrude(&profile, Extrusion::Distance(iv(H)), Tol::witness())
+        .unwrap()
+        .body;
+    let plane = topo::test_support::split_plane(
+        p3(0.0, 0.0, H / 2.0),
+        v3(PHI.sin(), 0.0, PHI.cos()),
+        geom_core::Tol::witness(),
+    );
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
+    let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
+        panic!("both sides carry material");
+    };
+    (above.clone(), below.clone())
+}
+
+/// The Interval-lane certified bracket contains πr²H/2 and tier 3
+/// passes end to end (check 7 consumes the bounds at Interval too).
+#[test]
+fn interval_lane_quadrature_brackets_the_closed_form() {
+    let (above, below) = halves();
+    let half_exact = core::f64::consts::PI * R * R * H / 2.0;
+    for (label, body) in [("above", &above), ("below", &below)] {
+        let m = topo::mass_properties(body, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
+        let (lo, hi) = (m.volume.lo() - m.volume_pad, m.volume.hi() + m.volume_pad);
+        assert!(
+            lo <= half_exact && half_exact <= hi,
+            "{label}: interval bracket [{lo}, {hi}] must contain {half_exact}"
+        );
+        assert!(
+            hi - lo < 1e-3 * half_exact,
+            "{label}: bracket width {} is not useful",
+            hi - lo
+        );
+        if let Err(errs) = validate_geometric(body, Tol::witness()) {
+            panic!("{label}: tier 3 at Interval: {errs:?}");
+        }
+    }
+}

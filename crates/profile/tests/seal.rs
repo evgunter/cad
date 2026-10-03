@@ -1,0 +1,196 @@
+//! The `ProfileLoop` seal, pinned from OUTSIDE the crate.
+//!
+//! An integration test is a separate crate, so everything here is
+//! subject to the same privacy the kernel's consumers are. Three rows:
+//! the read surface is complete, the canonical fixture door writes the
+//! stored form verbatim, and nothing in this crate can deserialize a
+//! loop.
+//!
+//! The E0451 pin — that `ProfileLoop { .. }` does not COMPILE out of
+//! crate — lives where it can be executed: a `compile_fail` doctest on
+//! [`profile::ProfileLoop`]. A row here could only observe the seal's
+//! consequences, never a compile error.
+
+use geom_core::{Arc2, Point2, Tol};
+use profile::{
+    Profile, ProfileError, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
+};
+
+/// The read surface is COMPLETE: every accessor, exercised against a
+/// door-built loop.
+///
+/// The completeness claim is not made by this row alone. Every
+/// consumer of a loop outside `crates/profile` — sweep, mesh, stl,
+/// step-import/export, editor-core, pncad, the tour, and their
+/// fixtures — reads it through exactly these four accessors, so THE
+/// WORKSPACE COMPILING, with zero out-of-crate field access anywhere in
+/// it, is the completeness proof for the read surface. This row pins
+/// what those accessors return.
+#[test]
+fn accessors_read_back_everything_the_doors_wrote() {
+    let vs = vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.5),
+        (Point2::new(1.0, 1.0), -0.25),
+        (Point2::new(0.0, 1.0), 0.0),
+    ];
+    let lp: ProfileLoop<f64> = bulge_loop(vs.clone());
+
+    // vertices() returns the chain's positions bit for bit, and each
+    // segment's kind is its bulge's: a line exactly at a zero bulge.
+    for ((got, s), (pos, bulge)) in lp.vertices().iter().zip(lp.segments()).zip(&vs) {
+        assert_eq!(got.x.to_bits(), pos.x.to_bits());
+        assert_eq!(got.y.to_bits(), pos.y.to_bits());
+        assert_eq!(matches!(s, profile::Segment::Line), *bulge == 0.0);
+    }
+
+    // ProfileLoop: vertices() is the chain in traversal order;
+    // tangent_joints() is empty until declared.
+    assert_eq!(lp.vertices().len(), vs.len());
+    assert!(lp.tangent_joints().is_empty());
+
+    // The declaring door round-trips through the accessor verbatim —
+    // no sorting, no dedup (validation owns that; see the accessor's
+    // normative docs).
+    let declared = lp.with_tangent_joints(vec![2, 0, 2]);
+    assert_eq!(declared.tangent_joints(), &[2, 0, 2]);
+
+    // The polygon door: every bulge zero, chain order preserved.
+    let poly: ProfileLoop<f64> = RawLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(0.0, 2.0),
+    ]);
+    assert_eq!(poly.vertices().len(), 3);
+    assert!(
+        poly.segments()
+            .iter()
+            .all(|s| matches!(s, profile::Segment::Line))
+    );
+    assert_eq!(poly.vertices()[1].x, 2.0);
+
+    // reversed() survives the seal: it reads and rebuilds through the
+    // same private representation, and it is still an involution.
+    let there_and_back = declared.reversed().reversed();
+    assert_eq!(there_and_back.tangent_joints(), declared.tangent_joints());
+    for (a, b) in there_and_back.vertices().iter().zip(declared.vertices()) {
+        assert_eq!(a.x.to_bits(), b.x.to_bits());
+    }
+    for (a, b) in there_and_back.segments().iter().zip(declared.segments()) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
+    }
+}
+
+/// **The canonical door writes the stored form verbatim.** Every
+/// segment it is handed reads back bit for bit. It can also write a
+/// table the bulge form cannot — a one-segment full circle — and
+/// deciding that table is `validate`'s: it refuses it by arity.
+#[test]
+fn the_canonical_door_writes_the_stored_form_verbatim() {
+    let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
+    let arc = Segment::Arc(Arc2 {
+        centre: Point2::new(1.0, 0.5),
+        radius: 0.5,
+        sweep: std::f64::consts::PI,
+    });
+    let chain = [
+        (Point2::new(0.0, 0.0), Segment::Line),
+        (Point2::new(1.0, 0.0), arc),
+        (Point2::new(1.0, 1.0), Segment::Line),
+    ];
+    let lp: ProfileLoop<f64> = RawLoop::new(chain);
+    for (k, &(pos, segment)) in chain.iter().enumerate() {
+        assert_eq!(bits(&lp.vertices()[k]), bits(&pos), "vertex {k}");
+        assert_eq!(bits(&lp.segments()[k]), bits(&segment), "segment {k}");
+    }
+    assert!(lp.tangent_joints().is_empty());
+
+    let circle: ProfileLoop<f64> = RawLoop::new([(
+        Point2::new(1.0, 0.0),
+        Segment::Arc(Arc2 {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: std::f64::consts::TAU,
+        }),
+    )]);
+    assert_eq!(circle.segments().len(), 1);
+    let refusal = Profile::new(SketchPlane::xy(), vec![circle])
+        .validate(Tol::witness())
+        .err();
+    assert!(
+        matches!(
+            refusal,
+            Some(ProfileError::TooFewVertices {
+                loop_index: 0,
+                count: 1
+            })
+        ),
+        "a one-segment circle is refused by arity, got {refusal:?}"
+    );
+}
+
+/// **Cannot-mint, at the source level.** Deserialization is the one
+/// route that could rebuild a value field-by-field without naming a
+/// door, so the seal is only worth what the absence of serde on
+/// `ProfileLoop` is worth. This row reads the crate's own sources and
+/// refuses if that absence ever stops holding.
+///
+/// The argument the absence completes lives at
+/// `crates/editor-core/src/persist/wire.rs`: the persisted form is the
+/// PROGRAM, and replay through the driver is the only path from stored
+/// steps to geometry. A `#[derive(Deserialize)]` landing on the type
+/// here would open a second path, silently — hence a scan, not a
+/// comment.
+#[test]
+fn a_loop_cannot_be_deserialized() {
+    // The manifest is TOML, not Rust: its own comment rule (`#` to end
+    // of line) is the reader here, and the shared Rust lexer is not
+    // what it wants.
+    let manifest = include_str!("../Cargo.toml");
+    for line in manifest.lines() {
+        let l = line.trim();
+        if l.starts_with('#') {
+            continue;
+        }
+        assert!(
+            !l.contains("serde"),
+            "profile's manifest names serde ({l:?}) — the crate is serde-free by policy \
+             (see path/program.rs) and the cannot-mint argument rests on it"
+        );
+    }
+
+    // Comments blanked, string literals KEPT. The needles are an item
+    // head, a derive, and a path in a `use` — but a FOURTH spelling
+    // reaches the same place and is a literal: a `#[cfg(feature =
+    // "serde")]` gate names the feature in quotes, and `code_only`
+    // blanks it, so the whole-module clause below would pass over a
+    // serde-gated module. Prose naming serde is still prose.
+    //
+    // Two other things police this edge, so what a blanked literal
+    // would have cost is defence in depth rather than the outer wall:
+    // `scripts/gates/kernel-serde-free.sh` polices the dependency
+    // itself, and the manifest loop above polices this crate's.
+    let src = test_utils::source::code_and_literals(include_str!("../src/lib.rs"));
+    let seal_offsets = ["pub struct ProfileLoop<T: Real>"];
+    for decl in seal_offsets {
+        let at = src.find(decl);
+        assert!(at.is_some(), "{decl} is still declared in lib.rs");
+        let at = at.unwrap_or(0);
+        // The attributes and docs attached to a declaration are the
+        // 40 lines above it; a derive on the type would be in there.
+        let head: String = src[..at]
+            .lines()
+            .rev()
+            .take(40)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !head.contains("serde") && !head.contains("Serialize") && !head.contains("Deserialize"),
+            "a serde attribute reached {decl} — the seal's cannot-mint claim is void"
+        );
+    }
+    assert!(
+        !src.contains("serde"),
+        "profile's root module names serde — the crate is serde-free by policy"
+    );
+}

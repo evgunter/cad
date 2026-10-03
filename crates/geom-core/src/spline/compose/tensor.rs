@@ -1,0 +1,677 @@
+//! **Tensor-product Bernstein composition** (M5 PR 7b): the surface
+//! side of the compose contract — given a tensor-product NURBS
+//! surface's structure and ring-lifted control net, a 2-D parameter
+//! curve `P(t) = (u(t), v(t))` and a 3-D carrier `C(t)` on **one shared
+//! parameter** (the OQ4 identity), build the per-coordinate composite
+//! residual `S(P(t)) − C(t)` in ring-coefficient Bernstein form and
+//! read a certified sup-norm bound off its vector coefficients. Data in,
+//! bounds out — nothing here evaluates or samples anything (C2.2, OQ2).
+//!
+//! # The pipeline (the curve module's, one dimension up)
+//!
+//! 1. **Center-shift, then homogeneous lift.** Every spatial channel is
+//!    shifted by one common center **before any product** (the curve
+//!    module's step 1, one dimension up): the surface as
+//!    `(w·(x−c_x), w·(y−c_y), w·(z−c_z), w)` on the control net, the
+//!    carrier as the same-shifted `(A_x, A_y, A_z, W_C)`; the parameter
+//!    curve `(U, V, W_P) = (w·u, w·v, w)` is chart-valued and carries
+//!    no center. The residual is shift-invariant in exact arithmetic,
+//!    but interval arithmetic's outward rounding scales with coefficient
+//!    magnitude — unshifted, a wall 1e6 m from the origin costs six
+//!    orders of bound (the PR 7b review's executed witness). No
+//!    division happens until the very last per-span quotient, so every
+//!    intermediate is polynomial and interval arithmetic's products stay
+//!    exact-up-to-rounding.
+//! 2. **Bézier decomposition, tensor-product.** The surface is
+//!    decomposed by knot insertion **in u and in v** — the tensor
+//!    product of the two univariate decompositions: structure
+//!    (positions, counts) from the `f64` knot vectors, the insertion
+//!    `α` formed as a **ring quotient of knot enclosures** in both
+//!    directions (an `f64`-rounded `α` would silently drop its rounding
+//!    error). The two curves are decomposed on a **merged break list**
+//!    (each other's interior knots plus any caller-supplied refinement
+//!    breaks injected via exact knot insertion), so a span index means
+//!    the same parameter window on every channel by construction.
+//! 3. **Composition.** Per `t`-span and per surface Bézier cell
+//!    `[u_a,u_b]×[v_a,v_b]`, the cell's Bernstein basis evaluated along
+//!    the curve clears denominators exactly:
+//!    `W_P^{m_u}·B_i^{m_u}(ũ(t)) = C(m_u,i)·G_u^i·H_u^{m_u−i} / (u_b−u_a)^{m_u}`
+//!    with `G_u = U − u_a·W_P`, `H_u = u_b·W_P − U` — Bernstein rows of
+//!    the shared span, powered and multiplied by [`super::bern_mul_row`]'s
+//!    exact binomial-quotient products. The composed channels
+//!    `N_c = Σ_{ij} F_{c,ij}·C(m_u,i)C(m_v,j)·G_u^iH_u^{m_u−i}·G_v^jH_v^{m_v−j}`
+//!    (one per homogeneous surface channel `c`) then satisfy
+//!    `N_c = s·W_P^{m_u+m_v}·(F_c ∘ P)` with one **common** positive
+//!    factor `s·W_P^{m_u+m_v}` — common, so it cancels in every
+//!    quotient below and is never formed.
+//! 4. **The difference at the coefficient level, then coefficient
+//!    norms.** Per coordinate `d`: `num_d = N_d·W_C − A_d·N_w`,
+//!    `den = N_w·W_C`, and `num_d/den = S(P(t))_d − C_d(t)` **exactly**
+//!    (the common factor divides out). The three numerators are one
+//!    VECTOR Bernstein form over one scalar denominator, and its bound
+//!    is `max_k |n_k| / |d_k|` over its coefficients when the `d_k`
+//!    share one strict sign (the convex-hull
+//!    property applied to the norm itself; the argument is at
+//!    `coefficient_norm_bound`), maxed over the cells a span touches
+//!    and then over spans. A denominator whose coefficients do not
+//!    share one strict sign refuses the bound loudly.
+//!
+//! # Why the cancellation survives composition-then-hull
+//!
+//! The reviewable content of `S(P(t)) = C(t)` is a **cancellation**:
+//! over one span both `S(P(t))` and `C(t)` move by the span's whole
+//! geometric variation (~`‖derivative‖ × span width`), while their
+//! difference stays at the fit residual, many orders smaller.
+//! Hull-then-difference — enclosing `S∘P` and `C` separately and
+//! subtracting the enclosures (PR 7's first-order limb, and any
+//! midpoint-plus-radii variant) — necessarily reports the *sum of the
+//! two variations*, because interval subtraction cannot see that the
+//! two enclosures are correlated: the bound scales like the span
+//! width (~1e-2 m on the M5 wall fixture) no matter how small the true
+//! residual (~1e-10 m) is. Composition-then-hull instead forms the
+//! coefficients of the **single polynomial** `num_d = N_d·W_C − A_d·N_w`
+//! in certification arithmetic: the large, correlated parts of the two products are the
+//! *same numbers* and subtract to outward rounding, so the surviving
+//! coefficients are the residual polynomial's own — small because the
+//! residual is small — and the convexity fact (a rational Bernstein
+//! form over a one-signed denominator lies in the convex hull of its
+//! coefficient quotients) turns them into a sup bound at the
+//! residual's own scale. The only losses are outward rounding (~1e-16
+//! relative, accumulated over the composition's few hundred ring ops)
+//! and the Bernstein hull's own overshoot, which shrinks quadratically
+//! as the caller injects refinement breaks.
+//!
+//! # Degree and size budget
+//!
+//! With curve degrees `q` (both curves, the OQ4 pair share one fit
+//! degree) and surface degrees `(m_u, m_v)`, the composite numerator
+//! degree is `q·(m_u + m_v) + q`. Every Bernstein product routes
+//! through [`super::binom_row`], whose exactness cap
+//! ([`super::BINOM_EXACT_MAX`] = 54) therefore bounds what this module
+//! serves: `q·(m_u + m_v + 1) ≤ 54`. For the SSI fit degrees actually
+//! in use (`SSI_FIT_DEGREE` = 3 for carrier and pcurve) that is
+//! `m_u + m_v ≤ 17` — a bicubic×bicubic wall lands at degree 21 of the
+//! 54 budget, and even a degree (9,8) surface fits. Beyond the cap the
+//! binomial row is all-NaN and the bound is `NaN`, which fails every
+//! `≤ ε` certification loudly (D4 ¶2) — never a silently rounded
+//! weight. Work scales as
+//! `spans × cells-touched × (m_u+1)(m_v+1)` products of rows of length
+//! `O(q·(m_u+m_v))`.
+//!
+//! # Scaling conventions
+//!
+//! The composite is the **coordinatewise residual in meters** (the
+//! operands are position-valued; no implicit form and no m²/m⁴ channel
+//! exists on this side of the table — the curve module's m/m²/m⁴
+//! conventions apply to its implicit composites only).
+//! [`SurfaceResidual::sup_bound`] is a certified upper bound on
+//! `sup_t |S(P(t)) − C(t)|` in meters. It reads each vector
+//! coefficient's Euclidean norm, never a per-coordinate box folded
+//! after the fact: a box of one vector field reads anywhere between 1×
+//! and √3× its norm depending on how the field sits against the axes,
+//! while a coefficient's norm is unchanged by a rigid map up to
+//! rounding (the common center shift cancels in the difference).
+//!
+//! # Domain posture
+//!
+//! Cells are selected by the parameter curve's per-span **window** (the
+//! quotient of its span coefficient hulls — the convex-hull property
+//! for positive weights). A window that leaves the surface's knot
+//! domain is served by the boundary cell's polynomial extension —
+//! exactly the spline's own clamped extension semantics (see the
+//! [`super::super`] span contract) — and a window that straddles a knot
+//! line is bounded on **every** cell it touches and maxed, which is
+//! sound on each cell's own territory and conservative off it.
+//!
+//! # C6 and the refusal posture
+//!
+//! Structure (knots, degrees, binomials, break merges, cell selection)
+//! is `f64`; everything coefficient-valued is [`Interval`].
+//! Checkable structural errors at the entry point are typed
+//! ([`ComposeError`], closed per D3); anything downstream (degenerate
+//! weights, budget overrun, zero-touching denominator) refuses the
+//! bound, which fails every `≤ ε` comparison (D4 ¶2).
+
+use super::super::knots::{KnotVector, SplineError};
+use super::{
+    BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
+};
+use crate::interval::certification::Certification;
+use crate::interval::{Interval, div_up, max_bound, norm_sup};
+use crate::real::Bounds;
+
+// ---------------------------------------------------------------------
+// Data-in: the surface's structure + control net, in certification form
+// ---------------------------------------------------------------------
+
+/// A tensor-product NURBS surface in certification form: its structure
+/// plus its control coordinates — the surface-side data-in shape. `coords[d][i]` is the
+/// `d`-th coordinate (`d < 3`) of control point `i` in the **row-major
+/// `iu·nv + iv` layout** as a certification enclosure.
+#[derive(Clone, Debug)]
+pub struct SurfaceCertData<'a> {
+    ku: &'a KnotVector,
+    kv: &'a KnotVector,
+    weights: &'a [f64],
+    coords: &'a [Vec<Interval>],
+}
+
+// `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+impl<'a> SurfaceCertData<'a> {
+    /// Validated construction: weight count/positivity/finiteness
+    /// against the tensor control count `nu·nv`, exactly three
+    /// coordinate channels, and per-channel coordinate counts.
+    ///
+    /// # Errors
+    ///
+    /// [`ComposeError`] naming the exact violation.
+    pub fn new(
+        ku: &'a KnotVector,
+        kv: &'a KnotVector,
+        weights: &'a [f64],
+        coords: &'a [Vec<Interval>],
+    ) -> Result<Self, ComposeError> {
+        let n = ku.control_count() * kv.control_count();
+        if weights.len() != n {
+            return Err(ComposeError::Structure(SplineError::WeightCountMismatch {
+                weights: weights.len(),
+                control: n,
+            }));
+        }
+        for (index, w) in weights.iter().enumerate() {
+            if !(*w > 0.0) {
+                return Err(ComposeError::Structure(SplineError::NonPositiveWeight {
+                    index,
+                    weight: *w,
+                }));
+            }
+            if !w.is_finite() {
+                return Err(ComposeError::Structure(SplineError::NonFiniteWeight {
+                    index,
+                    weight: *w,
+                }));
+            }
+        }
+        if coords.len() != 3 {
+            return Err(ComposeError::DimensionMismatch {
+                dims: coords.len(),
+                expected: 3,
+            });
+        }
+        for ch in coords {
+            if ch.len() != n {
+                return Err(ComposeError::Structure(SplineError::ControlCountMismatch {
+                    control: ch.len(),
+                    expected: n,
+                }));
+            }
+        }
+        Ok(Self {
+            ku,
+            kv,
+            weights,
+            coords,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------
+// Bounds-out: the composite residual's per-span norm bounds
+// ---------------------------------------------------------------------
+
+/// The composite residual `S(P(t)) − C(t)`, bounded: per shared
+/// `t`-span, one certified upper bound on its Euclidean norm. Where the
+/// curve module's [`super::CompositeForm`] is one global rational form,
+/// this is per-span data — the surface's Bézier **cell** serving a span
+/// changes along the curve, so no single rational form spans the
+/// domain.
+///
+/// Each bound is read from the residual's **vector** Bernstein
+/// coefficients (module docs, step 4), never from a per-coordinate
+/// box, so it is a function of the geometry: a rigid map moves it only
+/// by rounding.
+#[derive(Clone, Debug)]
+pub struct SurfaceResidual {
+    breaks: Vec<f64>,
+    spans: Vec<f64>,
+}
+
+impl SurfaceResidual {
+    /// The shared break parameters: span `j` covers
+    /// `[breaks[j], breaks[j+1]]`.
+    pub fn breaks(&self) -> &[f64] {
+        &self.breaks
+    }
+
+    /// Per-span certified upper bounds on `|S(P(t)) − C(t)|` in meters;
+    /// `NaN` where the span is refused.
+    pub fn span_bounds(&self) -> &[f64] {
+        &self.spans
+    }
+
+    /// A certified upper bound on `sup_t |S(P(t)) − C(t)|` in meters:
+    /// the largest span bound (fixed ascending fold, D9). `NaN` if any
+    /// span is refused, which fails every `≤ ε` comparison (D4 ¶2).
+    pub fn sup_bound(&self) -> f64 {
+        self.spans
+            .iter()
+            .copied()
+            .reduce(max_bound)
+            .unwrap_or(f64::NAN)
+    }
+}
+
+// ---------------------------------------------------------------------
+// Tensor Bézier decomposition (pipeline step 2)
+// ---------------------------------------------------------------------
+
+/// One homogeneous surface channel, Bézier-decomposed in both
+/// directions: `patches[su][sv]` holds the `(deg_u+1)·(deg_v+1)`
+/// cell coefficients, row-major `a·(deg_v+1) + b`.
+struct TensorSpans {
+    deg_u: usize,
+    deg_v: usize,
+    breaks_u: Vec<f64>,
+    breaks_v: Vec<f64>,
+    patches: Vec<Vec<Vec<Interval>>>,
+}
+
+/// Tensor-product Bézier decomposition of one scalar channel over the
+/// control grid (`nu·nv`, row-major): the u-direction univariate
+/// decomposition applied per v-column, then the v-direction one per
+/// (u-span, u-index) row — the tensor product of the two univariate
+/// insertions, `α` a ring quotient in **both** directions.
+fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> TensorSpans {
+    let nv = kv.control_count();
+    // Stage 1 (u): one decomposition per v-column; identical structure.
+    let mut breaks_u = Vec::new();
+    let mut deg_u = ku.degree();
+    // stage1[su][a][jv]
+    let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
+    for jv in 0..nv {
+        let col: Vec<Interval> = (0..ku.control_count())
+            .map(|iu| grid[iu * nv + jv])
+            .collect();
+        let bs = to_bezier_spans_extra(ku, &col, &[]);
+        if jv == 0 {
+            breaks_u = bs.breaks.clone();
+            deg_u = bs.degree;
+            stage1 = bs
+                .spans
+                .iter()
+                .map(|row| row.iter().map(|c| vec![*c]).collect())
+                .collect();
+        } else {
+            for (su, row) in bs.spans.iter().enumerate() {
+                for (a, c) in row.iter().enumerate() {
+                    stage1[su][a].push(*c);
+                }
+            }
+        }
+    }
+    // Stage 2 (v): per u-span and u-index, decompose the v-row.
+    let mut breaks_v = Vec::new();
+    let mut deg_v = kv.degree();
+    let mut patches: Vec<Vec<Vec<Interval>>> = Vec::new();
+    for span_rows in &stage1 {
+        let mut cells: Vec<Vec<Interval>> = Vec::new();
+        for (a, vrow) in span_rows.iter().enumerate() {
+            let bs = to_bezier_spans_extra(kv, vrow, &[]);
+            if a == 0 {
+                breaks_v = bs.breaks.clone();
+                deg_v = bs.degree;
+                cells = vec![vec![]; bs.spans.len()];
+            }
+            for (sv, row) in bs.spans.iter().enumerate() {
+                cells[sv].extend(row.iter().copied());
+            }
+        }
+        patches.push(cells);
+    }
+    TensorSpans {
+        deg_u,
+        deg_v,
+        breaks_u,
+        breaks_v,
+        patches,
+    }
+}
+
+// ---------------------------------------------------------------------
+// Row algebra (fixed association orders, D9)
+// ---------------------------------------------------------------------
+
+/// `a_k − c·b_k` elementwise (equal degrees by construction; the
+/// association is exactly as written).
+fn row_sub_scaled(a: &[Interval], c: f64, b: &[Interval]) -> Vec<Interval> {
+    let cc = Interval::point(c);
+    a.iter().zip(b.iter()).map(|(x, y)| *x - cc * *y).collect()
+}
+
+/// `c·b_k − a_k` elementwise.
+fn row_scaled_sub(c: f64, b: &[Interval], a: &[Interval]) -> Vec<Interval> {
+    let cc = Interval::point(c);
+    a.iter().zip(b.iter()).map(|(x, y)| cc * *y - *x).collect()
+}
+
+/// `a_k − b_k` elementwise.
+fn row_sub(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+    a.iter().zip(b.iter()).map(|(x, y)| *x - *y).collect()
+}
+
+/// The coefficient hull of one row (ascending fold, D9).
+fn row_hull(row: &[Interval]) -> Interval {
+    let mut acc = Interval::refused();
+    for (n, c) in row.iter().enumerate() {
+        acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
+    }
+    acc
+}
+
+/// The table `T_i = g^i·h^{m−i}` for `i = 0..=m`, every entry of one
+/// degree `m·deg(g)` (ascending powers built by repeated
+/// [`bern_mul_row`], fixed order).
+fn power_table(g: &[Interval], h: &[Interval], m: usize) -> Vec<Vec<Interval>> {
+    let one = vec![Interval::one()];
+    let mut gp: Vec<Vec<Interval>> = vec![one.clone()];
+    let mut hp: Vec<Vec<Interval>> = vec![one];
+    for i in 1..=m {
+        gp.push(bern_mul_row(&gp[i - 1], g));
+        hp.push(bern_mul_row(&hp[i - 1], h));
+    }
+    (0..=m).map(|i| bern_mul_row(&gp[i], &hp[m - i])).collect()
+}
+
+// ---------------------------------------------------------------------
+// Composition (pipeline step 3) and the per-cell bound (step 4)
+// ---------------------------------------------------------------------
+
+/// One `t`-span's homogeneous curve rows: the parameter curve's
+/// `(U, V, W_P)` and the carrier's `(A_x, A_y, A_z, W_C)`.
+struct SpanRows<'a> {
+    u: &'a [Interval],
+    v: &'a [Interval],
+    wp: &'a [Interval],
+    ac: [&'a [Interval]; 3],
+    wc: &'a [Interval],
+}
+
+/// The residual bound of one `t`-span against one surface cell: the
+/// module-docs composition, the difference formed at the coefficient
+/// level, then [`coefficient_norm_bound`]. `NaN` wherever interval
+/// arithmetic refuses (budget, a denominator that is not one-signed).
+fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows<'_>) -> f64 {
+    let (mu, mv) = (surf[0].deg_u, surf[0].deg_v);
+    // The one budget case the automatic NaN row cannot reach: a
+    // degree-0 curve pair composes to degree-0 rows whose binomials
+    // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Refuse
+    // explicitly rather than round silently.
+    if mu + mv > super::BINOM_EXACT_MAX {
+        return f64::NAN;
+    }
+    let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
+    let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
+    // G/H rows (module docs step 3), then the power tables.
+    let gu = row_sub_scaled(rows.u, ua, rows.wp);
+    let hu = row_scaled_sub(ub, rows.wp, rows.u);
+    let gv = row_sub_scaled(rows.v, va, rows.wp);
+    let hv = row_scaled_sub(vb, rows.wp, rows.v);
+    let tu = power_table(&gu, &hu, mu);
+    let tv = power_table(&gv, &hv, mv);
+    let bmu = binom_row(mu);
+    let bmv = binom_row(mv);
+    // The four composed channels N_c, degree q_p·(m_u+m_v): ascending
+    // (i, j), the cell coefficient times its exact binomial pair on the
+    // left of the basis row (fixed association).
+    let deg_n = tu[0].len() - 1 + tv[0].len() - 1;
+    let mut n: [Vec<Interval>; 4] = core::array::from_fn(|_| vec![Interval::zero(); deg_n + 1]);
+    for i in 0..=mu {
+        for j in 0..=mv {
+            let basis = bern_mul_row(&tu[i], &tv[j]);
+            let w = Interval::point(bmu[i] * bmv[j]);
+            for (c, ch) in n.iter_mut().enumerate() {
+                let f = surf[c].patches[su][sv][i * (mv + 1) + j];
+                let fw = f * w;
+                for (k, b) in basis.iter().enumerate() {
+                    ch[k] = ch[k] + fw * *b;
+                }
+            }
+        }
+    }
+    // The difference at the coefficient level (module docs step 4):
+    // num_d/den = S(P(t))_d − C_d(t) exactly, every row one degree.
+    let den = bern_mul_row(&n[3], rows.wc);
+    let num: [Vec<Interval>; 3] = core::array::from_fn(|d| {
+        row_sub(
+            &bern_mul_row(&n[d], rows.wc),
+            &bern_mul_row(rows.ac[d], &n[3]),
+        )
+    });
+    coefficient_norm_bound(&num, &den)
+}
+
+/// A certified upper bound on `|N(t)/D(t)|` over the span, for the
+/// vector Bernstein form `N = Σ n_k B_k` (`n_k = (num[0][k], num[1][k],
+/// num[2][k])`) over the scalar `D = Σ d_k B_k`: `max_k |n_k| / |d_k|`.
+///
+/// Sound when every `d_k` has one strict sign: then
+/// `N/D = Σ λ_k (n_k/d_k)` with `λ_k = d_k B_k / D ≥ 0` summing to 1,
+/// so `N/D` lies in the convex hull of the `n_k/d_k`, and the norm,
+/// being convex, is at most its largest value there. Each `|n_k|` is
+/// [`norm_sup`] (an upper end, rounded up), divided by the lower end of
+/// `|d_k|` and rounded up again ([`div_up`]).
+///
+/// Positive weights (refused otherwise at [`SurfaceCertData::new`] and
+/// [`CurveCertData::new`]) make every `d_k` positive while the
+/// parameter window lies in the cell. A cell reached through its
+/// polynomial extension (module docs, domain posture) can carry the
+/// weight function to the other sign, which is as sound; a denominator
+/// whose coefficients do not share one strict sign refuses with `NaN`.
+fn coefficient_norm_bound(num: &[Vec<Interval>; 3], den: &[Interval]) -> f64 {
+    let positive = den.iter().all(|d| d.is_certified() && d.lo() > 0.0);
+    let negative = den.iter().all(|d| d.is_certified() && d.hi() < 0.0);
+    if !(positive || negative) {
+        return f64::NAN;
+    }
+    den.iter()
+        .enumerate()
+        .map(|(k, d)| {
+            let floor = if positive { d.lo() } else { -d.hi() };
+            div_up(norm_sup(&[num[0][k], num[1][k], num[2][k]]), floor)
+        })
+        .reduce(max_bound)
+        .unwrap_or(f64::NAN)
+}
+
+// ---------------------------------------------------------------------
+// Cell selection (structure, f64) and the entry point
+// ---------------------------------------------------------------------
+
+/// The cell indices of the break list `breaks` whose closed interval
+/// meets the window `[lo, hi]`, clamped so an out-of-domain window is
+/// served by the boundary cell's polynomial extension (module docs,
+/// domain posture). Returns the inclusive index range.
+///
+/// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
+/// test is **closed**, so a window whose endpoint lands exactly on a
+/// knot pulls in the neighbor cell whose contribution is a
+/// single-point agreement (the two patch polynomials agree at the
+/// knot). A strict-interior test would be tighter and still sound —
+/// a future tightening, banked rather than slipped into a fix pass.
+fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
+    let last = breaks.len() - 2;
+    let mut first_cell = last;
+    let mut last_cell = 0;
+    for cell in 0..=last {
+        if breaks[cell + 1] >= lo && breaks[cell] <= hi {
+            first_cell = first_cell.min(cell);
+            last_cell = last_cell.max(cell);
+        }
+    }
+    if first_cell > last_cell {
+        // The window misses the domain entirely: the nearest edge cell.
+        if hi < breaks[0] { (0, 0) } else { (last, last) }
+    } else {
+        (first_cell, last_cell)
+    }
+}
+
+/// The composite residual `S(P(t)) − C(t)`, as certified per-span
+/// bounds on its norm (module docs: the pipeline, the
+/// cancellation note, and the degree budget).
+///
+/// `pcurve` is the 2-channel parameter curve `P(t) = (u(t), v(t))` in
+/// the surface's parameter square; `carrier` is the 3-channel curve the
+/// composite is compared against, on the **same knot domain** (the OQ4
+/// identity — exact `f64` equality, typed refusal otherwise). Both are
+/// decomposed onto the merged break list of their interior knots plus
+/// `extra_breaks` (exact knot insertion; each extra strictly inside the
+/// domain, duplicates structure-filtered), so a caller wanting tighter
+/// bounds injects refinement here rather than refitting anything.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `pcurve` has 2 and
+/// `carrier` 3 channels; [`ComposeError::DomainMismatch`] when the two
+/// curves' knot domains differ.
+pub fn surface_curve_residual(
+    surface: &SurfaceCertData<'_>,
+    pcurve: &CurveCertData<'_>,
+    carrier: &CurveCertData<'_>,
+    extra_breaks: &[f64],
+) -> Result<SurfaceResidual, ComposeError> {
+    if pcurve.dims() != 2 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: pcurve.dims(),
+            expected: 2,
+        });
+    }
+    if carrier.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: carrier.dims(),
+            expected: 3,
+        });
+    }
+    if pcurve.kv.domain() != carrier.kv.domain() {
+        return Err(ComposeError::DomainMismatch {
+            a: pcurve.kv.domain(),
+            b: carrier.kv.domain(),
+        });
+    }
+    // The merged break list: each curve is decomposed with the OTHER's
+    // interior knots (plus the caller's refinement) injected, so every
+    // channel lands on one shared span structure.
+    let mut merged: Vec<f64> = extra_breaks.to_vec();
+    merged.extend(pcurve.kv.interior_knots().map(|(v, _)| v));
+    merged.extend(carrier.kv.interior_knots().map(|(v, _)| v));
+    merged.sort_by(f64::total_cmp);
+    merged.dedup();
+
+    // Pipeline step 1: **center-shift before any product** — the curve
+    // module's precedent, one dimension up. The residual is
+    // shift-invariant in exact arithmetic (a common center cancels in
+    // `S(P(t)) − C(t)`), but the RING is not: outward rounding scales
+    // with coefficient MAGNITUDE, so an unshifted wall 1e6 m from the
+    // origin costs six orders of bound (review finding 2026-07-31,
+    // executed witness pinned in `review_m5_pr7b_tensor.rs`:
+    // 1.128e-12 near the origin vs 1.866e-6 unshifted at 1e6 m). The
+    // center is structure (C6): the carrier's first control
+    // coordinate, one exact `f64` per coordinate, applied identically
+    // to the surface's and the carrier's spatial channels. The chart
+    // channels are parameter-valued and carry no center.
+    //
+    // A refused coefficient has no center to give, and it says so with
+    // `NaN` — which `Interval::point` refuses, so the whole
+    // composition is refused. The refusal is asked by name because it
+    // lives in the decoration: reading `.lo()` off a refused
+    // coefficient would hand back an ordinary number and shift every
+    // channel by it, laundering the refusal out of the SURFACE's
+    // coefficients (the carrier's own would still carry it).
+    let center: [f64; 3] = core::array::from_fn(|d| {
+        let c = carrier.coords[d][0];
+        if !c.is_certified() { f64::NAN } else { c.lo() }
+    });
+
+    // Homogeneous channels on the shared breaks, the weight channel
+    // carried; spatial channels center-shifted at the lift.
+    let homog = |data: &CurveCertData<'_>, d: usize, shift: f64| -> BernsteinSpans {
+        let s = Interval::point(shift);
+        let coeffs: Vec<Interval> = data.coords[d]
+            .iter()
+            .zip(data.weights.iter())
+            .map(|(x, w)| Interval::point(*w) * (*x - s))
+            .collect();
+        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+    };
+    let weight = |data: &CurveCertData<'_>| -> BernsteinSpans {
+        let coeffs: Vec<Interval> = data.weights.iter().map(|w| Interval::point(*w)).collect();
+        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+    };
+    let (pu, pv, pw) = (homog(pcurve, 0, 0.0), homog(pcurve, 1, 0.0), weight(pcurve));
+    let (ax, ay, az, cw) = (
+        homog(carrier, 0, center[0]),
+        homog(carrier, 1, center[1]),
+        homog(carrier, 2, center[2]),
+        weight(carrier),
+    );
+
+    // The surface's four homogeneous channels, tensor-decomposed —
+    // spatial channels shifted by the SAME center.
+    let lift = |f: &dyn Fn(usize) -> Interval| -> Vec<Interval> {
+        (0..surface.weights.len()).map(f).collect()
+    };
+    let schan: Vec<TensorSpans> = (0..3)
+        .map(|d| {
+            let c = Interval::point(center[d]);
+            let grid = lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c));
+            tensor_channel(surface.ku, surface.kv, &grid)
+        })
+        .collect();
+    let swt = tensor_channel(
+        surface.ku,
+        surface.kv,
+        &lift(&|i| Interval::point(surface.weights[i])),
+    );
+    let surf: [&TensorSpans; 4] = [&schan[0], &schan[1], &schan[2], &swt];
+
+    // Per shared t-span: the parameter window, the cells it touches,
+    // and the largest bound across cells (ascending, D9).
+    let breaks = pu.breaks.clone();
+    let mut spans: Vec<f64> = Vec::with_capacity(breaks.len() - 1);
+    for s in 0..breaks.len() - 1 {
+        let rows = SpanRows {
+            u: &pu.spans[s],
+            v: &pv.spans[s],
+            wp: &pw.spans[s],
+            ac: [&ax.spans[s], &ay.spans[s], &az.spans[s]],
+            wc: &cw.spans[s],
+        };
+        let wden = row_hull(rows.wp);
+        let wu = row_hull(rows.u) / wden;
+        let wv = row_hull(rows.v) / wden;
+        if !wu.is_certified() || !wv.is_certified() {
+            spans.push(f64::NAN);
+            continue;
+        }
+        // Located in the SAME break arrays `cell_residual` indexes
+        // below (`surf[0]`), not in a sibling channel's: all four
+        // channels are `tensor_channel(surface.ku, surface.kv, ..)` and
+        // so carry identical breaks, but that is a construction fact
+        // and nothing enforces it, so the index and the array it
+        // indexes are one object here. `cells_touched` answers within
+        // `0..=breaks.len() − 2`, which is what makes `breaks_u[su + 1]`
+        // below an in-range read without a `.get`.
+        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu.lo(), wu.hi());
+        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
+        // `cells_touched` always returns at least one cell.
+        let cells = (u0..=u1).flat_map(|su| (v0..=v1).map(move |sv| (su, sv)));
+        spans.push(
+            cells
+                .map(|(su, sv)| cell_residual(&surf, su, sv, &rows))
+                .reduce(max_bound)
+                .unwrap_or(f64::NAN),
+        );
+    }
+    Ok(SurfaceResidual { breaks, spans })
+}

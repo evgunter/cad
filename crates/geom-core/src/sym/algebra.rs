@@ -1,0 +1,340 @@
+//! **The atom algebra** behind [`SymRules`](super::SymRules): the
+//! rule-A/B reduction of the top RESIDUAL a decide site tests. Every
+//! routine here is exact rational arithmetic on the parent module's
+//! [`Poly`]/[`Form`] and answers `None` where the parent would freeze —
+//! an overflow, a budget, or a shape the rule does not reach — so a rule
+//! can only ever FAIL TO FIND a cancellation, never claim one.
+//!
+//! # The two buildable rules are one rewrite
+//!
+//! Both replace an EVEN power of an atom by a power of a form the atom
+//! squared is equal to: **A** `sqrt(X)² → X`, with `abs(X)² → X²`
+//! beside it behind rule G's dial (the canonical root is what spells
+//! one root as the other — `super::root`), and **B**
+//! `sin(θ)² → 1 − cos(θ)²`. `reduce` applies that rewrite to the
+//! residual until no such power remains. It terminates because every substituted form was
+//! built strictly before the atom it replaces — the argument of a
+//! `sqrt` is a descendant of the `sqrt` node — so each step trades a
+//! square for squares of strictly older atoms, and the DAG is finite; a
+//! step cap and the size budget stand behind that argument.
+//!
+//! Neither rule reads a value. Rule C (`sqrt(X) = R` by a certified
+//! sign of `R`, clause 3) is the one rule that does, and it lives in
+//! its own module (`super::signed`) with the one door the
+//! value comes through.
+//!
+//! # Two places the rewrite runs
+//!
+//! Over the TOP RESIDUAL — `reduce`, once per near-zero margin, over
+//! the residual the decide site tests. It reaches atoms that appear IN
+//! the residual, not atoms nested inside another atom's argument or
+//! inside a frozen subform; those it leaves opaque, which is the
+//! conservative direction.
+//!
+//! And PER NODE, in the early walk (`SymRules::early`,
+//! `super::early_form`): the same rewrite under a small step cap at
+//! each node of a SECOND memo alongside the plain form, which is how a
+//! nested atom is reached — the argument is reduced before the atom
+//! over it is minted. The plain form is asked first, so the early walk
+//! can only add a discharge; the un-reduced form is kept wherever the
+//! cap or the budget stops a reduction.
+
+use super::form::{Form, Mono, Poly, exp_of, within};
+use super::rational::Rat;
+use super::{AtomInfo, IndetMap, SymBudget, SymOp, SymRules, indet_atom};
+
+/// One reduction the atom algebra can apply: `id² → x`, an even power of
+/// the atom replaced by a power of `x` (rule A's `x` is the `sqrt`'s
+/// argument; rule B's is `1 − cos²`), one factor of the atom left where
+/// the power is odd.
+struct Square {
+    id: u128,
+    x: Form,
+}
+
+/// The `1 − cos(θ)²` of one argument, as a form — rule B's substitution
+/// for `sin(θ)²`. The `cos` twin's id is `indet_atom(Cos, payload,
+/// [arg.digest()])` with the `sin` atom's OWN payload — the same key a
+/// `cos(θ)` node mints (a `sin`/`cos` pair from one `sin_cos` carries
+/// one payload), so a `sin` and a `cos` of one argument reduce into one
+/// indeterminate and cancel. The payload is read from the atom's
+/// record rather than assumed zero, so a node that ever carried one
+/// would still find its twin.
+fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
+    let cos = indet_atom(SymOp::Cos.tag(), payload, &[arg.digest()]);
+    let cos2 = Poly::term(vec![(cos, 2)], Rat::new(-1, 1, 0)?);
+    Some(Form::poly(Poly::one().add(&cos2)?))
+}
+
+/// **The indeterminates `f` carries to a power past one**, once per
+/// occurrence, numerator first — the one home of "what a reduction
+/// could substitute". [`find_square`] looks up exactly these in the
+/// atom table and nothing else, so a form none of whose squared ids is
+/// in the table is its own reduction.
+pub(super) fn squared(f: &Form) -> impl Iterator<Item = u128> + '_ {
+    [&f.num, &f.den]
+        .into_iter()
+        .flat_map(Poly::monos)
+        .flat_map(|m| m.iter())
+        .filter(|&&(_, e)| e >= 2)
+        .map(|&(id, _)| id)
+}
+
+/// The first reduction any enabled rule can apply to `f` — a `sqrt`
+/// atom (rule A) or a `sin` atom (rule B) appearing to an EVEN power.
+/// `None` when no rule reaches an even-power atom of `f`. Every id it
+/// looks up and finds ABSENT from the table is pushed to `absent` —
+/// the one read of the table whose answer can change later in the
+/// session (an atom minted after this call).
+fn find_square(
+    f: &Form,
+    rules: SymRules,
+    atoms: &IndetMap<AtomInfo>,
+    budget: SymBudget,
+    absent: &mut Vec<u128>,
+) -> Option<Square> {
+    for id in squared(f) {
+        let Some(info) = atoms.get(&id) else {
+            absent.push(id);
+            continue;
+        };
+        let Some(arg) = info.args[0].as_ref() else {
+            continue;
+        };
+        match info.op {
+            SymOp::Sqrt if rules.sqrt_square => {
+                return Some(Square {
+                    id,
+                    x: (**arg).clone(),
+                });
+            }
+            // `|X|² = X²` — the same rewrite as rule A's, at
+            // the atom rule G leaves where the argument of a
+            // root was a perfect square. Without it a root
+            // that USED to reduce through `sqrt(R²)² → R²`
+            // stops reducing the moment it is spelled `|R|`,
+            // and the residual keeps a square it can cancel.
+            //
+            // **Behind three dials — rule A's, rule G's and
+            // its own (`SymRules::abs_square`)**, read as one
+            // conjunction. Rule G's, because nothing mints an
+            // `Abs` where a root used to stand until rule G
+            // does, so a tier with `canonical_root` off that
+            // carried this arm would be a tier that never
+            // existed — and every differential taken against it
+            // would measure two rules at once. Its own, because
+            // it is the half of rule G whose trade on R2's link
+            // is measured apart, and a retry needs a bit to
+            // shut it by.
+            SymOp::Abs if rules.sqrt_square && rules.canonical_root && rules.abs_square => {
+                // A budget refusal on the squared argument is
+                // not an answer about the FORM: skip this atom
+                // and keep looking, the way a rule that can
+                // only fail to find a cancellation must. The
+                // `Sqrt` arm cannot refuse, so there is nothing
+                // to make consistent there.
+                let Some(x) = arg.mul(arg, budget) else {
+                    continue;
+                };
+                return Some(Square { id, x });
+            }
+            SymOp::Sin if rules.pythagoras => {
+                return Some(Square {
+                    id,
+                    x: one_minus_cos_squared(arg, info.payload)?,
+                });
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The powers `p^0 … p^n` of one polynomial, each budget-checked.
+fn powers(p: &Poly, n: u32, budget: SymBudget) -> Option<Vec<Poly>> {
+    let mut out = vec![Poly::one()];
+    for _ in 0..n {
+        let next = out.last()?.mul(p, budget)?;
+        out.push(next);
+    }
+    Some(out)
+}
+
+/// Names the step of a substitution running, for the cost profile's
+/// note of where a refused reduction refused; nothing without the
+/// profile's feature.
+macro_rules! site {
+    ($site:literal) => {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::reduce_site($site);
+    };
+}
+
+/// Substitutes `id²` by `repl = N / D` in one polynomial: `id^e →
+/// (N/D)^(e/2)·id^(e%2)`, over ONE common denominator `D^h` with `h`
+/// the largest `e/2` in the polynomial — every term `t·id^e` becomes
+/// `t·N^(e/2)·D^(h − e/2)·id^(e%2)` in the numerator. LINEAR in the
+/// polynomial: the first cut folded each term into a running quotient,
+/// so a `repl` with a denominator cross-multiplied that denominator in
+/// at every term and the running form grew as a product — which is
+/// what a 138-second nominal replay was made of. The powers of `N` and
+/// `D` are built once, up to `h`.
+fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> Option<Form> {
+    if repl.poisoned {
+        return Some(Form::poison());
+    }
+    let half = |m: &Mono| exp_of(m, id) / 2;
+    let h = poly.monos().map(half).max().unwrap_or(0);
+    site!("the powers of N");
+    let nums = powers(&repl.num, h, budget)?;
+    site!("the powers of D");
+    let dens = powers(&repl.den, h, budget)?;
+    let mut acc = Poly::zero();
+    for (mono, coeff) in poly.terms() {
+        let e = exp_of(mono, id);
+        let rest: Mono = mono
+            .iter()
+            .filter(|(i, _)| *i != id || e % 2 == 1)
+            .map(|&(i, ex)| if i == id { (i, 1) } else { (i, ex) })
+            .collect();
+        let term = Poly::term(rest, coeff.clone());
+        let k = e / 2;
+        site!("N^k · D^(h-k)");
+        let factor = nums
+            .get(k as usize)?
+            .mul(dens.get((h - k) as usize)?, budget)?;
+        site!("term · factor");
+        let product = term.mul(&factor, budget)?;
+        site!("the running sum");
+        acc = acc.add(&product)?;
+    }
+    let out = Form::quotient(acc, dens.into_iter().nth(h as usize)?);
+    Some(Form {
+        gated: repl.gated,
+        ..out
+    })
+}
+
+/// Applies one square reduction: substitute in numerator and
+/// denominator, re-form the quotient.
+fn apply(f: &Form, sq: &Square, budget: SymBudget) -> Option<Form> {
+    let num = poly_subst_square(&f.num, sq.id, &sq.x, budget)?;
+    let den = poly_subst_square(&f.den, sq.id, &sq.x, budget)?;
+    site!("the quotient's product");
+    let out = num.mul(&den.recip()?, budget)?;
+    Some(Form {
+        gated: out.gated || f.gated,
+        ..out
+    })
+}
+
+/// The most substitutions `reduce` takes before it FREEZES. Each step
+/// removes one atom occurrence (lowers its power by two and can only
+/// reintroduce strictly-older atoms), so a real residual reduces in a
+/// handful; a form that needs more than this is a pathological product
+/// the budget would freeze anyway, and freezing early bounds the cost.
+const REDUCE_STEPS: usize = 256;
+
+/// **The atom algebra over one residual** (module docs): apply rules A
+/// and B — as chosen by `rules` — to `f` until no rule reaches an
+/// even-power atom, and answer the reduced form. `None` is a FREEZE (the
+/// reduction ran past the step or size budget); the untouched form
+/// otherwise.
+pub(super) fn reduce(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+) -> Option<Form> {
+    reduce_steps(f, rules, budget, atoms, REDUCE_STEPS)
+}
+
+/// R1 PROBE: [`reduce`] with the step cap chosen by the caller.
+pub(super) fn reduce_steps(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    steps: usize,
+) -> Option<Form> {
+    reduce_noting(f, rules, budget, atoms, steps, &mut Vec::new())
+}
+
+/// [`reduce_steps`], pushing to `absent` every id the reduction looked
+/// up in the atom table and did not find. The answer is a function of
+/// the arguments and of those lookups alone: a record that IS in the
+/// table never changes (atoms are inserted once, under a content key),
+/// so the only way a later call on the same form can differ is an id in
+/// `absent` minted since.
+pub(super) fn reduce_noting(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    steps: usize,
+    absent: &mut Vec<u128>,
+) -> Option<Form> {
+    if f.poisoned || !(rules.sqrt_square || rules.pythagoras) {
+        return Some(f.clone());
+    }
+    let mut cur = f.clone();
+    for _step in 0..steps {
+        let Some(sq) = find_square(&cur, rules, atoms, budget, absent) else {
+            return Some(cur);
+        };
+        let Some(next) = apply(&cur, &sq, budget) else {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::reduce_exit("the ring or a product refused", _step);
+            return None;
+        };
+        cur = next;
+        if cur.poisoned {
+            return Some(cur);
+        }
+        if !within(budget, &cur) {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::reduce_exit("past the budget", _step);
+            return None;
+        }
+    }
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::reduce_exit("past the step cap", steps);
+    None
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    /// `id² → x` on a two-term residual: `a·id² + b → a·x + b`, one
+    /// factor of the atom kept where the power is odd.
+    #[test]
+    fn a_square_substitution_lowers_the_power() {
+        // Residual `id² − x` for a sqrt atom whose argument form is `x`.
+        let x = Poly::indet(7);
+        let atom = indet_atom(SymOp::Sqrt.tag(), 0, &[Form::poly(x.clone()).digest()]);
+        let mut atoms: IndetMap<AtomInfo> = IndetMap::default();
+        atoms.insert(
+            atom,
+            AtomInfo {
+                op: SymOp::Sqrt,
+                payload: 0,
+                args: [Some(std::sync::Arc::new(Form::poly(x.clone()))), None, None],
+            },
+        );
+        let resid = Poly::term(vec![(atom, 2)], Rat::new(1, 1, 0).unwrap());
+        let f = Form::poly(resid)
+            .add(&Form::poly(x).neg().unwrap(), budget())
+            .unwrap();
+        let out = reduce(&f, SymRules::all(), budget(), &atoms).unwrap();
+        assert!(out.is_zero(), "sqrt(x)² − x reduces to zero");
+    }
+}

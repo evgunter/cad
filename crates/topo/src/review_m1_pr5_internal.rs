@@ -1,0 +1,606 @@
+//! Adversarial e2e review artifact for M1 PR 5 (2026-07-16) — the
+//! **in-crate** half, promoted per the standing convention alongside
+//! the public-API half (`tests/review_m1_pr5.rs`). These probes need
+//! pub(crate) access (raw corruption, provenance-map surgery), which is
+//! exactly why they live in `src/` under cfg(test).
+//!
+//! Coverage: pass 12 across **all seven arenas in both directions**
+//! (missing records exact-vector, leaked records present-in-report —
+//! completing the shipped suite's 2/14 to 14/14), pass 10/11 interplay
+//! at scale (a cube shredded across three shells: termination,
+//! determinism, coherent per-shell reporting), and the tier-2
+//! strut-scan echo pin (a dangling `start` deflates a derived valence —
+//! the documented aggregate-scan echo in `validate`'s cascade docs;
+//! unreachable through the public API).
+//!
+//! Promoted verbatim except this header.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::entity::EntityId;
+use crate::fixtures::{pillow, prov};
+use crate::test_support_fixtures::declined_cube;
+use crate::validate::{ValidationError, validate, validate_closed};
+use geom_core::Tol;
+
+/// Pass 12, all seven arenas, MISSING direction: remove each kind's
+/// record from a clean cube; expect exactly one MissingProvenance
+/// naming that entity.
+#[test]
+fn missing_provenance_all_seven_arenas() {
+    let tol = Tol::witness();
+    let t = declined_cube::<f64>(tol);
+
+    // Solids.
+    let mut b = t.body.clone();
+    let k = b.solids.keys().next().unwrap();
+    b.solid_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Solid(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.shells.keys().next().unwrap();
+    b.shell_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Shell(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.faces.keys().next().unwrap();
+    b.face_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Face(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.loops.keys().next().unwrap();
+    b.loop_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Loop(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.half_edges.keys().next().unwrap();
+    b.half_edge_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::HalfEdge(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.edges.keys().next().unwrap();
+    b.edge_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Edge(k)
+        }])
+    );
+
+    let mut b = t.body.clone();
+    let k = b.vertices.keys().next().unwrap();
+    b.vertex_provenance.remove(k);
+    assert_eq!(
+        validate(&b),
+        Err(vec![ValidationError::MissingProvenance {
+            entity: EntityId::Vertex(k)
+        }])
+    );
+}
+
+/// Pass 12, LEAK direction for all seven arenas: kill each entity kind
+/// raw (record left behind); the LeakedProvenance for that key must be
+/// among the errors (dangling/orphan echoes from the raw removal are
+/// expected and NOT gated away — provenance is pass 12, ungated).
+#[test]
+fn leaked_provenance_all_seven_arenas() {
+    let tol = Tol::witness();
+    let t = declined_cube::<f64>(tol);
+    macro_rules! leak_probe {
+        ($arena:ident, $variant:ident) => {{
+            let mut b = t.body.clone();
+            let k = b.$arena.keys().next().unwrap();
+            b.$arena.remove(k);
+            let errs = validate(&b).unwrap_err();
+            assert!(
+                errs.contains(&ValidationError::LeakedProvenance {
+                    entity: EntityId::$variant(k)
+                }),
+                "no {} leak reported: {errs:?}",
+                stringify!($variant)
+            );
+        }};
+    }
+    leak_probe!(solids, Solid);
+    leak_probe!(shells, Shell);
+    leak_probe!(faces, Face);
+    leak_probe!(loops, Loop);
+    leak_probe!(half_edges, HalfEdge);
+    leak_probe!(edges, Edge);
+    leak_probe!(vertices, Vertex);
+}
+
+/// Pass 10 + 11 at scale: an ops cube shredded across three shells
+/// (faces round-robined). Pass 10 must fire for every edge whose halves
+/// land in different shells; pass 11 must run (not hang, not skip),
+/// reporting per-shell component violations; the report must be finite
+/// and deterministic across repeated validation.
+#[test]
+fn cross_shell_shredding_terminates_and_reports_coherently() {
+    let tol = Tol::witness();
+    let t = declined_cube::<f64>(tol);
+    let mut b = t.body;
+    let faces: Vec<_> = b.faces.keys().collect();
+    let solid = b.solids.keys().next().unwrap();
+    let shell0 = b.shells.keys().next().unwrap();
+    let shell1 = b.add_shell(
+        crate::entity::Shell {
+            faces: vec![],
+            solid,
+        },
+        prov(),
+    );
+    let shell2 = b.add_shell(
+        crate::entity::Shell {
+            faces: vec![],
+            solid,
+        },
+        prov(),
+    );
+    b.get_solid_mut(solid).unwrap().shells.push(shell1);
+    b.get_solid_mut(solid).unwrap().shells.push(shell2);
+    let shells = [shell0, shell1, shell2];
+    // Round-robin the six faces across the three shells.
+    for (i, &f) in faces.iter().enumerate() {
+        let target = shells[i % 3];
+        if target == shell0 {
+            continue;
+        }
+        b.get_shell_mut(shell0).unwrap().faces.retain(|&x| x != f);
+        b.get_shell_mut(target).unwrap().faces.push(f);
+        b.get_face_mut(f).unwrap().shell = target;
+    }
+    let errs1 = validate(&b).unwrap_err();
+    let errs2 = validate(&b).unwrap_err();
+    assert_eq!(errs1, errs2, "deterministic report");
+    let crossings = errs1
+        .iter()
+        .filter(|e| matches!(e, ValidationError::EdgeAcrossShells { .. }))
+        .count();
+    // Every cube edge separates two adjacent faces; adjacent faces
+    // land in the same shell only when i % 3 collides. Just sanity:
+    // plenty of crossings, and pass 11 ran (some component violations).
+    assert!(crossings >= 8, "expected many crossings, got {crossings}");
+    let violations = errs1
+        .iter()
+        .filter(|e| matches!(e, ValidationError::ComponentEulerViolation { .. }))
+        .count();
+    assert!(violations >= 1, "pass 11 ran through the corruption");
+    // Tier 2 shares the enumeration and must also terminate.
+    let _ = validate_closed(&b).unwrap_err();
+}
+
+/// Tier-2 echo probe: a dangling `start` reference (pass-1 error)
+/// deflates a vertex's derived valence to 1, so validate_closed emits a
+/// ScaffoldingStrutVertex ECHO for a vertex that is not a strut. This
+/// documents actual behavior (the tier-2 scans are ungated by design);
+/// if it ever changes, re-check the module docs' cascade wording.
+#[test]
+fn tier2_strut_scan_echoes_on_dangling_start() {
+    let tol = Tol::witness();
+    let mut t = pillow(tol);
+    // Mint a dead vertex key.
+    let dead = t.body.add_vertex(
+        crate::entity::Vertex {
+            point: t.points[0],
+            emanating: None,
+        },
+        prov(),
+    );
+    t.body.vertices.remove(dead);
+    t.body.vertex_provenance.remove(dead);
+    // b1 starts at v0; repoint its start at the dead key. v0's real
+    // incidence drops to 1 in the derived count.
+    t.body.get_half_edge_mut(t.hes_b[1]).unwrap().start = dead;
+    let errs = validate_closed(&t.body).unwrap_err();
+    let has_strut_echo = errs
+        .iter()
+        .any(|e| matches!(e, ValidationError::ScaffoldingStrutVertex { .. }));
+    // Record the actual behavior either way; the assert documents it.
+    assert!(
+        has_strut_echo,
+        "expected the ungated tier-2 strut scan to echo: {errs:?}"
+    );
+}
+
+/// `(door, why tier 1 survives it)` — the doors that do NOT declare
+/// the tier-1 postcondition, each with the reason tier 1 survives it.
+///
+/// Module-scoped rather than local to the guard so that
+/// [`the_two_door_tables_cover_the_same_surface`] can read it. That
+/// row is the only other reader; this table stays this guard's.
+pub(crate) const ALLOWED: &[(&str, &str)] = &[
+    // ---- Sugar: delegates to an asserting operator. ----
+    ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
+    (
+        "insert_void",
+        "calls `insert_voids` with the one destination as a slice — same body, same assertion",
+    ),
+    // ---- Pipelines composed of asserting operators. ----
+    (
+        "merge_coplanar_faces",
+        "calls `merge_coplanar_faces_declared` with no declarations",
+    ),
+    (
+        "replace_face_offset",
+        "the one-face spelling of `replace_faces_offset`, which it calls",
+    ),
+    // ---- Setters declaring the tier-1 postcondition. ----
+    (
+        "set_face_surface",
+        "declares the tier-1 postcondition directly (a surface swap can orphan a key): \
+         swept here when the setter IS the door, left to the door's close inside a \
+         surgery scope",
+    ),
+    (
+        "set_face_surface_stranding_for_tests",
+        "the failure-injection twin of `set_face_surface`: the same door with its \
+         stranding refusal taken out, so the same postcondition",
+    ),
+    (
+        "set_face_surfaces_describing",
+        "declares the tier-1 postcondition directly, on `set_face_surface`'s terms: its \
+         swaps and re-descriptions can orphan keys",
+    ),
+    (
+        "set_edge_curve",
+        "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
+         `set_face_surface`'s terms",
+    ),
+    (
+        "describe_at_rest",
+        "reads the edge's own certified curve and writes it back through `set_edge_curve` \
+         (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
+         verbatim",
+    ),
+    // ---- Test-support fixture builders. Why they are in this
+    // population at all is stated once, on
+    // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
+    // them: each writes only through doors that EITHER declare the
+    // tier-1 postcondition themselves (`mvfs`, `mev`, `mef`, which are
+    // therefore not on this list and cannot be) OR appear on it below
+    // for writing fields tier 1 does not constrain — with one
+    // exception, the raw `add_surface` in `cyl_wall_sheet_keyed`,
+    // which that entry carries itself. No one half is true of every
+    // entry, and an entry names the doors it composes so a reader can
+    // check which half each one lands in. ----
+    (
+        "prism_ops",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
+         arena itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "describe_as_intersections",
+        "rewrites each transverse edge's description through `set_edge_curve` (asserting)",
+    ),
+    (
+        "cube_into",
+        "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
+    (
+        "plant_ring_face",
+        "plants a ring face through `mev_line`, `kemr` and `mef_chord` and writes no arena \
+         itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "drill_hole",
+        "calls `plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh` (asserting)",
+    ),
+    (
+        "plane_every_face",
+        "places each face's plane through `set_face_surface`, which declares the tier-1 \
+         postcondition itself",
+    ),
+    (
+        "cyl_wall_sheet_keyed",
+        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
+         (asserting), places the cylinder key through `set_face_surface` and records it \
+         through `set_surface_source`, both on this list below for writing fields tier 1 \
+         does not constrain. Its rim planes go in through `add_surface`, which is on \
+         NEITHER half: crate-internal raw insertion that makes no promise at all. What \
+         covers it is the `mev` that follows — a plane is an orphan surface until the rim \
+         edge naming it exists, and that operator's postcondition is taken over a body \
+         that holds both",
+    ),
+    (
+        "cyl_wall_sheet",
+        "fixes `cyl_wall_sheet_keyed`'s key placement and then calls `mint_pcurves`, \
+         which does not assert and is on this list below. The Euler sequence is the keyed \
+         door's and so is the argument for it, one entry up",
+    ),
+    // ---- Writes fields tier 1 does not constrain. ----
+    (
+        "begin_surgery",
+        "opens a debug-only surgery scope (`crate::surgery`). The depth is not an arena \
+         and tier 1 does not see it; what asserts is the close, in the door that opened it",
+    ),
+    ("set_face_sense", "writes one `bool`; sense is tier 3's"),
+    ("set_surface_source", "GeomSource metadata, no arena key"),
+    ("set_curve_source", "GeomSource metadata, no arena key"),
+    ("set_point_source", "GeomSource metadata, no arena key"),
+    ("clear_geom_sources", "GeomSource metadata, no arena key"),
+    (
+        "mark_imported",
+        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
+    ),
+    (
+        "set_surface_field_source",
+        "ParamSource metadata, no arena key (a per-field side record beside the surface)",
+    ),
+    (
+        "set_surface_axis_source",
+        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
+    ),
+    ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
+    ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
+    ("mint_pcurves", "pcurve caches only; no topology touched"),
+    (
+        "mint_pcurves_of",
+        "pcurve caches of a face subset only; no topology touched",
+    ),
+    (
+        "set_null_face_pair",
+        "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
+    ),
+    ("clear_null_face_pair", "removes that annotation"),
+    // ---- The exception. Not a waiver: a recorded hole. ----
+    (
+        "graft_disjoint",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+    (
+        "graft_disjoint_all",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+    (
+        "graft_disjoint_all_keyed",
+        "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
+         empty destination solid per source solid before transplanting, and a refusal \
+         raised mid-transplant leaves `dst` partially written (its own docs: spent, \
+         never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
+         caller that discards the `Err` can fire a later operator's postcondition from \
+         API MISUSE rather than a kernel bug — the state class D9's footnote says \
+         cannot occur. Open as S14; this entry records it, it does not excuse it.",
+    ),
+    (
+        "graft_disjoint_all_onto_keyed",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+];
+
+/// **The closure property the module docs of [`crate::euler`] and D9's
+/// footnote both rest on, checked instead of asserted.** Every public
+/// mutation path into a [`crate::Body`] — `pub fn` taking `&mut self`,
+/// plus the free functions taking `&mut Body<T>` — either declares the
+/// shared tier-1 debug postcondition (`assert_euler_postcondition`) or
+/// appears below with the reason it does not need one.
+///
+/// **Why a test and not a sentence.** The claim these documents make
+/// used to be an enumeration ("the eleven public mutators"), and it
+/// rotted: five more doors landed and the count stayed. Replacing the
+/// count with prose about a closure property fixes the arithmetic and
+/// keeps the failure mode — the next door added is still a door
+/// nothing checks. This goes red the day one lands, which is the whole
+/// point, and it is why neither document carries a number.
+///
+/// **What the allowlist is, and what it is not.** Not a waiver list.
+/// Each entry states why tier 1 survives that door, and the entries
+/// divide into four kinds: sugar delegating to an asserting operator;
+/// pipelines composed of asserting operators; setters declaring the
+/// tier-1 postcondition themselves (which, like an operator's, is
+/// swept at the door rather than at the write); and setters writing
+/// fields tier 1 does not constrain. The fifth kind has exactly one member and is the
+/// finding that produced this test — `instance`'s grafts do NOT
+/// preserve tier 1 on their failure path, which their own docs
+/// concede, and which is open as S14.
+///
+/// Stale entries are caught in both directions: an entry naming a door
+/// that no longer exists, or one that has since started asserting,
+/// fails as loudly as an unlisted door.
+///
+/// **Where the door set comes from, and what it cannot see:**
+/// [`crate::source_walk::mutation_doors`], shared with the
+/// pcurve-posture guard in [`crate::pcurves`], which walks the same
+/// population to ask a different question. That function's docs carry
+/// the reason the two tables do not merge and the whole inherited
+/// blind-spot list; this guard does not restate either.
+///
+/// **"Declares the postcondition" is a read of code, not of prose.**
+/// The needle is `assert_euler_postcondition` as a name the door
+/// reaches ([`crate::source_walk::MutationDoor::names`]), over a body
+/// whose comments, literals and `use` declarations are blanked. This
+/// guard used a raw `body.contains`,
+/// and a planted door whose body only *mentioned* the call in a
+/// comment was counted as asserting it, in both this guard and the
+/// pcurve one, both green.
+///
+/// **There are two needles, because there are two spellings of the
+/// same claim.** Since D1's postcondition became once-per-door
+/// (`work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305), a door
+/// either ends with the per-operator assertion — an operator a
+/// consumer calls directly — or opens a surgery scope
+/// ([`crate::surgery`]) and closes it, which is the same claim made
+/// once over the door's whole sequence. A door that opens a scope and
+/// closes NOTHING is neither, and it is worse than a door that never
+/// asserted: it silences every operator that touches that body from
+/// then on. That case is a failure here, named separately, and
+/// [`crate::source_walk::SurgeryPosture`] is what reads it.
+///
+/// **This read is a second line, not the first one.** A scope opened
+/// through the RAII guard cannot be left open at all — the borrow is
+/// released only by a close or a drop, and both decrement — so what
+/// this adds is coverage of the guardLESS pair, lexically, for the
+/// doors it can see. It sees `pub fn … &mut self` in `topo/src` and
+/// nothing else, and it reads text: two opens against one close, or a
+/// close on one path only, read as closed. The residue is sized in
+/// `work/perf/door-scopes-outside-topo-are-unguarded`.
+
+#[test]
+fn every_public_mutation_path_preserves_tier1() {
+    use crate::source_walk::SurgeryPosture;
+
+    let mut asserting: Vec<String> = Vec::new();
+    let mut scoped: Vec<String> = Vec::new();
+    let mut listed: Vec<String> = Vec::new();
+    let mut unlisted: Vec<String> = Vec::new();
+    let mut left_open: Vec<String> = Vec::new();
+    let mut unbacked: Vec<String> = Vec::new();
+
+    for door in crate::source_walk::mutation_doors() {
+        match door.surgery_posture() {
+            SurgeryPosture::LeftOpen => left_open.push(door.site()),
+            SurgeryPosture::ClosedWithSweep => scoped.push(door.site()),
+            SurgeryPosture::ClosedUnderOwnAssertion => {
+                // The non-sweeping close claims a debug assertion of
+                // tier 1 or stronger in this same body. Read it back.
+                if !door.debug_asserts_the_whole_body() {
+                    unbacked.push(door.site());
+                }
+                scoped.push(door.site());
+            }
+            SurgeryPosture::NoScope => {
+                if door.names("assert_euler_postcondition") {
+                    asserting.push(door.site());
+                } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
+                    listed.push(door.name);
+                } else {
+                    unlisted.push(door.site());
+                }
+            }
+        }
+    }
+
+    assert!(
+        left_open.is_empty(),
+        "public mutation path(s) that open a surgery scope and never close it: \
+         {left_open:?}. Every operator run on that body afterwards skips D1's tier-1 \
+         postcondition and nothing at runtime says so. Close it — \
+         `Surgery::sweep_and_close` / `Body::leave_surgery_and_sweep` is the door's \
+         postcondition, `close_already_checked` / `leave_surgery` the spelling for a door \
+         that debug-asserts a stronger tier itself.",
+    );
+    assert!(
+        unbacked.is_empty(),
+        "public mutation path(s) that close a surgery scope WITHOUT the sweep and carry no \
+         whole-body debug assertion of their own: {unbacked:?}. That close claims the door \
+         asserts tier 1 or stronger itself; a typed `validate_closed(...).map_err(...)` \
+         gate is not that claim — it answers a kernel bug with an error return where the \
+         operators used to panic. Use the sweeping close.",
+    );
+    assert!(
+        unlisted.is_empty(),
+        "public mutation path(s) that neither declare the tier-1 debug postcondition nor \
+         open a surgery scope nor appear on this test's allowlist: {unlisted:?}. Either \
+         call `assert_euler_postcondition` at the end of the door, open a surgery scope \
+         and close it with the sweep, or add it above WITH the reason tier 1 survives it \
+         — and if the reason is that it does not, that is a finding, not an entry.",
+    );
+    // The allowlist rots in the other direction too.
+    for (name, _) in ALLOWED {
+        assert!(
+            listed.iter().any(|n| n == name),
+            "the allowlist names `{name}`, which is no longer a non-asserting public \
+             mutation path — it was renamed, deleted, or has started asserting. Drop the \
+             entry.",
+        );
+    }
+    // The walk's own floor is upstream, on `mutation_doors`. What is
+    // this guard's is the needle: a lexing gap that erased the call
+    // from a body would move that door from `asserting` to `unlisted`
+    // and red loudly — except for a door that is ALSO allowlisted,
+    // which cannot happen, and for the case where every door loses it
+    // at once, which the pin below catches by name.
+    assert!(
+        asserting.iter().any(|s| s.ends_with("::mev")),
+        "`mev` no longer reads as declaring the tier-1 postcondition. Either the operator \
+         stopped asserting — a finding — or the source read lost the call.",
+    );
+    // The second needle's own pin, for the same reason: a lexing gap
+    // that erased `sweep_and_close` from every scoped door would move
+    // them all to `unlisted` and red — but one that erased
+    // `begin_surgery` too would move them to `asserting`/`unlisted`
+    // silently. This names a door the walk must see as scoped.
+    assert!(
+        scoped
+            .iter()
+            .any(|s| s.ends_with("::merge_coplanar_faces_declared")),
+        "`merge_coplanar_faces_declared` no longer reads as opening and closing a surgery \
+         scope. Either the door stopped scoping — a finding, it composes tens of ring \
+         surgeries — or the source read lost the calls.",
+    );
+    println!(
+        "[mutation surface] {} public door(s): {} assert tier 1 per call, {} sweep once \
+         per door, {} allowlisted",
+        asserting.len() + scoped.len() + listed.len(),
+        asserting.len(),
+        scoped.len(),
+        listed.len(),
+    );
+}
+
+/// **The co-domain claim under "two properties of one set", asserted
+/// rather than assumed.**
+///
+/// [`crate::source_walk::mutation_doors`] argues that [`ALLOWED`] and
+/// [`crate::pcurves::staleness_posture::DECLARED`] should stay
+/// separate because they classify one population two ways. That
+/// argument is only worth its line while the two tables together
+/// still *cover* that population, and until this row nothing said so.
+///
+/// **The case it catches, which neither guard does.** A door that both
+/// declares the tier-1 postcondition and re-mints the pcurve map is
+/// classified by the walk on both sides and appears in **neither**
+/// table — so it is a door with no prose anywhere, and both guards
+/// stay green. Nothing in the crate forbids such a door; a compound
+/// operator is the natural way to get one.
+///
+/// Deliberately not a merge of the tables: this reads both and asserts
+/// one property of the pair. It lives here, in a test artifact, so the
+/// import runs from a review module to a kernel one and not the
+/// reverse.
+#[test]
+fn the_two_door_tables_cover_the_same_surface() {
+    let doors = crate::source_walk::mutation_doors();
+    let uncovered: Vec<String> = doors
+        .iter()
+        .filter(|d| {
+            !ALLOWED.iter().any(|(n, _)| *n == d.name)
+                && !crate::pcurves::staleness_posture::DECLARED
+                    .iter()
+                    .any(|(n, _, _)| *n == d.name)
+        })
+        .map(|d| d.site())
+        .collect();
+    assert!(
+        uncovered.is_empty(),
+        "mutation door(s) named by NEITHER table: {uncovered:?}. Each is a door the \
+         tier-1 guard sorted by its own body and the pcurve guard sorted by its own \
+         body, so both pass and no entry anywhere describes it. Give it an entry in \
+         whichever table its posture is not self-evident from.",
+    );
+}

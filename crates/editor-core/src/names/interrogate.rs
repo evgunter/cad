@@ -1,0 +1,596 @@
+//! **Name → geometry** (LIB-U5): the forward twin of hit-testing.
+//!
+//! `resolve/hit.rs` inverts an arena key to a [`StableName`]. This
+//! module runs the other way — a name a caller STORED, plus the
+//! evaluation it should be read against, to the geometry that name
+//! denotes — and it is the door that lets a library consumer ask
+//! "where is the face I selected?" without ever holding an arena key.
+//!
+//! # Why this module has to exist (G1)
+//!
+//! `EntityRef`/`EntityKey` wrap `topo` arena keys, which are
+//! body-lineage-scoped and meaningful only against the evaluation
+//! that built the table — `names::table`'s own rule says they never
+//! leave editor-core. Before this module the only route from a name
+//! to a coordinate was to leak them anyway: index `Evaluation.nodes`,
+//! match the payload, index the output body, unwrap the key, then
+//! reach into the body's arenas. That is precisely the laundering
+//! LIBRARY-DESIGN §L3 says a consumer must never do, and it was the
+//! only route on offer. These doors close it: names in, values out,
+//! keys confined.
+//!
+//! # What comes back
+//!
+//! `topo::readback`'s [`Pose`] — the carrier's own stored frame,
+//! copied out, with the face's orientation sense beside it — and a
+//! carrier KIND on either side: a face's stored [`SurfaceKind`] tag,
+//! an edge's stored [`CurveKind`] tag. The rules that
+//! module states hold verbatim here: values never verdicts (no door
+//! answers a NUMERIC predicate — "is this at z ≈ 1" stays deferred;
+//! "is this face planar" is a comparison of the tag [`face_carrier_kind`]
+//! hands out, and "is this edge straight" the same comparison on the
+//! tag [`edge_carrier_kind`] hands out, decided by nothing here),
+//! definitional re-reads carry no pad, and no convention is invented
+//! where the geometry fixes none.
+//! This layer adds only the name resolution and the typed refusals
+//! that go with it.
+
+use geom::SurfaceKind;
+use geom_core::Decide;
+use topo::readback::{self, Pose, ReadbackError};
+use topo::{Body, CurveKind};
+
+use crate::eval::{BooleanValue, Evaluation, NodeStanding, SplitSide, ValuePayload};
+use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
+use crate::node::RecipeNodeId;
+
+/// **What a name denotes**, without the keys it denotes — the
+/// N2 tie made visible at the library surface.
+///
+/// A tie is a naming success and a REFERENCING failure: the name is
+/// well-formed and several entities answer to it equally, so a door
+/// that must pick one refuses with [`InterrogateError::Ambiguous`].
+/// A door handed a name of a kind it does not read is not a door that
+/// must pick one, and refuses [`InterrogateError::WrongKind`] instead
+/// — the kind question is asked first, so the two refusals do not
+/// depend on which one the name happened to be.
+/// This type is how a caller finds that out before asking, and it
+/// deliberately carries a COUNT rather than the candidates: the
+/// candidates are arena keys, and those do not leave this crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Denotation {
+    /// Exactly one entity answers to this name.
+    Unique,
+    /// The recorded tie: this many equally-admissible candidates.
+    Tied {
+        /// How many entities answer to the name.
+        candidates: usize,
+    },
+}
+
+/// Typed refusal of a name→geometry read (closed enum, D4 ¶3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InterrogateError {
+    /// The node has no value in this evaluation, so there is no table
+    /// to read.
+    Standing(NodeStanding),
+    /// The node evaluated, and nothing in it answers to this name —
+    /// a stale selection (the upstream edit removed what it named) or
+    /// a name from another node.
+    NoSuchName,
+    /// The N2 tie: the name is well-formed and several entities
+    /// answer to it, so there is no single geometry to report. Asked
+    /// AFTER the kind, so every candidate of the tie is of the kind
+    /// the door reads; a tied name of another kind is
+    /// [`Self::WrongKind`].
+    Ambiguous {
+        /// How many entities answer.
+        candidates: usize,
+    },
+    /// The name denotes an entity of a different kind than the door
+    /// asked for (a face door handed an edge name).
+    WrongKind {
+        /// What the door reads.
+        wanted: EntityKind,
+        /// What the name denotes.
+        found: EntityKind,
+    },
+    /// The name denotes a WHOLE BODY, which has no single frame — ask
+    /// about one of its faces, edges, or vertices instead.
+    WholeBody,
+    /// The node's value carries no bodies at all (a datum, a profile,
+    /// a declaration list, or a boolean whose regularized result was
+    /// empty), so there is no geometry to read.
+    NoBodies {
+        /// The payload family, for the message.
+        payload: &'static str,
+    },
+    /// The name's output-body index is not present in this node's
+    /// value (an emission/value disagreement, surfaced loudly).
+    NoSuchBody {
+        /// The index the name carries.
+        index: u32,
+    },
+    /// The geometry read itself refused — see [`ReadbackError`].
+    Readback(
+        /// The kernel-side refusal, unaltered.
+        ReadbackError,
+    ),
+}
+
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the name-door's own vocabulary — the node, the name,
+// the kind — plus the recourse where a caller has one, and names no
+// door: the door is its carrier's to prefix. So the `Standing` and
+// `Readback` arms forward their payload's own words. Kinds render
+// through `EntityKind::noun`, never `Debug`.
+impl crate::spoken::Say for InterrogateError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Standing(standing) => write!(f, "{}", crate::spoken::Said(standing, by)),
+            Self::NoSuchName => f.write_str(
+                "nothing in this node answers to that name — the selection is \
+                 stale (an upstream edit removed what it named) or the name belongs to another \
+                 node",
+            ),
+            Self::Ambiguous { candidates } => write!(
+                f,
+                "{candidates} entities answer to that name equally well, so there \
+                 is no single geometry to report — a tie is recorded, never broken silently"
+            ),
+            Self::WrongKind { wanted, found } => write!(
+                f,
+                "kind mismatch — this door reads {}, and the name denotes {}; \
+                 ask the door for the kind the name actually names",
+                wanted.noun(),
+                found.noun()
+            ),
+            Self::WholeBody => f.write_str(
+                "the name denotes a whole body, which has no single frame — ask \
+                 about one of its faces, edges, or vertices instead",
+            ),
+            Self::NoBodies { payload } => write!(
+                f,
+                "this node's value is {} {payload} value and carries no bodies at all, \
+                 so there is no geometry to read",
+                crate::sentence::article(payload)
+            ),
+            Self::NoSuchBody { index } => write!(
+                f,
+                "the name carries output-body index {index}, which this node's \
+                 value does not have — the emission and the value disagree, so this is a kernel \
+                 bug"
+            ),
+            Self::Readback(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for InterrogateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl InterrogateError {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
+impl core::error::Error for InterrogateError {}
+
+impl From<NodeStanding> for InterrogateError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
+}
+
+impl From<ReadbackError> for InterrogateError {
+    fn from(e: ReadbackError) -> Self {
+        Self::Readback(e)
+    }
+}
+
+/// **How does this name resolve — uniquely, or as a tie?** The
+/// referencing question, answered without exposing what it resolves
+/// to.
+///
+/// # Errors
+///
+/// The node's standing ([`InterrogateError::Standing`]) and [`InterrogateError::NoSuchName`].
+pub fn denotation<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<Denotation, InterrogateError> {
+    match ev.usable(node)?.name_table.lookup(name) {
+        None => Err(InterrogateError::NoSuchName),
+        Some(Entry::Unique(_)) => Ok(Denotation::Unique),
+        Some(Entry::Tied(candidates)) => Ok(Denotation::Tied {
+            candidates: candidates.len(),
+        }),
+    }
+}
+
+/// **Where is the face I selected?** — the named face's carrier
+/// frame, as of THIS evaluation, with the face's orientation sense
+/// beside it ([`Pose::sense`]: `axis` stays the chart's, and the
+/// outward normal is `OutwardNormal::from_chart(axis, sense)`).
+///
+/// Analytic carriers answer from their stored origin and axes (a
+/// definitional re-read: no pad); a NURBS face has no canonical frame
+/// and says so.
+///
+/// # Errors
+///
+/// Every [`InterrogateError`]: the node's standing, `NoSuchName`,
+/// `WrongKind` for a non-face name, `Ambiguous` for an N2 tie among
+/// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
+/// so a non-face name is refused `WrongKind` whether or not it is
+/// tied ([`key_in`]).
+pub fn face_frame<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<Pose<T>, InterrogateError> {
+    read(ev, node, name, readback::face_pose)
+}
+
+/// **What kind of carrier is the face I selected?** — the named
+/// face's [`SurfaceKind`] tag, as of THIS evaluation, through the same
+/// node ladder [`face_frame`] walks.
+///
+/// A tag read, never a verdict: "is this face planar" is
+/// `face_carrier_kind(..)? == SurfaceKind::Plane`, the exact comparison
+/// `select_where`'s surface-kind filter already makes, with no number
+/// consulted. Every carrier has a kind, so the only kernel refusal is
+/// a dangling key (see [`readback::face_carrier_kind`]).
+///
+/// # Errors
+///
+/// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
+/// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
+pub fn face_carrier_kind<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<SurfaceKind, InterrogateError> {
+    read(ev, node, name, readback::face_carrier_kind)
+}
+
+/// **Where is the edge I selected?** — the named edge's certified
+/// carrier frame, as of THIS evaluation. A straight edge answers with
+/// no reference perpendicular (see [`Pose::u_ref`]).
+///
+/// # Errors
+///
+/// As [`face_frame`], with `WrongKind` for a non-edge name.
+pub fn edge_frame<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<Pose<T>, InterrogateError> {
+    read(ev, node, name, readback::edge_pose)
+}
+
+/// **What kind of carrier is the edge I selected?** — the named
+/// edge's [`CurveKind`] tag, as of THIS evaluation, through the same
+/// node ladder [`edge_frame`] walks, and [`face_carrier_kind`]'s
+/// edge-side twin.
+///
+/// A tag read, never a verdict: "is this edge straight" is
+/// `edge_carrier_kind(..)? == CurveKind::Line`, the exact comparison
+/// `select_where`'s curve-kind filter already makes, with no number
+/// consulted. It answers where [`edge_frame`] cannot — a NURBS
+/// carrier fixes no frame and still has a kind — and the kernel
+/// refusals are a dangling key and null-edge scaffolding (see
+/// [`readback::edge_carrier_kind`]).
+///
+/// # Errors
+///
+/// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
+/// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
+pub fn edge_carrier_kind<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<CurveKind, InterrogateError> {
+    read(ev, node, name, readback::edge_carrier_kind)
+}
+
+/// **Where is the vertex I selected?** — the named vertex's stored
+/// position, as of THIS evaluation.
+///
+/// # Errors
+///
+/// As [`face_frame`], with `WrongKind` for a non-vertex name.
+pub fn vertex_position<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<geom_core::Point3<T>, InterrogateError> {
+    read(ev, node, name, readback::vertex_point)
+}
+
+/// **Where an entity IS**, in ONE point, for any entity kind — the
+/// position the geometric selector's decided
+/// [`DatumDistance`](super::GeomPred::DatumDistance) atom measures.
+///
+/// It nominates nothing new: a vertex answers with its stored
+/// position, an edge and a face with their carrier frame ORIGIN —
+/// the same points [`vertex_position`], [`edge_frame`] and
+/// [`face_frame`] already hand out. The U5 refusals travel with them
+/// (a NURBS face has no canonical frame and refuses; a whole-body
+/// name has no point at all), which is what keeps an unreadable
+/// candidate a typed refusal instead of a silent drop from a result
+/// set.
+///
+/// Takes the resolved `(body, key)` rather than a name, because the
+/// tied-name rule (GS-Q4) must measure EVERY candidate of a tie —
+/// which the name-level doors deliberately refuse to do.
+///
+/// The point is the pose's `origin`, which is the CARRIER's
+/// distinguished point and need not lie on the entity: a spiric edge
+/// answers its torus's centre, `≥ R − r − |offset|` off the curve
+/// (`readback::edge_pose`), exactly as a planar face answers its
+/// plane's origin.
+///
+/// # Errors
+///
+/// [`InterrogateError::WholeBody`] for a body key; the wrapped
+/// [`ReadbackError`] for an uncertified or frameless carrier.
+pub(crate) fn entity_point<T: Decide>(
+    body: &Body<T>,
+    key: EntityKey,
+) -> Result<geom_core::Point3<T>, InterrogateError> {
+    match key {
+        EntityKey::Vertex(v) => Ok(readback::vertex_point(body, v)?),
+        EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?.origin),
+        EntityKey::Face(f) => Ok(readback::face_pose(body, f)?.origin),
+        EntityKey::Body => Err(InterrogateError::WholeBody),
+    }
+}
+
+/// **Name → the one kernel read** — the body every door above is,
+/// with the door's own kernel function as its only argument.
+///
+/// The five public names each resolve a name, check that what it
+/// denotes is the kind that door reads, and hand the arena key to one
+/// `topo::readback` function. That is one shape, and it is written
+/// here once: a sixth read door is a delegate line, not a sixth copy
+/// of the ladder, and the `WrongKind` refusal cannot drift between
+/// doors because there is one site that builds it. The TABLE's half
+/// of the ladder ([`key_in`]) is its own door, for a reader that holds
+/// a table and a body but no evaluation node (a mated part's cached
+/// product, read for a `FromFace` mate frame).
+///
+/// # Errors
+///
+/// The node's standing, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
+/// through [`key_in`], which asks them in that order, then the output
+/// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
+fn read<T: Decide, K: Denoted, R>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+    door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
+) -> Result<R, InterrogateError> {
+    let value = ev.usable(node)?;
+    let (index, key) =
+        key_in::<K>(&value.name_table, name).map_err(|refusal| refusal.at(K::KIND))?;
+    Ok(door(output_body(&value.payload, index)?, key)?)
+}
+
+/// **What a name table answers a read door, where it answers no key**
+/// — the table's rungs of [`read`]'s ladder, without the node's: the
+/// kind that differs between two readers is the one they each ask for,
+/// so it is handed in ([`TableRefusal::at`]) rather than stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TableRefusal {
+    /// The table has no row for the name.
+    NoSuchName,
+    /// The name, or the row's key, is of another kind than the door
+    /// reads.
+    Kind {
+        /// What it is instead.
+        found: EntityKind,
+    },
+    /// The name is an N2 tie.
+    Ambiguous {
+        /// How many entities answer to it.
+        candidates: usize,
+    },
+}
+
+impl TableRefusal {
+    /// The refusal in [`InterrogateError`]'s voice, for a door that
+    /// reads `wanted`.
+    fn at(self, wanted: EntityKind) -> InterrogateError {
+        match self {
+            Self::NoSuchName => InterrogateError::NoSuchName,
+            Self::Kind { found } => kind_mismatch(wanted, found),
+            Self::Ambiguous { candidates } => InterrogateError::Ambiguous { candidates },
+        }
+    }
+}
+
+/// **Name → (the output body's index, the key of the kind a door
+/// reads)** in one name table — the table's half of every read door's
+/// ladder, and the door a reader holding a table but no evaluation node
+/// takes (`eval`'s face pose over a mated part's cached product). The
+/// arena key is produced and consumed inside this crate — that
+/// confinement is the whole point of the module.
+///
+/// **KIND BEFORE MULTIPLICITY.** A name that denotes another kind
+/// than the door reads is refused `Kind` before the tie is looked at:
+/// an edge name handed to a face door is not readable however few
+/// entities answer to it, so narrowing it is no recourse and
+/// `Ambiguous` would be the wrong word for the fault. The kind is the
+/// NAME's, which the table makes every candidate's kind — every
+/// `NameTable` door that seats a row refuses one whose name's kind is
+/// not its key's — so a tie answers this as readily as a unique row
+/// does.
+/// `NoSuchName` still outranks it: nothing is said about what a name
+/// denotes here until the table answers to it.
+///
+/// A unique row's KEY of another kind than its name's is that seating
+/// rule broken: asserted in debug, and answered in release as what the
+/// key is, the one place the two can disagree.
+pub(crate) fn key_in<K: Denoted>(
+    table: &crate::names::NameTable,
+    name: &StableName,
+) -> Result<(u32, K), TableRefusal> {
+    let Some(entry) = table.lookup(name) else {
+        return Err(TableRefusal::NoSuchName);
+    };
+    if name.kind != K::KIND {
+        return Err(TableRefusal::Kind { found: name.kind });
+    }
+    let ent = match entry {
+        Entry::Unique(e) => *e,
+        Entry::Tied(candidates) => {
+            return Err(TableRefusal::Ambiguous {
+                candidates: candidates.len(),
+            });
+        }
+    };
+    match K::of(ent.key) {
+        Some(k) => Ok((ent.body, k)),
+        None => {
+            debug_assert!(
+                false,
+                "the table holds a key whose kind is not its name's: \
+                 every `NameTable` door that seats a row admits it only at \
+                 its name's kind"
+            );
+            Err(TableRefusal::Kind {
+                found: ent.key.kind(),
+            })
+        }
+    }
+}
+
+/// **An arena key kind a read door takes**, and the two facts [`read`]
+/// needs about it: which [`EntityKind`] a name must denote to reach
+/// that door, and the key itself where a resolved [`EntityKey`] holds
+/// one.
+///
+/// The projections are exhaustive with no wildcard arm, so a fifth
+/// entity kind fails to compile here rather than resolving to `None`
+/// and refusing at run time.
+pub(crate) trait Denoted: Copy {
+    /// The kind a door reading this key asks for.
+    const KIND: EntityKind;
+    /// This kind's key, where the resolved entity is of this kind.
+    fn of(key: EntityKey) -> Option<Self>;
+}
+
+impl Denoted for topo::FaceKey {
+    const KIND: EntityKind = EntityKind::Face;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Face(f) => Some(f),
+            EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::EdgeKey {
+    const KIND: EntityKind = EntityKind::Edge;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Edge(e) => Some(e),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::VertexKey {
+    const KIND: EntityKind = EntityKind::Vertex;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Vertex(v) => Some(v),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Edge(_) => None,
+        }
+    }
+}
+
+/// The kind refusal, with `Body` broken out: a whole body has no
+/// frame at all, which is a different fact from "wrong kind of
+/// entity".
+fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
+    match found {
+        EntityKind::Body => InterrogateError::WholeBody,
+        other => InterrogateError::WrongKind {
+            wanted,
+            found: other,
+        },
+    }
+}
+
+/// The node's output body at `index` — the same body ordering the
+/// naming emission used (single-body ops: 0; a split's halves by
+/// [`SplitHalf::output_body`]; a pattern's instances by instance
+/// index).
+pub(crate) fn output_body<T: Decide>(
+    payload: &ValuePayload<T>,
+    index: u32,
+) -> Result<&Body<T>, InterrogateError> {
+    let missing = || InterrogateError::NoSuchBody { index };
+    let none = |payload| Err(InterrogateError::NoBodies { payload });
+    match payload {
+        ValuePayload::Body(b) => {
+            if index == 0 {
+                Ok(b)
+            } else {
+                Err(missing())
+            }
+        }
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            if index == 0 {
+                Ok(body)
+            } else {
+                Err(missing())
+            }
+        }
+        ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
+        // The half that owns `index` by `SplitHalf::output_body` (the
+        // one definition of that mapping), if either does.
+        ValuePayload::Split { above, below } => {
+            let side = match SplitHalf::of_output_body(index) {
+                Some(SplitHalf::Above) => above,
+                Some(SplitHalf::Below) => below,
+                None => return Err(missing()),
+            };
+            match side {
+                SplitSide::Body(b) => Ok(b),
+                SplitSide::Empty => Err(missing()),
+            }
+        }
+        ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
+        // The families that denote no body at all. A12: a mate denotes
+        // none, and interrogating one for geometry is the same category
+        // error as interrogating a declaration — as is interrogating a
+        // measurement or its verdict. The word is the payload's own
+        // family word, so this arm cannot drift from the vocabulary
+        // `ValuePayload::kind_name` speaks.
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => none(payload.kind_name()),
+    }
+}

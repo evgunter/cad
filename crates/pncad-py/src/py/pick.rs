@@ -1,0 +1,738 @@
+//! **Picking: the fourth door onto a name** (LIB-B-PICKING).
+//!
+//! `crate::select`'s first three doors answer "which entities match
+//! this shape" (`select`), "where is this named entity"
+//! (`face_frame` and friends) and "how many does it denote"
+//! (`denotation`). This one answers **"what is under this ray"** —
+//! and it answers in the same currency all of them speak, an opaque
+//! `StableName` text, so a pick feeds `Node.fillet` unread exactly as
+//! a selection does.
+//!
+//! # The pairing, and why there is no raw target here
+//!
+//! Arena keys collide numerically across sibling nodes, so a pick
+//! target whose `(node, body)` is not the pair its mesh was
+//! tessellated from does not error: it inverts the hit triangle's
+//! face key against the WRONG node's table and answers a **plausible,
+//! confidently wrong name** (issue #1098). The kernel closes that lane
+//! with a type — `NodePick` fetches the body from the evaluation
+//! payload itself, tessellates and indexes in one call, so the pairing
+//! is true by construction — and puts raw `PickTarget` assembly
+//! behind `editor-core`'s `test-support` feature, which that crate's
+//! own dev-dependency enables and no consumer's manifest wires onto an
+//! edge of its own.
+//!
+//! **Python has no raw target, twice over.** `MeshPick` is DECIDED
+//! absent from the façade (CUR3; `crates/pncad/src/select.rs`, which
+//! carries `MeshPickError` alone), so a raw index is not even
+//! nameable here; and the mints that would build one are behind a
+//! feature no edge in this crate's build graph enables. The Python
+//! door therefore takes `NodePick`s directly and makes their targets
+//! itself: the type that cannot be mis-assembled is not merely the one
+//! to prefer here, it is the only one that exists.
+//!
+//! # Dimensioned
+//!
+//! A ray's `origin` is a POSITION and crosses as `Length`; its
+//! `direction` is a direction, which is dimensionless, and crosses as
+//! bare floats — the `Frame` rule (`py/place.rs`), unchanged. The hit
+//! parameter `t` is neither: it is in units of `|direction|`, so it is
+//! a bare float and a caller who wants a distance normalizes the ray
+//! or reads `PickHit.point`, which IS dimensioned.
+//!
+//! Nothing here pre-checks the ray. A non-finite origin or direction
+//! is legal input and fail-safe kernel-side (it can only lose
+//! constraints in the slab test), so a poisoned ray answers the typed
+//! miss rather than a refusal — the kernel's rule, quoted, not
+//! restated.
+
+use std::sync::{Arc, OnceLock};
+
+use pyo3::prelude::*;
+use pyo3::types::{PyAny, PyList, PyString};
+
+use crate::errors::ErrorClass;
+use crate::py::doc::{NodeId, name_text};
+use crate::py::mesh::Mesh;
+use crate::py::quantity::Length;
+use crate::py::select::entity_kind;
+use crate::py::value::{Evaluation, lengths};
+use crate::py::{standing_fields, typed_err};
+use crate::tags::{
+    hit_test_error_tag, mesh_pick_error_tag, name_lookup_error_tag, node_pick_error_tag,
+};
+use pncad::select as s;
+
+/// A direction as the bare triple it is — dimensionless.
+fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
+    (v.x, v.y, v.z)
+}
+
+/// A dimensioned triple as the kernel's bare metres.
+fn meters(v: (Length, Length, Length)) -> (f64, f64, f64) {
+    (v.0.0.meters(), v.1.0.meters(), v.2.0.meters())
+}
+
+/// The five fields a [`s::HitTestError`] projects, in order: the node,
+/// the failure it was poisoned through, the unnamed entity's kind and
+/// body index (the BUG arm alone), and — on the certified tie alone —
+/// the tied hits.
+///
+/// The tie's payload is a LIST of hits rather than a scalar, because
+/// that is what the refusal is: every tied face, each with its own
+/// true parameter and point. It crosses as a Python list of
+/// [`PickHit`], the same class a successful pick answers with, so a
+/// caller that can read a pick can read a refusal.
+///
+/// The arm's payload is an `EntityRef`, an arena key beside a body
+/// index. The KEY does not cross (G1, and the façade does not name its
+/// type at all); the kind and the body index do, and together they are
+/// the whole of what a bug report can act on: "node 7 evaluated and
+/// left a face of output body 0 unnamed".
+///
+/// Exhaustive, no wildcard: an arm added kernel-side arrives here as a
+/// compile error rather than as a silently unprojected payload.
+fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the kernel's refusal with a boundary one — the
+    // `py/readback.rs` rule: the caller asked why the pick refused,
+    // and that answer must survive a failure to build one attribute.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
+    let kind = |k: s::EntityKind| obj(Py::new(py, entity_kind(k)).map(|v| v.into_any()));
+    // `u32`'s conversion is INFALLIBLE (its error type is
+    // `Infallible`), so this one degrades nowhere: the match is total.
+    let int = |n: u32| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+
+    match err {
+        s::HitTestError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
+        }
+        // The pairing arm names two DOCUMENTS, which this
+        // node/through/kind/body quadruple cannot carry; the message
+        // states both, and the tag is what a caller branches on (the
+        // `product` door's convention for the same refusal).
+        s::HitTestError::EvaluationOfAnotherDocument { .. } => {
+            [none(), none(), none(), none(), none()]
+        }
+        // The certified tie names no ONE node, so the node field stays
+        // empty and every tied face rides in `hits` with its own.
+        s::HitTestError::Ambiguous { hits } => {
+            [none(), none(), none(), none(), obj(tied(py, hits))]
+        }
+        // The unplaced group, by its root; its cause is in the message.
+        s::HitTestError::AcrossSpaces { group, .. } => {
+            [node(*group), none(), none(), none(), none()]
+        }
+        s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
+            node(*n),
+            none(),
+            kind(entity.key.kind()),
+            int(entity.body),
+            none(),
+        ],
+    }
+}
+
+/// The tied faces as a Python list of [`PickHit`].
+///
+/// A name that fails to serialize degrades the WHOLE list to `None`
+/// rather than to a shorter one: a refusal whose list is complete is
+/// the claim this payload makes ([`s::HitTestError::Ambiguous`]), and
+/// a list quietly missing an entry would be a false one. The refusal's
+/// own message survives either way, which is the `py/readback.rs` rule
+/// this follows.
+fn tied(py: Python<'_>, hits: &[s::PickHit]) -> PyResult<Py<PyAny>> {
+    let built: PyResult<Vec<PickHit>> = hits.iter().map(|hit| projected(py, hit)).collect();
+    Ok(PyList::new(py, built?)?.into_any().unbind())
+}
+
+/// Raise `HitTestError` carrying the refusal's stable tag and payload.
+///
+/// The message is the kernel's own sentence, its nodes spoken from the
+/// evaluated document; the machine payload is
+/// `variant` plus the four fields, each present on every arm and
+/// `None` where that arm does not carry it.
+fn hit_test_err(py: Python<'_>, err: &s::HitTestError, doc: &pncad::document::ProfileDoc) -> PyErr {
+    let [node, through, kind, body, hits] = hit_test_fields(py, err);
+    typed_err(
+        py,
+        ErrorClass::HitTest,
+        err.spoken(doc),
+        &[
+            (
+                "variant",
+                PyString::new(py, hit_test_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            ("node", node),
+            ("through", through),
+            ("kind", kind),
+            ("body", body),
+            ("hits", hits),
+        ],
+    )
+}
+
+/// Raise `HitTestError` for the name doors' refusal of the whole call.
+///
+/// Python has one exception class for both the hit test and the name
+/// doors, so the refusal crosses as that class, under the same words
+/// and fields a hit test's pairing or standing refusal carries
+/// ([`name_lookup_error_tag`]); the message is the name lookup's own,
+/// which names no hit test because none ran.
+fn name_lookup_err(
+    py: Python<'_>,
+    err: &s::NameLookupError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
+    let none = || py.None();
+    let (which, through) = match err {
+        // The pairing names two DOCUMENTS; the message states both.
+        s::NameLookupError::EvaluationOfAnotherDocument(_) => (none(), none()),
+        s::NameLookupError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            (which, through)
+        }
+    };
+    typed_err(
+        py,
+        ErrorClass::HitTest,
+        err.spoken(doc),
+        &[
+            (
+                "variant",
+                PyString::new(py, name_lookup_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            ("node", which),
+            ("through", through),
+            ("kind", none()),
+            ("body", none()),
+            ("hits", none()),
+        ],
+    )
+}
+
+/// The `HitTestError` EXCEPTION VALUE rather than a raise — what a
+/// per-slot answer carries in the slot that has no name.
+///
+/// [`NodePick::patch_names`] is total per patch: one naming-emission
+/// bug must not cost a consumer the names of every other patch it is
+/// drawing, so the refusal rides IN the slot. A Python exception is a
+/// value, which is what makes that shape spellable here at all. The
+/// kernel's slot holds [`s::UnnamedEntity`], the lookup's own refusal;
+/// it crosses as the `unnamed` arm of this class, the one Python
+/// spelling the surface has for it.
+fn hit_test_value(
+    py: Python<'_>,
+    unnamed: s::UnnamedEntity,
+    doc: &pncad::document::ProfileDoc,
+) -> Py<PyAny> {
+    hit_test_err(py, &s::HitTestError::from(unnamed), doc)
+        .value(py)
+        .clone()
+        .into_any()
+        .unbind()
+}
+
+/// Raise `NodePickError` carrying the refusal's stable tag and payload.
+///
+/// Two arms FORWARD their payload's own tag and prose rather than
+/// wrapping them (`crate::tags::node_pick_error_tag`): the standing
+/// crosses under the ladder's own words, and a tessellation refusal is
+/// the tessellator's. What they do NOT forward is the inner refusal's
+/// own extra ATTRIBUTES — a tessellation refusal's numbers stay on
+/// `TessellateError`, which is where a caller who tessellates directly
+/// reads them. That is the `AssemblyError` precedent (a gather refusal
+/// arrives there under the gather's own tag, without the gather's
+/// `node`), and this class's docstring says so.
+///
+/// The index arm neither forwards nor withholds: `variant` stays
+/// `mesh_index`, which is the door whose invariant broke, and
+/// `index_variant` carries the payload's own discriminant beside it.
+/// A second indexing invariant added kernel-side would otherwise join
+/// the first under one word with no alarm anywhere, because the match
+/// a wrapper can write is on the carrier and not on what it carries.
+///
+/// Its three numbers cross beside that discriminant, as `patch`,
+/// `triangle` and `index` (`crate::pick_payload`) — the payload
+/// belongs to a type nothing raises, so it has no door of its own to
+/// carry them and this is the only crossing they get.
+fn node_pick_err(
+    py: Python<'_>,
+    err: &s::NodePickError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
+    let none = || py.None();
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
+    let int = |n: u32| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+
+    // Exhaustive on purpose: an arm added kernel-side is a compile
+    // error here, not a silently unprojected payload.
+    let [which, through, kind, body, hits] = match err {
+        s::NodePickError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
+        }
+        s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none(), none()],
+        s::NodePickError::NoSuchBody { node: n, body } => {
+            [node(*n), none(), none(), int(*body), none()]
+        }
+        s::NodePickError::Tessellate(_) | s::NodePickError::Index(_) => {
+            [none(), none(), none(), none(), none()]
+        }
+    };
+    let index_variant = match err {
+        s::NodePickError::Index(inner) => PyString::new(py, mesh_pick_error_tag(inner))
+            .unbind()
+            .into_any(),
+        s::NodePickError::Standing(_)
+        | s::NodePickError::NotABody { .. }
+        | s::NodePickError::NoSuchBody { .. }
+        | s::NodePickError::Tessellate(_) => none(),
+    };
+    // `usize` and `u32` both convert infallibly, so these three
+    // degrade nowhere.
+    let count = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let numbers = crate::pick_payload::index_payload(err);
+    let patch = numbers.patch.map_or_else(none, count);
+    let triangle = numbers.triangle.map_or_else(none, count);
+    let index = numbers.index.map_or_else(none, int);
+    typed_err(
+        py,
+        ErrorClass::NodePick,
+        err.spoken(doc),
+        &[
+            (
+                "variant",
+                PyString::new(py, node_pick_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            ("node", which),
+            ("through", through),
+            ("kind", kind),
+            ("body", body),
+            ("hits", hits),
+            ("index_variant", index_variant),
+            ("patch", patch),
+            ("triangle", triangle),
+            ("index", index),
+        ],
+    )
+}
+
+/// **A ray to pick along**: an origin and a direction, over
+/// `t >= 0`.
+///
+/// `direction` need not be unit length, and no door here silently
+/// normalizes it: the hit parameter `t` is in units of
+/// `|direction|`, so every `t` produced from ONE ray is comparable
+/// with every other, and rescaling the direction rescales them all by
+/// the same factor.
+///
+/// A non-finite component is legal input and fail-safe: it can only
+/// LOSE constraints in the kernel's conservative slab test, so a
+/// poisoned ray prunes nothing and the pick answers the typed miss
+/// rather than silently skipping geometry.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct Ray(pub(crate) s::Ray);
+
+#[pymethods]
+impl Ray {
+    /// The ray from `origin` along `direction`.
+    #[new]
+    fn new(origin: (Length, Length, Length), direction: (f64, f64, f64)) -> Self {
+        let (ox, oy, oz) = meters(origin);
+        Self(s::Ray {
+            origin: pncad::authoring::p3(ox, oy, oz),
+            dir: pncad::authoring::v3(direction.0, direction.1, direction.2),
+        })
+    }
+
+    /// The ray origin — the point at `t == 0`, dimensioned.
+    #[getter]
+    fn origin(&self) -> (Length, Length, Length) {
+        lengths(self.0.origin)
+    }
+
+    /// The ray direction, dimensionless and not normalized.
+    #[getter]
+    fn direction(&self) -> (f64, f64, f64) {
+        direction(self.0.dir)
+    }
+
+    fn __repr__(&self) -> String {
+        let o = self.0.origin;
+        let d = self.0.dir;
+        format!(
+            "Ray(origin=({}, {}, {}) m, direction=({}, {}, {}))",
+            o.x, o.y, o.z, d.x, d.y, d.z
+        )
+    }
+}
+
+/// **A successful face pick**: the stable name, plus where and what
+/// was hit.
+///
+/// No arena key: the NAME is the reference a selection holds (G1), and
+/// it is the same opaque text `Evaluation.all_faces` and `select`
+/// answer with — hand it to `Node.fillet` unread.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct PickHit {
+    name: String,
+    node: NodeId,
+    body: u32,
+    t: f64,
+    t_lo: f64,
+    t_hi: f64,
+    point: pncad::geom_core::Point3<f64>,
+}
+
+#[pymethods]
+impl PickHit {
+    /// The picked face's stable name — an opaque identifier.
+    #[getter]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The node whose body was hit.
+    #[getter]
+    fn node(&self) -> NodeId {
+        self.node
+    }
+
+    /// The output-body index within that node's value.
+    #[getter]
+    fn body(&self) -> u32 {
+        self.body
+    }
+
+    /// The ray parameter of the hit, in units of the ray's own
+    /// `|direction|` — a bare float, not a distance, unless the ray
+    /// was given a unit direction.
+    #[getter]
+    fn t(&self) -> f64 {
+        self.t
+    }
+
+    /// The lower end of the parameter's certified interval, in the
+    /// same units as `t`, and `t_lo <= t <= t_hi` always.
+    ///
+    /// The kernel orders two candidates only when one interval lies
+    /// wholly below the other. Where the intervals OVERLAP the
+    /// geometry has not said which surface is in front, and NOTHING
+    /// else decides: `t_lo` and `t_hi` are how wide a claim this hit
+    /// is, not a second answer and not a rule. Overlapping candidates
+    /// on one face are this hit, with the hull of their intervals;
+    /// overlapping candidates on several faces are `HitTestError`
+    /// with variant `ambiguous`, whose `hits` are all of them.
+    ///
+    /// The enclosure is conditional — it contains the true crossing's
+    /// parameter when that crossing is a point of the closed triangle
+    /// — and the interval is always centred on the point the kernel
+    /// answers, which is always on the triangle. The parameter is the
+    /// caller's own ray's: a hit carried across a transform converts
+    /// all three or none, which is the viewer's own row
+    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// where a display frame moves an instance.
+    #[getter]
+    fn t_lo(&self) -> f64 {
+        self.t_lo
+    }
+
+    /// The upper end of that interval ([`PickHit::t_lo`]).
+    #[getter]
+    fn t_hi(&self) -> f64 {
+        self.t_hi
+    }
+
+    /// The hit point, `origin + t * direction` — dimensioned, and the
+    /// door to read when a distance is what was wanted.
+    #[getter]
+    fn point(&self) -> (Length, Length, Length) {
+        lengths(self.point)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PickHit(node={}, body={}, t={})",
+            self.node.0.full(),
+            self.body,
+            self.t
+        )
+    }
+}
+
+/// **A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
+/// CONSTRUCTION** — and, through this surface, the only pick target
+/// there is.
+///
+/// [`Self::build`] fetches the body from the evaluation's own payload,
+/// through the same output-body indexing the name tables key by, then
+/// tessellates and indexes it in one call. There is no other
+/// constructor, so an index cannot assert a pairing it does not have —
+/// which is what stops a pick answering a plausible, confidently wrong
+/// name.
+///
+/// The tessellation rides along ([`Self::mesh`]) so a viewer displays
+/// exactly what it picks against: one tessellation, one source of
+/// truth. Cache one per displayed `(node, body)` and drop it when the
+/// evaluation moves — a new `Evaluation` means new meshes, and an
+/// index built against the old one is stale.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct NodePick {
+    pub(crate) inner: s::NodePick,
+    /// The mesh handle, materialized once on first ask. The kernel's
+    /// `NodePick` owns its `Mesh` by value and Python's `Mesh` is a
+    /// handle over an `Arc`, so the crossing costs one copy — taken
+    /// lazily and kept, rather than per access.
+    mesh: OnceLock<Arc<pncad::mesh::Mesh>>,
+}
+
+#[pymethods]
+impl NodePick {
+    /// **Tessellate and index output body `body` of `node`** at the
+    /// chordal budget `chordal`, against `evaluation`'s own payload.
+    ///
+    /// `chordal` is δ, a DISTANCE, and it is `Body.tessellate`'s
+    /// budget verbatim: it says how coarsely a view of the model may
+    /// approximate it, never what the model IS. Picking against a
+    /// coarse index picks against the coarse triangles, which is
+    /// exactly right — they are the ones on screen.
+    ///
+    /// Raises `NodePickError`, typed: `not_a_body` for a node whose
+    /// value never draws (a datum, profile, declaration or mate),
+    /// `no_such_body` for an index this node's value does not have,
+    /// the standing ladder (`node_not_evaluated`, `node_failed`,
+    /// `node_poisoned`) for a node this evaluation has no `Ok` value
+    /// for, and the tessellator's own tags where tessellation refused.
+    #[staticmethod]
+    fn build(
+        py: Python<'_>,
+        evaluation: &Evaluation,
+        node: &NodeId,
+        body: u32,
+        chordal: &Length,
+    ) -> PyResult<Self> {
+        let tol = pncad::tolerance::Tol::witness();
+        s::NodePick::build(&evaluation.inner, node.0, body, chordal.0.meters(), tol)
+            .map(Self::wrap)
+            .map_err(|err| node_pick_err(py, &err, evaluation.doc()))
+    }
+
+    /// **Every output body of `node`, each tessellated and indexed** —
+    /// [`Self::build`]'s enumerating form, and the one to reach for
+    /// when offering a whole node to a pick.
+    ///
+    /// A caller cannot ask a node how many bodies it has, and the
+    /// indices are not a dense range: a split with one empty half
+    /// occupies index 1 and not index 0. Probing `build` at 0, 1, 2, …
+    /// until it refuses is precisely the by-hand pairing this type
+    /// exists to remove, so the enumeration is taken kernel-side, from
+    /// the same gather the name tables key by.
+    ///
+    /// **An empty list is a legal answer**, and it means something
+    /// narrower than it looks: the node's value IS body-denoting but
+    /// currently denotes none — an annihilated boolean, a split whose
+    /// sides are both empty. A node whose value never draws raises
+    /// `not_a_body` instead, because "this kind of node never draws"
+    /// and "this node draws nothing today" are different states and
+    /// only the second changes under an edit.
+    ///
+    /// Raises `NodePickError` as [`Self::build`] does; the first body
+    /// that refuses stops the whole enumeration, because a partial
+    /// answer would be a partial picture.
+    #[staticmethod]
+    fn build_all(
+        py: Python<'_>,
+        evaluation: &Evaluation,
+        node: &NodeId,
+        chordal: &Length,
+    ) -> PyResult<Vec<Self>> {
+        let tol = pncad::tolerance::Tol::witness();
+        s::NodePick::build_all(&evaluation.inner, node.0, chordal.0.meters(), tol)
+            .map(|built| built.into_iter().map(Self::wrap).collect())
+            .map_err(|err| node_pick_err(py, &err, evaluation.doc()))
+    }
+
+    /// The node this index answers for.
+    #[getter]
+    fn node(&self) -> NodeId {
+        NodeId(self.inner.node())
+    }
+
+    /// The output-body index this index answers for.
+    #[getter]
+    fn body(&self) -> u32 {
+        self.inner.body()
+    }
+
+    /// **The tessellation this index was built from** — the mesh to
+    /// display, so that what is drawn is what is picked.
+    #[getter]
+    fn mesh(&self) -> Mesh {
+        Mesh {
+            inner: Arc::clone(
+                self.mesh
+                    .get_or_init(|| Arc::new(self.inner.mesh().clone())),
+            ),
+        }
+    }
+
+    /// **The stable name of every face patch of [`Self::mesh`]**, in
+    /// patch order — one entry per patch, so entry `i` names the face
+    /// `Mesh.patch(i)` draws.
+    ///
+    /// This is the inversion a DISPLAY consumer needs, and until this
+    /// door Python had no way to ask it: a patch's identity in the mesh
+    /// is an arena key, and G1 forbids the key crossing, so a viewer
+    /// could address a patch by index and could not learn its name.
+    /// Here the key never leaves — the index goes in, the name comes
+    /// out.
+    ///
+    /// **Total, per patch, and each slot is `str` OR a
+    /// `HitTestError`.** An evaluated-but-unnamed face is a
+    /// naming-emission bug (spec D4), and it is surfaced in ITS OWN
+    /// SLOT rather than as a refusal of the whole call, because one
+    /// such bug must not cost a consumer the names of every other patch
+    /// it is drawing. Branch with `isinstance(entry, str)`; the
+    /// exception in a slot is a value, not something raised.
+    ///
+    /// **`evaluation` must be an evaluation of the document this index
+    /// was built from**, and one of another document RAISES
+    /// `HitTestError` with variant `evaluation_of_another_document`
+    /// before a single name is read. Node ids are minted per document,
+    /// so a twin recipe's evaluation would answer every slot out of
+    /// its own tables: other geometry's names, in patch order, with no
+    /// slot marked. That is one thing wrong with the arguments, so it
+    /// is raised rather than written into every slot. A LATER
+    /// evaluation of the same document is fine.
+    fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
+        self.inner
+            .patch_names(&evaluation.inner)
+            .map_err(|err| name_lookup_err(py, &err, evaluation.doc()))?
+            .iter()
+            .map(|slot| slot_name(py, slot, evaluation.doc()))
+            .collect()
+    }
+
+    /// **The stable name of every boundary polyline of
+    /// [`Self::mesh`]**, in polyline order — [`Self::patch_names`]'
+    /// edge twin, same contract and same per-slot loud arm.
+    ///
+    /// `Mesh.boundaries` is the drawing side: entry `i` here names the
+    /// edge polyline `i` of that list, so a consumer that drew the
+    /// wireframe and hit-tested an edge reads its selectable name out
+    /// of here, with the arena key never leaving — and it pairs the
+    /// way [`Self::patch_names`] does, raising `HitTestError` with
+    /// variant `evaluation_of_another_document` for an evaluation of
+    /// another document.
+    fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
+        self.inner
+            .boundary_names(&evaluation.inner)
+            .map_err(|err| name_lookup_err(py, &err, evaluation.doc()))?
+            .iter()
+            .map(|slot| slot_name(py, slot, evaluation.doc()))
+            .collect()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "NodePick(node={}, body={}, {} patches)",
+            self.inner.node().full(),
+            self.inner.body(),
+            self.inner.mesh().patches.len()
+        )
+    }
+}
+
+impl NodePick {
+    /// The kernel's index, with its mesh handle not yet materialized.
+    fn wrap(inner: s::NodePick) -> Self {
+        Self {
+            inner,
+            mesh: OnceLock::new(),
+        }
+    }
+}
+
+/// One slot of a per-slot name answer: the opaque text, or the
+/// hit-test refusal as a VALUE.
+fn slot_name(
+    py: Python<'_>,
+    slot: &Result<pncad::prelude::StableName, s::UnnamedEntity>,
+    doc: &pncad::document::ProfileDoc,
+) -> PyResult<Py<PyAny>> {
+    match slot {
+        Ok(name) => Ok(PyString::new(py, &name_text(py, name)?).unbind().into_any()),
+        Err(unnamed) => Ok(hit_test_value(py, *unnamed, doc)),
+    }
+}
+
+/// **What is under this ray** — the face the ray meets first across
+/// `targets`, resolved to a stable name.
+///
+/// The free `pick_face` as a method on the evaluation it answers as
+/// of, the posture every selector door on `Evaluation` already takes.
+/// `targets` are `NodePick`s: through this surface a pick target has
+/// no other spelling, and that is the point (module docs).
+///
+/// Raises `HitTestError` with variant `ambiguous` where the ray meets
+/// several faces the arithmetic cannot order — the shared edge, the
+/// corner, the edge-on face in front of a transversal one — with
+/// every tied face's own hit on the exception's `hits`.
+pub(crate) fn pick_face(
+    py: Python<'_>,
+    evaluation: &Evaluation,
+    targets: Vec<PyRef<'_, NodePick>>,
+    ray: &Ray,
+) -> PyResult<Option<PickHit>> {
+    let borrowed: Vec<s::PickTarget<'_>> = targets.iter().map(|t| t.inner.target()).collect();
+    match s::pick_face(&evaluation.inner, &borrowed, &ray.0) {
+        Ok(None) => Ok(None),
+        Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
+        Err(err) => Err(hit_test_err(py, &err, evaluation.doc())),
+    }
+}
+
+/// One kernel hit as the class this module answers with.
+fn projected(py: Python<'_>, hit: &s::PickHit) -> PyResult<PickHit> {
+    Ok(PickHit {
+        name: name_text(py, &hit.name)?,
+        node: NodeId(hit.node),
+        body: hit.body,
+        t: hit.t,
+        t_lo: hit.t_lo,
+        t_hi: hit.t_hi,
+        point: hit.point,
+    })
+}
+
+/// Register the picking vocabulary on the module.
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Ray>()?;
+    m.add_class::<PickHit>()?;
+    m.add_class::<NodePick>()?;
+    Ok(())
+}

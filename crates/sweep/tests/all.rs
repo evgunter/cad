@@ -1,0 +1,858 @@
+//! Aggregated integration-test binary for `sweep`.
+//!
+//! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
+//!
+//! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
+//! below. `autotests = false` in Cargo.toml means a file that is not
+//! listed here does not compile and does not run — `every_suite_file_is_
+//! aggregated` below fails loudly if you forget.
+//!
+//! Test IDs gain a module prefix (`export::round_trip` rather than
+//! `round_trip`, under binary `all` rather than binary `export`); the set
+//! of tests is otherwise identical.
+
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/common/mod.rs`, `tests/mate2_common/mod.rs`, `tests/revolve_common/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod common;
+mod mate2_common;
+mod revolve_common;
+
+#[path = "a_swept_cusp_is_legal_at_rest.rs"]
+mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
+#[path = "band_subdivided_side_walls.rs"]
+mod band_subdivided_side_walls;
+#[path = "bool1_fix_pass.rs"]
+mod bool1_fix_pass;
+#[path = "bool1_r1_probes.rs"]
+mod bool1_r1_probes;
+#[path = "bool2_cone_doors.rs"]
+mod bool2_cone_doors;
+#[path = "bool2_cone_doors_interval.rs"]
+mod bool2_cone_doors_interval;
+#[path = "bool2_r1_probes.rs"]
+mod bool2_r1_probes;
+#[path = "bool2_r2_probes.rs"]
+mod bool2_r2_probes;
+#[path = "bool3_r1_probes.rs"]
+mod bool3_r1_probes;
+#[path = "bool3_torus_doors.rs"]
+mod bool3_torus_doors;
+#[path = "bool3_torus_doors_interval.rs"]
+mod bool3_torus_doors_interval;
+#[path = "bool5r2_wedge_reach.rs"]
+mod bool5r2_wedge_reach;
+#[path = "bool6_per_slab_stacking.rs"]
+mod bool6_per_slab_stacking;
+#[path = "bool6_r2_probes.rs"]
+mod bool6_r2_probes;
+#[path = "bool6r1_probes.rs"]
+mod bool6r1_probes;
+#[path = "bool6r1_probes_interval.rs"]
+mod bool6r1_probes_interval;
+#[path = "general_circle_octant_dual.rs"]
+mod general_circle_octant_dual;
+#[path = "lane1_r2_probes.rs"]
+mod lane1_r2_probes;
+#[path = "offb_r1_loft_probes.rs"]
+mod offb_r1_loft_probes;
+#[path = "offc_r1_probes.rs"]
+mod offc_r1_probes;
+#[path = "offd2_r1_probes.rs"]
+mod offd2_r1_probes;
+#[path = "offd_r1_probes.rs"]
+mod offd_r1_probes;
+#[path = "p1b_r1_probes.rs"]
+mod p1b_r1_probes;
+#[path = "pcurve_p1b_r2_probes.rs"]
+mod pcurve_p1b_r2_probes;
+#[path = "pipeline_null_edge_rows.rs"]
+mod pipeline_null_edge_rows;
+#[path = "pis_arc_capped_poses.rs"]
+mod pis_arc_capped_poses;
+#[path = "pis_cut_cavity.rs"]
+mod pis_cut_cavity;
+#[path = "placeholder_chart_boundary.rs"]
+mod placeholder_chart_boundary;
+#[path = "pole_slit_window.rs"]
+mod pole_slit_window;
+#[path = "r1_lane0_e2e.rs"]
+mod r1_lane0_e2e;
+#[path = "r1_mate3_probes.rs"]
+mod r1_mate3_probes;
+#[path = "r2_mate3_probes.rs"]
+mod r2_mate3_probes;
+#[path = "r2_mesh1_donut_probes.rs"]
+mod r2_mesh1_donut_probes;
+#[path = "rehome_rings_lune.rs"]
+mod rehome_rings_lune;
+#[path = "sf2a_r1.rs"]
+mod sf2a_r1;
+#[path = "sf2a_r1_head.rs"]
+mod sf2a_r1_head;
+#[path = "sf2a_r2_interval_probe.rs"]
+mod sf2a_r2_interval_probe;
+#[path = "sf2a_r2_probes.rs"]
+mod sf2a_r2_probes;
+#[path = "sf2b_axial.rs"]
+mod sf2b_axial;
+#[path = "sf2b_head.rs"]
+mod sf2b_head;
+#[path = "sf2b_interval_probe.rs"]
+mod sf2b_interval_probe;
+#[path = "sf2b_r1_probes.rs"]
+mod sf2b_r1_probes;
+#[path = "sf2b_r2_probes.rs"]
+mod sf2b_r2_probes;
+#[path = "shallow_arc_extrude_grid_interval.rs"]
+mod shallow_arc_extrude_grid_interval;
+#[path = "shellfix1_bitdump.rs"]
+mod shellfix1_bitdump;
+#[path = "shellfix1_r1_probes.rs"]
+mod shellfix1_r1_probes;
+#[path = "sym11_far_placement_rows.rs"]
+mod sym11_far_placement_rows;
+#[path = "tilted_sphere_pair.rs"]
+mod tilted_sphere_pair;
+#[path = "tilted_sphere_pair_k_rows.rs"]
+mod tilted_sphere_pair_k_rows;
+#[path = "topo_ring_nesting.rs"]
+mod topo_ring_nesting;
+#[path = "torax_axial.rs"]
+mod torax_axial;
+#[path = "torax_interval.rs"]
+mod torax_interval;
+#[path = "transform_nurbs_walls.rs"]
+mod transform_nurbs_walls;
+#[path = "trim_3_chart_bound_bodies.rs"]
+mod trim_3_chart_bound_bodies;
+#[path = "verbs_offc_consumer.rs"]
+mod verbs_offc_consumer;
+#[path = "verbs_offd.rs"]
+mod verbs_offd;
+#[path = "verbs_shell.rs"]
+mod verbs_shell;
+
+#[path = "axis_lap.rs"]
+mod axis_lap;
+#[path = "band_annulus_host_boundary.rs"]
+mod band_annulus_host_boundary;
+#[path = "band_clearance_screen_reads_every_feature.rs"]
+mod band_clearance_screen_reads_every_feature;
+#[path = "band_ruled_cap_ring.rs"]
+mod band_ruled_cap_ring;
+#[path = "band_ruled_d_hole.rs"]
+mod band_ruled_d_hole;
+#[path = "bitdump.rs"]
+mod bitdump;
+#[path = "blend1_r1_probes.rs"]
+mod blend1_r1_probes;
+#[path = "blend2_r2_probes.rs"]
+mod blend2_r2_probes;
+#[path = "blend3_concave_chamfer.rs"]
+mod blend3_concave_chamfer;
+#[path = "blend3_r2_probes.rs"]
+mod blend3_r2_probes;
+#[path = "blend4_concave_fillet.rs"]
+mod blend4_concave_fillet;
+#[path = "blend4_r1_probes.rs"]
+mod blend4_r1_probes;
+#[path = "blend6_verb_vocab.rs"]
+mod blend6_verb_vocab;
+#[path = "blend_ball_side_bits.rs"]
+mod blend_ball_side_bits;
+#[path = "blend_dual_tangent.rs"]
+mod blend_dual_tangent;
+#[path = "blend_margin_payload_interval.rs"]
+mod blend_margin_payload_interval;
+#[path = "blend_seam_split_rim.rs"]
+mod blend_seam_split_rim;
+#[path = "blend_tworims.rs"]
+mod blend_tworims;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
+#[path = "cert5_offgrid_knot_rational.rs"]
+mod cert5_offgrid_knot_rational;
+#[path = "cert8_r1_probes.rs"]
+mod cert8_r1_probes;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
+#[path = "contact_edge_must_carry.rs"]
+mod contact_edge_must_carry;
+#[path = "contained_flush_cylinder.rs"]
+mod contained_flush_cylinder;
+#[path = "contfp_reads_arcs_on_their_carriers.rs"]
+mod contfp_reads_arcs_on_their_carriers;
+#[path = "copied_carriers_at_interval.rs"]
+mod copied_carriers_at_interval;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
+#[path = "euler_site_row_frontiers.rs"]
+mod euler_site_row_frontiers;
+#[path = "euler_site_rows_equal_the_pass.rs"]
+mod euler_site_rows_equal_the_pass;
+#[path = "extrude_acceptance.rs"]
+mod extrude_acceptance;
+#[path = "extrude_interval.rs"]
+mod extrude_interval;
+#[path = "issue93_az_intersect.rs"]
+mod issue93_az_intersect;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
+#[path = "join_whole_orbit_cylinder.rs"]
+mod join_whole_orbit_cylinder;
+#[path = "k_report.rs"]
+mod k_report;
+#[path = "ladder_split_key.rs"]
+mod ladder_split_key;
+#[path = "lib_u3_sections.rs"]
+mod lib_u3_sections;
+#[path = "m3_pr5_extrude_booleans.rs"]
+mod m3_pr5_extrude_booleans;
+#[path = "m5_pr10_frontier.rs"]
+mod m5_pr10_frontier;
+#[path = "m5_pr10_skin.rs"]
+mod m5_pr10_skin;
+#[path = "m5_pr10_skin_interval.rs"]
+mod m5_pr10_skin_interval;
+#[path = "m5_pr11_quad_interval.rs"]
+mod m5_pr11_quad_interval;
+#[path = "m5_pr11_quad_props.rs"]
+mod m5_pr11_quad_props;
+#[path = "m5_pr12_battery.rs"]
+mod m5_pr12_battery;
+#[path = "m5_pr12_blends.rs"]
+mod m5_pr12_blends;
+#[path = "m5_pr12_die.rs"]
+mod m5_pr12_die;
+#[path = "m5_pr12_die_body.rs"]
+mod m5_pr12_die_body;
+#[path = "m5_pr12_fix_pass.rs"]
+mod m5_pr12_fix_pass;
+#[path = "m5_pr12_refusals.rs"]
+mod m5_pr12_refusals;
+#[path = "m5_pr5_tilted_cut.rs"]
+mod m5_pr5_tilted_cut;
+#[path = "m5_pr6_pcurves.rs"]
+mod m5_pr6_pcurves;
+#[path = "m5_pr9_boss_union.rs"]
+mod m5_pr9_boss_union;
+#[path = "m5_pr9_cosurface_merge.rs"]
+mod m5_pr9_cosurface_merge;
+#[path = "m5_pr9_sector2.rs"]
+mod m5_pr9_sector2;
+#[path = "m5_pr9c_sphere_doors.rs"]
+mod m5_pr9c_sphere_doors;
+#[path = "m5_pr9c_sphere_doors_interval.rs"]
+mod m5_pr9c_sphere_doors_interval;
+#[path = "m5_s10_face_sense.rs"]
+mod m5_s10_face_sense;
+#[path = "m5_s11_concave_sense.rs"]
+mod m5_s11_concave_sense;
+#[path = "m5_s11_concave_sense_interval.rs"]
+mod m5_s11_concave_sense_interval;
+#[path = "m5_s12_curved_ops.rs"]
+mod m5_s12_curved_ops;
+#[path = "m5_s12_curved_ops_interval.rs"]
+mod m5_s12_curved_ops_interval;
+#[path = "m5_s13_pips.rs"]
+mod m5_s13_pips;
+#[path = "m5_s13_pips_interval.rs"]
+mod m5_s13_pips_interval;
+#[path = "m5_s13_review_probes.rs"]
+mod m5_s13_review_probes;
+#[path = "m6_5_fillet_naming.rs"]
+mod m6_5_fillet_naming;
+#[path = "m6_chart_mints.rs"]
+mod m6_chart_mints;
+#[path = "m6_loft_body.rs"]
+mod m6_loft_body;
+#[path = "m6_rider.rs"]
+mod m6_rider;
+#[path = "m6_surgery.rs"]
+mod m6_surgery;
+#[path = "m6_surgery_interval.rs"]
+mod m6_surgery_interval;
+#[path = "m6_tube.rs"]
+mod m6_tube;
+#[path = "m7_skin_integral.rs"]
+mod m7_skin_integral;
+#[path = "m8_14_long_turn_sweep.rs"]
+mod m8_14_long_turn_sweep;
+#[path = "m9_2b_r2_probes.rs"]
+mod m9_2b_r2_probes;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
+#[path = "m9_d1_r2_probes.rs"]
+mod m9_d1_r2_probes;
+#[path = "mass_props.rs"]
+mod mass_props;
+#[path = "mass_props_interval.rs"]
+mod mass_props_interval;
+#[path = "must_carry_rule.rs"]
+mod must_carry_rule;
+#[path = "r1_probes_issue1362_donut.rs"]
+mod r1_probes_issue1362_donut;
+#[path = "r2_sense_fold_probes.rs"]
+mod r2_sense_fold_probes;
+#[path = "ray_wall_margin_twins.rs"]
+mod ray_wall_margin_twins;
+#[path = "reach_aligned_half_rods.rs"]
+mod reach_aligned_half_rods;
+#[path = "reach_cone_split.rs"]
+mod reach_cone_split;
+#[path = "reach_continuation.rs"]
+mod reach_continuation;
+#[path = "reach_split_gate_per_face.rs"]
+mod reach_split_gate_per_face;
+#[path = "reach_volume_backstop.rs"]
+mod reach_volume_backstop;
+#[path = "reach_wall_chord_rows.rs"]
+mod reach_wall_chord_rows;
+#[path = "readback_doors.rs"]
+mod readback_doors;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
+#[path = "review_arceval_r1_probes.rs"]
+mod review_arceval_r1_probes;
+#[path = "review_arms2_r1_probes.rs"]
+mod review_arms2_r1_probes;
+#[path = "review_arms3_r1_probes.rs"]
+mod review_arms3_r1_probes;
+#[path = "review_band_ruled_ring_probes.rs"]
+mod review_band_ruled_ring_probes;
+#[path = "review_blend1_r2_probes.rs"]
+mod review_blend1_r2_probes;
+#[path = "review_blend3_r1_probes.rs"]
+mod review_blend3_r1_probes;
+#[path = "review_blend4_r2_probes.rs"]
+mod review_blend4_r2_probes;
+#[path = "review_blend6_r1_probes.rs"]
+mod review_blend6_r1_probes;
+#[path = "review_blend6_r2_probes.rs"]
+mod review_blend6_r2_probes;
+#[path = "review_chamfer_r1_probes.rs"]
+mod review_chamfer_r1_probes;
+#[path = "review_cleave_wrongarc.rs"]
+mod review_cleave_wrongarc;
+#[path = "review_closed_chain_junctions_r2_probes.rs"]
+mod review_closed_chain_junctions_r2_probes;
+#[path = "review_contact_edge_must_carry_r2_probes.rs"]
+mod review_contact_edge_must_carry_r2_probes;
+#[path = "review_d2_adv_probes.rs"]
+mod review_d2_adv_probes;
+#[path = "review_d2_recourse_at_the_site.rs"]
+mod review_d2_recourse_at_the_site;
+#[path = "review_d8_consumer_differential.rs"]
+mod review_d8_consumer_differential;
+#[path = "review_fillet_e1_probes.rs"]
+mod review_fillet_e1_probes;
+#[path = "review_fillet_e3_probes.rs"]
+mod review_fillet_e3_probes;
+#[path = "review_ladder_split_key_r1_probes.rs"]
+mod review_ladder_split_key_r1_probes;
+#[path = "review_ladder_split_key_r2_probes.rs"]
+mod review_ladder_split_key_r2_probes;
+#[path = "review_m2_pr4.rs"]
+mod review_m2_pr4;
+#[path = "review_m2_pr4_interval.rs"]
+mod review_m2_pr4_interval;
+#[path = "review_m2_pr5.rs"]
+mod review_m2_pr5;
+#[path = "review_m2_pr5_interval.rs"]
+mod review_m2_pr5_interval;
+#[path = "review_m2_pr7.rs"]
+mod review_m2_pr7;
+#[path = "review_m2_pr7_interval.rs"]
+mod review_m2_pr7_interval;
+#[path = "review_m3_pr1_sweep.rs"]
+mod review_m3_pr1_sweep;
+#[path = "review_m5_pr10.rs"]
+mod review_m5_pr10;
+#[path = "review_m5_pr10_interval.rs"]
+mod review_m5_pr10_interval;
+#[path = "review_m5_pr9_base_props_probe.rs"]
+mod review_m5_pr9_base_props_probe;
+#[path = "review_m5_pr9_boss_probe.rs"]
+mod review_m5_pr9_boss_probe;
+#[path = "review_m5_pr9_inband_at_rest.rs"]
+mod review_m5_pr9_inband_at_rest;
+#[path = "review_m6_3_loft_probes.rs"]
+mod review_m6_3_loft_probes;
+#[path = "review_m6_5_pr2_sweep_probes.rs"]
+mod review_m6_5_pr2_sweep_probes;
+#[path = "review_m6_surgery_probes.rs"]
+mod review_m6_surgery_probes;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
+#[path = "review_must_carry_rule_r2_probes.rs"]
+mod review_must_carry_rule_r2_probes;
+#[path = "review_pr12_probes.rs"]
+mod review_pr12_probes;
+#[path = "review_recourse_roster_r2_probes.rs"]
+mod review_recourse_roster_r2_probes;
+#[path = "review_s11_adv.rs"]
+mod review_s11_adv;
+#[path = "review_s12_adv.rs"]
+mod review_s12_adv;
+#[path = "review_s6_probe.rs"]
+mod review_s6_probe;
+#[path = "review_verbs_rim_lever_probes.rs"]
+mod review_verbs_rim_lever_probes;
+#[path = "revolve_ball.rs"]
+mod revolve_ball;
+#[path = "revolve_cone.rs"]
+mod revolve_cone;
+#[path = "revolve_determinism.rs"]
+mod revolve_determinism;
+#[path = "revolve_errors.rs"]
+mod revolve_errors;
+#[path = "revolve_interval.rs"]
+mod revolve_interval;
+#[path = "revolve_partial.rs"]
+mod revolve_partial;
+#[path = "revolve_ring.rs"]
+mod revolve_ring;
+#[path = "revolve_washer.rs"]
+mod revolve_washer;
+#[path = "ring_r1_probes.rs"]
+mod ring_r1_probes;
+#[path = "s16_box_soundness.rs"]
+mod s16_box_soundness;
+#[path = "s393_start_frame_door.rs"]
+mod s393_start_frame_door;
+#[path = "s49_census_jurisdiction.rs"]
+mod s49_census_jurisdiction;
+#[path = "seam_vertex_sites.rs"]
+mod seam_vertex_sites;
+
+#[path = "run_walls_built.rs"]
+mod run_walls_built;
+#[path = "seat6_germ_channel.rs"]
+mod seat6_germ_channel;
+#[path = "split_cylindrical_feature_box.rs"]
+mod split_cylindrical_feature_box;
+#[path = "split_edge_loft_charts.rs"]
+mod split_edge_loft_charts;
+#[path = "split_section_rings.rs"]
+mod split_section_rings;
+#[path = "split_tangent_edge_curved.rs"]
+mod split_tangent_edge_curved;
+#[path = "turning_orientation.rs"]
+mod turning_orientation;
+#[path = "verbs_1031b_arcwind.rs"]
+mod verbs_1031b_arcwind;
+#[path = "verbs_arms1_annulus.rs"]
+mod verbs_arms1_annulus;
+#[path = "verbs_arms1_r1_probes.rs"]
+mod verbs_arms1_r1_probes;
+#[path = "verbs_arms2_arms.rs"]
+mod verbs_arms2_arms;
+#[path = "verbs_arms2_bud.rs"]
+mod verbs_arms2_bud;
+#[path = "verbs_arms3.rs"]
+mod verbs_arms3;
+#[path = "verbs_chamfer.rs"]
+mod verbs_chamfer;
+#[path = "verbs_cylcyl_probe.rs"]
+mod verbs_cylcyl_probe;
+#[path = "verbs_cylcyl_r1_review_probes.rs"]
+mod verbs_cylcyl_r1_review_probes;
+#[path = "verbs_cylcylb_r1_blinded_probes.rs"]
+mod verbs_cylcylb_r1_blinded_probes;
+#[path = "verbs_cylsph_opening.rs"]
+mod verbs_cylsph_opening;
+#[path = "verbs_ga_r2_probes.rs"]
+mod verbs_ga_r2_probes;
+#[path = "verbs_germarms.rs"]
+mod verbs_germarms;
+#[path = "verbs_germarms2.rs"]
+mod verbs_germarms2;
+#[path = "verbs_germarms2_interval.rs"]
+mod verbs_germarms2_interval;
+#[path = "verbs_germarms_interval.rs"]
+mod verbs_germarms_interval;
+#[path = "verbs_germarms_r1_probes.rs"]
+mod verbs_germarms_r1_probes;
+#[path = "verbs_pierce.rs"]
+mod verbs_pierce;
+#[path = "verbs_pierce_r1_probes.rs"]
+mod verbs_pierce_r1_probes;
+#[path = "verbs_pierce_r2_probes.rs"]
+mod verbs_pierce_r2_probes;
+#[path = "verbs_rim_closed_lever.rs"]
+mod verbs_rim_closed_lever;
+#[path = "verbs_rim_r1_probes.rs"]
+mod verbs_rim_r1_probes;
+#[path = "verbs_sphsph_chart.rs"]
+mod verbs_sphsph_chart;
+#[path = "verbs_sphsph_opening.rs"]
+mod verbs_sphsph_opening;
+#[path = "verbs_tubewall.rs"]
+mod verbs_tubewall;
+#[path = "verbs_tubewall_r1_fingerprint.rs"]
+mod verbs_tubewall_r1_fingerprint;
+#[path = "verbs_tubewall_r1_probes.rs"]
+mod verbs_tubewall_r1_probes;
+#[path = "verbs_tubewall_r2_probes.rs"]
+mod verbs_tubewall_r2_probes;
+#[path = "verbs_tubewall_r2_solidbits.rs"]
+mod verbs_tubewall_r2_solidbits;
+
+test_utils::every_suite_file_is_aggregated!();
+
+#[path = "m8_3_rational_volume.rs"]
+mod m8_3_rational_volume;
+
+#[path = "mass_props_are_thread_count_invariant.rs"]
+mod mass_props_are_thread_count_invariant;
+
+#[path = "thread_count_probe_populations.rs"]
+mod thread_count_probe_populations;
+
+#[path = "sign_walk_plus_v.rs"]
+mod sign_walk_plus_v;
+
+#[path = "shell_census_is_thread_count_invariant.rs"]
+mod shell_census_is_thread_count_invariant;
+#[path = "shell_winding_curved.rs"]
+mod shell_winding_curved;
+
+#[path = "continuation_is_thread_count_invariant.rs"]
+mod continuation_is_thread_count_invariant;
+
+#[path = "m8_4_intersection_iso.rs"]
+mod m8_4_intersection_iso;
+
+#[path = "m9_2_chart_region_loft.rs"]
+mod m9_2_chart_region_loft;
+
+#[path = "r2_probe_cert8.rs"]
+mod r2_probe_cert8;
+
+#[path = "m9_3_wall_door.rs"]
+mod m9_3_wall_door;
+
+#[path = "full_turn_wall.rs"]
+mod full_turn_wall;
+#[path = "germ_circle_torus.rs"]
+mod germ_circle_torus;
+#[path = "germ_cone_apex_closure.rs"]
+mod germ_cone_apex_closure;
+#[path = "germ_cone_doors.rs"]
+mod germ_cone_doors;
+#[path = "germ_conic_plane_roots.rs"]
+mod germ_conic_plane_roots;
+#[path = "germ_coplanar_conic.rs"]
+mod germ_coplanar_conic;
+#[path = "germ_interior_oval.rs"]
+mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
+#[path = "germ_sphere_no_crossings.rs"]
+mod germ_sphere_no_crossings;
+#[path = "germ_torus_doors.rs"]
+mod germ_torus_doors;
+#[path = "germ_torus_rods.rs"]
+mod germ_torus_rods;
+#[path = "join1_delta_probes.rs"]
+mod join1_delta_probes;
+#[path = "join1_mechanisms.rs"]
+mod join1_mechanisms;
+#[path = "join1_r1_probes.rs"]
+mod join1_r1_probes;
+#[path = "join1_r1_rows.rs"]
+mod join1_r1_rows;
+#[path = "m9_3_zip.rs"]
+mod m9_3_zip;
+#[path = "mate2_cyl_rest.rs"]
+mod mate2_cyl_rest;
+#[path = "mate2_r1_probes.rs"]
+mod mate2_r1_probes;
+#[path = "mate2_r2_probes.rs"]
+mod mate2_r2_probes;
+#[path = "mate7a_r1_probes.rs"]
+mod mate7a_r1_probes;
+#[path = "mate7a_r2_probes.rs"]
+mod mate7a_r2_probes;
+#[path = "mate7a_torus_rest.rs"]
+mod mate7a_torus_rest;
+#[path = "pi_seam_and_kiss_through_the_boolean.rs"]
+mod pi_seam_and_kiss_through_the_boolean;
+#[path = "snowman.rs"]
+mod snowman;
+#[path = "tang_circle_cylinder.rs"]
+mod tang_circle_cylinder;
+
+#[path = "review_probes_m8_4.rs"]
+mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
+#[path = "vrev_acceptance_set.rs"]
+mod vrev_acceptance_set;
+#[path = "vrev_reversed_chart_hazard.rs"]
+mod vrev_reversed_chart_hazard;
+
+#[path = "r1_probes_m9_3.rs"]
+mod r1_probes_m9_3;
+
+#[path = "curved_mergedoor.rs"]
+mod curved_mergedoor;
+
+#[path = "verbs_gate_r1_probes.rs"]
+mod verbs_gate_r1_probes;
+
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;
+#[path = "verbs_shell_r2_probes.rs"]
+mod verbs_shell_r2_probes;
+#[path = "verbs_shell_r2b.rs"]
+mod verbs_shell_r2b;
+
+#[path = "r1_p2_probes.rs"]
+mod r1_p2_probes;
+
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
+#[path = "cert_m2r1_head.rs"]
+mod cert_m2r1_head;
+#[path = "cert_m2r1_passes.rs"]
+mod cert_m2r1_passes;
+#[path = "r1_area_gauge_probes.rs"]
+mod r1_area_gauge_probes;
+
+#[path = "tcost_k3_certificate.rs"]
+mod tcost_k3_certificate;
+
+#[path = "fillet_h4_concave_rim.rs"]
+mod fillet_h4_concave_rim;
+#[path = "fillet_h4_concave_rim_interval.rs"]
+mod fillet_h4_concave_rim_interval;
+#[path = "fillet_h5_hostless_rim.rs"]
+mod fillet_h5_hostless_rim;
+#[path = "fillet_h5_hostless_rim_interval.rs"]
+mod fillet_h5_hostless_rim_interval;
+#[path = "fillet_h5_r2_probes.rs"]
+mod fillet_h5_r2_probes;
+#[path = "review_fillet_h5_r1_probes.rs"]
+mod review_fillet_h5_r1_probes;
+
+#[path = "blend_recourse_followability.rs"]
+mod blend_recourse_followability;
+#[path = "review_blend3_r3_probes.rs"]
+mod review_blend3_r3_probes;
+
+#[path = "review_fillet_e2_probes.rs"]
+mod review_fillet_e2_probes;
+
+#[path = "review_h4_r1_probes.rs"]
+mod review_h4_r1_probes;
+
+#[path = "fillet_h4_r2_probes.rs"]
+mod fillet_h4_r2_probes;
+#[path = "rim_of_rows.rs"]
+mod rim_of_rows;
+
+#[path = "rim_of_rows_interval.rs"]
+mod rim_of_rows_interval;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "rim_of_structural_review_probes.rs"]
+mod rim_of_structural_review_probes;
+
+#[path = "fillet_h6_cap_rim.rs"]
+mod fillet_h6_cap_rim;
+#[path = "n3r1_d31.rs"]
+mod n3r1_d31;
+#[path = "n3r1_prune.rs"]
+mod n3r1_prune;
+#[path = "n3r2_d31_bitid.rs"]
+mod n3r2_d31_bitid;
+
+#[path = "review_blend_e2_r1_probes.rs"]
+mod review_blend_e2_r1_probes;
+#[path = "review_fillet_h6_r1_probes.rs"]
+mod review_fillet_h6_r1_probes;
+
+#[path = "review_fillet_h6_r2_probes.rs"]
+mod review_fillet_h6_r2_probes;
+
+#[path = "review_blend_k_rk_probes.rs"]
+mod review_blend_k_rk_probes;
+
+#[path = "fillet_h7_transverse_cap.rs"]
+mod fillet_h7_transverse_cap;
+#[path = "fillet_h7_transverse_cap_interval.rs"]
+mod fillet_h7_transverse_cap_interval;
+
+#[path = "review_blend1_r1_probes.rs"]
+mod review_blend1_r1_probes;
+#[path = "review_closed_chain_junctions_r1_probes.rs"]
+mod review_closed_chain_junctions_r1_probes;
+#[path = "review_fillet_h7_r1_probes.rs"]
+mod review_fillet_h7_r1_probes;
+#[path = "review_fillet_split_r2_probes.rs"]
+mod review_fillet_split_r2_probes;
+#[path = "review_fillet_t_r1_probes.rs"]
+mod review_fillet_t_r1_probes;
+
+#[path = "review_fillet_h7_r2_probes.rs"]
+mod review_fillet_h7_r2_probes;
+
+#[path = "review_fillet_t_r2_probes.rs"]
+mod review_fillet_t_r2_probes;
+
+#[path = "review_blend5_r5_probes.rs"]
+mod review_blend5_r5_probes;
+
+#[path = "review_blend4_r4_probes.rs"]
+mod review_blend4_r4_probes;
+#[path = "review_contact_edge_must_carry_r1_probes.rs"]
+mod review_contact_edge_must_carry_r1_probes;
+#[path = "shell5_r1_dump.rs"]
+mod shell5_r1_dump;
+#[path = "shell5_r1_probes.rs"]
+mod shell5_r1_probes;
+#[path = "shell5_r2_probes.rs"]
+mod shell5_r2_probes;
+#[path = "shell6_nappe_home.rs"]
+mod shell6_nappe_home;
+#[path = "shell6_r1_probes.rs"]
+mod shell6_r1_probes;
+#[path = "shell6_r2_probes.rs"]
+mod shell6_r2_probes;
+
+#[path = "shell7_common.rs"]
+mod shell7_common;
+
+#[path = "shell7_dump.rs"]
+mod shell7_dump;
+#[path = "shell8_common.rs"]
+mod shell8_common;
+#[path = "shell8_dump.rs"]
+mod shell8_dump;
+#[path = "shell8_multi_solid.rs"]
+mod shell8_multi_solid;
+#[path = "shell8_r1_probes.rs"]
+mod shell8_r1_probes;
+#[path = "shell8_r2_probes.rs"]
+mod shell8_r2_probes;
+
+#[path = "shell7_seam_corner.rs"]
+mod shell7_seam_corner;
+#[path = "spiric_rim.rs"]
+mod spiric_rim;
+
+#[path = "shell7_r1_diff.rs"]
+mod shell7_r1_diff;
+
+#[path = "shell7_r2_probes.rs"]
+mod shell7_r2_probes;
+
+#[path = "shell9_probe.rs"]
+mod shell9_probe;
+
+#[path = "revert_plane_charts.rs"]
+mod revert_plane_charts;
+
+#[path = "revert_periodic_wrap.rs"]
+mod revert_periodic_wrap;
+
+#[path = "shell9_rows.rs"]
+mod shell9_rows;
+
+#[path = "shell9_r1_probes.rs"]
+mod shell9_r1_probes;
+
+#[path = "shell9_r2_probes.rs"]
+mod shell9_r2_probes;
+
+#[path = "shell9_r2_dump.rs"]
+mod shell9_r2_dump;
+
+#[path = "shell10_scoped_walks.rs"]
+mod shell10_scoped_walks;
+
+#[path = "shell10_r1_probes.rs"]
+mod shell10_r1_probes;
+
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;
+
+#[path = "census_containment_cause.rs"]
+mod census_containment_cause;
+
+#[path = "wire_loft_end_profile_lift.rs"]
+mod wire_loft_end_profile_lift;
+
+#[path = "wedge_end_doors.rs"]
+mod wedge_end_doors;
+
+#[path = "review_3701_probes.rs"]
+mod review_3701_probes;
+
+#[path = "review_ring2_r1_e2e.rs"]
+mod review_ring2_r1_e2e;
+
+#[path = "full_turn_bore_mate.rs"]
+mod full_turn_bore_mate;
+#[path = "witness_ladder.rs"]
+mod witness_ladder;
+
+#[path = "join1_delta2_harness.rs"]
+mod join1_delta2_harness;

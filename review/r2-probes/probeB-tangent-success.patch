@@ -1,0 +1,5 @@
+--- a/demos/tour/src/lily.rs
++++ b/demos/tour/src/lily.rs
+@@
+-        let tangent_alpha = (top / r_top).atan();
++        let tangent_alpha = FLOWER_NECK_HALF_ANGLE; // R2 PROBE B: authored angle must AUTHOR fine -> expect_err panics -> pin reds on success

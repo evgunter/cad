@@ -1,0 +1,50 @@
+[package]
+name = "geom-brep"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The variant rosters behind `topo`'s sample-coverage row
+# (`topo::test_support_samples`): with this on, the enums a
+# `topo::ValidationError` renders through derive a companion
+# discriminant enum (`strum::EnumDiscriminants`), so a variant added
+# here is a gap in that row by construction, not by a hand-kept list.
+# Test-only: enabled through `topo`'s `test-support` alone.
+test-support = ["dep:strum", "geom/test-support", "geom-core/test-support"]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["geom-core/probe"]
+
+[dependencies]
+# Optional: `test-support` above.
+strum = { version = "0.28", features = ["derive"], optional = true }
+geom-core = { path = "../geom-core" }
+geom = { path = "../geom" }
+# The geometry-arena key types live here (typed slotmap keys): the
+# intensional descriptions reference surfaces *by arena key* (D2), and
+# `topo`'s Body re-exports these same types for its geometry arenas.
+slotmap = { workspace = true }
+
+[dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+proptest = { workspace = true }
+# Exact dyadic arithmetic for the oracle rows of the running bounds.
+num-bigint = { workspace = true }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

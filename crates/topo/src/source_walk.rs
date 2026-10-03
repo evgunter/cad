@@ -1,0 +1,988 @@
+//! **This crate's own sources, read as source.** Several guards here
+//! check properties of the SOURCE surface — what a future door will
+//! look like when someone writes one — which nothing at runtime can
+//! enumerate. They walk `topo/src` and read text.
+//!
+//! Its own module rather than a section of [`crate::fixtures`]: that
+//! module's subject is canonical well-formed bodies, this one's is the
+//! ITEM SCAN and the door walk over them, and one header cannot
+//! describe both.
+//!
+//! # One lexer, and it is not in this crate
+//!
+//! Nothing here knows Rust's lexical grammar. The reader is
+//! `test_utils::source::code_only` — the repository's one home for
+//! *is this text code*, with the raw-string, nested-block-comment and
+//! lifetime-versus-char cases modelled and a red row per construct.
+//! [`CodeOnly`] is this walk's HANDLE on that view, not a second
+//! reader: everything else — the item scan, the mutation-door walk,
+//! every consumer's search — runs over blanked text, in which every
+//! comment, string literal and char literal is spaces with byte
+//! positions preserved. That is a structural rule, not a convention:
+//! [`CodeOnly::fns`] is a method, so there is no way to run the
+//! item scan over un-blanked text, and no way to hand one of the
+//! bracket walks below a view that would make its depth count a
+//! guess.
+//!
+//! # Why text and not a parser
+//!
+//! `syn` would replace the item scan below — the `fn`-token walk, the
+//! parameter carve and the body carve — with a syntax tree. It is not
+//! taken, and the reason is not build cost or dependency policy (Ev's
+//! rule is that adding one is fine at ~2 weeks' release age, and `syn`
+//! is already in this workspace's lock file transitively):
+//!
+//! **A parser closes the smaller half.** Of the blind spots
+//! [`mutation_doors`] discloses, a parser closes exactly one — the
+//! item spelling, which is closed here instead by scanning the `fn`
+//! token rather than a `pub fn ` literal. It closes none of the four
+//! that actually cost coverage. Delegation needs a call graph;
+//! aliasing and re-export need name resolution; `cfg` needs
+//! evaluation; *"`topo/src` only"* needs the other crates. `syn`
+//! parses one file into a tree and does none of those. Buying a
+//! dependency that leaves every disclosed hole exactly where it is,
+//! to replace an item scan whose every construct has a red row —
+//! here for the scan, and in `test_utils::source` for the view it
+//! reads — is not the better close.
+//!
+//! **What would close the four is not a parser either** — it is a
+//! call-graph read (rust-analyzer, or a `cargo`-driven pass), which is
+//! a much larger decision than a dependency. A row that wants
+//! delegation closed should propose that, and should not re-litigate
+//! `syn` on the way past.
+
+// Test-support code: panicking is a test's failure mechanism (L5).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+/// This crate's `src/`, resolved for both ways the suite runs: a plain
+/// `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is the tree
+/// that is here) and a nextest ARCHIVE replayed on a different runner
+/// (where that absolute path need not exist, but `--workspace-remap`
+/// has pointed the per-test cwd at the crate root). Both ways are
+/// `test_utils::source::crate_dir`'s answer, which is where that
+/// six-line fallback and its paragraph live for the whole tree.
+pub(crate) fn src_root() -> std::path::PathBuf {
+    test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src")
+}
+
+/// Every `.rs` file under this crate's `src/`, with the floor this
+/// crate's own guards need on top of the shared walk's: `topo/src` is
+/// a large tree with a `lib.rs`, so a walk that reads some OTHER
+/// directory successfully is still not the one every guard here
+/// believes it is asking for.
+pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
+    let src = src_root();
+    let files = test_utils::source::rust_sources(&src);
+    assert!(
+        files.len() > 20 && files.iter().any(|f| f.ends_with("lib.rs")),
+        "the walk of {src:?} found {} file(s) and no lib.rs — it is not reading topo/src",
+        files.len()
+    );
+    files
+}
+
+/// One file of this crate's source, as CODE: every comment, string
+/// literal and char literal blanked to spaces by the shared lexer,
+/// with byte length and line structure preserved.
+///
+/// **A handle on that view, not a reader.** [`Self::of`] is the only
+/// door and it calls `test_utils::source::code_only`, where the
+/// constructs a needle can hide in — nested block comments, every
+/// string prefix, a lifetime that is not an opening quote — are
+/// modelled and pinned. The type exists for the structural rule the
+/// module docs state: the item scan is [`Self::fns`], a method, so
+/// nothing in this walk can read raw text, and the bracket walks below
+/// can assume every bracket they see is a real one.
+///
+/// **Two gaps the view does not close, both real and both dormant.**
+/// Blanking does not expand macros, so a `fn` inside a `macro_rules!`
+/// body is counted as an item and one inside an `include!`d file is
+/// not seen at all. In `topo/src` today no `macro_rules!` body contains
+/// a `fn`, and there is no `include!`. **No count of them is written
+/// here**: a number in prose beside a set that grows is a copy that
+/// goes stale in the silent direction, and this one had.
+pub(crate) struct CodeOnly(String);
+
+impl CodeOnly {
+    /// Blank `text`'s comments and literals.
+    pub(crate) fn of(text: &str) -> Self {
+        Self(test_utils::source::code_only(text))
+    }
+
+    /// The blanked text.
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Every `fn` item with a body in this file — [`FnItem`] per item,
+    /// every slice a view of the blanked text.
+    ///
+    /// **Nested items included.** A `fn` declared inside another's body
+    /// is an item of its own, yielded after its host in source order.
+    /// The host's [`FnItem::body`] still holds its text;
+    /// [`FnItem::own_body`] is the host with it blanked, and is the
+    /// reading every guard of what an item DOES takes, so a nested
+    /// item's call is credited to the nested item and to nothing else.
+    ///
+    /// **Scanned on the `fn` token, not on a `pub fn ` literal.** The
+    /// literal misses `pub const fn`, `pub async fn`, `pub unsafe fn`
+    /// and `pub extern "C" fn`; scanning the token finds all of them,
+    /// and leaves the visibility to [`FnItem::lead`] rather than
+    /// deciding it in the scan.
+    ///
+    /// **A `fn` token with no name declares no item.** `fn(K) -> V` in
+    /// a parameter list is a function-POINTER type, and skipping it is
+    /// not a dropped item: an item always has a name. Every other
+    /// unreadable head reaches [`gave_up`].
+    pub(crate) fn fns(&self) -> Vec<FnItem<'_>> {
+        let code = &self.0;
+        let b = code.as_bytes();
+        let mut out = Vec::new();
+        let mut at = 0usize;
+        while let Some(rel) = code[at..].find("fn") {
+            let kw = at + rel;
+            at = kw + 2;
+            if !is_token(b, kw, 2) {
+                continue;
+            }
+            let Some((name, after_name)) = ident_after(code, at) else {
+                continue;
+            };
+            // From here the head IS a named `fn`, so every remaining
+            // exit is either a bodiless declaration or a defect. See
+            // `gave_up` below: this scan does not get to skip one
+            // quietly, because skipping one quietly is what it did —
+            // which is why the carve's THIRD answer is read as a
+            // defect and not as a declaration.
+            let parsed = (|| {
+                let open = param_list_start(b, after_name)?;
+                let close = test_utils::source::balanced_end(code, open)?;
+                match test_utils::source::item_body(code, close) {
+                    test_utils::source::ItemBody::Body(body) => Some((open, close, body)),
+                    _ => None,
+                }
+            })();
+            match parsed {
+                Some((open, close, body)) => {
+                    let (start, end) = (body.start, body.end);
+                    at = start + 1;
+                    out.push(FnItem {
+                        name,
+                        lead: &code[code[..kw].rfind('\n').map_or(0, |n| n + 1)..kw],
+                        params: &code[open..close],
+                        returns: &code[close + 1..start],
+                        // The carve includes both braces; the body
+                        // slice this walk hands out never has the
+                        // closing one.
+                        body: &code[start..end - 1],
+                        span: body,
+                        kw,
+                        own: String::new(),
+                        fn_local: false,
+                    });
+                }
+                None if matches!(
+                    test_utils::source::item_body(code, at),
+                    test_utils::source::ItemBody::Declaration(_)
+                ) => {}
+                None => gave_up(code, kw),
+            }
+        }
+        for i in 0..out.len() {
+            let (start, end) = (out[i].span.start, out[i].span.end);
+            let mut own = out[i].body.as_bytes().to_vec();
+            // Items come in source order, so the ones inside this body
+            // are the run that follows it, up to its closing brace.
+            for inner in out[i + 1..].iter().take_while(|inner| inner.kw < end) {
+                // From the end of the statement before it, so the
+                // nested item's `pub` and attributes go with it.
+                let head = code[..inner.kw].rfind([';', '{', '}']).map_or(0, |n| n + 1);
+                for c in &mut own[head - start..inner.span.end - start] {
+                    if *c != b'\n' {
+                        *c = b' ';
+                    }
+                }
+            }
+            out[i].own = String::from_utf8(own).expect("a blanked range starts and ends on ASCII");
+            let hosted = out[..i].iter().any(|host| host.span.contains(&out[i].kw));
+            out[i].fn_local = hosted && !directly_in_an_impl(code, out[i].kw, &out[..i]);
+        }
+        out
+    }
+
+    /// Every `pub fn` item in this file — the [`Self::fns`] scan
+    /// narrowed to the items a bare `pub` precedes, across any run of
+    /// `const` / `async` / `unsafe` / `extern` qualifiers.
+    /// `pub(crate) fn` is rejected: its preceding token is `)`.
+    ///
+    /// **A [`FnItem::fn_local`] item is rejected too**, `pub` or not: a
+    /// path cannot name an item declared in a function body from
+    /// outside it (`m::host::stamp` is E0433), so the `pub` on one
+    /// reaches nothing. A method of an `impl` block standing in a body
+    /// is not fn-local — the block applies to its type wherever the type
+    /// is used, so a `pub` method there is as reachable as any.
+    pub(crate) fn public_fns(&self) -> Vec<FnItem<'_>> {
+        let b = self.0.as_bytes();
+        self.fns()
+            .into_iter()
+            .filter(|item| !item.fn_local && public_qualifiers_precede(b, item.kw))
+            .collect()
+    }
+}
+
+/// One `fn` item as the item scan reads it. Every slice is a view of
+/// the [`CodeOnly`] text, so a needle found in one is code and not
+/// prose.
+pub(crate) struct FnItem<'a> {
+    /// The item's name.
+    pub(crate) name: &'a str,
+    /// The item's line up to the `fn` token — where the visibility
+    /// keyword and the qualifiers stand. Visibility is left here rather
+    /// than decided in the scan because the two consumers want opposite
+    /// answers: one keeps the `pub` items, the other asserts an item is
+    /// NOT public.
+    pub(crate) lead: &'a str,
+    /// The parameter list, opening parenthesis included and closing one
+    /// excluded.
+    pub(crate) params: &'a str,
+    /// Everything between the parameter list and the body: the return
+    /// type, and a `where` clause when the item has one.
+    pub(crate) returns: &'a str,
+    /// The body, opening brace included and closing one excluded.
+    pub(crate) body: &'a str,
+    /// The body's byte range in the blanked text, both braces included
+    /// — what a caller needs to say which item a match elsewhere in the
+    /// file fell inside.
+    pub(crate) span: std::ops::Range<usize>,
+    /// The byte offset of the `fn` token.
+    pub(crate) kw: usize,
+    /// [`Self::body`] with every item declared inside it blanked.
+    own: String,
+    /// Whether the item stands in another item's body, outside any
+    /// `impl` block there — so that no path outside that body names it.
+    pub(crate) fn_local: bool,
+}
+
+impl FnItem<'_> {
+    /// The body with every item declared inside it blanked to spaces,
+    /// byte offsets and lines kept: what this item does, apart from what
+    /// the items it hosts do, each of which is an item of its own.
+    pub(crate) fn own_body(&self) -> &str {
+        &self.own
+    }
+}
+
+/// Whether the innermost block holding the `fn` at `kw` is an `impl`
+/// block's, given the items before it. A block that opens a `fn` body
+/// is not one, which is what keeps `-> impl Trait {` from reading as
+/// an `impl` header.
+fn directly_in_an_impl(code: &str, kw: usize, before: &[FnItem<'_>]) -> bool {
+    let b = code.as_bytes();
+    let mut depth = 0usize;
+    let Some(open) = (0..kw).rev().find(|&i| match b[i] {
+        b'}' => {
+            depth += 1;
+            false
+        }
+        b'{' if depth == 0 => true,
+        b'{' => {
+            depth -= 1;
+            false
+        }
+        _ => false,
+    }) else {
+        return false;
+    };
+    if before.iter().any(|item| item.span.start == open) {
+        return false;
+    }
+    let head_start = code[..open].rfind([';', '{', '}']).map_or(0, |n| n + 1);
+    code[head_start..open]
+        .match_indices("impl")
+        .any(|(at, _)| is_token(b, head_start + at, 4))
+}
+
+/// A named `fn` head this scan recognised and then could not read —
+/// public or not, because [`CodeOnly::fns`] returns both and a guard
+/// asserting an item is NOT public is as blind to a dropped one — and
+/// wherever it stands: the scan resumes inside every body it carves,
+/// so an unreadable `fn` nested in a body panics here as one at item
+/// level does.
+///
+/// **Loud on purpose.** Every guard built on this walk asserts about
+/// *all* doors, so an item the scan drops is a door with no
+/// classification and no count to notice it — which is the finding
+/// this module exists to close, one layer up. A parse this reader
+/// cannot complete is a defect in the reader, not an item to skip.
+///
+/// **This is a trade, and if it has just surprised you, you are the
+/// person it was made for.** A construct nobody has written yet will
+/// red an unrelated guard here rather than degrade quietly. That is
+/// deliberate: for a reader whose failure mode is *silence*,
+/// loud-and-wrong beats quiet-and-wrong, because quiet-and-wrong is
+/// the defect — a `;` inside `[T; N]` in return position once dropped
+/// every such `fn`, and the guards stayed green with no count
+/// moving at all. **The depth counting in [`body_start`] handles the
+/// constructs someone thought of; this panic is what makes the next
+/// one visible.** If you are here because a legitimate signature does
+/// not parse, the fix is to teach the item scan that construct and
+/// add a row to this module's `tests` — not to make this a
+/// `continue`.
+fn gave_up(code: &str, kw: usize) -> ! {
+    let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
+    let snippet: String = code[kw..].chars().take(80).collect();
+    panic!(
+        "the item scan recognised a named `fn` at line {line} and could not read it: \
+         {snippet:?}. It is not allowed to skip one — a dropped item is a door nothing \
+         classifies and no count moves for.",
+    );
+}
+
+/// Whether the `len` bytes at `i` stand alone as a token.
+fn is_token(b: &[u8], i: usize, len: usize) -> bool {
+    let identish = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    (i == 0 || !identish(b[i - 1])) && b.get(i + len).is_none_or(|c| !identish(*c))
+}
+
+/// Every offset where `needle` stands in `text` as a whole token:
+/// `Live` in `-> Option<Live>`, and not the tail of some `NotLive`;
+/// `Live::new`, and not the head of some `Live::newer`. A needle that
+/// ends in punctuation (`Live(`) is closed by it.
+pub(crate) fn tokens<'a>(text: &'a str, needle: &'a str) -> impl Iterator<Item = usize> + 'a {
+    let identish = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let b = text.as_bytes();
+    let open_ended = !needle.ends_with(|c: char| c.is_alphanumeric() || c == '_');
+    text.match_indices(needle)
+        .map(|(at, _)| at)
+        .filter(move |&at| {
+            (at == 0 || !identish(b[at - 1]))
+                && (open_ended || b.get(at + needle.len()).is_none_or(|c| !identish(*c)))
+        })
+}
+
+/// `code` with every `use` declaration in it blanked to spaces, lines
+/// kept: a declaration names paths and reaches none of them. `use` is a
+/// keyword, so a token of that spelling opens a declaration — unless a
+/// `<` follows, which is a precise-capturing bound (`impl Trait +
+/// use<'a>`), or it is the raw identifier `r#use`.
+fn uses_blanked(code: &str) -> String {
+    let mut out = code.as_bytes().to_vec();
+    for at in tokens(code, "use") {
+        let raw = code[..at].ends_with("r#");
+        if raw || code[at + 3..].trim_start().starts_with('<') {
+            continue;
+        }
+        let end = code[at..]
+            .find(';')
+            .map_or(code.len(), |semi| at + semi + 1);
+        for c in &mut out[at..end] {
+            if *c != b'\n' {
+                *c = b' ';
+            }
+        }
+    }
+    String::from_utf8(out).expect("the blanked ranges start and end on ASCII")
+}
+
+/// Whether the `fn` at `kw` is preceded by a bare `pub`, across any
+/// run of `const` / `async` / `unsafe` / `extern` qualifiers.
+fn public_qualifiers_precede(b: &[u8], kw: usize) -> bool {
+    let mut end = kw;
+    loop {
+        while end > 0 && b[end - 1].is_ascii_whitespace() {
+            end -= 1;
+        }
+        let mut start = end;
+        while start > 0 && (b[start - 1].is_ascii_alphanumeric() || b[start - 1] == b'_') {
+            start -= 1;
+        }
+        match &b[start..end] {
+            b"pub" => return true,
+            b"const" | b"async" | b"unsafe" | b"extern" if start < end => end = start,
+            _ => return false,
+        }
+    }
+}
+
+/// The identifier starting at or after `from`, and the index one past
+/// it.
+fn ident_after(code: &str, from: usize) -> Option<(&str, usize)> {
+    let rest = code.get(from..)?;
+    let lead = rest.len() - rest.trim_start().len();
+    let name = &rest[lead..];
+    let n = name.find(|c: char| !c.is_alphanumeric() && c != '_')?;
+    (n > 0).then_some((&name[..n], from + lead + n))
+}
+
+/// The `(` opening the parameter list of a function whose name ends at
+/// `from`, skipping a generic list — which may itself contain parens,
+/// as `<F: Fn(u32) -> u32>` does.
+///
+/// **Not `test_utils::source::angle_end`, and the difference is the
+/// refusal.** That operation answers where a list closes and is
+/// documented to answer `Some` at the wrong place rather than `None`
+/// when a const-generic `>` comparison closes it early. This walk
+/// needs the opposite bias: anything between the name and the `(`
+/// that is not whitespace and not a generic list means the match was
+/// not a function head, and answering `None` there is what routes it
+/// to `gave_up` instead of into the door table.
+fn param_list_start(b: &[u8], from: usize) -> Option<usize> {
+    let mut i = from;
+    let mut angle = 0usize;
+    while i < b.len() {
+        match b[i] {
+            b'-' if b.get(i + 1) == Some(&b'>') => i += 1,
+            b'<' => angle += 1,
+            b'>' if angle > 0 => angle -= 1,
+            b'(' if angle == 0 => return Some(i),
+            c if angle == 0 && !c.is_ascii_whitespace() && c != b'<' => return None,
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// One public mutation door into a [`crate::Body`], as the guards that
+/// walk the mutation surface see it.
+pub(crate) struct MutationDoor {
+    /// The source file the door is declared in.
+    pub(crate) file: std::path::PathBuf,
+    /// The door's name.
+    pub(crate) name: String,
+    /// The door's own body, blanked by [`CodeOnly`], with every `use`
+    /// declaration in it blanked too.
+    code: String,
+}
+
+impl MutationDoor {
+    /// The door `item` declares in `file`, read by its
+    /// [`FnItem::own_body`].
+    pub(crate) fn of(file: &std::path::Path, item: &FnItem<'_>) -> Self {
+        MutationDoor {
+            file: file.to_path_buf(),
+            name: item.name.to_string(),
+            code: uses_blanked(item.own_body()),
+        }
+    }
+
+    /// `file::name`, the spelling the guards report an offender by.
+    pub(crate) fn site(&self) -> String {
+        format!("{}::{}", self.file.display(), self.name)
+    }
+
+    /// Whether the door's own code names the function `name` — calls
+    /// it, or passes it point-free (`.map(Body::begin_surgery)`), either
+    /// of which is the door reaching it.
+    ///
+    /// `name` stands as a whole token, so `leave_surgery` is not the
+    /// head of `leave_surgery_and_sweep`. Two mentions reach nothing
+    /// and do not count: a `use` declaration, blanked when the door is
+    /// read, and a module of the same name (`validate::validate_closed`),
+    /// told by the `::` and a name after it — a turbofish
+    /// (`validate::<T>`) is the function itself and counts.
+    pub(crate) fn names(&self, name: &str) -> bool {
+        tokens(&self.code, name).any(|at| {
+            let rest = self.code[at + name.len()..].trim_start();
+            rest.strip_prefix("::")
+                .is_none_or(|path| path.trim_start().starts_with('<'))
+        })
+    }
+
+    /// Whether the door's own body carries a whole-body check as a
+    /// DEBUG ASSERTION — the claim a non-sweeping close makes.
+    ///
+    /// A typed gate (`validate_closed(&work).map_err(…)?`) is
+    /// deliberately not enough: it answers a kernel bug with an error
+    /// return where the operators the door composes used to panic. The
+    /// two needles have to co-occur; neither alone is the claim.
+    pub(crate) fn debug_asserts_the_whole_body(&self) -> bool {
+        self.code.contains("debug_assert")
+            && (self.names("validate_closed")
+                || self.names("validate_geometric")
+                || self.names("validate"))
+    }
+
+    /// How this door stands with respect to [`crate::surgery`]: it
+    /// opens a scope, or it does not, and if it opens one it either
+    /// closes it or it does not.
+    pub(crate) fn surgery_posture(&self) -> SurgeryPosture {
+        if !(self.names("begin_surgery") || self.names("enter_surgery")) {
+            return SurgeryPosture::NoScope;
+        }
+        if self.names("sweep_and_close") || self.names("leave_surgery_and_sweep") {
+            SurgeryPosture::ClosedWithSweep
+        } else if self.names("close_already_checked") || self.names("leave_surgery") {
+            SurgeryPosture::ClosedUnderOwnAssertion
+        } else {
+            SurgeryPosture::LeftOpen
+        }
+    }
+}
+
+/// What a door's own text says about the surgery scopes it opens —
+/// [`MutationDoor::surgery_posture`].
+///
+/// **`LeftOpen` is the case this exists for.** A scope opened and not
+/// closed silences the tier-1 postcondition of every operator that
+/// runs on that body afterwards, including operators in later calls,
+/// and nothing at runtime notices: the body validates, the suite
+/// passes, and the check is simply gone. It is a lexical property of
+/// one function body, which is exactly what this walk can see.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum SurgeryPosture {
+    /// The door opens no surgery scope.
+    NoScope,
+    /// It opens one and closes it with the tier-1 sweep — the door's
+    /// postcondition.
+    ClosedWithSweep,
+    /// It opens one and closes it without a sweep, which claims a
+    /// debug assertion of tier 1 or stronger in the door's own body.
+    ClosedUnderOwnAssertion,
+    /// It opens one and closes nothing.
+    LeftOpen,
+}
+
+/// The number of mutation doors [`mutation_doors`] finds in `topo/src`
+/// on the tree this constant is committed with. Not asserted exactly —
+/// a new door is normal and this walk is not the place to notice one.
+/// It is here so that walk's floor is derived from a number rather than
+/// chosen, and so a reader can tell a floor with two doors of slack
+/// from a floor with twenty-seven.
+///
+/// **It is re-measured, never left behind.** The floor is this number
+/// less two, so every door added without a re-measurement is another
+/// door the walk may silently lose before anything reds; left far
+/// enough behind, the floor stops being evidence about the walk at all.
+/// Lowering it is only ever correct when doors were deleted.
+const DOORS_MEASURED: usize = 57;
+
+/// Every public mutation door into a [`crate::Body`] declared in this
+/// crate's `src/`: a public `fn` whose parameter list takes
+/// `&mut self` or `&mut Body<T>`. A door is read by its
+/// [`FnItem::own_body`]: a `fn` declared inside it is not its text, and
+/// is a door only as [`CodeOnly::public_fns`] admits it — never when it
+/// is [`FnItem::fn_local`], `pub` or not.
+///
+/// **This is the shared concept.** Two guards classify this one
+/// population by two different properties — the tier-1 postcondition
+/// surface ([`crate::review_m1_pr5_internal`]) and the pcurve-staleness
+/// posture ([`crate::pcurves`]) — and each used to carry its own copy
+/// of the walk and of the predicate. **The classifications stay in
+/// their own guards**: they are two properties of one set, not one
+/// property, and a merged table would make an edit about either
+/// concern able to red the other's guard. That the two tables still
+/// range over this one set is asserted, not assumed —
+/// `review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface`.
+/// **This paragraph is the one statement of that decision**; the two
+/// guards point here rather than restating it.
+///
+/// **The test-support fixture builders are in this population, and
+/// stated here once for the same reason.** `crate::test_support_fixtures`
+/// (not linked: it is gated on the test arms) declares `pub fn`s taking
+/// `&mut Body` — `pub` only because a `tests/` binary is a separate
+/// crate and reaches them through `topo::test_support`. No shipped
+/// build compiles them; they are here because this walk reads
+/// `topo/src` as text, which is the over-counting the visibility
+/// bullet below describes, and each of them is a composition of
+/// operators that are themselves doors in this population. Narrowing
+/// the walk to exclude them was refused: it would shrink a guard's
+/// population precisely so that new code escapes it. Each guard's
+/// table says only what its own classification makes of them.
+///
+/// **What this walk cannot see**, and every guard built on it
+/// inherits:
+///
+/// - **Delegation.** A door that reaches the call one hop away,
+///   through a helper, reads as not making it.
+/// - **`topo/src` only.** A `&mut Body` door in another crate, or in
+///   this crate's `tests/`, is outside [`crate_sources`].
+/// - **Module visibility.** A `pub fn` inside a `pub(crate) mod` is
+///   not public to the world, and one file's text cannot say which
+///   modules are re-exported. Everything `pub` in `topo/src` is
+///   counted, which over-counts rather than under-counts — the
+///   safe direction for a guard that asserts about all doors.
+/// - **`cfg`.** The read is of text, so a call under `cfg(false)`
+///   counts as present and a door under one counts as a door.
+/// - **Aliasing.** A call reached under a re-exported or renamed path
+///   does not match its needle.
+/// - **A name that reaches nothing.** [`MutationDoor::names`] matches a
+///   function's name as a whole token wherever it stands in code, bar a
+///   `use` declaration and a module path — so that a call named
+///   point-free (`.map(Body::begin_surgery)`) is read as made. A local,
+///   a field, or a method of another type spelled the same is read as
+///   the function reached: for a close, the door reads closed.
+///
+/// The first, fourth, fifth and sixth are the ones that cost coverage, and
+/// none of them is a lexing problem — see the module docs on why a
+/// parser is not the answer to them.
+pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
+    let mut out = Vec::new();
+    for file in crate_sources() {
+        let text = std::fs::read_to_string(&file).expect("a readable source file");
+        let code = CodeOnly::of(&text);
+        for item in code.public_fns() {
+            if !item.params.contains("&mut self") && !item.params.contains("&mut Body") {
+                continue;
+            }
+            out.push(MutationDoor::of(&file, &item));
+        }
+    }
+    // The walk's floor, and the only one: a walk that lost doors to a
+    // lexing gap is this module's own historical failure, and both
+    // consumers used to carry a hand-chosen floor of their own that
+    // could absorb the loss of seven.
+    assert!(
+        out.len() + 2 >= DOORS_MEASURED,
+        "the walk found {} mutation door(s) against {DOORS_MEASURED} measured — doors are \
+         being lost. Deleting doors is legitimate; if that is what happened, re-measure \
+         and move `DOORS_MEASURED`.",
+        out.len(),
+    );
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CodeOnly, DOORS_MEASURED, MutationDoor, SurgeryPosture, mutation_doors};
+
+    /// **The item scan and the classification, at the one altitude
+    /// where either failure was visible.** Text in, doors out.
+    ///
+    /// The scan's own defect is the array-return rows (`arr`,
+    /// `arr_nested`): a `;` inside `[T; N]` used to end the scan of
+    /// every such signature and drop the item whole, with no count
+    /// anywhere moving. `bodiless` is the case the dropped-item rule
+    /// must still let through, and `not_a_door` the item that is a
+    /// door to nothing.
+    ///
+    /// The classification's defect is the second table: both
+    /// mutation-surface guards read a door by `body.contains(<literal>)`
+    /// over raw text, so a door that only *mentioned* the call was
+    /// counted as making it. `plain`'s `false` beside eight `true`s is
+    /// that plant — its body holds the call spelled inside a string —
+    /// and `doc_comment_decoy` is the same plant one layer up, an item
+    /// head that is prose. **The constructs a needle can hide in are
+    /// not enumerated here**: they belong to the view, and
+    /// `test_utils::source`'s own suite is where each has its row.
+    #[test]
+    fn the_item_scan_reads_doors_and_refuses_to_read_prose_as_one() {
+        let src = "
+pub fn quote(&mut self) { let q = '\"'; mint_pcurves(&mut b); }
+pub fn raw(&mut self) { let s = br\"x\\\"; mint_pcurves(&mut b); }
+pub fn nested(&mut self) { /* a /* b */ c */ mint_pcurves(&mut b); }
+/// pub fn doc_comment_decoy(&mut self) {
+pub fn plain(&mut self) { let _ = \"pub fn string_decoy(&mut self) {\"; }
+pub const fn qualified(&mut self) { mint_pcurves(&mut b); }
+pub async unsafe fn stacked(&mut self) { mint_pcurves(&mut b); }
+pub fn generic<F: Fn(u32) -> u32>(&mut self, f: F) { mint_pcurves(&mut b); }
+pub fn arr(&mut self) -> [usize; 2] { mint_pcurves(&mut b); }
+pub fn arr_nested(&mut self) -> Result<([u8; 2], u8), E> { mint_pcurves(&mut b); }
+pub fn bodiless(&mut self) -> u8;
+fn private(&mut self) { mint_pcurves(&mut b); }
+pub(crate) fn restricted(&mut self) { mint_pcurves(&mut b); }
+pub fn not_a_door(&self) {}
+";
+        let code = CodeOnly::of(src);
+        let found: Vec<&str> = code.public_fns().iter().map(|i| i.name).collect();
+        assert_eq!(
+            found,
+            vec![
+                "quote",
+                "raw",
+                "nested",
+                "plain",
+                "qualified",
+                "stacked",
+                "generic",
+                "arr",
+                "arr_nested",
+                "not_a_door",
+            ],
+            "the item scan lost, invented or mis-ordered a public fn"
+        );
+        let doors: Vec<(&str, bool)> = code
+            .public_fns()
+            .iter()
+            .filter(|i| i.params.contains("&mut self"))
+            .map(|i| (i.name, i.own_body().contains("mint_pcurves(")))
+            .collect();
+        assert_eq!(
+            doors,
+            vec![
+                ("quote", true),
+                ("raw", true),
+                ("nested", true),
+                ("plain", false),
+                ("qualified", true),
+                ("stacked", true),
+                ("generic", true),
+                ("arr", true),
+                ("arr_nested", true),
+            ],
+            "a door was lost, or its body classified from prose"
+        );
+    }
+
+    /// **The surgery posture, read off four doors that differ only in
+    /// which calls they make.**
+    ///
+    /// [`MutationDoor::surgery_posture`] is what stands between
+    /// `review_m1_pr5_internal`'s guard and a door that opens a scope
+    /// and closes nothing — the one failure in this area that is
+    /// silent at runtime, because the body still validates and every
+    /// operator after it has simply stopped checking. `left_open`
+    /// below is that door; `prose_only` is the same plant one layer
+    /// down, a body whose only mention of the close is inside a string
+    /// the blanked view erases.
+    #[test]
+    fn the_walk_tells_a_closed_surgery_scope_from_one_left_open() {
+        let src = "
+pub fn swept(&mut self) { let s = self.begin_surgery(); s.sweep_and_close(); }
+pub fn guardless(&mut self) { self.enter_surgery(); self.leave_surgery_and_sweep(); }
+pub fn own_assert(&mut self) { self.enter_surgery(); self.leave_surgery(); }
+pub fn left_open(&mut self) { let s = self.begin_surgery(); s.take(); }
+pub fn prose_only(&mut self) { self.enter_surgery(); let _ = \"leave_surgery()\"; }
+pub fn no_scope(&mut self) { self.mev(site, spec, tol) }
+pub fn backed(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    debug_assert_eq!(validate_closed(self), Ok(())); }
+pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    validate_closed(self).map_err(E)?; }
+";
+        let code = CodeOnly::of(src);
+        let postures: Vec<(&str, SurgeryPosture)> = code
+            .public_fns()
+            .iter()
+            .map(|i| {
+                let door = MutationDoor::of(std::path::Path::new("x.rs"), i);
+                (i.name, door.surgery_posture())
+            })
+            .collect();
+        assert_eq!(
+            postures,
+            vec![
+                ("swept", SurgeryPosture::ClosedWithSweep),
+                ("guardless", SurgeryPosture::ClosedWithSweep),
+                ("own_assert", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("left_open", SurgeryPosture::LeftOpen),
+                ("prose_only", SurgeryPosture::LeftOpen),
+                ("no_scope", SurgeryPosture::NoScope),
+                ("backed", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("unbacked", SurgeryPosture::ClosedUnderOwnAssertion),
+            ],
+            "the posture read is wrong, or it is reading prose as a call"
+        );
+        // The second half of the non-sweeping close's claim: the door
+        // debug-asserts a whole body itself. `unbacked` runs the same
+        // validator through a TYPED gate, which is the confusion the
+        // guard exists to refuse — a kernel bug answered with an error
+        // return where the composed operators used to panic.
+        let backing: Vec<(&str, bool)> = code
+            .public_fns()
+            .iter()
+            .map(|i| {
+                let door = MutationDoor::of(std::path::Path::new("x.rs"), i);
+                (i.name, door.debug_asserts_the_whole_body())
+            })
+            .filter(|(n, _)| *n == "backed" || *n == "unbacked" || *n == "own_assert")
+            .collect();
+        assert_eq!(
+            backing,
+            vec![("own_assert", false), ("backed", true), ("unbacked", false)],
+            "a typed gate is being read as the door's own debug assertion, or the other \
+             way round"
+        );
+    }
+
+    /// **A function a door reaches is named, however it is spelled; a
+    /// path it only declares or passes through is not.** A needle ending
+    /// in `(` would keep `use` lines out and miss `point_free`, which
+    /// opens a scope and closes none; the reads below are the ones that
+    /// tell the two apart.
+    #[test]
+    fn a_door_names_what_it_reaches_point_free_and_not_what_it_imports() {
+        let src = "
+pub fn point_free(&mut self) { let s = Some(self).map(Body::begin_surgery); }
+pub fn point_free_close(&mut self) { self.enter_surgery(); f(self, Body::leave_surgery_and_sweep); }
+pub fn imports(&mut self) {
+    use crate::surgery::Body::begin_surgery;
+    use crate::pcurves::{
+        mint_pcurves_of,
+        mint_pcurves as m,
+    };
+    self.mev(site, spec, tol);
+}
+pub fn module(&mut self) { crate::validate::validate_closed(self) }
+pub fn turbofish(&mut self) { validate :: <f64>(self) }
+pub fn capture(&mut self) { let f: (impl Sized + use<'a>, _) = (g, mint_pcurves); }
+";
+        let code = CodeOnly::of(src);
+        let doors: Vec<MutationDoor> = code
+            .public_fns()
+            .iter()
+            .map(|i| MutationDoor::of(std::path::Path::new("x.rs"), i))
+            .collect();
+        let door = |name: &str| {
+            doors
+                .iter()
+                .find(|d| d.name == name)
+                .expect("a fixture door")
+        };
+        let postures: Vec<(&str, SurgeryPosture)> = doors
+            .iter()
+            .map(|d| (d.name.as_str(), d.surgery_posture()))
+            .collect();
+        assert_eq!(
+            postures,
+            vec![
+                ("point_free", SurgeryPosture::LeftOpen),
+                ("point_free_close", SurgeryPosture::ClosedWithSweep),
+                ("imports", SurgeryPosture::NoScope),
+                ("module", SurgeryPosture::NoScope),
+                ("turbofish", SurgeryPosture::NoScope),
+                ("capture", SurgeryPosture::NoScope),
+            ],
+            "a point-free call is read as not made, or a `use` line as a call"
+        );
+        let reads = [
+            ("imports", "mint_pcurves", false),
+            ("imports", "mint_pcurves_of", false),
+            ("module", "validate", false),
+            ("module", "validate_closed", true),
+            ("turbofish", "validate", true),
+            ("capture", "mint_pcurves", true),
+        ];
+        for (name, needle, want) in reads {
+            assert_eq!(
+                door(name).names(needle),
+                want,
+                "`{name}` names `{needle}`: a `use` declaration, a module path, a turbofish \
+                 or a precise-capturing `use<..>` is misread"
+            );
+        }
+    }
+
+    /// **Every named `fn` item, and nothing that merely spells the
+    /// keyword.**
+    ///
+    /// The scan is this crate's one home for reading its own items, so
+    /// it returns the PRIVATE ones too and leaves visibility in
+    /// `lead` — a guard asserting that an item is not public cannot be
+    /// built on a walk that only returns the public ones, and
+    /// `public_fns` is that same scan narrowed rather than a second
+    /// one.
+    ///
+    /// A function-POINTER type spells `fn` and declares no item. It has
+    /// no name, which is the tell, and reading one as an item is worse
+    /// than a nameless table entry: the carve then runs past the
+    /// pointer's own `-> V` looking for a terminator, finds the NEXT
+    /// item's `{`, and takes that body for its own — so the item after
+    /// a function-pointer type disappears with no count moving. The
+    /// pointer below therefore stands in a struct field, where nothing
+    /// terminates it, with `ctor` behind it: a `;`-terminated pointer
+    /// is read as a bodiless declaration and skipped either way, which
+    /// is the shape that cannot fail.
+    #[test]
+    fn the_item_scan_reads_named_items_only_and_carries_their_visibility() {
+        let src = "
+struct S { namer: fn(K) -> EntityId }
+const fn ctor(he: K) -> Self { Self(he) }
+pub(crate) fn require<K: Key, V>(a: &S<K, V>, id: fn(K) -> EntityId) -> Result<(), E> { a.c(k) }
+pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }
+";
+        let code = CodeOnly::of(src);
+        let read: Vec<(&str, &str, &str)> = code
+            .fns()
+            .iter()
+            .map(|item| (item.name, item.lead.trim(), item.returns.trim()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![
+                ("ctor", "const", "-> Self"),
+                ("require", "pub(crate)", "-> Result<(), E>"),
+                ("open", "pub async unsafe", "-> Option<Live>"),
+            ],
+            "the scan lost an item, read a function-pointer type as one, or mis-carved a head"
+        );
+        let public: Vec<&str> = code.public_fns().iter().map(|i| i.name).collect();
+        assert_eq!(public, vec!["open"], "the narrowing over that same scan");
+    }
+
+    /// **An item declared inside a body is an item of its own, and not
+    /// its host's text.** `forge` is the forging helper a door could
+    /// hide, with `deeper` a second level down; `stamp` is a nested
+    /// `pub` mutation no path outside `host` can name; `reached` is a
+    /// method of an `impl` block standing in the same body, which every
+    /// user of the type can call; `after` is the scan resuming past the
+    /// host.
+    #[test]
+    fn the_item_scan_reads_an_item_nested_in_a_body_as_its_own() {
+        let src = "
+pub fn host(&mut self, he: K) -> Option<Live> {
+    fn forge(k: K) -> Live {
+        fn deeper(k: K) -> Live { Live::new(k) }
+        deeper(k)
+    }
+    pub fn stamp(b: &mut Body<T>) { mint_pcurves(b); }
+    impl Body<T> { pub fn reached(&mut self) { self.begin_surgery(); } }
+    self.get(he)
+}
+fn after() {}
+";
+        let code = CodeOnly::of(src);
+        let items = code.fns();
+        let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let read: Vec<(&str, String, bool)> = items
+            .iter()
+            .map(|i| (i.name, words(i.own_body()), i.fn_local))
+            .collect();
+        let expect = |name, own: &str, local| (name, own.to_string(), local);
+        assert_eq!(
+            read,
+            vec![
+                expect("host", "{ impl Body<T> { } self.get(he)", false),
+                expect("forge", "{ deeper(k)", true),
+                expect("deeper", "{ Live::new(k)", true),
+                expect("stamp", "{ mint_pcurves(b);", true),
+                expect("reached", "{ self.begin_surgery();", false),
+                expect("after", "{", false),
+            ],
+            "a nested item was lost, mis-carved, left in its host's own text, or its \
+             reachability misread"
+        );
+        assert!(
+            items[0].body.contains("Live::new(k)") && items[0].body.contains("mint_pcurves(b)"),
+            "the host's `body` is its whole text, nested items included"
+        );
+        let doors: Vec<&str> = code
+            .public_fns()
+            .iter()
+            .filter(|i| i.params.contains("&mut"))
+            .map(|i| i.name)
+            .collect();
+        assert_eq!(
+            doors,
+            vec!["host", "reached"],
+            "a fn-local `pub fn` is no door, and an `impl` method in a body is one"
+        );
+    }
+
+    /// The walk over the real tree, which is the only place the two
+    /// halves above meet the surface they exist for.
+    #[test]
+    fn the_door_walk_reads_the_real_surface() {
+        let doors = mutation_doors();
+        assert!(
+            doors.len() + 2 >= DOORS_MEASURED,
+            "the walk found {} mutation door(s) against {DOORS_MEASURED} measured",
+            doors.len()
+        );
+        for name in ["mint_pcurves", "mev", "merge_coplanar_faces_declared"] {
+            assert!(
+                doors.iter().any(|d| d.name == name),
+                "the walk lost `{name}`, which is a door"
+            );
+        }
+    }
+}

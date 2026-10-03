@@ -1,0 +1,34 @@
+    Finished `release` profile [optimized] target(s) in 0.09s
+     Running tests/all.rs (/root/lanes/mesh-6r1/target-base/release/deps/all-bbbf0efdcf975416)
+
+running 1 test
+test issue897_s65_cost::issue897_guard_cost_report ... S65-COST eps = 0.000000001
+S65-COST body delta tris tess_us check_us check_pct
+S65-COST ball 0.1 116 75.1 10.1 13.48
+S65-COST ball 0.02 620 397.9 109.2 27.45
+S65-COST ball 0.004 3012 1668.7 662.6 39.71
+S65-COST cone 0.1 52 41.5 3.7 8.86
+S65-COST cone 0.02 224 114.8 19.7 17.13
+S65-COST cone 0.004 1156 638.5 219.7 34.41
+S65-COST l_prism 0.1 20 27.2 1.3 4.70
+S65-COST l_prism 0.02 20 24.6 1.2 4.88
+S65-COST l_prism 0.004 20 24.3 1.2 5.05
+S65-COST washer 0.1 100 101.7 8.2 8.05
+S65-COST washer 0.02 220 317.1 18.8 5.94
+S65-COST washer 0.004 484 883.6 66.2 7.49
+S65-COST donut 0.1 14620 10263.3 3186.8 31.05
+S65-COST donut 0.02 71820 54712.5 18175.2 33.22
+S65-COST donut 0.004 356168 357569.8 98968.7 27.68
+S65-COST sphere_wedge 0.1 46 38.2 3.2 8.36
+S65-COST sphere_wedge 0.02 212 117.2 19.4 16.56
+S65-COST sphere_wedge 0.004 1014 675.3 210.3 31.14
+S65-COST wedge 0.1 32 30.9 2.2 7.23
+S65-COST wedge 0.02 60 51.7 4.6 8.96
+S65-COST wedge 0.004 128 121.5 10.4 8.60
+S65-COST cone_wedge 0.1 4 7.5 0.5 6.95
+S65-COST cone_wedge 0.02 4 7.5 0.2 2.34
+S65-COST cone_wedge 0.004 4 7.7 0.2 2.19
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 137 filtered out; finished in 22.44s
+

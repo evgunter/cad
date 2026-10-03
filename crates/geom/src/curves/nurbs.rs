@@ -1,0 +1,1709 @@
+//! NURBS curves — [`NurbsCurve2`] (the future pcurve substrate; not
+//! wired into any enum) and [`NurbsCurve3`] (the [`crate::curves::Curve3::Nurbs`]
+//! payload), M5 PR 3.
+//!
+//! # Data model (binding conventions)
+//!
+//! Knots, weights, and degree are **f64 structure** (C6); control
+//! points are the only generically-typed data. Construction is
+//! validated and typed-error: **clamped-v1** knot vectors
+//! ([`geom_core::spline::KnotVector`] carries the exact invariants),
+//! **strictly positive weights** (the convex-hull property every C9
+//! hull bound stands on), and count coherence. Unlike the analytic
+//! variants' public conventional fields, these invariants are
+//! *load-bearing for indexing safety*, so fields are private and
+//! construction goes through [`NurbsCurve3::new`] /
+//! [`NurbsCurve2::new`].
+//!
+//! ## Control points are EUCLIDEAN, and what follows from it
+//!
+//! The net stores Euclidean control points with the weights in a
+//! channel beside them — never the weighted (homogeneous) `wⱼPⱼ` form.
+//! That is a storage decision, and it is the premise of the whole
+//! affine-map story on this page and on the surface's:
+//!
+//! Evaluation normalizes, `sum(Nⱼ wⱼ Pⱼ) / sum(Nⱼ wⱼ)`, so the
+//! coefficients sum to one and every evaluated point is an **affine
+//! combination** of the control points. An affine map commutes with an
+//! affine combination. So for affine `f`, mapping the net **pointwise
+//! and leaving knots and weights alone** yields exactly the image of
+//! this curve — `f(C(t))` at every `t` — and not an approximation of
+//! it. `NurbsCurve3::map_points` and `NurbsSurface::map_points` are
+//! that map; `topo::transform_rigid` is its consumer, a rigid map
+//! being affine.
+//!
+//! It reaches the derivatives too, which is why nothing there needs a
+//! separate argument: the rational correction is
+//! `C′ = (A⁽¹⁾ − C·w⁽¹⁾)/w⁽⁰⁾` with `C` a position, so under
+//! `P ↦ RP + t` the translation cancels and `C̃′ = R·C′` exactly.
+//!
+//! **Were the storage weighted instead, that all fails**: an affine
+//! map's translation limb would have to be scaled by `wⱼ` per point,
+//! and applying it unscaled bends the geometry rather than moving it.
+//! Anyone changing the storage owes this section and both
+//! `map_points` doors a revisit.
+//!
+//! # Evaluation contract
+//!
+//! - **Core, generic** (`*_in_span`): rational evaluation restricted to
+//!   one span — ring ops + `from_f64` only, total for every scalar. For
+//!   `t` outside the span's knot interval the result is the span's
+//!   **polynomial extension** (documented garbage-out — detecting it
+//!   would need the comparison [`Real`] deliberately lacks). These
+//!   doors live on [`CurveWindow2`]/[`CurveWindow3`], which **borrow
+//!   the curve**: the basis comes from the window's own [`Span`] and
+//!   the control points and weights from the curve that span was drawn
+//!   from, one borrow, so the window base is an addition that cannot
+//!   underflow, the reads are in range by construction, and there is no
+//!   pairing to check and no refusal to answer. The two mints are
+//!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
+//! - **Full evaluators** (`eval`/`deriv`/`deriv2`, and the jets `ders1`
+//!   and `ders`): span selection via the sealed [`SpanLocate`] seam
+//!   (per-instantiation semantics documented in
+//!   `geom_core::spline::locate`), then the core per overlapped span,
+//!   hulled channel-independently for interval-natured scalars.
+//!
+//! # What does not typecheck
+//!
+//! Library doctests — they run under `cargo test -p geom --doc`, so
+//! these claims redden if the borrow is undone.
+//!
+//! **A curve's span doors take no curve.** A span located in one
+//! curve's knot vector cannot be evaluated against a different curve,
+//! because no door takes both:
+//!
+//! ```compile_fail,E0599
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0], 2).unwrap();
+//! let short = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let foreign = long.span(5).unwrap();
+//! let _ = short.eval_in_span(foreign, 3.5f64);
+//! ```
+//!
+//! The twin differs in one identifier — the window is minted by the
+//! curve it evaluates, so the door exists and the call resolves:
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let short = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let own = short.span_at(0.5);
+//! let p = own.eval_in_span(0.5f64);
+//! assert!(p.x.is_finite());
+//! ```
+//!
+//! **Nor can a window outlive its curve**, so it cannot be carried to
+//! where another curve is in scope:
+//!
+//! ```compile_fail,E0597
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let win = {
+//!     let c = NurbsCurve3::<f64>::new(
+//!         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!         vec![1.0, 1.0, 1.0],
+//!     ).unwrap();
+//!     c.span_at(0.5)
+//! };
+//! let _ = win.eval_in_span(0.5f64);
+//! ```
+//!
+//! The twin differs in one identifier — the curve is bound outside the
+//! block, so the borrow lives as long as the window:
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let c = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let win = { c.span_at(0.5) };
+//! let _ = win.eval_in_span(0.5f64);
+//! ```
+//!
+//! **What these rows do and do not check.** Stable rustdoc checks only
+//! that a `compile_fail` block fails to build; the `,E0599` / `,E0597`
+//! annotation is **not** verified there (a nightly rustdoc feature), so
+//! a row could be red for a typo. Each twin is what rules that out: it
+//! differs in exactly one respect and it compiles. The codes were read
+//! off `rustc` directly on each snippet at the pinned toolchain.
+//!
+//! # Fixed association (D9)
+//!
+//! Homogeneous combination is a **single ascending-index pass**: for
+//! each basis index `j` (ascending), `cw = N_j · from_f64(w_j)`, then
+//! each homogeneous accumulator adds its term in the written order
+//! (`acc = acc + cw · coord`), followed by **one division per
+//! coordinate** by the accumulated weight. Rational derivative
+//! corrections are evaluated exactly as parenthesized at each method.
+//! Knot-algebra point combinations are `lerp(x, y, λ) = x + (y − x)·λ`
+//! with `λ` lifted once per combination.
+
+use core::num::NonZeroUsize;
+use geom_core::Bounds;
+use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
+use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
+
+use crate::net;
+
+/// The rational speed meter's **fixed refinement schedule** (D9: a
+/// structure choice, never a decision): before the per-span scan of
+/// `speed_lower_bound`'s rational arm, every nonempty span is split
+/// into this many equal pieces by knot insertion. Knot insertion is
+/// evaluation-invariant, so the curve is unchanged; only the hulls the
+/// bound is assembled from shrink. The constant is a measured
+/// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
+/// docs and the adversarial rows in `tests/curves/m5_pr7_speed_meter.rs`.
+/// It is this meter's alone: `geom_brep::patch_bound`'s rational
+/// certificate schedule has the same value but prices a different
+/// bound, and neither follows the other.
+const RATIONAL_METER_SPLITS: usize = 16;
+
+macro_rules! nurbs_curve {
+    ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
+        #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
+        /// — a borrow of the curve, exactly as `geom_core`'s [`Span`] is
+        /// a borrow of the knot vector it indexes, and the same shape
+        /// [`crate::SurfaceWindow`] has one dimension up.
+        ///
+        /// It carries the curve and the [`Span`], whose `first_control`
+        /// (`index − degree`) was subtracted once at construction — no
+        /// use site can underflow it. Evaluation then reads
+        /// `first_control + j` for `j ∈ [0, degree]`, which is inside
+        /// this curve's control array because the span's own vector IS
+        /// this curve's knot vector and `new` pins
+        /// `control.len() == knots.control_count()`.
+        ///
+        /// **Branded to its curve by the borrow.** The only mints are
+        #[doc = concat!("[`", stringify!($Curve), "::span`] and [`", stringify!($Curve), "::span_at`],")]
+        /// both taking `&self`, and evaluation lives here rather than on
+        /// the curve: a door taking `(&curve, span)` has a second
+        /// structure for the span to disagree with, and a borrow cannot
+        /// make two live references a type error. With no such parameter
+        /// there is nothing to disagree — a window evaluates the curve
+        /// it names, and the window a curve mints names that curve.
+        ///
+        /// `Copy`, one reference and one `Span` wide, allocation-free.
+        #[derive(Clone, Copy)]
+        pub struct $Window<'a, T: Real> {
+            curve: &'a $Curve<T>,
+            span: Span<'a>,
+        }
+
+        /// Equality is address equality on the curve, plus the span
+        /// (itself address-equal on its vector): a window is a proof
+        /// about *that* control net, and a curve is not [`Eq`] — its
+        /// knots and weights are `f64`.
+        ///
+        /// **This walk and the `Debug` beside it destructure `Self`
+        /// exhaustively**, so a field added to the declaration is an
+        /// E0027 unbound-pattern error rather than a value silently
+        /// outside equality and outside the dump.
+        impl<T: Real> PartialEq for $Window<'_, T> {
+            fn eq(&self, other: &Self) -> bool {
+                let Self { curve, span } = self;
+                let Self { curve: other_curve, span: other_span } = other;
+                core::ptr::eq(*curve, *other_curve) && span == other_span
+            }
+        }
+
+        impl<T: Real> Eq for $Window<'_, T> {}
+
+        /// The borrow is printed as an ADDRESS, never followed. A
+        /// derived `Debug` would dump the whole control net and knot
+        /// vector through the reference at every `{:?}`, which is the
+        /// one cost a borrow-carrying token can impose by accident.
+        impl<T: Real> core::fmt::Debug for $Window<'_, T> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { curve, span } = self;
+                f.debug_struct(stringify!($Window))
+                    .field("curve", &core::ptr::from_ref(*curve))
+                    .field("span", span)
+                    .finish()
+            }
+        }
+
+        impl<'a, T: Real> $Window<'a, T> {
+            /// The curve this window names — what every door here reads
+            /// its knots, control points and weights from.
+            pub fn curve(self) -> &'a $Curve<T> {
+                self.curve
+            }
+
+            /// The knot span this window selects.
+            pub fn span(self) -> Span<'a> {
+                self.span
+            }
+
+            /// The span index (`Span::index`).
+            pub fn index(self) -> usize {
+                self.span.index()
+            }
+
+            /// The degree (`Span::degree`).
+            pub fn degree(self) -> usize {
+                self.span.degree()
+            }
+
+            /// The first control point of the window (`Span::first_control`).
+            pub fn first_control(self) -> usize {
+                self.span.first_control()
+            }
+
+            /// The inclusive control-point window, `Span::window`.
+            pub fn window(self) -> core::ops::RangeInclusive<usize> {
+                self.span.window()
+            }
+        }
+
+        /// A validated NURBS curve (module docs: data model, evaluation
+        /// contract, fixed association orders). Immutable after
+        /// construction; every knot-algebra operation returns a new
+        /// curve (D9-clean value semantics).
+        #[derive(Clone, Debug)]
+        pub struct $Curve<T: Real> {
+            knots: KnotVector,
+            control: Vec<$Point<T>>,
+            weights: Vec<f64>,
+        }
+
+        impl<T: Real> $Window<'_, T> {
+            /// The point at `t`, evaluated **in the given span** — the
+            /// generic core (module docs: the span contract; the fixed
+            /// single-ascending-pass association).
+            ///
+            /// **Total, with no refusal.** The basis comes from this
+            /// window's own span and the control points and weights
+            /// from the curve that span was drawn from, one borrow, so
+            /// `first_control + j` is inside the array by construction.
+            ///
+            /// `t` outside the span's interval still yields the span's
+            /// polynomial extension (documented garbage-out).
+            pub fn eval_in_span(self, t: T) -> $Point<T> {
+                let basis = spline::basis::basis_funs(self.span, t);
+                // The window's base is subtracted once inside `Span`,
+                // so what remains here is an addition. Indexing (not
+                // `zip`) deliberately: `basis` is `degree + 1` long and
+                // the window is `degree + 1` wide — one `degree`, the
+                // span's — and if that ever ceased to hold this must
+                // PANIC rather than silently drop control points.
+                let base = self.span.first_control();
+                $(let mut $c = T::zero();)+
+                let mut w_acc = T::zero();
+                for (j, nj) in basis.iter().enumerate() {
+                    let i = base + j;
+                    let cw = *nj * T::from_f64(self.curve.weights[i]);
+                    let pt = self.curve.control[i];
+                    $($c = $c + cw * pt.$c;)+
+                    w_acc = w_acc + cw;
+                }
+                $Point::new($($c / w_acc),+)
+            }
+
+            /// The homogeneous accumulators through order `N − 1` —
+            /// per coordinate channel `A⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ·xⱼ` and the
+            /// weight channel `w⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ`, `k < N` — from
+            /// one basis pass of order `N − 1`, read from this window's
+            /// own span and curve. Total: there is no pairing to refuse.
+            ///
+            /// The one homogeneous pass every derivative evaluator
+            /// reads; the ORDER is the caller's, so a first derivative
+            /// runs an order-1 basis and never computes the order-2
+            /// row it would discard.
+            fn homogeneous<const N: usize>(self, t: T) -> ([[T; N]; $dim], [T; N]) {
+                let ders = spline::basis::ders_basis_funs(self.span, t, N - 1);
+                // Indexed off the window base, exactly as
+                // [`Self::eval_in_span`]. A `zip` against a window slice
+                // would be the wrong shape here: `ders`' row length and
+                // the window's length are two derivations of the same
+                // `degree`, and a `zip` would answer a disagreement by
+                // silently dropping control points where indexing
+                // panics.
+                let base = self.span.first_control();
+                $(let mut $c = [T::zero(); N];)+
+                let mut w_hom = [T::zero(); N];
+                for (k, row) in ders.iter().enumerate() {
+                    for (j, nkj) in row.iter().enumerate() {
+                        let i = base + j;
+                        let cw = *nkj * T::from_f64(self.curve.weights[i]);
+                        let pt = self.curve.control[i];
+                        $($c[k] = $c[k] + cw * pt.$c;)+
+                        w_hom[k] = w_hom[k] + cw;
+                    }
+                }
+                ([$($c),+], w_hom)
+            }
+
+            #[doc = concat!("One span's arm of [`", stringify!($Curve), "::speed_lower_bound`]'s")]
+            /// rational assembly (the derivation lives there). The
+            /// coefficient window is this window's own — a proof about
+            /// the very knot vector the curve carries, so `[first,
+            /// last]` indexes the curve's arrays without a range test
+            /// and the raw knot slice is read from the same borrow
+            /// rather than handed in beside it. `dw` holds the weight
+            /// spline's derivative coefficient enclosures.
+            fn rational_span_bound(self, dw: &[Interval], origin: $Point<T>) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.span.degree();
+                let knots = self.span.knots().knots();
+                let (first, last) = (self.span.first_control(), self.span.index());
+                let Some(active) = self.curve.control.get(first..=last) else {
+                    return poison;
+                };
+                #[allow(clippy::cast_precision_loss)]
+                let count = T::from_f64(active.len() as f64);
+                // The span's own control centroid — the translation
+                // that keeps `sup‖C − c‖` span-sized.
+                let mut sum = origin - origin;
+                for pt in active {
+                    sum = sum + (*pt - origin);
+                }
+                let c = origin + sum / count;
+                // The span's control chord, as unit direction.
+                let (Some(a), Some(b)) = (active.first(), active.last()) else {
+                    return poison;
+                };
+                let chord = *b - *a;
+                let d = chord / chord.norm();
+                // The SIGNED hull of `d·(C − c)` on the span — the
+                // rational value hull (`hull::CoeffWindow::hull_rational`'s
+                // fact: positive weights make the rational basis a
+                // nonnegative partition of unity) read through `d`.
+                // Ascending `Real::min`/`Real::max` folds.
+                let mut s_lo: Option<T> = None;
+                let mut s_hi: Option<T> = None;
+                for pt in active {
+                    let s = d.dot(*pt - c);
+                    s_lo = Some(match s_lo {
+                        None => s,
+                        Some(m) => m.min(s),
+                    });
+                    s_hi = Some(match s_hi {
+                        None => s,
+                        Some(m) => m.max(s),
+                    });
+                }
+                let (Some(s_lo), Some(s_hi)) = (s_lo, s_hi) else {
+                    return poison;
+                };
+                // `w`'s hull on the span (f64 structure comparisons on
+                // f64 weights — the `removal_pass_bound` precedent).
+                let Some(w_active) = self.curve.weights.get(first..=last) else {
+                    return poison;
+                };
+                let mut w_min = f64::INFINITY;
+                let mut w_max = 0.0f64;
+                for w in w_active {
+                    if *w < w_min {
+                        w_min = *w;
+                    }
+                    if *w > w_max {
+                        w_max = *w;
+                    }
+                }
+                // The numerator's two terms over the active derivative
+                // indices `[first, last)`.
+                let mut num: Option<T> = None;
+                let (mut wp_lo, mut wp_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for i in first..last {
+                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
+                        return poison;
+                    };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return poison;
+                    }
+                    let (Some(pi), Some(pj)) = (self.curve.control.get(i), self.curve.control.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    let (Some(&wi), Some(&wj)) = (self.curve.weights.get(i), self.curve.weights.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    #[allow(clippy::cast_precision_loss)]
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    // Homogeneous, centroid-translated: a_j = w_j·(P_j − c).
+                    let ai = (*pi - c) * T::from_f64(wi);
+                    let aj = (*pj - c) * T::from_f64(wj);
+                    let v = d.dot((aj - ai) * scale);
+                    num = Some(match num {
+                        None => v,
+                        Some(m) => m.min(v),
+                    });
+                    // `w′`'s SIGNED hull, from outward-rounded
+                    // coefficients. The refusal is asked by name: it
+                    // lives in the decoration, so a
+                    // coefficient that may not certify carries
+                    // ordinary endpoints and would widen the hull by a
+                    // number instead of collapsing the whole bound.
+                    // No public path hands this a refusal — the only
+                    // caller passes the weight spline's own derivative,
+                    // whose knot differences `KnotVector::clamped` keeps
+                    // positive and whose weights `new` keeps finite and
+                    // positive — so the branch is pinned white-box
+                    // (`span_bound_tests`), not through the curve.
+                    let Some(q) = dw.get(i) else {
+                        return poison;
+                    };
+                    if !q.is_certified() {
+                        return poison;
+                    }
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.lo() >= wp_lo) {
+                        wp_lo = q.lo();
+                    }
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.hi() <= wp_hi) {
+                        wp_hi = q.hi();
+                    }
+                }
+                let Some(num) = num else {
+                    return poison;
+                };
+                // `sup (d·(C − c))·w′` over the two signed hulls: the
+                // ascending `Real::max` fold of the four corner
+                // products (a magnitude product `sup|·|·sup|·|` would
+                // be sound but needlessly loose — it throws away the
+                // sign correlation that steep weight ramps live in).
+                let (lo, hi) = (T::from_f64(wp_lo), T::from_f64(wp_hi));
+                let corner = (s_lo * lo).max(s_lo * hi).max(s_hi * lo).max(s_hi * hi);
+                let l = num - corner;
+                // `min(L/w_max, L/w_min)` — the correct division in
+                // both numerator signs, without asking the sign.
+                (l / T::from_f64(w_max)).min(l / T::from_f64(w_min))
+            }
+
+            /// Point, first, and second derivative at `t` in the given
+            /// span — one homogeneous pass (orders 0..=2 of the basis),
+            /// then the rational corrections
+            /// ([`rational_corrections`]), exactly as written:
+            /// `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
+            /// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`.
+            /// Same totality contract as [`Self::eval_in_span`].
+            pub fn ders_in_span(self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<3>(t);
+                $(let $c = rational_corrections($c, w_hom);)+
+                (
+                    $Point::new($($c[0]),+),
+                    $Vector::new($($c[1]),+),
+                    $Vector::new($($c[2]),+),
+                )
+            }
+
+            /// Point and first derivative at `t` in the given span from
+            /// ONE order-1 basis pass — the jet door for a consumer that
+            /// wants both (a quadrature rule integrating `P × P′`, say)
+            /// and would otherwise run [`Self::eval_in_span`] and
+            /// [`Self::deriv_in_span`] as two passes, or
+            /// [`Self::ders_in_span`] and discard `C″`.
+            ///
+            /// The point is [`Self::eval_in_span`]'s bit for bit (the
+            /// order-0 row of the derivative recursion is the same
+            /// recursion, same accumulation order, same division) and
+            /// the derivative is [`Self::deriv_in_span`]'s bit for bit
+            /// (it IS this, projected). Same totality contract.
+            pub fn ders1_in_span(self, t: T) -> ($Point<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<2>(t);
+                $(let $c = rational_corrections($c, w_hom);)+
+                ($Point::new($($c[0]),+), $Vector::new($($c[1]),+))
+            }
+
+            /// First derivative in the given span: the derivative half
+            /// of [`Self::ders1_in_span`] — an order-1 basis pass and
+            /// the `C′` correction, the same arithmetic
+            /// [`Self::ders_in_span`]'s middle component runs, bit for
+            /// bit, without the order-2 row that component would
+            /// discard. Same totality contract.
+            pub fn deriv_in_span(self, t: T) -> $Vector<T> {
+                self.ders1_in_span(t).1
+            }
+
+            /// Second derivative in the given span (the last component
+            /// of [`Self::ders_in_span`] — `C″`'s correction consumes
+            /// `C` and `C′`, so nothing the pass computes is surplus to
+            /// it; the point and first derivative are only not
+            /// returned).
+            pub fn deriv2_in_span(self, t: T) -> $Vector<T> {
+                self.ders_in_span(t).2
+            }
+
+        }
+
+        impl<T: Real> $Curve<T> {
+            /// Validated construction (module docs for the invariants).
+            ///
+            /// # Errors
+            ///
+            /// [`SplineError`] naming the exact violation: count
+            /// mismatches or a non-positive/non-finite weight. (Knot
+            /// vector violations are refused earlier, by
+            /// [`KnotVector::clamped`].)
+            pub fn new(
+                knots: KnotVector,
+                control: Vec<$Point<T>>,
+                weights: Vec<f64>,
+            ) -> Result<Self, SplineError> {
+                net::validate_counts(knots.control_count(), control.len(), &weights)?;
+                Ok(Self { knots, control, weights })
+            }
+
+            /// The validated clamped knot vector.
+            pub fn knots(&self) -> &KnotVector {
+                &self.knots
+            }
+
+            /// The control points.
+            pub fn control(&self) -> &[$Point<T>] {
+                &self.control
+            }
+
+            /// The weights (strictly positive, f64 structure).
+            pub fn weights(&self) -> &[f64] {
+                &self.weights
+            }
+
+            /// The degree `p` (carried by the knot vector).
+            pub fn degree(&self) -> usize {
+                self.knots.degree()
+            }
+
+            /// The parameter domain (first knot at multiplicity
+            /// `p + 1` to last).
+            pub fn domain(&self) -> (f64, f64) {
+                self.knots.domain()
+            }
+
+            /// Construction from parts whose invariants are ALREADY
+            /// established — the door a structural map takes instead
+            /// of [`Self::new`].
+            ///
+            /// The invariants are load-bearing for indexing (module
+            /// docs), so skipping the check needs an argument. That
+            /// argument has ONE home for the whole crate,
+            /// `crate::scalar_lift`'s module docs: what a structural
+            /// map is, why no shape of it changes a count or a weight
+            /// value, and which part of it the `debug_assert` below
+            /// cannot check. `knots` and `weights` here are a
+            /// validated curve's own and `control` is that curve's net
+            /// under such a map.
+            fn from_validated_parts(
+                knots: KnotVector,
+                control: Vec<$Point<T>>,
+                weights: Vec<f64>,
+            ) -> Self {
+                debug_assert!(
+                    control.len() == knots.control_count() && weights.len() == control.len(),
+                    "from_validated_parts: a structural map changed a count \
+                     (control {}, knots want {}, weights {})",
+                    control.len(),
+                    knots.control_count(),
+                    weights.len()
+                );
+                Self { knots, control, weights }
+            }
+
+            /// The same curve read at another scalar: `f` applied to
+            /// every control coordinate, the knots and weights carried
+            /// over verbatim — they are `f64` structure at every scalar
+            /// (module docs). Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// A structural map, not an evaluation: exact whenever
+            /// `f` is (`Real::from_f64`, `Dual::constant`), and then
+            /// the lifted curve evaluates to the source. What the
+            /// placeholder and a poisoned net lift to is argued once,
+            /// in `crate::scalar_lift`'s module docs.
+            #[must_use]
+            pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> $Curve<U> {
+                $Curve::from_validated_parts(
+                    self.knots.clone(),
+                    self.control.iter().map(|p| p.map(&f)).collect(),
+                    self.weights.clone(),
+                )
+            }
+
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
+            /// (ends exact, interior affine), the control net and the
+            /// weights carried over verbatim. Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotVector::on_domain`]'s: the domain is not a finite
+            /// increasing interval, or a rounding collapse tripped a
+            /// clamp clause.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
+            }
+
+            /// The same curve with every control point carried
+            /// through `f`, the knots and the weights verbatim.
+            /// Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// # What the caller owes
+            ///
+            /// The result is the POINTWISE IMAGE of this curve —
+            /// `f(C(t))` at every `t` — exactly when `f` is
+            /// **affine**, and nothing here checks that. Why an affine
+            /// `f` suffices, and why the weights are therefore
+            /// untouched, is the Euclidean-storage section of this
+            /// module's data model, which is the one home for that
+            /// rule.
+            ///
+            /// The consequence worth repeating at the call site: were
+            /// the net stored WEIGHTED (`wj Pj`, homogeneous), this
+            /// call would be wrong — an affine map's translation limb
+            /// has to be scaled by `wj` there, and applying it
+            /// unscaled bends the curve. Read the storage before
+            /// reaching for this door.
+            ///
+            /// A non-affine `f` is not refused and not meaningless —
+            /// it is a map of the CONTROL NET, whose curve is some
+            /// other curve — but it is not this curve's image, and
+            /// calling it one is the error this paragraph exists to
+            /// name.
+            #[must_use]
+            pub fn map_points(&self, f: impl Fn($Point<T>) -> $Point<T>) -> Self {
+                Self::from_validated_parts(
+                    self.knots.clone(),
+                    self.control.iter().map(|p| f(*p)).collect(),
+                    self.weights.clone(),
+                )
+            }
+
+            /// The [`Span`] of this curve's knot vector at `index`, as
+            /// a window on **this** curve — `None` when the index is out
+            /// of range or names an empty span (interior multiplicity).
+            /// The emptiness check and the window construction are one
+            /// operation.
+            pub fn span(&self, index: usize) -> Option<$Window<'_, T>> {
+                Some(self.window_of(self.knots.span(index)?))
+            }
+
+            /// The window containing `t` — total on all of `f64` for
+            /// exactly the reasons [`KnotVector::span_at`] is
+            /// (out-of-domain clamps to an end span, NaN lands on the
+            /// first).
+            pub fn span_at(&self, t: f64) -> $Window<'_, T> {
+                self.window_of(self.knots.span_at(t))
+            }
+
+            /// The one primitive constructor, behind [`Self::span`] and
+            /// [`Self::span_at`] and the located-span walk behind the
+            /// full evaluators. It is private because it is the single
+            /// place where a span and a curve are put together, and
+            /// every caller draws the span from `self.knots`.
+            fn window_of<'a>(&'a self, span: Span<'a>) -> $Window<'a, T> {
+                $Window { curve: self, span }
+            }
+
+            /// Applies a chain of structure plans to this curve's
+            /// control polygon (points via `lerp(x, y, from_f64(λ))`,
+            /// the fixed association; knots/weights from the final
+            /// plan). Empty chain ⇒ clone.
+            fn apply_plans(&self, plans: &[spline::CurvePlan]) -> Self {
+                let mut control = self.control.clone();
+                for plan in plans {
+                    control = plan.apply_points(&control, net::poison_point::<T, $Point<T>>(), |x, y, l| {
+                        x.lerp(y, T::from_f64(l))
+                    });
+                }
+                match plans.last() {
+                    Some(last) => Self {
+                        knots: last.knots().clone(),
+                        control,
+                        weights: last.weights().to_vec(),
+                    },
+                    None => self.clone(),
+                }
+            }
+
+            /// Knot insertion (§5.2), single value `times`-fold — the
+            /// future `split_edge` substrate. Evaluation-invariant in ℝ.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotAlgebraError`]: out-of-domain `u`, interior
+            /// multiplicity budget (`degree`) exceeded, or structure
+            /// mismatch.
+            pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
+                let plans = spline::algebra::insert_knot_plan(&self.knots, &self.weights, u, times)?;
+                Ok(self.apply_plans(&plans))
+            }
+
+            /// Splits the curve at interior parameter `u` into two
+            /// clamped curves covering `[t₀, u]` and `[u, t₁]` — knot
+            /// insertion to full interior multiplicity, then the
+            /// control/knot partition (§5.2; C12.3: the NURBS
+            /// `split_edge` substrate, M5 PR 9). Evaluation-invariant
+            /// in ℝ, and each child keeps the PARENT's parameter (the
+            /// split value is not re-normalized), so a caller's
+            /// `[t₀, u]` interval on the child means exactly what it
+            /// meant on the parent.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotAlgebraError`]: `u` outside the open knot domain
+            /// (boundary splits are refused — a clamped end already
+            /// has full multiplicity and an empty child is not a
+            /// curve), or the insertion path's structure refusals.
+            pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
+                let p = self.knots.degree();
+                let (d0, d1) = self.knots.domain();
+                if !u.is_finite() || !(u > d0 && u < d1) {
+                    return Err(KnotAlgebraError::ParameterOutsideDomain { u });
+                }
+                let have = self.knots.multiplicity_of(u).map_or(0, |(m, _)| m);
+                let full = if have < p {
+                    self.insert_knot(u, p - have)?
+                } else {
+                    self.clone()
+                };
+                // First occurrence of `u` in the saturated vector
+                // (multiplicity is exactly `p` there). Present by
+                // construction; `ok_or` keeps the path total.
+                let knots = full.knots.knots();
+                let f = knots
+                    .iter()
+                    .position(|k| *k == u)
+                    .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
+                // Child 1: every knot below `u` plus `p + 1` copies of
+                // `u`; control points 0..f (C(u) is control index
+                // f − 1 of the saturated curve, shared by both).
+                let mut k1: Vec<f64> = knots[..f + p].to_vec();
+                k1.push(u);
+                let c1 = Self::new(
+                    KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?,
+                    full.control[..f].to_vec(),
+                    full.weights[..f].to_vec(),
+                )
+                .map_err(KnotAlgebraError::Structure)?;
+                // Child 2: one extra copy of `u`, then every knot from
+                // index f on; control points f − 1 onward.
+                let mut k2: Vec<f64> = vec![u];
+                k2.extend_from_slice(&knots[f..]);
+                let c2 = Self::new(
+                    KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?,
+                    full.control[f - 1..].to_vec(),
+                    full.weights[f - 1..].to_vec(),
+                )
+                .map_err(KnotAlgebraError::Structure)?;
+                Ok((c1, c2))
+            }
+
+            /// Knot refinement (§5.3): inserts every value of `add`
+            /// (ascending, ties consecutive). Evaluation-invariant in ℝ.
+            ///
+            /// # Errors
+            ///
+            /// As [`Self::insert_knot`], against the cumulative
+            /// structure.
+            pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
+                let plans = spline::algebra::refine_plan(&self.knots, &self.weights, add)?;
+                Ok(self.apply_plans(&plans))
+            }
+
+            /// Knot merging (§5.3): every curve refined onto the UNION
+            /// of their knot vectors — each distinct interior value at
+            /// the greatest multiplicity any of them gives it — so that
+            /// afterwards all share one bit-identical knot vector, and
+            /// (at one degree) one control-point count. The structure
+            /// half is [`spline::algebra::union_refinements`]; each
+            /// curve is then [`Self::refine_knots`], so the result is
+            /// evaluation-invariant in ℝ and a curve already on the
+            /// union comes back as itself. Same order as the input.
+            ///
+            /// # Errors
+            ///
+            /// As [`Self::refine_knots`] — curves at different degrees
+            /// or on different domains name insertions their vector
+            /// refuses (`MultiplicityOverflow`,
+            /// `ParameterOutsideDomain`); a caller that wants them
+            /// compatible elevates and checks the domain first.
+            pub fn refine_to_union<'a>(
+                curves: impl IntoIterator<Item = &'a Self>,
+            ) -> Result<Vec<Self>, KnotAlgebraError>
+            where
+                T: 'a,
+            {
+                let curves: Vec<&Self> = curves.into_iter().collect();
+                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots()).collect();
+                curves
+                    .iter()
+                    .zip(spline::algebra::union_refinements(&vectors))
+                    .map(|(c, add)| c.refine_knots(&add))
+                    .collect()
+            }
+
+            /// Bounded knot removal (§5.4): removes `times` copies of
+            /// the interior knot `u` and returns the rewritten curve
+            /// **with a sup-norm error bound** `B` such that
+            /// `|C(t) − Ĉ(t)| ≤ B` over the whole domain — removal is
+            /// bounded, never silent. The bound is the Eq. 9.81
+            /// mechanism in projective form: each pass reinserts the
+            /// removed copy exactly and bounds the polygon perturbation
+            /// through partition of unity and the positive-weight
+            /// convex hull —
+            /// `B_pass = (Cmax·Bw + Bwp) / w̃min`, where `Cmax` bounds
+            /// `|C|` by the control hull, `Bw`/`Bwp` are the max weight
+            /// and weighted-point perturbations, and `w̃min` lower-bounds
+            /// the reinserted weight function; passes add (triangle
+            /// inequality). Conservative: the per-basis sup factor is
+            /// relaxed to 1. At interval scalars the bound is itself an
+            /// enclosure (containment composes).
+            ///
+            /// # Errors
+            ///
+            /// [`KnotAlgebraError`]: `u` not an interior knot (exact
+            /// f64 identity), removing past its multiplicity, or a
+            /// weight collapsing out of the positive regime.
+            pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
+                let steps = spline::algebra::remove_knot_plan(&self.knots, &self.weights, u, times)?;
+                let mut cur = self.clone();
+                let mut bound = T::zero();
+                for step in &steps {
+                    let removed = cur.apply_plans(core::slice::from_ref(&step.plan));
+                    let reinserted = removed.apply_plans(core::slice::from_ref(&step.reinsert));
+                    bound = bound + net::removal_pass_bound(
+                        (&cur.control, &cur.weights),
+                        (&reinserted.control, &reinserted.weights),
+                    );
+                    cur = removed;
+                }
+                Ok((cur, bound))
+            }
+
+            /// A certified sup-norm bound on `|C_self − C_other|` for
+            /// two curves **sharing one knot vector** (same degree,
+            /// same control count; weights may differ): the
+            /// `net::removal_pass_bound` formula, which only uses
+            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
+            /// of unity and the positive-weight convex hull. Poison
+            /// (NaN) when the structures do not match — total, never
+            /// a fabricated bound. Crate-internal: the fitting stack's
+            /// deviation measurements (M5 PR 4) ride it.
+            /// A **certified lower bound** on `‖C′(t)‖` over the whole
+            /// domain, in meters per parameter unit — the "meter" a
+            /// parameter-space margin must be multiplied by to become a
+            /// length (D4 ¶1). It is an
+            /// [`InfSpeed`](geom_core::InfSpeed) by signature: the
+            /// bound direction is what every consumer relies on (a
+            /// span this meter proves forward IS forward in metres),
+            /// and under-stating is what makes that sound.
+            ///
+            /// This is the rung-3 analogue of the conic lane's
+            /// conservative meters (`Circle` ⇒ radius, `Ellipse` ⇒ the
+            /// MINOR semi-axis): without it, a fitted SSI carrier
+            /// reaching `split_edge` has no honest way to state
+            /// "definitely interior in meters", and the parameter gate
+            /// would either poison or, far worse, use an *upper* bound
+            /// and accept a split that is not clear of the endpoints.
+            ///
+            /// # How it is certified
+            ///
+            /// The derivative of a clamped B-spline is a B-spline of
+            /// degree `p − 1` over the derivative control points
+            /// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so on every span
+            /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
+            /// Fix any unit direction `d`: then
+            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)` over the `Qᵢ` active where
+            /// `d` is applied. Since M8-14 (#222) the arm runs **two
+            /// independent assemblies** of that inequality and states
+            /// their join:
+            ///
+            /// 1. the **global-chord** assembly — the retired original
+            ///    arm, verbatim: one direction (first→last control
+            ///    point, the chord a monotone carrier advances along),
+            ///    min over ALL `Qᵢ`;
+            /// 2. the **per-span** assembly — the M8-2 rational
+            ///    template carried over: each nonempty span projects
+            ///    its ACTIVE `Qᵢ` (`i ∈ span−p .. span`) on the span's
+            ///    own control chord `P_span − P_{span−p}`, and the
+            ///    whole domain is the ascending `Real::min` fold over
+            ///    spans. A per-span direction is legitimate because
+            ///    `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`,
+            ///    so the min over spans of per-span bounds still
+            ///    bounds the whole domain (the M8-2 review's
+            ///    soundness argument, unchanged).
+            ///
+            /// **The join**: an assembly whose direction collapsed
+            /// (poison) abstains; if both abstain the answer is
+            /// poison; if both are real the answer is their `max` —
+            /// sound because each is independently a lower bound on
+            /// the same `inf‖C′‖`. Every cell of that lattice — both
+            /// abstentions, both-poison, and the poisoned-INPUT
+            /// no-laundering claim below — is EXERCISED on
+            /// bitwise-exact fixtures by the adopted review probes
+            /// (`tests/curves/lt_r1_probes.rs::r1_join_abstention_logic`,
+            /// `tests/curves/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
+            /// and the same suites' randomized fuzz kills the unsound
+            /// near-neighbors of the scan (active window shifted, last
+            /// span dropped, either arm deleted from the join) that
+            /// the smooth-interpolant corpus alone cannot detect. The
+            /// join is therefore **never
+            /// below the retired single-chord arm** on any carrier
+            /// that arm bounded (the M8-14 corpus pins exactly that,
+            /// green rows as floors), while a long-turn carrier (a
+            /// helix past half a revolution, a closed loop) whose
+            /// speed never drops no longer collapses the meter merely
+            /// because its tangent leaves the global chord's
+            /// half-space — that collapse was a MEASUREMENT artifact
+            /// of assembly 1, and assembly 2 retires it.
+            ///
+            /// The result may still be zero or negative — a genuine
+            /// stationary point (cusp, turn-around) defeats every
+            /// direction on its own span — and that is reported
+            /// honestly, so the margin collapses and the caller's
+            /// trilean escalates rather than guessing.
+            ///
+            /// **Rational carriers** take the second arm,
+            /// [`Self::rational_speed_lower_bound`] — the derivative of
+            /// a rational spline is *not* a convex combination of any
+            /// control net, so the argument above does not apply
+            /// directly and a quotient-rule assembly stands in. The
+            /// contract (whole domain, m/param, honestly non-positive
+            /// when the curve gives the assembly nothing to stand on,
+            /// poison when the structure refuses) is the same on both
+            /// arms.
+            ///
+            /// # What the bound does and does not certify
+            ///
+            /// It certifies **speed**, and through speed, **arc
+            /// length**: over any parameter interval `[a, b]` inside
+            /// the domain, `(b − a)·bound ≤ ∫ₐᵇ ‖C′‖`. That is exactly
+            /// what every consumer asks of it — `interval_span_forward`
+            /// converts a parameter span to metres of arc,
+            /// `split_edge_param_interior` converts a distance-to-
+            /// endpoint the same way.
+            ///
+            /// It certifies **nothing about injectivity, turning, or
+            /// monotone advance along any direction**. A carrier may
+            /// reverse, loop, or return arbitrarily close to a point it
+            /// has already visited and still meter positively, provided
+            /// its speed never collapses — reversal is not
+            /// disqualifying, only a genuine stationary point (a cusp,
+            /// a turn-around, a degenerate span) is. Callers that need
+            /// non-self-intersection or a bounded turn must obtain it
+            /// elsewhere; this number will not supply it, and reading it
+            /// as if it did would be reading an arc-length rate as a
+            /// chord-distance rate.
+            ///
+            /// Both arms project per span (the integral arm since
+            /// M8-14 — before that its single global direction also
+            /// collapsed on any curve that turns away from its chord,
+            /// which is what refused every ≥ half-turn sweep path).
+            /// Both are sound lower bounds on `‖C′‖`; neither is a
+            /// claim about the curve's shape beyond its speed.
+            ///
+            /// The arm is chosen on **f64 structure** (`w_j == 1.0`
+            /// exactly), never on an evaluation scalar.
+            ///
+            /// # Rounding posture
+            ///
+            /// The chord directions are `chord/‖chord‖` — unit only to
+            /// rounding at `f64`, so the plain-f64 reading is a bound
+            /// up to about a relative ulp (both review harnesses
+            /// measured the worst case one ulp on the SOUND side).
+            /// This is the kernel-wide posture shared with the
+            /// rational arm; the `Interval` instantiation is the
+            /// certified lane, and the bracket row in
+            /// `tests/curves/m5_pr7_speed_meter.rs` pins containment.
+            ///
+            /// # Poison (total, D4 ¶2)
+            ///
+            /// A zero degree, fewer than two control points, a
+            /// non-positive difference of the knots framing any
+            /// derivative coefficient (`u_{i+p+1} ≤ u_{i+1}` — a
+            /// structural violation the old arm turned into ±∞/NaN
+            /// arithmetic instead of naming), a knot vector with no
+            /// nonempty span, or BOTH assemblies abstaining — every
+            /// one yields NaN. A bound is never fabricated. The
+            /// knot-difference clause is DEFENSIVE: it needs an
+            /// interior multiplicity of `p + 1`, which Clamped-v1
+            /// validation forbids (interior multiplicity ≤ `p`, end
+            /// multiplicity exactly `p + 1` with nonempty end spans),
+            /// so no validated constructor reaches it — it guards
+            /// future unvalidated paths, and is an untestable-by-
+            /// construction claim, stated as such rather than pinned.
+            ///
+            /// Structural misses INSIDE the per-span scan (an active
+            /// window past the control net, an index underflow) poison
+            /// the WHOLE meter rather than abstaining the one
+            /// assembly — deliberate asymmetry: chord collapse is a
+            /// fact about a well-formed curve, a range miss is a
+            /// construction-invariant break, and fail-loud beats
+            /// recovering around corrupted structure.
+            ///
+            /// The join's one-sided recovery is NOT poison
+            /// laundering: an assembly abstains only when its own
+            /// chord DIRECTION collapsed (`0/0`), a structural fact
+            /// about which projections exist, while a poisoned INPUT
+            /// (a non-finite control point) poisons the projections
+            /// of every assembly whose active set touches it — the
+            /// global assembly's min covers all `Qᵢ` and the span
+            /// containing the point poisons the per-span fold, so
+            /// corrupted data still reaches the caller as poison
+            /// through both arms at once. `Real::is_poison` here
+            /// discriminates assembly structure, never geometry: the
+            /// geometric decision (is the bound positive?) stays with
+            /// the caller's trilean.
+            pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                let poison = T::from_f64(f64::NAN);
+                // Rational ⇒ the convexity argument does not hold
+                // directly; the quotient-rule arm takes over.
+                if self.weights.iter().any(|w| *w != 1.0) {
+                    return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
+                }
+                let p = self.knots.degree();
+                if p == 0 || self.control.len() < 2 {
+                    return geom_core::InfSpeed::new(poison);
+                }
+                let knots = self.knots.knots();
+                // Derivative coefficients, once for the curve:
+                // `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`. The knot
+                // difference is checked POSITIVE on f64 structure —
+                // the totality clause above — so every coefficient
+                // below is finite arithmetic on finite structure.
+                let mut coeffs = Vec::with_capacity(self.control.len() - 1);
+                for i in 0..(self.control.len() - 1) {
+                    let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
+                        return geom_core::InfSpeed::new(poison);
+                    };
+                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
+                        return geom_core::InfSpeed::new(poison);
+                    };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return geom_core::InfSpeed::new(poison);
+                    }
+                    #[allow(clippy::cast_precision_loss)]
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    coeffs.push((*b - *a) * scale);
+                }
+                // ---- Assembly 1: the global chord (the retired
+                // original arm, verbatim — same direction, same fold
+                // order, bit-identical where it was defined). ----
+                let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
+                    return geom_core::InfSpeed::new(poison);
+                };
+                let global = {
+                    let chord = *last - *first;
+                    // A collapsed chord makes this 0/0 ⇒ poison ⇒ the
+                    // assembly abstains at the join (the rational
+                    // arm's chord treatment).
+                    let d = chord / chord.norm();
+                    let mut acc: Option<T> = None;
+                    for q in &coeffs {
+                        let v = d.dot(*q);
+                        acc = Some(match acc {
+                            None => v,
+                            // `Real::min`/`max` are NaN-propagating
+                            // (poison in, poison out) and total — no
+                            // comparison here or below.
+                            Some(m) => m.min(v),
+                        });
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- Assembly 2: per-span chords (the M8-2 rational
+                // template), fixed ascending span order (D9): the min
+                // of `d_span·Qᵢ` over the ACTIVE coefficients
+                // (`i ∈ span−p .. span`), folded over spans. ----
+                let perspan = {
+                    let mut acc: Option<T> = None;
+                    for index in self.knots.first_span()..=self.knots.last_span() {
+                        // Emptiness check and span validation are one step.
+                        let Some(span) = self.knots.span(index) else {
+                            continue;
+                        };
+                        // The window's base, subtracted once inside
+                        // `Span` — the `span − p` that used to need a
+                        // `checked_sub` here.
+                        let (lo_i, span) = (span.first_control(), span.index());
+                        // The remaining range miss is the one a `Span`
+                        // cannot speak to: it bounds its window by the
+                        // KNOT vector's control count, not by this
+                        // curve's array. A mismatch poisons the WHOLE
+                        // meter (early return), not just this assembly
+                        // — a construction-invariant break fails loud
+                        // (doc: "Poison", the stated asymmetry with
+                        // chord-collapse abstention).
+                        if span >= self.control.len() {
+                            return geom_core::InfSpeed::new(poison);
+                        }
+                        let Some(active) = coeffs.get(lo_i..span) else {
+                            return geom_core::InfSpeed::new(poison);
+                        };
+                        // The span's own control chord, as unit
+                        // direction; collapse ⇒ 0/0 ⇒ this span
+                        // poisons THIS assembly (which then abstains
+                        // at the join — the other assembly still
+                        // covers the same span soundly).
+                        let (Some(a), Some(b)) =
+                            (self.control.get(lo_i), self.control.get(span))
+                        else {
+                            return geom_core::InfSpeed::new(poison);
+                        };
+                        let chord = *b - *a;
+                        let d = chord / chord.norm();
+                        for q in active {
+                            let v = d.dot(*q);
+                            acc = Some(match acc {
+                                None => v,
+                                Some(m) => m.min(v),
+                            });
+                        }
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- The join (doc: "The join"). ----
+                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
+                    (true, true) => poison,
+                    (true, false) => perspan,
+                    (false, true) => global,
+                    (false, false) => global.max(perspan),
+                })
+            }
+
+            /// The **rational arm** of [`Self::speed_lower_bound`]: a
+            /// certified lower bound on `‖C′(t)‖` over the whole domain
+            /// for a carrier with non-unit weights, in m/param.
+            ///
+            /// # The bound (the invariant this function computes)
+            ///
+            /// Write `C = A/w` with `A = Σ N_j w_j P_j` and
+            /// `w = Σ N_j w_j`. For any fixed point `c`, the translate
+            /// `Ã = A − c·w` is the B-spline with coefficients
+            /// `a_j = w_j·(P_j − c)`, `C − c = Ã/w`, and the quotient
+            /// rule gives the identity everything here rests on:
+            ///
+            /// ```text
+            /// C′ = (Ã′ − (C − c)·w′) / w
+            /// ```
+            ///
+            /// Fix a **unit** direction `d`. Then `‖C′‖ ≥ d·C′` and
+            ///
+            /// ```text
+            /// d·C′  ≥  ( min_i (d·Q_i)  −  sup|C − c|·sup|w′| ) / w
+            /// ```
+            ///
+            /// where `Q_i = p·(a_{i+1} − a_i)/(u_{i+p+1} − u_{i+1})` are
+            /// `Ã′`'s coefficients (the knot-difference formula of
+            /// `geom_core::spline::SplineCoeffs::derivative_coeffs`, applied to
+            /// the HOMOGENEOUS coefficients — hull.rs deliberately has
+            /// no rational derivative path, because this assembly
+            /// belongs with the consumer that owns the homogeneous
+            /// form). Each ingredient is a hull over the coefficients
+            /// active on the span, licensed by the same convexity fact
+            /// as the integral arm plus **strictly positive weights**
+            /// (checked here, poison otherwise — without it neither the
+            /// rational basis nor `w`'s own hull is a convex
+            /// combination):
+            ///
+            /// - `min_i (d·Q_i)` over the active `Q`, since `Ã′` is a
+            ///   degree-`p−1` B-spline in the `Q_i`;
+            /// - `sup|C − c| ≤ max_j ‖P_j − c‖` — `C − c` is a convex
+            ///   combination of the `P_j − c` (positive weights) and
+            ///   the norm is convex;
+            /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
+            ///   derivative coefficients, taken through
+            ///   [`spline::SplineCoeffs::derivative_coeffs`] so the knot
+            ///   difference is rounded in certification arithmetic, not at `f64`.
+            ///
+            /// **The denominator is `w_max`, not `w_min`.** `w` itself
+            /// is a convex combination of the active weights, so
+            /// `w ∈ [w_min, w_max]`. For a *non-negative* numerator the
+            /// conservative division is by the LARGEST denominator; for
+            /// a negative one it is by the smallest. (The opposite
+            /// choice — dividing by the min-weight floor — is the
+            /// direction for an UPPER bound on the derivative, and
+            /// would be unsound here. Its deliberate instance is the
+            /// `derivative_sup` whole-patch sup in `step-import`'s
+            /// `recognize` module, whose rational track divides by
+            /// `w_min` for exactly that reason: the two bounds face
+            /// opposite ways, so neither derivation may be copied into
+            /// the other's site.) Which case applies is a
+            /// question about a `Real`, which this code may not ask, so
+            /// it takes the **lattice min of both divisions**: that is
+            /// `L/w_max` exactly when `L ≥ 0` and `L/w_min` exactly
+            /// when `L < 0`, with no comparison and no branch.
+            ///
+            /// # Schedule (D9: structure, never a decision)
+            ///
+            /// The above is evaluated **per nonempty span** — active
+            /// coefficients only, with the span's own control centroid
+            /// as `c` and the span's own control chord
+            /// `P_span − P_{span−p}` as `d` — and the whole-domain
+            /// answer is the ascending `Real::min` fold over spans.
+            /// This is a fixed constant schedule read off the knot
+            /// vector (f64 structure), and it is what keeps the
+            /// `sup|C − c|` term span-sized rather than curve-sized: a
+            /// per-span direction is legitimate because
+            /// `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`, so
+            /// the min over spans of per-span bounds still bounds the
+            /// whole domain. The integral arm adopted the same
+            /// per-span scan in M8-14 (#222), joined with its
+            /// original global chord — see [`Self::speed_lower_bound`].
+            ///
+            /// A per-span direction bounds SPEED and nothing else — see
+            /// [`Self::speed_lower_bound`]'s "what the bound does and
+            /// does not certify". Successive spans may point anywhere,
+            /// so this arm meters a carrier that reverses, as it should:
+            /// only a genuine stationary point drives the answer
+            /// non-positive.
+            ///
+            /// # Poison (total, D4 ¶2)
+            ///
+            /// A zero degree, fewer than two control points, any
+            /// non-positive or non-finite weight, a non-positive knot
+            /// difference, a span whose control chord collapses, or a
+            /// knot vector with no nonempty span — every one yields
+            /// NaN. A bound is never fabricated.
+            ///
+            /// # Rounding posture
+            ///
+            /// At `f64` the assembly runs in nearest rounding, like
+            /// every other `Real`-generic bound in the kernel: the
+            /// weight-derivative hulls come through certification arithmetic (correctly
+            /// rounded), but the chord normalisation and the hull folds
+            /// do not, so the `f64` reading is a bound only up to about
+            /// a relative ulp. **The `Interval` instantiation is the
+            /// certified lane** — it encloses the same expression, and
+            /// `tests/curves/m5_pr7_speed_meter.rs`'s bracket row pins that
+            /// the interval answer contains the `f64` one. This is the
+            /// kernel-wide posture, not a property of this bound.
+            ///
+            /// # Conservatism
+            ///
+            /// The answer is a bound, not an estimate, and the gap can
+            /// be wide. It measures at 0.86–0.97 of the true minimum on
+            /// ordinary and adversarial carriers, but a curve that
+            /// turns hard, or a high degree with alternating extreme
+            /// weights, can refuse outright while its true speed is
+            /// comfortably positive. Refusal is always sound and only
+            /// ever a usability cost; the frontier rows in
+            /// `tests/curves/m5_pr7_speed_meter.rs` pin where it currently
+            /// falls, so [`RATIONAL_METER_SPLITS`] cannot be changed
+            /// without the trade-off becoming visible.
+            fn rational_speed_lower_bound(&self) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                if p == 0 || self.control.len() < 2 {
+                    return poison;
+                }
+                // The convex-combination licence, re-checked here on
+                // f64 STRUCTURE (never on an evaluation scalar):
+                // `!(w > 0.0)` catches NaN too.
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                if self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                    return poison;
+                }
+                // The refinement schedule (D9 structure, a fixed
+                // constant): every nonempty span is split into
+                // `RATIONAL_METER_SPLITS` equal pieces before the scan.
+                // Knot insertion is evaluation-invariant, so this
+                // changes no geometry — it only shrinks every hull the
+                // bound is assembled from, which is what buys a
+                // POSITIVE answer on steep weight ratios where the
+                // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
+                let add = spline::algebra::equal_split_points(&self.knots, RATIONAL_METER_SPLITS);
+                let Ok(refined) = self.refine_knots(&add) else {
+                    return poison;
+                };
+                refined.rational_span_scan()
+            }
+
+            /// The per-span scan of [`Self::rational_speed_lower_bound`],
+            /// run on the refined curve: the ascending `Real::min` fold
+            /// of each span window's own `rational_span_bound` over the
+            /// nonempty spans.
+            fn rational_span_scan(&self) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                // Re-checked on the REFINED weights: knot insertion
+                // keeps positivity in ℝ, and this function may not
+                // assume floating point did.
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                if p == 0 || self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                    return poison;
+                }
+                // `w′`'s coefficient enclosures, once for the curve:
+                // index `i` holds `q_i`, refused for a bad knot
+                // difference (which then poisons this bound).
+                let Some(weight_spline) = self.knots.with_coeffs(&self.weights) else {
+                    // Unreachable by construction: `new` relates the
+                    // weights to the knots by count. The arm returns the
+                    // poisoned bound — the answer for any structure the
+                    // bound cannot license, and never an indexed read.
+                    return poison;
+                };
+                let dw = weight_spline.derivative_coeffs();
+                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
+                let mut acc: Option<T> = None;
+                // Fixed ascending span order (D9).
+                for index in self.knots.first_span()..=self.knots.last_span() {
+                    // Emptiness check and span validation are one step.
+                    let Some(span) = self.span(index) else {
+                        continue;
+                    };
+                    // The window carries the pairing: its span is a
+                    // proof about this curve's own knot vector, and
+                    // `new` pins `control.len() == control_count()`, so
+                    // `[first_control, index]` indexes the arrays.
+                    let b = span.rational_span_bound(&dw, origin);
+                    acc = Some(match acc {
+                        None => b,
+                        // NaN-propagating lattice fold — poison in,
+                        // poison out, no comparison.
+                        Some(m) => m.min(b),
+                    });
+                }
+                acc.unwrap_or(poison)
+            }
+
+            pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
+                if self.knots != other.knots || self.control.len() != other.control.len() {
+                    return T::from_f64(f64::NAN);
+                }
+                net::removal_pass_bound(
+                    (&self.control, &self.weights),
+                    (&other.control, &other.weights),
+                )
+            }
+
+            /// Degree elevation (§5.5) by `raise` (≥ 1), via the Bézier
+            /// route (`geom_core::spline::algebra::elevate_plan`):
+            /// decompose, elevate each segment binomially, recompose
+            /// with exact removals. Evaluation-invariant in ℝ.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotAlgebraError`] (structure refusals; a floating-
+            /// point weight collapse in recomposition surfaces
+            /// honestly).
+            pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
+                let mut cur = self.clone();
+                for _ in 0..raise {
+                    let plans = spline::algebra::elevate_plan(&cur.knots, &cur.weights)?;
+                    cur = cur.apply_plans(&plans);
+                }
+                Ok(cur)
+            }
+        }
+
+        impl<T: SpanLocate> $Curve<T> {
+            /// The located-span walk every full evaluator IS: span
+            /// selection through the sealed [`SpanLocate`] seam
+            /// (per-instantiation semantics in
+            /// `geom_core::spline::locate`), `door` on the first
+            /// overlapped span, then for every further overlapped span
+            /// `hull` of the running answer with `door` on that span —
+            /// channel-independent hulls across spans for
+            /// interval-natured scalars, a single call for the point
+            /// scalars, whose locator names one span. One body, so the
+            /// four doors below differ only in the per-span door they
+            /// hand in and the per-channel hull of its answer.
+            ///
+            /// Empty spans (interior multiplicity) are skipped:
+            /// `find_span` assigns every parameter — a repeated knot
+            /// value included — to the nonempty span starting at it,
+            /// which this loop's range always covers, so nothing is
+            /// discarded (containment preserved); an empty span itself
+            /// would only contribute poison (zero basis denominators).
+            /// The emptiness check and the span's validation are the
+            /// same operation.
+            fn located_walk<R>(
+                &self,
+                t: T,
+                door: impl Fn($Window<'_, T>, T) -> R,
+                hull: impl Fn(R, R) -> R,
+            ) -> R {
+                let spans = t.locate_spans(&self.knots);
+                // `spans.first` arrives already validated — the locator
+                // is where span validity originates, so there is
+                // nothing to re-check and no `expect` here.
+                let mut acc = door(self.window_of(spans.first), t);
+                for s in (spans.first.index() + 1)..=spans.last.index() {
+                    let Some(span) = self.knots.span(s) else { continue };
+                    acc = hull(acc, door(self.window_of(span), t));
+                }
+                acc
+            }
+
+            /// The per-channel enclosure hull of two point answers.
+            fn hull_point(acc: $Point<T>, q: $Point<T>) -> $Point<T> {
+                $Point::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The per-channel enclosure hull of two vector answers.
+            fn hull_vector(acc: $Vector<T>, q: $Vector<T>) -> $Vector<T> {
+                $Vector::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The point at `t` — the located-span walk over the
+            /// window's `eval_in_span`.
+            pub fn eval(&self, t: T) -> $Point<T> {
+                self.located_walk(t, |w, t| w.eval_in_span(t), Self::hull_point)
+            }
+
+            /// The first derivative at `t` — the located-span walk over
+            /// the window's `deriv_in_span`; the `Dual` kink convention
+            /// at knots is the seam's — the derivative of the program
+            /// as evaluated.
+            pub fn deriv(&self, t: T) -> $Vector<T> {
+                self.located_walk(t, |w, t| w.deriv_in_span(t), Self::hull_vector)
+            }
+
+            /// Point and first derivative at `t` from ONE span
+            /// selection and one order-1 basis pass per overlapped span
+            /// — the order-1 sibling of [`Self::ders`], for a consumer
+            /// that wants a point and a tangent and would otherwise run
+            /// [`Self::eval`] and [`Self::deriv`] as two located walks.
+            /// The macro mints this door on `NurbsCurve2` too.
+            ///
+            /// Both halves are what their own evaluators answer, bit
+            /// for bit, and the two halves rest on different grounds.
+            /// The derivative IS `deriv_in_span`'s per span by
+            /// construction (`deriv_in_span` is this door's derivative
+            /// half, projected). The point is `eval_in_span`'s because
+            /// `ders_basis_funs`'s order-0 row is `basis_funs`'s
+            /// recursion (`geom_core::spline::basis`) — a second
+            /// spelling of one recursion, pinned by rows rather than by
+            /// construction — and `rational_corrections` at order 0 is
+            /// `eval_in_span`'s division. Across overlapped spans the
+            /// walk is the one every door runs, so each half's hull
+            /// folds the same range in the same order as `eval` and
+            /// `deriv` fold theirs.
+            ///
+            /// At `Dual` each half carries its own derivative channel,
+            /// the derivative of the program as evaluated (the seam's
+            /// kink convention at knots, as [`Self::deriv`]). At
+            /// `Interval` the point box and the tangent box are hulled
+            /// independently across the overlapped spans: each is its
+            /// own evaluator's enclosure, and the pair is not a coupled
+            /// jet (no box is a function of the other).
+            ///
+            /// The return is the tuple `ders1_in_span` and `ders` return
+            /// — every consumer destructures it on the spot, and a named
+            /// jet type would be a third spelling beside two tuples.
+            pub fn ders1(&self, t: T) -> ($Point<T>, $Vector<T>) {
+                self.located_walk(
+                    t,
+                    |w, t| w.ders1_in_span(t),
+                    |(p, d1), (q, q1)| (Self::hull_point(p, q), Self::hull_vector(d1, q1)),
+                )
+            }
+
+            /// Point, first and second derivative at `t` — the jet a
+            /// consumer that wants more than one of them computes ONCE
+            /// (the located-span walk over the window's `ders_in_span`;
+            /// each component hulled channel-independently across the
+            /// overlapped spans, so every component is exactly what
+            /// its own evaluator answers).
+            pub fn ders(&self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                self.located_walk(
+                    t,
+                    |w, t| w.ders_in_span(t),
+                    |(p, d1, d2), (q, q1, q2)| {
+                        (
+                            Self::hull_point(p, q),
+                            Self::hull_vector(d1, q1),
+                            Self::hull_vector(d2, q2),
+                        )
+                    },
+                )
+            }
+
+            /// The second derivative at `t` (contract as
+            /// [`Self::deriv`]): the last component of [`Self::ders`].
+            /// Per span, that pass computes nothing a second derivative
+            /// does not consume; per CALL the point and first-derivative
+            /// hulls across the overlapped spans are surplus to it — a
+            /// parameter at a knot on an interval-natured scalar hulls
+            /// two spans, so this projection pays two extra
+            /// `enclosure_hull`s per channel there, and nowhere else.
+            pub fn deriv2(&self, t: T) -> $Vector<T> {
+                self.ders(t).2
+            }
+        }
+    };
+}
+
+nurbs_curve!(NurbsCurve2, CurveWindow2, Point2, Vec2, 2, x, y);
+nurbs_curve!(NurbsCurve3, CurveWindow3, Point3, Vec3, 3, x, y, z);
+
+/// The rational corrections through order `N − 1`, from one channel's
+/// homogeneous accumulators `a[k] = A⁽ᵏ⁾` and the weight channel
+/// `w[k] = w⁽ᵏ⁾` (The NURBS Book Eq. 4.8, Leibniz form):
+/// `C⁽ᵏ⁾ = (A⁽ᵏ⁾ − Σᵢ₌ₖ..₁ C(k, i)·w⁽ⁱ⁾·C⁽ᵏ⁻ⁱ⁾) / w⁽⁰⁾`.
+///
+/// **The one spelling** of the correction every curve evaluator runs,
+/// at whatever order it asked the basis for. Fixed association (D9):
+/// the terms are subtracted in DESCENDING `i`, each formed as
+/// `C⁽ᵏ⁻ⁱ⁾ · w⁽ⁱ⁾ · C(k, i)` in that order, and the binomial factor is
+/// applied only when it is not `1` — so through order 2 this is, bit
+/// for bit, `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
+/// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`. The binomials are `f64`
+/// structure, exact for every order this is asked for.
+fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N] {
+    let mut c = [T::zero(); N];
+    for k in 0..N {
+        let mut acc = a[k];
+        for i in (1..=k).rev() {
+            let term = c[k - i] * w[i];
+            let binom = binomial(k, i);
+            acc = acc
+                - if binom == 1.0 {
+                    term
+                } else {
+                    term * T::from_f64(binom)
+                };
+        }
+        c[k] = acc / w[0];
+    }
+    c
+}
+
+/// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
+/// while every intermediate product is below 2⁵³ — every order a curve
+/// evaluator asks for is far inside that).
+fn binomial(k: usize, i: usize) -> f64 {
+    (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
+}
+
+impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
+    /// The control coordinates lifted to enclosure points — the data-in
+    /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
+    /// as `[x, y, z]` channels of certification enclosures. Pair with
+    /// [`Self::knots`] and [`Self::weights`] to build a `CurveCertData`
+    /// for composite bounds. The bracket seam this reads the net
+    /// through is the shared one (`net::certified_coords`).
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
+    }
+}
+
+impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
+    /// [`NurbsCurve3::certified_coords`] at two channels: `[x, y]` channels
+    /// of certification enclosures, through the same bracket seam and the same
+    /// body.
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
+    }
+}
+
+impl<T: Real> NurbsCurve3<T> {
+    /// The "no description yet" placeholder payload for
+    /// [`crate::curves::Curve3::Nurbs`]: a structurally valid degree-1 segment
+    /// whose control points are all-poison, so every evaluation yields
+    /// the all-poison point — bit-for-bit the totality behavior the
+    /// former unit placeholder variant had (representable ≠ described;
+    /// fails every downstream certification loudly, D4 ¶2).
+    pub fn placeholder() -> Self {
+        let p = net::poison_point::<T, Point3<T>>();
+        Self {
+            // Structurally valid by construction: clamped degree-1
+            // vector, two positive weights, two control points.
+            knots: KnotVector::unit_segment(NonZeroUsize::MIN),
+            control: vec![p, p],
+            weights: vec![1.0, 1.0],
+        }
+    }
+
+    /// Is this payload the [`NurbsCurve3::placeholder`] — the "no
+    /// description yet" state — rather than a described curve?
+    ///
+    /// The discriminator and the reason it is `all` and not
+    /// `any` are the crate docs' totality-and-poison section;
+    /// the surface and curve halves answer it identically.
+    pub fn is_placeholder(&self) -> bool {
+        net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod span_bound_tests {
+    use super::*;
+
+    /// `rational_span_bound` asks `w′`'s refusal by NAME. A coefficient
+    /// that left its domain carries real endpoints — `sqrt([−1, 4]) − 1`
+    /// is `[−1, 1]` at `Trv` — so a check that read only NaI or empty
+    /// would take it as a bracket and answer a finite bound; the span
+    /// bound is poison instead. The control is the same span with a
+    /// certified coefficient of the same magnitude.
+    #[test]
+    fn a_refused_weight_derivative_coefficient_poisons_the_span_bound() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid knots");
+        let curve = NurbsCurve3::<f64>::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0, 2.0, 1.0],
+        )
+        .expect("valid curve");
+        let index = curve.knots().first_span();
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let certified = [
+            Interval::from_bounds(1.9, 2.1),
+            Interval::from_bounds(-2.1, -1.9),
+        ];
+        let control = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&certified, origin);
+        assert!(control.is_finite(), "control: {control}");
+        let refused = Real::sqrt(Interval::from_bounds(-1.0, 4.0)) - Interval::one();
+        assert!(
+            !refused.is_certified() && (refused.lo(), refused.hi()) == (-1.0, 1.0),
+            "fixture drifted: {refused:?}"
+        );
+        let bound = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&[refused, certified[1]], origin);
+        assert!(
+            bound.is_nan(),
+            "a `Trv` w\u{2032} coefficient with real endpoints produced the span bound \
+             {bound} — the refusal was not asked by name"
+        );
+    }
+}

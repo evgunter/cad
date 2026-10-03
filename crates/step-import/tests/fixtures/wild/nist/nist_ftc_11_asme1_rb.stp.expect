@@ -1,0 +1,26 @@
+# ORACLE: FreeCAD 1.1.2 (Libs 1.1.2R20260723), `Part.Shape().read(path)`,
+# run 2026-08-07 on the UNMODIFIED upstream file (before the provenance
+# comment was added). Volume is FreeCAD's `Shape.Volume`, in mm3. The wild
+# has no closed forms: this oracle is the ONLY independent volume these
+# fixtures have, and it is an independent IMPLEMENTATION, not a proof.
+ORACLE_SOLIDS=1
+ORACLE_SHELLS=1
+ORACLE_FACES=6
+ORACLE_EDGES=12
+ORACLE_VERTICES=8
+ORACLE_VOLUME_MM3=5129.38613642268
+
+# CENSUS DIVERGENCE. The file's 6 faces are 4 seamless periodic bands
+# (cylinders #95/#135, tori #175/#187) and 2 planar caps, over 6 rim
+# edges and 6 vertices (rims #128 and #91 SHARED between a cylinder band
+# and a torus band each). The kernel's band re-mint (M7-5, D1) seams
+# every band at its surface's own u_ref azimuth: the cylinders' rim
+# vertices already sit there (0 splits), each torus splits both its rims
+# there (4 splits, propagated into the sharing bands' loops), and each
+# band gains one seam generator — 6 + 4 splits + 4 seams = 14 edges,
+# 6 + 4 = 10 vertices. OCC heals the same bands to different counts
+# (12 edges / 8 vertices) by re-charting seams onto existing vertices
+# where it can; the KERNEL_* lines are what a faithful D1 import must
+# produce.
+KERNEL_EDGES=14
+KERNEL_VERTICES=10

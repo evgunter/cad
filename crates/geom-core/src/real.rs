@@ -1,0 +1,2543 @@
+//! The [`Real`] scalar trait and its `f64` implementation.
+//!
+//! `Real` is the scalar abstraction the entire evaluation layer is generic
+//! over (Q1 in `docs/DESIGN.md`). Planned instantiations: `f64` (here),
+//! `Interval` over `interval-transcendentals` (M0 PR 4, backend swapped
+//! in M5 PR 1), `Dual<f64>` and `Dual<Interval>` (M0
+//! PR 5). The trait surface is the *intersection* of what those types
+//! support honestly — anything one of them cannot do honestly stays out.
+//!
+//! # What is deliberately absent
+//!
+//! - **No [`PartialOrd`] / [`PartialEq`] bounds and no comparison methods.**
+//!   Q1's one day-one discipline is that every topology-determining branch
+//!   goes through a named trilean predicate (M0 PR 3). Omitting comparisons
+//!   from `Real` makes the *convenient* paths fail to typecheck: generic
+//!   evaluation code cannot write raw `<`, `==`, `.sort()`, or numeric
+//!   casts on a scalar. It is not an airtight cage — safe escape channels
+//!   remain: adding an extra bound like `+ PartialOrd` to a type parameter
+//!   (compiles at `f64`, dies at the interval instantiation), `Debug`
+//!   format-string gadgets (the `Debug` supertrait is a deliberate
+//!   diagnostic affordance and the main leak channel), and `Any`/`TypeId`
+//!   type-branching enabled by the `'static` bound. These are closed by a
+//!   named kernel style rule, **evaluation-code discipline**: type
+//!   parameters in evaluation code carry no bounds beyond geom-core's
+//!   scalar traits, and no `format!`/`Debug`-string inspection or
+//!   `TypeId`/`Any` dispatch on scalar values. The residue channels are
+//!   banned by this rule and are loud in review; CI greps for the
+//!   extra-bound pattern as a tripwire. (Concrete-`f64` code still has `<`
+//!   from std — that is fine; the rule governs generic evaluation code.)
+//! - **No bound extraction** (`to_f64`, `lo`/`hi`, `midpoint`): evaluation
+//!   code must not be able to silently collapse an interval to a number.
+//!   Certification/driver code that legitimately needs bounds goes through
+//!   the separate [`Bounds`] trait (landed with the interval scalar, M0
+//!   PR 4), whose restricted scope is a named style rule — see its docs.
+//! - **No `exp`/`ln`/`pow(float)`**: nothing in M0–M4 needs them (analytic
+//!   geometry and NURBS are algebraic/trigonometric). Cheap to add later,
+//!   impossible to remove.
+//! - **No `hypot` or other fused convenience methods**: callers write
+//!   `(a*a + b*b).sqrt()`. A more-accurate `f64`-only override would make a
+//!   dual number's value part diverge from the plain-`f64` computation;
+//!   cross-instantiation consistency (the same recipe evaluated at different
+//!   scalar types must agree on the shared part) outranks last-ulp accuracy.
+//!   For the same reason `mul_add`/FMA is excluded: hardware-fused multiply-
+//!   add versus a soft multiply-then-add rounds differently across
+//!   instantiations and platforms, breaking cross-instantiation consistency
+//!   and D9 determinism.
+//! - **No [`core::iter::Sum`] / [`core::iter::Product`] bounds**: D9 allows
+//!   parallelism only in fixed reduction shapes, so summation order must be
+//!   explicit (a fold) at call sites; the trait offers no order-implicit
+//!   reductions.
+//!
+//! # Totality and NaN policy
+//!
+//! Every operation is **total**. Out-of-domain inputs produce the scalar
+//! type's poison value (`sqrt(-1)` is NaN at `f64`, the empty interval at
+//! `Interval`) rather than an error: fallible arithmetic (`Result` from
+//! every `sqrt`) is unusable in evaluation code. Instead, *the predicate
+//! layer is the single place numbers become decisions* (M0 PR 3): any
+//! predicate whose inputs are NaN/empty returns the typed
+//! indeterminate/invalid outcome, never a silent branch, and certified
+//! residual checks (D4 ¶2) catch NaN in cached geometry (`NaN ≤ ε` is false,
+//! so certification fails loudly). NaN may propagate through *values* but
+//! never through *decisions* — which is why [`Real::min`] / [`Real::max`]
+//! must propagate NaN rather than drop it (see their docs).
+
+use core::fmt::Debug;
+use core::ops::{Add, Div, Mul, Neg, Sub};
+
+use crate::tolerance::Tol;
+
+/// **What the registered-identity door did with one registration**
+/// ([`crate::Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
+///
+/// Every arm is a REFUSAL or a record, and none of them is silent:
+/// the door answers what it did, so a registrant that wanted to be
+/// loud can be and a pin can read it.
+///
+/// **Seven flat arms over two axes, and that is a decision** (a review
+/// flagged the flattening; this is the call). The axes are the WITNESS
+/// — did the value channel find the two values one real: witnessed,
+/// refused by an exact witness, refused by an inexact one, or unable to
+/// say — and the REGISTRY — recorded,
+/// already there, refused as cyclic, or not consulted. A struct of two
+/// fields would name them separately and would also make
+/// `{Contradicted, Recorded}` spellable, which is a state the door must
+/// never be in; a registrant would then match twice to learn one thing.
+/// The seven arms are exactly the reachable combinations, so the
+/// impossible ones cannot be written down, and a call site reads one
+/// answer. The cost, stated: "was this refused?" is a two-arm match
+/// rather than a field read, and every registrant pays it by hand
+/// (`work/sym/sym-registration-flattens-two-axes`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SymRegistration {
+    /// Recorded: from here on the two nodes denote one function of the
+    /// parameters in this session's EARLY normal form, and a decision
+    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    Recorded,
+    /// Already recorded — the same two nodes, or two nodes the registry
+    /// already resolves to one. Idempotent, and cheap: nothing is
+    /// invalidated.
+    Already,
+    /// **REFUSED by an EXACT witness: the two values are PROVED not one
+    /// real.** Reserved for [`crate::Interval`], whose certified
+    /// enclosures of the two sides are DISJOINT over the leaf's box.
+    /// There is no slack in that test and nothing to lose at the scale,
+    /// so the answer is a proof of a defect: either the constructor did
+    /// not build what it claims, or an upstream enclosure does not
+    /// contain its real. A registrant may therefore `debug_assert!` on
+    /// this arm, and the swept registrants do. `f64` and
+    /// [`crate::Probe`] never answer it — an inexact witness answers
+    /// [`SymRegistration::Disputed`].
+    ///
+    /// **A registrant's assertion on this arm is LIVE IN RELEASE, and
+    /// that is a deliberate change of behaviour.** This workspace ships
+    /// `[profile.release] debug-assertions = true`, so a registrant that
+    /// `debug_assert!`s here ABORTS in every profile, where before the
+    /// arm split the same configuration was a counted refusal in all of
+    /// them. It is the right shape: at an exact witness a refusal is a
+    /// proof of a soundness defect somewhere upstream, and this codebase
+    /// fails loud rather than recording a defect in a column. What is
+    /// bought with it is that nothing downstream can rest on a
+    /// registration the exact witness disproved.
+    ///
+    /// Nothing is recorded, the registry is unchanged, and every
+    /// decision that would have rested on the record stays numeric.
+    Contradicted,
+    /// **REFUSED by an INEXACT witness: the two values are apart by more
+    /// than its slack, and it cannot say which claim that is.** The
+    /// answer of `f64` and [`crate::Probe`], which compare at a point
+    /// with a slack of the run's ε relative to the larger magnitude
+    /// ([`Real::register_equal`]'s `f64` impl). The registration may be
+    /// a lie; it may equally be a theorem of the reals whose two sides
+    /// separate because the arithmetic ran out of significand at this
+    /// scale — an adversarial torus at a minor radius of 10¹⁸ with walls
+    /// below one ULP reaches exactly that, and nothing is wrong there.
+    /// **Never asserted on.** The gap cannot tell the two apart (at that
+    /// torus the sides are many ULPs apart), which is why the arm is
+    /// keyed to the KIND of witness and not to a second threshold.
+    ///
+    /// Nothing is recorded, and the refusal is counted exactly as
+    /// [`SymRegistration::Contradicted`] is
+    /// ([`crate::SymCounts::registrations_refused`]).
+    Disputed,
+    /// **REFUSED, typed: the registration would close a cycle** — the
+    /// right node's expression already contains the left one, so
+    /// aliasing them would make the normal form's walk non-terminating.
+    /// (`form_in`'s termination argument is structural: a node's id is
+    /// a hash of its children's, so a cycle needs a hash preimage. The
+    /// registry is the one thing that could introduce one by hand, and
+    /// this arm is what keeps that argument true.)
+    Cyclic,
+    /// **The claim was witnessed and nothing was recorded.** Either the
+    /// scalar tracks no expressions (`f64`, `Interval`, `Probe`: there
+    /// is nothing at a bare scalar to record an identity ABOUT), or
+    /// there is one and nowhere to put it — no session installed, the
+    /// tier off at a zero-term budget, or [`crate::SymRules::registered`]
+    /// off.
+    Witnessed,
+    /// **This scalar's value channel cannot witness the claim**, so
+    /// nothing is claimed and nothing is recorded — the default arm of
+    /// [`Real::register_equal`] and what every scalar that tracks no
+    /// expressions answers. A poisoned value answers this too: an
+    /// expression with no value witnesses nothing.
+    Unwitnessed,
+}
+
+impl SymRegistration {
+    /// **What a registrant does with the door's answer**, by arm, in
+    /// one place for every registrant.
+    ///
+    /// - [`SymRegistration::Contradicted`] is the EXACT witness's proof
+    ///   that `what` is false on the values the registrant built, and is
+    ///   loud: either the registrant's theorem is false for the
+    ///   configuration it was handed, or an upstream enclosure does not
+    ///   contain its real. Live in release (the arm's own doc).
+    /// - [`SymRegistration::Disputed`] is an inexact witness's refusal,
+    ///   counted in the session's receipt and never asserted on.
+    /// - Every other arm is a record, a no-op, or nothing to record, and
+    ///   none of them is a defect.
+    ///
+    /// Exhaustive by hand, so a new arm is a compile error here.
+    pub fn handle(self, what: &str) {
+        match self {
+            Self::Contradicted => debug_assert!(
+                !matches!(self, Self::Contradicted),
+                "the EXACT witness separated {what}: either the registrant's theorem is \
+                 false for the configuration it was handed, or an upstream enclosure does \
+                 not contain its real"
+            ),
+            Self::Disputed
+            | Self::Recorded
+            | Self::Already
+            | Self::Witnessed
+            | Self::Unwitnessed
+            | Self::Cyclic => {}
+        }
+    }
+}
+
+/// **What a comparison at this scalar PROVES** — the property that
+/// decides, per lane scalar, whether a disagreement between the value
+/// channel and a symbolic form is a soundness defect or a dispute.
+///
+/// It is a property of the SCALAR, fixed at compile time
+/// ([`Real::WITNESS`]), and never a value read: nothing branches on a
+/// number to obtain it, so D9 is untouched and it is not the
+/// instrument [`crate::Decide::enclosure_probe`] is.
+///
+/// **Two contracts read it, and that is the point.** The
+/// registered-identity door forwards the lane scalar's refusal arm —
+/// [`SymRegistration::Contradicted`] from an exact witness,
+/// [`SymRegistration::Disputed`] from an inexact one — and
+/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
+/// the same way: asserted at an exact witness, counted
+/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
+/// are the same question about the same channel, so they read one
+/// marker rather than two roster copies.
+///
+/// **That they cannot drift is a property of the PIN, not of the
+/// marker**, and the difference is one a first cut got wrong: a const
+/// read in two places still lets a scalar declare one thing and answer
+/// another. What closes it is that
+/// `geom-core/tests/sym11_witness_kind_rows.rs`'s `witness_agrees` is
+/// GENERIC — one predicate instantiated at every `impl Real` in the
+/// tree by name — so an impl whose const and whose refusal arm
+/// disagree reds without anyone having written that pair down.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Witness {
+    /// **A comparison here is a PROOF.** The value channel is a
+    /// certified enclosure of the real ([`crate::Interval`]), so two
+    /// enclosures that do not meet prove the two reals differ, and an
+    /// enclosure that excludes zero proves the margin is not zero.
+    /// There is no slack in either test and no scale at which the
+    /// answer is the arithmetic giving up, so a disagreement with a
+    /// form is a defect in one of the two channels and this codebase
+    /// fails loud on it.
+    Exact,
+    /// **A comparison here is a MEASUREMENT of one rounded number.**
+    /// `f64` and [`crate::Probe`] evaluate at a point: at a far
+    /// placement the rounding exceeds the band, under rule F a one-ulp
+    /// error in a sign argument becomes a whole `2.0` at the margin,
+    /// and at a pole the channel has no clause 1 to refuse with. None
+    /// of those is a false claim by the form, so none of them may be
+    /// charged to the form: the numeric answer is kept and the
+    /// disagreement is counted.
+    Inexact,
+}
+
+/// The scalar type the geometry evaluation layer is generic over.
+///
+/// See the [module docs](self) for the design rationale: the deliberately
+/// omitted operations (comparisons, bound extraction) and the totality/NaN
+/// policy are as much a part of the contract as the methods below.
+///
+/// # Contract for implementors
+///
+/// - All operations are **total** — they never panic and never return an
+///   error; out-of-domain inputs yield the type's poison value (NaN, empty
+///   interval).
+/// - [`Real::from_f64`] must be an **exact embedding**: every `f64` is
+///   exactly representable (a point interval, a constant dual number).
+/// - Deterministic per D9: same build + same inputs → bit-identical
+///   outputs, on every platform.
+/// - Overriding a defaulted method ([`Real::sin`], [`Real::cos`]) is only
+///   permitted if the override is bit-identical to the corresponding
+///   projection of the required [`Real::sin_cos`] primitive; this is under
+///   test. (The expected reason to override is scalar performance — skipping
+///   the discarded component — not a different numeric result.)
+///
+/// The `Copy` bound is deliberate: all planned instantiations are `Copy`,
+/// and evaluation code is arithmetic-dense and reference-noise hostile. The
+/// cost — foreclosing arbitrary-precision scalars (e.g. `rug::Float` is not
+/// `Copy`) under this exact trait — is accepted; arbitrary precision would
+/// need its own design pass anyway.
+pub trait Real:
+    Copy
+    + Clone
+    + Debug
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+    + Neg<Output = Self>
+    + Send
+    + Sync
+    + 'static
+{
+    /// **What a comparison at this scalar proves** ([`Witness`]) —
+    /// declared, never defaulted, because the two things that read it
+    /// both fail in the same direction when a scalar under-declares:
+    /// [`Real::register_equal`]'s refusal arm and the theorem-vs-numeric
+    /// charge at `Sym<T>::sign_within`. **No default, so the compiler
+    /// is what asks**: a new lane scalar does not compile until it says
+    /// which side of the partition it is on, and nothing has to notice
+    /// that it did not.
+    ///
+    /// Its [`Real::register_equal`] arm then has to AGREE, which the
+    /// compiler cannot ask — `witness_agrees` in
+    /// `geom-core/tests/sym11_witness_kind_rows.rs` does, generically,
+    /// at every `impl Real` in the tree: `Exact` ⇔ a separated pair is
+    /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
+    const WITNESS: Witness;
+
+    /// **This scalar's name, as a refusal names it** — prose written to
+    /// sit inside "at the … scalar" (`"interval"`, `"dual"`), and the
+    /// one home for it: every refusal that names the scalar it ran at
+    /// reads it off its own type parameter, so two refusals cannot
+    /// spell one scalar two ways. Declared, never defaulted,
+    /// so a new scalar is asked by the compiler; a wrapper states its
+    /// own name rather than composing its base's.
+    const NAME: &'static str;
+
+    /// Embeds an `f64` exactly (a point interval, a constant dual number).
+    fn from_f64(x: f64) -> Self;
+
+    /// The additive identity.
+    fn zero() -> Self;
+
+    /// The multiplicative identity.
+    fn one() -> Self;
+
+    /// The circle constant π (for interval types: a tight enclosure of π).
+    fn pi() -> Self;
+
+    /// The circle constant τ = 2π (for interval types: a tight enclosure).
+    fn tau() -> Self;
+
+    /// The square root. Total: out-of-domain input (negative at `f64`)
+    /// yields the poison value (NaN / empty interval), per the module-level
+    /// totality policy.
+    fn sqrt(self) -> Self;
+
+    /// The absolute value.
+    fn abs(self) -> Self;
+
+    /// Is this value the type's **poison** (module docs: NaN at `f64`,
+    /// NaI/empty at the interval scalar, a poisoned value channel at
+    /// the dual scalar)?
+    ///
+    /// This is a *value-channel* question — the one every scalar can
+    /// answer without a bracket — and it exists for **structure
+    /// discrimination**, not for deciding geometry: the first consumer
+    /// is `NurbsSurface::is_placeholder` (M6-3), which must tell the
+    /// all-poison "no description yet" placeholder from a described
+    /// control net at every evaluation scalar. Predicates on real
+    /// margins keep going through `Decide`, whose poison arm carries
+    /// the diagnostic; this method never replaces one.
+    fn is_poison(self) -> bool;
+
+    /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
+    /// E12's "kept in reserve — discharge by provenance"): a
+    /// constructor generic over `T: Real` states that the two values
+    /// it holds are ONE real, because the construction it just
+    /// performed guarantees it — a swept arc's `‖q − c‖` and its
+    /// radius, say. The scalar decides what, if anything, that is worth
+    /// to it.
+    ///
+    /// **The default records nothing and claims nothing**
+    /// ([`crate::sym::SymRegistration::Unwitnessed`]), which is what
+    /// every scalar that tracks no expressions wants; the value channel
+    /// is untouched at every scalar, including the one that does. Two
+    /// jobs are behind the one method and the split is per scalar:
+    ///
+    /// - a scalar whose value channel can WITNESS the claim answers
+    ///   [`crate::sym::SymRegistration::Witnessed`] or, when the two
+    ///   values are not the same real, one of the two REFUSAL arms,
+    ///   chosen by the KIND of witness: `f64` and [`crate::Probe`]
+    ///   compare at a point with the run's ε as slack, taken as `tol`
+    ///   ([`Real::register_equal`]'s `f64` impl argues the spelling),
+    ///   and answer [`crate::sym::SymRegistration::Disputed`];
+    ///   [`crate::Interval`] asks whether the two certified enclosures
+    ///   MEET — an exact test — and answers
+    ///   [`crate::sym::SymRegistration::Contradicted`]. Neither records
+    ///   anything: there is no expression at a bare scalar to record it
+    ///   about;
+    /// - [`crate::Sym`] asks its own lane scalar that question first
+    ///   and, on a witness, RECORDS the identity in the installed
+    ///   session, where the symbolic tier's early normal form consults
+    ///   it (`crate::sym`'s module docs).
+    ///
+    /// **WHAT THE WITNESS IS WORTH, exactly** — the contract this
+    /// method's first cut overstated, corrected by two reviews taken by
+    /// execution. A registration is an AXIOM; its soundness rests on
+    /// the REGISTRANT'S PROOF and on nothing here. The witness refuses
+    /// only a lie visible AT THE POINT (`f64`, `Probe`, and there only
+    /// as `Disputed`, which may also be the arithmetic giving up) or one
+    /// whose two certified enclosures are DISJOINT over the box
+    /// (`Interval`, where the refusal is a proof) — and "the enclosures
+    /// meet" is satisfied by every
+    /// coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+    /// registration false by a geometric amount is recorded as soon as
+    /// the box is wide enough for the two enclosures to overlap. **The
+    /// door cannot tell an identity from a coincidence.** That is why
+    /// the spec requires each registrant to carry a theorem in its doc
+    /// comment (claim 9), and why the witness is loosest exactly where
+    /// the numeric-first shield is weakest — a residual whose two sides
+    /// are dependency-widened straddles zero for the same reason its
+    /// two enclosures meet. The rows that establish this are
+    /// `geom-core/tests/m10_9_r1_sym_probes.rs`
+    /// (`r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero`
+    /// and `r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval`)
+    /// and `geom-core/tests/m10_9_r2_sym_probes.rs`
+    /// (`r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box`).
+    ///
+    /// **`tol` is the run's ε, and it ARRIVES.** The inexact witnesses
+    /// (`f64`, [`crate::Probe`]) compare at a slack, and a slack that
+    /// does not move with the run's ε is loosest exactly where the
+    /// numeric-first shield is tightest. The run's ε is an entry-point
+    /// commitment, so it is taken as a parameter and passed down from
+    /// whichever registrant holds one — kernel library code may not
+    /// mint a tolerance witness (`scripts/gates/witness-not-ambient.sh`).
+    /// A scalar whose witness is EXACT ([`crate::Interval`]'s meet of
+    /// two certified enclosures) ignores it, and says so at its impl.
+    ///
+    /// **WHERE IT MAY BE CALLED.** This method hands every generic
+    /// `T: Real` body a value COMPARISON — the capability
+    /// evaluation-code discipline exists to keep out of that position,
+    /// and one that adds no bound for `no-extra-real-bounds` to see. It
+    /// is therefore allowlisted by SITE:
+    /// `scripts/gates/register-equal-allowlist.sh` names the
+    /// constructors that may call it, and a new call site fails that
+    /// gate until it is ratified there with its theorem. It is not a
+    /// general-purpose equality and must never stand in for one.
+    ///
+    /// `#[must_use]`: a refusal a caller drops is a lie nobody sees.
+    /// The registrant handles the typed answer; a refusal is also
+    /// counted in the session's receipt
+    /// ([`crate::SymCounts::registrations_refused`]).
+    #[must_use]
+    fn register_equal(self, _other: Self, _tol: Tol) -> SymRegistration {
+        SymRegistration::Unwitnessed
+    }
+
+    /// Raises `self` to an integer power by exponentiation by squaring;
+    /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
+    /// yields [`Real::one`] for every **non-poisoned** input. Poison
+    /// propagates through every exponent, *including `n == 0`* — NaN at
+    /// `f64`, empty/NaI at intervals: `x⁰ = 1` is a statement about
+    /// numbers, and a poisoned value is not a number (the module-level
+    /// policy — poison flows through values, and laundering it into an
+    /// exact 1 would erase the upstream failure).
+    ///
+    /// The multiplication order is fixed by the squaring algorithm (see
+    /// [`powi_by_squaring`]), so results are deterministic but — for
+    /// `|n| ≥ 4` — not necessarily bit-identical to naive repeated
+    /// multiplication (different rounding association). Interval
+    /// instantiations may override this method with a dedicated integer
+    /// power for a **tight enclosure of the true value** — their contract
+    /// is containment of the real power, not reproduction of f64's
+    /// multiplication association (squaring an enclosure that straddles
+    /// zero is not tight: `[-1, 2]·[-1, 2] = [-2, 4]` but `x² ∈ [0, 4]`).
+    ///
+    /// For negative exponents the reciprocal-of-power rule means extreme
+    /// magnitudes can overflow before inverting — e.g. `powi(2.0, -1074)`
+    /// yields `0.0` where the true value is the minimum subnormal. This is
+    /// harmless within the session-boxed model range (D4 ¶4); changing it
+    /// is a design conversation, not a bugfix.
+    fn powi(self, n: i32) -> Self;
+
+    /// The sine and cosine together (argument in radians) — **the
+    /// primitive**.
+    ///
+    /// This pair, not the individual projections, is the required operation:
+    /// it is the point on the unit circle at angle `self`, the restriction to
+    /// the reals of the complex exponential `e^{iθ}`. The planned scalars make
+    /// the pair the natural unit of work — a dual number's `sin` needs `cos x`
+    /// for its derivative part anyway, and an interval computes both
+    /// enclosures independently either way — so requiring the pair and
+    /// projecting `sin`/`cos` out of it costs those types nothing while
+    /// keeping the two components mutually consistent by construction.
+    fn sin_cos(self) -> (Self, Self);
+
+    /// The sine (argument in radians) — the first projection of
+    /// [`Real::sin_cos`].
+    ///
+    /// Defaults to `self.sin_cos().0`. Implementations may override **only
+    /// bit-identically to that projection** (verified by test); the sole
+    /// sanctioned reason is scalar performance — skipping the discarded
+    /// cosine — never a different numeric result.
+    fn sin(self) -> Self {
+        self.sin_cos().0
+    }
+
+    /// The cosine (argument in radians) — the second projection of
+    /// [`Real::sin_cos`].
+    ///
+    /// Defaults to `self.sin_cos().1`. Implementations may override **only
+    /// bit-identically to that projection** (verified by test); the sole
+    /// sanctioned reason is scalar performance — skipping the discarded sine —
+    /// never a different numeric result.
+    fn cos(self) -> Self {
+        self.sin_cos().1
+    }
+
+    /// The tangent (argument in radians).
+    fn tan(self) -> Self;
+
+    /// The arcsine, in [−π/2, π/2]. Total: |x| > 1 yields the poison value.
+    fn asin(self) -> Self;
+
+    /// The arccosine, in [0, π]. Total: |x| > 1 yields the poison value.
+    fn acos(self) -> Self;
+
+    /// The arctangent, in (−π/2, π/2).
+    fn atan(self) -> Self;
+
+    /// The four-quadrant arctangent of `self` (= y) and `x`, in (−π, π].
+    fn atan2(self, x: Self) -> Self;
+
+    /// The smaller of two values — a **lattice operation for geometry
+    /// values** (bounding-box corners), never control flow. It returns
+    /// `Self`, not `bool`, so it cannot drive a branch — that is the actual
+    /// enforcement; branching goes through named predicates (M0 PR 3).
+    ///
+    /// Semantics: `min(a, b)` is `a` if `a ≤ b`, else `b` (ties keep
+    /// `self`; for dual numbers the derivative follows the chosen argument
+    /// at ties — kink nondifferentiability is inherent). **NaN propagates**:
+    /// if either input is NaN the result is NaN — IEEE `minNum`'s
+    /// NaN-dropping would silently launder a poisoned value, defeating the
+    /// module-level NaN policy. (Intervals propagate empty naturally.)
+    fn min(self, other: Self) -> Self;
+
+    /// The larger of two values. Same contract as [`Real::min`]: a lattice
+    /// operation for geometry values, not control flow; ties keep `self`;
+    /// **NaN propagates** (either input NaN ⇒ NaN).
+    fn max(self, other: Self) -> Self;
+
+    /// The largest integer ≤ `self` — the range-reduction primitive
+    /// (M2 PR 1; the M0-watchlist `floor`/`rem` item).
+    ///
+    /// Floor is an **exact** operation: the result is always exactly
+    /// representable and uniquely defined, so every conforming
+    /// implementation is bit-identical (like `sqrt`/`abs`, no libm
+    /// routing question arises). It is a *value* computation, never
+    /// control flow — it returns `Self`, not an integer type, so it
+    /// cannot drive a branch (the same enforcement shape as
+    /// [`Real::min`]).
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: IEEE `roundTowardNegative` to integral; NaN propagates,
+    ///   `±∞` stays `±∞` (not poison), `floor(-0.0) = -0.0`.
+    /// - `Interval`: the hull `[floor(lo), floor(hi)]` — floor spans
+    ///   integers ⇒ the hull is the honest enclosure (containment is the
+    ///   contract). The decoration degrades to `Def` when the enclosure
+    ///   spans a jump (defined everywhere, discontinuous on the box), so
+    ///   a downstream decision sees the discontinuity honestly;
+    ///   empty/NaI propagate.
+    /// - `Dual<T>`: value channel is `T::floor` verbatim; the derivative
+    ///   follows the ratified kink conventions — `floor` is locally
+    ///   constant, so the f64 tangent factor is 0 *including at
+    ///   integers* (branch-consistency: the derivative of the program as
+    ///   evaluated — the plateau's), while the interval instantiation
+    ///   carries the honest jump enclosure `[0, +∞]` over any box that
+    ///   spans an integer step (floor is nondecreasing, so all
+    ///   difference quotients are ≥ 0 and unbounded across a jump —
+    ///   the certified-tier analogue of `abs`'s straddle hull).
+    fn floor(self) -> Self;
+
+    /// The value with `self`'s magnitude and `sign`'s sign — sign
+    /// transfer where the sign is a genuinely signed quantity. It is
+    /// NOT the way to choose between two candidates: the enclosure arm
+    /// must hull at any zero-containing sign, so a choice keyed on it
+    /// hulls wherever the quantity it reads can be zero
+    /// ([`Real::select_le_zero`] is that door).
+    ///
+    /// **Poison propagates through BOTH arguments** — deliberately
+    /// stricter than IEEE 754 `copySign`, which is a non-arithmetic bit
+    /// operation that would return `±|self|` for a NaN `sign`: a
+    /// poisoned sign means the sign is unknown, and laundering it into a
+    /// definite choice would defeat the module-level NaN policy. Either
+    /// input NaN ⇒ NaN (empty/NaI at intervals).
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: IEEE `copySign` behind the poison guard — an exact bit
+    ///   operation, bit-identical everywhere. The sign of a zero `sign`
+    ///   argument is its sign *bit*: `copysign(x, -0.0) = -|x|`.
+    /// - `Interval`: a `sign` enclosure strictly positive (`lo > 0`)
+    ///   yields `|self|`, strictly negative (`hi < 0`) yields `-|self|`;
+    ///   an enclosure containing zero yields the honest two-sided hull
+    ///   `[-sup|self|, sup|self|]` with the decoration capped at `Def`
+    ///   (the function is defined everywhere but discontinuous in `sign`
+    ///   at 0 — and the hull also covers f64's signed-zero behavior,
+    ///   which a one-sided choice at `lo ≥ 0` would not).
+    /// - `Dual<T>`: value channel is `T::copysign` verbatim; the
+    ///   derivative is `σ(sign)·abs′(self)·self′` per the kink
+    ///   conventions — the `sign` argument's own tangent is discarded
+    ///   (σ is locally constant, the same discard rule as `min`'s
+    ///   unchosen branch), and an interval `sign` straddling zero
+    ///   poisons the tangent to the entire line (the jump in `sign` has
+    ///   unbounded slope).
+    fn copysign(self, sign: Self) -> Self;
+
+    /// **The value-level decision door**: `when_le` if `self ≤ 0`, else
+    /// `when_gt` — a two-way selection keyed on the sign of a
+    /// difference, with the TIE (`self == 0`) on the `when_le` side.
+    ///
+    /// This is how comparison-free evaluation code picks between two
+    /// candidate computations. It is a *value* operation, not control
+    /// flow — it returns `Self`, so it cannot drive a branch, and no
+    /// topology-determining question passes through it (those go to a
+    /// named predicate, per Q1). Its consumer is
+    /// [`crate::Vec3::orthonormal_basis`], which chooses which world
+    /// axis to cross the normal with.
+    ///
+    /// **The tie is keyed on the VALUE zero, never on a zero's sign
+    /// bit** — `-0.0 ≤ 0` and `+0.0 ≤ 0` take the same arm. That is
+    /// what makes the tie decidable over an enclosure: a point
+    /// enclosure `[0, 0]` names one real, the tie-break is the same for
+    /// every point of it, so `Interval` DECIDES there. This is exactly
+    /// what [`Real::copysign`] cannot do — its zero-containing arm must
+    /// hull at a POINT zero, because an `f64` zero's sign bit is
+    /// invisible in an enclosure and a one-sided choice would fail to
+    /// contain an `f64` replay that saw `-0.0`. A construction that
+    /// spells a choice as `copysign` on the difference is therefore a
+    /// branch in disguise that hulls where a decision exists; this door
+    /// is the one that does not.
+    ///
+    /// **Poison: `self` propagates; a candidate propagates only where
+    /// it is read.** A poisoned decision value poisons the result — the
+    /// choice is unknown, and picking an arm would launder it. A
+    /// poisoned CANDIDATE poisons the result only when that candidate
+    /// is selected, or when both are (the straddle arm below). The
+    /// asymmetry is deliberate and load-bearing: the door exists to
+    /// pick the well-conditioned member of a candidate set whose other
+    /// members are degenerate at exactly the input being chosen away
+    /// from — `orthonormal_basis` at `n = ±e_z` evaluates
+    /// `normalize(e_z × n)`, which is `normalize(0)`, all poison, and
+    /// the axis order is what guarantees it is never the one read.
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: the IEEE comparison `self <= 0.0` behind the poison
+    ///   guard — a total order, exact and bit-deterministic (D9).
+    /// - `Interval`: DECIDED when the comparison holds for every point
+    ///   of the enclosure — `hi ≤ 0` (which includes the point tie
+    ///   `[0, 0]`) selects `when_le`, `lo > 0` selects `when_gt` — with
+    ///   the decoration capped by the deciding enclosure's (the choice
+    ///   is only as trustworthy as the enclosure that made it).
+    ///   UNDECIDED (`lo ≤ 0 < hi`, necessarily of positive width) is
+    ///   the **hull of both candidates**, decoration capped at `Def`:
+    ///   the question is real at every point of the box and the honest
+    ///   answer is both branches, never `Trv`, never empty
+    ///   (`docs/DUAL-DESIGN.md` DL6). The hull is what buys the
+    ///   enclosure property: an `f64` value inside the decision's
+    ///   enclosure lands on one of the two arms, and both are enclosed.
+    /// - `Dual<T>`: value channel is `T`'s door verbatim (the
+    ///   value-channel bit-identity contract); the tangent follows the
+    ///   chosen candidate's, ties keeping the tie-break's choice (the
+    ///   `min`/`max` kink convention), and hulls both tangents wherever
+    ///   the value channel hulls.
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self;
+
+    /// Range reduction into one period: `self − period·floor(self/period)`
+    /// — for `period > 0`, the representative of `self` modulo `period`
+    /// lying in `[0, period)` up to rounding (see below). The intended
+    /// use is periodic-parameter reduction: `θ.reduce_periodic(T::tau())`.
+    ///
+    /// **The compositional body IS the definition.** This is deliberately
+    /// a *projection* of [`Real::floor`] and the arithmetic ops — one
+    /// fixed formula, evaluated in exactly the written association
+    /// (divide, floor, multiply, subtract) — rather than a per-scalar
+    /// primitive (`rem_euclid` style), because that is what makes the
+    /// cross-instantiation contract hold with no per-type re-derivation:
+    /// the `Dual` value channel is bit-identical to the plain-`T` run *by
+    /// construction* (it executes the same four operations), the interval
+    /// instantiation contains the true reduced value *by composition* of
+    /// containments, and no comparison appears anywhere (`floor` is the
+    /// only nonsmooth ingredient, and it is comparison-free). A
+    /// remainder-based per-scalar definition would need all three
+    /// properties re-established per instantiation. Implementations may
+    /// override **only bit-identically** to this body (same clause as
+    /// [`Real::sin`]/[`Real::cos`]).
+    ///
+    /// **Honest rounding statement** (the seam blur): in floating point
+    /// the result can land a few ulps *outside* `[0, period)` — an input
+    /// a hair below a period multiple can round `self/period` up to the
+    /// integer, producing a slightly negative result; a hair above can
+    /// round it down, producing a result a hair above `period`. No
+    /// clamping is applied (that would be a comparison). Consumers that
+    /// need a topology-grade statement about the seam go through the
+    /// predicate layer, like every other decision.
+    ///
+    /// **What is promised across periods**: nothing bitwise. `2π` is not
+    /// representable, so `θ + k·fl(τ)` is a *different real parameter*
+    /// than `θ + k·τ`; reduced evaluations of `θ` and `θ + k·fl(τ)`
+    /// agree to rounding (a few ulps scaled by `k` and the derivative),
+    /// never bit-identically. At interval type the enclosure of the
+    /// reduction contains the true reduced value whenever the inputs
+    /// enclose theirs — the containment form of periodicity.
+    ///
+    /// Total: `period = 0` or poison in either operand poisons the
+    /// result through the division (NaN at `f64`, empty/NaI at
+    /// intervals); a negative `period` reduces into `(period, 0]`-ish by
+    /// the same formula (documented behavior, not an intended use).
+    fn reduce_periodic(self, period: Self) -> Self {
+        self - period * (self / period).floor()
+    }
+
+    /// The index of the `period`-branch of `self` nearest zero:
+    /// `⌊self/period + ½⌋`, the integer `k` for which `self − k·period`
+    /// lies in `[−period/2, period/2)`.
+    ///
+    /// The **branch-pin** primitive: a consumer holding a raw periodic
+    /// coordinate `raw` and a reference `near` shifts onto the branch
+    /// nearest the reference by `raw + (near − raw).periodic_branch(p)·p`.
+    /// Same construction rules as [`Real::reduce_periodic`] — a fixed
+    /// composition of `÷`, `+` and [`Real::floor`], comparison-free, so
+    /// the `Dual` value channel is bit-identical to the plain-`T` run
+    /// and the interval instantiation contains the true index by
+    /// composition of containments.
+    ///
+    /// **Where its enclosure is wide, and why that is honest**: at
+    /// interval type the result spans two integers exactly when the box
+    /// straddles a half-period offset — `self ≈ (k + ½)·period`, the
+    /// configuration in which the two nearest branches are equidistant
+    /// and the pin is a genuine tie. A consumer that must not be handed
+    /// a tie classifies the distance-to-tie through the predicate layer
+    /// first, like every other decision.
+    fn periodic_branch(self, period: Self) -> Self {
+        (self / period + Self::from_f64(0.5)).floor()
+    }
+
+    /// Range reduction into the period **centred on zero**: the
+    /// representative of `self` modulo `period` lying in
+    /// `[−period/2, period/2)`, up to the same rounding statement
+    /// [`Real::reduce_periodic`] carries.
+    ///
+    /// This is the reduction for a **signed** periodic quantity — a
+    /// difference of two angular coordinates, where "a little backward"
+    /// must read as a small negative number and not as almost a whole
+    /// period. [`Real::reduce_periodic`]'s `[0, period)` window is the
+    /// reduction for an *extent*, which is forward by construction.
+    ///
+    /// # Fold the raw difference; never a `[0, period)` reduction first
+    ///
+    /// Both windows are discontinuous, and which reduction to use is
+    /// decided by **where each one puts its jump**. `reduce_periodic`
+    /// jumps at multiples of the period — at a difference of ZERO,
+    /// which is precisely the value a coincidence gate is built to
+    /// recognise. This reduction jumps at half-period offsets instead,
+    /// so a difference near zero is in the window's interior and comes
+    /// straight back: `⌊x/p + ½⌋` is `0` there, and the result is
+    /// `x − p·0 = x`, exactly.
+    ///
+    /// **Where "there" ends, in floating point.** The identity holds
+    /// for every `x` with `fl(fl(x/p) + ½) < 1`, which is very nearly
+    /// but not exactly `(−p/2, p/2)`: rounding can carry the sum up to
+    /// `1` a float or two BELOW the half period. At `p = τ` the top two
+    /// floats of `[0, π]` do exactly that — `fl(π/τ)` is exactly `0.5`
+    /// (τ is `2·fl(π)`, doubling is exact) and `nextbelow(π)/τ` rounds
+    /// to `0.49999999999999994`, which `+ ½` rounds half-to-even back
+    /// up to `1.0` — so both return `x − p` rather than `x`. State the
+    /// rounding condition, not the mathematical interval, wherever a
+    /// gate is made to depend on this identity. One further caveat:
+    /// `x = −0.0` returns `−0.0` here and `+0.0` from
+    /// [`Real::reduce_periodic`]; equal in value, different in bits.
+    ///
+    /// The consequence at interval type is the reason this helper is
+    /// named rather than open-coded at each site: an argument box
+    /// straddling zero reduces to a box of the SAME WIDTH, where
+    /// composing this fold on top of a `[0, period)` reduction of the
+    /// same quantity would hand the outer fold a box already widened to
+    /// a whole period by the inner one. The composition is the shape to
+    /// avoid; folding the raw difference once is the shape to write.
+    ///
+    /// Its own jump, at `±period/2`, is a real discontinuity of the
+    /// signed representative and a box straddling it honestly encloses
+    /// both signs — a consumer that cannot accept that classifies the
+    /// distance to the half-period through the predicate layer.
+    fn reduce_periodic_centred(self, period: Self) -> Self {
+        self - period * self.periodic_branch(period)
+    }
+}
+
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison ([`Real::is_poison`]). So the
+/// self-difference IS the question, which is why the equal-operands
+/// lint is allowed here and nowhere near it. An enclosure answers YES
+/// however wide it is (a finite interval's self-difference is a finite
+/// interval around zero, and an enclosure whose upper end overflowed
+/// still contains its truth) — the honest scope: this catches the
+/// point scalars, which is where an infinite length turns into a
+/// definite wrong answer.
+///
+/// **It is a statement about a SCALAR, and it sits at the bottom
+/// because every crate that has directions has to be able to ask it.**
+/// The arithmetic whose failure mode it names is
+/// [`Vec3::normalize`](crate::Vec3::normalize)'s, which is the
+/// neighbour to read it beside: components beyond ~1e154 overflow the
+/// norm to ∞, the ∞ length reads maximally DEFINITE to
+/// [`Decide`](crate::Decide), and the division collapses the direction
+/// to the zero vector. A home in
+/// a geometry crate above this one puts the single spelling out of
+/// reach of the crates below it — `profile` depends on this crate
+/// alone — and a rule with two spellings is two rules.
+///
+/// **Every decide-then-normalize direction door in the workspace asks
+/// this first**, and the claim is the enumeration, not a generality:
+///
+/// - [`decide_unit_direction`](crate::decide_unit_direction) — the one
+///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
+///   datum door, the evaluation layer's `unit()`, and every one of
+///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
+///   roll offset and the ladder's rungs reach it through
+///   [`OrthoFrame::from_aim`](crate::OrthoFrame::from_aim));
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, which asks it of each bounding chord
+///   separately because its arm is their `min` and [`Real::min`]
+///   propagates `NaN` but not infinity, so a `min` hides an
+///   OVERFLOWED chord behind a finite one;
+/// - `profile`'s two 2-D director doors (`unit_from_components`,
+///   `arc_fillet::carrier_tangent`).
+///
+/// Each refuses with its own typed arm, naming the recourse its own
+/// caller can reach: the question is one question, but what a caller
+/// can DO about an overflowed direction differs by door — a spelled
+/// component pair is divided through for free, a derived displacement
+/// is not.
+///
+/// **This roster is hand-kept and nothing enforces it.** It is a
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
+/// edit it. Treat it as a reading aid, not as a census; the census
+/// that is checked is `docs/K-REPORT.md`'s, and it is about decided
+/// names rather than about this question.
+///
+/// **The declined half of the family: normalize-without-deciding.**
+/// A site that normalizes a vector whose length it never decides at
+/// all is a different shape — there is no sign question in front of
+/// it to put this one before — and closing it is not this predicate's
+/// job as things stand. Known instances, and the count is a floor
+/// rather than a total because nothing sweeps for them:
+/// `geom-brep`'s `enters::enters_material`, which decides a
+/// caller-supplied arm and then normalizes a `dir` whose own length is
+/// never asked about — a `pub` door. Filed as
+/// `work/fix/normalize-without-the-length-question-two-more-sites`.
+pub fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
+/// **Did this length UNDERFLOW to zero?** — the other end of
+/// [`is_finite_length`]'s arithmetic, asked through the same value
+/// channel, with no bracket read and no threshold invented.
+///
+/// `len` is a vector's computed norm and `witness` the largest
+/// absolute value among the components it was computed from. **That
+/// pairing is the contract**, and it is what makes the two divisions
+/// below a decision: the norm is never smaller than the largest
+/// component and never larger than `√n` times it, so `len / witness`
+/// and `witness / len` are both bounded ratios — unless `len` came
+/// out exactly zero. Then `witness / len` is `±∞` if the vector has
+/// any nonzero component, and the scalar's poison (`0/0`) if it does
+/// not, which is exactly the two cases this question separates:
+///
+/// - **the length underflowed** — components below ~1e-162 at `f64`
+///   square to zero, so `norm_squared` and the norm are exactly zero
+///   for a vector that has a perfectly good direction. Dividing by
+///   that norm blows the direction up to `±∞`
+///   ([`Vec3::normalize`](crate::Vec3::normalize)'s underflow note);
+/// - **the vector is the zero vector**, which really does name no
+///   direction.
+///
+/// No tolerance separates them and no tolerance recovers the first:
+/// the squared norm is zero at every ε, so a door that decides the
+/// length's sign answers `Zero` either way. The only recourse for an
+/// underflowed direction is the overflow end's — scale the geometry
+/// into the session's range — which is why the two are different
+/// facts about the input and get different refusals.
+///
+/// **Ask it AFTER [`is_finite_length`], never instead of it.** A
+/// poisoned or overflowed length makes both ratios non-finite for
+/// reasons that have nothing to do with underflow, so this question
+/// is only meaningful once the length is known to be a finite number.
+///
+/// **The witness is derived, never invented**:
+/// [`Vec2::norm_witness`](crate::Vec2::norm_witness) and
+/// [`Vec3::norm_witness`](crate::Vec3::norm_witness) are the two
+/// doors that spell it, and a caller that reaches past them is making
+/// a claim this signature cannot check.
+///
+/// **Which doors ask it**, and the claim is the enumeration rather
+/// than a generality — hand-kept, like its sibling's roster, and
+/// exactly as current as the last person to edit it:
+///
+/// - [`decide_unit_direction`](crate::decide_unit_direction), behind
+///   the datum door, the evaluation layer's `unit()` and every one of
+///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
+///   arm — the arm is the two chords' `min`, which has no witness of
+///   its own and which an underflowed chord always wins, so asking the
+///   arm would refuse without ever naming the cause.
+/// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
+///   displacement from the arc centre.
+///
+/// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
+/// [`is_finite_length`] and deliberately not this: the pair it refuses
+/// is SPELLED by the caller rather than derived, so its existing
+/// `ZeroDirection` sentence is true of an underflowed pair and its
+/// recourse — scale the components up, which costs nothing because only
+/// their ratio is read — is already the one that works. A new arm there
+/// would separate two inputs that want the same answer.
+///
+/// **It bites at the point scalars, exactly as the finiteness
+/// question does.** At an interval scalar a norm whose lower end
+/// underflowed still ENCLOSES the true length — `[0, 3.1e-162]` for a
+/// `1e-180` component, not `[0, 0]` — so `witness / len` is an
+/// unbounded enclosure rather than poison, the answer is `false`, and
+/// the enclosure lane goes on deciding against the band as before.
+pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
+    !is_zero_length(len, witness) && !is_finite_length(witness / len)
+}
+
+/// **Is this the ZERO vector?** — the other case
+/// [`is_underflowed_length`] separates out, and the one spelling of
+/// that half of its arithmetic (the underflow door is written over this
+/// one), asked with the same pairing through the value channel, with no bracket
+/// read and no threshold.
+///
+/// `len` and `witness` are exactly [`is_underflowed_length`]'s pair,
+/// and so is the precondition: **ask it AFTER [`is_finite_length`] of
+/// `len`, never instead of it.** Of a finite length, `len / witness` is
+/// the scalar's poison (`0/0`) exactly when both are zero — the vector
+/// has no nonzero component — and a finite ratio otherwise, `0`
+/// included (an underflowed length, whose direction is fine). An
+/// OVERFLOWED length breaks that: `∞ / witness` is not finite for a
+/// vector with perfectly finite components, which is why the
+/// precondition is not optional — a caller that skips it names a large
+/// direction the zero vector.
+///
+/// It bites at the point scalars and at the interval scalar alike for
+/// an exactly-zero vector: `[0, 0] / [0, 0]` is the empty interval,
+/// which is poison.
+///
+/// **Which doors ask it** — hand-kept, like its siblings' rosters:
+///
+/// - `topo`'s tier-3 check 1, of every stored direction of an analytic
+///   surface or edge carrier — a plane's `normal`, the `axis` and
+///   `u_ref` of the axisymmetric kinds, a line's `dir` — where a zero
+///   one is a datum that describes no locus. It does not DECIDE the
+///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
+///   job, metered and band-relative): a datum is asked whether it is
+///   the zero vector, not whether it is short.
+pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
+    !is_finite_length(len / witness)
+}
+
+/// Bracket extraction off a scalar — deliberately a separate trait, never
+/// folded into [`Real`], and **not** the certification door.
+///
+/// Carrying a bracket is not permission to certify. Since the D1 ruling of
+/// 2026-08-19 a [`Dual`](crate::Dual) implements this trait, and it still
+/// does not implement [`CertifiedEnclosure`], which is the certification
+/// door; the two questions have separate traits so that a caller has to
+/// say which one it is asking. [`Real`] omits bracket extraction
+/// altogether, so evaluation code cannot silently collapse an interval to
+/// a number (see the [module docs](self)); this trait is the separate door
+/// those docs promised.
+///
+/// # The scope rule (M0 L7, under the evaluation-code discipline)
+///
+/// A `Bounds` bound appears only in **certification and driver code** —
+/// residual certification, the subdivision driver, rendering/telemetry —
+/// never in an evaluation signature; and that code writes `T: Bounds` as
+/// the parameter's **sole** bound (it is a subtrait, so [`Real`]'s
+/// operations come with it). An *extra* bound tacked onto an evaluation
+/// type parameter is exactly the escape hatch
+/// `scripts/gates/bounds-allowlist.sh` exists to catch, and the compound
+/// form is what that gate greps for.
+///
+/// **A NAMED compound bound is the same obligation as the literal
+/// spelling.** A trait that gathers a decision door and a bracket door
+/// under one name — `trait ArcCarrierScalar: Decide + Bounds`,
+/// `trait EvalScalar: Decide + … + Bounds` — hands every `T: ThatName`
+/// exactly the parameter this rule refuses, written so that no
+/// `+ Bounds` appears at the use site. The rule reads through the name:
+/// declaring one IS writing a compound bound and needs a ratification
+/// of its own, at whichever home that ruling has — this ledger, or the
+/// declaring file's own module docs, which is where
+/// `ArcCarrierScalar`'s LIB-G2 LB3 lives — and every use of the name
+/// carries the obligation the name gathers.
+///
+/// **Brackets never decide**, and that is checked before any necessity
+/// argument is weighed. Every topology-determining branch stays a
+/// [`Decide`](crate::predicate::Decide) call site — a trilean, with its
+/// in-band arm — while a bracket may prune a candidate set, drive a
+/// subdivision, or be reported. A parameter that needs a bracket in order
+/// to decide something OUTSIDE the trilean is not a weak seam candidate,
+/// it is the escape hatch itself, and no demonstration of necessity
+/// redeems it: such a candidate is refused rather than weighed.
+///
+/// **The ratified exceptions have their own home**, [`bounds_allowlist`]:
+/// one entry per seam, with the necessity argument that earned it. It
+/// lives beside this trait rather than inside this doc because it is the
+/// part that grows — see that module's own header.
+///
+/// **Extension (SEAT-4, authorized under the M7-8 precedent;
+/// retroactive Ev review per the self-merge convention):**
+/// `verbs::run` — the verb vocabulary's dispatch site — joins
+/// the compound allowlist as the narrowest possible extension of the
+/// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
+/// obligation because it DELEGATES to already-listed doors
+/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
+/// boolean's migration also `topo::boolean_op_with`, itself listed
+/// under the M5 PR 8 BVH candidate-generation allowance; since the
+/// sweeps' and the split's migrations also `sweep::extrude`,
+/// `sweep::revolve` and `topo::split`, the last of which asks for no
+/// [`Bounds`] at all), passing its operands and parameters through
+/// unchanged, and therefore inherits their signatures rather than
+/// widening the rule's reach.
+///
+/// **It clears the first thing an entry owes** — that its reads stay
+/// on the prune/report side — vacuously and checkably: the file
+/// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
+/// comparison; the bound appears exactly once, as an INLINE bound on
+/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
+/// (not a `where` clause — the earlier wording of this entry said
+/// `where`-position and was simply wrong about the syntax), purely so
+/// the callee's bound is satisfiable. Nothing there decides anything,
+/// in or out of the trilean.
+///
+/// **That "no read at all" clearance is a REVIEW-TIME MEASUREMENT, not
+/// a guarded invariant**, and the distinction is worth the sentence
+/// because the entry's whole force rests on it. The gate script
+/// (`scripts/gates/bounds-allowlist.sh`) checks that a compound
+/// `Bounds` bound appears only in allowlisted FILES; it does not check
+/// that an allowlisted file abstains from reading brackets. So a later
+/// edit could add a `lo()`/`hi()` comparison to this file and no row
+/// anywhere would redden — the abstention was verified by reading the
+/// file at ratification and holds only as long as someone keeps
+/// reading it. Every entry in this allowlist carries that same
+/// exposure; this one states it rather than leaving a reader to assume
+/// the gate is stronger than it is.
+///
+/// **On the second — the WEAKEST bound that works, with the next
+/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
+/// the callees require it. The next tighter bound,
+/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
+/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
+/// blend lowering runs beneath `evaluate<T>`, a mixed pass
+/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
+/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
+/// entry's discriminator, not the M9-2 one: a generic mixed pass does
+/// call this door, so it keeps its lane rather than tightening.
+///
+/// The seam did not widen here; it acquired a file. The refusing-lane
+/// question is answered where it was already answered: the PR 12 entry
+/// above, under the delegation rule, for the doors this one calls.
+///
+/// **The file carries ONE compound header, and the second seam
+/// SEAT-9 allows for has nothing in it** — the allowance stands and
+/// covers nothing. What it was written for was the shell door's own
+/// header: `verbs::run`'s shell arm delegates to `topo::shell_open`,
+/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` (already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
+/// certified at-rest entry), and a bound that names the callee's
+/// rights cannot be merged into the first header: the paragraph above
+/// records that tightening `Decide + Bounds + AtRestPolicy` to a
+/// certifying bound breaks `editor_core::eval::wire`'s
+/// `Dual`-instantiated blend lowering. That right is now a VALUE the
+/// caller passes — `topo::ShellDoor`, whose one constructor carries
+/// the certifying bound — so the seat's shell arm takes the door as a
+/// parameter and rides the first header like every other verb, with
+/// the delegation rule covering it on the same terms: it passes its
+/// operand, its thickness and its designation through unchanged,
+/// reads no bracket, and decides nothing in or out of the trilean. A
+/// door whose right cannot be carried in a value is what would put a
+/// second header back here, and that is what this allowance is for.
+///
+/// The "no bracket read at all" clearance above still describes the
+/// whole file, and it is still a review-time measurement rather than a
+/// guarded invariant, for the reason that paragraph gives.
+///
+/// # Semantics
+///
+/// `[lo(), hi()]` brackets every real number the scalar stands for. For
+/// `f64` the bracket is the value itself (`lo` = `hi`); for the interval
+/// scalar it is the enclosure of the **true** value of the computation —
+/// not of any particular `f64` evaluation of it. A libm-computed `f64` can
+/// land *outside* a tight enclosure of a transcendental result (libm makes
+/// no correct-rounding guarantee — its divergence from std reaches 4 ulps
+/// in the census; no faithful-rounding violation was found in 5.6M
+/// samples, but none is promised — while the enclosure is correctly
+/// rounded), so certification code bounds *residual quantities* computed
+/// at interval type and never asserts "f64 value ∈ enclosure" for
+/// transcendental results (exact operations — `+`, `·`, `sqrt` — are
+/// correctly rounded at `f64` and may be asserted contained).
+///
+/// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
+/// NaN from both accessors, and the interval scalar yields NaN from both
+/// accessors for **both** the ill-formed interval (NaI) and the empty one.
+/// Empty and NaI are deliberately indistinguishable through this trait:
+/// IEEE 1788's canonical empty pair (+∞, −∞) would let `hi() ≤ ε` PASS for
+/// a poisoned-to-empty residual, and failing certification outranks
+/// representational honesty. A NaN bracket fails every downstream
+/// `residual ≤ ε` certification loudly (`NaN ≤ ε` is false under every
+/// comparison direction — the D4 ¶2 fail-loud path): certification treats
+/// such a bracket as failed, never as data.
+///
+/// # The two shapes that are not decisions (#990, ratified 2026-08-27)
+///
+/// A door outside the seams has no non-metered spelling for *request
+/// validity*, and no `f64` out of a `T: Decide` for a refusal payload.
+/// Neither needs a seam, because neither is a kernel decision:
+///
+/// 1. **Request validity dissolves at the signature.** Caller-intent
+///    magnitudes enter doors as plain `f64` — or, where the constraint is
+///    expressible in the type, as a validating newtype whose constructor
+///    is the single refusal site — and are lifted into `T` only after
+///    validation (`topo::shell`'s `thickness` is the pattern). No bracket
+///    is read and no row meters the caller. A door that takes its request
+///    in `T` is the thing to fix, not to allowlist.
+/// 2. **Refusal payloads need nothing new**, since (1) leaves a refusing
+///    door holding the caller's own number. What remains are DERIVED
+///    quantities — margins, realized radii, values that exist only at `T` —
+///    and those are deliberately NOT echoed outside the ratified seams: an
+///    `f64` in an error payload is a branchable channel, the same unmetered
+///    decision surface at one remove, so the honest spelling outside a seam
+///    is the variant name plus the run's threshold. A door that wants to
+///    echo a derived margin is asking to be a seam, ratified individually.
+///    **No general projection helper exists, by this ruling** — a
+///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
+///    precisely what was asked for and refused. The classify seam's own
+///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    scalar's `Decide` impl on every outcome of a verdict the funnel
+///    records under its name (definite and indeterminate alike), is the
+///    one projection of a decided margin. A refusal payload may echo it,
+///    for error reporting only: a recourse table or a door's message
+///    chooses its words from it, and nothing decides on it. Its type
+///    makes that structural, not a convention — it offers no value a
+///    comparison could read in passing, so deciding on it takes an
+///    obviously wrong, visibly named step that review and a gate can
+///    see.
+///
+/// For genuine decisions nothing changes: the metered predicate layer is
+/// the only spelling — it IS the "definite sign or indeterminate" trilean,
+/// plus the two things a bare helper lacks (the NAME in the verdict log,
+/// and escalation as the forced disposition of indeterminate). A
+/// free-floating bounds-comparison helper would be the #701 evasion (a
+/// bracket reader under a name the gate does not read) with better
+/// manners, and stays out.
+///
+/// # The direction rule for terminal grants (#571, A′'s ruling)
+///
+/// A terminal grant from `Bounds` is legitimate only when the granted
+/// claim lies in the bound's CONSERVATIVE direction: a box-disjointness
+/// answer IS a sound disjointness certificate for the contents
+/// (sufficient-not-necessary; touching-or-overlapping boxes with disjoint
+/// contents refuse or escalate — the safe failure direction), whereas a
+/// terminal grant of an EXISTENCE or overlap claim from boxes would be the
+/// violation. The two #990 shapes never reach this rule: neither branches
+/// on a bracket, so neither is a terminal grant at all.
+pub trait Bounds: Real {
+    /// The infimum of the bracket the scalar carries — the value itself
+    /// where the bracket is a point, NaN where the value is poison.
+    fn lo(self) -> f64;
+
+    /// The supremum of the bracket the scalar carries — the value itself
+    /// where the bracket is a point, NaN where the value is poison.
+    fn hi(self) -> f64;
+}
+
+/// `f64` brackets itself exactly: `lo` = `hi` = the value. NaN stays NaN —
+/// poison surfaces through the bracket, never silently narrows away.
+impl Bounds for f64 {
+    fn lo(self) -> f64 {
+        self
+    }
+
+    fn hi(self) -> f64 {
+        self
+    }
+}
+
+pub mod bounds_allowlist {
+    //! The ratified compound-bound seams, one entry per ratification.
+    //!
+    //! **A module and not a section of [`Bounds`](super::Bounds)'s own doc, because this is
+    //! the part that GROWS.** The rule, the contract and the two standing
+    //! rulings above are finished text; this ledger gains an entry every time
+    //! a seam is ratified, and while it sat inside the trait's doc block that
+    //! growth pushed the rule further from the top on every landing — which
+    //! is the shape the finding behind this move was about. Here it can grow
+    //! without moving anything a reader is looking for, and it is still in
+    //! `real.rs`: every pointer into it names an entry by its ruling's LABEL
+    //! and DATE (`scripts/gates/bounds-allowlist.sh`'s header, `topo`'s
+    //! `boolean/reduce.rs`, `chart_region.rs`, `separation.rs`), and a label
+    //! survives a move that a line number would not.
+    //!
+    //! Nothing here is a separate rule from [`Bounds`](super::Bounds)'s: the scope rule, the
+    //! *brackets never decide* clause and the necessity standard are stated
+    //! there and are what this ledger's entries are ratified AGAINST.
+    //!
+    //! Every seam ratified to write a compound bracket bound, in the
+    //! order they were ratified, each with the necessity argument that
+    //! earned it. **New entries are appended here**, and nothing checks
+    //! that — it is a convention kept by hand, like the entries
+    //! themselves; what the module buys is that keeping it costs the
+    //! rule above nothing.
+    //!
+    //! **What the rule is FOR**, in Ev's words: the gate exists "to avoid
+    //! the dangerous pattern when not necessary, so if it is necessary it's
+    //! fine". The rule is not a budget on how many seams may exist, and an
+    //! extension is not earned by RESEMBLING one already listed. What a
+    //! candidate owes is a demonstration of **necessity**, and the
+    //! demonstration is the ratifiable artifact: it must name the **weakest**
+    //! bound that works and show the next tighter one FAILING. An argument
+    //! that a bound *suffices* is not the argument this rule asks for.
+    //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
+    //! for the reasons rather than restating them.
+    //!
+    //! **2026-07-29 (M5 PR 8) — the driver amendment.** Spatial-index /
+    //! candidate-pruning DRIVER code — the C10 `bvh` crate and the certified
+    //! box constructors beside their invariants — and the boolean-sweep +
+    //! evaluation-service seams that feed it may write `T: Decide + Bounds`:
+    //! that code is simultaneously decision code (`Decide`) and the
+    //! subdivision driver (`Bounds`), so the sole-bound form is unsatisfiable
+    //! there. `topo::separation` — LIB-PLACEDUNION's placement certificate —
+    //! falls under this entry rather than a new one: a certified box
+    //! constructor beside its invariants plus a query driver over the C10
+    //! tree, deciding no topology.
+    //!
+    //! `topo::census` — the at-rest census's BVH pre-filter — falls under
+    //! this entry on the same terms: `census::Trees` builds the C10 tree's
+    //! item boxes through the certified box constructors (`face_box`,
+    //! `edge_box`, a vertex point widened by the sweep pad) and
+    //! `census::Candidates` drives the tree's queries, deciding nothing —
+    //! the exact sweeps that follow decide. The weakest bound that works
+    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
+    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
+    //! census is decision code on the same scalar. Sole `Bounds` fails —
+    //! the sweeps call the funnel — and sole `Decide` fails — no box can
+    //! be read without the bracket, so there is no tree to query. The
+    //! bound rides the three `validate` doors that reach the census
+    //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
+    //! and the `via` they share) as a REACHABILITY ride only: those
+    //! doors are validators, not driver code, and carry `T: Bounds`
+    //! because the census cannot be reached except through them — the
+    //! first time this amendment's bound rides onto a non-driver public
+    //! door, said plainly so the next ride is argued rather than
+    //! inherited.
+    //!
+    //! `Separation::of`, `Separation::certify` and `image` carry **no**
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
+    //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
+    //! `topo::graft_disjoint_all_keyed` asserts nothing about its operands,
+    //! #382). They are instantiable at `Dual64` and at `Dual<Interval>`, and
+    //! sound there **by delegation**: a dual's box endpoints are its value
+    //! channel's, bit-identically the plain-`T` run's (D9), so a dual run's
+    //! certificate is the base scalar's. **Whether they should carry
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
+    //! not the door** — the one production caller,
+    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
+    //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
+    //! by propagation. **Doors tighten; passes keep their lanes.** (The
+    //! NON-generic return type is not the discriminator; the M9-2 entry
+    //! states it. Whether an answer is *wrong* at a dual is a third question,
+    //! homed at `geom::projection_policy`'s `mid`, #874.)
+    //!
+    //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
+    //! certified-quadrature plumbing**, which decides (its `props_quad_*`
+    //! funnel margins) and reads brackets into certification arithmetic
+    //! (`Interval::from_certified`). Its split from
+    //! scalars that may not certify is STATIC and stands on two things:
+    //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
+    //! entry from the reporting walks, and the `quad_lane::*` signatures
+    //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
+    //!
+    //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
+    //! check certifying a sign rather than a precision). Nothing about the
+    //! seam's scope moved: the certified quadrature is entered over a round
+    //! WINDOW now, so where one function took the compound bound there are
+    //! a hook, a windowed walk and the certificate type that walk hands
+    //! back — every one of them the same lane, the same bound and the same
+    //! argument, and the `Decide` half is still what the `props_quad_*`
+    //! funnel needs while the bracket half is still what the crossing into
+    //! certification arithmetic reads.
+    //! The weakest bound that works is unchanged and so is the evidence
+    //! that the next tighter one fails: drop the bracket term and the
+    //! windowed walk cannot form `Interval::from_certified`; drop
+    //! `Decide` and no round can be accepted. The certificate type is
+    //! PUBLIC and carries the bound for the same reason its walk does —
+    //! it resumes that walk, so what it may read and what it may decide
+    //! are the walk's, scalar for scalar.
+    //!
+    //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
+    //! precedent; retroactive Ev review per the self-merge convention) — the
+    //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
+    //! decides (its six `fillet3_*` funnel margins) and CONSUMES ENCLOSURES —
+    //! a support's sup-normal-curvature hull through `curvature_lever_arm`, a
+    //! blend's setback bound off the analytic arm — reporting each offending
+    //! margin as an `f64` payload, which is a bracket read. Since
+    //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
+    //! written inside these same three files deliberately, so the
+    //! ratification covers the shared lane rather than a fourth file.
+    //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
+    //! a move with no design implication needs no ask): the two open bands'
+    //! carves left `surgery.rs` for `blend/open/planar.rs` and
+    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
+    //! over five files — the file list is the entry's spelling, the seam is
+    //! the ratified thing, and nothing about its scope was extended.
+    //!
+    //! It is the one allowlisted seam with **no refusing lane**, and the
+    //! written reason it needs none is the delegation rule below: every
+    //! predicate's `Ok`/`Err` in those files comes from a `decide(...)` call,
+    //! every `Bounds` read is a typed-error payload or a selection —
+    //! including the two that feed a classification or a mutation rather than
+    //! sitting after one (`battery.rs` → `chain_g1`, `surgery.rs` →
+    //! `body.split_edge`), sound by value-channel delegation — and nothing
+    //! there mints a certificate object. A lane whose refusing side would be
+    //! empty is dead code, not a guard.
+    //!
+    //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
+    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
+    //! feeds an error payload or report, or (b) selects among constructions
+    //! whose classification is value-channel-decided AND whose selected
+    //! quantity is locally constant in the parameters — sound by value-part
+    //! delegation: a dual's bracket is its value channel's, so the read's
+    //! branch is the base scalar's branch. The locally-constant condition is
+    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
+    //! only while the chosen quantity cannot move with a seed, and
+    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
+    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
+    //! needs a lane door in the `topo::QuadLane` shape, and admitting one
+    //! without a lane would be a ratified REVERSAL of DL5 on its own
+    //! evidence — not an entry this rule can grow.
+    //!
+    //! **M6-2 (under the PR 11/PR 12 precedent; retroactive Ev review) — the
+    //! SSI rung-3 certificate**: `geom_brep::ssi` (the `certify_rung3` door),
+    //! `geom_brep::ssi::certify` (the three limbs) and
+    //! `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
+    //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
+    //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
+    //! box-chain enclosure). Its refusing side is **not** empty:
+    //! the fitted door (`geom_brep::FittedLane`, answered by
+    //! `topo::AtRestPolicy::fitted_lane`) is held at `f64`,
+    //! [`Probe`](crate::Probe), the interval scalar and `Sym` over any of
+    //! them, and absent at [`Dual`](crate::Dual), dual bodies really
+    //! validating and really not holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
+    //! is the fitted lane's own seam and not a widening of it: its
+    //! constructor (`FittedLane::certified`) and that constructor's
+    //! pointer-identity helper carry the certification RIGHT the value
+    //! stands for, hold the three `pcurve_cache` bodies by pointer, and read
+    //! no bracket.
+    //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
+    //! decides nothing and takes the sole bound the rule already allows.
+    //!
+    //! **M7-8 (under Ev's #264 ruling) — `geom_brep::edge_nurbs`**, the
+    //! plane × NURBS declare-and-check edge lane and the narrowest possible
+    //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
+    //! door with a **declared** carrier instead of a marched one, inheriting
+    //! that door's signature rather than widening the rule's reach. It
+    //! is what keeps `Bounds` off `topo`'s doors: the lane is a sealed
+    //! VALUE (`geom_brep::NurbsLane`) whose one constructor carries the
+    //! lane bound, handed to the shared machinery as `_via(…, lane)`'s
+    //! argument, and `topo`'s doors read it off the scalar's policy
+    //! (`AtRestPolicy::nurbs_lane`). Injection moves a bound onto a
+    //! narrower signature; it does not remove one.
+    //!
+    //! **2026-09-02, amending the entry above rather than adding a row — the
+    //! lane's split is a BOUND, not a trait.** This lane's static split was
+    //! spelled as a `Decide` subtrait with three forwarding impls and a
+    //! refusing `Dual` one. The trait is deleted: the shared certified body
+    //! is the free function `geom_brep::plane_nurbs_limbs`, at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! exactly as before, and the one DOOR that names it carries
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
+    //! file joins this allowlist for that reason and no other; the
+    //! per-file scope consequence is real and is the price of writing the
+    //! obligation where a grep can read it, which is the whole point of
+    //! retiring the trait name. **The compound is forced rather than
+    //! preferred**: [`Decide`](crate::Decide) descends from `SpanLocate` and
+    //! [`Bounds`](super::Bounds) from [`Real`](super::Real), so no sole bound in
+    //! the tree spells "decides AND may certify" — the next tighter spelling
+    //! is not a weaker term but a missing one, and dropping either term stops
+    //! the door compiling. **What changed is the mechanism, not the
+    //! strictness**: a dual reached the trait and got
+    //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
+    //! the call, and the refusal variant is retired with the impl that raised
+    //! it. **What a mixed pass does instead**: `geom_brep`'s
+    //! `certify_via`/`recertify_via` take `Option<NurbsLane>` as the
+    //! shared body's argument — `NurbsLane` a sealed value whose one
+    //! constructor carries the bound above — and `topo`'s operations
+    //! fill it from the scalar's policy (`AtRestPolicy::nurbs_lane`,
+    //! `None` at a dual). The validators keep their shape: check 2
+    //! re-certifies through `recertify_via`, whose argument every door
+    //! bounded on the certification right fills (`validate_geometric`,
+    //! `validate_pseudomanifold`, `contact_marks` and their certificate and
+    //! declared forms) and every `_structural` door leaves empty — the M7-8
+    //! class is then not re-derived and, being outside those doors'
+    //! rights, not reported either (the lane's absence is its own
+    //! refusal, `CertifyError::NurbsLaneNotSupplied`).
+    //! **The symbolic tier needs no arm of its own and gains none**:
+    //! `Sym<T>` implements [`Bounds`](super::Bounds),
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
+    //! [`Decide`](crate::Decide) exactly when its base scalar does, so it
+    //! satisfies the free function's signature for every certifying base —
+    //! which is what the deleted trait's symbolic impl said with an impl.
+    //!
+    //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
+    //! `topo::chart_region`**, the chart-region overlap predicate: it decides
+    //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
+    //! through the bracket — the spec-mandated C6 inventory gate (a `Harmonic`
+    //! trig channel is straight only when its bracket is a point at exactly
+    //! `0.0`; the `props.rs` rectangle-trim read) plus the
+    //! bit-identical-region fast path — so a sole-bound form is unsatisfiable.
+    //!
+    //! **The door and the hook guard different things, and both are needed.**
+    //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
+    //! satisfies, so the predicate is uninstantiable at one however it is
+    //! reached — including from outside the crate, where no census is
+    //! running. The census's `Option<topo::RegionLane<T>>` parameter (one
+    //! constructor, at the door's bound; `None` from the `_structural` twin)
+    //! is not redundant with that: its `None` is what lets the census, a
+    //! MIXED pass, decline this one arm and keep going, which no bound on a
+    //! whole function can express.
+    //! The tightening replaced an audit rather than a wrong answer, and
+    //! **the discriminator is that nothing generic calls this door** — which
+    //! is why `topo::separation`, whose caller is a mixed pass, was not
+    //! tightened.
+    //!
+    //! **2026-08-29 (ratified by Ev in conversation) — `editor_core::checks`,
+    //! the advisory-check registry**, the **second production caller** of
+    //! `topo::separation`. Its bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds),
+    //! **not** `Decide + `[`Bounds`](super::Bounds): nothing generic calls `run_checks` (its
+    //! callers are the viewer at a concrete `f64`, the tour, and tests), so by
+    //! the M9-2 discriminator it falls on the tighten side and the tighter
+    //! bound builds the workspace with zero errors. It clears "brackets never
+    //! decide" first — no `lo`/`hi` call appears in the file, and its
+    //! bracket-derived verdicts (`SolidSeparation::certify`'s, and
+    //! `classify_shells`' through the `props_quad_*` funnel) decide only
+    //! whether a FINDING is emitted: the resident REPORTS and never gates
+    //! (DS6). One consequence crosses a unit boundary and is recorded here: no
+    //! `Dual` implements [`CertifiedEnclosure`](super::CertifiedEnclosure), so `editor_core::run_checks`
+    //! is no longer callable at one — DL1 holding one door further out, since
+    //! the registry's separation resident GRANTS a certificate. The suite
+    //! that pins it is `editor-core/tests/r1_dual_probes.rs`, whose
+    //! end-to-end rows build the dual body and the closure that would reach
+    //! the registry and record that the call cannot be written; that is the
+    //! only shape in which an unwritable call can be checked.
+    //!
+    //! **2026-09-02 — `topo::validate_geometric` and the two `topo::shell`
+    //! verbs**, the certified at-rest validator and the one verb that
+    //! validates what it built. Tier 3's battery is nine checks, eight of
+    //! which any deciding scalar answers and one of which — the +V global
+    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE when it
+    //! is made through the certified quadrature. The entry is therefore
+    //! two private functions, a structural phase at
+    //! `T: Decide + Bounds + AtRestPolicy` and a certified half at
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
+    //! composition, so its bound is the union and IS the compound one this
+    //! file ratifies. Its twin `validate_geometric_structural`, at the
+    //! structural phase's bound, holds no certified lane and makes the
+    //! orientation check through the closed form. `shell`/`shell_open` take the same bound because their
+    //! last act is that entry.
+    //!
+    //! **What it owes "brackets never decide", stated at the substance and
+    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
+    //! disclosed here rather than left to be discovered: check 1's
+    //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
+    //! analytic surface's or edge carrier's conventions state (`geom`'s
+    //! `Surface::representability_margins` — a cylinder's, sphere's or
+    //! torus tube's radius, and a cone half-angle's distance from each end
+    //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
+    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
+    //! for the axisymmetric kinds of both, the frame's unit-ness and
+    //! orthogonality stated as ε-slack margins at the kind's radius), the
+    //! representability read. The certified half's own
+    //! bracket read is `props`' certified quadrature, already ratified at
+    //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
+    //! its convention with zero — a radius that is zero, negative or poison
+    //! does not describe a small cylinder, sphere or torus, it fails to
+    //! describe one — so the read is about whether the datum lies inside
+    //! the convention its variant states and not about where geometry lies,
+    //! and the value never crosses into a certificate. It takes no `k_stats` name and
+    //! no band of its own precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent; where a convention is itself stated to
+    //! within the run's ε (the frame's), the ε is inside the margin `geom`
+    //! computes and the read still compares with zero — and the geometric
+    //! question beside it (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! bracket read behind a renamed accessor) has no instance here any
+    //! more: the accessor is gone and the read is spelled `Bounds::lo`
+    //! where a grep sees it. What this entry discloses is a different
+    //! shape — a bracket read that DECIDES NOTHING — with its one in-fence
+    //! instance written down, and the count is not left to prose:
+    //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
+    //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
+    //! counts the file's bracket reads over the code view against the
+    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
+    //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! alone does NOT compile, because the certified quadrature reads
+    //! [`Bounds`](super::Bounds) as well.
+    //!
+    //! **Why the obligation had to become literal at all**, since the door
+    //! was already closed to a dual before this row and by construction: it
+    //! was not closed. The quadrature lane TRAIT admitted a dual — its arm answered
+    //! "no certified quadrature" and the +V check reported that refusal at
+    //! run time — so the certification duty rode a trait name that spells
+    //! none of this gate's, invisible to every instrument. What changed is
+    //! the mechanism, not the strictness: the refusal is retired and the
+    //! call a dual cannot honour is unwritable instead. A dual keeps the
+    //! `_structural` twin, which holds no certified lane and is where every
+    //! certificate its bit-identity rows compare is produced.
+    //!
+    //! **What a future row owes instead of citing this one.** Two negative
+    //! results carried its first draft and neither reaches the question: that
+    //! the quadrature lane trait did not imply [`Bounds`](super::Bounds) (true, checked by
+    //! deleting the term), and that a refusing lane in that shape would have an
+    //! empty refusing side since D1 (also true). Both establish that SOME
+    //! bracket bound is needed, never that the WEAK one is.
+    //!
+    //! **Not an extension — a spelling.** The pair
+    //! `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
+    //! spelled [`CertifiedBounds`](super::CertifiedBounds) and is a **sole** bound by construction,
+    //! outside the rule's class rather than carved out of it: the rule catches
+    //! an evaluation or decision parameter that has also been handed bracket
+    //! extraction, and both halves of that pair are bracket-side doors. Adding
+    //! [`Decide`](crate::predicate::Decide) to it is a compound bound again
+    //! and needs ratification, which the gate enforces: its matcher is shaped
+    //! by the trait NAME, so it reads `Decide + CertifiedBounds` as compound
+    //! in either operand order, and a **sole** [`CertifiedBounds`](super::CertifiedBounds) does not
+    //! fire.
+}
+
+/// **"May this value enter certified code?"** — the other half of what
+/// [`Bounds`] used to mean, given a name of its own.
+///
+/// [`Bounds`] answers *"what bracket does this value carry?"*: `[lo(), hi()]` is a superset of every real the value stands
+/// for, read off storage, and it stays a sound bracket even when the
+/// computation that produced it left a domain somewhere — interval
+/// arithmetic still brackets the values the expression *was* defined on.
+/// Certification asks a strictly stronger question: *was the expression
+/// defined on the whole input box?* A bracket can be sound and still fail
+/// that, and code that must not certify a domain violation needs to be
+/// able to tell.
+///
+/// So this trait is not "a better [`Bounds`]" and does not replace it.
+/// It is the access-control half, split out, so that the two questions
+/// have separate doors and a caller has to say which one it is asking.
+/// It carries **no supertrait**: a body that needs a bracket accessor
+/// too holds both doors, and says so with the
+/// **sole** bound [`CertifiedBounds`] — still an honest inventory of the
+/// doors it uses, which is the point of the alias: the inventory is
+/// spelled as one name rather than as a compound bound the
+/// compound-`Bounds` gate would have to special-case. Write
+/// `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`. Making
+/// this a subtrait of [`Bounds`] would re-bundle exactly what is being
+/// split. Certification entry points bound by `CertifiedEnclosure` cannot be
+/// handed a value that merely *has* a bracket; containment checks bounded
+/// by [`Bounds`] keep working on values certification would refuse, which
+/// is exactly right — a `Trv` enclosure still contains what it claims to.
+///
+/// # Implementors
+///
+/// - `f64` — refuses on NaN, which is this lane's poison (D4's Q1
+///   residue: *∞ is not f64 poison*, so an infinity still certifies the
+///   degenerate bracket it is). The bracket is the value, so the value
+///   being poison IS the domain-violation channel; there is no second
+///   one to consult, and every finite or infinite `f64` certifies.
+/// - [`crate::Interval`] — refuses below `Decoration::Def`, the same
+///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
+///   for the same reason. Empty and NaI sit below it, so the NaN
+///   brackets they store never leave the door.
+/// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
+///   as `f64` does; D9 forbids the recording lane diverging.
+/// - [`crate::Sym`] — delegates to its numeric channel, so it refuses
+///   exactly where the scalar it wraps does.
+///
+/// Every one of them therefore honours one postcondition, which is what
+/// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
+/// carries a NaN end**. An infinite end is still possible and is not
+/// poison — `[−∞, ∞]` is a sound (useless) bracket of a real, and
+/// `Interval` certifies it at `Def`.
+///
+/// **[`crate::Dual`] is deliberately absent, and the absence is
+/// permanent** (`docs/DUAL-DESIGN.md` DL1, closing D1's hedge): a dual
+/// is tangent transport and never certifies. `Dual` implements
+/// [`Bounds`] and does **not** implement this trait, which is what
+/// holds the line — the only door between a dual and certified code.
+/// Reopening it would be a ratified reversal of DL1 on its own
+/// evidence, never an impl someone can add in passing.
+pub trait CertifiedEnclosure: Copy {
+    /// The bracket, or `None` if this value carries a domain violation.
+    ///
+    /// `Some([lo, hi])` promises both things at once: the pair brackets
+    /// every real the value stands for **and** the computation behind it
+    /// was defined on the whole input box. `None` is the refusal, and it
+    /// is a refusal rather than a NaN bracket on purpose — NaN would be
+    /// indistinguishable from arithmetic poison and would travel silently
+    /// through `f64` combinators (`f64::max` returns the non-NaN operand),
+    /// whereas a `None` the caller must destructure cannot be ignored.
+    fn certified_bracket(self) -> Option<(f64, f64)>;
+}
+
+/// `f64` refuses on NaN and only on NaN: the bracket is the value, so
+/// the value being poison is the whole of its domain-violation channel
+/// (see the trait docs, and D4's Q1 residue for why ∞ is not poison
+/// here).
+impl CertifiedEnclosure for f64 {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        (!self.is_nan()).then_some((self, self))
+    }
+}
+
+/// **Both bracket doors, for code that reads both** — the pair
+/// [`Bounds`] + [`CertifiedEnclosure`] under one name, so a body that
+/// needs the stored bracket *and* the fallible certified one writes a
+/// **sole** bound.
+///
+/// The two doors answer different questions — `[lo(), hi()]` is the
+/// bracket read off storage, `certified_bracket()` additionally promises
+/// the computation was defined on the whole input box — and certification
+/// code routinely asks both: it builds certification enclosures through
+/// the certified door ([`Interval::from_certified`](crate::Interval::from_certified),
+/// whose bound is this one) and reads raw endpoints for the containment and padding
+/// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
+/// is honest but is a *compound* bound in every mechanical sense, and the
+/// compound-`Bounds` rule on [`Bounds`] exists to catch a specific thing
+/// this is not (see that rule's `CertifiedBounds` paragraph). Named, it
+/// is a sole bound by construction.
+///
+/// # What this is not
+///
+/// It is **not** a general-purpose "give me brackets" bound. A parameter
+/// that only needs to read endpoints says `T: Bounds`; one that only needs
+/// the certified door says `T: CertifiedEnclosure`. Reach for this name
+/// only when the body genuinely uses both, and it does not license adding
+/// bracket access to evaluation code that had none — the reason to hold
+/// brackets out of evaluation signatures is unchanged by giving the pair a
+/// shorter spelling.
+///
+/// It is **not** an escape from the compound-`Bounds` rule.
+/// `T: Decide + CertifiedBounds` is a compound bound, fires
+/// `scripts/gates/bounds-allowlist.sh`, and needs ratification —
+/// correctly so, because that is exactly the thing the rule targets: one
+/// parameter that both DECIDES and reads brackets. So the guidance above
+/// — write the alias, not the pair — is safe to follow at a `Decide`
+/// site: it changes the spelling and not what is ratified.
+/// `geom_brep::ssi::certify`'s `probe_tube_chart` is that shape, writes
+/// the long form today, and is allowlisted by file on its own
+/// justification either way.
+pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
+
+/// Every scalar with both doors has the pair; the alias adds no obligation
+/// an implementor must opt into.
+impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
+
+/// Exponentiation by squaring over any [`Real`], the shared implementation
+/// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
+/// `n == 0` yields one **unconditionally** — the generic default takes the
+/// shortcut without inspecting the base (it cannot: [`Real`] deliberately
+/// exposes no poison test), so poison-aware implementations guard `n == 0`
+/// before delegating (f64's NaN guard; the interval scalar overrides the
+/// whole method). Total for every input; the multiplication order is fixed
+/// (deterministic per D9).
+pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
+    let mut result = T::one();
+    let mut acc = base;
+    // unsigned_abs handles n == i32::MIN without overflow.
+    let mut e = n.unsigned_abs();
+    while e > 0 {
+        if e & 1 == 1 {
+            result = result * acc;
+        }
+        e >>= 1;
+        if e > 0 {
+            acc = acc * acc;
+        }
+    }
+    if n < 0 { T::one() / result } else { result }
+}
+
+/// `f64` is the kernel's default scalar (D9 determinism notes per method).
+///
+/// Transcendentals go through the pure-Rust [`libm`] crate: system libm
+/// `sin`/`cos` differ across platforms in the last ulp — enough to flip a
+/// marginal predicate (D9). `sqrt` and `abs` use the std/hardware
+/// operations because IEEE 754 *requires* them to be exact/correctly
+/// rounded, so they are already bit-identical everywhere (and faster).
+impl Real for f64 {
+    /// **INEXACT**: `f64` compares one rounded number against another.
+    /// Its [`Real::register_equal`] refuses with
+    /// [`SymRegistration::Disputed`] for that reason, and the same
+    /// reason is why a theorem contradicted by this channel is a
+    /// dispute rather than a defect.
+    const WITNESS: Witness = Witness::Inexact;
+
+    const NAME: &'static str = "f64";
+
+    /// The identity — every `f64` embeds as itself, exactly.
+    fn from_f64(x: f64) -> Self {
+        x
+    }
+
+    fn zero() -> Self {
+        0.0
+    }
+
+    fn one() -> Self {
+        1.0
+    }
+
+    fn pi() -> Self {
+        core::f64::consts::PI
+    }
+
+    fn tau() -> Self {
+        core::f64::consts::TAU
+    }
+
+    /// Std/hardware sqrt, not libm: IEEE 754 requires `sqrt` to be
+    /// correctly rounded, so it is bit-identical on every conforming
+    /// platform — D9-compliant and faster than a soft implementation.
+    /// `sqrt(x) = NaN` for `x < 0` (totality policy; `sqrt(-0.0) = -0.0`
+    /// per IEEE 754).
+    fn sqrt(self) -> Self {
+        f64::sqrt(self)
+    }
+
+    /// Std abs, not libm: it only clears the sign bit — exact on every
+    /// platform, trivially D9-compliant.
+    fn abs(self) -> Self {
+        f64::abs(self)
+    }
+
+    /// `f64`'s one poison value is NaN.
+    fn is_poison(self) -> bool {
+        self.is_nan()
+    }
+
+    /// **The witness at a point** ([`Real::register_equal`]): `f64`
+    /// tracks no expression, so there is nothing to record — what it
+    /// can do is say whether the two values ARE the same real, which is
+    /// the half of the door's contract that keeps a constructor from
+    /// stating something it did not build.
+    ///
+    /// **The slack is the run's ε, RELATIVE to the larger magnitude and
+    /// floored at one**: `|a − b| ≤ tol.eps() · max(|a|, |b|, 1)`. Each
+    /// of the three parts is a decision.
+    ///
+    /// - **The run's ε**, because this gates whether a registration is
+    ///   RECORDED, and a fixed constant is loosest exactly where the
+    ///   numeric-first shield is tightest: at ε = 1e-12 a constant of
+    ///   1e-9 admits two sides a thousand band-widths apart. It arrives
+    ///   as `tol` rather than being read ([`Real::register_equal`]).
+    /// - **Relative**, because ε is a length in metres and `f64`
+    ///   rounding at coordinates of 10⁹ is ~10⁻⁷: an absolute ε refuses
+    ///   a TRUE identity far from the origin. Measured, not reasoned —
+    ///   the absolute spelling turns `mesh`'s far-placement ball probe
+    ///   and `sweep`'s tube-wall radii probe red in this lane.
+    /// - **Floored at one**, so a pair near the origin is compared
+    ///   absolutely at ε and the relative form does not shrink to zero
+    ///   slack where the magnitudes do.
+    ///
+    /// **The cost, stated rather than implied.** Tying the slack to ε
+    /// LOOSENS it at a loose ε: at ε = 1e-6 this witness admits two
+    /// sides a thousand times further apart than the retired 1e-9
+    /// constant did, so a lie between those two scales is now recorded
+    /// where it was refused. That is the same trade in the other
+    /// direction as the tightening at 1e-12, and it is the one a run
+    /// asked for by choosing its ε: a registration is an axiom the
+    /// registrant's proof carries, and this witness only ever refused
+    /// what was visible at the point. Measured: no additional
+    /// registration is recorded on any measured document at 1e-6
+    /// (`m10_9_no_registrant_lies_on_any_measured_document` pins
+    /// `registered` per document, identical at all three rows).
+    ///
+    /// **This witness is INEXACT** — [`Real::WITNESS`] is
+    /// [`Witness::Inexact`] at this scalar, and this arm is that const
+    /// spelled as a refusal — **so its refusal is
+    /// [`SymRegistration::Disputed`] and never
+    /// [`SymRegistration::Contradicted`]**: a comparison at a slack
+    /// cannot tell a false claim from a true one the arithmetic lost at
+    /// this scale, and `Contradicted` is reserved for the exact witness
+    /// that can ([`crate::Interval`]'s meet). The same const is what
+    /// keeps a theorem this channel contradicts a counted dispute
+    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// a row pins the two together, so the door and the tier cannot
+    /// drift apart.
+    ///
+    /// A poisoned value witnesses nothing: NaN is not a real, so no
+    /// claim about it is checkable.
+    ///
+    /// It catches a lie AT THE POINT and nothing else — a claim true at
+    /// the nominal and false elsewhere passes here as it passes at
+    /// every scalar ([`Real::register_equal`]'s contract).
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        if self.is_nan() || other.is_nan() {
+            return SymRegistration::Unwitnessed;
+        }
+        let scale = self.abs().max(other.abs()).max(1.0);
+        if (self - other).abs() <= tol.eps() * scale {
+            SymRegistration::Witnessed
+        } else {
+            SymRegistration::Disputed
+        }
+    }
+
+    /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —
+    /// the generic `n == 0` shortcut would launder f64's only poison
+    /// representation into an exact 1 (the trait's poison-propagation
+    /// clause). `(±∞)⁰` stays 1: ±∞ is not f64 poison — infinite margins
+    /// are maximally definite (PR 3) — so only NaN takes the guard.
+    fn powi(self, n: i32) -> Self {
+        if n == 0 && self.is_nan() {
+            return f64::NAN;
+        }
+        powi_by_squaring(self, n)
+    }
+
+    fn sin_cos(self) -> (Self, Self) {
+        // Deliberately two separate libm calls, not libm::sincos: the
+        // bit-identity-with-the-projections contract is what matters, and
+        // `(libm::sin, libm::cos)` satisfies it by construction. libm has a
+        // fused `sincos`, but revisit only with evidence that a fused
+        // override is both bit-identical and worth the audit burden.
+        (libm::sin(self), libm::cos(self))
+    }
+
+    /// Overrides the [`Real::sin`] projection so scalar sine does not pay for
+    /// a discarded cosine. Trivially bit-identical to the projection: f64's
+    /// [`Real::sin_cos`] *is* the two libm calls `(libm::sin, libm::cos)`, so
+    /// this is exactly its first component (under test).
+    fn sin(self) -> Self {
+        libm::sin(self)
+    }
+
+    /// Overrides the [`Real::cos`] projection so scalar cosine does not pay
+    /// for a discarded sine. Trivially bit-identical to the projection: f64's
+    /// [`Real::sin_cos`] *is* the two libm calls `(libm::sin, libm::cos)`, so
+    /// this is exactly its second component (under test).
+    fn cos(self) -> Self {
+        libm::cos(self)
+    }
+
+    fn tan(self) -> Self {
+        libm::tan(self)
+    }
+
+    fn asin(self) -> Self {
+        libm::asin(self)
+    }
+
+    fn acos(self) -> Self {
+        libm::acos(self)
+    }
+
+    fn atan(self) -> Self {
+        libm::atan(self)
+    }
+
+    fn atan2(self, x: Self) -> Self {
+        libm::atan2(self, x)
+    }
+
+    /// NaN-propagating minimum: either input NaN ⇒ NaN. Deliberately NOT
+    /// `f64::min` (IEEE `minNum`), which would return the non-NaN operand
+    /// and silently drop a poisoned value. Ties (including `0.0` vs
+    /// `-0.0`) keep `self`. Raw comparison is allowed *inside* scalar
+    /// implementations; it is generic evaluation code that must not branch
+    /// on values (Q1).
+    fn min(self, other: Self) -> Self {
+        if self.is_nan() || other.is_nan() {
+            f64::NAN
+        } else if self <= other {
+            self
+        } else {
+            other
+        }
+    }
+
+    /// NaN-propagating maximum: either input NaN ⇒ NaN (see [`Real::min`]
+    /// on why `f64::max` is not used). Ties keep `self`.
+    fn max(self, other: Self) -> Self {
+        if self.is_nan() || other.is_nan() {
+            f64::NAN
+        } else if self >= other {
+            self
+        } else {
+            other
+        }
+    }
+
+    /// Std/hardware floor, not libm: IEEE 754 `roundTowardNegative` to
+    /// integral is an exact operation (the result is uniquely defined and
+    /// exactly representable), so it is bit-identical on every conforming
+    /// platform — D9-compliant, same posture as `sqrt`/`abs`. NaN
+    /// propagates; `±∞` stays (not poison); `floor(-0.0) = -0.0`.
+    fn floor(self) -> Self {
+        f64::floor(self)
+    }
+
+    /// IEEE `copySign` behind the trait's poison guard: either input NaN
+    /// ⇒ NaN (IEEE's own `copySign` is a non-arithmetic bit operation
+    /// that would launder a NaN `sign` into a definite choice — see the
+    /// trait docs). Otherwise an exact bit operation: the sign of a zero
+    /// `sign` argument is its sign bit. Raw `is_nan` inspection is
+    /// allowed inside scalar implementations (Q1), as in [`Real::min`].
+    fn copysign(self, sign: Self) -> Self {
+        if self.is_nan() || sign.is_nan() {
+            f64::NAN
+        } else {
+            f64::copysign(self, sign)
+        }
+    }
+
+    /// The IEEE comparison `self <= 0.0` behind the trait's poison
+    /// guard: a NaN decision cannot choose, so it poisons. Both signed
+    /// zeros take the `when_le` arm (`-0.0 <= 0.0` is true in IEEE
+    /// 754), which is what makes the tie sign-blind. An unread
+    /// candidate's NaN does not propagate — the trait docs give the
+    /// reason. Raw comparison is allowed inside scalar implementations
+    /// (Q1), as in [`Real::min`].
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        if self.is_nan() {
+            f64::NAN
+        } else if self <= 0.0 {
+            when_le
+        } else {
+            when_gt
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// The finiteness predicate answers the VALUE channel at every
+    /// scalar, and the interval arm is the one that would be wrong if
+    /// the self-difference were replaced by a bracket read: an
+    /// enclosure whose upper end overflowed still contains its truth,
+    /// so it is finite-as-a-value and only poison is not.
+    #[test]
+    fn is_finite_length_reads_the_value_channel() {
+        for x in [0.0, 1.0, -1e300, f64::MAX, f64::MIN_POSITIVE] {
+            assert!(is_finite_length(x), "{x} is a finite number");
+        }
+        for x in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(!is_finite_length(x), "{x} is not a finite number");
+        }
+        // The dual scalar answers about its VALUE: a finite value with
+        // any tangent is finite, a poisoned value is not.
+        assert!(is_finite_length(crate::Dual64::variable(3.0)));
+        assert!(!is_finite_length(crate::Dual64::constant(f64::INFINITY)));
+        // The overflow the predicate exists to catch, executed: the
+        // norm of a 1e200 component is not a number a direction can be
+        // divided by.
+        assert!(!is_finite_length(
+            crate::Vec3::new(1e200_f64, 0.0, 0.0).norm()
+        ));
+    }
+
+    /// The underflow predicate separates the two ways a norm comes
+    /// out zero, and the rows that matter are the ones a length
+    /// comparison alone cannot tell apart: a direction whose squared
+    /// norm fell out of the format, and the zero vector.
+    ///
+    /// The witness is always the largest |component|, which is the
+    /// pairing the predicate's contract names.
+    #[test]
+    fn is_underflowed_length_separates_underflow_from_the_zero_vector() {
+        fn ask(v: crate::Vec3<f64>) -> bool {
+            let w = Real::max(Real::max(v.x.abs(), v.y.abs()), v.z.abs());
+            is_underflowed_length(v.norm(), w)
+        }
+        // Underflowed: a direction, no length. The last two are
+        // SUBNORMAL components, where a predicate that tested
+        // `< f64::MIN_POSITIVE` instead of the value channel would
+        // have to choose a threshold.
+        for v in [
+            crate::Vec3::new(1e-180_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-180_f64, 1e-180, 1e-180),
+            crate::Vec3::new(0.0, -1e-200_f64, 0.0),
+            crate::Vec3::new(1e-320_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+        ] {
+            assert!(ask(v), "{v:?} has a direction and an underflowed norm");
+            // …and the normalization it would otherwise be handed is
+            // exactly the blown-up one the refusal exists to prevent.
+            assert!(!v.normalize().norm().is_finite());
+        }
+        // Not underflowed: the zero vector really has no direction,
+        // and every length that is merely SMALL is still a length —
+        // 1e-30 squares to 1e-60, which the format holds.
+        for v in [
+            crate::Vec3::new(0.0_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-30_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-160_f64, 1e-170, 0.0),
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert!(!ask(v), "{v:?} did not underflow");
+        }
+    }
+
+    /// The zero-vector door answers the zero vector and nothing else,
+    /// at `f64` and at the interval scalar, once its precondition has
+    /// held — and the precondition row shows why it is one: a finite
+    /// vector whose NORM overflowed would be named zero without it.
+    #[test]
+    fn is_zero_length_names_only_the_zero_vector_after_the_finiteness_question() {
+        fn ask<T: Real>(v: crate::Vec3<T>) -> Option<bool> {
+            let len = v.norm();
+            is_finite_length(len).then(|| is_zero_length(len, v.norm_witness()))
+        }
+        assert_eq!(ask(crate::Vec3::new(0.0_f64, 0.0, 0.0)), Some(true));
+        for v in [
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e-200_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+            crate::Vec3::new(1e150_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), Some(false), "{v:?} is a direction");
+        }
+        // Overflowed norms: the precondition refuses to ask, and the
+        // door asked anyway would answer the wrong thing.
+        for v in [
+            crate::Vec3::new(1e160_f64, 0.0, 0.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), None, "{v:?}'s norm overflows at f64");
+            assert!(is_zero_length(v.norm(), v.norm_witness()));
+        }
+        {
+            use crate::Interval;
+            let iv = |x: f64, y: f64, z: f64| {
+                crate::Vec3::new(
+                    Interval::from_f64(x),
+                    Interval::from_f64(y),
+                    Interval::from_f64(z),
+                )
+            };
+            assert_eq!(ask(iv(0.0, 0.0, 0.0)), Some(true), "[0,0]/[0,0] is empty");
+            assert_eq!(ask(iv(0.0, 0.0, 1.0)), Some(false));
+            assert_eq!(ask(iv(1e200, 0.0, 0.0)), Some(false));
+        }
+    }
+
+    // f64 has *inherent* sin/min/... (std) that shadow the trait methods on
+    // method-call syntax, so tests invoke the trait explicitly (`Real::sin`)
+    // or through generic helpers — otherwise we would be testing std, not
+    // our libm-backed impl.
+
+    /// Distance in ulps between two finite f64s (monotone integer mapping;
+    /// +0.0 and -0.0 both map to 0).
+    fn ulp_dist(a: f64, b: f64) -> u64 {
+        fn ord(x: f64) -> i64 {
+            let i = x.to_bits() as i64;
+            if i < 0 { i64::MIN.wrapping_sub(i) } else { i }
+        }
+        u64::try_from((i128::from(ord(a)) - i128::from(ord(b))).unsigned_abs())
+            .expect("ulp distance exceeds u64 — inputs were not comparable finite values")
+    }
+
+    /// A generic consumer of the trait, exercising that real evaluation
+    /// code can be written against `Real` alone.
+    fn hypotenuse<T: Real>(a: T, b: T) -> T {
+        (a * a + b * b).sqrt()
+    }
+
+    fn naive_powi(x: f64, n: i32) -> f64 {
+        let mut r = 1.0;
+        for _ in 0..n.unsigned_abs() {
+            r *= x;
+        }
+        if n < 0 { 1.0 / r } else { r }
+    }
+
+    #[test]
+    fn from_f64_is_exact_identity() {
+        for x in [0.0, -0.0, 1.0, -1.0, 2.5, 1e-308, -1e300, f64::INFINITY] {
+            assert_eq!(<f64 as Real>::from_f64(x).to_bits(), x.to_bits());
+        }
+        assert!(<f64 as Real>::from_f64(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn constants_are_exact() {
+        assert_eq!(<f64 as Real>::zero().to_bits(), 0.0f64.to_bits());
+        assert_eq!(<f64 as Real>::one().to_bits(), 1.0f64.to_bits());
+        assert_eq!(<f64 as Real>::pi(), core::f64::consts::PI);
+        assert_eq!(<f64 as Real>::tau(), core::f64::consts::TAU);
+        // Doubling is exact in binary floating point and rounding commutes
+        // with scaling by 2, so fl(2π) == 2·fl(π) exactly.
+        assert_eq!(<f64 as Real>::tau(), 2.0 * <f64 as Real>::pi());
+    }
+
+    #[test]
+    fn identity_laws_hold_exactly_on_samples() {
+        for x in [0.0, 1.0, -2.5, 1e-9, 1e12, -7.25e-3] {
+            assert_eq!((<f64 as Real>::zero() + x).to_bits(), x.to_bits());
+            assert_eq!((<f64 as Real>::one() * x).to_bits(), x.to_bits());
+        }
+    }
+
+    #[test]
+    fn generic_code_compiles_and_computes() {
+        // 3-4-5 triangle: 9 + 16 = 25 exactly, sqrt(25) = 5 exactly.
+        assert_eq!(hypotenuse(3.0f64, 4.0f64), 5.0);
+    }
+
+    #[test]
+    fn sqrt_totality_policy() {
+        assert!(<f64 as Real>::sqrt(-1.0).is_nan());
+        assert!(<f64 as Real>::sqrt(f64::NAN).is_nan());
+        // IEEE 754: sqrt(-0.0) is -0.0, and sqrt is correctly rounded.
+        assert_eq!(<f64 as Real>::sqrt(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(<f64 as Real>::sqrt(4.0), 2.0);
+        assert_eq!(<f64 as Real>::sqrt(f64::INFINITY), f64::INFINITY);
+    }
+
+    #[test]
+    fn abs_basics() {
+        assert_eq!(<f64 as Real>::abs(-2.5), 2.5);
+        assert_eq!(<f64 as Real>::abs(2.5), 2.5);
+        // abs clears the sign bit, so abs(-0.0) is +0.0 bitwise.
+        assert_eq!(<f64 as Real>::abs(-0.0).to_bits(), 0.0f64.to_bits());
+        assert!(<f64 as Real>::abs(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn powi_zero_exponent_is_one_except_for_poison() {
+        // The ±∞ rows are the deliberate carve-out: infinity is not f64
+        // poison (infinite margins are maximally definite, PR 3), so
+        // (±∞)⁰ = 1 like every other non-poisoned input.
+        for x in [0.0, -0.0, 2.5, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(<f64 as Real>::powi(x, 0), 1.0);
+        }
+        // NaN — f64's poison — propagates through n = 0 instead of
+        // laundering into an exact 1 (trait poison-propagation clause).
+        assert!(<f64 as Real>::powi(f64::NAN, 0).is_nan());
+    }
+
+    #[test]
+    fn powi_small_cases() {
+        assert_eq!(<f64 as Real>::powi(2.0, 10), 1024.0);
+        assert_eq!(<f64 as Real>::powi(2.0, -2), 0.25);
+        assert_eq!(<f64 as Real>::powi(-3.0, 3), -27.0);
+        assert_eq!(<f64 as Real>::powi(0.0, -1), f64::INFINITY);
+        assert!(<f64 as Real>::powi(f64::NAN, 1).is_nan());
+    }
+
+    #[test]
+    fn bounds_for_f64_is_the_identity_bracket() {
+        for x in [0.0, -0.0, 1.5, -1e300, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(Bounds::lo(x).to_bits(), x.to_bits());
+            assert_eq!(Bounds::hi(x).to_bits(), x.to_bits());
+        }
+        // Poison surfaces: a NaN value yields a NaN bracket, which every
+        // downstream certification comparison fails loudly (D4 ¶2).
+        assert!(Bounds::lo(f64::NAN).is_nan());
+        assert!(Bounds::hi(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn min_max_nan_propagation() {
+        let n = f64::NAN;
+        assert!(Real::min(n, 1.0).is_nan());
+        assert!(Real::min(1.0, n).is_nan());
+        assert!(Real::min(n, n).is_nan());
+        assert!(Real::max(n, 1.0).is_nan());
+        assert!(Real::max(1.0, n).is_nan());
+        assert!(Real::max(n, n).is_nan());
+        // Contrast: std f64::min would drop the NaN — the behavior we reject.
+        assert_eq!(f64::min(n, 1.0), 1.0);
+    }
+
+    #[test]
+    fn min_max_ties_keep_self() {
+        // Signed-zero ties are decided by argument position, not value.
+        assert_eq!(Real::min(0.0f64, -0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(Real::min(-0.0f64, 0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(Real::max(0.0f64, -0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(Real::max(-0.0f64, 0.0).to_bits(), (-0.0f64).to_bits());
+    }
+
+    #[test]
+    fn floor_exactness_and_poison() {
+        // Exact integral rounding toward −∞ on every kind of input.
+        assert_eq!(<f64 as Real>::floor(2.7), 2.0);
+        assert_eq!(<f64 as Real>::floor(-2.3), -3.0);
+        assert_eq!(<f64 as Real>::floor(2.0), 2.0);
+        assert_eq!(<f64 as Real>::floor(-2.0), -2.0);
+        // Signed zeros are preserved (floor is exact, no sign laundering).
+        assert_eq!(<f64 as Real>::floor(0.5), 0.0);
+        assert_eq!(<f64 as Real>::floor(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(<f64 as Real>::floor(0.0).to_bits(), 0.0f64.to_bits());
+        // ±∞ are not poison and pass through; NaN propagates.
+        assert_eq!(<f64 as Real>::floor(f64::INFINITY), f64::INFINITY);
+        assert_eq!(<f64 as Real>::floor(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(<f64 as Real>::floor(f64::NAN).is_nan());
+        // Above 2^52 every f64 is integral: floor is the identity there.
+        assert_eq!(<f64 as Real>::floor(9.1e15), 9.1e15);
+    }
+
+    #[test]
+    fn copysign_transfers_sign_and_propagates_poison() {
+        assert_eq!(<f64 as Real>::copysign(3.0, -1.0), -3.0);
+        assert_eq!(<f64 as Real>::copysign(-3.0, 1.0), 3.0);
+        assert_eq!(<f64 as Real>::copysign(3.0, 1.0), 3.0);
+        // The sign of a zero `sign` argument is its sign BIT (documented).
+        assert_eq!(<f64 as Real>::copysign(3.0, -0.0), -3.0);
+        assert_eq!(<f64 as Real>::copysign(3.0, 0.0), 3.0);
+        // Zero magnitude takes the transferred sign bitwise.
+        assert_eq!(
+            <f64 as Real>::copysign(0.0, -1.0).to_bits(),
+            (-0.0f64).to_bits()
+        );
+        // ±∞ magnitude is not poison.
+        assert_eq!(
+            <f64 as Real>::copysign(f64::INFINITY, -1.0),
+            f64::NEG_INFINITY
+        );
+        // Poison propagates through BOTH arguments — the deliberate
+        // deviation from IEEE copySign (which would return ±3.0 here).
+        assert!(<f64 as Real>::copysign(f64::NAN, 1.0).is_nan());
+        assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
+        // Contrast: the IEEE bit operation launders the NaN sign.
+        assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    /// The door at `f64`: a total order, sign-blind at the tie, and
+    /// poisoned only by the decision.
+    #[test]
+    fn select_le_zero_is_a_total_order_with_a_sign_blind_tie() {
+        let sel = <f64 as Real>::select_le_zero;
+        assert_eq!(sel(-1.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(1.0, 7.0, 9.0), 9.0);
+        // The tie takes `when_le`, and BOTH zeros are the same tie —
+        // this is the whole difference from `copysign`, which reads the
+        // zero's sign bit.
+        assert_eq!(sel(0.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(-0.0, 7.0, 9.0), 7.0);
+        assert_eq!(<f64 as Real>::copysign(1.0, -0.0), -1.0);
+        // Totality on the extremes; ±∞ is not poison.
+        assert_eq!(sel(f64::NEG_INFINITY, 7.0, 9.0), 7.0);
+        assert_eq!(sel(f64::INFINITY, 7.0, 9.0), 9.0);
+        assert_eq!(sel(f64::MIN_POSITIVE, 7.0, 9.0), 9.0);
+        assert_eq!(sel(-5.0e-324, 7.0, 9.0), 7.0);
+        // The chosen arm is returned BITWISE — a selection, not an
+        // arithmetic combination.
+        assert_eq!(sel(-1.0, -0.0, 9.0).to_bits(), (-0.0f64).to_bits());
+        // A poisoned decision cannot choose. An UNREAD candidate's
+        // poison does not propagate: that is what lets a construction
+        // select away from a degenerate branch.
+        assert!(sel(f64::NAN, 7.0, 9.0).is_nan());
+        assert_eq!(sel(-1.0, 7.0, f64::NAN), 7.0);
+        assert_eq!(sel(1.0, f64::NAN, 9.0), 9.0);
+        assert!(sel(-1.0, f64::NAN, 9.0).is_nan());
+    }
+
+    #[test]
+    fn reduce_periodic_basics_and_poison() {
+        use core::f64::consts::TAU;
+        // In-range inputs are fixed points (floor(x/p) = 0 ⇒ x − p·0 = x,
+        // bit-exact for non-negative x).
+        assert_eq!(
+            <f64 as Real>::reduce_periodic(1.5, TAU).to_bits(),
+            1.5f64.to_bits()
+        );
+        // One period up/down reduces to within rounding of the in-range
+        // representative (fl(τ) arithmetic — value closeness, never
+        // bit-identity; see the trait docs).
+        assert!((<f64 as Real>::reduce_periodic(1.5 + TAU, TAU) - 1.5).abs() <= 1e-15);
+        assert!((<f64 as Real>::reduce_periodic(1.5 - TAU, TAU) - 1.5).abs() <= 1e-15);
+        // Many periods out: still lands within rounding of 1.5, with the
+        // documented k-scaled blur.
+        assert!((<f64 as Real>::reduce_periodic(1.5 + 1000.0 * TAU, TAU) - 1.5).abs() <= 1e-11);
+        // Exact-period multiples of an exactly representable period.
+        assert_eq!(<f64 as Real>::reduce_periodic(6.0, 2.0), 0.0);
+        assert_eq!(<f64 as Real>::reduce_periodic(-6.0, 2.0), 0.0);
+        assert_eq!(<f64 as Real>::reduce_periodic(-1.5, 2.0), 0.5);
+        // Poison: zero period (0·∞ NaN through the formula), NaN operands.
+        assert!(<f64 as Real>::reduce_periodic(1.0, 0.0).is_nan());
+        assert!(<f64 as Real>::reduce_periodic(f64::NAN, TAU).is_nan());
+        assert!(<f64 as Real>::reduce_periodic(1.0, f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn atan2_axis_cases() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        assert_eq!(Real::atan2(0.0f64, 1.0), 0.0);
+        assert_eq!(Real::atan2(0.0f64, -1.0), PI);
+        assert_eq!(Real::atan2(-0.0f64, -1.0), -PI);
+        assert_eq!(Real::atan2(1.0f64, 0.0), FRAC_PI_2);
+        assert_eq!(Real::atan2(-1.0f64, 0.0), -FRAC_PI_2);
+        // IEEE convention: atan2(±0, +0) = ±0.
+        assert_eq!(Real::atan2(0.0f64, 0.0), 0.0);
+    }
+
+    /// Census of libm-vs-std divergence over a fixed, deterministic sample
+    /// set. This test COUNTS differing results (it does not assert the
+    /// count is zero): the counts document *why* D9 mandates the libm crate
+    /// — std routes to the platform libm, whose sin/cos are not correctly
+    /// rounded and differ across platforms in the last ulp, enough to flip
+    /// a marginal predicate. The only assertion is a sanity bound: libm
+    /// stays within a few ulps of std everywhere on the samples.
+    #[test]
+    fn libm_vs_std_divergence_census() {
+        const N: u32 = 20_000;
+        let mut sin_diff = 0u32;
+        let mut cos_diff = 0u32;
+        let mut max_ulp = 0u64;
+        for i in 0..=N {
+            let x = -1000.0 + f64::from(i) * (2000.0 / f64::from(N));
+            let (ls, ss) = (Real::sin(x), f64::sin(x));
+            let (lc, sc) = (Real::cos(x), f64::cos(x));
+            if ls.to_bits() != ss.to_bits() {
+                sin_diff += 1;
+            }
+            if lc.to_bits() != sc.to_bits() {
+                cos_diff += 1;
+            }
+            let d = ulp_dist(ls, ss).max(ulp_dist(lc, sc));
+            max_ulp = max_ulp.max(d);
+            assert!(
+                d <= 4,
+                "libm and std diverge by {d} ulps at x = {x} — beyond sanity bound"
+            );
+        }
+        println!(
+            "libm vs std over {} samples in [-1000, 1000]: sin differs on {} \
+             ({:.3}%), cos differs on {} ({:.3}%), max divergence {} ulp(s)",
+            N + 1,
+            sin_diff,
+            100.0 * f64::from(sin_diff) / f64::from(N + 1),
+            cos_diff,
+            100.0 * f64::from(cos_diff) / f64::from(N + 1),
+            max_ulp
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn pythagorean_identity(x in -1.0e3..1.0e3f64) {
+            let s = Real::sin(x);
+            let c = Real::cos(x);
+            prop_assert!((s * s + c * c - 1.0).abs() < 1e-14);
+        }
+
+        /// f64's *overridden* `sin`/`cos` must be bit-identical to the
+        /// projections of the required `sin_cos` primitive — the tested
+        /// direction of the override contract. This is not tautological: f64
+        /// overrides `sin`/`cos` (separate scalar libm calls) rather than
+        /// inheriting the projection defaults, so the test genuinely verifies
+        /// those overrides match `sin_cos`'s components, guarding against an
+        /// override or an edit to `sin_cos` that breaks bit-identity.
+        #[test]
+        fn sin_cos_bit_identical_to_components(x in -1.0e6..1.0e6f64) {
+            let (s, c) = Real::sin_cos(x);
+            prop_assert_eq!(s.to_bits(), Real::sin(x).to_bits());
+            prop_assert_eq!(c.to_bits(), Real::cos(x).to_bits());
+        }
+
+        /// Quadrant correctness of atan2. Magnitudes are bounded within
+        /// [1e-6, 1e6] so the ratio y/x stays ≥ 1e-12 away from the axes and
+        /// the strict inequalities cannot be defeated by rounding to a
+        /// boundary value (e.g. atan2 rounding up to fl(π)).
+        #[test]
+        fn atan2_quadrants(y in 1.0e-6..1.0e6f64, x in 1.0e-6..1.0e6f64) {
+            use core::f64::consts::{FRAC_PI_2, PI};
+            let q1 = Real::atan2(y, x);
+            prop_assert!(q1 > 0.0 && q1 < FRAC_PI_2);
+            let q2 = Real::atan2(y, -x);
+            prop_assert!(q2 > FRAC_PI_2 && q2 < PI);
+            let q3 = Real::atan2(-y, -x);
+            prop_assert!(q3 > -PI && q3 < -FRAC_PI_2);
+            let q4 = Real::atan2(-y, x);
+            prop_assert!(q4 > -FRAC_PI_2 && q4 < 0.0);
+        }
+
+        /// sin(asin(x)) recovers x to ~1e-15 absolute: asin is accurate to
+        /// ~1 ulp of a value ≤ π/2 (≈3.5e-16) and |d sin| ≤ 1, so the
+        /// round-trip error is a few 1e-16.
+        #[test]
+        fn asin_roundtrip(x in -1.0..1.0f64) {
+            prop_assert!((Real::sin(Real::asin(x)) - x).abs() <= 1e-15);
+        }
+
+        /// cos(acos(x)) recovers x to ~1e-15 absolute: acos is accurate to
+        /// ~1 ulp of a value ≤ π (≈4.4e-16) and |d cos| = |sin| ≤ 1.
+        #[test]
+        fn acos_roundtrip(x in -1.0..1.0f64) {
+            prop_assert!((Real::cos(Real::acos(x)) - x).abs() <= 1e-15);
+        }
+
+        /// tan(atan(x)) recovers x. Slack: an ~1-ulp error e in
+        /// atan (|e| ≤ ~2.2e-16) is amplified by tan' = 1 + x², so the
+        /// absolute error is O((1 + x²)·2.2e-16) ≈ 2.3e-12 at |x| = 100;
+        /// the mixed bound below covers both the tiny-x and large-x ends.
+        #[test]
+        fn atan_roundtrip(x in -1.0e2..1.0e2f64) {
+            let t = Real::tan(Real::atan(x));
+            prop_assert!((t - x).abs() <= 1e-11 + 1e-13 * x.abs());
+        }
+
+        /// For |n| ≤ 3 exponentiation by squaring performs the *same*
+        /// multiplications as naive repeated multiplication (up to
+        /// commutativity, which is exact in IEEE arithmetic), so results
+        /// are bit-identical. From |n| = 4 the association differs
+        /// ((x²)·(x²) vs ((x²)·x)·x) and only closeness is guaranteed —
+        /// see `powi_close_to_naive_medium_n`.
+        #[test]
+        fn powi_exact_vs_naive_small_n(
+            x in 0.01..100.0f64,
+            neg in any::<bool>(),
+            n in -3..=3i32,
+        ) {
+            let x = if neg { -x } else { x };
+            prop_assert_eq!(
+                <f64 as Real>::powi(x, n).to_bits(),
+                naive_powi(x, n).to_bits()
+            );
+        }
+
+        /// For |n| in 4..=12, squaring and naive association may round
+        /// differently; both accumulate ≤ ~n/2 ulps of relative error, so
+        /// they agree to well within 1e-13 relative.
+        #[test]
+        fn powi_close_to_naive_medium_n(
+            x in 0.01..100.0f64,
+            neg in any::<bool>(),
+            n in 4..=12i32,
+            invert in any::<bool>(),
+        ) {
+            let x = if neg { -x } else { x };
+            let n = if invert { -n } else { n };
+            let p = <f64 as Real>::powi(x, n);
+            let q = naive_powi(x, n);
+            prop_assert!((p - q).abs() <= 1e-13 * q.abs());
+        }
+
+        /// Lattice laws for min/max on finite values (NaN propagation is
+        /// covered by a dedicated unit test). Value equality (==) is the
+        /// right comparison here: signed-zero ties differ bitwise by
+        /// design (ties keep `self`).
+        #[test]
+        fn min_max_lattice_laws(
+            a in -1.0e9..1.0e9f64,
+            b in -1.0e9..1.0e9f64,
+            c in -1.0e9..1.0e9f64,
+        ) {
+            // Idempotence.
+            prop_assert_eq!(Real::min(a, a), a);
+            prop_assert_eq!(Real::max(a, a), a);
+            // Commutativity (as values).
+            prop_assert_eq!(Real::min(a, b), Real::min(b, a));
+            prop_assert_eq!(Real::max(a, b), Real::max(b, a));
+            // Associativity.
+            prop_assert_eq!(
+                Real::min(Real::min(a, b), c),
+                Real::min(a, Real::min(b, c))
+            );
+            prop_assert_eq!(
+                Real::max(Real::max(a, b), c),
+                Real::max(a, Real::max(b, c))
+            );
+            // Absorption.
+            prop_assert_eq!(Real::max(a, Real::min(a, b)), a);
+            prop_assert_eq!(Real::min(a, Real::max(a, b)), a);
+            // Selection and ordering.
+            let lo = Real::min(a, b);
+            let hi = Real::max(a, b);
+            prop_assert!(lo == a || lo == b);
+            prop_assert!(hi == a || hi == b);
+            prop_assert!(lo <= a && lo <= b);
+            prop_assert!(hi >= a && hi >= b);
+        }
+
+        /// sqrt(x)² recovers x to ~2 ulps relative (sqrt and the squaring
+        /// each contribute ≤ half an ulp of correctly rounded error).
+        #[test]
+        fn sqrt_square_roundtrip(x in 1.0e-12..1.0e12f64) {
+            let r = Real::sqrt(x);
+            prop_assert!((r * r - x).abs() <= 1e-15 * x);
+        }
+
+        /// floor postconditions: integral, ≤ x, within 1 of x — and the
+        /// defining bracket floor(x) ≤ x < floor(x) + 1.
+        #[test]
+        fn floor_bracket(x in -1.0e9..1.0e9f64) {
+            let f = <f64 as Real>::floor(x);
+            prop_assert_eq!(f, f.trunc());
+            prop_assert!(f <= x && x < f + 1.0);
+        }
+
+        /// copysign postconditions: |result| = |x| bitwise in the
+        /// magnitude bits, sign = sign of the sign argument.
+        #[test]
+        fn copysign_magnitude_and_sign(
+            x in -1.0e9..1.0e9f64,
+            s in -1.0e9..1.0e9f64,
+        ) {
+            let r = <f64 as Real>::copysign(x, s);
+            prop_assert_eq!(Real::abs(r).to_bits(), Real::abs(x).to_bits());
+            prop_assert_eq!(r.is_sign_negative(), s.is_sign_negative());
+        }
+
+        /// reduce_periodic lands within the documented seam blur of
+        /// [0, period), and the input differs from the result by an
+        /// integer number of periods up to rounding.
+        #[test]
+        fn reduce_periodic_lands_in_period(
+            x in -1.0e6..1.0e6f64,
+            p in 1.0e-3..1.0e3f64,
+        ) {
+            let r = <f64 as Real>::reduce_periodic(x, p);
+            // Seam blur: a few roundings of the largest intermediate
+            // (p·floor(x/p) ≈ |x|), per the trait's honest statement.
+            let blur = 4.0 * f64::EPSILON * (x.abs() + p);
+            prop_assert!(r >= -blur, "r = {} below the blurred seam", r);
+            prop_assert!(r < p + blur, "r = {} above the blurred period", r);
+            // (x − r)/p is an integer up to the same rounding scale.
+            let k = (x - r) / p;
+            prop_assert!((k - k.round()).abs() <= 1e-6, "k = {}", k);
+        }
+
+        /// abs is even, and exact at its argument: `abs(x)` is `x` with
+        /// the sign removed, which is non-negative by construction — so
+        /// non-negativity is the pinned value's own consequence and not a
+        /// separate property. Evenness is a claim about the *reflected*
+        /// argument, which a pin at `x` does not make, so it is asserted.
+        #[test]
+        fn abs_properties(x in -1.0e12..1.0e12f64) {
+            prop_assert_eq!(Real::abs(-x), Real::abs(x));
+            prop_assert_eq!(Real::abs(x), if x < 0.0 { -x } else { x });
+        }
+    }
+}

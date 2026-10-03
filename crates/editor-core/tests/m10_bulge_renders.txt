@@ -1,0 +1,636 @@
+# What stands at a bulge that is not 1 — the renders (DECIDE-4, at the head that ships rule G's
+# exact quotient). Made by m10_10_evidence_interval::m10_10_the_four_residuals_rendered_at_the_nominal
+# with CAD_M10_10_DOC=<name> CAD_M10_10_RETRY=default CAD_M10_10_PROFILE=1 CAD_M10_10_DUMP=<file>
+# (the shipped set, the drive's default retry ladder, eps = 1e-9, dev build). The ladder retried
+# nothing on any document here but the parameter control, which DECIDE-5 re-took (`retried 4`,
+# its no-ladder split in its own header), so every other split is also the no-ladder split.
+# Per document: the whole split, then every decision the tier was ASKED and left numeric on an
+# arc-family predicate — its index in the predicate's evaluation order, the freeze causes its own
+# walks noted (`DecisionRecord::causes`: a node is charged to the decision that first built it),
+# the cause this unit attributes, and its EARLY form. A form attributed to (iii) or (iv) is
+# written UNCUT, so the attribution can be re-checked by evaluating it (the item names the
+# points); a frozen (i) form is cut at 420 characters, since a `?#id` node — one the early walk
+# froze — has no value to evaluate. One render per distinct form; later decisions with the
+# same form say so. A `numeric` count above the asked ones is DEFINITE: the numeric channel
+# certified a non-zero sign and the tier was never asked. SYM-3's renders are recoverable from git.
+
+==============================================================================
+== R1 circular-segment boss, bulge = 2 (a literal) (r1_segment_boss)
+==============================================================================
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/1
+   arc_diameter_clearance             0/0/0/6
+   arc_span                           6/0/0/0
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           3/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               12/0/12/0
+   carrier_endpoint_start             12/0/12/0
+   carrier_line_circle                0/0/0/3
+   carrier_matches_mapped_source      72/0/54/0
+   carrier_on_surface_1               90/0/0/0
+   carrier_on_surface_2               90/0/0/0
+   contact_at_shared_vertex           6/0/0/3
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/80
+   dihedral_wedge                     0/0/0/80
+   expr_non_finite                    29/0/0/0
+   extrusion_normal_component         0/0/0/2
+   interval_span_forward              0/0/0/24
+   interval_span_winding              0/0/0/12
+   line_span                          0/2/0/0
+   newell_plane_residual              18/0/0/0
+   path_circle_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/2
+   pcurve_chart_azimuth_frame         0/0/0/2
+   pcurve_chart_radial_moving         2/0/0/0
+   pcurve_map_residual                0/0/18/0
+   segment_straightness               2/0/0/6
+   side_cylinders_cosurface           2/0/0/0
+   vertex_separation                  0/0/0/8
+   witness_at_mid_parameter           10/0/0/0
+   witness_on_surface_1               10/0/0/0
+   witness_on_surface_2               10/0/0/0
+   receipt SymCounts { symbolic_zero: 375, sign_gated: 2, registered: 96, registrations_refused: 0, registrations_contradicted: 0, numeric: 233, retried: 0, frozen: 785 }
+--- every asked-numeric arc-family decision
+
+==============================================================================
+== R2 D-tab, bulge a literal 0.4 (r2_d_tab_literal)
+==============================================================================
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/1
+   arc_diameter_clearance             0/0/0/6
+   arc_span                           4/0/0/4
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           3/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               24/0/12/0
+   carrier_endpoint_start             24/0/12/0
+   carrier_line_circle                0/0/0/5
+   carrier_matches_mapped_source      126/0/42/12
+   carrier_on_surface_1               135/0/0/9
+   carrier_on_surface_2               117/0/0/27
+   chord_side                         4/0/0/10
+   contact_at_shared_vertex           8/0/0/4
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/128
+   dihedral_wedge                     0/0/0/128
+   expr_non_finite                    37/0/0/0
+   extrusion_normal_component         0/0/0/2
+   interval_span_forward              0/0/0/36
+   interval_span_winding              0/0/0/12
+   line_span                          4/0/0/4
+   newell_plane_residual              30/0/0/0
+   path_circle_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/4
+   pcurve_chart_azimuth_frame         0/0/0/2
+   pcurve_chart_radial_moving         2/0/0/0
+   pcurve_map_residual                0/0/18/0
+   segment_straightness               6/0/0/6
+   side_cylinders_cosurface           2/0/0/0
+   side_planes_cosurface              0/0/0/2
+   vertex_separation                  0/0/0/12
+   witness_at_mid_parameter           16/0/0/0
+   witness_on_surface_1               15/0/0/1
+   witness_on_surface_2               13/0/0/3
+   receipt SymCounts { symbolic_zero: 571, sign_gated: 0, registered: 84, registrations_refused: 0, registrations_contradicted: 0, numeric: 422, retried: 0, frozen: 918 }
+--- every asked-numeric arc-family decision
+   line_span #1 [NumericZero] causes None {Coefficient: 3} -> (i) freeze
+      EARLY 1·min(220745207302459599637552218979383517546625086039/3602879701896397·2^-113 + 1·2^-59·sqrt(-1329227995784915928244039281409 + 1·2^118·?#4f1ffc80), 78570328022909340856668612314153156289545129385/3602879701896397·2^-113 + -1·2^-59·sqrt(-1329227995784915928244039281409 + 1·2^118·?#4f1ffc80))
+   arc_span #1 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY -1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#c942c8bc) + 1·2^-112·sqrt(125094152535578975770964690747551513481183890734794377991913257)
+   contact_at_shared_vertex #0 [NumericZero] causes None {Coefficient: 3} -> (i) freeze
+      EARLY 1·sqrt(1·?#c2596a1b)
+   line_span #4 [NumericZero] causes None {Coefficient: 2} -> (i) freeze
+      EARLY 1·min(78570328022909340856668612314153156289545129385/3602879701896397·2^-113 + -1·2^-59·sqrt(-1329227995784915928244039281409 + 1·2^118·?#4f1ffc80), 220745207302459599637552218979383517546625086039/3602879701896397·2^-113 + 1·2^-59·sqrt(-1329227995784915928244039281409 + 1·2^118·?#4f1ffc80))
+   arc_span #2 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY -1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#883f4814) + 1·2^-112·sqrt(125094152535578975770964690747551513481183890734794377991913257)
+   contact_at_shared_vertex #3 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY 1·sqrt(1·?#5bf80d12)
+   carrier_matches_mapped_source #10 [NumericZero] causes None {Coefficient: 27} -> (i) freeze
+      EARLY 1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#d128f6e6^2 + 1152921504606847·2^60·?#bbe5c2b6 + -1·2^119·?#bbe5c2b6·?#fa87dfcd + 1·2^118·?#bbe5c2b6^2 + -1152921504606847·2^60·?#fa87dfcd + 1·2^118·?#fa87dfcd^2)
+   carrier_matches_mapped_source #12 [NumericZero] causes None {Coefficient: 48} -> (i) freeze
+      EARLY 1·2^-59·sqrt(1329227995784915928244039281409 + 1152921504606847·2^60·?#be46e49c + -1152921504606847·2^61·?#be46e49c·?#42c825a9 + -1·2^119·?#be46e49c·?#acf1956b + 1·2^118·?#be46e49c^2 + -5316911983139663712976157125636·?#42c825a9 + 1152921504606847·2^61·?#42c825a9·?#acf1956b + 5316911983139663712976157125636·?#42c825a9^2 + -1152921504606847·2^60·?#acf1956b + 1·2^118·?#acf1956b^2 + 1·2^118·?#2ab1900a)
+   carrier_matches_mapped_source #14 [NumericZero] causes None {Coefficient: 20} -> (i) freeze
+      EARLY 1·sqrt(1·?#c8a437c0 + 1·?#946e5aca)
+   carrier_matches_mapped_source #15 [NumericZero] causes None {Coefficient: 40} -> (i) freeze
+      EARLY 1·sqrt(1·?#6aaebeec + 1·?#90547bf4)
+   carrier_matches_mapped_source #16 [NumericZero] causes None {Coefficient: 20} -> (i) freeze
+      EARLY 1·sqrt(1·?#4a635fad + 1·?#992e8147)
+   carrier_matches_mapped_source #17 [NumericZero] causes None {Coefficient: 48} -> (i) freeze
+      EARLY 1·sqrt(1·?#ec02291a + 1·?#05bcce29)
+   carrier_matches_mapped_source #82 [NumericZero] causes None {Coefficient: 26} -> (i) freeze
+      EARLY 1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#0cad9302^2 + 1152921504606847·2^60·?#13f9a302 + -1·2^119·?#13f9a302·?#fa87dfcd + 1·2^118·?#13f9a302^2 + -1152921504606847·2^60·?#fa87dfcd + 1·2^118·?#fa87dfcd^2)
+   carrier_matches_mapped_source #84 [NumericZero] causes None {Coefficient: 41} -> (i) freeze
+      EARLY 1·2^-59·sqrt(1329227995784915928244039281409 + 1152921504606847·2^60·?#5d6f2028 + -1152921504606847·2^61·?#5d6f2028·?#42c825a9 + -1·2^119·?#5d6f2028·?#acf1956b + 1·2^118·?#5d6f2028^2 + -5316911983139663712976157125636·?#42c825a9 + 1152921504606847·2^61·?#42c825a9·?#acf1956b + 5316911983139663712976157125636·?#42c825a9^2 + 1·2^118·?#4a4d418f + -1152921504606847·2^60·?#acf1956b + 1·2^118·?#acf1956b^2)
+   carrier_matches_mapped_source #86 [NumericZero] causes None {Coefficient: 21} -> (i) freeze
+      EARLY 1·sqrt(1·?#fa778436 + 1·?#cc111dc1)
+   carrier_matches_mapped_source #87 [NumericZero] causes None {Coefficient: 35} -> (i) freeze
+      EARLY 1·sqrt(1·?#8b4bee7e + 1·?#6c0700bc)
+   carrier_matches_mapped_source #88 [NumericZero] causes None {Coefficient: 21} -> (i) freeze
+      EARLY 1·sqrt(1·?#e49b080a + 1·?#47f7ada0)
+   carrier_matches_mapped_source #89 [NumericZero] causes None {Coefficient: 44} -> (i) freeze
+      EARLY 1·sqrt(1·?#8b0eb8a8 + 1·?#c4f90dcb)
+   carrier_on_surface_2 #9 [NumericZero] causes None {Coefficient: 12} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#c86a4b13 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #10 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#b946575d + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #11 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#2fa8b7a1 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #12 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#aea24705 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #13 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#16d78b50
+   carrier_on_surface_2 #14 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#dbba4bed
+   carrier_on_surface_2 #15 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#bda50086 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #16 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#0de1093d + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #17 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#b60a8518
+   witness_on_surface_2 #1 [NumericZero] causes None {Coefficient: 6} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#0438e2ad
+   carrier_on_surface_1 #18 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#e110da13 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #19 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#8ced214f + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #20 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#f6ec91c1 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #21 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#787f3101 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #22 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#7991d267 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #23 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#d0e424d5
+   carrier_on_surface_1 #24 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#e5dbd7d8
+   carrier_on_surface_1 #25 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#47be6cd7 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_1 #26 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#f04d04f9 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   witness_on_surface_1 #2 [NumericZero] causes None {Coefficient: 6} -> (i) freeze
+      EARLY 4153837486827862419877810830259/94110380560943752208267126725673·2^-6 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#84ca520e + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #54 [NumericZero] causes None {Coefficient: 11} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#0b742d99 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#07be8042^2
+   carrier_on_surface_2 #55 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#bbe5c2b6^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#9f77f3e2^2
+   carrier_on_surface_2 #56 [NumericZero] causes None {Coefficient: 13} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#46f063f0^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#a695e681^2
+   carrier_on_surface_2 #57 [NumericZero] causes None {Coefficient: 12} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#be46e49c^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#ce9a7965^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #58 [NumericZero] causes None {Coefficient: 11} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#5354bb7d + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #59 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#3e16f3fb^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#2bdd6499^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #60 [NumericZero] causes None {Coefficient: 16} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#9d1aebae + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#0fe29968 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #61 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#42ed0c57^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#762927de^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #62 [NumericZero] causes None {Coefficient: 25} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#1db8e96d + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#ef217a6e
+   witness_on_surface_2 #6 [NumericZero] causes None {} -> (i) freeze; early form as #58
+   carrier_on_surface_2 #63 [NumericZero] causes None {Coefficient: 11} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#b11a0e82^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#746adf13
+   carrier_on_surface_2 #64 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#f35b7c73^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#13f9a302^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #65 [NumericZero] causes None {Coefficient: 13} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#7d4d3d5f^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#80c83839^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #66 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#c1606f94^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#5d6f2028^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #67 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#0c576ad5
+   carrier_on_surface_2 #68 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#632f369c^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#a3b1c4dd^2
+   carrier_on_surface_2 #69 [NumericZero] causes None {Coefficient: 12} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#381264ef + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#dc145162
+   carrier_on_surface_2 #70 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#177a5b63^2 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#387ab773^2 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80
+   carrier_on_surface_2 #71 [NumericZero] causes None {Coefficient: 14} -> (i) freeze
+      EARLY 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#a71aa764 + -3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#4f1ffc80 + 3602879701896397/108501881555446236567625690174651791624286483031·2^112·?#1586e5bf
+   witness_on_surface_2 #7 [NumericZero] causes None {} -> (i) freeze; early form as #67
+
+==============================================================================
+== R2 D-tab, bulge a document parameter, nominal 0.4 (r2_d_tab_parameter)
+==============================================================================
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/1
+   arc_diameter_clearance             0/0/0/6
+   arc_span                           4/0/0/4
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           3/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               24/0/12/0
+   carrier_endpoint_start             24/0/12/0
+   carrier_line_circle                0/0/0/5
+   carrier_matches_mapped_source      126/0/38/16
+   carrier_on_surface_1               135/0/0/9
+   carrier_on_surface_2               117/0/0/27
+   chord_side                         4/0/0/10
+   contact_at_shared_vertex           8/0/0/4
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/128
+   dihedral_wedge                     0/0/0/128
+   expr_non_finite                    37/0/0/0
+   extrusion_normal_component         0/0/0/2
+   interval_span_forward              0/0/0/36
+   interval_span_winding              0/0/0/12
+   line_span                          4/0/0/4
+   newell_plane_residual              30/0/0/0
+   path_circle_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/4
+   pcurve_chart_azimuth_frame         0/0/0/2
+   pcurve_chart_radial_moving         2/0/0/0
+   pcurve_map_residual                0/0/18/0
+   segment_straightness               6/0/0/6
+   side_cylinders_cosurface           2/0/0/0
+   side_planes_cosurface              0/0/0/2
+   vertex_separation                  0/0/0/12
+   witness_at_mid_parameter           16/0/0/0
+   witness_on_surface_1               15/0/0/1
+   witness_on_surface_2               13/0/0/3
+   receipt SymCounts { symbolic_zero: 571, sign_gated: 0, registered: 80, registrations_refused: 0, registrations_contradicted: 0, numeric: 426, retried: 0, frozen: 918 }
+--- every asked-numeric arc-family decision
+   line_span #1 [NumericZero] causes None {Coefficient: 1} -> (iv) the sign of the apothem (1-b^2)/b
+      EARLY (78570328022909340856668612314153156289545129385/3602879701896397·2^-113 + -1152921504606847·2^-113·sqrt(-1·2^108 + 1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) + -1152921504606847/3602879701896397·2^-60·sqrt(-1·2^108 + 1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2)·bulge + -1152921504606847·2^-59·bulge + -1152921504606847/3602879701896397·2^-7·bulge^2) / (1 + 1/3602879701896397·2^53·bulge)
+   arc_span #1 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY 1152921504606847·2^-112·sqrt(94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) + -1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#6094513d)
+   contact_at_shared_vertex #0 [NumericZero] causes None {Coefficient: 3} -> (i) freeze
+      EARLY 1·sqrt(1·?#e461a313)
+   line_span #4 [NumericZero] causes None {Coefficient: 2} -> (iv) the sign of the apothem (1-b^2)/b; early form as #1
+   arc_span #2 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY 1152921504606847·2^-112·sqrt(94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) + -1·2^-59·sqrt(1329227995784915928244039281409 + 1·2^118·?#57aa00c4)
+   contact_at_shared_vertex #3 [NumericZero] causes None {Coefficient: 4} -> (i) freeze
+      EARLY 1·sqrt(1·?#b9a7a83b)
+   carrier_matches_mapped_source #10 [NumericZero] causes None {Terms: 2, Coefficient: 25} -> (i) freeze
+      EARLY 1·sqrt(1·?#e6e70fc3 + 1·?#83e0f5cd)
+   carrier_matches_mapped_source #11 [NumericZero] causes None {Coefficient: 21} -> (i) freeze
+      EARLY 1·sqrt(1·?#0415a96e + 1·?#e8c6a129^2)
+   carrier_matches_mapped_source #12 [NumericZero] causes None {Terms: 4, Coefficient: 34} -> (i) freeze
+      EARLY 1·2^-113·sqrt(1329227995784915928244039281409·2^108 + -1152921504606847·2^168·?#21c27f1e + -1152921504606847·2^114·?#21c27f1e·?#05e1fb73·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)) + -1152921504606847·2^114·?#21c27f1e·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)…
+   carrier_matches_mapped_source #13 [NumericZero] causes None {Coefficient: 27} -> (i) freeze
+      EARLY 1·2^-113·sqrt(6646139978924579641220196407045·2^108 + 1152921504606847·2^169·?#62604131 + -1·2^227·?#62604131·?#e442c16b + 1·2^226·?#62604131^2 + -1152921504606847·2^114·?#413de106·?#72a44224·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)) + 1329227995784915928244039281409·2^55·?#413de106·abs((94110380560943752208267126725673 + 36028797018963…
+   carrier_matches_mapped_source #14 [NumericZero] causes None {Terms: 12, Coefficient: 5} -> (i) freeze
+      EARLY 1·sqrt(1·?#cef40472 + 1·?#0b9bbe0e)
+   carrier_matches_mapped_source #15 [NumericZero] causes None {Coefficient: 33} -> (i) freeze
+      EARLY 1·sqrt(1·?#01a20ba5 + 1·?#3f932c8b)
+   carrier_matches_mapped_source #16 [NumericZero] causes None {Terms: 12, Coefficient: 5} -> (i) freeze
+      EARLY 1·sqrt(1·?#b153075b + 1·?#78a44864)
+   carrier_matches_mapped_source #17 [NumericZero] causes None {Terms: 1, Coefficient: 38} -> (i) freeze
+      EARLY 1·2^-113·sqrt(-1152921504606847·2^114·?#3a59aa4c·?#3978c11d·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)) + 2658455991569831856488078562818·?#3a59aa4c·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#9bd2a066 + 1329227995784915928244039281409·?#3a59aa4c^2·abs((94…
+   carrier_matches_mapped_source #82 [NumericZero] causes None {Terms: 2, Coefficient: 22} -> (i) freeze
+      EARLY 1·sqrt(1·?#f725c991 + 1·?#25fd0c8d)
+   carrier_matches_mapped_source #83 [NumericZero] causes None {Coefficient: 20} -> (i) freeze
+      EARLY 1·sqrt(1·?#9aa5eee1 + 1·?#e512498a^2)
+   carrier_matches_mapped_source #84 [NumericZero] causes None {Terms: 4, Coefficient: 27} -> (i) freeze
+      EARLY 1·2^-113·sqrt(1329227995784915928244039281409·2^108 + -1152921504606847·2^168·?#21c27f1e + -1152921504606847·2^114·?#21c27f1e·?#c31e1c75·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)) + -1152921504606847·2^114·?#21c27f1e·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)…
+   carrier_matches_mapped_source #85 [NumericZero] causes None {Coefficient: 24} -> (i) freeze
+      EARLY 1·2^-113·sqrt(6646139978924579641220196407045·2^108 + 1152921504606847·2^169·?#62604131 + -1·2^227·?#62604131·?#14aa55fd + 1·2^226·?#62604131^2 + -1152921504606847·2^168·?#72a44224 + -1152921504606847·2^114·?#72a44224·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))·?#30ebe556 + 1·2^226·?#72a44224^2 + 1329227995784915928244039281409·2^55·abs((…
+   carrier_matches_mapped_source #86 [NumericZero] causes None {Terms: 12, Coefficient: 6} -> (i) freeze
+      EARLY 1·sqrt(1·?#c24f00b4 + 1·?#4b56e33d)
+   carrier_matches_mapped_source #87 [NumericZero] causes None {Coefficient: 28} -> (i) freeze
+      EARLY 1·sqrt(1·?#34f2ed96 + 1·?#50d0500c)
+   carrier_matches_mapped_source #88 [NumericZero] causes None {Terms: 12, Coefficient: 6} -> (i) freeze
+      EARLY 1·sqrt(1·?#4f48cb71 + 1·?#654376f5)
+   carrier_matches_mapped_source #89 [NumericZero] causes None {Terms: 1, Coefficient: 30} -> (i) freeze
+      EARLY 1·2^-113·sqrt(-1152921504606847·2^114·?#83d578a9·?#3978c11d·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)) + 2658455991569831856488078562818·?#83d578a9·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#cbcd376b + 1329227995784915928244039281409·?#83d578a9^2·abs((94…
+   carrier_on_surface_2 #9 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#4fdf0ba2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #10 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#bdc0e611 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #11 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#5eaed888 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #12 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#1d4a89bb + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #13 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#e9d325cf) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #14 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#e28d7968) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #15 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#a0a9756b) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #16 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#9ee07d97) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #17 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#fbb65263 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   witness_on_surface_2 #1 [NumericZero] causes None {Coefficient: 6} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#edea9a0c + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #18 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#2d4f50f2 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #19 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#9229f5fc + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #20 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#2ab0146e + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #21 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#962a89c6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #22 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#d02279cd + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #23 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#9f7ad3f1 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #24 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#b9a0286c + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #25 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#34d71325) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_1 #26 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + 1/1152921504606847·2^112·?#c01e4354 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   witness_on_surface_1 #2 [NumericZero] causes None {Coefficient: 6} -> (i) freeze
+      EARLY (1152921504606847·2^-6 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#1da23113) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #54 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#5f0740bb·sqrt(1329227995784915928244039281409 + 1·2^118·?#7ab15b9a)^2 + 1532495540865888954062762723664254024941207423·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^…
+   carrier_on_surface_2 #55 [NumericZero] causes None {Coefficient: 15} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#b4e7c8b7 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#54075876) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #56 [NumericZero] causes None {Coefficient: 15} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#b8619caf + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#ac08c701) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #57 [NumericZero] causes None {Terms: 2, Coefficient: 12} -> (i) freeze
+      EARLY (1152921504606847·2^-113·?#05e1fb73·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#53278b1c + 1152921504606847/3602879701896397·2^-59·?#05e1fb73·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#53278b1c·bulge + 1152921504606847/12980742146337070512478121581609…
+   carrier_on_surface_2 #58 [NumericZero] causes None {Coefficient: 12} -> (i) freeze
+      EARLY (1152921504606847·2^-114·?#413de106^2·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#e492b068) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^…
+   carrier_on_surface_2 #59 [NumericZero] causes None {Terms: 8, Coefficient: 7} -> (i) freeze
+      EARLY (-1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#0f53f0b4 + 1/1152921504606847·2^112·?#04d7d65f) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #60 [NumericZero] causes None {Coefficient: 15} -> (i) freeze
+      EARLY (-1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#d3204239 + 1/1152921504606847·2^112·?#0780f978) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #61 [NumericZero] causes None {Terms: 12, Coefficient: 3} -> (i) freeze
+      EARLY (-1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#d4f99d15 + 1/1152921504606847·2^112·?#a7a4c22f) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #62 [NumericZero] causes None {Coefficient: 17} -> (i) freeze
+      EARLY (1152921504606847·2^-113·?#3a59aa4c·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#9bd2a066 + 1152921504606847·2^-114·?#3a59aa4c^2·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#ffd01a8a + -1152921504606847·2^-114·abs((941103805609…
+   witness_on_surface_2 #6 [NumericZero] causes None {} -> (i) freeze; early form as #58
+   carrier_on_surface_2 #63 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY (1532495540865888954062762723664254024941207423·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·sqrt(1329227995784915928244039281409 + 1·2^118·?#fdf517ef)^2 + 1/1152921504606847·2^11…
+   carrier_on_surface_2 #64 [NumericZero] causes None {Coefficient: 15} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#648a3ecd + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#7f99c063) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #65 [NumericZero] causes None {Coefficient: 15} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#93ce5078 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#c5067c23) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #66 [NumericZero] causes None {Terms: 2, Coefficient: 9} -> (i) freeze
+      EARLY (1152921504606847/3602879701896397·2^-59·?#c31e1c75·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·bulge·?#5943b7ea + 1152921504606847/12980742146337070512478121581609·2^-7·?#c31e1c75·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·bulge^2·?#5943b7ea + 1152921504…
+   carrier_on_surface_2 #67 [NumericZero] causes None {Coefficient: 10} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#4312c944 + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#30ebe556^2) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^…
+   carrier_on_surface_2 #68 [NumericZero] causes None {Terms: 8, Coefficient: 7} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#27a4fb5a + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#6de4ed7f) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #69 [NumericZero] causes None {Coefficient: 13} -> (i) freeze
+      EARLY (-1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#d27a7c1d + 1/1152921504606847·2^112·?#abfbdf18) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #70 [NumericZero] causes None {Terms: 12, Coefficient: 3} -> (i) freeze
+      EARLY (1/1152921504606847·2^112·?#a109703b + -1152921504606847·2^-114·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#3472e698) / (1·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge)))
+   carrier_on_surface_2 #71 [NumericZero] causes None {Coefficient: 13} -> (i) freeze
+      EARLY (1152921504606847·2^-113·?#83d578a9·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2·?#cbcd376b + 1152921504606847·2^-114·?#83d578a9^2·abs((94110380560943752208267126725673 + 3602879701896397·2^54·bulge + 1·2^106·bulge^2) / (3602879701896397 + 1·2^53·bulge))^2 + 1/1152921504606847·2^112·?#06285b0b + -1152921504606847·2^-114·abs((941103805609…
+   witness_on_surface_2 #7 [NumericZero] causes None {} -> (i) freeze; early form as #67
+
+==============================================================================
+== control: R2 D-tab, bulge a literal 0.5 (r2_d_tab_literal_dyadic)
+==============================================================================
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/1
+   arc_diameter_clearance             0/0/0/6
+   arc_span                           6/0/0/2
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           3/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               28/0/8/0
+   carrier_endpoint_start             28/0/8/0
+   carrier_line_circle                0/0/0/5
+   carrier_matches_mapped_source      144/0/36/0
+   carrier_on_surface_1               144/0/0/0
+   carrier_on_surface_2               144/0/0/0
+   chord_side                         4/0/0/10
+   contact_at_shared_vertex           10/0/0/2
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/128
+   dihedral_wedge                     0/0/0/128
+   expr_non_finite                    37/0/0/0
+   extrusion_normal_component         0/0/0/2
+   interval_span_forward              0/0/0/36
+   interval_span_winding              0/0/0/12
+   line_span                          6/0/0/2
+   newell_plane_residual              30/0/0/0
+   path_circle_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/4
+   pcurve_chart_azimuth_frame         0/0/0/2
+   pcurve_chart_radial_moving         2/0/0/0
+   pcurve_map_residual                0/0/18/0
+   segment_straightness               6/0/0/6
+   side_cylinders_cosurface           2/0/0/0
+   side_planes_cosurface              0/0/0/2
+   vertex_separation                  0/0/0/12
+   witness_at_mid_parameter           16/0/0/0
+   witness_on_surface_1               16/0/0/0
+   witness_on_surface_2               16/0/0/0
+   receipt SymCounts { symbolic_zero: 643, sign_gated: 0, registered: 70, registrations_refused: 0, registrations_contradicted: 0, numeric: 364, retried: 0, frozen: 762 }
+--- every asked-numeric arc-family decision
+
+==============================================================================
+== control: R2 D-tab, bulge a parameter, nominal 0.5 (r2_d_tab_parameter_dyadic)
+==============================================================================
+# Re-taken by DECIDE-5 (the carrier's span spelled from the decided turn, 4·atan(σ·b)): the four
+# (iii) decisions on the sign of b and the eight (i) freezes on the bulk of the sign's second atom
+# are gone, and sqrt(4 + abs(1 + 2·bulge)^2) is in no asked form. The ladder retried 4 here; one
+# attempt per rung reads carrier_matches_mapped_source 126/0/46/8 and carrier_on_surface_2 138/0/0/6.
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/1
+   arc_diameter_clearance             0/0/0/6
+   arc_span                           4/0/0/4
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           3/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               24/0/12/0
+   carrier_endpoint_start             24/0/12/0
+   carrier_line_circle                0/0/0/5
+   carrier_matches_mapped_source      126/0/48/6
+   carrier_on_surface_1               144/0/0/0
+   carrier_on_surface_2               140/0/0/4
+   chord_side                         4/0/0/10
+   contact_at_shared_vertex           8/0/0/4
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/128
+   dihedral_wedge                     0/0/0/128
+   expr_non_finite                    37/0/0/0
+   extrusion_normal_component         0/0/0/2
+   interval_span_forward              0/0/0/36
+   interval_span_winding              0/0/0/12
+   line_span                          4/0/0/4
+   newell_plane_residual              30/0/0/0
+   path_circle_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/4
+   pcurve_chart_azimuth_frame         0/0/0/2
+   pcurve_chart_radial_moving         2/0/0/0
+   pcurve_map_residual                0/0/18/0
+   segment_straightness               6/0/0/6
+   side_cylinders_cosurface           2/0/0/0
+   side_planes_cosurface              0/0/0/2
+   vertex_separation                  0/0/0/12
+   witness_at_mid_parameter           16/0/0/0
+   witness_on_surface_1               16/0/0/0
+   witness_on_surface_2               16/0/0/0
+   receipt SymCounts { symbolic_zero: 607, sign_gated: 0, registered: 90, registrations_refused: 0, registrations_contradicted: 0, numeric: 380, retried: 4, frozen: 705 }
+--- every asked-numeric arc-family decision
+   line_span #1 [NumericZero] causes None {} -> (iv) the sign of the apothem (1-b^2)/b
+      EARLY (3458764513820541·2^-61·abs(1 + 2·bulge) + -1152921504606847·2^-59·abs(1 + 2·bulge)·bulge + -1152921504606847·2^-59·abs(1 + 2·bulge)·bulge^2 + -1152921504606847·2^-61·abs(-3 + 4·bulge + 4·bulge^2) + -1152921504606847·2^-60·abs(-3 + 4·bulge + 4·bulge^2)·bulge) / (1·abs(1 + 2·bulge) + 2·abs(1 + 2·bulge)·bulge)
+   arc_span #1 [NumericZero] causes None {Coefficient: 1} -> (iv) the sign of the apothem (1-b^2)/b
+      EARLY (1152921504606847·2^-60·sqrt(5 + 4·bulge + 4·bulge^2) + 1152921504606847·2^-58·sqrt(5 + 4·bulge + 4·bulge^2)·bulge + 1152921504606847·2^-58·sqrt(5 + 4·bulge + 4·bulge^2)·bulge^2 + -1·2^-61·sqrt(25 + -5·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2) + -14·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge + -12·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge^2 + -8·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge^3 + 140·bulge + 316·bulge^2 + 416·bulge^3 + 368·bulge^4 + 192·bulge^5 + 64·bulge^6)·sqrt(2658455991569831856488078562818)) / (1 + 4·bulge + 4·bulge^2)
+   contact_at_shared_vertex #0 [NumericZero] causes None {Coefficient: 1} -> (iv) the sign of the apothem (1-b^2)/b
+      EARLY (1·2^-61·sqrt(2658455991569831856488078562818)·sqrt(9 + -3·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2) + -2·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge + 12·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge^2 + 8·abs(1 + 2·bulge)·abs(-3 + 4·bulge + 4·bulge^2)·bulge^3 + 12·bulge + -68·bulge^2 + -96·bulge^3 + 112·bulge^4 + 192·bulge^5 + 64·bulge^6)) / (1 + 4·bulge + 4·bulge^2)
+   line_span #4 [NumericZero] causes None {} -> (iv) the sign of the apothem (1-b^2)/b; early form as #1
+   arc_span #2 [NumericZero] causes None {Coefficient: 1} -> (iv) the sign of the apothem (1-b^2)/b; early form as #1
+   contact_at_shared_vertex #3 [NumericZero] causes None {Coefficient: 1} -> (iv) the sign of the apothem (1-b^2)/b; early form as #0
+   carrier_matches_mapped_source #12 [NumericZero] causes None {Terms: 12} -> (i) freeze
+      EARLY 1·sqrt(1·?#37dffde6^2 + 1·?#af9fd6d7)
+   carrier_matches_mapped_source #14 [NumericZero] causes None {Terms: 12} -> (i) freeze
+      EARLY 1·sqrt(1·?#efbb8eda^2 + 1·?#d946b4f3^2)
+   carrier_matches_mapped_source #16 [NumericZero] causes None {Terms: 13} -> (i) freeze
+      EARLY 1·sqrt(1·?#ea2bff34^2 + 1·?#e4acdf74^2)
+   carrier_matches_mapped_source #84 [NumericZero] causes None {Terms: 12, Degree: 3} -> (i) freeze
+      EARLY 1·sqrt(1·?#f0384a4e^2 + 1·?#a959716e)
+   carrier_matches_mapped_source #86 [NumericZero] causes None {Terms: 12, Degree: 3} -> (i) freeze
+      EARLY 1·sqrt(1·?#927671f9^2 + 1·?#3122dd93^2)
+   carrier_matches_mapped_source #88 [NumericZero] causes None {Terms: 12, Degree: 3} -> (i) freeze
+      EARLY 1·sqrt(1·?#6152edb1^2 + 1·?#9e7d51ac^2)
+   carrier_on_surface_2 #59 [NumericZero] causes None {Terms: 4, Degree: 3} -> (i) freeze
+      EARLY (-28823037615171175·2^-62 + 1/1152921504606847·2^60·?#16ecc83b + 1/1152921504606847·2^62·?#16ecc83b·bulge + 1/1152921504606847·2^62·?#16ecc83b·bulge^2 + -5764607523034235·2^-59·bulge + -8070450532247929·2^-59·bulge^2 + -1152921504606847·2^-57·bulge^3 + -1152921504606847·2^-58·bulge^4) / (1·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge)) + 4·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge))·bulge + 4·abs((5 + 4·bulge + 4·…
+   carrier_on_surface_2 #61 [NumericZero] causes None {Terms: 5, Degree: 3} -> (i) freeze
+      EARLY (-28823037615171175·2^-62 + -5764607523034235·2^-59·bulge + 1/1152921504606847·2^62·bulge·?#898e62fa + -8070450532247929·2^-59·bulge^2 + 1/1152921504606847·2^62·bulge^2·?#898e62fa + -1152921504606847·2^-57·bulge^3 + -1152921504606847·2^-58·bulge^4 + 1/1152921504606847·2^60·?#898e62fa) / (1·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge)) + 4·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge))·bulge + 4·abs((5 + 4·bulge + 4·…
+   carrier_on_surface_2 #68 [NumericZero] causes None {Terms: 4, Degree: 3} -> (i) freeze
+      EARLY (-28823037615171175·2^-62 + 1/1152921504606847·2^60·?#ee8e7c2d + 1/1152921504606847·2^62·?#ee8e7c2d·bulge + 1/1152921504606847·2^62·?#ee8e7c2d·bulge^2 + -5764607523034235·2^-59·bulge + -8070450532247929·2^-59·bulge^2 + -1152921504606847·2^-57·bulge^3 + -1152921504606847·2^-58·bulge^4) / (1·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge)) + 4·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge))·bulge + 4·abs((5 + 4·bulge + 4·…
+   carrier_on_surface_2 #70 [NumericZero] causes None {Terms: 5, Degree: 3} -> (i) freeze
+      EARLY (-28823037615171175·2^-62 + 1/1152921504606847·2^60·?#fec3ff69 + 1/1152921504606847·2^62·?#fec3ff69·bulge + 1/1152921504606847·2^62·?#fec3ff69·bulge^2 + -5764607523034235·2^-59·bulge + -8070450532247929·2^-59·bulge^2 + -1152921504606847·2^-57·bulge^3 + -1152921504606847·2^-58·bulge^4) / (1·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge)) + 4·abs((5 + 4·bulge + 4·bulge^2) / (1 + 2·bulge))·bulge + 4·abs((5 + 4·bulge + 4·…
+
+==============================================================================
+== class sample: R2 filleted bracket (.fillet(0.5), a tan(pi/8) bulge) (r2_filleted_bracket)
+==============================================================================
+--- the split at the nominal (theorem/gated/registered/numeric)
+   arc_apex_identity                  0/0/0/2
+   arc_diameter_clearance             0/0/0/11
+   arc_span                           8/0/0/2
+   assert_bound                       0/0/0/1
+   carrier_circles_identity           6/0/0/0
+   carrier_cyl_axis_parallel          1/0/0/0
+   carrier_endpoint_end               46/0/20/0
+   carrier_endpoint_start             46/0/20/0
+   carrier_line_circle                0/0/0/10
+   carrier_matches_mapped_source      243/0/74/16
+   carrier_on_surface_1               243/0/0/0
+   carrier_on_surface_2               225/0/0/18
+   chord_side                         10/0/0/55
+   contact_at_shared_vertex           19/0/0/5
+   datum_unit_norm                    0/0/0/2
+   dihedral_arm                       0/0/0/218
+   dihedral_wedge                     0/2/0/216
+   expr_non_finite                    58/0/0/0
+   extrusion_normal_component         0/0/0/3
+   fillet_leg_fit                     0/0/0/2
+   interval_span_forward              0/0/0/66
+   interval_span_winding              0/0/0/20
+   line_span                          6/5/0/1
+   newell_plane_residual              56/0/0/0
+   path_circle_radius                 0/0/0/2
+   path_corner_advance                0/0/0/2
+   path_corner_turn                   0/0/0/1
+   path_director_norm                 0/0/0/2
+   path_fillet_radius                 0/0/0/1
+   path_junction_turn                 0/0/0/5
+   pcurve_chart_azimuth_frame         0/0/0/4
+   pcurve_chart_radial_moving         4/0/0/0
+   pcurve_map_residual                0/0/36/0
+   segment_straightness               14/0/0/11
+   side_cylinders_cosurface           4/0/0/0
+   side_planes_cosurface              0/0/0/5
+   tangent_hull_sup                   0/0/0/2
+   tangent_normal_parallel            14/0/0/0
+   tangent_on_surface_1               9/0/0/9
+   tangent_on_surface_2               9/0/0/9
+   tangent_second_order               0/0/0/28
+   tangent_tube_margin                0/0/0/2
+   vertex_separation                  0/0/0/25
+   witness_at_mid_parameter           29/0/0/0
+   witness_on_surface_1               28/0/0/1
+   witness_on_surface_2               26/0/0/3
+   receipt SymCounts { symbolic_zero: 1104, sign_gated: 7, registered: 150, registrations_refused: 0, registrations_contradicted: 0, numeric: 760, retried: 6, frozen: 1637 }
+--- every asked-numeric arc-family decision
+   line_span #6 [NumericZero] causes None {Coefficient: 5} -> (i) freeze
+      EARLY 1·min(1·?#e4643560, (1·2^-61·abs(-1329227995784915928244039281409·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm))) + -1152921504606847·2^59·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm + -1·2^120·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·fillet_r + -1152921504606847·2^61·abs((1152921504606847 + 1·2^59·arm) / (1·a…
+   arc_span #0 [NumericZero] causes None {Coefficient: 9} -> (i) freeze
+      EARLY 1·sqrt((1766847064778384476702869423868253512040751935974621093025281·2^-123 + 3987683987354747784732117844227·?#8b61bdf9 + 10376293541461623·2^60·?#8b61bdf9·arm + 3458764513820541·2^61·?#8b61bdf9·arm·sqrt(2) + 45·2^118·?#8b61bdf9·arm^2 + 15·2^119·?#8b61bdf9·arm^2·sqrt(2) + 15/1152921504606847·2^179·?#8b61bdf9·arm^3 + 5/1152921504606847·2^180·?#8b61bdf9·arm^3·sqrt(2) + 45/1329227995784915928244039281409·2^236·?#8b61b…
+   contact_at_shared_vertex #6 [NumericZero] causes None {} -> (i) freeze
+      EARLY 1·sqrt((1532495540865888954062762723664254024941207423·2^-58·abs(-1329227995784915928244039281409·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm))) + -1152921504606847·2^59·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm + -1·2^120·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·fillet_r + -1152921504606847·2^61·abs((11529…
+   arc_span #1 [NumericZero] causes None {Terms: 1, Degree: 1, Coefficient: 4} -> (i) freeze
+      EARLY 1·sqrt((1766847064778384476702869423868253512040751935974621093025281·2^-123 + 3987683987354747784732117844227·?#8b61bdf9 + 10376293541461623·2^60·?#8b61bdf9·arm + 3458764513820541·2^61·?#8b61bdf9·arm·sqrt(2) + 45·2^118·?#8b61bdf9·arm^2 + 15·2^119·?#8b61bdf9·arm^2·sqrt(2) + 15/1152921504606847·2^179·?#8b61bdf9·arm^3 + 5/1152921504606847·2^180·?#8b61bdf9·arm^3·sqrt(2) + 45/1329227995784915928244039281409·2^236·?#8b61b…
+   carrier_matches_mapped_source #28 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 22} -> (i) freeze
+      EARLY 1·sqrt(1·?#d86a1de4^2 + 1·?#f98400cf)
+   carrier_matches_mapped_source #29 [NumericZero] causes None {Terms: 2, Degree: 3, Coefficient: 22} -> (i) freeze
+      EARLY 1·sqrt(1·?#4439a232^2 + 1·?#a21723fa^2)
+   carrier_matches_mapped_source #30 [NumericZero] causes None {Terms: 14, Degree: 3, Coefficient: 16} -> (i) freeze
+      EARLY 1·sqrt(1·?#c566034b^2 + 1·?#d40ab2d0)
+   carrier_matches_mapped_source #31 [NumericZero] causes None {Terms: 2, Degree: 3, Coefficient: 24} -> (i) freeze
+      EARLY (1·2^-61·sqrt(-1152921504606847·2^121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·?#22f47831·abs(1152921504606847 + 1·2^59·arm) + -1·2^182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·?#22f47831·abs(1152921504606847 + 1·2^59·arm)·fillet_r + -1152921504606847·2^121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·ar…
+   carrier_matches_mapped_source #32 [NumericZero] causes None {Terms: 18, Degree: 3, Coefficient: 12} -> (i) freeze
+      EARLY 1·sqrt(1·?#ee915737^2 + 1·?#5e5b7fad)
+   carrier_matches_mapped_source #33 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 28} -> (i) freeze
+      EARLY 1·sqrt(1·?#6a8f3e39 + 1·?#269898c1^2)
+   carrier_matches_mapped_source #34 [NumericZero] causes None {Terms: 8, Degree: 3, Coefficient: 16} -> (i) freeze
+      EARLY 1·sqrt(1·?#89fbf304^2 + 1·?#054124ab^2)
+   carrier_matches_mapped_source #35 [NumericZero] causes None {Terms: 6, Degree: 3, Coefficient: 26} -> (i) freeze
+      EARLY 1·sqrt(1·?#aeb21a42^2 + 1·?#0a3a2bbe)
+   carrier_matches_mapped_source #154 [NumericZero] causes None {Terms: 4, Degree: 6, Coefficient: 17} -> (i) freeze
+      EARLY 1·sqrt(1·?#b92b1f4a^2 + 1·?#6ed618aa)
+   carrier_matches_mapped_source #155 [NumericZero] causes None {Terms: 2, Degree: 6, Coefficient: 18} -> (i) freeze
+      EARLY 1·sqrt(1·?#c0304076^2 + 1·?#4467dec0^2)
+   carrier_matches_mapped_source #156 [NumericZero] causes None {Terms: 12, Degree: 6, Coefficient: 11} -> (i) freeze
+      EARLY 1·sqrt(1·?#380b1020 + 1·?#4e9aaea8^2)
+   carrier_matches_mapped_source #157 [NumericZero] causes None {Terms: 2, Degree: 6, Coefficient: 20} -> (i) freeze
+      EARLY (1·2^-61·sqrt(1·2^122·?#3dd0b92b^2·abs(1152921504606847 + 1·2^59·arm)^2 + -1152921504606847·2^121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·?#9a60293e·abs(1152921504606847 + 1·2^59·arm) + -1·2^182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))·arm·?#9a60293e·abs(1152921504606847 + 1·2^59·arm)·fillet_r + -1152921504606847·2^121·abs((115292150460684…
+   carrier_matches_mapped_source #158 [NumericZero] causes None {Terms: 14, Degree: 6, Coefficient: 9} -> (i) freeze
+      EARLY 1·sqrt(1·?#e7df5817^2 + 1·?#10aee6cf)
+   carrier_matches_mapped_source #159 [NumericZero] causes None {Terms: 5, Degree: 6, Coefficient: 21} -> (i) freeze
+      EARLY 1·sqrt(1·?#8cce3838 + 1·?#d3cb0d48)
+   carrier_matches_mapped_source #160 [NumericZero] causes None {Terms: 8, Degree: 6, Coefficient: 14} -> (i) freeze
+      EARLY 1·sqrt(1·?#cebba540^2 + 1·?#fbf2c2c8^2)
+   carrier_matches_mapped_source #161 [NumericZero] causes None {Terms: 6, Degree: 6, Coefficient: 18} -> (i) freeze
+      EARLY 1·sqrt(1·?#4a07feb9^2 + 1·?#d0d72a06)
+   witness_on_surface_2 #3 [NumericZero] causes None {Degree: 2, Coefficient: 10} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   witness_on_surface_1 #4 [NumericZero] causes None {Degree: 2, Coefficient: 10} -> (i) freeze
+      EARLY (1·?#2f6464a7 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·a…
+   carrier_on_surface_2 #99 [NumericZero] causes None {Terms: 2, Degree: 3, Coefficient: 9} -> (i) freeze
+      EARLY (1·?#6bc9aeab^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #100 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 10} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #101 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 10} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #102 [NumericZero] causes None {Terms: 6, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#7276bddb^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #103 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 10} -> (i) freeze
+      EARLY (1·?#f4dfb771 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·a…
+   carrier_on_surface_2 #104 [NumericZero] causes None {Terms: 8, Degree: 3, Coefficient: 6} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #105 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 12} -> (i) freeze
+      EARLY (1·?#80970d14 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·a…
+   carrier_on_surface_2 #106 [NumericZero] causes None {Terms: 6, Degree: 3, Coefficient: 12} -> (i) freeze
+      EARLY (1·?#16324654^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #107 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 10} -> (i) freeze
+      EARLY (1·?#d27aaa84^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   witness_on_surface_2 #13 [NumericZero] causes None {} -> (i) freeze; early form as #103
+   carrier_on_surface_2 #108 [NumericZero] causes None {Terms: 2, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#c9e5f258^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #109 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#91518365^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #110 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#ab42b77a^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2…
+   carrier_on_surface_2 #111 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #112 [NumericZero] causes None {Terms: 4, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#bf1715da + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·a…
+   carrier_on_surface_2 #113 [NumericZero] causes None {Terms: 6, Degree: 3, Coefficient: 6} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #114 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#abc03816 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·a…
+   carrier_on_surface_2 #115 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (-1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2·arm + 1532495540…
+   carrier_on_surface_2 #116 [NumericZero] causes None {Terms: 4, Degree: 3, Coefficient: 8} -> (i) freeze
+      EARLY (1·?#6b7375fb^2 + 1·?#0c652d99^2 + -1·2^-2·abs((3458764513820541·2^60·arm·sqrt(2)·abs(1152921504606847 + 1·2^59·arm)·sqrt((2037035976334486298290093461815506538221483870336166046491221766981736699007·2^-182·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 + 1·2^59·arm)))^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-121·abs((1152921504606847 + 1·2^59·arm) / (1·abs(1152921504606847 …
+   witness_on_surface_2 #14 [NumericZero] causes None {} -> (i) freeze; early form as #112
+
+==============================================================================
+== The boss's former value-free residual, rendered at the BASE (gone at this head)
+==============================================================================
+# arc_span sample 1 of r1_segment_boss, rendered on props/sign-hull at 7f3c0cc3f with the Phase 1
+# instruments, before rule G's exact quotient. sqrt(P/Q) with Q | P exactly: the quotient is
+# 5(c·2^-59 + chord_half)^2, c = 1152921504606847 — the halves share the chord's polynomial factor
+# (1 + chord_half/(c·2^-59))^4. At this head the boss's arc_span is 6/0/0/0 and nothing on it is asked.
+   causes None {Coefficient: 2}
+   EARLY 1·2^-59·sqrt(5)·abs(1152921504606847 + 1·2^59·chord_half) + -1·sqrt((6646139978924579641220196407045·2^-118 + 17293822569102705·2^-58·chord_half + 75·chord_half^2 + 25/1152921504606847·2^61·chord_half^3 + 75/1329227995784915928244039281409·2^118·chord_half^4 + 15/1532495540865888954062762723664254024941207423·2^178·chord_half^5 + 5/1766847064778384476702869423868253512040751935974621093025281·2^236·chord_half^6) / (1 + 1/1152921504606847·2^61·chord_half + 3/1329227995784915928244039281409·2^119·chord_half^2 + 1/1532495540865888954062762723664254024941207423·2^179·chord_half^3 + 1/1766847064778384476702869423868253512040751935974621093025281·2^236·chord_half^4))

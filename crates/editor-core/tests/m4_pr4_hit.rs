@@ -1,0 +1,439 @@
+//! M4 PR 4 spec D4: hit-testing inversion — arena key → StableName
+//! over the evaluation's tables, TOTAL for every entity the
+//! evaluation exposes (asserted over the corpus, counted), with the
+//! typed `Unnamed` bug door and typed refusals for unusable nodes.
+//! The GUI never sees an arena key: every mesh back-ref inverts.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::display_contract::assert_f6_every_variant;
+use crate::fixture;
+use test_utils::refusal::tagged;
+
+use editor_core::NodeStanding;
+use editor_core::{
+    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
+    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
+    RoleSeg, RunCtx, SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name,
+    evaluate, resolve,
+};
+use fixture::{ang, die, insert, len, on_frame, scl};
+use geom_core::Tol;
+use topo::{Body, FaceKey};
+
+fn run(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+/// Every output body of a node's value, with its body index.
+fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
+    match payload {
+        ValuePayload::Body(b) => vec![(0, &**b)],
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => vec![(0, &**body)],
+        ValuePayload::Boolean(BooleanValue::Empty) => vec![],
+        ValuePayload::Split { above, below } => {
+            let mut out = Vec::new();
+            if let SplitSide::Body(b) = above {
+                out.push((0, &**b));
+            }
+            if let SplitSide::Body(b) = below {
+                out.push((1, &**b));
+            }
+            out
+        }
+        ValuePayload::Instances(v) => v
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
+            .collect(),
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
+        // Neither sink denotes a body, so neither offers an entity to
+        // invert — the same answer a declaration gives.
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => vec![],
+    }
+}
+
+/// The D4 totality walk: EVERY face, edge, vertex, and body of every
+/// Ok node inverts to a name, and the name round-trips through
+/// resolution to the same entity. Returns the number of entities
+/// checked (counted, not vibes).
+fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
+    let ctx = RunCtx { doc, eval: ev };
+    let mut checked = 0usize;
+    for &node in &ev.order {
+        let Some(v) = ev.value(node) else { continue };
+        for (body_ix, body) in bodies_of(&v.payload) {
+            let mut keys: Vec<EntityKey> = vec![EntityKey::Body];
+            keys.extend(body.faces().map(|(k, _)| EntityKey::Face(k)));
+            keys.extend(body.edges().map(|(k, _)| EntityKey::Edge(k)));
+            keys.extend(body.vertices().map(|(k, _)| EntityKey::Vertex(k)));
+            for key in keys {
+                let ent = EntityRef { body: body_ix, key };
+                let name = entity_name(ev, node, ent)
+                    .unwrap_or_else(|e| panic!("unnamed entity at {node:?}: {e:?}"));
+                assert_eq!(name.kind, key.kind(), "kind agreement at {node:?}");
+                // Per-table bidirectionality: THIS node's forward row
+                // gives the entity back (unique, or a tie listing it).
+                match v.name_table.lookup(name) {
+                    Some(editor_core::Entry::Unique(r)) => {
+                        assert_eq!(*r, ent, "table round trip moved {name:?}");
+                    }
+                    Some(editor_core::Entry::Tied(c)) => {
+                        assert!(c.contains(&ent), "tie row lost {name:?}");
+                    }
+                    None => panic!("reverse row without forward row for {name:?}"),
+                }
+                // Global resolvability: the name resolves (its first
+                // carrying node may be an earlier pass-through source
+                // — a split half re-indexes bodies, so only the NODE-
+                // LOCAL entity is asserted above) or is honestly tied.
+                match resolve(ctx, name) {
+                    Resolution::Resolved(_) => {}
+                    Resolution::Failed(f) => {
+                        assert!(
+                            matches!(
+                                f.error,
+                                editor_core::ResolveError::Ambiguous { ref tie, .. }
+                                if tie.width >= 2
+                            ),
+                            "round trip failed non-ambiguously for {name:?}: {f:?}"
+                        );
+                    }
+                    other => panic!("round trip indeterminate for {name:?}: {other:?}"),
+                }
+                checked += 1;
+            }
+        }
+    }
+    checked
+}
+
+#[test]
+fn inversion_is_total_on_the_die() {
+    let d = die();
+    let ev = run(&d.doc);
+    let checked = assert_total(&d.doc, &ev);
+    assert!(checked > 1000, "die walk too small: {checked}");
+}
+
+#[test]
+fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
+    // A compact corpus exercising every op family's table shapes:
+    // overlapping union (fragments/seams), split (both halves),
+    // partial revolve (bands/meridians/caps), linear pattern
+    // (instances).
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
+    let (doc, a) = {
+        let (doc, p) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p,
+                distance: len(1.0),
+            },
+        )
+    };
+    let (doc, b) = {
+        let (doc, p) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.5, 0.0), (1.5, 0.0), (1.5, 1.0), (0.5, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p,
+                distance: len(1.0),
+            },
+        )
+    };
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    // Split the union.
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.5), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, _split) = insert(
+        doc,
+        Node::Split {
+            target: u,
+            tool: plane,
+        },
+    );
+    // A partial revolve (bands, meridians, wedge caps).
+    let (doc, plane, rp) = fixture::on_frame_keeping(
+        doc,
+        [0.0, 3.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
+    );
+    // The world axis sat at the FRAME's origin pointing along its v, so
+    // in the frame's own coordinates it is +y through (0, 0).
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, _rev) = insert(
+        doc,
+        Node::Revolve {
+            profile: rp,
+            axis,
+            angle: ang(std::f64::consts::FRAC_PI_2),
+        },
+    );
+    // A pattern of the union.
+    let (doc, _pat) = insert(
+        doc,
+        Node::Pattern {
+            input: u,
+            count: editor_core::Expr::count(3),
+            kind: editor_core::PatternKind::Linear {
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+                spacing: len(3.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    for &id in &ev.order {
+        assert!(
+            ev.value(id).is_some(),
+            "corpus node {id:?} failed: {:?}",
+            ev.nodes.get(&id)
+        );
+    }
+    let checked = assert_total(&doc, &ev);
+    assert!(checked > 300, "corpus walk too small: {checked}");
+}
+
+#[test]
+fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
+    // Failed / poisoned doors.
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(0.0), // degenerate: the extrude fails
+        },
+    );
+    let (doc, ext2) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        },
+    );
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: ext,
+            b: ext2,
+            declare: None,
+        },
+    );
+    let ev = run(&doc);
+    assert_eq!(
+        body_name(&ev, ext, 0),
+        Err(HitTestError::Standing(NodeStanding::Failed { node: ext }))
+    );
+    assert_eq!(
+        body_name(&ev, u, 0),
+        Err(HitTestError::Standing(NodeStanding::Poisoned {
+            node: u,
+            through: ext
+        }))
+    );
+    assert_eq!(
+        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
+        Err(HitTestError::Standing(NodeStanding::NotInDocument {
+            node: RecipeNodeId(tagged(9999))
+        }))
+    );
+    // The Unnamed bug door: a node whose (legitimately empty) table
+    // cannot answer for a foreign entity refuses LOUDLY with the
+    // entity attached — never a silent None.
+    let (doc2, decl) = insert(doc, Node::declare_rest(vec![]));
+    let ev2 = run(&doc2);
+    let some_face = ev2
+        .value(ext2)
+        .unwrap()
+        .name_table
+        .iter()
+        .find_map(|(_, e)| match e {
+            editor_core::Entry::Unique(r) if matches!(r.key, EntityKey::Face(_)) => Some(*r),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        entity_name(&ev2, decl, some_face),
+        Err(HitTestError::Unnamed(UnnamedEntity {
+            node: decl,
+            entity: some_face
+        }))
+    );
+}
+
+test_utils::f6_variants! {
+    /// `HitTestError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases. The mechanism and what
+    /// it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const HIT_TEST_ERROR: HitTestError = [
+        Standing,
+        EvaluationOfAnotherDocument,
+        Ambiguous,
+        Unnamed,
+        AcrossSpaces,
+    ];
+}
+
+/// The Display contract (#1111): a consumer renders a `HitTestError`
+/// through the payload's own words, so every arm must state what
+/// happened in prose — the node it is about, the kind of entity where
+/// there is one — and must never read as the `Debug` struct dump the
+/// viewer was reduced to printing. The variant identifier and the
+/// field-name punctuation are the dump's fingerprints; asserting their
+/// ABSENCE is what keeps a future `write!(f, "{self:?}")` from passing
+/// this test.
+///
+/// The shape itself is [`test_utils::f6::assert_f6`] through the
+/// binary's one wrapper, not a copy of it here: this row held the
+/// partial third spelling that
+/// `work/view/f6-display-predicate-is-spelled-three-times-with-no-home`
+/// cites, and its roster had drifted from the other one.
+#[test]
+fn hit_test_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(tagged(7));
+    let through = RecipeNodeId(tagged(3));
+    // Two faces of ONE node, differing only in their role path — the
+    // shared-edge tie's own shape, and the case that says the
+    // rendering carries the path.
+    let tied_hit = |at: u32| PickHit {
+        name: StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::Cap(if at == 3 {
+                CapEnd::Start
+            } else {
+                CapEnd::End
+            })],
+        },
+        node,
+        body: 0,
+        t: f64::from(at),
+        t_lo: f64::from(at),
+        t_hi: f64::from(at),
+        point: geom_core::Point3::new(0.0, 0.0, 0.0),
+    };
+    let cases = [
+        (
+            HitTestError::Standing(NodeStanding::NotEvaluated { node }),
+            vec!["node 000000000007", "no result"],
+        ),
+        (
+            HitTestError::Standing(NodeStanding::Failed { node }),
+            vec!["node 000000000007", "failed"],
+        ),
+        (
+            HitTestError::Standing(NodeStanding::Poisoned { node, through }),
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
+        ),
+        (
+            HitTestError::EvaluationOfAnotherDocument {
+                expected: DocumentId::derive("m4-hit-expected"),
+                found: DocumentId::derive("m4-hit-found"),
+            },
+            // Two documents, both named: which one the door is about
+            // and which one was handed. The ids render through their
+            // own `Display`, so the prose carries the whole answer.
+            vec!["document", "not"],
+        ),
+        (
+            HitTestError::Ambiguous {
+                hits: [3u32, 5].map(tied_hit).to_vec(),
+            },
+            // The count, and each tied face NUMBERED so the phrase
+            // lines up with its entry in `hits` — two faces of one
+            // node render identically through `StableName`'s
+            // `Display`, and the role path that would tell them apart
+            // is a `Debug` derivation the prose must not carry.
+            vec![
+                "tied between 2 faces",
+                "(1) face",
+                "(2) face",
+                "node 000000000007",
+            ],
+        ),
+        (
+            HitTestError::Unnamed(UnnamedEntity {
+                node,
+                entity: EntityRef {
+                    body: 2,
+                    key: EntityKey::Face(FaceKey::default()),
+                },
+            }),
+            // The lookup's own sentence under this door's prefix: the
+            // entity by KIND and body index — an arena key is
+            // editor-core-private and says nothing to a person.
+            vec![
+                "hit test:",
+                "name lookup:",
+                "node 000000000007",
+                "face",
+                "body 2",
+                "kernel bug",
+            ],
+        ),
+        (
+            HitTestError::AcrossSpaces {
+                group: node,
+                cause: editor_core::Unplaced::NoOffset,
+            },
+            vec![
+                "different spaces",
+                "node 000000000007",
+                "no instance in it carries an offset",
+                "Recourse:",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);
+}

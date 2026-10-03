@@ -1,0 +1,139 @@
+//! Corpus document **vessel** — a full revolve of a potter's meridian
+//! (a base disc, a foot, a spherical belly, a mouth disc) hollowed
+//! through `Node::Shell` with the MOUTH opened into a rim: the teapot's
+//! class, chosen because the mouth of a solid of revolution is where
+//! `shell_open` was wrong twice before it shipped, and the class the
+//! by-description plane scan in the tour's teapot was written for.
+//!
+//! The recipe is five nodes — frame → in-plane axis → profile →
+//! revolve → shell. The meridian is the teapot's, station for station:
+//! every coordinate is a dyadic rational and the belly is a sphere of
+//! radius `5/64` about `(0, 4/64)`, meeting the foot at the 3-4-5 point
+//! `(4/64, 1/64)` and the mouth at `(3/64, 8/64)`, so both junction
+//! residuals are exactly `0.0` in `f64`.
+//!
+//! # The mouth is ONE face
+//!
+//! A FULL revolve builds a plane wall whole (`crates/sweep/README.md`,
+//! "Walls: one per run"), so the mouth disc is one face on its plane
+//! and `open` names it alone; the rim is `Rim(Band(mouth))`.
+//!
+//! # No mass pin
+//!
+//! The belly is a spherical zone and every closed form carries `π`;
+//! the corpus `MassPin` is asserted with `==`, so a pin here would fix
+//! `f64` rounding of an irrational rather than the geometry — the
+//! `die_fillet` / `tube_ring` disposition. Validity, closure, the face
+//! census and the rim's name are what `lib_g17_shell_node.rs` pins.
+//!
+//! # Not in the registry
+//!
+//! Held beside [`super::documents`] for `cup`'s reason (its module
+//! docs): a dual has no shell door, and registry membership requires
+//! every document green at `Dual64`.
+
+use editor_core::{
+    DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
+};
+
+use crate::fixture::{ang, axis_in_plane, frame, len, len2};
+
+use super::{CorpusDoc, Recorder};
+
+/// The foot's radius — the cylinder the vessel stands on.
+pub const R_FOOT: f64 = 4.0 / 64.0;
+/// The belly's sphere radius — the widest wall, at `Y_BELLY_C`.
+pub const R_BELLY: f64 = 5.0 / 64.0;
+/// The mouth's radius.
+pub const R_NECK: f64 = 3.0 / 64.0;
+/// Where the foot ends and the belly's arc begins.
+pub const Y_FOOT: f64 = 1.0 / 64.0;
+/// The belly sphere's centre, on the axis.
+pub const Y_BELLY_C: f64 = 4.0 / 64.0;
+/// The mouth's plane.
+pub const Y_MOUTH: f64 = 8.0 / 64.0;
+/// The wall thickness: a tenth of the belly's radius and an eighth of
+/// the narrowest wall (the neck's), so every per-face reach margin is
+/// definite by a wide margin.
+pub const WALL: f64 = 1.0 / 128.0;
+/// The bumped wall (dyadic; still an eighth under the neck's radius).
+pub const WALL_BUMPED: f64 = 1.0 / 64.0;
+
+/// The meridian's segment indices, in program order: base disc, foot,
+/// belly, mouth disc, axis chord.
+pub const SEG_BASE: u32 = 0;
+/// The foot cylinder's segment.
+pub const SEG_FOOT: u32 = 1;
+/// The belly sphere's segment.
+pub const SEG_BELLY: u32 = 2;
+/// The mouth disc's segment.
+pub const SEG_MOUTH: u32 = 3;
+
+/// The meridian as a program (module docs).
+pub fn meridian() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, Y_FOOT]))),
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: len2([0.0, Y_BELLY_C]),
+            winding: profile::ArcSweep::Ccw,
+            target: ProgramTarget::Point(len2([R_NECK, Y_MOUTH])),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, Y_MOUTH]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// The vessel with its `open` list AUTHORED by the caller — whatever
+/// faces they are: the mouth, or a designation the kernel refuses.
+/// [`document`] names the mouth.
+pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>) -> CorpusDoc {
+    let mut r = Recorder::new();
+
+    // u = +X (the radius), v = +Z (the axis): the meridian's own axis
+    // is its +v through the origin, written in the frame it turns.
+    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![meridian()],
+        ids: Vec::new(),
+    }));
+    let pot = r.insert(Node::Revolve {
+        profile,
+        axis,
+        angle: ang(std::f64::consts::TAU),
+    });
+    let open = open(&r.doc, pot);
+    let vessel = r.insert(Node::shell(pot, len(WALL), open));
+
+    CorpusDoc {
+        name: "vessel",
+        about: "a revolved pot (foot, spherical belly, mouth) hollowed to a wall of 1/128 \
+                with its mouth opened",
+        edits: r.edits,
+        doc: r.doc,
+        result: Some(vessel),
+        // π-valued closed forms are not dyadic — module docs.
+        pin: None,
+        bump: DocEdit::SetParam {
+            node: vessel,
+            slot: SlotId::ShellThickness,
+            expr: len(WALL_BUMPED),
+        },
+        bump_root: vessel,
+    }
+}
+
+/// The mouth's piece on the pot `pot` revolves — its profile's
+/// canonical segment [`SEG_MOUTH`].
+pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
+    crate::fixture::piece(doc, pot, 0, SEG_MOUTH as usize)
+}
+
+/// The vessel's corpus document: the mouth opened.
+pub fn document() -> CorpusDoc {
+    document_with_open(|doc, pot| vec![band(pot, mouth(doc, pot))])
+}

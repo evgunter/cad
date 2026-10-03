@@ -1,0 +1,84 @@
+# Pre-GUI demo tour. Deliberately OUTSIDE the kernel workspace (the
+# empty [workspace] table below detaches it; the root manifest also
+# lists `demos` in workspace.exclude): viewer/demo tooling must never
+# become a workspace dependency. Builds the kernel by path.
+[package]
+name = "demo-tour"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+# The `k-probe` mode only (src/probe.rs + its dispatch in main.rs), which
+# rebuilds every scene at `geom_core::k_stats::Probe` to dump the margin
+# CSV for the K sweep. Opt-in because Probe is a `Real` instantiation:
+# carrying it unconditionally made every RELEASE RENDER of this tour
+# monomorphize the whole geometry stack a second time for a mode the
+# render lanes never invoke. `scripts/k_probe_sweep.sh` passes
+# `--features probe`; render.yml's tour job deliberately does not.
+#
+# The `tess-budget` mode (src/tessbudget.rs + its dispatch) is opt-in
+# for a different reason: `mesh::budget` is per-face telemetry gated at
+# its own module boundary, so the kernel a render build links carries
+# none of it. Same shape as `probe` above, no monomorphization
+# argument — the cost avoided is state in the tessellation lane, not
+# codegen. `scripts/tess_budget_sweep.sh` passes `--features budget`.
+[features]
+probe = ["pncad/probe"]
+budget = ["pncad/budget"]
+
+# The façade carries the tour. The tour is the façade's acceptance
+# corpus (LIB-U1): every scene, and every kernel type they touch
+# reached through `pncad::`, including the error payloads. It used to
+# name eleven crates here — among them `geom-brep`, present for no
+# reason but to spell `SurfaceKind`, the payload of
+# `topo::BooleanError::CurvedBooleanUnsupported` that `topo` does not
+# re-export. The façade's closure property retires that whole class,
+# so the entry is gone rather than commented.
+[dependencies]
+pncad = { path = "../../crates/pncad" }
+
+# The budget meter's consumer half: the CSV schema and the
+# counterfactual arithmetic the `tess-budget` mode writes. Not gated
+# behind the `budget` feature — the crate is plain derivation over
+# `mesh::budget`'s (ungated, data-only) measurement types, so carrying
+# it never turns the instrument on. What `budget` gates is `arm`/`take`.
+tess-meter = { path = "../../tools/tess-meter" }
+
+# The budget sweep's per-face `name` column: a `StableName` is rendered
+# through its ratified structural serialization (F3) rather than through
+# a second spelling written here, so what the CSV carries is the same
+# derivation path a saved document carries. Already in this crate's
+# graph through the document layer; named here because this crate calls
+# it directly.
+serde_json = "1.0.151"
+
+
+# The tour is the ONLY release build of the kernel in CI (the ten
+# nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
+# in ci.yml, which leaves cargo's dev default of debug-assertions ON, so
+# the fail-loud postconditions keep their teeth there). Cargo's release
+# default turns them OFF, so without this the tour was the one lane
+# exercising the kernel with every `debug_assert` compiled out
+# — D9's operator postconditions, the Euler-vector arena deltas, the N6
+# bitwise-agreement check, all vacuous.
+#
+# Re-arming them here rather than dropping `--release` is deliberate:
+# this is a DETACHED workspace ([workspace] above), so the root
+# manifest's `[profile.dev.package]` opt-2 overrides for spade+mesh do
+# NOT reach it and a dev build would tessellate at opt 0. We want the
+# optimized codegen AND the assertions; they are independent knobs.
+# Scoped to this manifest, so the kernel workspace's own release profile
+# — and anything shipped from it — is untouched.
+#
+# `overflow-checks` is a SEPARATE knob, not a rider on debug-assertions:
+# cargo emits `-C overflow-checks=off` explicitly under release even with
+# `-C debug-assertions=on` (verified in `cargo build --release -v`). Dev
+# defaults both ON, so arming only the first would still leave this lane
+# checking less than the nextest legs do. Both, or the parity claim above
+# is false.
+[profile.release]
+debug-assertions = true
+overflow-checks = true

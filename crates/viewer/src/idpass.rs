@@ -1,0 +1,468 @@
+//! The GPU id pass's bookkeeping: what is outstanding, what it was
+//! asked about, and what its answer is worth when it comes back.
+//!
+//! # Why this is not a per-frame policy
+//!
+//! The id pass is a round trip. One frame issues a query; a later
+//! frame reads the answer — and in between the cursor can move, the
+//! picture can be rebuilt and the index can be replaced. Nothing
+//! visible on the reading frame says whether the answer still
+//! describes the question, so the only thing that can say it is state
+//! carried ACROSS frames: the serial outstanding, and the cursor and
+//! [`IdSubject`] it was asked about.
+//!
+//! That is the whole difference from [`crate::frame`], whose policies
+//! are pure functions of one frame and are values precisely so they
+//! can be replayed. Everything here exists because it REMEMBERS.
+//! [`IdQueryLog`] holds the question, [`IdSubject`] decides what
+//! counts as the same question, [`IdStep`] is the verdict about this
+//! frame, and [`Disagreement`] is what the two picking paths amount to
+//! once an answer has been matched to the question it answers.
+//!
+//! **The failure mode the memory exists for is an answer outliving its
+//! question**, and it does not look like a fault: a matched-but-stale
+//! answer compared against a fresh ray hit reports *the two picking
+//! paths disagree*, which is the sentence issue #1097 §4 tells an
+//! operator to read as an `R32Uint` clear fault. Each type below says
+//! which shape of outliving it closes.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use pncad::document::{Doc, ProfileProgram, Said, Say, Speaker};
+use pncad::prelude::StableName;
+use pncad::select::UnnamedEntity;
+
+use crate::frame::{Message, Retold, Subject};
+use crate::generation::Generation;
+use crate::pickindex::{IdMap, PickError, PickIndex};
+
+/// What the viewport should do about the GPU id query this frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdStep {
+    /// Ask: the cursor moved, or the picture changed under it.
+    Ask {
+        /// The serial to stamp the query with.
+        serial: u32,
+    },
+    /// Nothing to ask — the outstanding answer still describes this
+    /// cursor.
+    Hold,
+    /// The pointer is gone; any outstanding answer is void.
+    Void,
+}
+
+/// **What an id query is asked ABOUT**, beside the cursor: the picture
+/// on screen and the index whose alphabet its ids are words of.
+///
+/// **Both halves, because neither is a subset of the other.** The
+/// query's answer is an id the GPU read out of the picture identified
+/// by `revision`, and it is resolved through the id map of the index
+/// identified by `generation` — so a change to either makes the
+/// outstanding answer describe something nobody is asking about:
+///
+/// - **A new picture at the same generation.** Hiding a part rebuilds
+///   the scene from the index already in hand
+///   ([`crate::app::ViewerApp::sync_scene`] rebuilds on a display
+///   revision or a focus-set change too), so the drawn ids lose the
+///   hidden part's patches while the generation holds still. Keyed on
+///   the generation alone the query holds, the GPU's answer for the
+///   picture that still had the part stays matched, and the ray path's
+///   fresh *nothing* is reported as *the two picking paths disagree* —
+///   the sentence issue #1097 §4 tells an operator to read as an
+///   `R32Uint` clear fault.
+/// - **A new generation at the same picture.** A rebuild that REFUSES
+///   does not bump the revision (`sync_scene` marks the pair current
+///   only on success), so an index that landed over a refused rebuild
+///   is a new generation beside the picture already on screen. Keyed on
+///   the revision alone the query holds, and the hover the pick path
+///   skips on a [`IdStep::Hold`] is a question about the DOCUMENT,
+///   which has moved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IdSubject {
+    /// [`crate::app::ViewerApp`]'s scene revision: the identity of the
+    /// mesh the id pass renders, bumped on every successful rebuild.
+    pub revision: u64,
+    /// The generation of the index in hand, `None` while one is being
+    /// built.
+    pub generation: Option<Generation>,
+}
+
+/// The id pass's query bookkeeping: which query is outstanding, and
+/// what it was asked about.
+///
+/// **Two defects this closes, both of them about a query's answer
+/// outliving its question.** The pass used to be asked on every frame
+/// the pointer was inside the pane, moved or not — a blocking GPU
+/// readback per frame, and a documented movement gate that did not
+/// exist. And on leaving the pane no query was issued, no serial was
+/// reset, and the last answer stayed matched: with the ray path's
+/// hover cleared to `None`, the comparison then reported a permanent
+/// disagreement over empty space, which is the one symptom issue
+/// #1097 §4 tells the operator to read as a `R32Uint` clear fault.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IdQueryLog {
+    serial: u32,
+    /// The cursor and the subject the outstanding query was asked
+    /// about. `None` when nothing is outstanding.
+    asked: Option<([f64; 2], IdSubject)>,
+}
+
+impl IdQueryLog {
+    /// A log with nothing outstanding.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The serial of the query whose answer is still about the cursor,
+    /// or `None` when nothing is outstanding.
+    ///
+    /// The comparison reads this: an answer whose serial does not match
+    /// is about a question nobody is asking any more.
+    pub fn outstanding(&self) -> Option<u32> {
+        self.asked.map(|_| self.serial)
+    }
+
+    /// Advance the log for this frame's cursor and subject.
+    ///
+    /// `cursor` is `None` when the pointer is outside the pane.
+    /// `subject` is what the query is about beside the pointer — the
+    /// picture and the index ([`IdSubject`], which carries the argument
+    /// for asking both) — so a query is re-asked when either changes
+    /// under a still cursor.
+    pub fn step(&mut self, cursor: Option<[f64; 2]>, subject: IdSubject) -> IdStep {
+        let Some(cursor) = cursor else {
+            self.asked = None;
+            return IdStep::Void;
+        };
+        if self.asked == Some((cursor, subject)) {
+            return IdStep::Hold;
+        }
+        // Saturating past zero: zero is the "nothing was ever asked"
+        // serial the answer channel is initialised to, so a wrap must
+        // not land on it.
+        self.serial = self.serial.wrapping_add(1).max(1);
+        self.asked = Some((cursor, subject));
+        IdStep::Ask {
+            serial: self.serial,
+        }
+    }
+}
+
+/// **What the id buffer said at the cursor**, read through the index
+/// that drew the picture.
+///
+/// Four answers, because the channel word is an id and not a name:
+/// the index turns it into a name, or says it has none for a patch it
+/// draws, or has never assigned it at all. The last two are not the
+/// clear value, and reading either as *nothing* publishes a claim the
+/// id buffer did not make.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IdAnswer {
+    /// [`IdMap::NOTHING`], the id buffer's clear value.
+    ///
+    /// **Not only "no geometry under the cursor".** The channel also
+    /// carries [`IdMap::NOTHING`] for a readback that failed, so this
+    /// arm holds both until the channel word tells them apart
+    /// (`work/fit/id-readback-failure-reads-as-nothing-under-the-cursor`).
+    Nothing,
+    /// A drawn patch, by the name the index has for it.
+    Named(StableName),
+    /// A drawn patch the index has no name for: the naming layer's
+    /// loud bug report ([`PickIndex::name_of`]), with its own refusal
+    /// — a lookup's, since the index was built by one.
+    Unnamed {
+        /// The patch id the id buffer read back.
+        id: u32,
+        /// Why the patch has no name.
+        error: UnnamedEntity,
+    },
+    /// An id the index never assigned, so no patch of this picture is
+    /// drawn under it. The picture is the one this index drew (the
+    /// viewport compares against no other), so the word itself is
+    /// wrong: the symptom of a corrupt readback.
+    Unassigned {
+        /// The id the id buffer read back.
+        id: u32,
+    },
+}
+
+impl Say for IdAnswer {
+    /// Each arm in the words of the layer that raised it: a name
+    /// through [`NameAndPath`], an unnamed patch through its own
+    /// refusal's sentence, and an unassigned id as the picture's own
+    /// fact. The id is `id N` in every arm that carries one, because
+    /// it is one `u32` read out of the id buffer, whatever it turns out
+    /// to denote.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nothing => f.write_str("nothing"),
+            Self::Named(name) => write!(f, "{}", NameAndPath(name, by)),
+            Self::Unnamed { id, error } => {
+                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+            }
+            Self::Unassigned { id } => write!(f, "id {id}, which no patch of this picture draws"),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for IdAnswer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+/// **A name as a sentence that must tell two names apart says it**:
+/// kind and minting node ([`Speaker::name`]), then the role path
+/// ([`Disagreement`]'s sentence says why both halves). The one spelling
+/// of a name that two answers could otherwise share; the tie
+/// `crate::frame::pick_refusal` reports says its faces this way too.
+pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
+
+impl core::fmt::Display for NameAndPath<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self(name, by) = self;
+        write!(f, "{} ({:?})", by.name(name), name.path)
+    }
+}
+
+impl IdAnswer {
+    /// The answer the id `id` denotes in `index`.
+    pub fn of(index: &PickIndex, id: u32) -> Self {
+        if id == IdMap::NOTHING {
+            return Self::Nothing;
+        }
+        match index.name_of(id) {
+            Some(Ok(name)) => Self::Named(name.clone()),
+            Some(Err(error)) => Self::Unnamed { id, error: *error },
+            None => Self::Unassigned { id },
+        }
+    }
+}
+
+/// The two picking paths' answers for one cursor, when they differ.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Disagreement {
+    /// What the id buffer said ([`IdAnswer`]).
+    pub from_gpu: IdAnswer,
+    /// What the ray path named: **a SET**, because the kernel's door
+    /// answers one face, nothing, or a certified TIE between several
+    /// ([`pncad::select::HitTestError::Ambiguous`]). Empty is nothing
+    /// under the cursor; one name is an ordinary answer; several are
+    /// faces the arithmetic cannot order, and the rasterizer cannot
+    /// either — the pixel there falls to depth rounding, so the id
+    /// pass naming ONE of them is not a disagreement
+    /// ([`disagreement`]).
+    pub from_ray: Vec<StableName>,
+}
+
+impl Say for Disagreement {
+    /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
+    /// either side is said by kind and minting node, the half a user
+    /// can act on, followed by the role path ([`NameAndPath`]).
+    ///
+    /// BOTH halves of a name are load-bearing here, which is what makes this
+    /// message different from every other one in this crate. The name's
+    /// `Display` omits the path deliberately, so two names differing
+    /// only in their derivation would render identically; the path
+    /// alone drops kind and node, so two names on different nodes
+    /// sharing a role path would. A message whose entire subject is
+    /// that two answers DIFFER cannot afford either collapse.
+    ///
+    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
+    /// this workspace — the one rendering here that is not prose, and
+    /// it is a derivation, not a sentence.
+    ///
+    /// Destructured rather than field-read, which is what holds the
+    /// paragraph above to the value: the argument is that BOTH halves
+    /// are load-bearing, and a third field added to
+    /// [`Disagreement`] and left out of this sentence would falsify it
+    /// silently. In the pattern it is E0027 instead.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { from_gpu, from_ray } = self;
+        write!(
+            f,
+            "picking paths disagree at the cursor: id buffer {}, ray ",
+            Said(from_gpu, by)
+        )?;
+        match &from_ray[..] {
+            [] => f.write_str("nothing"),
+            [name] => write!(f, "{}", NameAndPath(name, by)),
+            tied => {
+                f.write_str("tied between ")?;
+                for (i, name) in tied.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(" and ")?;
+                    }
+                    write!(f, "{}", NameAndPath(name, by))?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Disagreement {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl Disagreement {
+    /// This disagreement as a message for the status line.
+    ///
+    /// [`Subject::Cursor`]: it is a claim about what lies under THIS
+    /// cursor over THIS picture, and [`crate::frame::cursor_status`]
+    /// retires it on
+    /// the id log's own judgement that the question has moved on.
+    ///
+    /// Its names are said from `doc`, the landed document the index
+    /// that drew the picture was built against.
+    ///
+    /// [`Retold::Again`]: the same hover says it again while the
+    /// paths still disagree.
+    pub fn notice(&self, doc: &Doc<ProfileProgram>) -> Message {
+        Message::new(
+            Subject::Cursor,
+            Said(self, Speaker::of(doc)).to_string(),
+            Retold::Again,
+        )
+    }
+}
+
+/// Compare the id pass's answer against the ray path's, **by name**.
+///
+/// # Why names and not ids
+///
+/// One stable name can be drawn under several ids — two `Transform`
+/// roots over one extrude carry the same names on both copies — so
+/// comparing raw ids reports a disagreement whenever the two paths
+/// name the same face on different drawn copies. The property the two
+/// lanes are supposed to share is "the same face is under the cursor",
+/// and a face is a name.
+///
+/// # The role inversion, recorded at the seam
+///
+/// GQ6-RESURVEY §3 assigns the GPU id buffer to hover/click exactness
+/// and the CPU ray cast to snapping. **This unit inverts that**: the
+/// ray path is authoritative because it is the path CI can execute,
+/// and the id pass is advisory — it runs beside the ray and
+/// contradicts it out loud rather than deciding anything. That is the
+/// whole reason this function reports and never resolves, and it is
+/// what makes issue #1097 §4's hardware check one cursor sweep.
+///
+/// # A tie is not a disagreement when the raster chose inside it
+///
+/// `from_ray` is a SET ([`Disagreement::from_ray`]). The two paths
+/// AGREE when the id buffer's name is one of it — the kernel said
+/// these faces cannot be ordered, and the rasterizer picking one of
+/// them is the depth buffer's rounding, not a contradiction of
+/// anything the kernel claimed. They disagree when the id buffer
+/// names a face outside the set, nothing where the ray named
+/// something, or something where the ray named nothing — and
+/// whenever it answers an id the index cannot name
+/// ([`IdAnswer::Unnamed`], [`IdAnswer::Unassigned`]; below).
+///
+/// # A refused ray path is no verdict
+///
+/// `from_ray` is the ray path's answer OR its refusal
+/// ([`crate::pickindex::PickIndex::faces_under_cursor`]'s own
+/// `Result`), because an empty answer and a refusal are different
+/// facts: the first says nothing is under the cursor, the second says
+/// nothing about the cursor at all. A refused path made no claim for
+/// the id pass to contradict, so the two are not compared — the same
+/// answer this function gives when the id pass has no fresh claim of
+/// its own. Reading the refusal as an empty set would publish *ray
+/// nothing* on exactly the cursors the kernel declines, which are the
+/// ones the id pass is likeliest to answer with a face.
+///
+/// Declining to compare is not dropping the refusal: it is the ray
+/// path's news, not the comparison's, and it is said in the ray path's
+/// own words ([`crate::frame::pick_refusal`]) by whoever asked the ray
+/// — the pick path when it asked at this cursor, the viewport's
+/// comparison when the pick path skipped the frame. Said here as well,
+/// as a disagreement, it would be one refusal announced twice and
+/// named as something it is not.
+///
+/// # An id the index cannot name is not nothing
+///
+/// The id side is read as an [`IdAnswer`], not as a name, because the
+/// id buffer can answer an id the index has no name for: a patch whose
+/// name the naming layer refused ([`IdAnswer::Unnamed`]), or an id the
+/// index never assigned ([`IdAnswer::Unassigned`]). Neither AGREES
+/// with any ray answer. Agreement is a shared name, and these have
+/// none, so silence here would claim an agreement nobody can check.
+/// Nor is either said anywhere else. This comparison is the id
+/// answer's only reader, so the notice is where each is said, with
+/// the id, which is what issue #1097 §4 asks an operator to record.
+/// The ray path's own brush with an unnamed face is a refusal, and
+/// that is no verdict (above).
+///
+/// `answer` is the raw channel word (`serial << 32 | id`); `expected`
+/// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
+/// outstanding, a stale answer, a refused ray path, or the two agree.
+pub fn disagreement(
+    index: &PickIndex,
+    answer: u64,
+    expected: Option<u32>,
+    from_ray: Result<&[StableName], &PickError>,
+) -> Option<Disagreement> {
+    if expected? != (answer >> 32) as u32 {
+        return None;
+    }
+    let Ok(from_ray) = from_ray else {
+        return None;
+    };
+    let from_gpu = IdAnswer::of(index, answer as u32);
+    let agrees = match &from_gpu {
+        IdAnswer::Nothing => from_ray.is_empty(),
+        IdAnswer::Named(name) => from_ray.contains(name),
+        IdAnswer::Unnamed { .. } | IdAnswer::Unassigned { .. } => false,
+    };
+    (!agrees).then(|| Disagreement {
+        from_gpu,
+        from_ray: from_ray.to_vec(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
+
+    /// A disagreement renders both halves of every name, the role path
+    /// whole, on the wasm32 build's stack however deep the name nests:
+    /// a name's rendering walks its nesting from its own stack.
+    #[test]
+    fn a_disagreement_over_a_name_nested_past_every_stack_renders_on_the_smallest_stack() {
+        const DEEP: usize = 20_000;
+        let shown = test_utils::own_thread::on_the_smallest_stack(|| {
+            let leaf = StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            };
+            let deep = (0..DEEP).fold(leaf, |n, _| StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                path: vec![RoleSeg::FromA(NameRef::new(n))],
+            });
+            Disagreement {
+                from_gpu: IdAnswer::Named(deep.clone()),
+                from_ray: vec![deep],
+            }
+            .to_string()
+        });
+        assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
+        assert_eq!(
+            shown
+                .matches("face name minted by node 000000000002")
+                .count(),
+            2
+        );
+    }
+}

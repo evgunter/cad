@@ -1,0 +1,852 @@
+//! M5 PR 9 (C7): `TangentIntersection` — the authored tangent pair
+//! classifies and certifies with the full jet schedule, the
+//! second-order margin's two-tolerance pair is pinned on both sides
+//! (G2-zero definite vs in-band escalation), corruption rows scale
+//! from the resolved band, and the `tangent_*` predicate family is
+//! visible in the K funnel's verdict log from birth.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::shared::surf;
+use crate::shared::surf::arena2;
+use crate::shared::tol::band;
+use geom::Curve3;
+use geom::Surface;
+use geom_brep::SurfaceKey;
+use geom_brep::recourse::{Classified, Refused};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    PlaneCylinderSection,
+};
+use geom_core::{Interval, MarginDiag, Point3, Real, Vec3};
+
+/// The authored tangent pair: the unit cylinder about z and the plane
+/// x = 1, tangent along the ruling {(1, 0, z)}.
+fn cylinder() -> Surface<f64> {
+    surf::cylinder(1.0)
+}
+
+fn tangent_plane() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+fn keys2() -> (
+    SurfaceKey,
+    SurfaceKey,
+    slotmap::SlotMap<SurfaceKey, Surface<f64>>,
+) {
+    arena2(cylinder(), tangent_plane())
+}
+
+/// The ruling-line edge spec over `z ∈ [0, 1]`, witness at carrier
+/// mid (the S2 pin).
+fn ruling_spec(k1: SurfaceKey, k2: SurfaceKey) -> EdgeCurveSpec<f64> {
+    let carrier = Curve3::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    }
+}
+
+#[test]
+fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
+    // Construction is BY CLASSIFICATION, never by marching: the
+    // table's tangent arm names the locus and hands back the exact
+    // line carrier the TangentIntersection edge stores.
+    let out = geom_brep::plane_cylinder_section(&tangent_plane(), &cylinder(), 1.0, band())
+        .expect("a clean tangency classifies definitely");
+    let PlaneCylinderSection::TangentLine(line) = out else {
+        panic!("the authored pair is the tangent configuration: {out:?}");
+    };
+    let Curve3::Line { origin, dir } = line else {
+        panic!("a tangent locus of plane×cylinder is a line");
+    };
+    assert!((origin.x - 1.0).abs() < 1e-12 && origin.y.abs() < 1e-12);
+    assert!(dir.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
+}
+
+#[test]
+fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
+    let (k1, k2, map) = keys2();
+    let spec = ruling_spec(k1, k2);
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+        .expect("the kernel's first certified TangentIntersection");
+    assert!(matches!(
+        curve.description(),
+        EdgeDescription::TangentIntersection { .. }
+    ));
+    // The certificate is byte-honest: zero residual on an exact
+    // ruling (every sample satisfies both implicit forms exactly).
+    assert_eq!(curve.certificate().max_residual, 0.0);
+}
+
+#[test]
+fn the_tangent_predicates_reach_the_k_funnel() {
+    // Telemetry from birth (C7/C12.2): the family the PR 14
+    // K-snapshot will read, visible by name in the verdict log.
+    use geom_core::k_stats::Bracket;
+    let (k1, k2, map) = keys2();
+    let spec = ruling_spec(k1, k2);
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let bracket = Bracket::open();
+    let _ = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap();
+    let v = bracket.finish().verdicts;
+    for name in [
+        "tangent_on_surface_1",
+        "tangent_on_surface_2",
+        "tangent_second_order",
+        "tangent_normal_parallel",
+        "tangent_hull_sup",
+        "tangent_tube_margin",
+    ] {
+        assert!(
+            v.iter().any(|x| x.predicate == name),
+            "{name} never reached the funnel (recorded: {:?})",
+            v.iter()
+                .map(|x| x.predicate)
+                .collect::<std::collections::BTreeSet<_>>()
+        );
+    }
+}
+
+#[test]
+fn a_g2_flat_pair_refuses_second_order_definitely() {
+    // The zero-side of the OQ7 discriminator, pinned as a DEFINITE
+    // typed refusal: two parallel planes "tangent" everywhere have
+    // κ_rel exactly zero — the surfaces under-determine the locus,
+    // which is exactly why a G2 conventional join keeps MappedCurve.
+    let (k1, k2, map) = arena2(
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        },
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        },
+    );
+    let carrier = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let CertifyError::NotSecondOrderSeparated { .. } = err else {
+        panic!("the zero-side margin is the definite refusal: {err}");
+    };
+    // The two-tolerance shape (D4 ¶1 (iv)): the definite arm ends in the
+    // second-order decision's lever, as its in-band sibling does, and
+    // certification takes no declaration. Its margin is exactly zero,
+    // which no smaller tolerance decides passing, so no tolerance is
+    // offered.
+    let msg = err.render(geom_brep::recourse::Reading::Build);
+    assert!(msg.contains("agree to second order"), "{msg}");
+    assert!(
+        msg.ends_with(
+            "Recourse: move the geometry so the faces curve apart more clearly where they \
+             touch"
+        ),
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
+}
+
+#[test]
+fn an_in_band_second_order_margin_escalates_f6() {
+    // One band-width away from the zero-side: a cylinder so flat its
+    // second-order displacement sits INSIDE the resolved band — an
+    // osculating pair at this ε is a sliver (F6), escalated, never
+    // classified. Placement scales from the resolved band.
+    let b = band();
+    let inside = 0.5 * (b.zero() + b.escalate());
+    // margin = κ_rel·r_fold²/2 with r_fold = min(R, extent = 1) = 1
+    // for the huge-R cylinder, so κ_rel = 1/R = 2·inside ⇒ margin =
+    // exactly `inside`.
+    let radius = 1.0 / (2.0 * inside);
+    let (k1, k2, map) = arena2(
+        Surface::Cylinder {
+            origin: Point3::new(1.0 - radius, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        tangent_plane(),
+    );
+    // The plane x = 1 is tangent to this near-flat wall along the
+    // same ruling {(1, 0, z)} — the cylinder bulges toward −x.
+    let carrier = Curve3::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let CertifyError::Escalated { check, cause, .. } = err else {
+        panic!("in-band second order escalates (F6): {err}");
+    };
+    assert_eq!(check, geom_brep::CertCheck::TangentSecondOrder);
+    assert_eq!(cause.predicate, Some("tangent_second_order"));
+}
+
+#[test]
+fn a_skewed_carrier_fails_normal_parallelism() {
+    // Corruption row: tilt the line so it leaves the ruling — the
+    // gradients' angle grows along the edge and the parallelism
+    // check (lever arm 1/κ_rel) must catch it definitely. The tilt
+    // is placed WELL outside the band at every ε (a macroscopic
+    // 0.05 tilt over a 1 m edge: sinθ ≈ y/1 up to 0.05, margin ≈
+    // 0.05 m ≫ escalate at any battery ε).
+    let (k1, k2, map) = keys2();
+    let carrier = Curve3::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.05, 1.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    // The tilted line leaves the CYLINDER surface too, so the first
+    // failing check is a typed residual/parallelism refusal — either
+    // way a definite refusal naming its check, never acceptance.
+    match err {
+        CertifyError::ResidualExceeded { .. } => {}
+        CertifyError::Escalated { .. } => panic!("macroscopic corruption must refuse definitely"),
+        other => panic!("unexpected: {other}"),
+    }
+}
+
+#[test]
+fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
+    // The corruption magnitude scales from the resolved band:
+    // definitely outside at every ε (escalate·100), so the row is
+    // honest at 1e-6 and 1e-12 alike (the #146 lesson).
+    let b = band();
+    let off = b.escalate() * 100.0;
+    let (k1, k2, map) = keys2();
+    let carrier = Curve3::Line {
+        origin: Point3::new(1.0 + off, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    assert!(
+        matches!(err, CertifyError::ResidualExceeded { .. }),
+        "off-surface by 100·escalate refuses definitely: {err}"
+    );
+}
+
+#[test]
+fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
+    // HISTORY: at PR 9 this exact configuration — a torus tangent to
+    // a plane along its bottom equator, carried on a CIRCLE — was the
+    // out-of-lane row, because the line arm's span bounds had no
+    // torus entry and no non-line carrier. M5 PR 12 retired the class
+    // WITH ITS PROOF (C12.1's per-class retirement): `κ_rel` and the
+    // implicit residual are isometry invariants, the coaxial circle's
+    // motion is a symmetry flow of both surfaces, so both span bounds
+    // are EXACTLY zero. The row is kept, flipped, as the record that
+    // the boundary moved for a reason.
+    let (k1, k2, map) = arena2(
+        Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, -0.5),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+    );
+    let carrier = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, -0.5),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.75),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.5,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+        .expect("the coaxial circle arm certifies this class since M5 PR 12");
+    assert!(curve.certificate().max_residual < 1e-12);
+}
+
+#[test]
+fn a_coaxial_cone_sphere_contact_circle_certifies() {
+    // The inscribed sphere touches the cone along a COAXIAL circle —
+    // the class a sphere-cone fillet band's contact circles belong to,
+    // which cannot be described at rest without the circle arm's cone
+    // row. Every one of that row's bounds is exactly zero on a coaxial
+    // carrier.
+    let (k1, k2, map) = arena2(
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: core::f64::consts::FRAC_1_SQRT_2,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+    );
+    let carrier = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.5),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.75),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.5,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+        .expect("a coaxial cone-sphere contact circle is inside the circle arm");
+    assert!(curve.certificate().max_residual < 1e-12);
+}
+
+#[test]
+fn outside_the_span_bound_lane_refuses_typed() {
+    // The lane boundary: the LINE arm carries no cone row (a cone
+    // tangency along a generator is not a configuration this kernel
+    // constructs), so a tangency carried on one is a routing refusal —
+    // typed, named, no fallback.
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let (k1, k2, map) = arena2(
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        // The tangent plane along the generator through (1, 0, 1): it
+        // contains the apex and that whole ruling, so the contact locus
+        // is the ruling itself.
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(s2, 0.0, -s2),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        },
+    );
+    let carrier = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(s2, 0.0, s2),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(1.0),
+        },
+        carrier,
+        param_start: 0.5,
+        param_end: 1.5,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.5), spec.carrier.eval(1.5));
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    assert!(
+        matches!(err, CertifyError::TangentCertificateUnsupported),
+        "outside the lane is a routing refusal: {err}"
+    );
+    let msg = format!("{err}");
+    assert!(msg.contains("span-bound lane"), "{msg}");
+}
+
+/// The ruling `{(1, 0, z) : z ∈ [0, 1]}` as a tangent-intersection
+/// spec over `(k1, k2)`, certified against `map`.
+fn certify_ruling(
+    k1: SurfaceKey,
+    k2: SurfaceKey,
+    map: &slotmap::SlotMap<SurfaceKey, Surface<f64>>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let spec = ruling_spec(k1, k2);
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+}
+
+/// The cylinder of radius `radius` about a z-parallel axis placed so
+/// the ruling `(1, 0, z)` lies on it. `inward`: the axis lies on the
+/// unit cylinder's side, so the two curve the same way and the outward
+/// normal on the ruling is `+x` turned by `tilt` about `z`; otherwise
+/// the axis lies beyond the ruling and the outward normal is `−x`
+/// turned by `tilt`.
+fn cylinder_through_the_ruling(radius: f64, tilt: f64, inward: bool) -> Surface<f64> {
+    let s = if inward { -1.0 } else { 1.0 };
+    let (sin, cos) = tilt.sin_cos();
+    Surface::Cylinder {
+        origin: Point3::new(1.0 + s * radius * cos, s * radius * sin, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **The jet reads the ORIENTATION of the second surface's curvature.**
+/// Two unit cylinders externally tangent along the ruling curve AWAY
+/// from each other — their outward gradients are antiparallel — so
+/// against the shared normal their normal curvatures are `+1` and `−1`
+/// and `κ_rel = 2`; a jet that dropped the orientation sign would read
+/// `1 − 1 = 0` and refuse a genuine, well-separated tangency as
+/// osculating. The internally tangent pair (unit cylinder inside a
+/// radius-2 one, gradients parallel) reads `1 − ½`, the control.
+#[test]
+fn an_externally_tangent_pair_reads_the_sum_of_its_curvatures() {
+    let tau = Vec3::new(0.0, 0.0, 1.0);
+    let at = Point3::new(1.0, 0.0, 0.5);
+    for (other, expected) in [
+        (cylinder_through_the_ruling(1.0, 0.0, false), 2.0),
+        (cylinder_through_the_ruling(2.0, 0.0, true), 0.5),
+    ] {
+        let jet = geom_brep::tangent_jet(&cylinder(), &other, at, tau);
+        assert!(
+            (jet.kappa_rel.abs() - expected).abs() < 1e-12,
+            "|κ_rel| = {expected}, got {}",
+            jet.kappa_rel
+        );
+        let (k1, k2, map) = arena2(cylinder(), other);
+        certify_ruling(k1, k2, &map).expect("a genuine separated tangency certifies");
+    }
+}
+
+/// **A surface against itself reads `κ_rel = 0` exactly** — both
+/// curvatures are spelled alike, so the difference is of two equal
+/// floats, not a residue of two spellings. The same-surface split's
+/// "κ_rel at zero" reading rests on this: a nonzero ULP residue there
+/// is a sagitta that is not zero.
+#[test]
+fn a_curved_surface_against_itself_reads_kappa_rel_exactly_zero() {
+    let surfaces = [
+        surf::cylinder(0.7),
+        surf::sphere(1.3),
+        surf::torus(2.0, 0.6),
+        Surface::Cone {
+            apex: Point3::new(0.1, -0.2, 0.3),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+    ];
+    let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for s in &surfaces {
+        for _ in 0..500 {
+            let (u, v) = (next() * 6.0, 0.2 + next() * 1.0);
+            let p = s.eval(u, v);
+            let g = geom_brep::implicit_gradient(s, p);
+            let tau = g.cross(Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5));
+            let jet = geom_brep::tangent_jet(s, s, p, tau);
+            assert_eq!(
+                jet.kappa_rel.to_bits() & !(1u64 << 63),
+                0,
+                "{s:?} at ({u}, {v}): κ_rel = {:e}",
+                jet.kappa_rel
+            );
+        }
+    }
+}
+
+/// **The parallelism check's band edge.** A radius-2 cylinder through
+/// the ruling, rotated about it by a small angle α, keeps the ruling
+/// exactly on both surfaces while its normal turns by α: a false
+/// tangency with `sin θ = sin α`. At the lever `1/|κ_rel| = 2` (the
+/// unit cylinder's `1` against the inner one's `½`) the margin is
+/// `2·sin α`. Just under the band's zero edge it certifies; inside the
+/// band it escalates; just over the escalation edge it refuses definitely
+/// at `TangentParallel`.
+#[test]
+fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let certify_at = |margin: f64| {
+        let tilt = (margin / 2.0).asin();
+        let (k1, k2, map) = arena2(cylinder(), cylinder_through_the_ruling(2.0, tilt, true));
+        certify_ruling(k1, k2, &map)
+    };
+    certify_at(0.5 * zero).expect("a defect under the band's zero edge certifies");
+    assert!(
+        matches!(
+            certify_at((zero * escalate).sqrt()),
+            Err(CertifyError::Escalated {
+                check: geom_brep::CertCheck::TangentParallel,
+                ..
+            })
+        ),
+        "a defect inside the band escalates at the parallelism check"
+    );
+    assert_eq!(
+        certify_at(2.0 * escalate).unwrap_err(),
+        CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        }
+    );
+}
+
+/// The line `(x, 0, z)`, `z ∈ [0, 1]` (extent 1), described as a
+/// tangency of `s1` and `s2`, certified.
+fn certify_line_at(
+    x: f64,
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let (k1, k2, map) = arena2(s1, s2);
+    let carrier = Curve3::Line {
+        origin: Point3::new(x, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+}
+
+/// The plane through the line `(x, 0, z)` whose normal is `+x` turned
+/// by `tilt` about `z`.
+fn plane_through_line(x: f64, tilt: f64) -> Surface<f64> {
+    let (sin, cos) = tilt.sin_cos();
+    Surface::Plane {
+        origin: Point3::new(x, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+/// **A second-order refusal is renamed only by a DEFINITE first-order
+/// defect, metered at the folded lever arm.** Two planes through one
+/// line, tilted by θ, have `κ_rel = 0` exactly, so the second-order
+/// margin refuses definitely (`NotSecondOrderSeparated`) and no lever
+/// `1/κ_rel` exists; the parallelism defect is read at the folded arm,
+/// here the line's extent `L = 1`, as `sin θ · L`.
+///
+/// - `sin θ · L` inside the band: the first-order reading is no more
+///   definite than the second-order one, which stands.
+/// - `sin θ · L` far past the band: the refusal is the parallelism
+///   defect.
+/// - A cylinder of radius `R = ε` through the line, against a plane
+///   tilted by 0.1 rad: `κ_rel = 1/R`, the folded arm is `R` (not the
+///   extent `L`), the sagitta `R/2` is on the zero side, and
+///   `sin θ · R = 0.1·ε` is too — so the second-order refusal stands,
+///   where levering at the extent (`0.1` m) would read a definite
+///   defect.
+#[test]
+fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let length = 1.0;
+    // The zero verdict at sample 1, whatever its sub-ε margin reads.
+    let osculating = |e: CertifyError| {
+        matches!(
+            e,
+            CertifyError::NotSecondOrderSeparated {
+                sample: 1,
+                verdict: Refused::Zero(c),
+            } if c.band == band()
+        )
+    };
+
+    let in_band = ((zero * escalate).sqrt() / length).asin();
+    assert!(
+        osculating(
+            certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, in_band)).unwrap_err()
+        ),
+        "an in-band first-order reading does not rename the refusal"
+    );
+
+    let definite = (1e3 * zero / length).asin();
+    assert_eq!(
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err(),
+        CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        },
+        "a definite first-order defect names the refusal"
+    );
+
+    let radius = zero;
+    let tiny = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let tilt: f64 = 0.1;
+    assert!(
+        tilt.sin() * length >= escalate && tilt.sin() * radius <= zero,
+        "the cell separates the folded arm from the extent"
+    );
+    assert!(
+        osculating(certify_line_at(radius, tiny, plane_through_line(radius, tilt)).unwrap_err()),
+        "the defect is levered at the folded arm R, not the extent L"
+    );
+}
+
+/// `certify_line_at` at `Interval`, inside a verdict-log bracket: the
+/// certificate's answer and what the frame recorded beside it.
+/// `editor_core::drive`'s unit rows re-spell it as `tangent_log`.
+fn certify_line_at_interval(
+    x: f64,
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> (
+    Result<EdgeCurve<Interval>, CertifyError>,
+    geom_core::k_stats::Recorded,
+) {
+    let lift = Interval::from_f64;
+    let (k1, k2, map) = arena2(s1.map_scalar(lift), s2.map_scalar(lift));
+    let carrier = Curve3::Line {
+        origin: Point3::new(x, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    }
+    .map_scalar(lift);
+    let (t0, t1) = (lift(0.0), lift(1.0));
+    let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(lift(0.5)),
+        },
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    };
+    let bracket = geom_core::k_stats::Bracket::open();
+    let out = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band());
+    (out, bracket.finish())
+}
+
+/// The cylinder of radius `r` about z, tangent-adjacent to the line
+/// `(r, 0, z)`. `editor_core::drive`'s `tangent_log` re-spells it.
+fn cylinder_of(r: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// The radius whose sagitta `R/2` over its own folded arm `R` sits
+/// wholly inside the band, `0.8·Kε`, while a steep enough tilt still
+/// meters a definite defect there (`sin θ · R > Kε` for `sin θ > 5/8`).
+/// `editor_core::drive`'s unit rows carry the same constant.
+fn sliver_radius() -> f64 {
+    1.6 * band().escalate()
+}
+
+/// The predicate names a frame recorded as escalations.
+fn escalated(recorded: &geom_core::k_stats::Recorded) -> Vec<&'static str> {
+    recorded
+        .escalations
+        .iter()
+        .map(geom_core::k_stats::Escalation::predicate)
+        .collect()
+}
+
+/// **A renamed refusal leaves no second-order escalation on the log.**
+/// A cylinder of radius `R = 1.6·Kε` against a plane through its ruling
+/// tilted to `sin θ = 0.9`, at `Interval`: the second-order sagitta
+/// `R/2` is an enclosure wholly inside the band — the subdivision
+/// driver's terminal-sliver shape — and the parallelism defect at the
+/// folded arm, `0.9·R = 1.44·Kε`, is definite, so the certificate
+/// refuses `ResidualExceeded { TangentParallel }`. The frame's
+/// escalation log must agree with that error: it carries nothing, so
+/// the driver reads the node as the definite refusal it is rather than
+/// as a `tangent_second_order` sliver. The naming reading's verdict
+/// stays on the verdict channel.
+#[test]
+fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let r = sliver_radius();
+    let tilt = 0.9f64.asin();
+    let lift = Interval::from_f64;
+    let so = geom_brep::tangent_second_order(
+        &cylinder_of(r).map_scalar(lift),
+        &plane_through_line(r, tilt).map_scalar(lift),
+        Point3::new(lift(r), lift(0.0), lift(0.5)),
+        Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        lift(1.0),
+        band(),
+    );
+    let Err(cause) = so.verdict else {
+        panic!("the sagitta R/2 is in band: {:?}", so.verdict);
+    };
+    let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+        cause.margin.diagnostic_f64_for_error_text()
+    else {
+        panic!("an Interval margin is an enclosure: {cause:?}");
+    };
+    assert!(
+        zero < lo && hi < escalate,
+        "the second-order enclosure [{lo:e}, {hi:e}] sits wholly inside ({zero:e}, {escalate:e})"
+    );
+
+    let (out, recorded) = certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, tilt));
+    assert_eq!(
+        out.err(),
+        Some(CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        })
+    );
+    assert_eq!(
+        escalated(&recorded),
+        Vec::<&str>::new(),
+        "a refusal renamed to TangentParallel left an escalation on the log"
+    );
+    assert!(
+        recorded.verdicts.iter().any(
+            |v| v.predicate == "tangent_normal_parallel" && v.sign == geom_core::Sign::Positive
+        ),
+        "the naming reading's definite verdict left the verdict channel: {:?}",
+        recorded.verdicts
+    );
+}
+
+/// **A definite second-order refusal leaves the naming reading's
+/// escalation off the log.** Two planes through one line have
+/// `κ_rel = 0` exactly, so the second-order margin is a definite `Zero`
+/// at `Interval` too, and the refusal is `NotSecondOrderSeparated`. With
+/// the tilt's defect at the folded arm (the extent) in band, the naming
+/// reading escalates — and only names: the refusal was already made, on
+/// every sub-box, by the definite second-order reading. The log carries
+/// nothing, as the error does; the second-order verdict stays.
+#[test]
+fn a_definite_second_order_refusal_leaves_the_naming_escalation_off_the_log() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let in_band = (zero * escalate).sqrt().asin();
+    let (out, recorded) =
+        certify_line_at_interval(1.0, tangent_plane(), plane_through_line(1.0, in_band));
+    assert_eq!(
+        out.err(),
+        Some(CertifyError::NotSecondOrderSeparated {
+            sample: 1,
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::enclosure(0.0, 0.0),
+                band: band(),
+            }),
+        })
+    );
+    assert_eq!(
+        escalated(&recorded),
+        Vec::<&str>::new(),
+        "the naming reading's in-band escalation reached the log"
+    );
+    assert!(
+        recorded
+            .verdicts
+            .iter()
+            .any(|v| v.predicate == "tangent_second_order" && v.sign == geom_core::Sign::Zero),
+        "the definite second-order verdict left the verdict channel: {:?}",
+        recorded.verdicts
+    );
+}
+
+/// **An escalated refusal's log is the escalation its error carries.**
+/// The sliver cylinder against a shallow tilt (`sin θ = 0.3`, a defect
+/// `0.48·Kε` at the folded arm): the naming reading is in band too, so
+/// the second-order escalation stands as the refusal, and the log holds
+/// it and nothing else.
+#[test]
+fn an_escalated_refusal_logs_exactly_the_escalation_it_carries() {
+    let r = sliver_radius();
+    let (out, recorded) =
+        certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, 0.3f64.asin()));
+    let Err(CertifyError::Escalated {
+        check: geom_brep::CertCheck::TangentSecondOrder,
+        sample: 1,
+        cause,
+    }) = out
+    else {
+        panic!("the in-band sagitta stands as the refusal: {:?}", out.err());
+    };
+    assert_eq!(
+        recorded.escalations,
+        [geom_core::k_stats::Escalation { source: cause }],
+        "the log is not the error's escalation"
+    );
+}

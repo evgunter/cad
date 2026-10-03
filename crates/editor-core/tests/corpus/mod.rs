@@ -1,0 +1,690 @@
+//! The **Band 4 model corpus** (M4 PR 8a spec D1) — the milestone's
+//! proof-of-vocabulary.
+//!
+//! Every document here is a RECIPE authored through `DocEdit`s (an
+//! edit LOG, never a hand-built `Doc` value), so each one is at once:
+//!
+//! - an evaluation fixture (green at every CI ε row and at the
+//!   certified scalar — `m4_pr8_corpus.rs` / `..._interval.rs`),
+//! - a persistence fixture (the PR 6 D6.1 rows run the whole corpus:
+//!   `m4_pr6_roundtrip.rs` / `..._interval.rs`),
+//! - a latency fixture (D2's full-rebuild + incremental-recompute
+//!   reporting row, `m4_pr8_latency.rs`).
+//!
+//! The corpus is a CRATE-LEVEL TEST ASSET, not demo code: nothing in
+//! `demos/` may depend on it, and it carries no rendering, no CLI, no
+//! narration.
+//!
+//! Coverage is asserted, not asserted-by-comment:
+//! `m4_pr8_corpus.rs::vocabulary_coverage_is_total` walks the corpus
+//! and requires EVERY F4 node kind and EVERY `DocEdit` kind to be
+//! exercised somewhere in it (the [`Vocab`] tally below is derived
+//! from the documents themselves, so a new node/edit kind fails the
+//! test until the corpus covers it).
+//!
+//! Exact oracles: dimensions are dyadic wherever an exact mass pin is
+//! claimed, so `volume`/`surface_area` are asserted with `==` and the
+//! derivation is written out at the pin's definition site. Documents
+//! whose geometry is not dyadic (arcs) carry no mass pin and are
+//! pinned on validity + counts instead.
+
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use editor_core::{
+    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
+    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
+    ValuePayload, apply, evaluate,
+};
+use geom_core::Decide;
+use geom_core::Tol;
+use topo::Body;
+
+pub mod boss;
+pub mod cup;
+pub mod cut_cylinder;
+pub mod die;
+pub mod die_chamfer;
+pub mod die_composed;
+pub mod die_composed_tour;
+pub mod die_fillet;
+pub mod die_pips;
+pub mod die_tool;
+pub mod face_sketch;
+pub mod heatsink;
+pub mod heatsink_union;
+pub mod hollow_tube_elbow;
+pub mod hollow_tube_ring;
+pub mod islands;
+pub mod kiss_carry;
+pub mod loft_prism;
+pub mod measured_web;
+pub mod part_select;
+pub mod plate_param;
+pub mod reshaped_rod;
+pub mod sink;
+pub mod slots;
+pub mod table;
+pub mod tangency;
+pub mod tube_arc;
+pub mod tube_ring;
+pub mod vessel;
+
+pub use super::fixture::Recorder;
+
+/// An exact mass-property oracle (dyadic dimensions only — see each
+/// document's derivation comment).
+#[derive(Debug, Clone, Copy)]
+pub struct MassPin {
+    /// The exact volume.
+    pub volume: f64,
+    /// The exact surface area, where it is also dyadic.
+    pub area: Option<f64>,
+}
+
+/// One corpus document.
+pub struct CorpusDoc {
+    /// Stable identifier — the latency table's row key and the
+    /// baseline JSON's map key. NEVER rename without refreshing the
+    /// committed baseline.
+    pub name: &'static str,
+    /// One-line description (printed in the latency table).
+    pub about: &'static str,
+    /// The recorded edit log (applied to the empty snapshot).
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
+    /// The replayed current state (empty snapshot + `edits`).
+    pub doc: ProfileDoc,
+    /// The node carrying the document's headline solid, if it has one
+    /// (`None` for documents whose result is not a single body).
+    pub result: Option<RecipeNodeId>,
+    /// The exact mass oracle for `result`, where dyadic.
+    pub pin: Option<MassPin>,
+    /// D2's incremental-recompute probe: ONE parameter edit whose
+    /// downstream cone is a PROPER subset of the document, so the run
+    /// has something to reuse (asserted). It is a mid-DAG edit wherever
+    /// the document has interior nodes; `declared_tangency` is two
+    /// disjoint leaf chains and has none, so its bump edits a leaf and
+    /// the reuse comes from the sibling chain.
+    pub bump: DocEdit<ProfileProgram>,
+    /// The node the bump edits — the root of the cone that must
+    /// recompute (the test derives the cone independently from the
+    /// DAG and asserts the counted reuse against it).
+    pub bump_root: RecipeNodeId,
+}
+
+impl CorpusDoc {
+    /// The document's node count.
+    pub fn len(&self) -> usize {
+        self.doc.len()
+    }
+
+    /// Whether the document is empty (never, in this corpus).
+    pub fn is_empty(&self) -> bool {
+        self.doc.is_empty()
+    }
+
+    /// The bumped document (the incremental-recompute probe's input).
+    pub fn bumped(&self) -> ProfileDoc {
+        apply(
+            &self.doc,
+            &self.bump,
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("corpus bump edit must apply")
+        .doc
+    }
+}
+
+/// The corpus, in a stable order.
+pub fn documents() -> Vec<CorpusDoc> {
+    vec![
+        die::document(),
+        table::document(),
+        heatsink::document(),
+        slots::document(),
+        islands::document_105(),
+        islands::document_106_depth1(),
+        islands::document_106_depth2(),
+        tangency::document(),
+        sink::document(),
+        cut_cylinder::document(),
+        // M10-2: the measurement vocabulary, so the Dual/Interval
+        // digests' Measure and Assertion arms are REACHED rather than
+        // merely present.
+        measured_web::document(),
+        boss::document(),
+        // `die_fillet` IS registered, as of the PR 12 gate fix
+        // `5c8540f`. It was held out while the fillet battery's
+        // clearance screen seeded a gap with
+        // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
+        // so the document was green at `f64` and refused at the
+        // Interval scalar, which registry membership requires.
+        // That sentinel is gone; the document runs the Interval lane
+        // like every other row. It stays additionally pinned at both
+        // scalars by `m5_pr12_fillet_node.rs`.
+        die_fillet::document(),
+        // `die_chamfer` (LIB-G16): `die_fillet`'s recipe with the
+        // blend swapped, so the chamfer node carries the full registry
+        // battery — every ε, the Interval lane, persistence, latency —
+        // and the two documents are comparable at every row.
+        die_chamfer::document(),
+        die_pips::document(),
+        // LIB-PLACEDUNION's two register payoffs, each the grouped
+        // TWIN of a document already here (`heat_sink`; the die tour's
+        // pip tool): the ungrouped originals stay, so the two are
+        // asserted against each other rather than against a re-derived
+        // oracle (`lib_placedunion.rs`).
+        heatsink_union::document(),
+        die_tool::document(),
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
+        // through a derived frame — the first `Datum::FaceFrame` in the
+        // registry, so the derived frame carries the standard rows
+        // (every ε, the Interval lane under DM1c, persistence, latency).
+        face_sketch::document(),
+        // `part_select` (DOCM-2): a split's two halves and a pattern's
+        // middle instance each selected by a `Node::Part` and consumed
+        // downstream, so the census counts both selectors and every
+        // standard row (every ε, the Interval lane, persistence,
+        // latency) runs the projection.
+        part_select::document(),
+        // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
+        // Band 4 corpus's first NURBS-walled solid. Standard rows
+        // (every ε, interval lane, persistence, latency) for free by
+        // membership; the derived-volume bracket pin lives with the
+        // builder's acceptance suite.
+        loft_prism::document(),
+        // `die_composed` (M6 unit 1, registered by M6-5): the
+        // composition surgery as a recipe — box blends, octants and
+        // the pip-rim TORUS BAND behind ONE `Node::Fillet`. It sat
+        // BESIDE this registry for a milestone, with its refusal
+        // pinned: `Node::Fillet` was every-edge, and every pipped body
+        // carries cap MERIDIAN edges (two half-caps on one sphere, no
+        // wedge) the battery honestly refuses `TangentialEdge`. M6-5
+        // gave the node a SELECTION and the surgery a naming emitter,
+        // so the fourteen edges that do have wedges can be named and
+        // the two that do not can be left out. The flipped pin and the
+        // selection's provenance live in `m6_composed_node.rs`.
+        die_composed::document(),
+        // `die_composed_tour` (LIB-CORPUS-DIE): the same surgery at the
+        // size the demo tour renders it — 21 pips fused by ONE n-ary
+        // union into one grouped tool, 12 box edges and 42 rim arcs
+        // behind member-keyed names. It is the ONE document here the
+        // registry does not
+        // author: the demo tour is its single authoring site and the
+        // document crosses as committed bytes, because `demos/tour` is
+        // a detached workspace this crate must not depend on. The
+        // module docs carry the regeneration line, why the file's model
+        // rides its EDIT LOG rather than its snapshot, and which of the
+        // tour's three fillets the document leaves out.
+        die_composed_tour::document(),
+        plate_param::document(),
+        // `kiss_carry` (SEAT-5): the one corpus boolean whose result
+        // carries NON-EMPTY surviving contacts — the discovered
+        // corner kiss, then the same record re-entered by name through
+        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // reached nowhere else in the corpus). Registered so a pin can
+        // tell a lowering that carries the tier-3′ records from one
+        // that drops them.
+        kiss_carry::document(),
+        // LIB-TUBE's two-by-two, WHOLE. It began as the DIAGONAL —
+        // `tube_ring` (solid, full) against `hollow_tube_elbow`
+        // (hollow, windowed) — chosen because a pair sharing a window
+        // or a kind would leave half the vocabulary with no registry
+        // battery. That pair covers each term and separates neither:
+        // varying both axes at once, nothing here could tell "the
+        // solid door works" from "the full window works".
+        //
+        // The other two corners close that. `tube_arc` holds the kind
+        // and moves the window; `hollow_tube_ring` holds the window
+        // and moves the kind. Each axis is now varied with the other
+        // held, and the fourth corner earns its place twice over: a
+        // CLOSED hollow tube is the only one of the four whose body is
+        // TWO shells in one solid — the inner wall closes on itself
+        // into a sealed void — which is a topology no other corner of
+        // this square produces.
+        //
+        // All four stay `die_chamfer`-sized, two and two nodes, and
+        // none is a transcription of a tour stop.
+        tube_ring::document(),
+        tube_arc::document(),
+        hollow_tube_elbow::document(),
+        hollow_tube_ring::document(),
+        // `reshaped_rod` (EDIT-PROGRAM): the one document whose log
+        // holds a `SetProgram` — a rod's section on a block, its
+        // crease filleted, then the block's program reshaped under
+        // the fillet with the crease's name rebound by the door. The
+        // registry battery is what makes the reshaping's rewrite a
+        // persisted, replayed, name-digested fact rather than a row's.
+        reshaped_rod::document(),
+    ]
+}
+
+/// The transitive downstream cone of `root` (inclusive) over the
+/// recipe DAG's input edges — computed independently of the
+/// evaluator, so the counted-reuse assertions have a real oracle.
+pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+    let mut set = BTreeSet::new();
+    set.insert(root);
+    // `order` is insertion order and inputs must pre-exist, so one
+    // forward sweep suffices.
+    for &id in doc.order() {
+        let node = doc.node(id).expect("ordered node exists");
+        if node.inputs().iter().any(|i| set.contains(i)) {
+            set.insert(id);
+        }
+    }
+    set
+}
+
+/// Evaluates a document at scalar `T` with default options.
+pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+/// The per-node failure report of an evaluation (empty when green).
+pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
+    ev.nodes
+        .iter()
+        .filter_map(|(id, r)| match r {
+            NodeResult::Ok(_) => None,
+            NodeResult::Failed(e) => Some(format!("{id:?} FAILED: {e:?}")),
+            NodeResult::Poisoned { through } => {
+                Some(format!("{id:?} poisoned through {through:?}"))
+            }
+        })
+        .collect()
+}
+
+/// The single body a node evaluated to (`Body` payload or a boolean's
+/// nonempty body).
+pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
+    match &ev.value(id).expect("node evaluated to a value").payload {
+        ValuePayload::Body(b) => b,
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        other => panic!("expected a single body, got {}", other.kind_name()),
+    }
+}
+
+/// **The node kinds no document can evaluate to a value** — the
+/// evaluation frontier, read by every suite that requires each kind
+/// evaluated somewhere (`m4_pr8_corpus`, `names_verbatim_edge_evaluator`).
+///
+/// - `Sweep`: every recipe-expressible sweep refuses at one door, for
+///   the reason `eval::wire::SWEEP_FRONTIER` states.
+///
+/// Each reader holds its entries in both directions, so a kind that
+/// starts evaluating reds until it is removed here.
+pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+
+/// **The node kinds that evaluate, but only in documents beside this
+/// registry** — so [`documents`] cannot cover them while
+/// [`NEVER_EVALUATES`] does not list them.
+///
+/// - `Shell`: its documents ([`cup`], [`vessel`]) evaluate, and
+///   `lib_g17_shell_node.rs` runs them, but registry membership requires
+///   `Dual64`, and a dual has no shell door (`lib_g17_shell_node.rs`
+///   pins the typed refusal). It leaves this list when the registry's
+///   dual row can name a document whose lowering has no dual lane, or
+///   when the door gains one.
+pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
+
+/// The node kinds a document exercises (the coverage tally's domain).
+///
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`
+/// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
+pub const NODE_KINDS: [&str; 21] = [
+    "Datum",
+    "Profile",
+    "Extrude",
+    "Revolve",
+    // M5 PR 12's constant-radius rolling-ball fillet — COVERED, by
+    // the registered `die_fillet` document (the Interval-scalar
+    // blocker that once held it out of the registry is gone; see
+    // `documents()`). Not an exemption: `Loft`/`Sweep` below still
+    // are.
+    "Fillet",
+    // LIB-G16's twin — COVERED, by the registered `die_chamfer`
+    // document.
+    "Chamfer",
+    "Split",
+    "Boolean",
+    // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
+    // cutting tool is one union over 21 pips. Listed as its own row
+    // beside `Boolean` because they are two nodes: a pair union keeps
+    // its `declare` input and its `FromA`/`FromB` naming, and a
+    // document that carries one carries nothing about the other.
+    "Union",
+    "Transform",
+    "Pattern",
+    // DOCM-2's projection node — COVERED, by `part_select`.
+    "Part",
+    // LIB-PLACEDUNION: the ratified A′ group boolean.
+    "PlacedUnion",
+    // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
+    // M6-3 (the loft body assembles; `loft_prism` is registered).
+    // `Sweep` alone stays at zero: its NODE lane waits on the
+    // joined-path composition lane (banked past M6 — the one
+    // remaining `CurvedSolidFrontier` arm), and the report shows the
+    // zero rather than pretending coverage.
+    "Loft",
+    "Sweep",
+    // LIB-TUBE's pair — COVERED, by four registered documents now
+    // (`tube_ring`, `tube_arc`, `hollow_tube_elbow`,
+    // `hollow_tube_ring`): the whole two-by-two rather than its
+    // diagonal. Two kinds because the two
+    // artifacts differ (RECIPE-DOORS D4 as revised), so they are two
+    // tally rows and not one.
+    "Tube",
+    "HollowTube",
+    // The hollowing door. Its two documents, `cup` and `vessel`, sit
+    // BESIDE this registry rather than in it (their module docs: a
+    // dual has no shell door, and membership requires every document
+    // green at `Dual64`), so the row is listed and reported UNCOVERED
+    // by `vocabulary_coverage_is_total`'s frontier rather than
+    // pretending coverage — the `Sweep` disposition, for a different
+    // reason.
+    "Shell",
+    "Declare",
+    // M10-2's measurement sinks. Listed because `measured_web` now
+    // registers them: the hold-out that kept them off this roster was
+    // correct only while no corpus document carried one, and a
+    // listed-but-uncovered kind fails the tally in the other
+    // direction.
+    "Measure",
+    "Assertion",
+];
+
+/// The edit kinds the corpus is required to exercise — the coverage
+/// tally's DOMAIN, not the `DocEdit` vocabulary.
+///
+/// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
+/// `SetOffset`, `SetGauge` and `UpdateReference` are arms of `DocEdit`
+/// that no corpus document authors, and listing them here would report
+/// five permanent misses rather than covering anything. `SetProgram` is
+/// listed: `reshaped_rod` authors one, the first persisted in the
+/// tree. What guards the
+/// vocabulary itself is not this list but [`edit_kind`]'s match, which
+/// is exhaustive with no wildcard: a further `DocEdit` arm fails the
+/// BUILD there and its author then decides whether the corpus should
+/// exercise it, rather than the arm slipping in unnamed.
+///
+/// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
+/// the tally in both directions, so a kind listed and never exercised
+/// is as red as a kind exercised and never listed.
+pub const EDIT_KINDS: [&str; 19] = [
+    "InsertNode",
+    "DeleteNode",
+    "SetProgram",
+    "SetParam",
+    "SetStructuralParam",
+    "SetExpression",
+    "SetDocParam",
+    "SetDocParamValue",
+    "SetDocParamUnit",
+    "SetDocParamDistribution",
+    "Rebind",
+    "ReWitness",
+    "ReWitnessBulk",
+    "SetAppearance",
+    "ClearAppearance",
+    "SetTolerance",
+    "SetAppearanceMeta",
+    "ClearAppearanceMeta",
+    "SetLabel",
+];
+
+/// The node SUB-kinds the corpus must also cover in full: every datum
+/// flavour, every boolean operator (and the declared boolean), and
+/// both pattern kinds.
+pub const SUB_KINDS: [&str; 20] = [
+    "Datum::Plane",
+    "Datum::Axis",
+    "Datum::AxisInPlane",
+    "Datum::Point",
+    "Datum::Frame",
+    "Datum::FaceFrame",
+    "Boolean::Union",
+    "Boolean::Intersect",
+    "Boolean::Subtract",
+    "Boolean+Declare",
+    "Pattern::Linear",
+    "Pattern::Circular",
+    // Both selectors of the projection node: `part_select` reads a
+    // split's two halves and a pattern's middle instance.
+    "Part::SplitHalf",
+    "Part::Instance",
+    // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
+    // is deliberately NOT listed: no corpus document needs one, and a
+    // listed-but-uncovered sub-kind would fail the tally. The circular
+    // rule is exercised directly in `lib_placedunion.rs`, and it shares
+    // `stepped_map` with the pattern node that the corpus does cover.
+    "PlacedUnion::Linear",
+    "PlacedUnion::Explicit",
+    // LIB-TUBE's two-by-two, all four corners. The list carried the
+    // DIAGONAL only while the corpus did: `Tube::Arc` and
+    // `HollowTube::Full` were absent for the `PlacedUnion::Circular`
+    // reason — a listed-but-uncovered sub-kind fails the tally — and
+    // the registry now carries a document for each, so they are
+    // listed. `lib_tube_node.rs` still exercises both directly and
+    // keeps `HollowTube::Full`'s cavity closed-form row; what changed
+    // is that the registry battery reaches them too.
+    "Tube::Full",
+    "Tube::Arc",
+    "HollowTube::Arc",
+    "HollowTube::Full",
+];
+
+/// The sub-kind tally names a node contributes (possibly none).
+pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
+    match node {
+        Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
+        Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
+        Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
+        // Listed since a profile takes its plane as a frame NODE: every
+        // corpus document authors at least one, which is the condition
+        // this arm was written waiting for.
+        Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: `face_sketch` draws on a frame derived from a face.
+        Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
+        // Listed: four corpus documents revolve, and a revolve's axis
+        // is written in the profile's frame. `kitchen_sink` carries
+        // BOTH axis kinds — a world line for its circular pattern, an
+        // in-plane axis for its revolve — which is the whole reason
+        // they are two sub-kinds to count.
+        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
+        Node::Boolean { op, declare, .. } => {
+            let mut v = vec![match op {
+                BooleanOp::Union => "Boolean::Union",
+                BooleanOp::Intersect => "Boolean::Intersect",
+                BooleanOp::Subtract => "Boolean::Subtract",
+            }];
+            if declare.is_some() {
+                v.push("Boolean+Declare");
+            }
+            v
+        }
+        Node::Pattern { kind, .. } => vec![match kind {
+            PatternKind::Linear { .. } => "Pattern::Linear",
+            PatternKind::Circular { .. } => "Pattern::Circular",
+            // Refused at the edit door (a pattern's count is its slot),
+            // so no corpus document can carry one — named here only
+            // because the match is exhaustive on purpose.
+            PatternKind::Explicit(_) => "Pattern::Explicit",
+        }],
+        Node::PlacedUnion { kind, .. } => vec![match kind {
+            PatternKind::Linear { .. } => "PlacedUnion::Linear",
+            PatternKind::Circular { .. } => "PlacedUnion::Circular",
+            PatternKind::Explicit(_) => "PlacedUnion::Explicit",
+        }],
+        // The two selectors are two sub-kinds: which value kind the
+        // node reads, and so which refusals it can meet, follows the
+        // selector.
+        Node::Part { select, .. } => vec![match select {
+            PartSelect::SplitHalf(_) => "Part::SplitHalf",
+            PartSelect::Instance(_) => "Part::Instance",
+        }],
+        // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
+        // new `Node` variant — or a new `Datum`/`BooleanOp`/
+        // `PatternKind` flavour above — is a COMPILE error here rather
+        // than a silently uncovered sub-kind, matching the
+        // compile-time totality `node_kind`/`edit_kind` already have.
+        // A tube's WINDOW is a sub-kind on the same footing as a
+        // pattern's rule: it decides the body's whole topology (a
+        // closed ring against a capped elbow, and for the hollow kind
+        // a cavity against an annular section), so a corpus that
+        // covered only one of the two would read as covering "tube".
+        Node::Tube { window, .. } => vec![match window {
+            TubeWindow::Full => "Tube::Full",
+            TubeWindow::Arc { .. } => "Tube::Arc",
+        }],
+        Node::HollowTube { window, .. } => vec![match window {
+            TubeWindow::Full => "HollowTube::Full",
+            TubeWindow::Arc { .. } => "HollowTube::Arc",
+        }],
+        Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        // A shell's SEALED form (an empty `open`) and its OPENED form
+        // are one node kind and one door (`shell_open` with an empty
+        // designation IS `shell`); the sub-kind axis would name a
+        // payload's emptiness, which no other kind counts either.
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Declare { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Gauge { .. } => Vec::new(),
+    }
+}
+
+/// The node kind's tally name: one per [`Node`] VARIANT, which is what
+/// the census counts. Not `editor_core::node_kind_noun`, whose words
+/// split `Datum` by flavour — a split this tally's sub-kind half
+/// (`sub_kinds`) already counts on its own.
+pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
+    match node {
+        Node::Datum(_) => "Datum",
+        Node::Profile(_) => "Profile",
+        Node::Extrude { .. } => "Extrude",
+        Node::Revolve { .. } => "Revolve",
+        Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
+        Node::Shell { .. } => "Shell",
+        Node::Tube { .. } => "Tube",
+        Node::HollowTube { .. } => "HollowTube",
+        Node::Split { .. } => "Split",
+        Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
+        Node::Transform { .. } => "Transform",
+        Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
+        Node::PlacedUnion { .. } => "PlacedUnion",
+        Node::Loft { .. } => "Loft",
+        Node::Sweep { .. } => "Sweep",
+        Node::Declare { .. } => "Declare",
+        Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
+        Node::InstantiatePart { .. } => "InstantiatePart",
+        Node::Gauge { .. } => "Gauge",
+    }
+}
+
+/// The edit kind's tally name.
+pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
+    match edit {
+        DocEdit::InsertNode { .. } => "InsertNode",
+        DocEdit::DeleteNode { .. } => "DeleteNode",
+        DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetProgram { .. } => "SetProgram",
+        DocEdit::SetParam { .. } => "SetParam",
+        DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
+        DocEdit::SetExpression { .. } => "SetExpression",
+        DocEdit::SetDocParam { .. } => "SetDocParam",
+        DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
+        DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
+        DocEdit::SetDocParamDistribution { .. } => "SetDocParamDistribution",
+        DocEdit::Rebind { .. } => "Rebind",
+        DocEdit::ReWitness { .. } => "ReWitness",
+        DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",
+        DocEdit::SetAppearance { .. } => "SetAppearance",
+        DocEdit::ClearAppearance { .. } => "ClearAppearance",
+        DocEdit::SetTolerance { .. } => "SetTolerance",
+        DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
+        DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
+        DocEdit::SetRoots { .. } => "SetRoots",
+        DocEdit::SetOffset { .. } => "SetOffset",
+        DocEdit::SetGauge { .. } => "SetGauge",
+        DocEdit::UpdateReference { .. } => "UpdateReference",
+        DocEdit::SetLabel { .. } => "SetLabel",
+    }
+}
+
+/// A kind-name -> covering-document-names tally.
+pub type Tally = BTreeMap<&'static str, Vec<&'static str>>;
+
+/// The corpus-wide vocabulary tallies (node kinds, node sub-kinds,
+/// edit kinds), derived from the documents themselves.
+///
+/// Node kinds come from the INSERTED nodes (the edit logs) as well as
+/// the replayed DAG, so a node the corpus inserts and later deletes —
+/// the `DeleteNode` arm needs one — still counts as exercised.
+pub fn vocabulary() -> (Tally, Tally, Tally) {
+    let mut nodes: Tally = BTreeMap::new();
+    let mut subs: Tally = BTreeMap::new();
+    let mut edits: Tally = BTreeMap::new();
+    for d in documents() {
+        let mut seen_n = BTreeSet::new();
+        let mut seen_s = BTreeSet::new();
+        let note = |n: &Node<ProfileProgram>,
+                    seen_n: &mut BTreeSet<&'static str>,
+                    seen_s: &mut BTreeSet<&'static str>| {
+            seen_n.insert(node_kind(n));
+            seen_s.extend(sub_kinds(n));
+        };
+        for &id in d.doc.order() {
+            note(
+                d.doc.node(id).expect("ordered node exists"),
+                &mut seen_n,
+                &mut seen_s,
+            );
+        }
+        let mut seen_e = BTreeSet::new();
+        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
+            seen_e.insert(edit_kind(e));
+            if let DocEdit::InsertNode { node } = e {
+                note(node, &mut seen_n, &mut seen_s);
+            }
+        }
+        for k in seen_n {
+            nodes.entry(k).or_default().push(d.name);
+        }
+        for k in seen_s {
+            subs.entry(k).or_default().push(d.name);
+        }
+        for k in seen_e {
+            edits.entry(k).or_default().push(d.name);
+        }
+    }
+    (nodes, subs, edits)
+}

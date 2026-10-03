@@ -1,0 +1,49 @@
+# STL export from certified tessellations (M2 PR 7). Display/export
+# layer like `mesh`: f64-only, not scalar-generic.
+[package]
+name = "stl"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["mesh/probe"]
+
+[dependencies]
+# The writer consumes `mesh::Mesh` only (positions + per-patch
+# triangles; back-reference keys are dropped) — deliberately the sole
+# dependency: STL is the end of the display pipeline.
+mesh = { path = "../mesh" }
+
+[dev-dependencies]
+# The shared Rust reader for this crate's source-text guards.
+test-utils = { path = "../test-utils" }
+# Building acceptance bodies end-to-end for the export tests and the
+# CI-facing acceptance-export example (examples compile against
+# dev-dependencies).
+geom-core = { path = "../geom-core" }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../profile", features = ["test-support"] }
+# `test-support` ON: the acceptance bricks this crate exports are built
+# by `sweep`'s fixture door rather than re-spelled here (S52). Off by
+# default and named only from this table, so no shipped build of this
+# crate or of `sweep` reaches the module.
+sweep = { path = "../sweep", features = ["test-support"] }
+topo = { path = "../topo" }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

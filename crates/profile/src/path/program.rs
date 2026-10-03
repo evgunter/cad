@@ -1,0 +1,2927 @@
+//! **Profiles-as-programs (v2) — the profile side, and the transition
+//! table both surfaces are projected from.** The PATHS algebra's
+//! authoring surface, recorded as data and replayed through a driver
+//! that mirrors the typestate lattice at runtime — the two being
+//! MECHANICAL PROJECTIONS of one declaration (PATHS-DESIGN §2c rounds
+//! 13–15).
+//!
+//! Four things carry the design; the rest of the module is their
+//! vocabulary ([`Target`] with its [`TargetKind`] tag, [`ArcData`]
+//! with its [`ArcMode`] tag,
+//! [`TipState`], [`ReplayError`], [`DynTip`]) and the arc-spec
+//! dispatchers the arms call (`spec_dispatch!`, one declaration each,
+//! projected into the match and its [`SpecForms`]).
+//!
+//! 1. `transition_table!` — the one declaration. One row per
+//!    (state, verb, kernel fn, next state), expanded into all nine
+//!    projections the macro's own docs list: per row, the typed
+//!    method, the driver arm, the row-set entry and the arc-spec forms;
+//!    per verb, the [`Step`] variant, the [`Verb`] tag, its `ALL`
+//!    membership, its [`Step::verb`] read-back arm, and the word the
+//!    verb is called by, so its `Display` is the row's too.
+//! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
+//!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
+//!    points the author wrote; their bulges are DERIVED at replay, by
+//!    the same binders the typed surface calls. Storing a derived bulge
+//!    would re-type a computed value as authored and kill its
+//!    parametricity (PROFILES-V2 §V1/§V2).
+//! 3. [`ClosedLoop`] — what a closing verb now returns: the lowered
+//!    [`ProfileLoop`] *and* the program that produced it. One authoring
+//!    surface, two consumers; no second spelling of any verb.
+//! 4. [`replay`] — the driver. It holds the in-flight tip as [`DynTip`],
+//!    an enum over the lattice states each of which carries the TYPED
+//!    [`super::PartialPath`] value, and applying a step is a
+//!    match on (state, verb) whose arm bodies can only call the ONE typed
+//!    binder that is well-typed at that state.
+//!
+//! # What the construction makes unwritable — precisely
+//!
+//! The binder bodies are never duplicated here, the lattice is never
+//! re-stated as data by hand — [`Verb::states`] and [`arc_specs_at`]
+//! are projected from the same declarations the driver is — and,
+//! since the table shipped, neither surface is written twice. Two distinct properties hold, and both are worth
+//! stating exactly rather than generously:
+//!
+//! **Unwritable, by the table:** a transition present in one surface
+//! and absent (or different) in the other. A row IS the transition;
+//! delete it and its typed method, driver arm, row-set entry and
+//! arc-spec forms vanish together — and with the verb's declaration,
+//! its `Step` variant, `Verb` tag, `ALL` membership, read-back arm and
+//! `Display` word — so every consumer of any of the nine breaks at
+//! COMPILE. There is no second place to write a
+//! transition, so an inconsistent pair cannot be spelled.
+//!
+//! **Unwritable, by the types:** calling a binder on the CARRIED VALUE
+//! of a state where that binder is not well-typed. Every arm
+//! destructures the real `PartialPath`, so `.tangent()` on a
+//! `PlainPoint` tip or a leg on an `Angle` tip is a compile error, not
+//! a test failure.
+//!
+//! **Still writable, and NOT prevented by either:** a row whose arm
+//! IGNORES the carried value — a no-op arm returning the tip unchanged,
+//! or a laundering arm that MINTS a fresh tip from the step's own
+//! arguments — and a row whose arm is merely OVER-STRICT, refusing a
+//! pair the typed method accepts. Those compile. The table's grammar
+//! rules out only the emptiest case: `arms { }` is a parse error, so a
+//! row cannot ship with NO driver projection at all.
+//!
+//! The rest is backstopped downstream, by tests, and it is worth being
+//! exact about which test catches which shape, because a stale claim
+//! here is how an unpinned arm hides:
+//!
+//! - the **no-op** shape → the refusal census
+//!   (`lattice_violations_refuse_as_the_transition_class`);
+//! - the **over-strict / missing** shape → the replay-coverage census
+//!   (`every_table_verb_is_replayed_by_the_corpus`), which replays a
+//!   chain for every verb the table declares, anchored on
+//!   [`Verb::ALL`] so a new verb cannot join unpinned. It is VERB
+//!   granular: an arm of a multi-row verb is covered only where the
+//!   corpus reaches its state;
+//! - a **laundering** arm, and everything finer than verb granularity
+//!   → review of the table, plus the blanket record→replay differential
+//!   every closing verb in the corpus funnels through
+//!   (`common::pinned`: the recorded program must replay to a
+//!   bit-identical loop).
+//!
+//! Most arms are one expression of the form "destructure, call the one
+//! binder, re-wrap". The exceptions are honest and deliberate: the
+//! fused `FilletArc`/`ArcFilletArc` arms compose the two HALVES of
+//! their verb (open the incoming side, then apply the arrival spec)
+//! rather than calling the fused binder, because the wire's arrival
+//! mode is an `ArcData` value while the binder takes the mode's own
+//! type. They are pinned by the fused-family corpus.
+//!
+//! # Serde plays no role
+//!
+//! The `profile` crate stays serde-free (G1 layering). The Expr-bearing,
+//! wire-shaped step type is `editor-core`'s; this one is the resolved,
+//! scalar-valued form the driver consumes.
+
+use geom_core::{Decide, Point2, Real};
+
+use super::{
+    ArcCarrierScalar, Bulge, Center, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath,
+    PathError, Plain, Start, Via, WithIncoming,
+};
+use crate::ProfileLoop;
+use crate::structure::{Decision, DecisionValue, Guide, ReplayStructure, StructureRefusal};
+use crate::sugar::ArcSweep;
+use geom_core::Tol;
+
+// ------------------------------------------------------------------
+// The step vocabulary
+// ------------------------------------------------------------------
+
+/// **The tag half of a payload vocabulary — THREE projections of one
+/// variant list.**
+///
+/// Given a tag enum spelled `pub enum Tag { $($name),* }`, a payload
+/// enum `P<T: Real>` with the same variant names, and a read-back
+/// `fn read(&P)`, this expands exactly three projections: the
+/// payload-free tag enum, that tag's `ALL` (every variant, in
+/// declaration order), and the payload → tag read-back method. The tag
+/// is spelled as an `enum` item at each call site so that a reader
+/// searching for its declaration — and `pncad-py`'s prose census, which
+/// resolves `profile::Verb` by one — finds it under its own name.
+///
+/// Its callers are `target_forms!`, `arc_modes!` and
+/// `transition_table!`. Each declares its payload enum from the same
+/// variant list and hands the names here, so their tag halves are ONE
+/// expansion rather than parallel copies. The payload side stays with
+/// each caller: the payload enums differ in variant SHAPE (a tuple
+/// variant and two unit ones; struct variants with per-mode fields;
+/// the verb table's row grammar), and each keeps its own grammar.
+///
+/// **The trigger, by shape.** A vocabulary has this shape when it has
+/// all three projections — a payload-free tag, an `ALL` over it, and a
+/// read-back from a payload enum — however they are spelled. A macro in
+/// this crate that declares a vocabulary of that shape, with a payload
+/// generic as `P<T: Real>` and a tag deriving exactly `Clone, Copy,
+/// Debug, PartialEq, Eq`, calls this rather
+/// than spelling another copy. The macro is crate-private
+/// (`macro_rules!`, not exported), and the tree has vocabularies of the
+/// same shape it does not reach, each for a reason of its own:
+///
+/// - `editor-core`'s `SegTag` (`seg_tags!` for the tag and `ALL`,
+///   `SegTag::of` for the read-back, over `RoleSeg`): another crate,
+///   whose own macro is private too; `RoleSeg` is not generic, against
+///   the `impl<T: Real>` here; and `SegTag` derives `Hash` and `Ord`.
+/// - `viewer`'s `ToolKind` (`vocabulary!` for the tag and `ALL`,
+///   `OpenTool::kind` for the read-back): another crate; `OpenTool` is
+///   not generic; and `ToolKind` derives `Hash`.
+///
+/// An `ALL`-only vocabulary (a closed enum with no payload to read a
+/// tag back from) is not this shape. Nor is this macro an invitation
+/// to migrate hand-written kind mirror pairs — `PathErrorKind` beside
+/// `PathError`, `verbs`'s `VerbKind` beside `Verb` — onto a single
+/// declaration. For the error/kind pairs that was declined (Ev,
+/// 2026-09-12), and what survives the decline is carried by
+/// `work/census/a-new-kind-pair-arrives-unguarded-by-default.md`.
+/// This macro serves the macros that already declare a vocabulary
+/// from one list.
+///
+/// **Each tag variant's rustdoc names its payload variant** rather
+/// than repeating that variant's prose: the payload's docs describe
+/// what the payload carries, which is false of a tag that carries
+/// nothing.
+///
+/// **The read-back is `#[must_use]` at every caller alike.** It is one
+/// door expanded once per caller, so it carries one attribute set; the
+/// returned tag is the method's only effect. This is the rule for this
+/// door, not a crate-wide convention.
+macro_rules! tag_projections {
+    (
+        $(#[doc = $tdoc:literal])*
+        pub enum $tag:ident { $($name:ident),* }
+        $(#[doc = $adoc:literal])*
+        const ALL;
+        $(#[doc = $rdoc:literal])*
+        fn $read:ident(&$payload:ident);
+    ) => {
+        $(#[doc = $tdoc])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum $tag {
+            $(
+                #[doc = concat!("The tag of [`", stringify!($payload), "::", stringify!($name), "`].")]
+                $name
+            ),*
+        }
+
+        impl $tag {
+            $(#[doc = $adoc])*
+            #[doc(hidden)]
+            pub const ALL: &'static [$tag] = &[$( $tag::$name ),*];
+        }
+
+        impl<T: Real> $payload<T> {
+            $(#[doc = $rdoc])*
+            #[must_use]
+            pub fn $read(&self) -> $tag {
+                match self {
+                    $( $payload::$name { .. } => $tag::$name ),*
+                }
+            }
+        }
+    };
+}
+
+/// **The target vocabulary — ONE declaration, FOUR projections.**
+///
+/// A target form is named exactly once here, and the macro expands
+/// the name into [`Target`]'s variant and, through `tag_projections!`,
+/// the [`TargetKind`] tag, that tag's membership in `TargetKind::ALL`,
+/// and its arm in the [`Target::kind`] read-back. So the form SET has
+/// one home, and a census anchored on `ALL` cannot fall behind a form
+/// the vocabulary gains — the same construction `arc_modes!` gives
+/// the mode vocabulary one level up and `transition_table!` gives the
+/// verbs one level above that.
+///
+/// The payload half is this macro's own because its variant SHAPE is
+/// its own (a tuple variant and two unit ones); the tag half is
+/// `tag_projections!`'s, shared with the other two.
+macro_rules! target_forms {
+    (
+        $(
+            $(#[doc = $doc:literal])*
+            form $name:ident $(($payload:ty))?
+        )*
+    ) => {
+        /// Where a target-taking verb ends: an authored absolute point,
+        /// or the entry vertex ([`Start`]).
+        ///
+        /// The distinction is STRUCTURAL — it is the verb's shape, never
+        /// a value — so it stays literal in the step when the continuous
+        /// arguments become expressions (PROFILES-V2 §V2). Targeting
+        /// `Start` IS closing, here exactly as in the typed surface.
+        #[derive(Clone, Copy, Debug)]
+        pub enum Target<T: Real> {
+            $( $(#[doc = $doc])* $name $(($payload))? ),*
+        }
+
+        tag_projections! {
+            /// Which form a target names — [`Target`]'s tag, one value per
+            /// variant, projected from the same declaration.
+            ///
+            /// It is what a census over the target vocabulary is keyed on,
+            /// exactly as [`ArcMode`] is for the modes: a target travels
+            /// inside a verb AND inside an arc spec, so a form that fails to
+            /// reach a downstream spelling is invisible to both the
+            /// verb-keyed and the mode-keyed checks.
+            pub enum TargetKind { $($name),* }
+            /// Every target form the vocabulary declares, in declaration
+            /// order — enumerated from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            const ALL;
+            /// Which form this target names.
+            ///
+            /// A read-back door rather than a convenience, on
+            /// [`ArcData::mode`]'s model: a census over the target
+            /// vocabulary has to be able to ASK a resolved target what
+            /// form it is, and re-deriving that by matching the forms at
+            /// every such site is how a new form goes missing from one
+            /// of them.
+            fn kind(&Target);
+        }
+    };
+}
+
+target_forms! {
+    /// An authored absolute point in the profile frame.
+    form Point(Point2<T>)
+    /// The entry vertex: this step closes the loop.
+    form Start
+    /// The entry vertex, with the seam's tangent joint DECLARED: the
+    /// seam is the one junction whose arriving leg is the
+    /// later-authored one, so the declaration that elsewhere rides the
+    /// departing leg rides the target here. Authored data, not a
+    /// derived flag — the kernel CHECKS the arriving direction against
+    /// `Start`'s own and refuses a seam that contradicts it.
+    ///
+    /// It carries NO payload, and that is the ruling's shape (Ev,
+    /// in-chat, 2026-09-02): every zero-turn joint is a declared
+    /// tangent joint, so there is exactly one thing to declare here. A
+    /// one-member enum in this slot would be a tag distinguishing
+    /// nothing — bound by every match, branched on by no reader. If a
+    /// second declaration is ever ruled, the variant grows a payload
+    /// then, additively, exactly as this one arrived.
+    form StartArriving
+}
+
+impl<T: Real> ArcData<T> {
+    /// The endpoint this spec names, where it names one (`Radius`,
+    /// `Sweep` and `ArcLen` complete against a state and carry none).
+    ///
+    /// A read-back door rather than a convenience: a census over the
+    /// mode x target matrix has to be able to ASK a spec what it
+    /// targets, and matching the three endpoint-full variants at every
+    /// such site is how a new mode goes missing from one of them.
+    #[must_use]
+    pub fn target(&self) -> Option<&Target<T>> {
+        match self {
+            ArcData::Bulge { target, .. }
+            | ArcData::Via { target, .. }
+            | ArcData::Center { target, .. } => Some(target),
+            ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => None,
+        }
+    }
+}
+
+/// **The arc-mode vocabulary — ONE declaration, FOUR projections.**
+///
+/// A mode is named exactly once here, and the macro expands the name
+/// into [`ArcData`]'s variant and, through `tag_projections!`, the
+/// [`ArcMode`] tag, that tag's membership in [`ArcMode::ALL`], and its
+/// arm in the [`ArcData::mode`] read-back. So the mode SET has one home, and
+/// the census anchored on `ALL` cannot fall behind a mode the
+/// vocabulary gains — the same construction, one level down, that
+/// `transition_table!` gives the verb vocabulary through
+/// [`Verb::ALL`].
+///
+/// What it does NOT unify is the mode's field LAYOUT: the typed
+/// surface's standalone spec types ([`Radius`](super::Radius),
+/// [`Bulge`], [`Via`], [`Center`], [`Sweep`](super::Sweep),
+/// [`ArcLen`](super::ArcLen)) spell their fields under their own
+/// generics, because the state-keyed trait matrix keys on them
+/// (`Center<T, Point2<T>>` and `Center<T, Start>` are different
+/// impls), and `editor-core` spells two more layouts for reasons G1
+/// layering makes structural. The vocabulary those layouts must
+/// carry is what lives here.
+macro_rules! arc_modes {
+    (
+        $(
+            $(#[doc = $doc:literal])*
+            mode $name:ident { $($(#[doc = $fdoc:literal])* $f:ident : $ft:ty),* $(,)? }
+        )*
+    ) => {
+        /// **The unified arc-spec record (§2c rounds 5–9)**: one enum,
+        /// every authored mode, exactly as the surface's standalone
+        /// spec types authored it (record-as-you-lower keeps the mode;
+        /// the VQ contracts rely on that distinctness). The typed
+        /// surface consumes the standalone types
+        /// ([`Radius`](super::Radius), [`Bulge`], [`Via`], [`Center`],
+        /// [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen)) through
+        /// the state-keyed trait matrix; the wire and the replay
+        /// driver match THIS enum exhaustively, which is the round-9
+        /// forcing argument for the whole family shipping at once.
+        #[derive(Clone, Copy, Debug)]
+        pub enum ArcData<T: Real> {
+            $( $(#[doc = $doc])* $name { $($(#[doc = $fdoc])* $f : $ft),* } ),*
+        }
+
+        tag_projections! {
+            /// Which mode an arc spec names — [`ArcData`]'s tag, one value
+            /// per variant, projected from the same declaration.
+            ///
+            /// It is what a census over the mode vocabulary is keyed on,
+            /// exactly as [`Verb`] is for the verb vocabulary: the mode
+            /// travels INSIDE a verb, so a mode that fails to reach a
+            /// downstream spelling is invisible to every verb-keyed check.
+            pub enum ArcMode { $($name),* }
+            /// Every arc mode the vocabulary declares, in declaration
+            /// order — enumerated from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            const ALL;
+            /// The mode this spec names.
+            fn mode(&ArcData);
+        }
+    };
+}
+
+arc_modes! {
+    /// `Radius { r, side }` — arrival mode: centre derived from the
+    /// arrival's directed anchor.
+    mode Radius {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the tangent the centre sits on.
+        side: super::ArcSide,
+    }
+    /// `Bulge { p, b }` — chord-relative: leg targets and fused
+    /// incoming specs.
+    mode Bulge {
+        /// The authored endpoint.
+        target: Target<T>,
+        /// The authored bulge (M2 convention).
+        b: T,
+    }
+    /// `Via { q, p }` — the arc through an authored point.
+    mode Via {
+        /// The through-point.
+        q: Point2<T>,
+        /// The authored endpoint.
+        target: Target<T>,
+    }
+    /// `Center { c, winding, p }` — the arc about an authored centre.
+    mode Center {
+        /// The carrier centre.
+        c: Point2<T>,
+        /// Travel sense (structural).
+        winding: ArcSweep,
+        /// The authored anchor/endpoint (`Start` closes).
+        target: Target<T>,
+    }
+    /// `Sweep { r, side, angle }` — endpoint-free: tangent-departing,
+    /// endpoint derived.
+    mode Sweep {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the departure tangent the centre sits on.
+        side: super::ArcSide,
+        /// The swept central angle, radians.
+        angle: T,
+    }
+    /// `ArcLen { r, side, len }` — endpoint-free, extent as arc length.
+    mode ArcLen {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the departure tangent the centre sits on.
+        side: super::ArcSide,
+        /// The arc length, meters.
+        len: T,
+    }
+}
+
+impl<T: Real> ArcData<T> {
+    /// **Whether this spec's carrier was authored by a RADIUS
+    /// argument.**
+    ///
+    /// Three of the six modes carry one — `Radius`, `Sweep` and
+    /// `ArcLen` — and three author the same carrier from a bulge, a
+    /// through-point or a centre and carry none. That is what decides
+    /// whether an arc emitted from this spec has an address for the
+    /// replay's radius-emission record: an arc no radius drew has no
+    /// radius to name.
+    ///
+    /// Total over the mode vocabulary with no wildcard arm, exactly as
+    /// the spec dispatchers below are: a mode the vocabulary gains
+    /// breaks here rather than defaulting to "no radius" and dropping
+    /// its arcs out of the record silently.
+    ///
+    /// **Its mirror is a document-layer table.** `editor-core`'s
+    /// `spec_roles` decides, over the same six modes, whether the spec
+    /// holds a `CarrierRadius`/`CarrierRadius2` ARGUMENT — the address
+    /// the emission this predicate admits is read against. The two
+    /// decide one fact in two crates, and
+    /// `edit_step_segments::every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither`
+    /// is where they are held to it; without that row the only thing
+    /// that notices a disagreement is `eval::wire::edge_radii`'s
+    /// `unreachable!`, after the emission has been recorded with
+    /// nowhere to land.
+    #[must_use]
+    pub fn carries_radius(&self) -> bool {
+        match self {
+            Self::Radius { .. } | Self::Sweep { .. } | Self::ArcLen { .. } => true,
+            Self::Bulge { .. } | Self::Via { .. } | Self::Center { .. } => false,
+        }
+    }
+}
+
+/// **The transition table — ONE declaration, NINE projections**
+/// (PATHS-DESIGN §2c rounds 13–15, lean (a)).
+///
+/// A verb is declared exactly once, with one `on` row per lattice
+/// state it is well-typed at. The macro expands each ROW into the
+/// **typed method** on that state (a `free` row: the free function),
+/// the **driver arm** in [`apply`], the state's entry in the verb's
+/// row set ([`Verb::states`]) and, for an arc-spec verb, the forms its
+/// spec takes there ([`arc_specs_at`]); and each VERB into the
+/// [`Step`] variant, its `Display` word, and — through
+/// `tag_projections!` — the [`Verb`] tag, its membership in
+/// [`Verb::ALL`], and its arm in the [`Step::verb`] read-back. So none
+/// of those is written twice and no two of them can drift: a missing
+/// row is missing from every projection it feeds, consistently and
+/// loudly, and an
+/// inconsistent pair is unwritable because there is no second place
+/// to write it. Those nine are the whole of what the macro expands.
+///
+/// **The round-9 exhaustiveness pressure does NOT ride this table.**
+/// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
+/// this table is over the VERB vocabulary. The mode vocabulary has its
+/// own declaration (`arc_modes!` above) and its own census anchor
+/// ([`ArcMode::ALL`]), and the sites that must handle each mode are
+/// the arc-spec dispatchers below this invocation, each declared once
+/// by `spec_dispatch!` with no wildcard arm — so rustc enforces the
+/// pressure at each of them, and what the mode declaration adds is
+/// that a mode cannot go missing from a spelling this crate cannot
+/// see. An arm's `specs [..]` names the dispatcher its spec goes
+/// through; that it names the one the arm CALLS is the one fact here
+/// written beside a call rather than projected from it, and
+/// `tests/arc_spec_census.rs` walks every cell to pin it.
+///
+/// # What the table does not reach
+///
+/// The projections stop at this crate's edge because that is as far as
+/// the macro reaches, not because they are all the spellings there
+/// are. `editor-core` spells the same
+/// vocabulary twice more — an expression-valued document form and a
+/// serde-bearing persisted form — because a step there carries `Expr`s
+/// and must serialize, and G1 layering keeps both out of `profile`.
+///
+/// Adding a row here does not add a verb there. It breaks that crate's
+/// two exhaustive matches on [`Step`] (its content-key tag table and
+/// its lifting door) and stops. The function that goes the other way —
+/// document form to [`Step`] — matches the DOCUMENT type and
+/// CONSTRUCTS this one, so it cannot see a row added here, and the
+/// document, wire and expression-slot vocabularies can stay short
+/// while everything compiles. That they do not is a census rather than
+/// a compile error, and it lives where it can see both sides:
+/// `editor-core/tests/switch_program_vocabulary.rs`, anchored on
+/// [`Verb::ALL`] exactly as this crate's own replay-coverage census
+/// is.
+///
+/// The arc modes travel one level down, inside those same steps, and
+/// go the same way: the document form spells them again and the hop
+/// back CONSTRUCTS. The same suite carries their census, anchored on
+/// [`ArcMode::ALL`], and there the mode-keyed witness turns a mode
+/// missing from the document vocabulary into a compile error.
+///
+/// # Row grammar
+///
+/// ```text
+/// verb Name { field: Ty } = "name" // the Step payload (+ its rustdoc),
+///                                  // then the word the verb is CALLED
+/// bind { field }                   // how an arm destructures the step
+/// rows {
+///     row {
+///         /// rustdoc for the generated typed method
+///         on [generics] SelfTy;
+///         fn name [ (mut self, a: A) -> Out ] { body }
+///         arms { X(p) => expr,              // X: a DynTip/TipState
+///                Y(p) specs [FORMS] => expr, … } // variant; FORMS: the
+///                                                // dispatcher(s) of the
+///                                                // step's arc specs
+///     }
+/// }
+/// ```
+///
+/// The row's `fn` body is the DECLARATION side: it constructs the step
+/// and calls the kernel — the pure geometry, which stays in `path.rs`
+/// / `family.rs` under its own name. The row records the step itself
+/// where the state's `core` is in scope, and HANDS it to the kernel
+/// where it is not (the `family` arrival states, whose fields stay
+/// private to their module); either way the `Step::` construction is
+/// the row's, which is what makes a deleted row break the variant. The `arms` name the
+/// concrete [`DynTip`] variants the row's (possibly marker-generic)
+/// state covers — by the variant name alone, which [`TipState`]
+/// shares, so the same token is the driver's pattern and the row set's
+/// entry; a state the row does not name falls through to the table's
+/// one lattice-violation arm.
+///
+/// `free fn` rows are for the complete-loop program forms, which are
+/// free functions rather than methods on a tip; `path` re-exports
+/// them so their public paths are the module's own.
+macro_rules! transition_table {
+    (
+        // The witness's identifier comes from the INVOCATION so that the
+        // `tol` an arm expression writes and the `tol` the generated
+        // `apply` binds share a hygiene context (a name minted inside the
+        // macro would be invisible to the arms).
+        witness $tolid:ident ;
+        guide $guideid:ident ;
+        $(
+            $(#[doc = $doc:literal])*
+            verb $name:ident
+                $({ $($(#[doc = $fdoc:literal])* $f:ident : $ft:ty),* $(,)? })?
+                $(( $($tt:ty),* ))?
+                = $said:literal
+            bind $bind:tt
+            rows {
+                $(
+                    row {
+                        $(#[doc = $mdoc:literal])*
+                        on [ $($gen:tt)* ] $self_ty:ty ;
+                        fn $mname:ident [ $($sig:tt)* ] $mbody:block
+                        arms {
+                            $st0:ident $(( $b0:pat ))? $(specs [ $($slot0:ident),* ])? => $arm0:expr
+                            $(, $st:ident $(( $b:pat ))? $(specs [ $($slot:ident),* ])? => $arm:expr)*
+                            $(,)?
+                        }
+                    }
+                )*
+                $(
+                    free {
+                        $(#[doc = $fndoc:literal])*
+                        fn $fname:ident [ $($fsig:tt)* ] $fbody:block
+                        arms {
+                            $fst0:ident $(( $fb0:pat ))? => $farm0:expr
+                            $(, $fst:ident $(( $fb:pat ))? => $farm:expr)*
+                            $(,)?
+                        }
+                    }
+                )*
+            }
+        )*
+    ) => {
+        /// One recorded authoring verb (**authored data only** — every
+        /// field is a number or structural tag the author wrote;
+        /// derived quantities are re-derived at replay by the same
+        /// binders the typed surface calls).
+        #[derive(Clone, Copy, Debug)]
+        pub enum Step<T: Real> {
+            $( $(#[doc = $doc])* $name $({ $($(#[doc = $fdoc])* $f : $ft),* })? $(( $($tt),* ))? ),*
+        }
+
+        tag_projections! {
+            /// Which verb a step names — the `verb` half of a
+            /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
+            /// variant, projected from the same declaration.
+            ///
+            /// Its `Display` is the AUTHORING SPELLING — the word the
+            /// algebra calls the verb (`line_to`, `arc_fillet`), declared
+            /// on the row beside the variant so the two cannot disagree
+            /// and neither outlives the row. That is the word for a
+            /// sentence about the step a person wrote; `Debug` is the
+            /// variant identifier, for a sentence about the table
+            /// coordinate ([`ReplayError`]'s rendering states which is
+            /// which).
+            ///
+            /// The SKETCH program's verb, not the kernel's: that one is
+            /// `verbs::Verb` (an operation on a body). No signature takes
+            /// both; outside the owning crate, prose spells the crate and
+            /// code imports at most one of the two per file.
+            pub enum Verb { $($name),* }
+            /// Every verb the table declares, in declaration order —
+            /// the row set, enumerated from the same declaration, so
+            /// the replay-coverage census cannot fall behind a verb
+            /// the table gains (`tests/path_program.rs`).
+            const ALL;
+            /// The verb this step names.
+            fn verb(&Step);
+        }
+
+        /// The word the verb is CALLED — the authoring spelling, which
+        /// is the row's own and vanishes with it.
+        impl core::fmt::Display for Verb {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(match self {
+                    $( Verb::$name => $said ),*
+                })
+            }
+        }
+
+        $($(
+            impl< $($gen)* > $self_ty {
+                $(#[doc = $mdoc])*
+                pub fn $mname $($sig)* $mbody
+            }
+        )*)*
+
+        $($(
+            $(#[doc = $fndoc])*
+            pub fn $fname $($fsig)* $fbody
+        )*)*
+
+        /// Applies ONE step to the tip.
+        ///
+        /// Every arm is a row of the table above, so it can only call
+        /// the typed binder the row declares — the one well-typed at
+        /// that state. The trailing arm is the lattice violation: a
+        /// (state, verb) pair no row declares, which is therefore a
+        /// pair the authoring surface cannot spell.
+        #[allow(clippy::too_many_lines)]
+        fn apply<T: ArcCarrierScalar>(
+            tip: DynTip<T>,
+            step: Step<T>,
+            $tolid: Tol,
+            $guideid: &mut crate::structure::Guide<T>,
+        ) -> Applying<T> {
+            // The chain's guide belongs to its CORE, which only an
+            // ENTRY verb mints; every later state carries it forward
+            // with the core it moves. So the driver hands the guide in
+            // here and the entry rows — and only they — install it,
+            // which is why `$guideid` appears in five arms and nowhere
+            // else. Taking it leaves a fresh recording guide behind, so
+            // a second read cannot silently re-install the first one.
+            let $guideid = &mut || {
+                core::mem::replace($guideid, crate::structure::Guide::recording())
+            };
+            match (tip, step) {
+                $($(
+                    (DynTip::$st0 $(($b0))?, Step::$name $bind) => $arm0,
+                    $( (DynTip::$st $(($b))?, Step::$name $bind) => $arm, )*
+                )*$(
+                    (DynTip::$fst0 $(($fb0))?, Step::$name $bind) => $farm0,
+                    $( (DynTip::$fst $(($fb))?, Step::$name $bind) => $farm, )*
+                )*)*
+                (other, unusable) => Err(ReplayErrorKind::Transition {
+                    state: other.state(),
+                    verb: Some(unusable.verb()),
+                }),
+            }
+        }
+
+        impl Verb {
+            /// **The lattice states this verb has a row at**, in
+            /// declaration order — read off the same arms `apply`
+            /// is expanded from, so a state is listed here exactly
+            /// when the driver has an arm for it.
+            ///
+            /// A row is where the lattice stops refusing on the VERB;
+            /// an arc-carrying verb can still refuse on its spec's
+            /// mode, which [`arc_specs_at`] answers.
+            #[must_use]
+            pub fn states(self) -> &'static [TipState] {
+                match self {
+                    $( Verb::$name => &[
+                        $( TipState::$st0, $( TipState::$st, )* )*
+                        $( TipState::$fst0, $( TipState::$fst, )* )*
+                    ], )*
+                }
+            }
+        }
+
+        /// **Which arc-spec forms `verb` takes at `state`**: one
+        /// [`SpecForms`] per [`ArcData`] the step carries, in the
+        /// step's field order (`arc_fillet_arc` has two — the incoming
+        /// spec, then the arrival). Empty when the verb carries no arc
+        /// spec, or has no row at `state` ([`Verb::states`]).
+        ///
+        /// Each row's arm names the dispatcher its spec goes through
+        /// (`specs [..]`), beside the call; the forms themselves are
+        /// read off that dispatcher's own arms by `spec_dispatch!`, so
+        /// the admitted (mode, target) pairs are written once. That an
+        /// arm's `specs` names the dispatcher it actually calls is
+        /// pinned by the replay census in `tests/path_program.rs`,
+        /// which walks every (verb, state, mode, target) cell.
+        #[must_use]
+        pub fn arc_specs_at(verb: Verb, state: TipState) -> &'static [&'static SpecForms] {
+            match (verb, state) {
+                $($(
+                    (Verb::$name, TipState::$st0) => &[ $($( &$slot0 ),*)? ],
+                    $( (Verb::$name, TipState::$st) => &[ $($( &$slot ),*)? ], )*
+                )*)*
+                _ => &[],
+            }
+        }
+    };
+}
+
+transition_table! {
+    witness tol;
+    guide guide;
+    #[doc = " `.at(p)` — bind the position bit."]
+    verb At(Point2<T>) = "at" bind (p) rows {
+        row {
+            /// Binds the entry position: `Open → Point` (plain flavor — the
+            /// entry has no incoming carrier; its junction check happens at
+            /// the seam).
+            on [] Open;
+            fn at [<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng>] {
+                self.at_kernel(Step::At(p), p)
+            }
+            arms {
+                Entry => {
+                    let mut p0 = Open.at(p);
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::PlainPoint(p0)))
+                }
+            }
+        }
+        row {
+            /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
+            /// written once, generic over the angle slot it does not touch.
+            ///
+            /// On a fillet arrival whose angle is already bound, completing
+            /// the position resolves the fillet (both carriers fixed): the
+            /// corner construction and anchor-fit gates run here — see
+            /// [`PathError`]. On the angle-first entry, this seeds the chain.
+            /// `p` is absolute (profile frame), a real on-path point (the
+            /// side's anchor).
+            on [T: Decide, A: super::AngMarker] PartialPath<T, NoPos, A>;
+            fn at [(mut self, p: Point2<T>, tol: Tol)
+                -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>>] {
+                self.core.record(Step::At(p));
+                self.at_kernel(p, tol)
+            }
+            arms {
+                Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p, tol)?))),
+                Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p, tol)?))),
+            }
+        }
+        row {
+            /// Binds the arrival's anchor — a real on-path point on the
+            /// derived carrier.
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn at [(self, p: Point2<T>) -> super::family::RadiusArrivalAt<T>] {
+                self.at_kernel(Step::At(p), p)
+            }
+            arms {
+                RadiusArrival(p0) => Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p)))),
+            }
+        }
+        row {
+            /// Completes the arrival with its anchor; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalDir<T>;
+            fn at [(self, p: Point2<T>, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.at_kernel(Step::At(p), p, tol)
+            }
+            arms {
+                RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p, tol)?))),
+            }
+        }
+    }
+
+    #[doc = " `.angle(θ)` — bind the outgoing direction as an angle (radians)."]
+    verb Angle(T) = "angle" bind (theta) rows {
+        row {
+            /// Binds the entry direction first: `Open → Angle` (radians, in
+            /// the sketch plane; position pending).
+            on [] Open;
+            fn angle [<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng>] {
+                self.director(Step::Angle(theta), super::Dir::from_angle(theta))
+            }
+            arms {
+                Entry => {
+                    let mut p0 = Open.angle(theta);
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Angle(p0)))
+                }
+            }
+        }
+        row {
+            /// Adds the angle bit wherever it is missing (`Point → Directed`,
+            /// `Open → Angle`) — one generic function; the junction check
+            /// reads the flavor's optional incoming tangent at runtime.
+            ///
+            /// On a directed point this classifies `theta` against the
+            /// incoming tangent and its reverse (PATHS-DESIGN §4 item 1):
+            /// definitely-sharp proceeds; within ε_input of tangent refuses
+            /// [`PathError::JunctionTangent`] (one refusal, one recourse:
+            /// `.tangent()` makes intended tangency exact by construction);
+            /// within ε_input of the reverse refuses
+            /// [`PathError::JunctionCusp`] (no declaration door — #131). On a
+            /// plain point there is nothing to check (an arrival side meets
+            /// its fillet arc tangentially by construction; the entry's check
+            /// happens at the seam). On a fillet arrival whose position is
+            /// already bound, completing the direction resolves the fillet.
+            on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
+            fn angle [(mut self, theta: T, tol: Tol)
+                -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
+                self.core.record(Step::Angle(theta));
+                self.director(super::Dir::from_angle(theta), tol)
+            }
+            arms {
+                Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta, tol)?))),
+                PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta, tol)?))),
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.angle(theta, tol)?))),
+            }
+        }
+        row {
+            /// Binds the arrival direction (angle-first order).
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn angle [(self, theta: T) -> super::family::RadiusArrivalDir<T>] {
+                self.angle_kernel(Step::Angle(theta), theta)
+            }
+            arms {
+                RadiusArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.angle(theta)))),
+            }
+        }
+        row {
+            /// Completes the arrival with its direction; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalAt<T>;
+            fn angle [(self, theta: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
+            }
+            arms {
+                RadiusArrivalAt(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
+            }
+        }
+        row {
+            /// Completes the directed anchor with an angle; the fillet resolves.
+            on [T: Decide] super::family::ViaArrival<T>;
+            fn angle [(self, theta: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
+            }
+            arms {
+                ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
+            }
+        }
+        row {
+            /// Completes the close with an angle at the entry anchor.
+            on [T: Decide] super::family::ViaArrivalStart<T>;
+            fn angle [(self, theta: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
+            }
+            arms {
+                ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
+            }
+        }
+    }
+
+    #[doc = " `.toward(dx, dy)` — bind it as exact components (ratio-only)."]
+    verb Toward {
+        #[doc = " x component."]
+        dx: T,
+        #[doc = " y component."]
+        dy: T,
+    } = "toward" bind { dx, dy } rows {
+        row {
+            /// Binds the entry direction first as exact COMPONENTS
+            /// (`Open → Angle`): the direction-valued alternative to
+            /// [`angle`](Self::angle) — see [`PartialPath::toward`] for the
+            /// exactness contract and the refusal.
+            on [] Open;
+            fn toward [<T: Decide>(
+                self,
+                dx: T,
+                dy: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>>] {
+                let dir = super::unit_from_components(dx, dy, tol)?;
+                Ok(self.director(Step::Toward { dx, dy }, dir))
+            }
+            arms {
+                Entry => {
+                    let mut p0 = Open.toward(dx, dy, tol)?;
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Angle(p0)))
+                }
+            }
+        }
+        row {
+            /// The direction-valued director (G1 constructor 5): binds the same
+            /// angular DOF as [`angle`](Self::angle) — the same lattice slot,
+            /// set at most once per side — from exact COMPONENTS instead of an
+            /// angle. `(dx, dy)` is normalized and the unit ray stored verbatim,
+            /// so the departure never makes a trig round-trip: `.toward(-1, 0)`
+            /// gives the ray `(-1, 0)` exactly, where `.angle(PI)` gives
+            /// `(-1, 1.2246e-16)` and carries that ulp into every corner and
+            /// trim point downstream. Only the components' RATIO is read
+            /// (magnitude is not a length and binds nothing).
+            ///
+            /// `(0, 0)` — and any norm within ε_input of zero — refuses
+            /// [`PathError::ZeroDirection`]: it names no direction, and the
+            /// recourse is free, since scaling the components changes nothing
+            /// else. Junction/fillet semantics are otherwise identical to
+            /// [`angle`](Self::angle), including the §4 item 1 check on a
+            /// directed point and the fillet resolution on a bound arrival.
+            on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
+            fn toward [(mut self, dx: T, dy: T, tol: Tol)
+                -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.director(super::unit_from_components(dx, dy, tol)?, tol)
+            }
+            arms {
+                Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy, tol)?))),
+                PlainPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy, tol)?))),
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.toward(dx, dy, tol)?))),
+            }
+        }
+        row {
+            /// Binds the arrival direction as exact components.
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol)
+                -> Result<super::family::RadiusArrivalDir<T>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                RadiusArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy, tol)?))),
+            }
+        }
+        row {
+            /// Completes the arrival with exact components; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalAt<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                RadiusArrivalAt(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
+            }
+        }
+        row {
+            /// Completes the directed anchor with exact components.
+            on [T: Decide] super::family::ViaArrival<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                ViaArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
+            }
+        }
+        row {
+            /// Completes the close with exact components at the entry anchor.
+            on [T: Decide] super::family::ViaArrivalStart<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
+            }
+        }
+    }
+
+    #[doc = " `.tangent()` — inherit the incoming end tangent and DECLARE the joint."]
+    verb Tangent = "tangent" bind {} rows {
+        row {
+            /// Consumes a **directed point only**: re-uses the incoming end
+            /// tangent as the departure — exact by construction, nothing for
+            /// verification to contradict — and emits the DECLARED flag on
+            /// lowering. Ill-typed on plain points (no direction to inherit),
+            /// which is what makes "fillets sit between defined geometry"
+            /// structural rather than a rule.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn tangent [(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng>] {
+                self.core.record(Step::Tangent);
+                self.tangent_kernel()
+            }
+            arms {
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.tangent()))),
+            }
+        }
+    }
+
+    #[doc = " `.cusp()` — reverse onto the incoming end tangent and DECLARE the joint."]
+    verb Cusp = "cusp" bind {} rows {
+        row {
+            /// Consumes a **directed point only**, exactly as
+            /// [`tangent`](Self::tangent) does, and departs along the
+            /// REVERSE of the incoming end tangent — the ray negated, so the
+            /// junction is exactly reverse-tangent by construction and
+            /// nothing is left for verification to contradict — emitting the
+            /// same DECLARED flag on lowering.
+            ///
+            /// This is the wedge-0/2π authoring door (D1's tier-3 ruling):
+            /// a solid swept from a loop with such a joint carries a cusp
+            /// edge, which is legal at rest exactly where the contact is
+            /// declared. A junction merely AUTHORED within ε_input of the
+            /// reverse is still [`PathError::JunctionCusp`] — the ladder
+            /// never infers a declaration from values, and this verb is what
+            /// that refusal now names.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn cusp [(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng>] {
+                self.core.record(Step::Cusp);
+                self.cusp_kernel()
+            }
+            arms {
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.cusp()))),
+            }
+        }
+    }
+
+    #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
+    verb Turn(T) = "turn" bind (delta) rows {
+        row {
+            /// `.angle(incoming + δ)` sugar on a directed point: turns by `δ`
+            /// radians from the incoming tangent. `turn(0)` lands in the
+            /// tangent band and refuses (use [`tangent`](Self::tangent));
+            /// `turn(±π)` lands in the reverse band and refuses as a cusp.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn turn [(
+                mut self,
+                delta: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>>] {
+                self.core.record(Step::Turn(delta));
+                self.turn_kernel(delta, tol)
+            }
+            arms {
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta, tol)?))),
+            }
+        }
+    }
+
+    #[doc = " `line(len)` — a straight leg along the bound direction."]
+    verb Line(T) = "line" bind (len) rows {
+        row {
+            /// A straight leg of length `len` along the bound departure,
+            /// terminating at a directed point. After a fillet this extends
+            /// the arrival side's one leg past its anchor (no collinear
+            /// neighbor is minted — §4 item 4's by-construction exemption).
+            ///
+            /// A declared straight continuation of a straight leg
+            /// (`.tangent().line(len)` after a line) IS the same carrier, and
+            /// since 2026-09-02 that is legal: every zero-turn joint is a
+            /// declared tangent joint, so the joint is declared and the leg
+            /// emitted. The straight-continuation row below says the same
+            /// thing without the explicit `.tangent()` — `line(len)` off the
+            /// directed point declares the joint it mints.
+            ///
+            /// `len` must classify definitely positive
+            /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
+            /// would run the side backward, silently detaching the tip's
+            /// anchored points from the final path — the §4 item 3 invariant
+            /// is gated here, at the one verb that takes a signed length.
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn line [(
+                mut self,
+                len: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.line_kernel(len, tol)
+            }
+            arms {
+                DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+                DirectedIncoming(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+            }
+        }
+        row {
+            /// **The straight continuation** (`directed point → directed
+            /// point`): off a DIRECTED POINT — no director bound — the leg
+            /// departs along the point's own intrinsic tangent — the RAY
+            /// inherited bitwise, so consecutive legs run on ONE ray rather
+            /// than on two a round trip through the angle put a bit apart.
+            /// (The ray is what is exact; the vertices it lands are ordinary
+            /// sums and round like ordinary sums.) Binding bits
+            /// only: there is NO junction here (no authored direction exists to
+            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
+            /// declared. The minted vertex is a structural subdivision of the
+            /// carrier the binding bits already determine — a straight run said
+            /// on more vertices than it has corners, which is the loft
+            /// vertex-budget shape.
+            ///
+            /// The row is carrier-blind, as the §2c axiom requires: it reads
+            /// the tangent and nothing about the leg that produced it. Off an
+            /// ARC-carrier point the same spelling therefore authors a line
+            /// tangent to that arc and declares nothing, which is a tangency
+            /// between DISTINCT carriers — legal to write here, refused at the
+            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
+            /// it with `.tangent()` instead.
+            ///
+            /// `len` is gated definitely positive exactly as the directed row's
+            /// is ([`PathError::NonpositiveLeg`]).
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn line [(
+                mut self,
+                len: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.straight_continuation_kernel(len, tol)
+            }
+            arms {
+                DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+            }
+        }
+    }
+
+    #[doc = " `line_to(target)` — a straight leg to the target."]
+    verb LineTo(Target<T>) = "line_to" bind (target) rows {
+        row {
+            /// `.angle(toward target).line(distance)` in one call
+            /// (`Point → Point`, also from arrivals): on a directed point the
+            /// junction check runs on the computed direction; on a fillet
+            /// arrival this binds the arrival direction toward the target,
+            /// resolves the fillet, and ends the side at the target.
+            /// `line_to(Start)` is the sharp straight seam (both seam-side
+            /// junction checks run; a within-band-tangent straight closer is
+            /// the overdetermined tangent line close and refuses always).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
+            fn line_to [<Tgt: super::LineTarget<T, F>>(self, target: Tgt, tol: Tol) -> Tgt::Out] {
+                <Tgt as super::LineTarget<T, F>>::line_from(self, target, tol)
+            }
+            arms {
+                PlainPoint(p0) => do_line_to(p0, target, tol),
+                DirectedPoint(p0) => do_line_to(p0, target, tol),
+            }
+        }
+    }
+    #[doc = " `continue_to(target)` — the DECLARED straight continuation"]
+    #[doc = " landing on a named point; `Start` is the structural closer."]
+    verb ContinueTo(Target<T>) = "continue_to" bind (target) rows {
+        row {
+            /// **The declared point-target continuation** (`directed point →
+            /// directed point`, and `→ closed loop` for [`Start`]): the same
+            /// leg the straight-continuation row emits, with its extent said
+            /// as an authored POINT instead of a length. The departure is the
+            /// directed point's own tangent — the RAY inherited bitwise, no
+            /// authored direction, no junction to classify — and the target
+            /// says where the leg stops.
+            ///
+            /// **The declaration is the verb.** `line_to(p)` computes a
+            /// direction toward `p` and classifies it, which is why a
+            /// collinear target refuses there: reading "this was meant to be
+            /// straight" off a direction that happened to land in band is the
+            /// value inference the ladder refuses. Here nothing is read off
+            /// the target's position: the leg is straight because the verb
+            /// says so, and the target is CHECKED against the ray it declared
+            /// — authored data verified against authored intent, the arc
+            /// verbs' consistency class. A target that misses refuses
+            /// [`PathError::ContinuationTargetOffRay`]; one behind the
+            /// departure is a non-positive leg, exactly as for `line(len)`.
+            ///
+            /// The check is BANDED, as every check here is (ruled 2026-09-01):
+            /// coincident with the ray below ε_precision, definitely off it
+            /// above ε_input, escalating in between. It is the declaration
+            /// that makes the band legal — with the intent authored there is
+            /// no coincidence to read intent from.
+            ///
+            /// The minted vertex is the AUTHORED TARGET, not its projection
+            /// onto the ray (§4 item 3: every authored point lies on the final
+            /// path). For [`Start`] that is what closing MEANS — the loop
+            /// reaches its entry vertex exactly — and it is why the closer can
+            /// end a run the tangent-arc close and the rotation cannot: those
+            /// two need a carrier to turn onto, and an all-sides-subdivided
+            /// outline has none.
+            ///
+            /// Closing runs the SEAM check unchanged: the junction between
+            /// this leg and the entry's own departure is the loop's, and PQ4
+            /// still wants a corner there
+            /// ([`PathError::SeamTangent`] when it is not one — a refusal
+            /// only a seam can produce). What the closer removes is the
+            /// DEPARTURE half of the old wall, which is the half a rotation
+            /// could never fix; that half is now an ordinary
+            /// [`PathError::JunctionTangent`], the same refusal any other
+            /// departure gets.
+            ///
+            /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
+            /// point this authors a line tangent to that arc and declares
+            /// nothing, legal to write and refused at the data gate
+            /// ([`crate::ProfileError::UndeclaredTangency`]), exactly as the
+            /// length form is.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn continue_to [<Tgt: super::ContinueTarget<T>>(
+                self,
+                target: Tgt,
+                tol: Tol,
+            ) -> Tgt::Out] {
+                <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
+            }
+            arms {
+                DirectedPoint(p0) => do_continue_to(p0, target, tol),
+            }
+        }
+    }
+    #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
+    #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
+    #[doc = " what is kept, because the VQ contracts rely on it."]
+    verb ArcTo(ArcData<T>) = "arc_to" bind (spec) rows {
+        row {
+            /// **§2c**: the SHARP arc leg from a point tip — one verb over the
+            /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
+            /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
+            /// centre). `p: Start` is the sharp arc seam.
+            ///
+            /// Each mode's authored data is stored VERBATIM and its bulge
+            /// derived by the one closed form the raw chain uses
+            /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
+            /// the doors emit the same bits. On a directed point the §4 item 1
+            /// junction check runs on the arc's START TANGENT.
+            ///
+            /// Refusals: a through-point within ε_input of the chord LINE
+            /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
+            /// coincident endpoints ([`PathError::DegenerateArcChord`]); a
+            /// centre whose two radii disagree definitely
+            /// ([`PathError::ArcCenterNotEquidistant`] — checked, never
+            /// repaired: re-projecting would move an authored point, which §4
+            /// item 3 forbids) or sits within ε_input of an endpoint
+            /// ([`PathError::DegenerateArcCenter`]).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
+            fn arc_to [<S: super::family::PointLeg<T, F>>(self, spec: S, tol: Tol) -> S::Out] {
+                <S as super::family::PointLeg<T, F>>::leg_from(self, spec, tol)
+            }
+            arms {
+                PlainPoint(p0) specs [ARC_TO_POINT] => do_arc_to_point(p0, spec, TipState::PlainPoint, tol),
+                DirectedPoint(p0) specs [ARC_TO_POINT] => do_arc_to_point(p0, spec, TipState::DirectedPoint, tol),
+            }
+        }
+        row {
+            /// **§2c**: the endpoint-free SHARP arc legs — `arc_to(spec)` with
+            /// `Sweep`/`ArcLen`, the arc analogs of `line(len)`: tangent
+            /// departure (already junction-checked when the director bound),
+            /// endpoint derived, terminating at a directed point.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_to [<S: super::family::TangentIncoming<T>>(
+                mut self,
+                spec: S,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core
+                    .record(Step::ArcTo(super::family::TangentIncoming::to_wire(&spec)));
+                self.arc_to_kernel(spec, tol)
+            }
+            arms {
+                DirectedPlain(p0) specs [ARC_TO_DIRECTED] => do_arc_to_directed(p0, spec, TipState::DirectedPlain, tol),
+                DirectedIncoming(p0) specs [ARC_TO_DIRECTED] =>
+                    do_arc_to_directed(p0, spec, TipState::DirectedIncoming, tol),
+            }
+        }
+    }
+
+    #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
+    verb TangentArcTo(Target<T>) = "tangent_arc_to" bind (target) rows {
+        row {
+            /// The unique arc tangent to the bound departure through the
+            /// target: `tangent_arc_to(p)` continues to a directed point;
+            /// `tangent_arc_to(Start)` is the tangent-seam close (the seam's
+            /// junction check runs at `Start` with both directions known).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn tangent_arc_to [
+                <Tgt: super::TangentArcTarget<T, F>>(self, target: Tgt, tol: Tol) -> Tgt::Out
+            ] {
+                <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target, tol)
+            }
+            arms {
+                DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
+                DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
+            }
+        }
+    }
+
+    #[doc = " `.fillet(r)` — line incoming (the tangent ray), line arrival."]
+    verb Fillet {
+        #[doc = " The fillet radius."]
+        radius: T,
+    } = "fillet" bind { radius } rows {
+        row {
+            /// Opens a corner fillet of radius `radius`: consumes the incoming
+            /// Directed (the departure ray) and opens the arrival side Open,
+            /// bound in either order (`.at(dd).angle(θ)`, `.angle(θ).at(dd)`,
+            /// or `.to(Start)` for the seam). Once the arrival is Directed the
+            /// r-arc tangent to both carriers is inserted at their implicit
+            /// virtual corner, trimming both — the corner is never authored
+            /// (it exists only as the carrier intersection), and authoring a
+            /// point then filleting it away is unrepresentable.
+            ///
+            /// `radius` must classify definitely positive
+            /// ([`PathError::NonpositiveFilletRadius`] otherwise), gated here —
+            /// before an arrival can be authored against a fillet that has no
+            /// tangent construction to offer.
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn fillet [(
+                mut self,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::Fillet { radius });
+                self.fillet_kernel(radius, tol)
+            }
+            arms {
+                DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+                DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+            }
+        }
+        row {
+            /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
+            /// leg end. The incoming contact sits on the TANGENT RAY ahead of
+            /// the directed point, as new path: the surviving ray piece is a
+            /// genuine line leg extending from the leg's end (declared tangent
+            /// by construction — the ray IS the tangent), whatever leg came
+            /// before. Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn fillet [(
+                mut self,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::Fillet { radius });
+                self.fillet_kernel(radius, tol)
+            }
+            arms {
+                DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+            }
+        }
+    }
+
+    #[doc = " `fillet_arc(r, spec)` — line incoming, ARC arrival per the spec."]
+    verb FilletArc {
+        #[doc = " The fillet radius."]
+        radius: T,
+        #[doc = " The arc-arrival spec."]
+        spec: ArcData<T>,
+    } = "fillet_arc" bind { radius, spec } rows {
+        row {
+            /// **§2c**: line incoming, ARC arrival — consumes the directed tip
+            /// (the incoming side is its ray) and opens/resolves the arc
+            /// arrival per the spec mode's own completion story.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn fillet_arc [<S: super::family::ArrivalSpec<T>>(
+                mut self,
+                radius: T,
+                spec: S,
+                tol: Tol,
+            ) -> S::Out] {
+                self.core.record(Step::FilletArc {
+                    radius,
+                    spec: super::family::ArrivalSpec::to_wire(&spec),
+                });
+                self.fillet_arc_kernel(radius, spec, tol)
+            }
+            arms {
+                DirectedPlain(p0) specs [ARRIVAL] => do_arrival(
+                    p0.fillet(radius, tol)?,
+                    spec,
+                    TipState::DirectedPlain,
+                    Verb::FilletArc,
+                    tol,
+                ),
+                DirectedIncoming(p0) specs [ARRIVAL] => do_arrival(
+                    p0.fillet(radius, tol)?,
+                    spec,
+                    TipState::DirectedIncoming,
+                    Verb::FilletArc,
+                    tol,
+                ),
+            }
+        }
+        row {
+            /// Ray extension with an ARC arrival (`fillet_arc` off a leg end).
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn fillet_arc [<S: super::family::ArrivalSpec<T>>(
+                mut self,
+                radius: T,
+                spec: S,
+                tol: Tol,
+            ) -> S::Out] {
+                self.core.record(Step::FilletArc {
+                    radius,
+                    spec: super::family::ArrivalSpec::to_wire(&spec),
+                });
+                self.fillet_arc_kernel(radius, spec, tol)
+            }
+            arms {
+                DirectedPoint(p0) specs [ARRIVAL] => do_arrival(
+                    p0.fillet(radius, tol)?,
+                    spec,
+                    TipState::DirectedPoint,
+                    Verb::FilletArc,
+                    tol,
+                ),
+            }
+        }
+    }
+
+    #[doc = " `arc_fillet(spec, r)` — fused ARC incoming, line arrival."]
+    verb ArcFillet {
+        #[doc = " The fused incoming-arc spec."]
+        spec: ArcData<T>,
+        #[doc = " The fillet radius."]
+        radius: T,
+    } = "arc_fillet" bind { spec, radius } rows {
+        row {
+            /// **§2c, the entry fused verb**: authors the ENTRY side ON an arc
+            /// carrier — the spec's `p` is the entry anchor, the direction is
+            /// the carrier's tangent there (derived, never authored) — and
+            /// opens a fillet of `radius` off that carrier, line arrival.
+            ///
+            /// The entry's carrier and the fillet that trims it are ONE
+            /// authoring act, which is what the axiom demands: a fillet that
+            /// needs an arc carrier cannot learn it, so it authors it.
+            on [] Open;
+            fn arc_fillet [<T: ArcCarrierScalar>(
+                self,
+                spec: Center<T, Point2<T>>,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                let step = Step::ArcFillet {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                };
+                self.arc_fillet_kernel(step, spec, radius, tol)
+            }
+            arms {
+                Entry specs [FUSED_ENTRY] => {
+                    let mut p0 = do_fused_entry(spec, radius, Verb::ArcFillet, tol)?;
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Open(p0)))
+                }
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming from a PLAIN point tip — the
+            /// endpoint-full modes author the incoming side's carrier and its
+            /// anchor `p` in one act. Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<Plain>, NoAng>;
+            fn arc_fillet [<S: super::family::PointIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius, tol)
+            }
+            arms {
+                PlainPoint(p0) specs [FUSED_POINT] => Ok(Applied::Tip(DynTip::Open(do_fused_point(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::PlainPoint,
+                    Verb::ArcFillet,
+                    tol,
+                )?))),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming from a DIRECTED POINT — the
+            /// endpoint-full modes (junction-checked at the tip, as the sharp
+            /// legs check theirs) plus `Radius`: ARC EXTENSION, the arc analog
+            /// of ray extension (see [`LegEndIncoming`](super::LegEndIncoming)). Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn arc_fillet [<S: super::family::LegEndIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::LegEndIncoming::to_wire(&spec, tol),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius, tol)
+            }
+            arms {
+                DirectedPoint(p0) specs [FUSED_LEG_END] => Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedPoint,
+                    Verb::ArcFillet,
+                    tol,
+                )?))),
+            }
+        }
+        row {
+            /// **§2c**: fused ARC incoming from a directed tip — the
+            /// endpoint-free pair departs tangentially and derives its
+            /// endpoint, which becomes the incoming side's anchor; the fillet
+            /// of `radius` trims off its far end. Line arrival.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_fillet [<S: super::family::TangentIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::TangentIncoming::to_wire(&spec),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius, tol)
+            }
+            arms {
+                DirectedPlain(p0) specs [FUSED_DIRECTED] => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedPlain,
+                    Verb::ArcFillet,
+                    tol,
+                )?))),
+                DirectedIncoming(p0) specs [FUSED_DIRECTED] => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedIncoming,
+                    Verb::ArcFillet,
+                    tol,
+                )?))),
+            }
+        }
+    }
+
+    #[doc = " `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming, arc arrival."]
+    verb ArcFilletArc {
+        #[doc = " The fused incoming-arc spec."]
+        spec: ArcData<T>,
+        #[doc = " The fillet radius."]
+        radius: T,
+        #[doc = " The arc-arrival spec."]
+        spec2: ArcData<T>,
+    } = "arc_fillet_arc" bind { spec, radius, spec2 } rows {
+        row {
+            /// The entry fused verb with an ARC arrival: `arc_fillet` whose
+            /// arrival is the spec₂ mode's own completion (a `Center` interior
+            /// anchor resolves at the verb; `Center { p: Start }` would close a
+            /// two-sided loop; `Radius`/`Via` await their binders).
+            on [] Open;
+            fn arc_fillet_arc [<T: ArcCarrierScalar, S2: super::family::ArrivalSpec<T>>(
+                self,
+                spec: Center<T, Point2<T>>,
+                radius: T,
+                spec2: S2,
+                tol: Tol,
+            ) -> S2::Out] {
+                let step = Step::ArcFilletArc {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                };
+                self.arc_fillet_arc_kernel(step, spec, radius, spec2, tol)
+            }
+            arms {
+                // The one entry row that both OPENS and RESOLVES a
+                // fillet in a single step (the eye): the guide has to
+                // be in the core before the arrival half runs, not
+                // after the step lands.
+                Entry specs [FUSED_ENTRY, ARRIVAL] => {
+                    let mut open = do_fused_entry(spec, radius, Verb::ArcFilletArc, tol)?;
+                    open.core.adopt(guide());
+                    do_arrival(open, spec2, TipState::Entry, Verb::ArcFilletArc, tol)
+                }
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming (point modes) AND arc arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<Plain>, NoAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::PointIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                    tol: Tol,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
+            }
+            arms {
+                PlainPoint(p0) specs [FUSED_POINT, ARRIVAL] => do_arrival(
+                    do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc, tol)?,
+                    spec2,
+                    TipState::PlainPoint,
+                    Verb::ArcFilletArc,
+                    tol,
+                ),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming (directed-point modes) AND arc
+            /// arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::LegEndIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                    tol: Tol,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::LegEndIncoming::to_wire(&spec, tol),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
+            }
+            arms {
+                DirectedPoint(p0) specs [FUSED_LEG_END, ARRIVAL] => do_arrival(
+                    do_fused_leg_end(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedPoint,
+                        Verb::ArcFilletArc,
+                        tol,
+                    )?,
+                    spec2,
+                    TipState::DirectedPoint,
+                    Verb::ArcFilletArc,
+                    tol,
+                ),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming AND arc arrival.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::TangentIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                    tol: Tol,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::TangentIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
+            }
+            arms {
+                DirectedPlain(p0) specs [FUSED_DIRECTED, ARRIVAL] => do_arrival(
+                    do_fused_directed(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedPlain,
+                        Verb::ArcFilletArc,
+                        tol,
+                    )?,
+                    spec2,
+                    TipState::DirectedPlain,
+                    Verb::ArcFilletArc,
+                    tol,
+                ),
+                DirectedIncoming(p0) specs [FUSED_DIRECTED, ARRIVAL] => do_arrival(
+                    do_fused_directed(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedIncoming,
+                        Verb::ArcFilletArc,
+                        tol,
+                    )?,
+                    spec2,
+                    TipState::DirectedIncoming,
+                    Verb::ArcFilletArc,
+                    tol,
+                ),
+            }
+        }
+    }
+
+    #[doc = " `.to(anchor)` — the far-end anchor: end the arrival side there."]
+    verb FarEndTo(Point2<T>) = "to (far end)" bind (anchor) rows {
+        row {
+            /// **The far-end anchor** (G1 constructor 4, the W5 wall): binds an
+            /// arrival side's position bit to `anchor` AND ends the side there —
+            /// the `to`-family's combined step, read on the arrival side.
+            ///
+            /// PATHS-DESIGN §3 already says every side is anchored by a real
+            /// on-path point plus a direction, and `.angle(θ).at(p)` binds
+            /// exactly that pair. What was missing was only the ability for the
+            /// side to STOP at its anchor: `.at(p)` leaves the tip Directed at
+            /// `p`, and the only continuations run PAST it, so a side whose
+            /// natural end is its far vertex had to be authored as a synthetic
+            /// mid-side anchor plus a length — a point that is not a vertex, and
+            /// a number nobody measured. `.to(p)` says the natural thing: this
+            /// side ends at `p`.
+            ///
+            /// It adds no geometry and no new determination — `.angle(θ).to(p)`
+            /// fixes exactly what `.angle(θ).at(p)` fixes (the arrival carrier
+            /// is the line through `p` in direction θ; the corner is still the
+            /// carrier intersection, never authored). The difference is where
+            /// the leg terminates, so the fillet resolution, its corner gates,
+            /// and the anchor-fit checks are all `.at(p)`'s, unchanged; `p` is
+            /// on the final path either way, authored once. The result is a
+            /// directed point (incoming tangent θ), so the next verb's junction
+            /// check runs exactly as after any leg.
+            ///
+            /// The direction must be bound FIRST (`.angle(θ).to(p)` /
+            /// `.toward(dx, dy).to(p)`): with the anchor as the terminus, the
+            /// side's carrier is what the director supplies.
+            ///
+            /// **Exact trim fit** — the fillet arc reaching `anchor` with no
+            /// straight run left — is not an error. The side simply IS the arc:
+            /// no degenerate segment is emitted, the tip carries the arc as its
+            /// incoming carrier, the arc's outgoing joint is left UNDECLARED
+            /// (the side ends here, so the next direction is free — declaring
+            /// would be a claim, not a construction), and the authored anchor is
+            /// ABSORBED into the tangent point the fit gate just classified as
+            /// coincident with it, rather than emitted as a second vertex a
+            /// hair away. That absorption is the hand door's behaviour too, and
+            /// keeping it is what keeps the two doors emitting identical bits.
+            ///
+            /// At the ENTRY (direction bound, no fillet open) there is no
+            /// arrival side to end, and this refuses
+            /// [`PathError::FarEndAnchorWithoutFillet`] — the entry authors its
+            /// first side with `.at(p)`, and the seam is authored at the back
+            /// (§2's entry rule). Targeting [`Start`] with the far-end form is
+            /// deliberately NOT in this surface; see the module docs.
+            on [T: Decide] PartialPath<T, NoPos, HasAng>;
+            fn to [(
+                mut self,
+                anchor: Point2<T>,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::FarEndTo(anchor));
+                self.end_side_at(anchor, tol)
+            }
+            arms {
+                Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor, tol)?))),
+            }
+        }
+    }
+
+    #[doc = " `.to(Start)` — the seam-fillet close (entry vertex retrimmed)."]
+    verb CloseTo = "to Start (close)" bind {} rows {
+        row {
+            /// The combined binder consuming a directed-point VALUE
+            /// (`Open → Directed` in one step). [`Start`] is its canonical
+            /// argument, and using it is closing: `.angle(θ).fillet(r)
+            /// .to(Start)` is the seam fillet — both carriers bound, nothing
+            /// pending, loop closed. (Curve-pose arguments — `c.start()` /
+            /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
+            on [T: Decide] PartialPath<T, NoPos, NoAng>;
+            fn to [(mut self, target: Start, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let Start = target;
+                self.core.record(Step::CloseTo);
+                self.close_at_seam(tol)
+            }
+            arms {
+                Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?)),
+            }
+        }
+    }
+    #[doc = " `circle(centre, r)` — the one-step complete-loop program form."]
+    verb Circle {
+        #[doc = " The circle's centre."]
+        centre: Point2<T>,
+        #[doc = " The circle's radius (definitely positive)."]
+        radius: T,
+    } = "circle" bind { centre, radius } rows {
+        free {
+            /// The circle primitive (G1 constructor 1): a **one-step complete-loop
+            /// program form**, not a chain — `circle(centre, r)` IS the whole loop,
+            /// so it returns the lowered [`ProfileLoop`] directly and there is
+            /// nothing to continue, close, or bind.
+            ///
+            /// **It authors no seam.** That is the whole point, and it is what
+            /// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
+            /// fillet, never mid-carrier) untouched: a chain still cannot close
+            /// mid-carrier, because the split this primitive uses is not authored
+            /// at all. The conventional split — two semicircles at the ±x poles,
+            /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
+            /// M2 closed-carrier precedent: a detail of how a closed carrier
+            /// reaches a vertex-and-segment document, not a junction anyone said. The two
+            /// joints are same-carrier identities, so nothing is declared tangent
+            /// (there is no tangency to declare — it is one circle).
+            ///
+            /// `radius` must classify definitely positive
+            /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
+            /// the other sign gates. A circle is one loop among others: profiles
+            /// mix circle loops and chain loops freely (per-loop wholesale, which
+            /// is the mixed-authoring rule of §6 read at loop granularity).
+            fn circle [<T: Decide>(
+                centre: Point2<T>,
+                radius: T,
+                tol: Tol,
+            ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let loop_ = super::circle_kernel(centre, radius, tol)?;
+                Ok(ClosedLoop {
+                    // A closed carrier resolves no fillet: no gate, no
+                    // ladder, nothing discrete to record but the one
+                    // step's reach, which is the whole loop.
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
+                    loop_: ConstructedLoop(loop_),
+                    program: vec![Step::Circle { centre, radius }],
+                })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
+            }
+            arms {
+                Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
+            }
+        }
+    }
+
+    #[doc = " `circle_split(centre, r, n, phase)` — the declared-subdivision closed carrier."]
+    verb CircleSplit {
+        #[doc = " The carrier's centre."]
+        centre: Point2<T>,
+        #[doc = " The carrier's radius (definitely positive)."]
+        radius: T,
+        #[doc = " The subdivision count (STRUCTURAL, ≥ 2)."]
+        n: usize,
+        #[doc = " The first vertex's angle from +x (continuous)."]
+        phase: T,
+    } = "circle_split" bind { centre, radius, n, phase } rows {
+        free {
+            /// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
+            /// ruling): one circle, authored WITH its seam structure — `n` arcs of
+            /// equal sweep, the first vertex at angle `phase` from the +x axis,
+            /// counterclockwise. Like [`circle`] it is a **one-step complete-loop
+            /// program form**, not a chain, so PQ4 is untouched: the vertices are
+            /// STRUCTURAL subdivisions of one carrier (same-carrier identities,
+            /// nothing declared tangent), not junctions anyone claimed — the
+            /// difference from [`circle`] is only that here the subdivision COUNT
+            /// and PHASE are authored data rather than a private lowering detail,
+            /// for the loops whose downstream naming depends on the seam count
+            /// (the boss corpus document is the recorded use case).
+            ///
+            /// Numerics, stated plainly: vertex `k` sits at
+            /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+            /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+            /// trig (D9-deterministic; no exactness promise at axis crossings, the
+            /// same posture as `.angle(θ)` directors).
+            ///
+            /// `radius` must classify definitely positive (the [`circle`] gate,
+            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
+            /// — a one-vertex full turn has no bulge representation). `n` is
+            /// structural (a count, never a value); `phase` is continuous.
+            fn circle_split [<T: Decide>(
+                centre: Point2<T>,
+                radius: T,
+                n: usize,
+                phase: T,
+                tol: Tol,
+            ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let loop_ = super::circle_split_kernel(centre, radius, n, phase, tol)?;
+                Ok(ClosedLoop {
+                    // Structural subdivisions of one carrier: still no
+                    // fillet resolution anywhere in the form, and the
+                    // one step reaches every subdivision.
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
+                    loop_: ConstructedLoop(loop_),
+                    program: vec![Step::CircleSplit {
+                        centre,
+                        radius,
+                        n,
+                        phase,
+                    }],
+                })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
+            }
+            arms {
+                Entry => Ok(Applied::Closed(
+                    circle_split(centre, radius, n, phase, tol)?,
+                )),
+            }
+        }
+    }
+}
+
+impl<T: Real> Step<T> {
+    /// **The same recorded step, read at another scalar**: every scalar
+    /// the author wrote goes through `f`, and every structural field —
+    /// a target's form, an arc's winding and side, a split count — is
+    /// carried verbatim.
+    ///
+    /// Named by `geom`'s `scalar_lift` convention, as
+    /// [`ProfileLoop::map_scalar`] is: `map_scalar` on a type with
+    /// structure to carry, [`Point2::map`] at the leaves. It is a
+    /// structural map and performs no arithmetic, so it is exact
+    /// wherever `f` is — `U::from_f64` embeds a recorded `f64` program
+    /// at a lane scalar for [`replay`] to run there.
+    ///
+    /// `f` reaches lengths, angles and bulges alike, so this is a
+    /// change of SCALAR, never of geometry: a similarity scale, which
+    /// moves lengths and leaves angles and bulges, is not spelled with
+    /// it.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Step<U> {
+        // Exhaustive over the step vocabulary, and through the two rungs
+        // over the arc-spec modes and the target forms, with no wildcard
+        // arm: a variant any of the three gains fails to compile here
+        // rather than falling through.
+        match *self {
+            Step::At(p) => Step::At(p.map(&f)),
+            Step::Angle(theta) => Step::Angle(f(theta)),
+            Step::Toward { dx, dy } => Step::Toward {
+                dx: f(dx),
+                dy: f(dy),
+            },
+            Step::Tangent => Step::Tangent,
+            Step::Cusp => Step::Cusp,
+            Step::Turn(delta) => Step::Turn(f(delta)),
+            Step::Line(len) => Step::Line(f(len)),
+            Step::LineTo(t) => Step::LineTo(t.map_scalar(&f)),
+            Step::ContinueTo(t) => Step::ContinueTo(t.map_scalar(&f)),
+            Step::ArcTo(spec) => Step::ArcTo(spec.map_scalar(&f)),
+            Step::TangentArcTo(t) => Step::TangentArcTo(t.map_scalar(&f)),
+            Step::Fillet { radius } => Step::Fillet { radius: f(radius) },
+            Step::FilletArc { radius, spec } => Step::FilletArc {
+                radius: f(radius),
+                spec: spec.map_scalar(&f),
+            },
+            Step::ArcFillet { spec, radius } => Step::ArcFillet {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+            },
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+                spec2: spec2.map_scalar(&f),
+            },
+            Step::FarEndTo(p) => Step::FarEndTo(p.map(&f)),
+            Step::CloseTo => Step::CloseTo,
+            Step::Circle { centre, radius } => Step::Circle {
+                centre: centre.map(&f),
+                radius: f(radius),
+            },
+            Step::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            } => Step::CircleSplit {
+                centre: centre.map(&f),
+                radius: f(radius),
+                n,
+                phase: f(phase),
+            },
+        }
+    }
+}
+
+impl<T: Real> Target<T> {
+    /// The same target at another scalar — [`Step::map_scalar`]'s rung
+    /// for the target a verb or an arc spec carries. The form is
+    /// structural and travels unchanged.
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Target<U> {
+        match *self {
+            Target::Point(p) => Target::Point(p.map(f)),
+            Target::Start => Target::Start,
+            Target::StartArriving => Target::StartArriving,
+        }
+    }
+}
+
+impl<T: Real> ArcData<T> {
+    /// The same arc spec at another scalar — [`Step::map_scalar`]'s
+    /// rung for the spec an arc verb carries. The mode, winding and
+    /// side are structural and travel unchanged.
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ArcData<U> {
+        match *self {
+            ArcData::Radius { r, side } => ArcData::Radius { r: f(r), side },
+            ArcData::Bulge { target, b } => ArcData::Bulge {
+                target: target.map_scalar(&f),
+                b: f(b),
+            },
+            ArcData::Via { q, target } => ArcData::Via {
+                q: q.map(&f),
+                target: target.map_scalar(&f),
+            },
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: c.map(&f),
+                winding,
+                target: target.map_scalar(&f),
+            },
+            ArcData::Sweep { r, side, angle } => ArcData::Sweep {
+                r: f(r),
+                side,
+                angle: f(angle),
+            },
+            ArcData::ArcLen { r, side, len } => ArcData::ArcLen {
+                r: f(r),
+                side,
+                len: f(len),
+            },
+        }
+    }
+}
+
+/// A closing verb's result: the lowered loop AND the program that
+/// produced it.
+///
+/// Closing verbs return this pair so that one chain yields both
+/// consumers' values
+/// (PROFILES-V2 §V1: "one authoring surface, two consumers"). Kernel-
+/// direct call sites that only want the geometry adapt with
+/// [`From`]/`.into()` or by reading [`ClosedLoop::loop_`].
+#[derive(Clone, Debug)]
+pub struct ClosedLoop<T: Real> {
+    /// The lowered loop, carrying the provenance of its construction.
+    pub loop_: ConstructedLoop<T>,
+    /// The recorded program: replaying it reproduces `loop_` exactly.
+    pub program: Vec<Step<T>>,
+    /// The discrete choices this lowering made — the third value one
+    /// chain yields, beside the loop and the program it recorded. A
+    /// derived value like the other two: never persisted, and rebuilt
+    /// by any replay of the program.
+    pub structure: crate::structure::ReplayStructure,
+}
+
+impl<T: Real> From<ClosedLoop<T>> for ConstructedLoop<T> {
+    fn from(closed: ClosedLoop<T>) -> Self {
+        closed.loop_
+    }
+}
+
+/// The loop, giving up the provenance ([`ConstructedLoop::into_loop`]):
+/// a `ProfileLoop` validates as a table.
+impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+    fn from(closed: ClosedLoop<T>) -> Self {
+        closed.loop_.into_loop()
+    }
+}
+
+// ------------------------------------------------------------------
+// Replay refusals
+// ------------------------------------------------------------------
+
+/// Which lattice state the driver's tip was in — the `state` half of a
+/// [`ReplayErrorKind::Transition`], and the vocabulary the driver's
+/// match is written over: the four lattice states (with the marker
+/// flavors the surface distinguishes), the §2c arc-arrival states, and
+/// the two ends of a run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TipState {
+    /// Before the first verb — the `Open` value itself.
+    Entry,
+    /// `Open` = {}: a fillet's freshly opened LINE arrival side.
+    Open,
+    /// `Angle` = {angle}: direction bound, position pending.
+    Angle,
+    /// `Point` = {position}, plain flavor: no incoming carrier.
+    PlainPoint,
+    /// `Point` = {position}, directed flavor: a leg end, incoming
+    /// tangent available.
+    DirectedPoint,
+    /// `Directed` = {both}, over a plain position.
+    DirectedPlain,
+    /// `Directed` = {both}, over a leg-end position.
+    DirectedIncoming,
+    /// **§2c**: a `Radius` arrival awaiting both binders.
+    RadiusArrival,
+    /// **§2c**: a `Radius` arrival with its anchor bound.
+    RadiusArrivalAt,
+    /// **§2c**: a `Radius` arrival with its director bound.
+    RadiusArrivalDir,
+    /// **§2c**: a `Via` arrival awaiting its director.
+    ViaArrival,
+    /// **§2c**: a `Via` CLOSE awaiting its director.
+    ViaArrivalStart,
+    /// The loop is closed; no verb may follow.
+    Closed,
+}
+
+/// Why a replay refused, and at which step.
+///
+/// The `step` index is into the program slice; for a program that ENDS
+/// without closing it is the length (one past the last step), and the
+/// kind's `verb` is then `None`.
+#[derive(Clone, Debug)]
+pub struct ReplayError<T: Real> {
+    /// The index of the offending step.
+    pub step: usize,
+    /// The refusal class.
+    pub kind: ReplayErrorKind<T>,
+}
+
+/// The two classes of replay refusal, deliberately different
+/// (PROFILES-V2 §V1).
+#[derive(Clone, Debug)]
+pub enum ReplayErrorKind<T: Real> {
+    /// **Lattice violation** — the step's verb (or its spec MODE, for
+    /// the ArcData-carrying steps: an inadmissible (state, mode) pair
+    /// is unrepresentable at the typed surface, so at the wire it is
+    /// this class) is not well-typed at the tip's state. No authoring
+    /// surface can produce this: it is the corrupt-or-hand-edited-file
+    /// class, refused typed at the door.
+    ///
+    /// `verb` is `None` when the program simply ENDED in `state`
+    /// without a closing verb.
+    Transition {
+        /// The tip's lattice state.
+        state: TipState,
+        /// The verb that is ill-typed there, or `None` for
+        /// end-of-program.
+        verb: Option<Verb>,
+    },
+    /// **Geometry refusal** — the chain is well-typed but the geometry
+    /// refuses. This class CAN exist at rest: once arguments carry
+    /// expressions, whether a program elaborates depends on the
+    /// parameter binding.
+    Path(PathError<T>),
+}
+
+impl<T: Real> ReplayError<T> {
+    fn transition(step: usize, state: TipState, verb: Verb) -> Self {
+        Self {
+            step,
+            kind: ReplayErrorKind::Transition {
+                state,
+                verb: Some(verb),
+            },
+        }
+    }
+}
+
+// The one home of the (state, verb) rendering rule FOR THE COORDINATE
+// SENTENCE, which `editor-core`'s `ProgramFault::Lattice` repeats for
+// the fault this refusal raises there. This refusal is the
+// corrupt-or-hand-edited-file class, so the pair it reports is a
+// COORDINATE in the transition table — the row a reader looks up next
+// — and both halves render through `Debug`: the variant spelling is
+// the lookup key and a prose paraphrase would not find it, which is
+// the identifiers-as-location case. Each is introduced by the noun it
+// is ("verb", "tip") so the identifier reads as a value in the
+// sentence and not as a dump that leaked into one. Scalars and typed
+// payloads elsewhere in this module render as words; these do not.
+//
+// A sentence about the STEP A PERSON WROTE is the other case and takes
+// the other rendering: `Verb`'s own `Display` gives the authoring
+// spelling, which is a lookup key too (it is the method name the row
+// declares), so naming the verb that way costs the reader nothing and
+// says it in the vocabulary they authored in. The sketch preview's
+// refusal is that case.
+impl<T: Real> core::fmt::Display for ReplayError<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match &self.kind {
+            ReplayErrorKind::Transition {
+                state,
+                verb: Some(verb),
+            } => write!(
+                f,
+                "step {}: the {verb:?} verb is not a legal continuation of tip state \
+                 {state:?} (lattice violation — no authoring surface can produce this \
+                 program)",
+                self.step
+            ),
+            ReplayErrorKind::Transition { state, verb: None } => write!(
+                f,
+                "step {}: the program ends at tip state {state:?} without closing the \
+                 loop (lattice violation — a chain must end at Start)",
+                self.step
+            ),
+            ReplayErrorKind::Path(source) => {
+                write!(f, "step {}: {source}", self.step)
+            }
+        }
+    }
+}
+
+impl<T: Real> std::error::Error for ReplayError<T> {}
+
+// ------------------------------------------------------------------
+// The replay driver
+// ------------------------------------------------------------------
+
+impl<T: Real> From<PathError<T>> for ReplayErrorKind<T> {
+    fn from(source: PathError<T>) -> Self {
+        ReplayErrorKind::Path(source)
+    }
+}
+
+/// The in-flight tip: one variant per lattice state, each carrying the
+/// TYPED value for that state — a match arm on (variant, verb) can only
+/// call a binder that is well-typed at that state, so an illegal
+/// transition cannot be spelled and no binder body is duplicated.
+enum DynTip<T: Real> {
+    Entry,
+    Open(PartialPath<T, NoPos, NoAng>),
+    Angle(PartialPath<T, NoPos, HasAng>),
+    PlainPoint(PartialPath<T, HasPos<Plain>, NoAng>),
+    DirectedPoint(PartialPath<T, HasPos<WithIncoming>, NoAng>),
+    DirectedPlain(PartialPath<T, HasPos<Plain>, HasAng>),
+    DirectedIncoming(PartialPath<T, HasPos<WithIncoming>, HasAng>),
+    RadiusArrival(super::family::RadiusArrival<T>),
+    RadiusArrivalAt(super::family::RadiusArrivalAt<T>),
+    RadiusArrivalDir(super::family::RadiusArrivalDir<T>),
+    ViaArrival(super::family::ViaArrival<T>),
+    ViaArrivalStart(super::family::ViaArrivalStart<T>),
+}
+
+impl<T: Real> DynTip<T> {
+    fn state(&self) -> TipState {
+        match self {
+            DynTip::Entry => TipState::Entry,
+            DynTip::Open(_) => TipState::Open,
+            DynTip::Angle(_) => TipState::Angle,
+            DynTip::PlainPoint(_) => TipState::PlainPoint,
+            DynTip::DirectedPoint(_) => TipState::DirectedPoint,
+            DynTip::DirectedPlain(_) => TipState::DirectedPlain,
+            DynTip::DirectedIncoming(_) => TipState::DirectedIncoming,
+            DynTip::RadiusArrival(_) => TipState::RadiusArrival,
+            DynTip::RadiusArrivalAt(_) => TipState::RadiusArrivalAt,
+            DynTip::RadiusArrivalDir(_) => TipState::RadiusArrivalDir,
+            DynTip::ViaArrival(_) => TipState::ViaArrival,
+            DynTip::ViaArrivalStart(_) => TipState::ViaArrivalStart,
+        }
+    }
+}
+
+/// What applying one step produced.
+enum Applied<T: Real> {
+    /// The chain continues at this tip.
+    Tip(DynTip<T>),
+    /// The step closed the loop, yielding the chain's whole result:
+    /// the loop, the program, and the structure its resolutions chose.
+    Closed(ClosedLoop<T>),
+}
+
+type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
+
+// The flavor-generic target dispatchers. Each branch names exactly ONE
+// binder — the one well-typed at that (state, verb, target/mode).
+
+fn do_line_to<T: Decide, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, NoAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
+        // Every closer takes it: the token declares the seam's JOINT,
+        // not the shape of the leg reaching it (Ev, in-chat,
+        // 2026-09-02), so a straight leg declares a tangent seam joint
+        // exactly as a closing arc does.
+        Target::StartArriving => Ok(Applied::Closed(p.line_to(Start.arrives_tangent(), tol)?)),
+    }
+}
+
+fn do_continue_to<T: Decide>(
+    p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.continue_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.continue_to(Start, tol)?)),
+        Target::StartArriving => Ok(Applied::Closed(
+            p.continue_to(Start.arrives_tangent(), tol)?,
+        )),
+    }
+}
+
+fn do_tangent_arc_to<T: Decide, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, HasAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.tangent_arc_to(q, tol)?,
+        ))),
+        Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?)),
+        Target::StartArriving => Ok(Applied::Closed(
+            p.tangent_arc_to(Start.arrives_tangent(), tol)?,
+        )),
+    }
+}
+
+// ------------------------------------------------------------------
+// The arc-spec dispatchers
+// ------------------------------------------------------------------
+
+/// **The arc-spec forms one dispatcher admits** — one (mode, target
+/// form) pair per arm it serves, in declaration order. The target form
+/// is `None` for the endpoint-free modes (`Radius`, `Sweep`, `ArcLen`),
+/// which carry no target.
+///
+/// Read off the dispatcher's own arms by `spec_dispatch!`, so the set
+/// a form offers is the set the replay accepts: a pair is listed here
+/// exactly when its arm exists. [`arc_specs_at`] says which dispatcher
+/// a (verb, state) cell's spec goes through.
+#[derive(Debug)]
+pub struct SpecForms {
+    forms: &'static [(ArcMode, Option<TargetKind>)],
+}
+
+impl SpecForms {
+    /// Every admitted (mode, target form) pair, in declaration order.
+    #[must_use]
+    pub fn forms(&self) -> &'static [(ArcMode, Option<TargetKind>)] {
+        self.forms
+    }
+
+    /// Whether `mode` is admitted with at least one target form.
+    #[must_use]
+    pub fn admits_mode(&self, mode: ArcMode) -> bool {
+        self.forms.iter().any(|&(m, _)| m == mode)
+    }
+
+    /// Whether `mode` is admitted with the target form `target`
+    /// (`None` for the endpoint-free modes).
+    #[must_use]
+    pub fn admits(&self, mode: ArcMode, target: Option<TargetKind>) -> bool {
+        self.forms.contains(&(mode, target))
+    }
+
+    /// The target forms `mode` is admitted with, in declaration order;
+    /// empty for an endpoint-free mode and for a refused one.
+    pub fn targets(&self, mode: ArcMode) -> impl Iterator<Item = TargetKind> + 'static {
+        self.forms
+            .iter()
+            .filter(move |&&(m, _)| m == mode)
+            .filter_map(|&(_, target)| target)
+    }
+}
+
+macro_rules! spec_target {
+    () => {
+        None
+    };
+    ($tk:ident) => {
+        Some(TargetKind::$tk)
+    };
+}
+
+/// **One arc-spec dispatcher, declared once, projected twice**: the
+/// `match` the driver runs and the [`SpecForms`] a form reads.
+///
+/// ```text
+/// forms NAME;                                // the SpecForms const
+/// fn name [ <generics>(params) -> Out ]      // the dispatcher
+/// match spec refuse <refusal expr>;          // scrutinee; what a
+///                                            // refused form raises
+/// admit {
+///     Mode { fields } @ Form(binding) => expr,   // endpoint-full
+///     Mode { fields } => expr,                   // endpoint-free
+/// }
+/// refuse { Mode @ Form, Mode, … }
+/// ```
+///
+/// An `admit` arm is one (mode, target form) pair: it expands into the
+/// match arm AND the pair's entry in the forms, so the two cannot
+/// disagree. The `refuse` list names every other cell — there is no
+/// wildcard, so a mode or target form the vocabulary gains breaks every
+/// dispatcher until it is ADJUDICATED at each, and rustc's
+/// unreachable-pattern check catches a cell named twice. A refused cell
+/// is a lattice violation: unrepresentable on the typed surface, a
+/// [`ReplayErrorKind::Transition`] at the wire.
+macro_rules! spec_dispatch {
+    (
+        $(#[doc = $doc:literal])*
+        forms $forms:ident;
+        fn $name:ident [ $($sig:tt)* ]
+        match $spec:ident refuse $refusal:expr;
+        admit {
+            $(
+                $mode:ident { $($f:ident),* } $(@ $tk:ident $(( $bind:ident ))?)? => $arm:expr,
+            )*
+        }
+        refuse { $( $rmode:ident $(@ $rtk:ident)? ),* $(,)? }
+    ) => {
+        $(#[doc = $doc])*
+        pub const $forms: SpecForms = SpecForms {
+            forms: &[ $( (ArcMode::$mode, spec_target!($($tk)?)) ),* ],
+        };
+
+        $(#[doc = $doc])*
+        fn $name $($sig)* {
+            match $spec {
+                $( ArcData::$mode { $($f,)* $(target: Target::$tk $(($bind))?)? } => $arm, )*
+                $( ArcData::$rmode { $(target: Target::$rtk { .. },)? .. } )|* => Err($refusal),
+            }
+        }
+    };
+}
+
+// A declared seam ARRIVAL (`StartArriving`) is admitted on `Bulge` legs
+// alone. The seam's arrival declaration rides the closing verbs' TARGET
+// (PATHS-DESIGN §6's revised PQ4); the endpoint-full arc modes fix their
+// own end direction from authored data, so declaring the arrival would
+// author one fact twice — except on `Bulge`, where the declaration is a
+// CHECK against the tangent the bulge already fixes. `Via` and `Center`
+// could take the same check and do not yet (issue 1579).
+
+spec_dispatch! {
+    /// The sharp arc leg from a Point tip: the endpoint-full modes.
+    forms ARC_TO_POINT;
+    fn do_arc_to_point [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, NoAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(Verb::ArcTo) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Bulge { p: q, b }, tol)?,
+        ))),
+        Bulge { b } @ Start => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
+        // The sharp arc seam with its tangent joint declared.
+        Bulge { b } @ StartArriving => Ok(Applied::Closed(p.arc_to(
+            Bulge {
+                p: Start.arrives_tangent(),
+                b,
+            },
+            tol,
+        )?)),
+        Via { q } @ Point(t) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Via { q, p: t }, tol)?,
+        ))),
+        Via { q } @ Start => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
+        Center { c, winding } @ Point(t) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Center { c, winding, p: t }, tol)?,
+        ))),
+        Center { c, winding } @ Start => Ok(Applied::Closed(p.arc_to(
+            Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
+    }
+    refuse { Via @ StartArriving, Center @ StartArriving, Radius, Sweep, ArcLen }
+}
+
+spec_dispatch! {
+    /// The sharp arc leg from a Directed tip: the endpoint-free modes.
+    forms ARC_TO_DIRECTED;
+    fn do_arc_to_directed [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, HasAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(Verb::ArcTo) };
+    admit {
+        Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::Sweep { r, side, angle }, tol)?,
+        ))),
+        ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::ArcLen { r, side, len }, tol)?,
+        ))),
+    }
+    refuse { Radius, Bulge, Via, Center }
+}
+
+spec_dispatch! {
+    /// An ARC ARRIVAL on an opened fillet — the shared second half of
+    /// the `FilletArc` / `ArcFilletArc` rows, each mode through its own
+    /// `ArrivalSpec` impl (the typed surface's exact code). `Bulge` is
+    /// never an arrival: no chord exists there.
+    forms ARRIVAL;
+    fn do_arrival [<T: ArcCarrierScalar>(
+        open: PartialPath<T, NoPos, NoAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Center { c, winding } @ Point(p) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            super::family::ArrivalSpec::apply(open.core, super::Center { c, winding, p }, tol)?,
+        ))),
+        Center { c, winding } @ Start => Ok(Applied::Closed(super::family::ArrivalSpec::apply(
+            open.core,
+            super::Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
+        Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(
+            super::family::ArrivalSpec::apply(open.core, super::Radius { r, side }, tol)?,
+        ))),
+        Via { q } @ Point(p) => Ok(Applied::Tip(DynTip::ViaArrival(
+            super::family::ArrivalSpec::apply(open.core, super::Via { q, p }, tol)?,
+        ))),
+        Via { q } @ Start => Ok(Applied::Tip(DynTip::ViaArrivalStart(
+            super::family::ArrivalSpec::apply(open.core, super::Via { q, p: Start }, tol)?,
+        ))),
+    }
+    refuse { Center @ StartArriving, Via @ StartArriving, Bulge, Sweep, ArcLen }
+}
+
+spec_dispatch! {
+    /// The fused incoming from a PLAIN point tip: the endpoint-full
+    /// modes, to an interior anchor.
+    forms FUSED_POINT;
+    fn do_fused_point [<T: ArcCarrierScalar>(
+        p: PartialPath<T, HasPos<Plain>, NoAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
+        Via { q } @ Point(t) => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
+        Center { c, winding } @ Point(t) => {
+            Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+    }
+    refuse {
+        Bulge @ Start, Bulge @ StartArriving,
+        Via @ Start, Via @ StartArriving,
+        Center @ Start, Center @ StartArriving,
+        Radius, Sweep, ArcLen,
+    }
+}
+
+spec_dispatch! {
+    /// The fused incoming from a DIRECTED POINT (leg end): the
+    /// endpoint-full modes plus `Radius` — arc extension (§2c
+    /// dissolution).
+    forms FUSED_LEG_END;
+    fn do_fused_leg_end [<T: ArcCarrierScalar>(
+        p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
+        Via { q } @ Point(t) => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
+        Center { c, winding } @ Point(t) => {
+            Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+        Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius, tol)?),
+    }
+    refuse {
+        Bulge @ Start, Bulge @ StartArriving,
+        Via @ Start, Via @ StartArriving,
+        Center @ Start, Center @ StartArriving,
+        Sweep, ArcLen,
+    }
+}
+
+spec_dispatch! {
+    /// The fused incoming from a DIRECTED tip: the endpoint-free modes.
+    forms FUSED_DIRECTED;
+    fn do_fused_directed [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, HasAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Sweep { r, side, angle } => {
+            Ok(p.arc_fillet(super::Sweep { r, side, angle }, radius, tol)?)
+        },
+        ArcLen { r, side, len } => Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius, tol)?),
+    }
+    refuse { Radius, Bulge, Via, Center }
+}
+
+spec_dispatch! {
+    /// The fused incoming at the ENTRY: `Center` alone can seed, to an
+    /// interior anchor.
+    forms FUSED_ENTRY;
+    fn do_fused_entry [<T: ArcCarrierScalar>(
+        spec: ArcData<T>,
+        radius: T,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state: TipState::Entry, verb: Some(verb) };
+    admit {
+        Center { c, winding } @ Point(t) => {
+            Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+    }
+    refuse {
+        Center @ Start, Center @ StartArriving,
+        Radius, Bulge, Via, Sweep, ArcLen,
+    }
+}
+
+/// **The replay driver**: elaborates a recorded program into the loop it
+/// describes, through the typed binders and every check they carry —
+/// the only path from steps to geometry, and the dynamic mirror of the
+/// typestate lattice (every transition the markers forbid statically is
+/// a typed [`ReplayErrorKind::Transition`] here).
+///
+/// A chain program must end in a `Start`-targeting verb; a
+/// [`Step::Circle`] program is exactly one step. **The program replay
+/// re-records is DISCARDED** — the input program is the authority, and
+/// the round-trip is pinned rather than trusted: bit-identity by the
+/// blanket differential every closing verb funnels through
+/// (`common::pinned`), and per-verb reachability by the
+/// replay-coverage census (see the module docs).
+///
+/// The loop comes back as a [`ConstructedLoop`]: its arcs are the ones
+/// this replay constructed, verified at their construction (D1), and
+/// [`crate::ConstructedProfile`] validates it without deciding their
+/// consistency checks again.
+///
+/// # Errors
+///
+/// [`ReplayError`], carrying the offending step index.
+pub fn replay<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
+}
+
+/// [`replay`] keeping the STRUCTURE RECORD it built: the discrete
+/// choices this elaboration made, ready for another scalar to consume
+/// through [`replay_guided`].
+///
+/// Recording changes nothing about what is computed — no predicate is
+/// asked a different question and no arithmetic moves — so this is
+/// [`replay`]'s loop, bit for bit, plus the account of how it was
+/// chosen.
+///
+/// # Errors
+///
+/// [`ReplayError`], exactly as [`replay`].
+pub fn replay_recording<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+) -> Result<(ConstructedLoop<T>, ReplayStructure), ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
+}
+
+/// **Guided replay**: elaborate `steps` at this scalar while CONSUMING
+/// `structure`'s discrete decisions instead of remaking them.
+///
+/// Every consumed decision's own predicate re-runs here, at this
+/// scalar. Agreement proceeds. A predicate this scalar cannot classify
+/// refuses [`PathError::Structure`] with the indeterminate arm — the
+/// cue to narrow the parameter box, and never grounds to assume the
+/// recorded answer held. A predicate that classifies DEFINITELY
+/// otherwise refuses the same way with the flipped arm, naming the
+/// decision that moved: this binding provably leaves the recorded
+/// elaboration's structure, which is an answer about the geometry and
+/// not a failure to paper over.
+///
+/// What the pass never does is SELECT. The selection ladder is not
+/// re-run, the corner gates do not re-populate the joint space, and fit
+/// signs are taken from the record — so a scalar whose enclosures
+/// cannot separate two valid fillet pockets cannot pick the other one,
+/// by construction rather than by luck.
+///
+/// # Errors
+///
+/// [`ReplayError`] — the elaboration's own refusals as ever, plus
+/// [`PathError::Structure`] for a decision that could not be
+/// reproduced. A record describing a different number of resolutions
+/// than the program reaches is refused the same way, and so is one
+/// whose per-step segment spans — or whose per-radius emissions, or whose
+/// per-segment pieces — this pass did not reproduce.
+pub fn replay_guided<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    structure: &ReplayStructure,
+    tol: Tol,
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
+    let want = structure.fillets.len();
+    let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
+    // Reaching FEWER resolutions than the record describes is not a
+    // per-decision disagreement — no single predicate moved — so it is
+    // reported at the record's own shape.
+    let got = closed.structure.fillets.len();
+    let refuse = |r: StructureRefusal| ReplayError {
+        step: steps.len(),
+        kind: ReplayErrorKind::Path(PathError::Structure(r)),
+    };
+    if got != want {
+        return Err(refuse(StructureRefusal::shape(want, got)));
+    }
+    // The spans are checked HERE rather than inside the guide because
+    // the complete-loop carrier forms never take a guide at all: a
+    // record and an elaboration that disagree about `circle_split`'s
+    // subdivision count would otherwise pass unread. What a lane can
+    // move is which ARM ran — a fit gate that suppresses a zero-length
+    // straight piece emits one segment where the record says two — and
+    // that is the disagreement this reports.
+    if structure.steps.len() != closed.structure.steps.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.steps.len(),
+            closed.structure.steps.len(),
+        )));
+    }
+    for (step, (recorded, found)) in structure
+        .steps
+        .iter()
+        .zip(&closed.structure.steps)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::StepSpan { step },
+                DecisionValue::Span(*recorded),
+                DecisionValue::Span(*found),
+            )));
+        }
+    }
+    // The radius emissions, checked here for the reason the spans are:
+    // this pass reports what IT emitted, so the record is consumed
+    // rather than carried along unread, and a pass that emitted an arc
+    // from a different authored radius than the record names says so.
+    if structure.radii.len() != closed.structure.radii.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.radii.len(),
+            closed.structure.radii.len(),
+        )));
+    }
+    for (at, (recorded, found)) in structure
+        .radii
+        .iter()
+        .zip(&closed.structure.radii)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::RadiusEmission { at },
+                DecisionValue::Emission(*recorded),
+                DecisionValue::Emission(*found),
+            )));
+        }
+    }
+    // The pieces, for the same reason: which step and role each
+    // segment is follows from which arm ran, and a pass that drew a
+    // run as its own segment where the record merged it into a leg
+    // names every later segment differently.
+    if structure.pieces.len() != closed.structure.pieces.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.pieces.len(),
+            closed.structure.pieces.len(),
+        )));
+    }
+    for (segment, (recorded, found)) in structure
+        .pieces
+        .iter()
+        .zip(&closed.structure.pieces)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::Piece { segment },
+                DecisionValue::Piece(*recorded),
+                DecisionValue::Piece(*found),
+            )));
+        }
+    }
+    Ok(closed.loop_)
+}
+
+/// A loop the path lattice constructed: the loop, and the fact that
+/// every arc in it was verified at its construction, at this scalar
+/// (D1) — a `Center` arc by `path_arc_center_equidistant`, decided
+/// inline by the path door, and a lowered arc by its lowering, the
+/// bulge form's one conversion, whose endpoint identities it registers.
+///
+/// Minted only at the lattice's closing — a chain's `finish` and the
+/// `circle` and `circle_split` forms — which the builder and every
+/// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
+/// through; the field is private to the `path` module. It is the loop
+/// [`crate::ConstructedProfile`] is built from, so a table cannot reach
+/// the validation that consumes that fact. It reads as its loop
+/// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
+/// [`ConstructedLoop::into_loop`].
+#[derive(Clone, Debug)]
+pub struct ConstructedLoop<T: Real>(pub(in crate::path) ProfileLoop<T>);
+
+impl<T: Real> ConstructedLoop<T> {
+    /// The loop.
+    pub fn as_loop(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+
+    /// The loop, giving up the provenance.
+    pub fn into_loop(self) -> ProfileLoop<T> {
+        self.0
+    }
+}
+
+impl<T: Real> core::borrow::Borrow<ProfileLoop<T>> for ConstructedLoop<T> {
+    fn borrow(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+}
+
+impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
+    type Target = ProfileLoop<T>;
+
+    fn deref(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+}
+
+/// The driver proper: one walk over the steps, one guide, one chain.
+fn drive<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+    mut guide: Guide<T>,
+) -> Result<ClosedLoop<T>, ReplayError<T>> {
+    // THE INSTALL INVARIANT. Exactly the entry rows put the guide into
+    // the chain's core, by TAKING it — so after the first step a guide
+    // still sitting here is one no row took, and everything downstream
+    // would select structure freely while calling itself guided. That
+    // is the one way this machinery can fail without saying anything,
+    // so it is checked rather than commented: a row added to the table
+    // that mints a core and forgets the install fails here, at its
+    // first use, instead of quietly degrading a lane pass.
+    //
+    // The complete-loop forms (`Circle`, `CircleSplit`) mint no core at
+    // all and resolve no fillet, so they are exempt by construction —
+    // they close in the same step, and the check runs only where a
+    // chain continues.
+    let mut tip = DynTip::Entry;
+    for (i, step) in steps.iter().enumerate() {
+        let applied =
+            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })?;
+        if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
+            return Err(ReplayError {
+                step: 0,
+                kind: ReplayErrorKind::Path(PathError::Structure(
+                    StructureRefusal::guide_not_installed(),
+                )),
+            });
+        }
+        match applied {
+            Applied::Tip(next) => tip = next,
+            Applied::Closed(closed) => {
+                return match steps.get(i + 1) {
+                    Some(extra) => Err(ReplayError::transition(
+                        i + 1,
+                        TipState::Closed,
+                        extra.verb(),
+                    )),
+                    None => Ok(closed),
+                };
+            }
+        }
+    }
+    Err(ReplayError {
+        step: steps.len(),
+        kind: ReplayErrorKind::Transition {
+            state: tip.state(),
+            verb: None,
+        },
+    })
+}

@@ -1,0 +1,742 @@
+//! The display palette as a value.
+//!
+//! G1's rule binds colour exactly as it binds everything else in this
+//! crate: **the palette is a value, and rendering is a view of it.**
+//! Nothing here names `egui` or `wgpu`, which is what makes this a
+//! non-`app` module — the palette compiles, and is asserted on, in
+//! ordinary headless CI with no toolkit graph present. [`crate::app`]
+//! maps a [`Theme`] onto the chrome and [`crate::gpu`] feeds it to the
+//! shader; neither of them decides what any colour *is*.
+//!
+//! # Where a colour comes from
+//!
+//! Two sources, with the precedence between them ratified in
+//! `crates/viewer/GUI-DESIGN.md`, *Colour (G5)*:
+//!
+//! - **The theme — a USER preference.** It supplies every semantic
+//!   mark (selection, hover, probe, focus), the actionable colour and the
+//!   *default* body colour. It is never written into a document: the
+//!   same file has to be legible to a colourblind reader and to
+//!   somebody running the palette they find prettiest, on their own
+//!   screens.
+//! - **The document.** `Attr::Color` on a stable name, authored and
+//!   persisted — which **this crate does not read yet**. When it
+//!   does, it overrides [`Theme::body`] per patch, and the theme
+//!   never overrides it back.
+//!
+//! Both sides are [`Rgba8`] for exactly that reason: the override is
+//! then a substitution of one value for another *within one colour
+//! space*, not a conversion between two spaces where drift can live.
+//! That type is `editor-core`'s, reached on a direct edge rather than
+//! through a new re-export on the façade's root — the ruling
+//! `pncad`'s own crate docs state for a type the façade does not
+//! carry, and the same one the `bvh` edge in this crate's manifest
+//! cites. It adds nothing to the build: `pncad` already depends on
+//! `editor-core`, so the crate was in this graph either way.
+//!
+//! # sRGB is what a theme states; linear is what the shader gets
+//!
+//! Every colour here is 8-bit sRGB, the space a palette is authored
+//! in and the space `Attr::Color` persists. The shader shades in
+//! linear RGB, so [`linear`] is the one conversion, applied at the
+//! one boundary where a theme becomes a uniform.
+//!
+//! This re-expressed the constants that came before it, and **it is
+//! not a bit-preserving move**: the four shader tints and the body
+//! colour were written as linear `f32` triples, and the nearest sRGB8
+//! encoding of each returns to linear up to 0.0035 away from where it
+//! started — under a single 8-bit step, and a fifth of a percent of
+//! the range. Naming the drift rather than claiming there is none is
+//! the honest half; the reason to accept it is that it buys one
+//! colour space for the palette and the document both, and
+//! bit-preservation is not on its own a reason to keep a shape
+//! (`memories/output-stability-as-justification.md`).
+//!
+//! It also made one existing claim true. `UNRESOLVED_COLOR` was
+//! already sRGB8 (it goes to `egui`) while the tints beside it were
+//! linear, so the comment calling the badge red "the same red" the
+//! viewport uses was comparing two numbers that did not live in the
+//! same space. Now they do.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use editor_core::appearance::Rgba8;
+
+/// Which ground a theme is built on.
+///
+/// The chrome's own light/dark split, named here so the decision is
+/// part of the value rather than something `app` infers from a
+/// brightness threshold on some field. `app` maps this onto the
+/// toolkit's own light and dark `Visuals`, which is the only place
+/// the toolkit's names appear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Polarity {
+    /// A light ground: dark text, a pale viewport surround.
+    Light,
+    /// A dark ground: light text, a deep viewport surround.
+    Dark,
+}
+
+/// How far one colour travels toward another: a fraction in `[0, 1]`.
+///
+/// **A type rather than an `f32`, because this number crosses to the
+/// GPU and the shader cannot refuse it.** Both mix fractions a theme
+/// states — [`Mark::strength`] and [`Theme::ambient`] — are written
+/// into a uniform lane by `crate::gpu` and consumed by WGSL
+/// arithmetic: `mix(base, tint, w)` for the first and
+/// `ambient + (1 - ambient) * lambert` for the second. WGSL's `clamp`
+/// is specified as `min(max(e1, e2), e3)` and its `select` takes the
+/// false arm for an unordered comparison, so a weight that is not a
+/// number does not saturate there — it spreads, through the mix and
+/// through the sRGB encode after it, to whatever the surface does
+/// with a channel nothing computed. There is no door downstream of
+/// this one: the uniform is where the crate last has a type system.
+///
+/// So the bound is the type's, and [`MixFraction::new`] is the one
+/// door through it: nothing else can make one. It refuses a caller at
+/// run time with `None`, and in a `const` item the `unwrap` that
+/// follows it is evaluated by the compiler, so a registry palette
+/// stating a weight outside `[0, 1]` — a `NaN` included — fails the
+/// BUILD rather than reaching the uniform.
+///
+/// `[0, 1]` and not merely *a number*: outside that range `mix`
+/// extrapolates — a colour brighter than either input, with nothing
+/// to report it — and a guard that admits everything finite is not a
+/// bound. The range test refuses a `NaN` on its own, because a `NaN`
+/// is in no range.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct MixFraction(f32);
+
+impl MixFraction {
+    /// A mix fraction, or `None` for a number that is not one.
+    ///
+    /// The one door a caller outside this module has. `None` rather
+    /// than a clamp: a weight outside `[0, 1]` is a caller's mistake
+    /// about what this value means, and the nearest legal weight is
+    /// a different picture rather than a repair.
+    ///
+    /// **`const`, so that a consumer can state a palette the way this
+    /// module states one.** `Theme` and `Mark` are built as `const`
+    /// items here, each weight written `MixFraction::new(w).unwrap()`;
+    /// an `unwrap` in a `const` item is a build error and never a
+    /// panic, which is what makes a checked constructor affordable in
+    /// a registry. **That `unwrap` is held to a `const` item by the
+    /// lint rather than by this sentence**: the workspace denies
+    /// `clippy::unwrap_used`, and a const-evaluated call is exempt
+    /// while the same call in a running body is not — so the one
+    /// failure this design is written against, a build error turning
+    /// into a panic, reds `-D warnings` where it is written.
+    #[allow(
+        clippy::manual_range_contains,
+        reason = "a `const fn` cannot call `RangeInclusive::contains`"
+    )]
+    pub const fn new(fraction: f32) -> Option<Self> {
+        if fraction >= 0.0 && fraction <= 1.0 {
+            Some(Self(fraction))
+        } else {
+            None
+        }
+    }
+
+    /// The fraction, as the number a mix multiplies by.
+    pub const fn get(self) -> f32 {
+        self.0
+    }
+}
+
+/// One highlight mark: the colour a flagged patch is tinted toward,
+/// and how far it travels.
+///
+/// **A tint and a strength are one decision, not two.** The shader
+/// mixes rather than replaces — a highlight that discarded the
+/// shading would flatten the facets a display-δ reading exists to
+/// show — so how visible a mark is depends on both numbers together,
+/// and a palette that carried the colours while the strengths stayed
+/// hard-coded in WGSL could not actually state how its marks read.
+/// That is also what makes [`Safety`] checkable: the thing to
+/// simulate is the mix, not the tint.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Mark {
+    /// The colour the mixed result is pulled toward.
+    pub tint: Rgba8,
+    /// How far: `0.0` leaves the body colour untouched, `1.0`
+    /// replaces it.
+    ///
+    /// A [`MixFraction`] and not an `f32`, because this is the number
+    /// `crate::gpu`'s `mark_lane` writes into the uniform's `w` lane
+    /// and the shader mixes with. The type is the door; where the
+    /// range used to be a claim in this sentence checked over the
+    /// registry by `tests/theme.rs`, it is now a property of every
+    /// value of this type, and that row measures the three shipped
+    /// palettes rather than standing in for the bound.
+    pub strength: MixFraction,
+}
+
+impl Mark {
+    /// This mark applied over `body`, in sRGB — **what an eye
+    /// actually receives**, and so the only form worth simulating or
+    /// measuring a distance between.
+    ///
+    /// The mix runs in *linear* light because that is where the
+    /// shader's `mix` runs; doing it in sRGB would measure a screen
+    /// nobody is looking at.
+    ///
+    /// `None` is [`from_linear`]'s refusal carried up, and **nothing
+    /// this method computes can earn it**: `body` and `tint` are
+    /// bytes and reach linear light finite whatever they say, and
+    /// [`MixFraction`] holds `t` in `[0, 1]`, so every channel here
+    /// is `b + (t - b) * t` over finite operands and is finite too.
+    /// The `Option` is the shape [`from_linear`] has for the callers
+    /// that can hand it anything, not a case this mix has.
+    /// `tests/theme.rs`'s safety walk asserts `Some` at the point it
+    /// would otherwise measure a colour nothing computed, rather than
+    /// taking this paragraph's word for it.
+    pub fn over(&self, body: Rgba8) -> Option<Rgba8> {
+        let [br, bg, bb] = linear(body);
+        let [tr, tg, tb] = linear(self.tint);
+        let t = self.strength.get();
+        from_linear([br + (tr - br) * t, bg + (tg - bg) * t, bb + (tb - bb) * t])
+    }
+}
+
+/// What a theme claims about its own legibility.
+///
+/// **A claim, not a constraint on every palette.** A theme that says
+/// [`Safety::ColorblindSafe`] is checked by `tests/theme.rs` under
+/// simulated protanopia, deuteranopia and tritanopia; a theme that
+/// says [`Safety::Unchecked`] is not, and is not lesser for it — the
+/// point of shipping themes at all is that a palette chosen to be
+/// pretty and a palette chosen to be discriminable are different
+/// jobs, and one build can carry both. What must never happen is a
+/// palette claiming the first job and not doing it, which is the one
+/// thing the test is there to prevent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Safety {
+    /// No claim; nothing is asserted about this palette's marks.
+    Unchecked,
+    /// Claims its marks stay mutually distinguishable under
+    /// dichromatic vision, and that its actionable colour stays apart
+    /// from the panel, plain text and weak text under the three
+    /// dichromacies (`crates/viewer/GUI-DESIGN.md`, Colour (G5)), and
+    /// is held to both.
+    ColorblindSafe,
+}
+
+/// A complete display palette.
+///
+/// One value covers both halves of the window because they are one
+/// question: the viewport's marks are mixed over [`Theme::body`] and
+/// read against the chrome behind them, so a palette that stated only
+/// the tints could not say how anything looks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Theme {
+    /// The stable identifier: what `--theme` accepts and what a
+    /// preferences file will one day hold. Distinct from any label
+    /// shown in the chrome, which may be translated or prettied.
+    pub name: &'static str,
+    /// Light or dark ground.
+    pub polarity: Polarity,
+    /// The default body colour — what an unflagged patch shades
+    /// from, and what a document's own `Attr::Color` replaces per
+    /// patch once this crate reads appearance.
+    pub body: Rgba8,
+    /// The ambient term: the fraction of the body colour that
+    /// survives where the light does not reach.
+    ///
+    /// A [`MixFraction`] for [`Mark::strength`]'s reason, and it is
+    /// the same defect if it is not one: this number rides the
+    /// `base_color` lane's `w` and the shader forms
+    /// `ambient + (1 - ambient) * lambert`, which has no more
+    /// standing against a weight that is not a number than the mix
+    /// does.
+    ///
+    /// Part of the palette rather than a constant beside it because
+    /// it is polarity-bound: a part unlit to 0.25 reads as solid
+    /// against a dark surround and as a hole against a pale one.
+    pub ambient: MixFraction,
+    /// **The viewport's own ground** — what fills the pane where no
+    /// geometry is drawn.
+    ///
+    /// A palette field rather than something the chrome infers,
+    /// because it is the surface every swatch in this value is
+    /// finally seen against — and because a viewport that states no
+    /// ground does not get none: it gets whatever the window was
+    /// cleared to, decided by the toolkit and free to disagree with
+    /// this palette's own [`Polarity`].
+    ///
+    /// Held to the same bar the marks are (`tests/theme.rs`): a
+    /// ground that lands on one of a theme's own swatches is a
+    /// silhouette nobody can see, which is the shading-independent
+    /// half of the same legibility question.
+    pub ground: Rgba8,
+    /// The patch the user committed to.
+    pub selected: Mark,
+    /// The patch under the cursor.
+    pub hovered: Mark,
+    /// A free-move probe's placement (G3's honesty requirement: a
+    /// probed placement must never be mistakable for a mated one).
+    pub probe: Mark,
+    /// The extent of what the side panel is editing.
+    ///
+    /// Deliberately the same hue family as [`Theme::selected`] at a
+    /// lower strength: the two are one relation seen at two scales,
+    /// and a focus as loud as the selection would bury the
+    /// distinction. A palette is free to break that, and the safety
+    /// check does not require a hue difference precisely so that
+    /// value-only separation stays a legitimate answer.
+    pub focus: Mark,
+    /// **The one chrome colour the palette states**, worn by whatever
+    /// a reader may need to act on: [`crate::frame::Tone::Actionable`]
+    /// — an unresolved selection, a deleted feature, a FAILED badge.
+    /// Chrome only; it tints no geometry. (A POISONED row is not
+    /// among them: a row showing someone else's failure draws quiet,
+    /// so the colour stays on the row to act on.)
+    ///
+    /// Redundant to the words, held for salience: everything wearing
+    /// it says what it means, so no meaning rests on the colour, and
+    /// what the colour carries is which row is loud. Under
+    /// [`Safety::ColorblindSafe`] that is part of the claim.
+    pub actionable: Rgba8,
+    /// **Construction geometry**: the wireframe a datum plane, axis or
+    /// point is drawn as (`crate::datums`).
+    ///
+    /// A field rather than one of the four [`Mark`]s, because it is
+    /// not one of them: a mark says what STATE a piece of material is
+    /// in, and this says the thing on screen is not material at all.
+    /// It therefore tints nothing and shades with nothing — it is a
+    /// line colour, used as stated.
+    ///
+    /// **It is held to the GROUND check and not to the marks check**,
+    /// and the split is the honest one. Held to the ground because a
+    /// datum is drawn in the viewport and one the colour of the
+    /// surround is a datum nobody can see. Not held to the marks
+    /// check because that check asks whether four STATES of one
+    /// surface stay apart, and a datum is told from a face by being a
+    /// thin bright line across it rather than by its hue — the same
+    /// redundancy argument [`Theme::actionable`] makes, and the reason
+    /// it is not in [`Theme::marks`] either.
+    pub datum: Rgba8,
+    /// **A profile the document holds**: the loops of a committed
+    /// profile node, drawn on its plane (`crate::sketch::committed`).
+    ///
+    /// A line colour like [`Theme::datum`], and not a [`Mark`], for
+    /// that field's reason: a profile is not material, so there is no
+    /// body colour for it to tint. A hue of its own and not the
+    /// datum's, because a profile usually lies ON a datum's grid and
+    /// has to be told from it at a glance; the edge pass also draws it
+    /// three times the grid's width and over it (`crate::gpu`'s
+    /// `lane_style`), so the colour is not the only thing separating
+    /// them. Not the probe mark either: that mark is what a PREVIEW is
+    /// drawn in, and it says "not committed", which a committed
+    /// profile is not.
+    ///
+    /// Held to the ground check for the datum's reason — it is drawn
+    /// in the viewport.
+    pub profile: Rgba8,
+    /// This palette's legibility claim.
+    pub safety: Safety,
+}
+
+impl Theme {
+    /// Every registered theme.
+    ///
+    /// The registry is what `tests/theme.rs` iterates, so a palette
+    /// added here is checked here — there is no second list to keep
+    /// in step and no way to ship a theme the suite never saw.
+    pub const ALL: &'static [Theme] = &[DARK_NEUTRAL, LIGHT_NEUTRAL, COLORBLIND_SAFE];
+
+    /// The theme a viewer opens with when nothing selects one.
+    pub const DEFAULT: Theme = DARK_NEUTRAL;
+
+    /// The registered theme called `name`, if there is one.
+    ///
+    /// `None` rather than a fallback: a `--theme` nobody recognises
+    /// is a typo, and silently opening the default would hide it.
+    pub fn by_name(name: &str) -> Option<Theme> {
+        Theme::ALL.iter().copied().find(|theme| theme.name == name)
+    }
+
+    /// **The held mark** — a pick a form or tool holds while the
+    /// selection may be elsewhere (`crate::marks::Held`): the
+    /// selection's own mark, since it is a choice the user made.
+    ///
+    /// Not a field and not one of [`Theme::marks`]: the renderer tells
+    /// it from the selection by shape. Every place the held mark is
+    /// drawn reads its colour here.
+    pub fn held(&self) -> Mark {
+        self.selected
+    }
+
+    /// The four marks, paired with what to call each in a refusal.
+    ///
+    /// Ordered, so a failure names the same pair the same way twice.
+    pub fn marks(&self) -> [(&'static str, Mark); 4] {
+        [
+            ("selected", self.selected),
+            ("hovered", self.hovered),
+            ("probe", self.probe),
+            ("focus", self.focus),
+        ]
+    }
+}
+
+/// The palette this viewer has always drawn, re-expressed in sRGB.
+///
+/// It claims nothing about colourblind legibility — selection-orange
+/// against hover-blue is a hue distinction, and whether it survives
+/// dichromacy is a question for a palette that has been designed to
+/// answer it, not one that inherited its colours from a first light.
+const DARK_NEUTRAL: Theme = Theme {
+    name: "dark-neutral",
+    polarity: Polarity::Dark,
+    // A neutral machined grey, so shading reads as shape rather than
+    // as colour.
+    body: Rgba8::opaque(206, 209, 214),
+    ambient: MixFraction::new(0.25).unwrap(),
+    // A near-black with a trace of blue in it.
+    ground: Rgba8::opaque(24, 26, 30),
+    selected: Mark {
+        tint: Rgba8::opaque(255, 206, 111),
+        strength: MixFraction::new(0.55).unwrap(),
+    },
+    hovered: Mark {
+        tint: Rgba8::opaque(179, 221, 255),
+        strength: MixFraction::new(0.55).unwrap(),
+    },
+    probe: Mark {
+        tint: Rgba8::opaque(206, 160, 249),
+        strength: MixFraction::new(0.65).unwrap(),
+    },
+    focus: Mark {
+        tint: Rgba8::opaque(255, 229, 173),
+        strength: MixFraction::new(0.24).unwrap(),
+    },
+    actionable: Rgba8::opaque(210, 90, 70),
+    // Construction blue, well above the near-black ground.
+    datum: Rgba8::opaque(122, 162, 214),
+    // A mid green, away from the datum blue, the selection amber, the
+    // hover blue and the probe violet the preview is drawn in — and
+    // held at a LIGHTNESS between the grid as seen over the ground and
+    // as seen over the body, because tritanopia folds this green onto
+    // that blue and lightness is what is left (`tests/theme.rs`,
+    // `a_profile_is_told_from_the_grid_and_the_preview`).
+    profile: Rgba8::opaque(40, 170, 80),
+    safety: Safety::Unchecked,
+};
+
+/// **The ground both light palettes are seen against**: a cool
+/// near-white, far enough above every swatch either of them states
+/// that a silhouette reads against it.
+const LIGHT_GROUND: Rgba8 = Rgba8::opaque(240, 244, 250);
+
+/// The same palette on a light ground.
+///
+/// The marks are unchanged — they are mixed over the body, not over
+/// the chrome, and the body has not moved. What changes is the
+/// surround and the ambient term: a part unlit to 0.25 against a pale
+/// chrome reads as a hole punched in the panel, so the floor comes up
+/// far enough that the shading still describes a solid.
+const LIGHT_NEUTRAL: Theme = Theme {
+    name: "light-neutral",
+    polarity: Polarity::Light,
+    body: Rgba8::opaque(206, 209, 214),
+    ambient: MixFraction::new(0.45).unwrap(),
+    // Near-white rather than the mid grey a light chrome suggests:
+    // the body is itself a pale grey, so a ground anywhere near it
+    // puts a lit facet on top of its own background. Above the body
+    // is the only side with room.
+    ground: LIGHT_GROUND,
+    selected: Mark {
+        tint: Rgba8::opaque(255, 206, 111),
+        strength: MixFraction::new(0.55).unwrap(),
+    },
+    hovered: Mark {
+        tint: Rgba8::opaque(179, 221, 255),
+        strength: MixFraction::new(0.55).unwrap(),
+    },
+    probe: Mark {
+        tint: Rgba8::opaque(206, 160, 249),
+        strength: MixFraction::new(0.65).unwrap(),
+    },
+    focus: Mark {
+        tint: Rgba8::opaque(255, 229, 173),
+        strength: MixFraction::new(0.24).unwrap(),
+    },
+    // Darker than the dark theme's red by as much as the ground
+    // moved: the same hue at the same lightness on a pale panel is
+    // the one chrome colour that stops being readable.
+    actionable: Rgba8::opaque(176, 46, 28),
+    // Deeper than the dark theme's by as much as the ground moved,
+    // for `actionable`'s reason one field up.
+    datum: Rgba8::opaque(46, 96, 166),
+    // A deep green: the dark palette's hue, dark enough to stand on
+    // the pale ground.
+    profile: Rgba8::opaque(22, 124, 64),
+    safety: Safety::Unchecked,
+};
+
+/// A palette designed so its four marks stay mutually
+/// distinguishable under dichromatic vision — and held to it by
+/// `tests/theme.rs`, which simulates protanopia, deuteranopia and
+/// tritanopia over the composited colours.
+///
+/// # What the claim cost
+///
+/// Five of this palette's choices are consequences of the claim
+/// rather than taste, and each gives something up:
+///
+/// 1. **The marks separate on LIGHTNESS first.** Lightness is the one
+///    channel every dichromacy keeps, so the four marks sit on a
+///    ladder — probe darkest, then hover, then focus, then the body
+///    itself, with selection at the top — and hue is the second
+///    signal, not the first.
+/// 2. **Focus and selection are separated by LIGHTNESS, not by hue.**
+///    The neutral themes make them one relation at two scales, which
+///    is the better design when it can be afforded; here it cannot.
+///    The first attempt pulled them onto opposite ends of the
+///    blue/amber axis — the axis protanopia and deuteranopia leave
+///    most intact — and the check refused it at 0.0546: tritanopia
+///    is precisely the deficiency that destroys blue/amber. No
+///    single hue axis survives all three, so the pair had to move
+///    apart on the ladder instead, and hue became the second signal
+///    rather than the only one.
+/// 3. **The strengths are high — 0.70 and 0.78 on hover and probe.**
+///    A mark that nearly replaces the body colour would be the wrong
+///    move if it cost the shading, and it does not: the fragment
+///    shader multiplies by the shading term AFTER the mix, so facets
+///    read at any strength. What a high strength actually spends is
+///    the body colour's own contribution, and on a palette whose job
+///    is telling four states apart that is the right thing to spend.
+/// 4. **The ambient floor is high (0.42).** A mark is discriminable
+///    in shadow only to the extent there is light there at all: every
+///    swatch scales with the shading term, so a deep floor compresses
+///    the whole palette toward black and the worst pair fails there
+///    first. Raising the floor is what buys the shadowed half of the
+///    part back — measurably, and monotonically.
+///
+/// 5. **The ground is LIGHT, and so is the chrome with it.** The
+///    ladder puts three of its four marks BELOW the body — a deep
+///    blue hover, a dark probe and a dimming focus — so those are
+///    what a dark ground takes away. The bar decides it rather than
+///    taste: no dark ground clears it at all (an off-black lands
+///    0.0118 from the shaded probe), while a near-white one clears
+///    it twice over. A palette whose marks run downward needs a
+///    ground above all of them.
+///
+/// # Two contrasts, and the one this palette used to spend
+///
+/// A palette answers two different questions, and they pull against
+/// each other here. **State contrast** is how far apart the four
+/// marks are — what the claim is about, and what `tests/theme.rs`
+/// measures. **Shape contrast** is how much lightness the shading
+/// term has to work with between an unlit and a fully lit face,
+/// which is what makes a part look like a solid rather than a
+/// silhouette.
+///
+/// The first version of this palette bought the first with the
+/// second, and the price was larger than it looked. A body at
+/// sRGB 120 spans OKLab lightness 0.426 to 0.570 under this ambient
+/// floor — a span of 0.143, against `LIGHT_NEUTRAL`'s 0.201 — so the
+/// part read both dark and flat beside the palette sitting next to it
+/// in the same menu, on the same near-white ground. Nothing was wrong
+/// with it by the check, and it was still the wrong trade: a viewer
+/// who needs the marks told apart needs to see the SHAPE at least as
+/// much as anyone else does.
+///
+/// The body is therefore sRGB 190, which spans 0.600 to 0.801 — the
+/// same 0.201 the light neutral theme has, so shape reads the same in
+/// both. **What it cost is stated rather than hidden**: the worst
+/// pair falls from 0.0873 to 0.0739, which is 23% above the
+/// `MIN_SEPARATION` bar where it used to be 45% above it, and the
+/// binding pair moves from body/hover to body/selection. The palette
+/// still clears the bar by about the quarter its headroom is
+/// documented as.
+///
+/// The other consequence is that **focus is now a DIMMING**. Above a
+/// body this light there is no room left: the selection owns the top
+/// rung and the near-white ground owns everything above that, and a
+/// search over pale focus tints at this body tops out at 0.0598 —
+/// under the bar. So focus moved to the other side of the body, and
+/// what marks "the extent of what the side panel is editing" is a
+/// step down rather than a step up. It stays the quietest mark in the
+/// palette (0.35, the lowest strength here by half) precisely so it
+/// reads as a quiet emphasis and not as something greyed out.
+///
+/// **The actionable colour is held for salience, not for meaning.**
+/// Meaning — FAILED, POISONED, Violated, "deleted" — is carried by
+/// each badge's own words, so the colour is not part of that claim.
+/// Salience is: which row is loud is what [`crate::frame::Tone`]
+/// exists to say, so this palette makes the claim
+/// `crates/viewer/GUI-DESIGN.md`'s Colour (G5) states: the actionable
+/// colour stays apart from the panel, plain text and weak text under
+/// the three dichromacies.
+const COLORBLIND_SAFE: Theme = Theme {
+    name: "colorblind-safe",
+    polarity: Polarity::Light,
+    // A near-neutral light grey, a shade under the neutral themes'
+    // body. The ladder still fits — one mark above it, three below —
+    // and this is the lightness at which shading has the same range
+    // to describe a solid with that `LIGHT_NEUTRAL` gives it. Going
+    // further is what the check refuses: at sRGB 200 the worst pair
+    // is 0.0583, under the bar.
+    body: Rgba8::opaque(190, 190, 188),
+    ambient: MixFraction::new(0.42).unwrap(),
+    // The light themes' ground: the ladder's top rung is a light
+    // amber, and that is the nearest swatch to it — everything else
+    // in this palette is far below.
+    ground: LIGHT_GROUND,
+    // The top rung — a light amber.
+    selected: Mark {
+        tint: Rgba8::opaque(255, 221, 110),
+        strength: MixFraction::new(0.75).unwrap(),
+    },
+    // A deep blue, a clear step DOWN from the body where the neutral
+    // themes' hover is a step up. This is the pair the check binds
+    // on: body against hover under tritanopia, at 0.0872.
+    hovered: Mark {
+        tint: Rgba8::opaque(28, 66, 158),
+        strength: MixFraction::new(0.70).unwrap(),
+    },
+    // The bottom rung, and the darkest thing on screen. G3 asks that
+    // a probed placement be unmistakable; under every vision type in
+    // scope, what makes it so is that nothing else is this dark.
+    // Over the lighter body it composites to sRGB 96 rather than to
+    // near-black, and it is still the bottom rung by a clear margin:
+    // the pair it binds against is hover, at 0.0759.
+    probe: Mark {
+        tint: Rgba8::opaque(16, 10, 26),
+        strength: MixFraction::new(0.78).unwrap(),
+    },
+    // **A dimming, not a lightening** — the one place this palette
+    // parts company with the neutral themes' idea of a focus, and the
+    // reason is measured rather than chosen: above a body this light
+    // the selection and the near-white ground leave no room, and the
+    // best pale focus available here lands at 0.0598, under the bar.
+    // Dark and cool at the lowest strength in the palette by half, so
+    // it stays the quietest mark in the vocabulary: over the body it
+    // composites to sRGB 157 against the body's 190, which is a quiet
+    // emphasis rather than something switched off.
+    focus: Mark {
+        tint: Rgba8::opaque(18, 20, 30),
+        strength: MixFraction::new(0.35).unwrap(),
+    },
+    // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
+    // chrome is pale, and a light red on a pale panel is the one
+    // chrome colour that stops being readable.
+    actionable: Rgba8::opaque(166, 54, 12),
+    // A dark teal: separated from this palette's pale ground by
+    // lightness, which is the channel every dichromacy keeps.
+    datum: Rgba8::opaque(0, 92, 92),
+    // Okabe–Ito's reddish purple, darkened well below the preview's
+    // near-black-on-grey tint: a green would sit on the teal datum
+    // under every dichromacy, and a purple at the preview's lightness
+    // loses to it once dichromacy takes the hue.
+    profile: Rgba8::opaque(110, 20, 80),
+    safety: Safety::ColorblindSafe,
+};
+
+/// **How much of [`Theme::datum`] covers what a datum line is drawn
+/// over**, in `(0, 1]`: the edge pass blends a datum line as
+/// `datum · DATUM_OPACITY + under · (1 − DATUM_OPACITY)`.
+///
+/// **In which space depends on the surface**, and the two arms are
+/// `crate::gpu`'s `shader_source` encode switch. On a gamma-space
+/// (non-sRGB) framebuffer — what `egui-wgpu` asks for first, and so
+/// what the viewer runs on — the pass writes sRGB-encoded values and
+/// the blend mixes those, which is what the ground check measures. On
+/// an `*Srgb` framebuffer, the fallback when a surface offers no other,
+/// the hardware decodes, blends in LINEAR light and re-encodes: half
+/// coverage there lands nearer the lighter of the two colours than the
+/// encoded mix does, so a pale grid on a dark ground reads somewhat
+/// brighter than the check measured and a dark grid on a pale ground
+/// somewhat fainter.
+///
+/// A plane is ruled out toward its horizon, so its grid is the one
+/// line lane that covers the whole picture, and width alone makes the
+/// grid thinner while leaving it exactly as saturated — where the
+/// ruling is dense the lines still merge into a sheet of datum colour.
+/// Half coverage keeps the ruling legible and lets the body and ground
+/// through. Blended rather than pre-mixed toward [`Theme::ground`],
+/// because a grid is drawn over bodies as often as over the ground,
+/// and a colour pre-mixed toward the ground is wrong over a body.
+///
+/// Here rather than in the renderer because the ground check
+/// (`tests/theme.rs`) measures a datum the way it is SEEN, and a datum
+/// is seen at this coverage. One value for every palette: it is how
+/// loud the grid is relative to the lines drawn over it, which is not
+/// a colour decision.
+pub const DATUM_OPACITY: f32 = 0.5;
+
+/// `color`'s three channels as linear RGB — the space the shader
+/// shades in, and the one boundary a theme crosses to reach it.
+///
+/// Alpha is dropped rather than carried: every colour that reaches
+/// the viewport is opaque, and a lane the shader does not read is a
+/// lane that can silently disagree with what the value says.
+pub fn linear(color: Rgba8) -> [f32; 3] {
+    [
+        channel_to_linear(color.r),
+        channel_to_linear(color.g),
+        channel_to_linear(color.b),
+    ]
+}
+
+/// The inverse of [`linear`], for the composited colours the safety
+/// check measures — the mix happens in light, the answer is stated in
+/// the space the palette is written in.
+///
+/// `None` when any of the three is not a number, which is
+/// [`channel_to_srgb8`]'s answer carried up: a colour with a channel
+/// nothing computed is not a colour, and the caller is the only place
+/// that can say what to do about it.
+pub fn from_linear(linear: [f32; 3]) -> Option<Rgba8> {
+    let [r, g, b] = linear;
+    Some(Rgba8::opaque(
+        channel_to_srgb8(r)?,
+        channel_to_srgb8(g)?,
+        channel_to_srgb8(b)?,
+    ))
+}
+
+/// One 8-bit sRGB channel as linear light. The IEC 61966-2-1 curve,
+/// stated rather than approximated by a 2.2 power: the toe below
+/// 0.04045 is linear, and rounding it into the exponent is the
+/// difference that shows up in near-black.
+fn channel_to_linear(channel: u8) -> f32 {
+    let c = f32::from(channel) / 255.0;
+    if c <= 0.040_45 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// One linear channel as 8-bit sRGB, clamped: a mix of two in-gamut
+/// colours stays in gamut, and the clamp is what makes that a
+/// property of the arithmetic rather than an assumption about it —
+/// for every channel the clamp can order.
+///
+/// **`None` for the one it cannot.** `f32::clamp` returns `self` when
+/// `self` is a `NaN`, and `NaN as u8` is `0`, so a channel nothing
+/// computed used to leave here as a legitimate pure black — the far
+/// end of every distance the colourblind check takes, handed back as
+/// if it had been measured.
+///
+/// The test is `is_nan` and not `is_finite` deliberately, because the
+/// two values differ in exactly the property the clamp needs: an
+/// infinity is ORDERED, sits above the whole gamut, and clamps to the
+/// top of it correctly. A `NaN` has no order, so there is no bound to
+/// put it under and no channel to answer.
+fn channel_to_srgb8(channel: f32) -> Option<u8> {
+    if channel.is_nan() {
+        return None;
+    }
+    let c = channel.clamp(0.0, 1.0);
+    let encoded = if c <= 0.003_130_8 {
+        12.92 * c
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    };
+    Some((encoded * 255.0).round() as u8)
+}

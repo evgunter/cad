@@ -1,0 +1,163 @@
+# Draft — the molding-taper design conversation
+
+**Status: RATIFIED (Ev's sign-off on PR #908 — planes-only to
+start is Ev's own note). NOT YET IMPLEMENTED: no draft unit has
+been cut; the register's draft row (`docs/KERNEL-VERBS.md`) is the
+live scheduling record.**
+(VERBS program; the register's draft row names this document as its
+design record). Proposals DR1–DR6. Substrate anchors verified on
+main 2026-08-21 by the survey lane; the row is genuinely greenfield —
+no open issue mentions draft, and nothing in docs/ pre-derives it
+beyond LONGTERM-IDEAS' checker note.
+
+Vocabulary: **draft** replaces a solid's walls with walls tilted a
+small angle away from a **pull direction**, so the part releases from
+a mold; the tilt pivots about a **neutral plane** (where the wall's
+trace stays fixed). A drafted plane is another plane; a drafted
+cylinder is a cone; a drafted general wall is a ruled surface.
+
+## DR1 — Scope v1: plane walls only, cylinder walls refuse typed
+
+The honest first door is **plane-wall draft**: pivot each selected
+plane wall about its neutral-plane trace. Everything it needs
+exists — general plane frames, general affine pcurve charts,
+plane×plane re-intersection.
+
+Drafting a CYLINDER wall mints a cone, and the survey shows the cone
+is a second-class citizen in exactly the places draft's output would
+land next:
+
+- where the new cone meets a drafted plane neighbor at generic tilt,
+  `plane_cone_section` builds the exact `Ellipse` (Ev, 2026-10-01:
+  "exact ellipses are certainly allowed there") and refuses a
+  parabolic or hyperbolic section typed — "parabola and hyperbola are
+  outside the conic inventory **by decision, not by omission**" (R1).
+  Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
+  unimplemented in the C5 table).
+- a cone face is boolean-live only where the pair-scoped operand
+  gate (VERBS-GATE, #1001) finds no unsupported PAIR it could
+  enter, and fillet's cone arms are the COAXIAL ones (VERBS-ARMS-2)
+  — a cone meeting a drafted plane at generic tilt is neither, so
+  the drafted body is still one-way there.
+
+**Recommendation**: v1 ships plane-only with a typed
+`DraftUnsupported`-class refusal naming the wall kind.
+
+**The cylinder arm's cost, corrected per Ev's #908 note.** R1's
+"permanent" refusal bars only the *exact conic special cases*
+(parabola/hyperbola never join the analytic curve inventory); a
+generic plane×cone section as a **fitted NURBS curve** is fine —
+the ordinary Q8-family approximating-curve route the plane×NURBS
+lane already ships. So the cylinder→cone arm does NOT re-open R1:
+its real content is a **plane×cone fitted-SSI lane** (march + fit +
+certify, the `plane_nurbs_ssi` shape with a cone chart), sequenced
+with Wave 2's cone-operand work since they share the substrate.
+Still a separate later unit — but plumbing, not a ratified-decision
+change. The operand-gate re-scope it was to queue behind has landed,
+pair-scoped (#1001).
+
+## DR2 — Mechanism: a certified re-geom pass (a small op class)
+
+For an all-plane body, draft changes **no topology**: every selected
+wall gets a new plane, every affected strut a new line carrier, every
+affected vertex a new point; face/edge/vertex keys all survive. That
+is not the M6-1 split/graft shape (surgery is a graft executor for a
+plan that adds and kills entities); it is a **geometry replacement
+pass**, and the kernel has partial vocabulary for it:
+
+- `set_face_surface` / `set_edge_curve` exist (attach layer), with
+  the documented ordering obligation (surfaces before edge
+  descriptions, then whole-body `mint_pcurves`) and the
+  no-certification-here contract — the caller owns re-description.
+- **The vertex half has no public door**: `get_vertex_mut` is
+  `pub(crate)`; the only whole-body point rewriter is
+  `transform_rigid`, which is rigid by checked contract.
+- **The pass shape has one shipped inhabitant**:
+  `topo::replace_face_offset` (VERBS OFF-D, #1043) replaces ONE
+  face's surface, re-describes its boundary and places the vertices
+  those edges end at — decided first, applied to a clone, validated
+  once. Draft's pass is that shape over a selected wall SET.
+
+**Recommendation**: draft is implemented as a kernel verb whose body
+follows M6-1's discipline verbatim — decide everything first (all
+new planes, carriers, vertex points, and every validity predicate,
+read-only against the source), clone, apply through the attach layer
+plus a **new `pub(crate)`-widened certified vertex-placement step
+owned by the pass** (not a free-standing public vertex mutator — the
+D4 posture stays: uncertified intermediate states never escape, the
+pass validates once at the end). The alternative — recipe-layer
+re-authoring (a drafted extrude is exactly a loft between two scaled
+profiles, buildable today) — is honest sugar but cannot draft an
+imported or boolean-produced body, which is the verb's actual
+territory; it can land independently as a recipe convenience without
+this conversation.
+
+Validity predicates, per the ratified pre-construction stance
+(DESIGN.md, Banked principles: fillet/blend validity is reified predicates): neutral-trace non-degeneracy per wall (the pivot
+line must actually cross the wall), angle vs adjacent-face
+consumption (a drafted wall must not sweep past its neighbor — the
+face-clearance shape from the fillet battery, re-instantiated), and
+global wall–wall non-interference at the requested angle. Each a
+named margined Q1 trilean.
+
+## DR3 — Selection: the pull-direction predicate is a SELECT-DESIGN amendment
+
+Draft's natural spelling is "every face whose outward normal leans
+against the pull direction". No such predicate exists — `GeomPred`
+carries curve-kind, surface-kind, adjacent-kinds and datum-distance
+arms only, and SELECT-DESIGN makes any new geometric predicate a
+DECIDED one with its own `sel_*` K-funnel row and in-band refusal.
+**Recommendation**: a
+`GeomPred::NormalLeans { direction, comparison }`-shaped predicate
+(margin = the lever-folded sine against the pull direction,
+trilean, in-band refusal per the selection ladder) lands as a small
+co-requisite unit, proposed as a SELECT-DESIGN amendment in the same
+PR that implements it. Kernel-direct callers say the EXACT half
+through `topo::query` since SEAT-2 (the register's
+"document-layer only" note is retired), but a leaning-normal test is
+a DECIDED atom, which at that seat is only the datum-distance door —
+the predicate proposed here at least gives the document layer the
+natural spelling.
+
+## DR4 — Neutral plane: bare point+normal, no datum machinery
+
+The house pattern is `SplitPlane { origin, normal }` passed by value
+(the split door — the only "operation takes a plane" precedent).
+Draft takes the same shape plus the pull direction and angle; datums
+appear only when the recipe layer wraps the node (`Node::Split`'s
+tool-evaluates-to-DatumValue pattern, reused). Derivable; adopted
+here unless Ev objects.
+
+## DR5 — Naming: drafted faces are survivors
+
+A drafted face keeps its `FaceKey` and gets a new surface — under
+the fillet-surgery naming discipline that is a **survivor, no birth
+row**. Only a future neutral-plane *split* variant (drafting a wall
+that straddles the neutral plane both ways) would mint, and
+`SplitNaming` is the existing template. Derivable; adopted.
+
+## DR6 — Sequencing and the checker twin
+
+- Draft lands **after VERBS-RIM/CHAMFER** (shared review bandwidth,
+  no code dependency; both merged) and is indifferent to Wave 2 in
+  v1 (plane-only output keeps the body boolean-live). Wave 2's
+  operand-gate work has landed (#1001), so the cylinder arm, if
+  ratified later, queues only behind its own plane×cone lane.
+- LONGTERM-IDEAS' **moldability checker** ("1-1 along the pull
+  direction with derivative bounded — hull bounds on surface normals
+  vs pull direction; the M5 normal-enclosure substrate exists;
+  nearest-term of the four") shares draft's vocabulary exactly.
+  **Recommendation**: the checker rides as a sibling unit when draft
+  lands — same pull-direction input, and it is the natural
+  acceptance instrument for the verb (a drafted body should CERTIFY
+  moldable at its own angle).
+  **Its reach is NOT plane-limited (answering Ev's #908
+  question)**: the checker consumes certified normal enclosures,
+  which exist per KIND, not per verb — closed forms for the five
+  analytic kinds and the patch-hull machinery for NURBS (the M5
+  substrate LONGTERM-IDEAS names). So it ships kind-general from
+  birth: it can certify (or honestly refuse, where an enclosure
+  is missing) the moldability of bodies the draft VERB cannot yet
+  touch — including imported parts — while draft itself is
+  plane-only. The asymmetry is useful, not accidental: the checker
+  is analysis over existing enclosures; the verb is construction.

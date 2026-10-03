@@ -1,0 +1,24 @@
+[package]
+name = "quantity"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+# LIB-U8a: the D6 API-boundary quantity layer — newtypes (Length/Angle/
+# Count), the unit table + constants, and the display formatter. It sits
+# BELOW editor-core on purpose: the expression text parser (editor-core)
+# reads the unit table, and the pncad façade re-exports the types, so
+# the one home that serves both is a leaf crate with no dependencies.
+[dependencies]
+
+# The leaf property above is about what a DEPENDENT of this crate
+# carries, and `[dev-dependencies]` is not that: nothing here is
+# compiled into a build of any consumer, nor into the wheel, whose
+# closure follows normal edges only. `test-utils` is itself a
+# zero-dependency leaf and is where the F6 display predicate lives.
+[dev-dependencies]
+proptest = { workspace = true }
+test-utils = { path = "../test-utils" }

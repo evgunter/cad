@@ -1,0 +1,124 @@
+//! Regression pin for #99: the tour's scene walk must run green at
+//! every supported tolerance row, and its certified cells (`demo-tour
+//! certified`) at the default one. **Green means exit 0, and that is
+//! the whole contract** — [`assert_green`] asserts nothing else, and
+//! nothing else is available to assert.
+//!
+//! **Why the certified cells run at one ε and not three.** #99 was a
+//! scene-walk escalation (below), and the walk keeps all three rows.
+//! The certified cells are minutes each — the E6 drive over hundreds
+//! of replayed leaves — and in two months of CI they went red at one ε
+//! alone exactly once, so two of the three runs were buying minutes
+//! of the release row's wall time for almost no signal. The other two
+//! rows are re-taken daily by `nightly.yml`'s `k-lint (release-default)`
+//! row, so an ε-specific red still surfaces, a day late.
+//!
+//! **At the default ε this run IS the tolerance cell's test.** The
+//! cell asserts what its captions claim inside its own narration — the
+//! tour's usual posture: a cell panics when the kernel stops doing
+//! what it narrates — so the exit-0 contract here carries those
+//! findings, and no unit row drives the same 512-leaf study again.
+//!
+//! The tour has no clean-refusal exit. Every typed refusal it can meet
+//! on the scene path is a panic by construction (`run_body` panics on
+//! a failed validation tier, a failed tessellation, a failed STL write
+//! and any STEP refusal at all); its only `std::process::exit(2)`
+//! sites are the two feature-gated modes reporting a usage error, and
+//! neither runs from here. So "a working run or a typed refusal" is
+//! not a distinction this pin can draw, and asserting `success()`
+//! loses nothing: a demo whose scenes are all inside the kernel's
+//! shipped surface has no refusal that is not a regression.
+//!
+//! **That posture is RULED (#795, Ev), and `success()` is the
+//! contract this pin keeps.** A demo may panic when the kernel does
+//! something unexpected, and it may narrate a frontier it DECLARES up
+//! front at the scene — a declared frontier still exits 0, so no
+//! second exit convention is needed here and none was built. An
+//! undeclared refusal still panics. The forward obligation rides with
+//! whoever declares the first one: it must fail loudly when it stops
+//! refusing. `work/code-quality/demo-typed-refusal-exit-convention.md`
+//! holds the ruling.
+//!
+//! The escalation that motivated this pin: the bracket fillet's via
+//! point was decimally rounded (1.146 vs the exact 1.5 − 0.5/√2 =
+//! 1.1464466…), leaving the arc carrier ~2.3e-6 clear of the adjacent
+//! line carriers instead of tangent — inside the carrier_line_circle
+//! escalation band at CAD_TOLERANCE_EPS=1e-6, so profile validation
+//! (correctly) refused the near-tangency and the demo's `.expect`
+//! panicked. The data now encodes exact tangency; these tests keep the
+//! whole tour honest at 1e-6 and 1e-12 alongside the default.
+
+use std::process::{Command, Output};
+
+/// The scene walk into a scratch directory.
+fn run_walk(eps: Option<&str>) {
+    let outdir = std::env::temp_dir().join(format!(
+        "demo-tour-eps-pin-{}-{}",
+        eps.unwrap_or("default"),
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&outdir);
+    std::fs::create_dir_all(&outdir).expect("create outdir");
+    let walk = run_demo(outdir.as_os_str(), eps);
+    let _ = std::fs::remove_dir_all(&outdir);
+    assert_green("<outdir>", eps, &walk);
+}
+
+fn run_demo(arg: &std::ffi::OsStr, eps: Option<&str>) -> Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_demo-tour"));
+    cmd.arg(arg);
+    match eps {
+        Some(e) => {
+            cmd.env("CAD_TOLERANCE_EPS", e);
+        }
+        None => {
+            cmd.env_remove("CAD_TOLERANCE_EPS");
+        }
+    }
+    cmd.output().expect("spawn demo-tour")
+}
+
+fn assert_green(arg: &str, eps: Option<&str>, output: &Output) {
+    assert!(
+        output.status.success(),
+        "`demo-tour {arg}` failed at eps {:?} ({}):\n--- stdout tail ---\n{}\n--- stderr ---\n{}",
+        eps,
+        output.status,
+        {
+            let mut tail: Vec<_> = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .rev()
+                .take(5)
+                .map(str::to_owned)
+                .collect();
+            tail.reverse();
+            tail.join("\n")
+        },
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+#[test]
+fn tour_runs_green_at_default_eps() {
+    run_walk(None);
+}
+
+/// The certified cells, as their OWN row rather than after the walk in
+/// the one above: they are the longest thing this suite runs, and as a
+/// separate test nextest runs them beside the walk instead of after it.
+#[test]
+fn certified_cells_run_green_at_default_eps() {
+    let eps = None;
+    let certified = run_demo("certified".as_ref(), eps);
+    assert_green("certified", eps, &certified);
+}
+
+#[test]
+fn tour_runs_green_at_eps_1e_6() {
+    run_walk(Some("1e-6"));
+}
+
+#[test]
+fn tour_runs_green_at_eps_1e_12() {
+    run_walk(Some("1e-12"));
+}

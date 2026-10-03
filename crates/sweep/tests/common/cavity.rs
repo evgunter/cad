@@ -1,0 +1,247 @@
+//! **The vented-cavity fixture vocabulary** — the bodies the concave
+//! blend suites carve, authored the way a user would: a profile on a
+//! sketch plane, extruded, then cut.
+//!
+//! Everything here is BODY AUTHORING and carries no derivation, so
+//! sharing it cannot make two suites agree by construction about
+//! anything they check. What it does buy is the opposite of
+//! independence, and that is the point: the unit suite and its review
+//! probes must carve THE SAME BODY or their rows are not about each
+//! other. A probe that re-authors the fixture checks a body no other
+//! row measures, and a fixture that drifts here reddens every suite at
+//! once instead of silently splitting the corpus in two.
+//!
+//! Shared by the unit suites and their review probes alike. A
+//! reviewer's rows are ordinary rows (Ev's ruling, 2026-09-04, closing
+//! `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`), and a
+//! fixture builder carries no derivation, so nothing about authorship
+//! keeps a copy of one apart. What stays independent in the probes is
+//! their derivations, under [`super::oracles`]'s own rule.
+//!
+//! [`skewed_cavity_edges`] is the slim-wedge re-pose of
+//! `blend4_r1_probes`' skewed cavity: its vent and its scale are its
+//! own, so it is a different body from that probe's, and it is here
+//! because more than one suite carves it.
+//!
+//! **Deliberately not absorbed**, and the whole of it:
+//!
+//! - the SQUARE-vented cavity (`blend3_r2_probes::square_vented_cavity`)
+//!   and the SKEWED one (`blend4_r1_probes::skewed_cavity`) — each is
+//!   one probe's own fixture, built from the constructors below;
+//! - the corner predicates that are not [`vented_cavity`]'s own.
+//!   [`edges_with_corners`] is the traversal, and it is shared;
+//!   which points count as corners is the caller's fixture value, so
+//!   only the one belonging to the body defined here comes with it
+//!   ([`cavity_corner`], the `[1,3]³` cavity at 1e-12). The block's
+//!   `[0,4]³` at 1e-9 (`review_blend3_r1_probes::block_edges`), the
+//!   arbitrary swept polygon at 1e-9 (`cavity_edges_of` in the same
+//!   file) and the parallelogram's four vertices at 1e-9
+//!   (`blend4_r1_probes`) stay at their sites: each is a value that
+//!   suite chose, and moving one here would move a fixture value;
+//! - the `prism(pts, h)` copy class over `(f64, f64)` pairs from
+//!   `SketchPlane::xy()` (`sf2a_r2_probes.rs` = `verbs_shell.rs`,
+//!   `m8_4_intersection_iso.rs` = `r1_p2_probes.rs`, plus six
+//!   singletons) — a different family and not this unit's, tracked as
+//!   `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`;
+//! - `super::approx::prism`, which builds the `Surface::Approx`
+//!   surgery's base rather than a boolean operand.
+
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::{Extrusion, extrude};
+use topo::{Body, EdgeKey, subtract};
+
+/// The XY sketch plane translated to height `z`.
+pub fn sketch_at(z: f64) -> SketchPlane<f64> {
+    SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
+        Point3::new(0.0, 0.0, z) - Point3::origin(),
+    ))
+}
+
+/// A polygon on the plane at `z0`, extruded to `z1` — this module's
+/// `(Point2, z0, z1)` vocabulary over the kernel's own fixture door.
+pub fn prism(poly: &[Point2<f64>], z0: f64, z1: f64) -> Body<f64> {
+    let lp = ProfileLoop::polygon(poly.iter().copied());
+    sweep::test_support::extruded(sketch_at(z0), vec![lp], z1 - z0, Tol::witness())
+}
+
+/// An axis-aligned box: the rectangle `lo.xy … hi.xy` on the plane at
+/// `lo.z`, extruded to `hi.z`.
+///
+/// The body is [`sweep::test_support::brick`]'s. What lives here is
+/// this module's `Point3` corner vocabulary, which is how the cavity
+/// suites are written.
+pub fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
+    sweep::test_support::brick((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), Tol::witness())
+}
+
+/// A circular rod: two half-arc profile segments extruded, so its wall
+/// is a cylinder and the ring it cuts in a plane is a circle.
+pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(center.x - r, center.y), 1.0),
+        (Point2::new(center.x + r, center.y), 1.0),
+    ]);
+    let profile = Profile::new(sketch_at(z0), vec![lp])
+        .validate(Tol::witness())
+        .expect("a circle is a valid profile");
+    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
+        .expect("a rod extrudes")
+        .body
+}
+
+/// `base` less `tool`, demanding that the cut succeed and leave
+/// material — a fixture step, so a refusal here is a broken fixture
+/// rather than a failed claim.
+///
+/// `what` NAMES the step, and it is not decoration: a fixture is
+/// usually two or three of these in a row, and a panic reading only
+/// "the cut succeeds" cannot say which subtraction broke. The callers
+/// pass the tool's name ("vent", "cavity", "pocket").
+pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
+    subtract(base, tool, Tol::witness())
+        .unwrap_or_else(|e| panic!("the {what} cut succeeds: {e:?}"))
+        .body()
+        .unwrap_or_else(|| panic!("the {what} cut leaves material"))
+        .body
+        .clone()
+}
+
+/// **A block with a rectangular cavity, vented.**
+///
+/// The block is `[0,4]³`; the cavity is `[1,3]³`; and a round chimney
+/// of radius `0.5` on the axis `x = y = 2`, from `z = 2.5` clear of the
+/// top, is cut first — so the cavity is a VENT rather than a void, i.e.
+/// one shell, which is what the surgery's body door admits, with the
+/// vent's mouth strictly inside the cavity's ceiling. The vent is round
+/// because the ring the mouth leaves in that ceiling rides through the
+/// carve, and the exact ring-clearance check covers circle rings.
+///
+/// The cavity's twelve edges are all concave and its eight corners are
+/// all-concave trihedra: the mirror of the chamfered cube. Nothing
+/// else in the body touches them — the vent pierces the ceiling face's
+/// interior — so the twelve are a whole component of the edge graph,
+/// which is what makes a request for them a complete one.
+///
+/// # Why the fixture is a vented cavity, and what that does not claim
+///
+/// The requirement is a CLASS, not this shape. A concave request must
+/// be a whole component of the edge graph, and two doors say so from
+/// different sides: a subset with loose ends refuses where those ends
+/// are read, and a subset with NO ends never gets that far — the
+/// pocket floor's four edges close into a sharp-cornered ring and
+/// refuse at the G1 door, because the trivalent-ends clause only
+/// speaks once a chain has ends at all. A concave component that
+/// reaches the surface always ends at mixed corners, so it must
+/// enclose; an enclosed void is two shells, which the body door
+/// refuses; hence a vented cavity.
+///
+/// **That argument does not make this the smallest such body.** A
+/// triangular prism cavity carves the same way with nine edges and six
+/// corners. Both probe suites hold the bound: the pocket attacks and
+/// the nine-edge cavity carves.
+pub fn vented_cavity() -> Body<f64> {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
+    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
+    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
+    cut("cavity", &cut("vent", &block, &vent), &cavity)
+}
+
+/// Every edge both of whose endpoints satisfy `on` — found by
+/// POSITION, never by index, so a row cannot silently address a
+/// different edge. The result is sorted, so it is a set with a
+/// deterministic order.
+pub fn edges_with_corners(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> Vec<EdgeKey> {
+    let mut found: Vec<EdgeKey> = body
+        .edges()
+        .filter(|(k, _)| {
+            let Some(e) = body.get_edge(*k) else {
+                return false;
+            };
+            let Some(h) = body.get_half_edge(e.he_plus) else {
+                return false;
+            };
+            let Some(end) = body.half_edge_end(e.he_plus) else {
+                return false;
+            };
+            let pt = |v| {
+                body.get_vertex(v)
+                    .and_then(|x| body.get_point(x.point))
+                    .copied()
+            };
+            match (pt(h.start), pt(end)) {
+                (Some(a), Some(b)) => on(a) && on(b),
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .collect();
+    found.sort_unstable();
+    found
+}
+
+/// A corner of [`vented_cavity`]'s cavity box `[1,3]³`.
+pub fn cavity_corner(p: Point3<f64>) -> bool {
+    p.to_array()
+        .iter()
+        .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
+}
+
+/// [`vented_cavity`]'s twelve cavity edges.
+pub fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    edges_with_corners(body, cavity_corner)
+}
+
+/// **The slim-wedge cavity**: `blend4_r1_probes`' skewed vented cavity
+/// re-posed — block `[0,4]³`, a parallelogram cavity prism of side
+/// `1.2` and skew `theta` over `z ∈ [1, 3]`, a narrower round vent from
+/// its centroid — with its twelve concave edges, the whole body scaled
+/// by `scale`. The pose is the point: at a slim skew the corner ball's
+/// arc against the band subtends the wedge angle, so the arc's EXTENT
+/// `r·θ` — not `r_band` — is the folded lever arm, and the
+/// second-order margin is `θ²·r/2`. `contact_edge_must_carry` and its
+/// review probes carve this one body.
+pub fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
+    let p = |x: f64, y: f64| Point2::new(x * scale, y * scale);
+    let s = 1.2;
+    let (ax, ay) = (1.0, 1.0);
+    let (dx, dy) = (s * theta.cos(), s * theta.sin());
+    let quad = [
+        p(ax, ay),
+        p(ax + s, ay),
+        p(ax + s + dx, ay + dy),
+        p(ax + dx, ay + dy),
+    ];
+    let block = prism(
+        &[p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+        0.0,
+        4.0 * scale,
+    );
+    let centroid = Point2::new(
+        (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4.0,
+        (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0,
+    );
+    // A narrower vent than `blend4_r1_probes`' (`0.12·sin θ`, not
+    // `0.45·sin θ`): at the slim skews this pose is carved at, the
+    // cavity's own walls stay `0.48·sin θ` clear of it, so the clearance
+    // screen answers for the corner arcs and not for the vent.
+    let vent = rod(
+        centroid,
+        (theta.sin() * 0.12).min(0.25) * scale,
+        2.5 * scale,
+        5.0 * scale,
+    );
+    let cavity = prism(&quad, 1.0 * scale, 3.0 * scale);
+    let vented = cut("vent", &block, &vent);
+    let body = cut("cavity", &vented, &cavity);
+    let near = 1e-9 * scale;
+    let edges = edges_with_corners(&body, |q: geom_core::Point3<f64>| {
+        ((q.z - 1.0 * scale).abs() < near || (q.z - 3.0 * scale).abs() < near)
+            && quad
+                .iter()
+                .any(|c| (q.x - c.x).abs() < near && (q.y - c.y).abs() < near)
+    });
+    assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
+    (body, edges)
+}

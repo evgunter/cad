@@ -1,0 +1,338 @@
+//! Aggregated integration-test binary for `topo`.
+//!
+//! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
+//!
+//! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
+//! below. `autotests = false` in Cargo.toml means a file that is not
+//! listed here does not compile and does not run — `every_suite_file_is_
+//! aggregated` below fails loudly if you forget.
+//!
+//! Test IDs gain a module prefix (`export::round_trip` rather than
+//! `round_trip`, under binary `all` rather than binary `export`); the set
+//! of tests is otherwise identical.
+
+// The shared helper trees, named ONCE for the whole binary. This file is
+// the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/fixture/mod.rs` — and every consumer reaches that one instance
+// through `use crate::<helper>;`.
+//
+// `common` is the same name over a different thing: the Euler-op
+// fixture family lives in the library, where this crate's own `src/`
+// can name it too, and `topo::test_support` is the door the
+// `test-support` feature opens onto it. The alias keeps `common::X` as
+// every suite's spelling of it; a crate-root `use` is private but
+// visible to descendants, which is every suite module below.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+use topo::test_support as common;
+
+mod fixture;
+mod probe_support;
+
+#[path = "at_rest_pcurve_rows.rs"]
+mod at_rest_pcurve_rows;
+#[path = "axis_source_rows.rs"]
+mod axis_source_rows;
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
+#[path = "bool4r1_probes.rs"]
+mod bool4r1_probes;
+#[path = "bool4r2_base_probe.rs"]
+mod bool4r2_base_probe;
+#[path = "bool4r2_probes.rs"]
+mod bool4r2_probes;
+#[path = "boolean_covered.rs"]
+mod boolean_covered;
+#[path = "boolean_discards.rs"]
+mod boolean_discards;
+#[path = "boolean_pinch_copies.rs"]
+mod boolean_pinch_copies;
+#[path = "box_with_hole.rs"]
+mod box_with_hole;
+#[path = "census_g2_carrier.rs"]
+mod census_g2_carrier;
+#[path = "cone_apex_cap_body.rs"]
+mod cone_apex_cap_body;
+#[path = "contact1_touch_cones.rs"]
+mod contact1_touch_cones;
+#[path = "contact5_gate_and_beam.rs"]
+mod contact5_gate_and_beam;
+#[path = "contact7_touch_sweeps.rs"]
+mod contact7_touch_sweeps;
+#[path = "contact8_dangling_seam.rs"]
+mod contact8_dangling_seam;
+#[path = "contact9_side_codes.rs"]
+mod contact9_side_codes;
+#[path = "contained_flush_witness.rs"]
+mod contained_flush_witness;
+#[path = "corner_table.rs"]
+mod corner_table;
+#[path = "crosslap_rest.rs"]
+mod crosslap_rest;
+#[path = "cube_by_hand.rs"]
+mod cube_by_hand;
+#[path = "cube_doors_agree.rs"]
+mod cube_doors_agree;
+#[path = "display_contract.rs"]
+mod display_contract;
+#[path = "euler_site_pcurve_rows.rs"]
+mod euler_site_pcurve_rows;
+#[path = "geom_origin_rows.rs"]
+mod geom_origin_rows;
+#[path = "geometric_cube.rs"]
+mod geometric_cube;
+#[path = "graft_disjoint.rs"]
+mod graft_disjoint;
+#[path = "h14_census_deferrals.rs"]
+mod h14_census_deferrals;
+#[path = "interval_body.rs"]
+mod interval_body;
+#[path = "issue86_double_subtract.rs"]
+mod issue86_double_subtract;
+#[path = "issue93_nested_islands.rs"]
+mod issue93_nested_islands;
+#[path = "join1_r2_topo_probes.rs"]
+mod join1_r2_topo_probes;
+#[path = "join_star_fixture.rs"]
+mod join_star_fixture;
+#[path = "join_whole_orbit_rows.rs"]
+mod join_whole_orbit_rows;
+#[path = "loop_reparenting_pcurve_rows.rs"]
+mod loop_reparenting_pcurve_rows;
+#[path = "m3_pr1_surgery.rs"]
+mod m3_pr1_surgery;
+#[path = "m3_pr2_reduce.rs"]
+mod m3_pr2_reduce;
+#[path = "m3_pr3_split.rs"]
+mod m3_pr3_split;
+#[path = "m3_pr4_boolean.rs"]
+mod m3_pr4_boolean;
+#[path = "m3_pr5_boolean_ops.rs"]
+mod m3_pr5_boolean_ops;
+#[path = "m3_pr6_saddle.rs"]
+mod m3_pr6_saddle;
+#[path = "m3_pr6_tier3prime.rs"]
+mod m3_pr6_tier3prime;
+#[path = "m4_pr2_transform.rs"]
+mod m4_pr2_transform;
+#[path = "m4_remint_transform.rs"]
+mod m4_remint_transform;
+#[path = "m5_pr7_split_meter.rs"]
+mod m5_pr7_split_meter;
+#[path = "m5_pr8_bvh_diff.rs"]
+mod m5_pr8_bvh_diff;
+#[path = "m5_s1_rest_zip.rs"]
+mod m5_s1_rest_zip;
+#[path = "m6_2_fitted_at_rest.rs"]
+mod m6_2_fitted_at_rest;
+#[path = "m6_3_chart_completion.rs"]
+mod m6_3_chart_completion;
+#[path = "m9_1_contact_vocabulary.rs"]
+mod m9_1_contact_vocabulary;
+#[path = "m9_2_census_door.rs"]
+mod m9_2_census_door;
+#[path = "m9_2b_r2_probes.rs"]
+mod m9_2b_r2_probes;
+#[path = "m9_c1_r1_probes.rs"]
+mod m9_c1_r1_probes;
+#[path = "m9_c1_rest_face_rung.rs"]
+mod m9_c1_rest_face_rung;
+#[path = "mate4a_ef_bound_rung.rs"]
+mod mate4a_ef_bound_rung;
+#[path = "mate5_cyl_eps_rung.rs"]
+mod mate5_cyl_eps_rung;
+#[path = "mate8_witness_schedule.rs"]
+mod mate8_witness_schedule;
+#[path = "mate9_crossing_rung.rs"]
+mod mate9_crossing_rung;
+#[path = "merge_skip.rs"]
+mod merge_skip;
+#[path = "mesh12_parse_vs_certification.rs"]
+mod mesh12_parse_vs_certification;
+#[path = "mesh12_rim_row_reach.rs"]
+mod mesh12_rim_row_reach;
+#[path = "mesh8_coherence.rs"]
+mod mesh8_coherence;
+#[path = "on_verdict.rs"]
+mod on_verdict;
+#[path = "props_sphere_cap_door.rs"]
+mod props_sphere_cap_door;
+#[path = "r1_lane1_bracket_read_census.rs"]
+mod r1_lane1_bracket_read_census;
+#[path = "r1_mate4a_probes.rs"]
+mod r1_mate4a_probes;
+#[path = "r1_mate5_interval_probe.rs"]
+mod r1_mate5_interval_probe;
+#[path = "r1_mate5_probe.rs"]
+mod r1_mate5_probe;
+#[path = "r1_mate8_decomp_probe.rs"]
+mod r1_mate8_decomp_probe;
+#[path = "r1_mate8_probes.rs"]
+mod r1_mate8_probes;
+#[path = "r2_probes.rs"]
+mod r2_probes;
+#[path = "readback_sense_kind.rs"]
+mod readback_sense_kind;
+#[path = "review_cleave_nurbs_lane.rs"]
+mod review_cleave_nurbs_lane;
+#[path = "review_m1_pr5.rs"]
+mod review_m1_pr5;
+#[path = "review_m2_pr3.rs"]
+mod review_m2_pr3;
+#[path = "review_m2_pr7.rs"]
+mod review_m2_pr7;
+#[path = "review_m3_pr1.rs"]
+mod review_m3_pr1;
+#[path = "review_m3_pr2.rs"]
+mod review_m3_pr2;
+#[path = "review_m3_pr3_bob.rs"]
+mod review_m3_pr3_bob;
+#[path = "review_m3_pr3_consumer.rs"]
+mod review_m3_pr3_consumer;
+#[path = "review_m3_pr3_order.rs"]
+mod review_m3_pr3_order;
+#[path = "review_m3_pr3_pil.rs"]
+mod review_m3_pr3_pil;
+#[path = "review_m3_pr3_rings.rs"]
+mod review_m3_pr3_rings;
+#[path = "review_m3_pr4.rs"]
+mod review_m3_pr4;
+#[path = "review_m3_pr5.rs"]
+mod review_m3_pr5;
+#[path = "review_m3_pr55.rs"]
+mod review_m3_pr55;
+#[path = "review_m3_pr6.rs"]
+mod review_m3_pr6;
+#[path = "review_m4_pr2_transform.rs"]
+mod review_m4_pr2_transform;
+#[path = "review_m6_2_probes.rs"]
+mod review_m6_2_probes;
+#[path = "review_m9_1_probes.rs"]
+mod review_m9_1_probes;
+#[path = "review_m9_1_r2_probes.rs"]
+mod review_m9_1_r2_probes;
+#[path = "review_mate4a_r2_probes.rs"]
+mod review_mate4a_r2_probes;
+#[path = "review_mate9_r1_probes.rs"]
+mod review_mate9_r1_probes;
+#[path = "review_mate9_r2_probes.rs"]
+mod review_mate9_r2_probes;
+#[path = "review_s1_controls.rs"]
+mod review_s1_controls;
+#[path = "review_s1_probes.rs"]
+mod review_s1_probes;
+#[path = "review_s6_probe.rs"]
+mod review_s6_probe;
+#[path = "review_ssiflat_r1_probes.rs"]
+mod review_ssiflat_r1_probes;
+#[path = "review_ssiflat_r2_probes.rs"]
+mod review_ssiflat_r2_probes;
+#[path = "rigid_map_near_eps_approx.rs"]
+mod rigid_map_near_eps_approx;
+#[path = "rigid_map_near_eps_plane_nurbs.rs"]
+mod rigid_map_near_eps_plane_nurbs;
+#[path = "rim_dim_boolean_twins.rs"]
+mod rim_dim_boolean_twins;
+#[path = "rim_dim_review_probes.rs"]
+mod rim_dim_review_probes;
+#[path = "seat3_flush_detector.rs"]
+mod seat3_flush_detector;
+#[path = "shell_roles.rs"]
+mod shell_roles;
+#[path = "shell_tolerance_chain.rs"]
+mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
+#[path = "solid_separation.rs"]
+mod solid_separation;
+#[path = "sphere_twin_rows_interval.rs"]
+mod sphere_twin_rows_interval;
+#[path = "split_edge_pcurve_rows.rs"]
+mod split_edge_pcurve_rows;
+#[path = "split_gate_per_face.rs"]
+mod split_gate_per_face;
+#[path = "stated_general_image_mint.rs"]
+mod stated_general_image_mint;
+#[path = "trim_3_chart_bound.rs"]
+mod trim_3_chart_bound;
+#[path = "void_door.rs"]
+mod void_door;
+
+test_utils::every_suite_file_is_aggregated!();
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
+#[path = "probe_census.rs"]
+mod probe_census;
+#[path = "probe_f34_review.rs"]
+mod probe_f34_review;
+#[path = "probe_s5_sectors.rs"]
+mod probe_s5_sectors;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
+#[path = "verbs_cylsph_tangent_residuals.rs"]
+mod verbs_cylsph_tangent_residuals;
+#[path = "verbs_f7_collinear_seam.rs"]
+mod verbs_f7_collinear_seam;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;
+
+#[path = "rim_of.rs"]
+mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;
+
+#[path = "lane0_r2_probes.rs"]
+mod lane0_r2_probes;
+#[path = "lane2_r2_probes.rs"]
+mod lane2_r2_probes;
+#[path = "replace_face_band_probes.rs"]
+mod replace_face_band_probes;
+
+#[path = "certified_enclosure_impl_census.rs"]
+mod certified_enclosure_impl_census;
+#[path = "cleave_mint_doors.rs"]
+mod cleave_mint_doors;
+#[path = "door_backstop_settled_residue.rs"]
+mod door_backstop_settled_residue;
+#[path = "review_cleave_mint_doors.rs"]
+mod review_cleave_mint_doors;
+#[path = "split_tangent_edge.rs"]
+mod split_tangent_edge;

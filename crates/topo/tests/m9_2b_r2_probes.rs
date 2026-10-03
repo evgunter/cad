@@ -1,0 +1,224 @@
+//! M9-2 PR-2 blinded-review probes (R2), executed against frozen head
+//! a1b78954. Each probe asserts OBSERVED behavior: a probe that pins a
+//! gap documents reality so the finding is reproducible, not a wish.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
+use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
+use topo::{Body, ContactRecords, PatchContact, ValidationError, validate_pseudomanifold};
+
+fn band() -> Band {
+    Band::new(1e-9, 1e-8).unwrap()
+}
+
+fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
+    common::mapped_cube(
+        |x, y, z| Point3::new(s * x + dx, s * y + dy, s * z + dz),
+        Tol::witness(),
+    )
+}
+
+fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    let mut out = a.clone();
+    topo::graft_disjoint(&mut out, b).unwrap();
+    out
+}
+
+/// PROBE (claim 6 / instance.rs language): a unit cube strictly INSIDE
+/// a 4-cube — two instances whose material definitely overlaps with NO
+/// boundary proximity. instance.rs claims "an inter-instance overlap
+/// surfaces as the undeclared-contact hard error"; the census sweeps
+/// are boundary-pair sweeps, so a NESTED overlap produces no event.
+/// This probe records which way the gate actually answers.
+#[test]
+fn probe_nested_instance_overlap_at_three_prime() {
+    let outer = cube_scaled_at(4.0, 0.0, 0.0, 0.0);
+    let inner = cube_scaled_at(1.0, 1.5, 1.5, 1.5);
+    let body = assembly(&outer, &inner);
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
+    // The containment arm DECIDES the nested pair: the box gate cannot
+    // separate the extents, and the material test finds an inner
+    // vertex strictly inside the outer's material — the typed
+    // interference, not an undecidable refusal.
+    println!("nested overlap verdict: {verdict:?}");
+    let errs = verdict.expect_err("nested instance extents refuse loudly");
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+        "the containment arm decides the nested pair as an interference: {errs:?}"
+    );
+}
+
+/// PROBE (claim 3): a PATCH record naming two coplanar faces of a
+/// stacked-cube assembly. The face-granularity backing rung treats the
+/// v-v events those faces hold as SUBORDINATE to the record, so the
+/// record's own confirmation is all that stands between a fabricated
+/// record and a blessed assembly.
+///
+/// **RE-BLESSED at #1063, deliberately, fixture UNMOVED** — the same
+/// correction as `m9_2_census_door.rs`'s R1 twin, and for the same
+/// reason. The original record is TRUE about this geometry (two
+/// stacked cubes really are in conformal rest contact at z = 1), and
+/// the probe passed only because Door 2 declined every cross-key pair
+/// regardless of what the record said. The row now states both halves
+/// on the one fixture: the true record certifies, the fabricated one
+/// is refused.
+#[test]
+fn probe_bogus_planar_patch_record_never_silently_blesses() {
+    let a = cube_scaled_at(1.0, 0.0, 0.0, 0.0);
+    let b = cube_scaled_at(1.0, 0.0, 0.0, 1.0);
+    let body = assembly(&a, &b);
+    // The interface pair: A's top face (z = 1, outward +z) and B's
+    // bottom face (z = 1, outward -z).
+    let z_facing = |z: f64, sign: f64| {
+        let mut found = None;
+        for (k, f) in body.faces() {
+            if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
+                let out = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
+                if (origin.z - z).abs() < 1e-12 && out.z * sign > 0.5 {
+                    found = Some(k);
+                }
+            }
+        }
+        found.expect("a z-facing planar face")
+    };
+    let patch = |fa, fb| ContactRecords {
+        patches: vec![PatchContact {
+            face_a: fa,
+            face_b: fb,
+        }],
+        ..ContactRecords::default()
+    };
+    let records = patch(z_facing(1.0, 1.0), z_facing(1.0, -1.0));
+    let verdict = validate_pseudomanifold(&body, &records, Tol::witness());
+    println!("interface patch verdict: {verdict:?}");
+    assert_eq!(
+        verdict,
+        Ok(()),
+        "the interface record is true about this geometry: the declared \
+         pair's shared world carrier certifies it (#1063)"
+    );
+    // The fabrication, on the same fixture: the two OUTER faces, two
+    // metres apart. Nothing about the backing rung may rescue it.
+    let fake = patch(z_facing(0.0, -1.0), z_facing(2.0, 1.0));
+    let errors = validate_pseudomanifold(&body, &fake, Tol::witness())
+        .expect_err("a fabricated patch record must never bless the assembly");
+    println!("fabricated patch verdict: {errors:?}");
+    // Asserted by KIND, not by `is_err()`. A bare `is_err()` here cannot
+    // FAIL for the reason its message names: this fixture's two stacked
+    // cubes touch, so an undeclared interface leaves `UndeclaredContact`
+    // findings whatever the record does, and the row would survive a
+    // mutant that blessed the fabrication silently. The claim is that
+    // the RECORD is refused, so the assertion has to name the record's
+    // own refusal.
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "the fabrication is contradicted where the lie meets geometry — \
+         two carriers definitely two metres apart: {errors:?}"
+    );
+}
+
+/// A 1 m patch about the origin: the extent these exact-axis fixtures'
+/// locus verdicts are consumed over (no row here turns on the lever).
+fn metre_patch() -> geom_brep::ExtentBall<f64> {
+    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+}
+
+fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::new(0.0, cy, 0.0),
+        axis: Vec3::unit_x(),
+        radius: r,
+        u_ref: Vec3::unit_y(),
+    }
+}
+
+/// PROBE (claim 4), FIXED (union fix F3): NESTED parallel cylinders
+/// (axis offset 0.5 < |r1 - r2| = 2, minimum surface distance 1.5)
+/// answer `NotTangent { apart: true }` — the definite-clearance side.
+/// (Pre-fix this probe pinned the "crossing" mislabel.)
+#[test]
+fn probe_tangent_locus_nested_cylinders_are_apart() {
+    match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent { apart }) => {
+            println!("nested cylinders: apart = {apart}");
+            assert!(apart, "nested surfaces are definitely APART");
+        }
+        other => panic!("nested pair must be NotTangent, got {other:?}"),
+    }
+}
+
+/// PROBE (claim 4): mm-vs-metre behavior of the tangent-locus rows.
+/// The rows are metre data: an absolute in-band gap escalates at any
+/// model scale, and a definite gap stays definite when the model
+/// scales up 1000x (no hidden normalization by model size).
+#[test]
+fn probe_tangent_locus_rows_are_metre_dimensioned() {
+    // mm-scale model, in-band absolute gap: escalates.
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let mm_cyl = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 1e-3 + 3e-9),
+        axis: Vec3::unit_x(),
+        radius: 1e-3,
+        u_ref: Vec3::unit_z(),
+    };
+    match tangent_locus(&plane, &mm_cyl, metre_patch(), band()) {
+        Err(TangentLocusError::Escalated(_)) => {}
+        other => panic!("mm twin with in-band gap must escalate: {other:?}"),
+    }
+    // 1000x-scale exact tangency still mints, with the ruling scaled.
+    let big = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 1e3),
+        axis: Vec3::unit_x(),
+        radius: 1e3,
+        u_ref: Vec3::unit_z(),
+    };
+    match tangent_locus(&plane, &big, metre_patch(), band()) {
+        Ok(TangentLocus::Line { origin, .. }) => {
+            assert!(origin.z.abs() < 1e-9, "{origin:?}");
+        }
+        other => panic!("1000x tangency must mint: {other:?}"),
+    }
+}
+
+/// F4 (union fix): the backstop rows are METRE data — scaling the
+/// geometry alone (the gate's band is the ambient metre band) leaves
+/// the DEFINITE verdicts standing at mm and km scale: a nested pair
+/// refuses undecidable, a far-separated pair stays clean, at every
+/// scale, where the nested pair is the DECIDED interference (the box
+/// gate cannot separate it; the material test finds an inner vertex
+/// strictly inside). A scale-invariant (dimensionless) margin would
+/// flip one.
+#[test]
+fn the_backstop_rows_are_metre_dimensioned() {
+    for s in [1e-3, 1.0, 1e3] {
+        let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
+        let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);
+        let nested = assembly(&outer, &inner);
+        let errs = validate_pseudomanifold(&nested, &ContactRecords::default(), Tol::witness())
+            .expect_err("nested refuses at every scale");
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "scale {s}: {errs:?}"
+        );
+        let far = cube_scaled_at(s, 10.0 * s, 0.0, 0.0);
+        let apart = assembly(&outer, &far);
+        assert_eq!(
+            validate_pseudomanifold(&apart, &ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "scale {s}: separated instances stay clean"
+        );
+    }
+}

@@ -1,0 +1,101 @@
+[package]
+name = "mesh"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+#
+probe = [
+    "geom-core/probe",
+    "geom-brep/probe",
+    "topo/probe",
+]
+
+# The tessellation budget meter (issue #320): the per-face measurements
+# `mesh::budget` records, `tools/tess-meter` turns into rows and
+# `tools/tess-lint` gates. OPT-IN, gated at the module boundary — with
+# the feature off, `budget::armed()` is a `const fn` answering `false`
+# and `deviation_samples()` a `const fn` answering `None`, so every
+# recording branch in the tessellation lane (the per-triangle
+# resampling included) folds away and a shipped build carries no
+# telemetry state at all. The lane itself has no `#[cfg]` in it: the
+# call sites are shared and only the module behind them changes, which
+# is what keeps the two configurations from drifting.
+#
+# NAME CAUTION: `probe` above is a SCALAR-forwarding feature and has
+# nothing to do with this one. `probe` propagates a `Real`
+# instantiation to dependencies and adds no `mesh` code.
+#
+# The measurement TYPES are public either way — they are the contract
+# with `tools/tess-meter` and they are data. What this feature adds is
+# the instrument: the thread-local, `arm`, `take`, and the recording
+# the lane does between them. `demo-tour tess-budget` is the consumer
+# (via pncad's forward of the same name).
+#
+# Its own CI row (`mesh budget meter`, ci.yml) runs
+# clippy and the suite here, because the default rows exercise the
+# INERT half. That row also carries the per-triangle certificate
+# falsifier, whose measurements this feature is what produces.
+budget = []
+
+[dependencies]
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom = { path = "../geom" }
+topo = { path = "../topo" }
+# Constrained Delaunay triangulation (ratified crate table; version,
+# license, and release-age vetting in the workspace dependency table).
+spade = { workspace = true }
+# D9 idiom 1 over the face arena: `tessellate`'s per-face dispatch is an
+# indexed parallel map into a pre-sized buffer, and the arena-order fold
+# that places the patches is idiom 2 (`docs/DESIGN.md`'s D9 addendum,
+# `work/perf/plan.md` §2.2). Second consumer in the workspace after
+# `editor-core`, which names it for the same pair of idioms over
+# independent DAG nodes; the workspace table carries the version and the
+# vetting.
+rayon = { workspace = true }
+
+[dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../profile", features = ["test-support"] }
+# `test-support` ON: the corpus swept elbow this crate's rows tessellate
+# is `sweep::test_support`'s. Five of the body's six constructions now
+# delegate to it; the sixth, a `step-export` review probe, re-derives
+# the constants deliberately and says so at the site. The feature is
+# dev-only by construction, so it reaches no shipped build of this
+# crate (that module's own docs).
+sweep = { path = "../sweep", features = ["test-support"] }
+# `test-support` ON: the MESH-6 review probe's scaffold-strut subject is
+# planted on `topo::test_support`'s cube sequence -- the §9.4.2 sequence
+# this crate used to write out a twenty-eight-call second time. A DEV
+# edge; `topo` is a normal dependency above and stays featureless there,
+# so no shipped build of this crate reaches the facade. Same shape and
+# same reason as `step-export`'s and `step-import`'s edges onto the same
+# door.
+topo = { path = "../topo", features = ["test-support"] }
+# `test-support` ON: the key rows' one fixture of every analytic kind is
+# `geom::test_support`'s. Dev-only, like the edges above.
+geom = { path = "../geom", features = ["test-support"] }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

@@ -1,0 +1,16 @@
+# The tessellation-budget lint (issue #320). Deliberately OUTSIDE the
+# kernel workspace, exactly as `k-lint` is (the empty [workspace] table
+# detaches it; the root manifest lists `tools` in workspace.exclude):
+# this is TOOLING — its thresholds are lint policy derived from a
+# committed baseline, never kernel ε and never δ. It has no
+# dependencies at all: it reads the CSV `mesh::budget` emits, and the
+# kernel does not appear even as a dev-dependency (its fixtures are CSV
+# text, which is the whole contract between the two halves).
+[package]
+name = "tess-lint"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]

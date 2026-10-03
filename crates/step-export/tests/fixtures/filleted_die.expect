@@ -1,0 +1,31 @@
+# The M5 PR 12 die blank: a unit cube with every edge blended at
+# r = 0.12. Six shrunk planar faces, twelve quarter-cylinder blends,
+# eight sphere-octant corner patches — the writer's hardest mixed
+# case, since plane/cylinder/sphere faces here meet along TANGENT
+# trimlines (straight ones and circular ones), not transverse ones.
+#
+# OCC splits the periodic corner-arc carriers at their seams, so its
+# edge count exceeds the kernel's 48 (56 after the seam splits) while
+# the vertex count stays at the kernel's 24 — the same accounting the
+# ball and donut fixtures already record. (Wording fixed per the M7-1
+# import review NOTE-7, issue #184: the old comment overclaimed on
+# vertices.)
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=26
+KERNEL_EDGES=48
+KERNEL_VERTICES=24
+KERNEL_VOLUME_MM3=965230999.4765309
+KERNEL_VOLUME_PAD_MM3=0.0
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=26
+EXPECT_EDGES=56
+EXPECT_VERTICES=24
+EXPECT_VOLUME_MM3=965231000

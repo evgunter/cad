@@ -1,0 +1,65 @@
+# Memory Index
+
+Read the files as relevance dictates; this index says what each is for,
+not what it says.
+
+## Working with Ev
+
+- [CAD working style](cad-working-style.md) — discuss → ratify into
+  DESIGN.md → commit; doc prose states the present only; **how to write
+  a memory** (the two tests, and be brief)
+- [Docs ledger](docs-ledger.md) — process docs are pruned when a
+  program closes; what is worth referencing later gets a note in
+  `docs/doc-ledger/`
+- [Ev profile](ev-profile.md) — differential-geometry fluent; define
+  CAD jargon, don't simplify the math; probes fudged invariants
+- [Git workflow](git-workflow.md) — the hazards CLAUDE.md's merge-only
+  rules leave out: stacked branches, unprotected main, identifiers
+  that stay off GitHub
+- [Demo purpose](demo-purpose.md) — demos demonstrate REAL usage;
+  awkwardness is a library finding, never hidden (cited by name from
+  source comments across the tree)
+
+## Running the work
+
+- [Orchestration model](orchestration-model.md) — orchestrator plans and
+  meta-reviews, subagents code and review; when to self-merge vs wait
+  for Ev; the two-designer weighing before a design fork goes to Ev;
+  standing rules for branches, monitors, channels and dispatches
+- [Orchestrator switch runbook](orchestrator-switch-runbook.md) —
+  RUNBOOK, read only when handing off to a successor
+- [Agent lane operations](agent-lane-operations.md) — lane creation,
+  build-slot locks, disk, liveness, death recovery, and the ways CI
+  silently does not run
+- [Experiments](experiments.md) — the process experiments that are
+  live (dual Opus review concordance, design-fork review) or suspended
+  (model A/B), where
+  each one's normative log is, and what any experiment binds
+
+## Testing, review, measurement
+
+- [Local battery scope](local-battery-scope.md) — hosted CI is the gate,
+  the cheap option, and the only producer of committed measurements;
+  local runs only when they beat the gate to a failure
+- [Review and dependency policy](review-and-dependency-policy.md) —
+  reviews run real e2e demos; when a stated gap blocks; reviewer tests
+  are ordinary tests; ~2-week dependency age
+- [Perf measurement lane](perf-measurement-lane.md) — where committed
+  timings come from and what may be done with them; reporting, never
+  gating (cited by name from nightly.yml and the perf-data READMEs)
+- [FreeCAD render lane](freecad-render-lane.md) — how to re-render for
+  a PR (the nightly re-baselines main); FreeCAD's two failure modes;
+  the per-process budget
+
+## Kernel rules
+
+- [Output stability as justification](output-stability-as-justification.md)
+  — byte/bit-preservation may choose among equivalent implementations,
+  never justify keeping code; and the three uses of that vocabulary it
+  does not touch
+- [K telemetry state](../docs/K-REPORT.md) — not a memory: K = 10 is the
+  permanent ratified default, #89 CLOSED; check a landing's margin
+  DIMENSION before reading it as K evidence
+- [A refusal's text is not evidence of its cause](refusal-text-is-not-cause.md)
+  — measure-first is a mandatory checkpoint; the payload and the raising
+  site are the instrument

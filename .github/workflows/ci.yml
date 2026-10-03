@@ -1,0 +1,615 @@
+name: CI
+
+# The per-PR gate is sized for latency: the free plan runs 20 jobs at once
+# across every open PR, so a run's job-minutes are the queue everyone waits
+# in. What runs here is the default-eps suite minus the slow set
+# (.config/nextest.toml's `ci` profile), lint, and the rows whose subject the
+# diff touched directly. Everything else — every eps row over the whole suite,
+# the slow set, k-lint, the render lanes, rustdoc, wasm32 — runs in
+# nightly.yml. The selection and its evidence: work/ciw/latency-cut.md. A
+# ready PR whose head commit's subject carries `[render]` has its render
+# lanes dispatched on its branch (the filter's `render tag` step).
+
+on:
+  # `ready_for_review` is needed because drafts run nothing: undrafting pushes
+  # no commit, so without it a draft marked ready would carry only its skipped
+  # run.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Classify the change set against the default branch, or run everything unscoped"
+        required: false
+        type: choice
+        default: changed
+        options: [changed, all]
+      pr:
+        description: "Gate this PR's test merge with its base (refs/pull/<pr>/merge, pinned by sha) instead of the branch tip"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCCACHE_VERSION: "0.16.0"
+  NEXTEST_VERSION: "0.9.140"
+  MATURIN_VERSION: "1.14.1"
+  TY_VERSION: "0.0.39"
+  RUFF_VERSION: "0.16.1"
+
+jobs:
+  filter:
+    name: change filter
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push'
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      render_dispatch: ${{ steps.render-tag.outputs.render_dispatch }}
+      tier: ${{ steps.classify.outputs.TIER }}
+      cargo_scope: ${{ steps.paths.outputs.cargo_scope }}
+      run_build: ${{ steps.classify.outputs.RUN_BUILD }}
+      test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
+      seeds: ${{ steps.classify.outputs.SEEDS }}
+      run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
+      run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
+      run_interval_backend: ${{ steps.paths.outputs.interval }}
+      run_python: ${{ steps.paths.outputs.python }}
+      run_topo_release: ${{ steps.paths.outputs.topo }}
+      run_step_export: ${{ steps.paths.outputs.step_export }}
+      run_mesh_budget: ${{ steps.paths.outputs.mesh_budget }}
+      run_demos: ${{ steps.paths.outputs.demos }}
+      run_tools: ${{ steps.paths.outputs.tools }}
+      eps_extra: ${{ steps.paths.outputs.eps_extra }}
+    steps:
+      # A dispatch naming a PR gates that PR's test merge with its base, as
+      # the PR's own pull_request run would, pinned by sha so every job reads
+      # one tree; the checks still attach to the dispatch's sha. GitHub
+      # rebuilds the merge after a push, so wait for it on this head.
+      - name: the merge this dispatch gates
+        id: target
+        if: inputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 30); do
+            info="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" \
+              --jq '[.head.sha, (.mergeable | tostring), (.merge_commit_sha // "-")] | join(" ")')"
+            read -r head mergeable merge <<<"$info"
+            if [ "$head" != "$GITHUB_SHA" ]; then
+              echo "::error title=PR moved::PR #$PR's head is $head, not this run's $GITHUB_SHA: there is no merge of this head to gate."
+              exit 1
+            fi
+            case "$mergeable" in
+              true)
+                # `mergeable` can turn true over the previous head's merge.
+                built_on="$(gh api "repos/$GITHUB_REPOSITORY/commits/$merge" --jq '.parents[1].sha')"
+                if [ "$built_on" = "$GITHUB_SHA" ]; then
+                  echo "sha=$merge" >>"$GITHUB_OUTPUT"
+                  echo "gating PR #$PR's test merge $merge"
+                  exit 0
+                fi ;;
+              false) echo "::error title=PR conflicts with its base::PR #$PR does not merge cleanly, so there is no merge to gate. Merge the base in and push."; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::GitHub did not build PR #$PR's test merge on $GITHUB_SHA in 5 minutes"
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          fetch-depth: 0
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: classify the change set
+        id: classify
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+          IN_SCOPE: ${{ inputs.scope }}
+          IN_PR: ${{ inputs.pr }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -o pipefail
+          if [ -n "$IN_PR" ] && [ "$(git rev-parse HEAD^2)" != "$GITHUB_SHA" ]; then
+            echo "::error::the checked-out merge is not built on $GITHUB_SHA"
+            exit 1
+          fi
+          if [ "$IN_SCOPE" = all ]; then
+            FILTER=(--force-all)
+          else
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -z "$IN_PR" ]; then
+              BASE="origin/$DEFAULT_BRANCH"
+            else
+              BASE="$(git rev-parse HEAD^1)"
+            fi
+            FILTER=(--base "$BASE")
+            echo "$BASE" > base.txt
+            git diff --name-only --no-renames "$BASE"...HEAD | tee changed.txt
+          fi
+          scripts/ci-filter.py "${FILTER[@]}" > filter.out
+          if [ "$DRAFT" = "true" ]; then
+            echo "draft PR: nothing runs until it is marked ready for review"
+            sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
+          fi
+          tee -a "$GITHUB_OUTPUT" < filter.out
+      - name: direct-path rows (the diff, not the closure)
+        id: paths
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+          TIER: ${{ steps.classify.outputs.TIER }}
+          SEEDS: ${{ steps.classify.outputs.SEEDS }}
+          PKGS: ${{ steps.classify.outputs.PKGS }}
+          CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
+        run: |
+          # A row keyed here runs when the diff touches its own subject, and
+          # nightly otherwise. TIER=all (an unscopable change) runs every row.
+          flag() { if [ "$DRAFT" = true ]; then echo "$1=false"; elif [ "$TIER" = all ] || eval "$2"; then echo "$1=true"; else echo "$1=false"; fi; }
+          touched() { [ -f changed.txt ] && grep -qE "$1" changed.txt; }
+          seeded() { case ",$SEEDS," in *",$1,"*) return 0;; esac; return 1; }
+          {
+            flag interval "touched '^interval-transcendentals/'"
+            flag python "seeded pncad-py"
+            flag topo "seeded topo"
+            flag step_export "seeded step-export"
+            flag mesh_budget "case ',$PKGS,' in *,mesh,*) true;; *) false;; esac"
+            flag demos "touched '^demos/'"
+            flag tools "touched '^tools/'"
+            # THE EXTRA EPS ROWS. The eps-only reds of 2026-07..09 sat in these
+            # crates (and in probe/golden rows); a diff seeding one of them runs
+            # that crate's tests at 1e-6 and 1e-12 as well. Every row runs at
+            # every eps nightly.
+            extra=""
+            if [ "$DRAFT" != true ]; then
+              for c in step-import geom-brep profile topo; do
+                seeded "$c" && extra="$extra${extra:+ | }package($c)"
+              done
+              if [ -f changed.txt ]; then
+                # shellcheck disable=SC2013 # crate names: one word per line
+                for c in $(grep -E '^crates/[^/]+/.*(probe|golden)' changed.txt | cut -d/ -f2 | sort -u); do
+                  case "$extra" in *"package($c)"*) ;; *) extra="$extra${extra:+ | }package($c)";; esac
+                done
+              fi
+              [ "$TIER" = all ] && extra="all()"
+            fi
+            echo "eps_extra=$extra"
+            # test-utils holds the tree-wide source-reader ledger and has no
+            # dependencies, so every closure builds it: a new source-reading
+            # test anywhere owes that ledger a line, and this is where it
+            # hears about it.
+            case "$TIER: $CARGO_SCOPE " in
+              closure:*" -p test-utils "*) echo "cargo_scope=$CARGO_SCOPE" ;;
+              closure:*) echo "cargo_scope=$CARGO_SCOPE -p test-utils" ;;
+              *) echo "cargo_scope=$CARGO_SCOPE" ;;
+            esac
+          } | tee -a "$GITHUB_OUTPUT"
+      # HEAD^2 of the test merge is the PR head. render.yml's own commits
+      # carry `[skip ci]`, and a dispatch never reaches this step, so the
+      # two cannot loop. A failed dispatch is an output, not a
+      # failed step, so `gate ok` goes red without skipping the rows.
+      - name: render tag
+        id: render-tag
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -uo pipefail
+          head="$(git rev-parse HEAD^2)"
+          subject="$(git log -1 --format=%s "$head")"
+          token='(^|[[:space:]])\[render\]([[:space:]]|$)'
+          if ! [[ $subject =~ $token ]]; then
+            message="$(git log -1 --format=%B "$head")"
+            if [[ $message == *"[render]"* ]]; then
+              echo "::warning title=[render] not honoured::$head mentions [render], but only a whitespace-delimited [render] in the commit's SUBJECT line asks for a render. Nothing was rendered."
+            else
+              echo "no [render] token in the subject of $head: nothing dispatched"
+            fi
+            exit 0
+          fi
+          if [ "$DRAFT" = true ]; then
+            echo "::notice title=[render] waits for ready::$head asks for a render; a draft dispatches nothing, and marking it ready re-reads the tag."
+            exit 0
+          fi
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::warning title=[render] not honoured::$head asks for a render, but this PR's branch lives in ${HEAD_REPO:-a deleted fork}, which this run's token cannot dispatch on or push to. Nothing was rendered."
+            exit 0
+          fi
+          if gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/render.yml/dispatches" -f "ref=$HEAD_REF"; then
+            echo "dispatched render.yml on $HEAD_REF for $head:"
+            echo "  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/render.yml?query=branch%3A$HEAD_REF"
+          else
+            echo "::error title=[render] dispatch failed::$head asks for a render and the dispatch of render.yml on $HEAD_REF failed."
+            echo "render_dispatch=failed" >>"$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: lint (fmt, clippy, gates)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: github.event.pull_request.draft != true
+    steps:
+      # No prune here: the python lint covers local-scripts/ too.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: work tracker lint
+        run: python3 scripts/work.py lint
+      - name: install ruff (pinned, official prebuilt)
+        run: |
+          mkdir -p "$HOME/ruff-bin"
+          curl -LsSf --retry 5 "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
+          echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+      - name: python lint (ruff)
+        run: python3 scripts/check-python-lint.py
+        env:
+          REQUIRE_RUFF: "1"
+      - name: gates (scripts/gates)
+        run: |
+          rc=0
+          for g in scripts/gates/*.sh; do
+            case "$(basename "$g")" in lib.sh) continue ;; esac
+            echo "::group::$g"
+            bash "$g" || { echo "::error::$g failed"; rc=1; }
+            echo "::endgroup::"
+          done
+          python3 scripts/payload-rung-sweep.py --check || rc=1
+          exit $rc
+      - uses: dtolnay/rust-toolchain@stable
+        if: needs.filter.outputs.run_build == 'true'
+      - uses: Swatinem/rust-cache@v2
+        if: needs.filter.outputs.run_build == 'true'
+        with:
+          shared-key: lint
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: rustfmt
+        if: needs.filter.outputs.run_build == 'true'
+        run: cargo fmt --all --check && (cd benches && cargo fmt --all --check)
+      - name: clippy (--all-features)
+        if: needs.filter.outputs.run_build == 'true'
+        env:
+          TIER: ${{ needs.filter.outputs.tier }}
+          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+          TOOLKIT: ${{ needs.filter.outputs.run_viewer_toolkit }}
+        run: |
+          # viewer's `app` feature is the eframe/wgpu graph; the viewer job
+          # lints it when the diff seeds viewer, pncad or bvh.
+          if [ "$TIER" = all ]; then
+            cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
+          else
+            [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
+            # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+            cargo clippy $SCOPE --all-targets --all-features -- -D warnings
+          fi
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-default
+          save-if: false
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: build
+        run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
+      - name: test (default eps)
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
+        run: |
+          cargo nextest run --profile ci ${{ needs.filter.outputs.cargo_scope }} \
+            ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast
+      - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates this diff seeds)
+        if: '!cancelled() && needs.filter.outputs.eps_extra != '''''
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
+          EPS_EXTRA: ${{ needs.filter.outputs.eps_extra }}
+        run: |
+          expr="($EPS_EXTRA)${TEST_FILTER:+ & ($TEST_FILTER)}"
+          rc=0
+          for eps in 1e-6 1e-12; do
+            echo "::group::eps=$eps: $EPS_EXTRA"
+            CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
+              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
+      - name: test (the slow set of the crates this diff seeds)
+        if: '!cancelled() && needs.filter.outputs.seeds != '''''
+        env:
+          SEEDS: ${{ needs.filter.outputs.seeds }}
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
+        run: |
+          # The `ci` profile skips the slow set; a crate's own slow tests still
+          # run when the diff touches that crate.
+          slow="$(python3 -c "import tomllib; f = tomllib.load(open('.config/nextest.toml', 'rb'))['profile']['ci']['default-filter'].strip(); assert f.startswith('not ('); print(f[4:])")"
+          pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
+          cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
+            -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass
+      - name: doc-tests
+        if: '!cancelled()'
+        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+
+  viewer:
+    name: viewer app feature (eframe + wgpu, wasm32)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_viewer_toolkit == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: viewer
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: clippy (viewer app feature)
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+      - name: install a software Vulkan adapter (lavapipe)
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        run: cargo nextest run --profile ci -p viewer --features app
+      - name: wasm32 clippy (the browser entry point)
+        run: |
+          rustup target add wasm32-unknown-unknown
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
+
+  python:
+    name: python suite (wheel + guide + north-star)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_python == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: python
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
+      - name: build and install the wheel
+        run: |
+          curl -LsSf --retry 5 "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
+          maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
+          python -m venv --clear "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install target/wheels/pncad-*.whl "ty==$TY_VERSION"
+      - name: run the Python suite
+        env:
+          PNCAD_TY: ${{ runner.temp }}/venv/bin/ty
+        run: |
+          set -o pipefail
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover \
+            --start-directory crates/pncad-py/tests \
+            --top-level-directory crates/pncad-py/tests 2>&1 | tee "$RUNNER_TEMP/py.log"
+          grep -qE '^Ran [1-9][0-9]* test' "$RUNNER_TEMP/py.log"
+
+  topo-release:
+    name: corrupt input (release profile)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_topo_release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: topo-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: corrupt-input suites, release profile
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
+        run: |
+          set -o pipefail
+          cargo test --release -p topo --lib -- \
+            review_m1_pr2::release_corruption \
+            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_d18 | tee release-corruption.log
+          grep -qE '^test result: ok\. [1-9][0-9]* passed' release-corruption.log
+
+  mesh-budget:
+    name: mesh budget meter + certificate falsifier
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_mesh_budget == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: mesh-budget
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: mesh --features budget
+        run: |
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings
+          cargo test -p mesh --features budget
+
+  step-import:
+    name: step import (freecad)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_step_export == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: cache freecad
+        id: cache-freecad
+        uses: actions/cache@v4
+        with:
+          path: ~/freecad-appimage
+          key: freecad-1.1.2-appimage-extracted
+      - name: install freecad (AppImage 1.1.2, checksum-verified)
+        if: steps.cache-freecad.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/freecad-appimage && cd ~/freecad-appimage
+          curl -sLO --retry 5 https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          curl -sLO --retry 5 https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          sha256sum -c FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          chmod +x FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          ./FreeCAD_1.1.2-Linux-x86_64-py311.AppImage --appimage-extract > /dev/null
+          rm FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+      - name: freecad import check (validity, counts, volume)
+        run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
+
+  demos:
+    name: demos (tour + wild)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_demos == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: demos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            demos/tour
+            demos/wild
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: fmt + clippy
+        run: |
+          (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+          (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+      - name: demos tour suite
+        run: cd demos/tour && cargo nextest run --release --no-fail-fast
+
+  tools:
+    name: tools (k-lint, tess-lint, tess-meter)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_tools == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tools
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            tools/k-lint
+            tools/tess-lint
+            tools/tess-meter
+      - name: fmt + clippy + tests
+        run: |
+          for t in k-lint tess-lint tess-meter; do
+            (cd "tools/$t" && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+          done
+
+  interval:
+    name: interval
+    needs: filter
+    if: needs.filter.outputs.run_interval_backend == 'true' || needs.filter.outputs.run_interval_oracle == 'true'
+    uses: ./.github/workflows/interval.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ needs.filter.outputs.sha }}
+      run_interval_backend: ${{ needs.filter.outputs.run_interval_backend }}
+      run_interval_oracle: ${{ needs.filter.outputs.run_interval_oracle }}
+
+  # Warms the build cache PRs restore. Pushes to main run nothing else.
+  cache-prime:
+    name: prime the build cache
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: build-default
+      - name: build the dependency graph (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo test --no-run --workspace
+
+  # The one check to read: green when every job that ran passed.
+  gate-ok:
+    name: gate ok
+    if: always() && !cancelled() && github.event_name != 'push'
+    needs: [filter, lint, test, viewer, python, topo-release, mesh-budget, step-import, demos, tools, interval]
+    runs-on: ubuntu-latest
+    steps:
+      - name: every job that ran is green
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          RENDER_DISPATCH: ${{ needs.filter.outputs.render_dispatch }}
+        run: |
+          echo "results: $RESULTS"
+          [ "$RENDER_DISPATCH" != failed ] || { echo "the [render] dispatch failed (change filter's log)"; exit 1; }
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac

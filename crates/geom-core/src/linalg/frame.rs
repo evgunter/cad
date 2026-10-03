@@ -1,0 +1,1365 @@
+//! Frame constructors: the placement vocabulary, as plain [`Affine3`]
+//! values.
+//!
+//! Three constructors, each answering a pain row of the corpus survey
+//! (`docs/LIBRARY-DESIGN.md` §L2):
+//!
+//! - [`point_at`] — a frame at an eye position whose local **+Z** aims
+//!   at a target, roll fixed by an explicit reference (P6: manual
+//!   axis-angle placement with antiparallel special-casing, and no
+//!   point-at affordance anywhere).
+//! - [`path_start_frame`] — the profile frame at the start of a swept
+//!   path: local **+Z** is the path tangent, so the local XY plane is
+//!   the profile plane. It is where the sweep corpus and the demo tour
+//!   get that frame; the pain row it answers (P1) was the Gram–Schmidt
+//!   recipe written out at each sweep call site, every copy carrying
+//!   its own degenerate-axis dodge.
+//! - [`mirror_across_plane`] — reflection across a plane (P6: no
+//!   mirror anywhere, so symmetric arrangements are placed by hand,
+//!   one leaf at a time).
+//!
+//! All three return an [`Affine3`], the general affine map: the linear
+//! part's columns are the frame's local +X/+Y/+Z axes in world
+//! coordinates, and the translation is the frame's origin. Composition,
+//! inversion, and application are [`Affine3`]'s, unchanged. The two
+//! aiming constructors build their axes through [`OrthoFrame`], the
+//! witness that RECORDS the orthonormality they decided, and convert;
+//! [`mirror_across_plane`] cannot, because a reflection is not a frame
+//! (`det = −1`).
+//!
+//! # The roll convention (one sentence, pinned)
+//!
+//! For both aiming constructors the frame's local **+Z is the aim
+//! direction**, and the **roll reference lies in the local +Y
+//! half-plane**: the reference's component perpendicular to the aim is
+//! a positive multiple of local +Y, and the reference has no local +X
+//! component. Equivalently, with `ẑ` the unit aim and `r` the
+//! reference: `x̂ = normalize(r × ẑ)`, `ŷ = ẑ × x̂`. The frame is
+//! right-handed (`det = +1`), so `x̂ × ŷ = ẑ`.
+//!
+//! # The degenerate-axis policy (a rule, not a dodge)
+//!
+//! An aim direction alone does not determine a frame — the roll is
+//! free — so every constructor needs a reference direction off the aim
+//! line. The hand-rolled twins picked one with a magic-constant dodge
+//! (`if n.z.abs() < 0.9 { e_z } else { e_x }`). The policy here:
+//!
+//! 1. **Every degeneracy is decided, never guessed.** The aim length
+//!    and the reference's perpendicular offset are both *lengths*, and
+//!    both are classified through the one predicate funnel against the
+//!    run's linear band — so "too short to aim with" and "too close to
+//!    the aim line to roll with" are tolerance decisions, not
+//!    hard-coded thresholds.
+//! 2. **[`point_at`] takes its reference explicitly and refuses.** The
+//!    caller stated the roll; a reference on the aim line is a
+//!    modelling mistake, and guessing a different one would silently
+//!    change the answer the caller asked for.
+//! 3. **[`path_start_frame`] has a named ladder.** No reference is
+//!    authored (a sweep's profile frame is conventional), so the
+//!    ladder is world **+Z, then world +X**, in that order; a rung is
+//!    taken only when its offset off the tangent line is a *decided*
+//!    direction, and every other outcome — coincident, ambiguous, or a
+//!    length the format could not hold — advances to the next rung (an
+//!    ambiguous reference is not a usable reference).
+//! 4. **True degeneracy refuses, typed.** A zero-length tangent
+//!    refuses [`FrameInput::Tangent`] — a tangent that merely
+//!    MEASURES zero because its length underflowed is clause 5's, not
+//!    this one's; a unit tangent at a
+//!    POINT scalar can never miss both ladder rungs (world +Z and +X
+//!    are orthogonal), so [`FrameInput::ReferenceLadder`] refuses
+//!    rather than inventing a frame and no input is known to reach
+//!    it. "Known" is doing real work there — see the variant's docs
+//!    for the enclosure that is not ruled out.
+//! 5. **Both format questions are asked before sign.** Every length
+//!    here is a vector's own norm decided by [`UnitVec3::new`] — the
+//!    aim's and the tangent's directly, the roll offset's inside
+//!    `OrthoFrame::from_aim` — so all of them are classified by
+//!    the same three questions in the same order, and the first is
+//!    [`is_finite_length`](crate::is_finite_length): a direction past
+//!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
+//!    norm, which is maximally DEFINITE to the classifier and
+//!    normalizes to the zero vector, so deciding the sign first
+//!    returns a frame built from nothing. That refusal is
+//!    [`FrameError::NonFiniteLength`], and it names the
+//!    [`FrameVector`] whose length is not a number.
+//!
+//!    It then asks [`is_underflowed_length`](crate::is_underflowed_length), against that vector's
+//!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
+//!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
+//!    squares to zero, so its norm is EXACTLY zero and the sign
+//!    decision answers `Zero` definitely — a true statement about the
+//!    arithmetic and a false one about the input, which has a
+//!    perfectly good direction the format cannot measure. That
+//!    refusal is [`FrameError::UnderflowedLength`], separated from
+//!    clause 4's degeneracy because its recourse is the overflow
+//!    end's (scale the geometry) and no band reaches it.
+//!
+//!    **Both gates are POINT-scalar gates.** They ask through the
+//!    value channel, and at `T = Interval` neither bites:
+//!    `Interval::is_poison` is `is_nai() || is_empty()`, so
+//!    `[1e200, ∞] − [1e200, ∞]` is `[−∞, ∞]`, which answers
+//!    finite; and a norm whose lower end underflowed still ENCLOSES
+//!    the true length, so the underflow ratio is an unbounded
+//!    enclosure rather than poison and the question answers `false`.
+//!    So clause 5 bites at `f64` and `Probe` and waves an enclosure
+//!    through to the sign decision below. No live caller instantiates
+//!    this module at `Interval` today; the honest scope is stated at
+//!    [`is_finite_length`](crate::is_finite_length) itself.
+//!
+//! The ladder is a *convention*, and conventions are discontinuous:
+//! the frame flips as the tangent crosses the ladder's switch-over.
+//! That is the hairy-ball residue [`Vec3::orthonormal_basis`] documents
+//! for its own construction; consumers wanting a frame stable across a
+//! parameter change store it as data (D2) rather than re-deriving it.
+//!
+//! # Resonance with the PATHS placement family (LQ3(c) amendment)
+//!
+//! The PATHS algebra (`docs/PATHS-DESIGN.md` §2) already has a
+//! placement vocabulary for putting an authored curve value onto a
+//! bound tip. This family uses **the same words for the same
+//! meanings**:
+//!
+//! | This module | PATHS term | The shared meaning | Where the two differ |
+//! |---|---|---|---|
+//! | [`point_at`] | `nurbs(curve)` | **Placement is rigid**: a translation and a rotation taking one direction onto another. No scale, no deformation — the map places, it never edits. | PATHS spends the tip's 2 + 1 DOF, its roll implied by the profile plane; in 3-D the roll is a real DOF, so it is an explicit argument. |
+//! | [`path_start_frame`] | the departure half of `nurbs(curve)` | The **tangent-onto-direction** binding: the frame's +Z is the path tangent exactly as the placement rotation takes the curve's start tangent onto the departure. | PATHS reads the departure from the bound tip; here there is no tip, so the missing roll DOF comes from the ladder above. |
+//! | [`mirror_across_plane`] | `nurbs_mirrored(curve)` | **Mirror means reflection**: the codimension-1 fixed set, `det = −1`, handedness reversed, curvature/winding signs flipped. Still an isometry; still no scale. | PATHS reflects across the departure *line* in the 2-D profile plane; the 3-D analog is a *plane*. Both are the codimension-1 mirror of their ambient — see [`mirror_across_plane`] on why the 3-D *line* form is deliberately not called a mirror. |
+//! | *(none)* | `nurbs_reversed(curve)` | — | No analog, deliberately: reversal is a *parameterization* flip on curve data, and a frame has no parameterization to flip. |
+//!
+//! **Unification: NOT done, and it should not be forced.** The
+//! vocabulary is shared; the code is not. PATHS' placements are
+//! typestate transitions in a 2-D profile algebra that consume DOFs
+//! from a bound tip and record a program step; these are total 3-D
+//! value constructors over [`Affine3`] with no lattice, no tip, and no
+//! recording. The one thing a unification could share — the
+//! tangent-onto-direction rotation — is three lines in each and
+//! carries different degeneracy policies (PATHS refuses at the
+//! typestate; here the ladder applies). Sharing the words is the whole
+//! win; sharing an abstraction would cost a layer.
+
+use crate::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
+use crate::predicate::{Band, BandError, Decide, Indeterminate, NO_DECLARATION_RECOURSE};
+
+use crate::tolerance::Tol;
+
+/// Which input a [`FrameError::Degenerate`] refusal is about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FrameInput {
+    /// [`point_at`]'s aim: the displacement from eye to target, whose
+    /// length was not definitely nonzero (the two points coincide, sit
+    /// inside the ambiguity band, or one of them is poisoned).
+    Aim,
+    /// [`path_start_frame`]'s tangent, whose length was not definitely
+    /// nonzero.
+    Tangent,
+    /// [`point_at`]'s roll reference, whose perpendicular offset from
+    /// the aim line was not definitely nonzero: it is parallel or
+    /// antiparallel to the aim, too short to state a direction, or
+    /// poisoned.
+    ///
+    /// It also names a reference whose own perpendicular offset has no
+    /// finite length — a reference past [`Vec3::normalize`]'s ~1e154
+    /// overflow band, whose cross product with the unit aim overflows
+    /// — through [`FrameError::NonFiniteLength`]. That is this
+    /// input's own failure, decided here: the aim is asked about
+    /// first, at its own name.
+    RollReference,
+    /// [`path_start_frame`]'s reference ladder ran out: neither world
+    /// +Z nor world +X was definitely off the tangent line. The
+    /// overflow class that used to arrive here — a tangent past
+    /// [`Vec3::normalize`]'s ~1e154 band, which normalizes to the zero
+    /// vector after passing a decision taken on an infinite norm — is
+    /// now refused at the tangent's own name as
+    /// [`FrameError::NonFiniteLength`].
+    ///
+    /// **No input is known to reach this variant, and that is weaker
+    /// than "it is dead".** At a point scalar the two rungs are
+    /// orthogonal, so a unit tangent is definitely off at least one of
+    /// them. That argument does not carry to every `T: Decide`: a wide
+    /// enclosure whose norm is definitely positive but whose
+    /// components each straddle zero escalates BOTH rungs and lands
+    /// here. So the variant is kept and refuses rather than inventing
+    /// a frame — deleting it would be a claim about the generic
+    /// signature that this module cannot make.
+    ///
+    /// What IS provably dead is the combination of this input with
+    /// [`FrameError::NonFiniteLength`], because the ladder decides its
+    /// rungs with a bare `decide` rather than through either road that
+    /// raises that arm. [`FrameVector`] is the type that removes it.
+    ReferenceLadder,
+    /// [`mirror_across_plane`]'s plane normal, whose length was not
+    /// definitely nonzero.
+    MirrorNormal,
+}
+
+impl FrameInput {
+    /// The input's name, for messages and pins.
+    pub fn name(self) -> &'static str {
+        match self {
+            FrameInput::Aim => "aim (target − eye)",
+            FrameInput::Tangent => "path tangent",
+            FrameInput::RollReference => "roll reference",
+            FrameInput::ReferenceLadder => "reference ladder (world +Z, then world +X)",
+            FrameInput::MirrorNormal => "mirror plane normal",
+        }
+    }
+
+    /// The decision an in-band refusal about this input left open, in
+    /// words.
+    fn subject(self) -> &'static str {
+        match self {
+            FrameInput::Aim => "whether the frame's aim (target − eye) has any length",
+            FrameInput::Tangent => "whether the frame's path tangent has any length",
+            FrameInput::RollReference => {
+                "whether the frame's roll reference has any length off the aim line"
+            }
+            FrameInput::ReferenceLadder => {
+                "whether either rung of the frame's reference ladder (world +Z, then world +X) \
+                 is off the tangent line"
+            }
+            FrameInput::MirrorNormal => "whether the frame's mirror plane normal has any length",
+        }
+    }
+}
+
+/// **Which CALLER-SUPPLIED vector had no finite length** — the
+/// payload of [`FrameError::NonFiniteLength`], and deliberately a
+/// smaller type than [`FrameInput`].
+///
+/// [`FrameInput`] has a fifth member, [`FrameInput::ReferenceLadder`],
+/// which names a pair of unit CONSTANTS rather than anything a caller
+/// hands in. Structurally the ladder never reports this fact at all:
+/// a rung whose offset is not a decided length — non-finite,
+/// underflowed, degenerate or in-band alike — ADVANCES the ladder, and
+/// the only refusal the ladder itself raises is the exhausted one,
+/// [`FrameError::Degenerate`] at [`FrameInput::ReferenceLadder`] — so
+/// nothing can construct a non-finite refusal naming the ladder.
+/// Reusing [`FrameInput`] here
+/// would make that dead combination REPRESENTABLE, and — because the
+/// payload crosses to Python as a tag word — would mint
+/// `non_finite_reference_ladder`, an FFI word for a state no input
+/// produces, on a public surface where a caller could branch on it
+/// forever. The four members below are exactly the four vectors the
+/// four doors take.
+///
+/// This is NOT a claim that [`FrameInput::ReferenceLadder`] is dead.
+/// It is not: that variant's own docs record why no unit tangent is
+/// known to reach it and why it is kept anyway. What is provably dead
+/// is the COMBINATION, and that is what this type removes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FrameVector {
+    /// [`point_at`]'s aim, `target − eye`.
+    Aim,
+    /// [`path_start_frame`]'s tangent.
+    Tangent,
+    /// [`point_at`]'s roll reference — specifically, its
+    /// perpendicular offset from the aim line.
+    RollReference,
+    /// [`mirror_across_plane`]'s plane normal.
+    MirrorNormal,
+}
+
+impl FrameVector {
+    /// The vector's name, for messages and pins — the same words
+    /// [`FrameInput::name`] uses for the same four inputs.
+    pub fn name(self) -> &'static str {
+        FrameInput::from(self).name()
+    }
+}
+
+impl From<FrameVector> for FrameInput {
+    fn from(v: FrameVector) -> Self {
+        match v {
+            FrameVector::Aim => FrameInput::Aim,
+            FrameVector::Tangent => FrameInput::Tangent,
+            FrameVector::RollReference => FrameInput::RollReference,
+            FrameVector::MirrorNormal => FrameInput::MirrorNormal,
+        }
+    }
+}
+
+/// A typed frame-construction refusal (D9: fail loud, never a guess,
+/// never a panic).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FrameError {
+    /// An input direction was not definitely usable — see
+    /// [`FrameInput`] for which one and what "usable" means for it.
+    /// `indeterminate` carries the classifier's payload when the
+    /// margin landed in the ambiguity band, and is `None` when the
+    /// margin was a definite zero.
+    Degenerate {
+        /// The offending input.
+        input: FrameInput,
+        /// The in-band classification, when that is what happened.
+        indeterminate: Option<Indeterminate>,
+    },
+    /// An input direction's length is **not a finite number**, so no
+    /// sign decision about it means anything — see [`FrameVector`]
+    /// for which one. Distinct from [`FrameError::Degenerate`] on
+    /// purpose: the direction is not zero and no tolerance lever
+    /// reaches it.
+    ///
+    /// The payload is [`FrameVector`], NOT the [`FrameInput`] its
+    /// sibling carries, and the narrowing is the point: only a
+    /// caller-supplied vector can be non-finite, so
+    /// [`FrameInput::ReferenceLadder`] — a pair of unit constants
+    /// decided outside this question's only door — is not
+    /// representable here. See [`FrameVector`] for the whole argument.
+    NonFiniteLength {
+        /// The offending vector.
+        input: FrameVector,
+    },
+    /// An input direction's length **underflowed out of the format**:
+    /// its components are small enough (below ~1e-162 at `f64`) that
+    /// `norm_squared` flushed to zero, so the norm is exactly zero for
+    /// a vector that has a perfectly good direction.
+    ///
+    /// Distinct from [`FrameError::Degenerate`] on purpose, and the
+    /// distinction is what carries the recourse: a degenerate input
+    /// names no direction, and the answer is to move the geometry or
+    /// to widen the band; this one names a direction the format cannot
+    /// measure, and **no tolerance lever reaches it** — the squared
+    /// norm is zero at every eps. The recourse is the overflow end's,
+    /// scale, which is why this variant sits beside
+    /// [`FrameError::NonFiniteLength`] rather than beside the
+    /// degenerate arm it used to be reported as.
+    ///
+    /// The payload is [`FrameVector`] for the same reason its sibling's
+    /// is: only a caller-supplied vector can underflow, so
+    /// [`FrameInput::ReferenceLadder`] — a pair of unit constants
+    /// decided outside this question's only door — is not
+    /// representable here.
+    UnderflowedLength {
+        /// The offending vector.
+        input: FrameVector,
+    },
+    /// The run's tolerance does not yield a usable band (see
+    /// [`Band::linear`]) — reported, not worked around.
+    Band(BandError),
+}
+
+impl core::fmt::Display for FrameError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            // No frame door takes a declaration, and the mate's
+            // declares a contact class, not a direction's length: the
+            // recourse is the levers every door here has.
+            FrameError::Degenerate {
+                input,
+                indeterminate: None,
+            } => write!(
+                f,
+                "the frame's {} is degenerate. Recourse: {NO_DECLARATION_RECOURSE}",
+                input.name()
+            ),
+            FrameError::Degenerate {
+                input,
+                indeterminate: Some(i),
+            } => write!(
+                f,
+                "{} is undecided: {}. Recourse: {NO_DECLARATION_RECOURSE}",
+                input.subject(),
+                i.payload()
+            ),
+            FrameError::NonFiniteLength { input } => write!(
+                f,
+                "the frame's {} has no finite length (a component overflows the norm or \
+                 is not a number). Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
+            ),
+            FrameError::UnderflowedLength { input } => write!(
+                f,
+                "the frame's {} has a length that underflowed out of the format, though \
+                 it still names a direction. Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
+            ),
+            FrameError::Band(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl core::error::Error for FrameError {}
+
+/// A refusal of [`UnitVec3::new`] in this module's vocabulary, for
+/// the caller-supplied vector it was about. Total: the constructor
+/// asks its three questions — finite, underflowed, which side of zero
+/// — on the vector's own norm, so every normalizing door here mints
+/// the witness through it under its own funnel name and maps the four
+/// facts onto this module's four refusals, arm for arm.
+fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
+    match e {
+        UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength { input },
+        UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength { input },
+        UnitVec3Error::Degenerate => FrameError::Degenerate {
+            input: input.into(),
+            indeterminate: None,
+        },
+        UnitVec3Error::Escalated(i) => FrameError::Degenerate {
+            input: input.into(),
+            indeterminate: Some(i),
+        },
+    }
+}
+
+/// A frame at `eye` whose local **+Z axis aims at `target`**, with roll
+/// fixed by `roll_reference` per the module docs' convention: the
+/// reference lies in the local +Y half-plane (no local +X component,
+/// positive local +Y component).
+///
+/// The result is a **rigid placement** — columns orthonormal, `det =
+/// +1`, no scale, no deformation — so it composes with, and inverts
+/// through, [`Affine3`] like any other pose. Applying it takes local
+/// coordinates to world: local `(0,0,d)` lands `d` along the aim,
+/// local origin lands on `eye`.
+///
+/// Evaluation order (fixed, D9): `aim = target − eye`; the aim length
+/// is decided; `ẑ = aim / |aim|`; `perp = roll_reference × ẑ`; then
+/// `OrthoFrame::from_aim`'s order, which decides `perp`'s length,
+/// divides by it, and crosses.
+///
+/// # Errors
+///
+/// - [`FrameInput::Aim`] when `target` and `eye` are not definitely
+///   distinct — there is no direction to aim along.
+/// - [`FrameInput::RollReference`] when the reference's perpendicular
+///   offset from the aim line is not definitely nonzero: parallel,
+///   antiparallel, zero, or poisoned. This constructor **refuses
+///   rather than substituting a reference** — the caller stated the
+///   roll, and a silent substitution would answer a different
+///   question. Callers wanting a conventional roll want
+///   [`path_start_frame`], whose ladder is the stated policy.
+/// - [`FrameError::NonFiniteLength`] when the aim's length, or the
+///   reference's perpendicular offset from the aim line, is not a
+///   finite number — each at its own [`FrameInput`].
+/// - [`FrameError::UnderflowedLength`] when either of those lengths
+///   underflowed out of the format, at the same two [`FrameInput`]s.
+///   Asked before the sign, so it precedes the degenerate rows above:
+///   the input has a direction, and only scale recovers it.
+/// - [`FrameError::Band`] from [`Band::linear`].
+pub fn point_at<T: Decide>(
+    eye: Point3<T>,
+    target: Point3<T>,
+    roll_reference: Vec3<T>,
+    tol: Tol,
+) -> Result<Affine3<T>, FrameError> {
+    Ok(point_at_frame(eye, target, roll_reference, tol)?.to_affine())
+}
+
+/// [`point_at`]'s frame as the WITNESS it is built from, before the
+/// conversion to a placement — the same ladder, so a caller that
+/// needs the aim as a [`UnitVec3`] (its `w`) beside the affine holds
+/// the decision the ladder made rather than re-asking it or reading
+/// a column back off the map. `point_at` is this door's `to_affine`,
+/// so the two are one construction and agree bit for bit by
+/// construction.
+///
+/// The evaluation order, the roll convention and the refusals are
+/// [`point_at`]'s, stated there once.
+///
+/// # Errors
+///
+/// Exactly [`point_at`]'s.
+pub fn point_at_frame<T: Decide>(
+    eye: Point3<T>,
+    target: Point3<T>,
+    roll_reference: Vec3<T>,
+    tol: Tol,
+) -> Result<OrthoFrame<T>, FrameError> {
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
+    let aim = target - eye;
+    let unit = UnitVec3::new(aim, "frame_point_at_aim", band)
+        .map_err(|e| refused_direction(e, FrameVector::Aim))?;
+    let perp = roll_reference.cross(unit.get());
+    OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
+        .map_err(|e| refused_direction(e.error, FrameVector::RollReference))
+}
+
+/// The profile frame at the start of a swept path: a frame at `origin`
+/// whose local **+Z is the path `tangent`**, so the local XY plane is
+/// the plane the profile is drawn in and the local X/Y axes are that
+/// plane's in-plane axes.
+///
+/// This is P1's Gram–Schmidt recipe, written once. Roll comes from the
+/// module docs' reference **ladder** — world +Z, then world +X — so no
+/// call site carries a magic-constant dodge, and the switch-over is a
+/// tolerance decision rather than a hard-coded cone.
+///
+/// `tangent` need not be unit; only its *direction* is used. Its
+/// magnitude is read as a length for the degeneracy decision, so a
+/// tangent in units other than the run's (a derivative with respect to
+/// a non-arc-length parameter, say) should be normalized by the caller
+/// — which also puts the decision safely far from the band.
+///
+/// # Errors
+///
+/// - [`FrameInput::Tangent`] when the tangent's length is not
+///   definitely nonzero (a stationary point of the path, or poison).
+/// - [`FrameInput::ReferenceLadder`] when neither rung is definitely
+///   off the tangent line — unreachable for an actual direction; see
+///   the variant's docs.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::Tangent`] when
+///   the tangent's length is not a finite number — asked before the
+///   sign, so it precedes the [`FrameInput::Tangent`] row above.
+/// - [`FrameError::UnderflowedLength`] at [`FrameInput::Tangent`] when
+///   that length underflowed out of the format — a tangent of
+///   `(0, 0, 1e-200)` names the +Z direction perfectly well and
+///   measures exactly zero. Also asked before the sign.
+/// - [`FrameError::Band`] from [`Band::linear`].
+pub fn path_start_frame<T: Decide>(
+    origin: Point3<T>,
+    tangent: Vec3<T>,
+    tol: Tol,
+) -> Result<Affine3<T>, FrameError> {
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
+    let unit = UnitVec3::new(tangent, "frame_path_start_tangent", band)
+        .map_err(|e| refused_direction(e, FrameVector::Tangent))?;
+    // The ladder, in order. A rung is taken only when its offset is a
+    // DECIDED direction: every other outcome — the rung lies on the
+    // tangent line, the offset is too close to it to fix a roll, or
+    // its length left the format at either end — advances. The last
+    // in-band classification is kept so the refusal can carry the
+    // payload the ladder ended on.
+    let mut last = None;
+    for (name, reference) in [
+        ("frame_path_start_reference_z", Vec3::unit_z()),
+        ("frame_path_start_reference_x", Vec3::unit_x()),
+    ] {
+        let perp = reference.cross(unit.get());
+        match OrthoFrame::from_aim(origin, unit, perp, name, band) {
+            Ok(frame) => return Ok(frame.to_affine()),
+            Err(e) => match e.error {
+                UnitVec3Error::Escalated(i) => last = Some(i),
+                _ => last = None,
+            },
+        }
+    }
+    Err(FrameError::Degenerate {
+        input: FrameInput::ReferenceLadder,
+        indeterminate: last,
+    })
+}
+
+/// Reflection across the plane through `point` with normal `normal`
+/// (the normal need not be unit; only its direction is used).
+///
+/// The map is the Householder reflection `I − 2 n̂ n̂ᵀ` about the
+/// plane's normal, translated to fix `point`. Points on the plane are
+/// fixed; `n̂` maps to `−n̂`; the map is its own inverse.
+///
+/// # Orientation consequence (the stated one)
+///
+/// A reflection has **`det = −1`**: it is an isometry — lengths,
+/// angles, and the "no scale, no deformation" half of *placement* all
+/// survive — but it is **not a rigid motion**. Handedness reverses, so
+/// everything that carries an orientation flips with it: a
+/// right-handed frame becomes left-handed, surface normals point into
+/// what used to be the inside, loop windings and curvature signs
+/// reverse. Any consumer that pushes oriented data through this map
+/// must reverse that orientation itself; a consumer that checks for
+/// rigidity (`det = +1`) will refuse the map, correctly, and that
+/// refusal is the reason mirroring a *body* is a topology-layer
+/// operation and not merely this matrix.
+///
+/// # Why there is no `mirror_across_line`
+///
+/// In the 2-D profile plane, "mirror across a line" is the reflection
+/// — codimension 1, `det = −1`, curvature signs flipped (PATHS'
+/// `nurbs_mirrored`). In 3-D a line is codimension 2, and the map
+/// fixing it pointwise is the **half-turn** about it, which has
+/// `det = +1` and preserves handedness. Calling that "mirror" would
+/// state the opposite of the truth about orientation, so it is not
+/// spelled here: the half-turn already exists as
+/// [`Affine3::rotation_about_axis`] with angle π.
+///
+/// Evaluation order (fixed, D9): decide `|normal|`; `n̂ = normal /
+/// |normal|`; `t = n̂ · 2`; columns `e_j − t·n̂_j` in index order;
+/// translation `n̂ · (2·(n̂·q))` for `q = point − O` — the dot product
+/// first, in [`Vec3::dot`]'s own association, then the factor 2 on that
+/// scalar, then the componentwise scale of `n̂`.
+///
+/// That last step is a projection onto a UNIT direction written out
+/// here rather than routed through [`Vec3::project_onto`], which is the
+/// one regrouping that method's own contract permits: `project_onto`
+/// divides by `|onto|²` in every case, one code path and one rounding
+/// story, and `n̂` is already unit — so the division would be by a
+/// quantity that is 1 up to rounding and could only add a rounding to
+/// an otherwise exact scale. The doubling and the scale are both exact
+/// in the binary sense; going through the door would not be.
+///
+/// **The anchor is mentioned once.** A Householder reflection has
+/// `I − L = 2·n̂n̂ᵀ`, so the translation that fixes `point` is
+/// `2·n̂(n̂·q)`. At `T = Interval` a repeated operand does not cancel, so
+/// a spelling that subtracts the anchor and adds it back charges
+/// `2·width(point)` to EVERY component — including the components where
+/// the plane's normal vanishes and the translation is exactly zero.
+/// This spelling attains the width of the IMAGE of the anchor's
+/// enclosure under the map, up to its own rounding floor; no sound
+/// enclosure of that image is narrower, though the floor itself is a
+/// rounding accident and can fall either way. Reflecting an anchor box
+/// of half-width 1e-9 across the `xy` plane gives a translation of width
+/// `[0, 0, 4e-9]` rather than `[4e-9, 4e-9, 4e-9]`; per component, over
+/// the corpus in `geom-core/tests/props1_evidence.rs`, the exact-normal
+/// rows range from 0.78× (a floor accident) to 5.3× narrower plus ten
+/// components that become exactly zero, and the wide-normal rows from
+/// 1.0× to 3.3e5× narrower.
+///
+/// The `2·n̂n̂ᵀ` operator has no named home the way `I − R` has
+/// [`Mat3::identity_minus_rotation_about`], deliberately: `I − R`'s
+/// vanishing factor lives inside a transcendental (`1 − cos θ`) that a
+/// caller cannot spell correctly on its own, whereas this one is a
+/// scalar times a unit vector, correct at the only site that wants it,
+/// and a `Mat3` operator would materialize nine entries to read three.
+///
+/// # Errors
+///
+/// - [`FrameInput::MirrorNormal`] when the normal's length is not
+///   definitely nonzero — no plane is named.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::MirrorNormal`]
+///   when that length is not a finite number. Asked first: an
+///   overflowed normal used to read maximally definite and return the
+///   IDENTITY, a mirror that mirrors nothing.
+/// - [`FrameError::UnderflowedLength`] at [`FrameInput::MirrorNormal`]
+///   when that length underflowed out of the format. Asked second: an
+///   underflowed normal names a plane, and reporting it as a
+///   degenerate one offers a band the arithmetic cannot reach.
+/// - [`FrameError::Band`] from [`Band::linear`].
+pub fn mirror_across_plane<T: Decide>(
+    point: Point3<T>,
+    normal: Vec3<T>,
+    tol: Tol,
+) -> Result<Affine3<T>, FrameError> {
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
+    // The witness is read back at once: the Householder entries are
+    // its components, and no door below takes the type.
+    let n = UnitVec3::new(normal, "frame_mirror_normal", band)
+        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?
+        .get();
+    let two = T::from_f64(2.0);
+    let t = n * two;
+    let linear = Mat3::from_cols(
+        Vec3::unit_x() - t * n.x,
+        Vec3::unit_y() - t * n.y,
+        Vec3::unit_z() - t * n.z,
+    );
+    let q = point - Point3::origin();
+    Ok(Affine3::from_parts(linear, n * (n.dot(q) * two)))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::tolerance::Tol;
+
+    /// **`point_at` IS `point_at_frame`'s placement**, pinned where a
+    /// reader can see it rather than left to the one-line body: over
+    /// a grid of aims (every combination of signed units, halves,
+    /// in-band and sub-band lengths, underflowing and overflowing
+    /// magnitudes, the non-finite values), six references and four
+    /// origins, the affine and the frame's `to_affine` agree bit for
+    /// bit and the two doors refuse with one `FrameError`.
+    #[test]
+    fn point_at_is_point_at_frame_to_affine_bit_for_bit() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let vals = [
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            0.5,
+            -0.3,
+            3.0 * eps,
+            0.5 * eps,
+            1e-200,
+            1e200,
+            f64::NAN,
+            f64::INFINITY,
+        ];
+        let refs = [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 1.0, 1e-12),
+            Vec3::new(-0.0, 3e-9, 1.0),
+        ];
+        let origins = [
+            Point3::origin(),
+            Point3::new(1e6, -1e6, 1e6),
+            Point3::new(-0.0, -0.0, -0.0),
+        ];
+        let bits = |a: &Affine3<f64>| {
+            let l = a.linear;
+            [
+                l.c0.x,
+                l.c0.y,
+                l.c0.z,
+                l.c1.x,
+                l.c1.y,
+                l.c1.z,
+                l.c2.x,
+                l.c2.y,
+                l.c2.z,
+                a.translation.x,
+                a.translation.y,
+                a.translation.z,
+            ]
+            .map(f64::to_bits)
+        };
+        let (mut placed, mut refused) = (0_u32, 0_u32);
+        for x in vals {
+            for y in vals {
+                for z in vals {
+                    for r in refs {
+                        for eye in origins {
+                            let target = eye + Vec3::new(x, y, z);
+                            let affine = point_at(eye, target, r, tol);
+                            let frame = point_at_frame(eye, target, r, tol);
+                            match (affine, frame) {
+                                (Ok(a), Ok(f)) => {
+                                    placed += 1;
+                                    assert_eq!(bits(&a), bits(&f.to_affine()), "at {x} {y} {z}");
+                                }
+                                (Err(a), Err(f)) => {
+                                    refused += 1;
+                                    assert_eq!(a, f, "at {x} {y} {z}");
+                                }
+                                (a, f) => panic!("the doors disagree at {x} {y} {z}: {a:?} {f:?}"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            placed > 0 && refused > 0,
+            "{placed} placed, {refused} refused"
+        );
+    }
+
+    /// The frame's twelve entries, in column order then translation —
+    /// the whole map, bit for bit. Orientation pins compare these, so a
+    /// changed column ORDER, a flipped sign, or a re-associated product
+    /// all fail loudly rather than passing a loose tolerance.
+    fn bits12(a: &Affine3<f64>) -> [u64; 12] {
+        let l = a.linear;
+        [
+            l.c0.x,
+            l.c0.y,
+            l.c0.z,
+            l.c1.x,
+            l.c1.y,
+            l.c1.z,
+            l.c2.x,
+            l.c2.y,
+            l.c2.z,
+            a.translation.x,
+            a.translation.y,
+            a.translation.z,
+        ]
+        .map(f64::to_bits)
+    }
+
+    /// The seven rigidity residuals `transform_rigid` decides on
+    /// (columns unit, columns mutually orthogonal, `det = +1`), as raw
+    /// numbers: a frame constructor that returns a non-rigid map is a
+    /// bug here, not downstream.
+    fn rigidity_residuals(a: &Affine3<f64>) -> [f64; 7] {
+        let l = a.linear;
+        [
+            l.c0.dot(l.c0) - 1.0,
+            l.c1.dot(l.c1) - 1.0,
+            l.c2.dot(l.c2) - 1.0,
+            l.c0.dot(l.c1),
+            l.c1.dot(l.c2),
+            l.c0.dot(l.c2),
+            l.determinant() - 1.0,
+        ]
+    }
+
+    /// Aiming cases with generic (inexact) arithmetic: eye, target,
+    /// roll reference.
+    fn aim_cases() -> Vec<(Point3<f64>, Point3<f64>, Vec3<f64>)> {
+        vec![
+            (Point3::origin(), Point3::new(1.0, 2.0, 3.0), Vec3::unit_z()),
+            (
+                Point3::new(-4.0, 0.5, 2.0),
+                Point3::new(1.0, -2.0, 0.25),
+                Vec3::new(0.3, 0.7, -0.2),
+            ),
+            (
+                Point3::new(1e-2, 1e-2, 1e-2),
+                Point3::new(1e3, -1e3, 5.0),
+                Vec3::unit_x(),
+            ),
+            (
+                Point3::new(7.0, 7.0, 7.0),
+                Point3::new(7.0, 7.0, 8.0),
+                Vec3::new(1.0, 1.0, 0.0),
+            ),
+        ]
+    }
+
+    #[test]
+    fn point_at_orientation_pin() {
+        // Row A — aim along +Z with the +Y reference: the frame IS the
+        // identity rotation (local +Z is the aim, local +Y holds the
+        // reference), translated to the eye. Every entry exact.
+        let a = point_at(
+            Point3::new(1.0, 2.0, 3.0),
+            Point3::new(1.0, 2.0, 7.0),
+            Vec3::unit_y(),
+            Tol::witness(),
+        )
+        .unwrap();
+        assert_eq!(
+            bits12(&a),
+            [
+                1.0, 0.0, 0.0, // local +X
+                0.0, 1.0, 0.0, // local +Y (holds the reference)
+                0.0, 0.0, 1.0, // local +Z (the aim)
+                1.0, 2.0, 3.0, // the eye
+            ]
+            .map(f64::to_bits)
+        );
+        // Row B — aim along +X with the +Z reference: the cyclic frame.
+        let b = point_at(
+            Point3::origin(),
+            Point3::new(4.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap();
+        assert_eq!(
+            bits12(&b),
+            [
+                0.0, 1.0, 0.0, //
+                0.0, 0.0, 1.0, //
+                1.0, 0.0, 0.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+    }
+
+    #[test]
+    fn point_at_roll_convention_and_rigidity() {
+        // The pinned convention: local +Z is the aim; the reference has
+        // no local +X component and a POSITIVE local +Y one.
+        for (eye, target, r) in aim_cases() {
+            let f = point_at(eye, target, r, Tol::witness()).unwrap();
+            let aim = (target - eye).normalize();
+            let (x, y, z) = (f.linear.c0, f.linear.c1, f.linear.c2);
+            assert!((z.x - aim.x).abs() <= 1e-15);
+            assert!((z.y - aim.y).abs() <= 1e-15);
+            assert!((z.z - aim.z).abs() <= 1e-15);
+            assert!(r.dot(x).abs() <= 1e-13 * r.norm(), "reference off local X");
+            assert!(r.dot(y) > 0.0, "reference on the +Y side");
+            for res in rigidity_residuals(&f) {
+                assert!(res.abs() <= 1e-14, "rigid: {res}");
+            }
+            // The frame's own origin is the eye, and local +Z walks
+            // toward the target.
+            let o = f.transform_point(Point3::origin());
+            assert!((o - eye).norm() <= 1e-15);
+            let walked = f.transform_point(Point3::new(0.0, 0.0, (target - eye).norm()));
+            assert!((walked - target).norm() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn point_at_round_trips_through_affine3() {
+        for (eye, target, r) in aim_cases() {
+            let f = point_at(eye, target, r, Tol::witness()).unwrap();
+            let back = f.inverse() * f;
+            for res in rigidity_residuals(&back) {
+                assert!(res.abs() <= 1e-13, "round-trip rigid: {res}");
+            }
+            let p = Point3::new(0.5, -1.5, 2.5);
+            let q = f.inverse().transform_point(f.transform_point(p));
+            assert!((q - p).norm() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn point_at_refuses_degenerate_inputs() {
+        let e = Point3::new(1.0, 1.0, 1.0);
+        // No aim: the two points coincide.
+        assert_eq!(
+            point_at(e, e, Vec3::unit_z(), Tol::witness()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: None
+            }
+        );
+        let t = Point3::new(1.0, 1.0, 4.0);
+        // Reference ON the aim line — parallel, antiparallel, and zero
+        // are one refusal: no roll is stated.
+        for r in [
+            Vec3::unit_z(),
+            -Vec3::unit_z(),
+            Vec3::new(0.0, 0.0, 12.0),
+            Vec3::zero(),
+        ] {
+            assert_eq!(
+                point_at(e, t, r, Tol::witness()).unwrap_err(),
+                FrameError::Degenerate {
+                    input: FrameInput::RollReference,
+                    indeterminate: None
+                }
+            );
+        }
+        // An aim past the ~1e154 overflow band is the aim's own
+        // failure and is named as such — see the overflow row below
+        // for the whole family.
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::new(1e200, 1e200, 1e200),
+                Vec3::unit_z(),
+                Tol::witness(),
+            )
+            .unwrap_err(),
+            FrameError::NonFiniteLength {
+                input: FrameVector::Aim
+            }
+        );
+        // Poison refuses too — as a length that is not a number,
+        // never as a silently NaN frame. A poisoned length is the
+        // same question as an overflowed one and the same predicate
+        // answers it: `NaN − NaN` is poison exactly as `∞ − ∞` is.
+        let p = point_at(
+            e,
+            Point3::new(f64::NAN, 0.0, 0.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(
+                p,
+                Err(FrameError::NonFiniteLength {
+                    input: FrameVector::Aim
+                })
+            ),
+            "{p:?}"
+        );
+    }
+    #[test]
+    fn path_start_frame_pole_fallback_pin() {
+        // The exact case the hand-rolled dodge exists for: a tangent
+        // ALONG the primary reference. Rung one (world +Z) decides
+        // coincident and the ladder advances to world +X — no magic
+        // cone, and the resulting frame is pinned entry for entry.
+        // (The signed zeros are the cross product's exact
+        // cancellations; the pin is the bits, so they are pinned too.)
+        let up =
+            path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, 5.0), Tol::witness()).unwrap();
+        assert_eq!(
+            bits12(&up),
+            [
+                0.0, -1.0, 0.0, // local +X
+                1.0, 0.0, -0.0, // local +Y
+                0.0, 0.0, 1.0, // local +Z = the tangent
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        let down =
+            path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, -2.0), Tol::witness()).unwrap();
+        assert_eq!(
+            bits12(&down),
+            [
+                -0.0, 1.0, 0.0, //
+                1.0, 0.0, 0.0, //
+                0.0, 0.0, -1.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        // Both poles still produce right-handed orthonormal frames —
+        // the property the dodge was protecting.
+        for f in [up, down] {
+            for res in rigidity_residuals(&f) {
+                assert!(res.abs() <= 1e-15, "rigid at the pole: {res}");
+            }
+        }
+    }
+
+    #[test]
+    fn path_start_frame_is_point_at_with_the_ladder_reference() {
+        // The recipe is written ONCE: away from the pole the ladder
+        // picks world +Z, and the frame is then bit-for-bit the
+        // `point_at` frame with that reference (same origin, aim taken
+        // from the same bits).
+        for t in [
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(-0.25, 7.5, 0.125),
+        ] {
+            let a = path_start_frame(Point3::origin(), t, Tol::witness()).unwrap();
+            let b = point_at(
+                Point3::origin(),
+                Point3::origin() + t,
+                Vec3::unit_z(),
+                Tol::witness(),
+            )
+            .unwrap();
+            assert_eq!(bits12(&a), bits12(&b));
+        }
+    }
+
+    /// Components below ~1e-162 square to zero, so the norm is EXACTLY
+    /// zero for a direction the caller stated perfectly well. Every one
+    /// of the four doors decided that zero and named its input
+    /// DEGENERATE, offering a recourse — move the geometry, widen the
+    /// band — that cannot reach a squared norm of zero at any eps. The
+    /// input is not degenerate; it is outside the range its own
+    /// arithmetic can measure, and the recourse is the overflow end's.
+    #[test]
+    fn every_door_separates_an_underflowed_length_from_a_degenerate_one() {
+        let tiny = Vec3::new(0.0, 0.0, 1e-200);
+        // The premise, asserted rather than assumed: the norm flushed,
+        // and the direction is still there to be read off the witness.
+        assert_eq!(tiny.norm(), 0.0);
+        assert_eq!(tiny.norm_witness(), 1e-200);
+
+        assert_eq!(
+            path_start_frame(Point3::origin(), tiny, Tol::witness()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Tangent
+            }
+        );
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::origin() + tiny,
+                Vec3::unit_x(),
+                Tol::witness()
+            )
+            .unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Aim
+            }
+        );
+        assert_eq!(
+            mirror_across_plane(Point3::origin(), tiny, Tol::witness()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::MirrorNormal
+            }
+        );
+        // The roll reference is asked about its PERPENDICULAR OFFSET
+        // from the aim line, so the vector that underflows is the cross
+        // product rather than the reference: a reference 1e-200 across a
+        // unit aim has an offset whose norm flushes to zero while the
+        // reference itself is nowhere near the aim line.
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(1e-200, 0.0, 0.0),
+                Tol::witness()
+            )
+            .unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::RollReference
+            }
+        );
+
+        // The refusal says which end of the format it is, and names the
+        // one recourse that works.
+        let msg = FrameError::UnderflowedLength {
+            input: FrameVector::MirrorNormal,
+        }
+        .to_string();
+        assert!(msg.contains("mirror plane normal"), "{msg}");
+        assert!(msg.contains("underflowed out of the format"), "{msg}");
+        assert!(msg.contains("scale the geometry"), "{msg}");
+        assert!(!msg.contains("degenerate"), "{msg}");
+    }
+
+    #[test]
+    fn path_start_frame_refuses_true_degeneracy() {
+        // A stationary point of the path: no tangent, no frame. A
+        // tangent whose length UNDERFLOWED is not one of these — see
+        // the test above.
+        for t in [Vec3::zero(), Vec3::new(1e-12, 0.0, 0.0)] {
+            assert_eq!(
+                path_start_frame(Point3::origin(), t, Tol::witness()).unwrap_err(),
+                FrameError::Degenerate {
+                    input: FrameInput::Tangent,
+                    indeterminate: None
+                }
+            );
+        }
+        // Poison refuses as a length that is not a number — the same
+        // predicate the overflow end goes through.
+        assert!(matches!(
+            path_start_frame(
+                Point3::origin(),
+                Vec3::new(f64::NAN, 1.0, 0.0),
+                Tol::witness()
+            ),
+            Err(FrameError::NonFiniteLength {
+                input: FrameVector::Tangent
+            })
+        ));
+        // A tangent whose components exceed the normalization range
+        // (`Vec3::normalize`'s ~1e154 overflow note) has no finite
+        // length, and that is what it is told. It used to reach the
+        // ladder — the length decision passed on an infinite norm, the
+        // tangent normalized to ZERO, both rungs decided coincident —
+        // and be reported as the ladder running out, which named the
+        // wrong input and offered a recourse that could not work.
+        assert_eq!(
+            path_start_frame(
+                Point3::origin(),
+                Vec3::new(1e200, 1e200, 1e200),
+                Tol::witness()
+            )
+            .unwrap_err(),
+            FrameError::NonFiniteLength {
+                input: FrameVector::Tangent
+            }
+        );
+        // For every input that IS a direction, the ladder always finds
+        // a rung — the pole, the equator, and the near-pole included.
+        for t in [
+            Vec3::unit_z(),
+            -Vec3::unit_z(),
+            Vec3::unit_x(),
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(1e-9, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1e150),
+        ] {
+            assert!(
+                !matches!(
+                    path_start_frame(Point3::origin(), t, Tol::witness()),
+                    Err(FrameError::Degenerate {
+                        input: FrameInput::ReferenceLadder,
+                        ..
+                    })
+                ),
+                "ladder exhausted for {t:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mirror_orientation_pin_and_involution() {
+        // Reflection across the xy-plane: diag(1, 1, −1), no
+        // translation. Exact, so the whole map pins bitwise.
+        let m = mirror_across_plane(Point3::origin(), Vec3::unit_z(), Tol::witness()).unwrap();
+        assert_eq!(
+            bits12(&m),
+            [
+                1.0, 0.0, 0.0, //
+                0.0, 1.0, 0.0, //
+                0.0, 0.0, -1.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        // The stated orientation consequence: det = −1 exactly, so the
+        // rigidity door's determinant residual is −2 — a mirror is an
+        // isometry that a rigid-motion check refuses, by design.
+        assert_eq!(m.linear.determinant(), -1.0);
+        assert_eq!(rigidity_residuals(&m)[6], -2.0);
+        // A reflection is its own inverse — composed with an
+        // independently built copy of itself, exactly the identity.
+        let again = mirror_across_plane(Point3::origin(), Vec3::unit_z(), Tol::witness()).unwrap();
+        assert_eq!(bits12(&(m * again)), bits12(&Affine3::identity()));
+    }
+
+    #[test]
+    fn mirror_fixes_its_plane_and_flips_handedness() {
+        let p = Point3::new(1.0, -2.0, 3.0);
+        let n = Vec3::new(0.5, 1.5, -0.25);
+        let m = mirror_across_plane(p, n, Tol::witness()).unwrap();
+        // det = −1 and the columns stay orthonormal: an isometry, not a
+        // rigid motion.
+        assert!((m.linear.determinant() + 1.0).abs() <= 1e-15);
+        for res in [
+            m.linear.c0.dot(m.linear.c0) - 1.0,
+            m.linear.c1.dot(m.linear.c1) - 1.0,
+            m.linear.c2.dot(m.linear.c2) - 1.0,
+            m.linear.c0.dot(m.linear.c1),
+            m.linear.c1.dot(m.linear.c2),
+            m.linear.c0.dot(m.linear.c2),
+        ] {
+            assert!(res.abs() <= 1e-15, "isometry: {res}");
+        }
+        // Points of the plane are fixed; the normal reverses; the map
+        // is an involution.
+        let u = n.cross(Vec3::unit_x()).normalize();
+        for s in [-3.0, 0.0, 2.5] {
+            let q = p + u * s;
+            assert!((m.transform_point(q) - q).norm() <= 1e-14);
+        }
+        let nn = m.transform_vec(n.normalize());
+        assert!((nn + n.normalize()).norm() <= 1e-15);
+        let x = Point3::new(-4.0, 0.0, 6.0);
+        assert!((m.transform_point(m.transform_point(x)) - x).norm() <= 1e-14);
+        // Composed with a frame, the mirror is what flips its
+        // handedness — the consequence a consumer must reverse.
+        let f = point_at(
+            Point3::origin(),
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap();
+        assert!(((m * f).linear.determinant() + 1.0).abs() <= 1e-14);
+    }
+
+    #[test]
+    fn mirror_refuses_a_plane_with_no_normal() {
+        assert_eq!(
+            mirror_across_plane(Point3::origin(), Vec3::<f64>::zero(), Tol::witness()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::MirrorNormal,
+                indeterminate: None
+            }
+        );
+        assert!(matches!(
+            mirror_across_plane(
+                Point3::origin(),
+                Vec3::new(f64::NAN, 0.0, 1.0),
+                Tol::witness()
+            ),
+            Err(FrameError::NonFiniteLength {
+                input: FrameVector::MirrorNormal
+            })
+        ));
+    }
+
+    #[test]
+    fn refusals_name_the_input_and_carry_the_recourse() {
+        // What was degenerate, plus the levers a frame door has — no
+        // frame door takes a declaration, so the coincidence recourse
+        // is absent (pinned by `contains`, never a full-string pin).
+        for (e, needle) in [
+            (
+                point_at(
+                    Point3::origin(),
+                    Point3::origin(),
+                    Vec3::<f64>::unit_z(),
+                    Tol::witness(),
+                )
+                .unwrap_err(),
+                "aim",
+            ),
+            (
+                path_start_frame(Point3::origin(), Vec3::<f64>::zero(), Tol::witness())
+                    .unwrap_err(),
+                "path tangent",
+            ),
+            (
+                mirror_across_plane(Point3::origin(), Vec3::<f64>::zero(), Tol::witness())
+                    .unwrap_err(),
+                "mirror plane normal",
+            ),
+        ] {
+            let s = e.to_string();
+            assert!(s.contains(needle), "{s}");
+            assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+            assert!(!s.contains("declare"), "{s}");
+        }
+        // The in-band arm: the decision in words, the classifier's
+        // payload, the same levers.
+        let band = Band::linear(Tol::witness()).unwrap();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let e = point_at(
+            Point3::origin(),
+            Point3::new(in_band, 0.0, 0.0),
+            Vec3::<f64>::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                e,
+                FrameError::Degenerate {
+                    input: FrameInput::Aim,
+                    indeterminate: Some(_),
+                }
+            ),
+            "{e:?}"
+        );
+        let s = e.to_string();
+        assert!(
+            s.contains("whether the frame's aim (target − eye) has any length is undecided: "),
+            "{s}"
+        );
+        assert!(s.contains("ambiguity band"), "{s}");
+        assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+        assert!(!s.contains("declare"), "{s}");
+    }
+
+    /// **The overflow end, at each of the four normalizing sites.** A
+    /// direction whose components pass ~1e154 overflows its norm to
+    /// ∞, an infinite margin is maximally DEFINITE to the classifier,
+    /// and the division that follows collapses the direction to zero.
+    /// Each site is exercised at the value that reaches IT, and each
+    /// must refuse naming the input whose length is not a number.
+    ///
+    /// What each row did before the finiteness question went first
+    /// (measured, not argued): the mirror returned the IDENTITY; the
+    /// roll-reference row returned a frame whose first two columns
+    /// were `(0, −0, 0)` and `(0, 0, −0)`; the aim and tangent rows
+    /// refused, but named the downstream input that inherited the
+    /// collapse rather than the one that had no length.
+    #[test]
+    fn a_non_finite_length_refuses_at_the_input_that_has_it() {
+        let big = 1e200_f64;
+        let tol = Tol::witness();
+        let rows = [
+            (
+                FrameVector::MirrorNormal,
+                mirror_across_plane(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
+            ),
+            (
+                FrameVector::Aim,
+                point_at(
+                    Point3::origin(),
+                    Point3::new(big, 0.0, 0.0),
+                    Vec3::unit_z(),
+                    tol,
+                ),
+            ),
+            (
+                // A finite aim, a reference whose perpendicular offset
+                // overflows: the offset is this input's own length.
+                FrameVector::RollReference,
+                point_at(
+                    Point3::origin(),
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(big, 0.0, 0.0),
+                    tol,
+                ),
+            ),
+            (
+                FrameVector::Tangent,
+                path_start_frame(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
+            ),
+        ];
+        for (input, got) in rows {
+            assert_eq!(
+                got.err(),
+                Some(FrameError::NonFiniteLength { input }),
+                "{input:?} must refuse at its own name"
+            );
+        }
+        // The sentence names the cause and the recourse, and does NOT
+        // claim the direction is zero — it is not — nor offer the
+        // coincidence recourse, which no tolerance lever can reach.
+        let s = FrameError::NonFiniteLength {
+            input: FrameVector::Tangent,
+        }
+        .to_string();
+        assert!(s.contains("path tangent"), "{s}");
+        assert!(s.contains("no finite length"), "{s}");
+        assert!(s.contains(crate::predicate::RANGE_RECOURSE), "{s}");
+        assert!(!s.contains(crate::predicate::COINCIDENCE_RECOURSE), "{s}");
+    }
+}

@@ -1,0 +1,229 @@
+//! M4 PR 6 spec D2 — bit-exact float round-trip, property-tested.
+//!
+//! Floats persist as ryu shortest-round-trip strings (serde_json's
+//! writer); load must reproduce the EXACT bits. Pinned here on the
+//! adversarial population: subnormals (min positive included), -0.0
+//! (data, not refused), ulp neighbors, and arbitrary finite bit
+//! patterns — carried through every float slot the format has (doc
+//! params, expression literals, profile geometry, recorded ε, D7
+//! metadata).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+// Gated to the code it tests (TCOST-1). The claim is bit-exact float
+// round-tripping through save/load across EVERY float slot the format has,
+// so it rests on the persistence layer that writes and reads them and on
+// the four document modules that own those slots (doc params, expression
+// literals, frame placements, D7 metadata) plus the edit door the fixture
+// is built through. `geom-core/src/tolerance.rs` is named because the
+// recorded eps is one of the slots.
+// `tests/fixture/` is named because `fixture::desc` builds the documents every
+// slot is round-tripped through. A marker's own file is implicit; a sibling
+// helper module is not.
+test_utils::gated_to![
+    "crates/editor-core/src/persist/",
+    "crates/editor-core/src/doc.rs",
+    "crates/editor-core/src/edit.rs",
+    "crates/editor-core/src/expr.rs",
+    "crates/editor-core/src/node.rs",
+    "crates/editor-core/src/placement.rs",
+    "crates/editor-core/src/meta/",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
+];
+
+use crate::fixture;
+
+use editor_core::{
+    Dimension, DocEdit, DocParam, MetaValue, Node, ParamName, ProfileDoc, load, save,
+};
+use fixture::{desc, len};
+use geom_core::Tol;
+use proptest::prelude::*;
+
+/// Round-trips one value through every float slot at once; returns
+/// the loaded document for slot-by-slot bit assertions.
+fn round_trip(value: f64) -> ProfileDoc {
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
+    let push = |d: &ProfileDoc, e| {
+        editor_core::apply(d, &e, Tol::witness(), &editor_core::RefusingReach)
+            .expect("edit")
+            .doc
+    };
+    doc = push(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::from_static("p"),
+            value: DocParam::continuous(Dimension::Length, value),
+        },
+    );
+    // **The profile has no raw-float channel any more.** v4's was the
+    // plane PLACEMENT, twelve floats inline; the plane is a node now,
+    // and a frame's origin is an `Expr` like every other datum's. So
+    // the arbitrary magnitude rides the FRAME below, through the
+    // expression channel — which is the same channel the datum point
+    // further down covers, and the reason this row's profile arm
+    // becomes a frame arm rather than disappearing.
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(fixture::frame(
+                [value, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
+        },
+    );
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Profile(desc(
+                doc.order()[0],
+                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            ))),
+        },
+    );
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Datum(editor_core::Datum::Point {
+                position: [len(value), len(0.0), len(-0.0)],
+            })),
+        },
+    );
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    load(&text, Tol::witness()).expect("load").doc
+}
+
+fn assert_bits(label: &str, value: f64, loaded: f64) {
+    assert_eq!(
+        value.to_bits(),
+        loaded.to_bits(),
+        "{label}: {value:?} ({:#018x}) loaded as {loaded:?} ({:#018x})",
+        value.to_bits(),
+        loaded.to_bits()
+    );
+}
+
+fn check_all_slots(value: f64) {
+    let doc = round_trip(value);
+    let Some(DocParam::Continuous { value: p, .. }) =
+        doc.params().get(&ParamName::from_static("p"))
+    else {
+        panic!("param lost");
+    };
+    assert_bits("doc param", value, *p);
+    // The frame the profile is drawn on: its origin x carries the
+    // value, as a literal `Expr`, so the bits are asserted the way
+    // every other expression literal's are.
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) = doc.node(doc.order()[0])
+    else {
+        panic!("frame lost");
+    };
+    let mut frame_bits = Vec::new();
+    origin[0].literal_bits(&mut frame_bits);
+    assert_eq!(
+        frame_bits,
+        vec![value.to_bits()],
+        "the frame origin's literal bits"
+    );
+    let Some(Node::Profile(prof)) = doc.node(doc.order()[1]) else {
+        panic!("profile lost");
+    };
+    assert_eq!(
+        prof.plane,
+        doc.order()[0],
+        "the profile still names its frame across the wire"
+    );
+    let Some(Node::Datum(editor_core::Datum::Point { position })) = doc.node(doc.order()[2]) else {
+        panic!("datum lost");
+    };
+    let mut bits = Vec::new();
+    position[0].literal_bits(&mut bits);
+    assert_eq!(bits, vec![value.to_bits()], "expression literal bits");
+    position[2].literal_bits(&mut bits);
+    assert!(
+        bits.contains(&(-0.0f64).to_bits()),
+        "-0.0 literal must keep its sign"
+    );
+}
+
+#[test]
+fn special_values_round_trip_bit_exactly() {
+    let ulp_up = 1.0f64.next_up();
+    let ulp_down = 1.0f64.next_down();
+    for v in [
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        ulp_up,
+        ulp_down,
+        f64::MIN_POSITIVE,                     // smallest normal
+        f64::from_bits(1),                     // smallest subnormal
+        f64::from_bits(0x000F_FFFF_FFFF_FFFF), // largest subnormal
+        -f64::from_bits(1),
+        f64::MAX,
+        f64::MIN,
+        std::f64::consts::PI,
+        0.1,
+        1e-323,
+        #[allow(clippy::excessive_precision)]
+        // deliberately one digit past shortest: the notorious rounding-boundary value
+        2.225_073_858_507_201_1e-308,
+    ] {
+        check_all_slots(v);
+    }
+}
+
+#[test]
+fn epsilon_round_trips_bit_exactly() {
+    // ε is recorded in-document (D4); its bits survive save/load.
+    // (The in-process reconcile door requires it to MATCH the
+    // committed ambient ε, so the probe uses the ambient value.)
+    let doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
+    assert_bits("epsilon", doc.epsilon(), loaded.doc.epsilon());
+}
+
+#[test]
+fn metadata_floats_round_trip_bit_exactly() {
+    for v in [-0.0f64, f64::from_bits(1), 0.1, f64::MAX] {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("v".to_owned(), MetaValue::Int(1));
+        m.insert("x".to_owned(), MetaValue::Float(v));
+        let value = MetaValue::Map(m);
+        // Bit-eq PartialEq (D7): equality on the canonical tree IS
+        // bit equality, so assert_eq pins the bits.
+        let json = serde_json::to_string(&value).expect("ser");
+        let back: MetaValue = serde_json::from_str(&json).expect("de");
+        assert_eq!(back, value, "metadata float {v:?} drifted");
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+
+    /// Arbitrary finite bit patterns (subnormals included by
+    /// construction: the strategy draws BITS).
+    #[test]
+    fn arbitrary_finite_bits_round_trip(bits in any::<u64>()) {
+        let v = f64::from_bits(bits);
+        prop_assume!(v.is_finite());
+        check_all_slots(v);
+    }
+
+    /// Ulp ladders around exact powers of two and decimal-boundary
+    /// values (the shortest-round-trip stress region).
+    #[test]
+    fn ulp_neighbors_round_trip(exp in -300i32..300, steps in 0u8..8) {
+        let mut v = 2.0f64.powi(exp);
+        for _ in 0..steps {
+            v = v.next_up();
+        }
+        prop_assume!(v.is_finite());
+        check_all_slots(v);
+    }
+}

@@ -1,0 +1,2208 @@
+//! **The mate solve** — reading edges, partitions, groups, and the
+//! constructive placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A10/A11/A12).
+//!
+//! Everything here is recipe data plus decided predicates over the
+//! sides' RESOLVED frames — the two reads `ASSEMBLY.md` A11 rule 5
+//! states cross through one door, [`MateReach`]: each mated part's
+//! extent, the lever, and a `FromFace` frame's pose, resolved before
+//! the frame is read ([`resolve_side`]) — and nothing derived is
+//! stored beside the DAG. The entry points, in the order the layers
+//! use them:
+//!
+//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
+//!   walking from each reference's OPERAND every time it is wanted.
+//! - [`relative_freedom_components`] — A9's partition, over consuming
+//!   ∪ reading edges (so mates couple components).
+//! - [`groups`] — A11's placement groups, the finer partition over
+//!   instances alone, each with its document-order-first ROOT.
+//! - [`solve_document`] — the per-pair coset fold along a deterministic
+//!   spanning tree, yielding every instance's pose around its group's
+//!   frame, every group's space, and every mate's role.
+//! - [`admit_mate`] — one mate's own admission, the per-mate prefix
+//!   of the solve asked by the edit door of a mate being inserted.
+//!
+//! # Why the failure surface is per node, not per document
+//!
+//! A refusing group must not fail an unrelated one: GQ2/W5 make a
+//! node's failure poison its descendants and nothing else, and a
+//! second group has no dependence on the first. So [`solve_document`]
+//! is TOTAL — it returns per-node faults rather than one document-wide
+//! `Err`, and every node the fault actually reaches (the refusing mate
+//! and its group's instances, which now have no pose) carries it.
+
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Mutex;
+
+use geom_core::Tol;
+use geom_core::k_stats::{Detached, detached, splice};
+use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
+use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::predicate::Band;
+
+use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
+use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
+use super::reach::MateReach;
+use super::{
+    Alignment, AuthoredFrame, AxisSense, Clash, FaceRefusal, Lever, MateFault, MateFrame,
+    MatePrimitive, MateSide, OffsetCheck, Refuted,
+};
+use crate::doc::Doc;
+use crate::eval::NodeRefusal;
+use crate::expr::ParamEnv;
+use crate::node::{Node, RecipeNodeId};
+use crate::placement::Frame;
+
+/// What a mate did in the solve (A11 rule 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MateRole {
+    /// A tree mate: it placed its child. Its pair's fold was DETERMINED.
+    Determining,
+    /// A non-tree mate: it solved nothing and is carried to evaluation
+    /// as a pure contact declaration. R2-b verifies it against the
+    /// solved geometry; this unit records only that it declares.
+    Declaring,
+    /// The mate refused; see the fault recorded against it.
+    Refused,
+}
+
+/// **Which space a value lives in** (A9, A11 (2)): the world, or the
+/// own space of a group nothing places — the one spelling of that fact
+/// every reader of it is handed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Space {
+    /// The world: the group is placed, by its root's offset on a live
+    /// gauge chain.
+    World,
+    /// The own space of a group nothing places, named by the group's
+    /// earliest instance, which sits at that space's origin.
+    Own {
+        /// The group's earliest instance.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: Unplaced,
+    },
+}
+
+impl Space {
+    /// The unplaced group and its cause, `None` for the world.
+    pub fn own(self) -> Option<(RecipeNodeId, Unplaced)> {
+        match self {
+            Self::World => None,
+            Self::Own { group, cause } => Some((group, cause)),
+        }
+    }
+
+    /// The space `own` names: the world for `None`.
+    pub fn of(own: Option<(RecipeNodeId, Unplaced)>) -> Self {
+        own.map_or(Self::World, |(group, cause)| Self::Own { group, cause })
+    }
+}
+
+/// **Why a group is unplaced** (A11 (2)): what a placement would have
+/// come from, and is missing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Unplaced {
+    /// No member carries an offset: the group's placed member or the
+    /// placing mate that tied it to one was deleted, or its offset
+    /// cleared.
+    NoOffset,
+    /// The group's gauge chain names a gauge that was deleted.
+    DeadGauge {
+        /// The deleted gauge the chain names.
+        gauge: RecipeNodeId,
+    },
+}
+
+impl Unplaced {
+    /// **The cause's class word**, for a machine channel: the one
+    /// spelling the clearance goldening form and the bindings' tag both
+    /// read.
+    #[must_use]
+    pub const fn word(&self) -> &'static str {
+        match self {
+            Self::NoOffset => "no_offset",
+            Self::DeadGauge { .. } => "dead_gauge",
+        }
+    }
+}
+
+impl core::fmt::Display for Unplaced {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoOffset => f.write_str("no instance in it carries an offset"),
+            Self::DeadGauge { gauge } => {
+                write!(f, "its gauge chain names node {}, which was deleted", gauge)
+            }
+        }
+    }
+}
+
+/// The one recourse an unplaced group's refusal names: the three
+/// things that place a group (A11 (2)).
+pub const UNPLACED_RECOURSE: &str = "place it: give one of its instances an offset (SetOffset), set its gauge to a live one \
+     (SetGauge), or mate it to a placed instance on its gauge";
+
+/// **An instance's solved pose, decomposed** around its group's frame:
+/// the instance sits at `left ∘ F ∘ right`, where `F` is the group's
+/// frame — its gauge chain composed with its root's offset in the
+/// world, the identity in a group's own space.
+///
+/// `right` is the composed coset representatives along the spanning
+/// tree from the root; `left` is the composed derived offsets of the
+/// placers (transforms, pattern copies) the tree's mates read through,
+/// `None` when no placer is on the path, which is the identity BY
+/// CONSTRUCTION. Keeping the two apart is what lets the solve read no
+/// gauge frame: a placer's offset is a map in document coordinates,
+/// so it composes OUTSIDE the group's frame, and the evaluation
+/// composes that frame in its own lane.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Pose {
+    /// The composed placer offsets, outside the group's frame.
+    pub(crate) left: Option<Frame>,
+    /// The composed representatives, inside it.
+    pub(crate) right: Frame,
+}
+
+/// **What the mate did, in words a person reads** — the kernel's one
+/// sentence for the role, which a surface draws under the mate's row
+/// rather than minting its own.
+impl core::fmt::Display for MateRole {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Determining => "places its child: the solve determined the pair through it",
+            Self::Declaring => {
+                "places nothing: it declares a contact, which the at-rest gate verifies"
+            }
+            Self::Refused => "places nothing: the solve refused it",
+        })
+    }
+}
+
+/// The document's solved poses (D-5's compose-outward input).
+///
+/// A solve is a solve OF a document, and it says so: `document` is the
+/// id [`solve_document`] read, and [`SolvedPoses::placement`] — the one
+/// door that takes a `Doc` back — refuses a mispairing with it (DI3).
+/// No `Default`, for that reason: a poses value with no document is a
+/// value that cannot answer which document it is about. No `Clone`
+/// either: the evaluation's solve carries each mate's recording
+/// ([`SolvedPoses::take_recordings`]), which has one home.
+#[derive(Debug)]
+pub struct SolvedPoses {
+    /// **Which document this is a solve OF** (DI3), stamped by
+    /// [`solve_document`].
+    document: crate::ident::DocumentId,
+    /// The tolerance the solve decided under, which the nominal
+    /// world-pose door ([`SolvedPoses::placement`]) evaluates a gauge
+    /// chain under too.
+    tol: Tol,
+    /// Each live instance's pose, decomposed around its group's frame
+    /// ([`Pose`]). The root's own entry is the identity, bit-exactly.
+    pose: BTreeMap<RecipeNodeId, Pose>,
+    /// Each live instance's group root: the member whose offset places
+    /// the group, or, in a group nothing places, its earliest instance.
+    root: BTreeMap<RecipeNodeId, RecipeNodeId>,
+    /// Each unplaced group's cause, keyed by its root.
+    unplaced: BTreeMap<RecipeNodeId, Unplaced>,
+    /// Each live mate's role.
+    roles: BTreeMap<RecipeNodeId, MateRole>,
+    /// Per-node refusals: the refusing mate, and every node in its
+    /// group that consequently has no pose.
+    faults: BTreeMap<RecipeNodeId, MateFault>,
+    /// **What the solve decided, by the mate whose answer each
+    /// decision decided** ([`Record`]), in decision order per mate —
+    /// filled by the evaluation's solve ([`solve_with_env`]) and taken
+    /// once by that mate's own node, which splices it into its frame.
+    /// Empty from [`solve_document`], which records into its caller's
+    /// frame. Behind a lock because the evaluation's nodes run on
+    /// workers and each takes its own entry out of a shared solve.
+    recordings: Mutex<BTreeMap<RecipeNodeId, Vec<Detached>>>,
+}
+
+/// **Why the nominal world-pose door has no pose** for an instance
+/// ([`SolvedPoses::placement`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum PoseRefusal {
+    /// The solve refused for the instance.
+    Mate(Box<MateFault>),
+    /// The instance's group is unplaced, so it has no world pose — only
+    /// its pose in its group's own space ([`SolvedPoses::relative`]).
+    Unplaced {
+        /// The instance asked about.
+        instance: RecipeNodeId,
+        /// Its group's root.
+        group: RecipeNodeId,
+        /// What is missing.
+        cause: Unplaced,
+    },
+    /// A placement on the group's frame did not evaluate at the
+    /// document's own parameters: a gauge on the chain, or the root's
+    /// offset.
+    Placement {
+        /// The gauge, or the root instance whose offset refused.
+        node: RecipeNodeId,
+        /// The evaluation layer's own refusal.
+        error: NodeRefusal,
+    },
+}
+
+impl crate::spoken::Say for PoseRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        use crate::spoken::Said;
+        match self {
+            Self::Mate(fault) => write!(f, "{}", Said(&**fault, by)),
+            Self::Unplaced {
+                instance,
+                group,
+                cause,
+            } => write!(
+                f,
+                "{} has no world pose: its group (rooted at {}) is unplaced, \
+                 because {cause}. {}",
+                by.node_as(*instance, "instance"),
+                by.node(*group),
+                crate::sentence::Recourse(UNPLACED_RECOURSE)
+            ),
+            Self::Placement { node, error } => write!(
+                f,
+                "the placement at {} does not evaluate: {}",
+                by.node(*node),
+                Said(error.kind(), by.about(*node))
+            ),
+        }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for PoseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl PoseRefusal {
+    /// **The refusal as the frame holding the solved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
+impl core::error::Error for PoseRefusal {}
+
+impl SolvedPoses {
+    /// An empty solve OF `document`: no poses, no roles, no faults.
+    fn empty(document: crate::ident::DocumentId, tol: Tol) -> Self {
+        Self {
+            document,
+            tol,
+            pose: BTreeMap::new(),
+            root: BTreeMap::new(),
+            unplaced: BTreeMap::new(),
+            roles: BTreeMap::new(),
+            faults: BTreeMap::new(),
+            recordings: Mutex::new(BTreeMap::new()),
+        }
+    }
+
+    /// **The solve's decisions about `mate`, taken out** — every
+    /// recording the solve kept for it, in decision order, for the
+    /// mate's node to splice into its own frame. A second take answers
+    /// nothing: each recording has one home.
+    pub(crate) fn take_recordings(&self, mate: RecipeNodeId) -> Vec<Detached> {
+        self.recordings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&mate)
+            .unwrap_or_default()
+    }
+
+    /// **Which document this solve is of** (DI3). A caller holding a
+    /// solve and a document can check the pairing itself; every door
+    /// here that takes a `Doc` checks it already.
+    pub fn document(&self) -> crate::ident::DocumentId {
+        self.document
+    }
+
+    /// A node's recorded fault, if the solve refused for it.
+    pub fn fault(&self, node: RecipeNodeId) -> Option<&MateFault> {
+        self.faults.get(&node)
+    }
+
+    /// A mate's role, `None` if the node is not a live mate.
+    pub fn role(&self, mate: RecipeNodeId) -> Option<MateRole> {
+        self.roles.get(&mate).copied()
+    }
+
+    /// An instance's group root, `None` if the node is not a live
+    /// instance.
+    pub fn root(&self, instance: RecipeNodeId) -> Option<RecipeNodeId> {
+        self.root.get(&instance).copied()
+    }
+
+    /// **The space an instance lives in**, `None` if the node is not a
+    /// live instance.
+    pub fn space(&self, instance: RecipeNodeId) -> Option<Space> {
+        let root = self.root(instance)?;
+        Some(match self.unplaced.get(&root) {
+            None => Space::World,
+            Some(&cause) => Space::Own { group: root, cause },
+        })
+    }
+
+    /// Why an instance's group is unplaced, `None` when it is placed
+    /// or the node is not a live instance.
+    pub fn unplaced(&self, instance: RecipeNodeId) -> Option<Unplaced> {
+        self.unplaced.get(&self.root(instance)?).copied()
+    }
+
+    /// **An instance's pose in its group's own space**: where it sits
+    /// when the group's frame is the identity — relative to its root
+    /// when no placer stands on the path from the root, and in an
+    /// unplaced group the pose the group is evaluated at.
+    pub fn relative(&self, instance: RecipeNodeId) -> Option<Frame> {
+        let pose = self.pose.get(&instance)?;
+        Some(match pose.left {
+            None => pose.right,
+            Some(left) => left.compose(&pose.right),
+        })
+    }
+
+    /// The decomposed pose the evaluation composes the group's frame
+    /// into.
+    pub(crate) fn pose(&self, instance: RecipeNodeId) -> Option<Pose> {
+        self.pose.get(&instance).copied()
+    }
+
+    /// **The instance's world placement, at the document's own
+    /// parameters** (A11 (5)): the group's frame — its gauge chain
+    /// composed with its root's offset — composed into the solved pose
+    /// ([`Pose`]). A lone instance returns its placement's frame bit
+    /// for bit, and on the world at the empty offset the identity.
+    ///
+    /// `doc` is read for its gauges and offsets, and it must be the
+    /// document this solve is OF: composing this document's poses onto
+    /// another one's placements is a pose of neither. The pairing is
+    /// CHECKED here (DI3) — the solve carries the id it was built
+    /// from — rather than left to the caller.
+    ///
+    /// # Errors
+    ///
+    /// [`PoseRefusal::Mate`] holding [`MateFault::PosesOfAnotherDocument`]
+    /// when `doc` is not the document this solve is of, or the group's
+    /// own refusal when it did not solve; [`PoseRefusal::Unplaced`]
+    /// when nothing places the group; [`PoseRefusal::Placement`] when
+    /// a placement on the frame does not evaluate.
+    pub fn placement<P>(&self, doc: &Doc<P>, instance: RecipeNodeId) -> Result<Frame, PoseRefusal> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), self.document) {
+            return Err(PoseRefusal::Mate(Box::new(m.into())));
+        }
+        if let Some(fault) = self.faults.get(&instance) {
+            return Err(PoseRefusal::Mate(Box::new(fault.clone())));
+        }
+        let root = self.root.get(&instance).copied().unwrap_or(instance);
+        if let Some(&cause) = self.unplaced.get(&root) {
+            return Err(PoseRefusal::Unplaced {
+                instance,
+                group: root,
+                cause,
+            });
+        }
+        let band = Band::linear(self.tol)
+            .map_err(|error| PoseRefusal::Mate(Box::new(MateFault::Band { error })))?;
+        let env = doc.param_env::<f64>();
+        let frame = group_frame(doc, root, &env, band)
+            .map_err(|(node, error)| PoseRefusal::Placement { node, error })?;
+        let pose = self.pose.get(&instance).copied().unwrap_or(Pose {
+            left: None,
+            right: Frame::IDENTITY,
+        });
+        Ok(Frame::from_motion(pose.compose_around(frame)))
+    }
+}
+
+impl Pose {
+    /// `left ∘ frame ∘ right`, through the composition rule's identity
+    /// fast paths (`placement::Motion`), in whichever lane `frame` was
+    /// evaluated in.
+    pub(crate) fn compose_around<T: geom_core::Real>(
+        self,
+        frame: crate::placement::Motion<T>,
+    ) -> crate::placement::Motion<T> {
+        let left = self
+            .left
+            .map_or(crate::placement::Motion::Identity, |l| l.motion());
+        left.compose(frame).compose(self.right.motion())
+    }
+}
+
+// ---- A9: spaces ----
+
+/// **Which space each node's value lives in** (A9, A11 (2)): an
+/// instance lives in its group's space, a node consuming geometry
+/// lives in its inputs' space, and a node that denotes no geometry of
+/// its own — a gauge, a mate, a declaration, a measure, an assertion —
+/// lives in none and constrains nothing.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Spaces {
+    /// Every node that lives in a space, and which.
+    pub(crate) space: BTreeMap<RecipeNodeId, Space>,
+    /// The nodes of `space` that live in an unplaced group's own.
+    pub(crate) own: BTreeMap<RecipeNodeId, (RecipeNodeId, Unplaced)>,
+    /// Every node whose inputs lie in two spaces — one of them an
+    /// unplaced group's, which this names. Such a node compares the
+    /// group with something outside it, and refuses.
+    pub(crate) across: BTreeMap<RecipeNodeId, (RecipeNodeId, Unplaced)>,
+}
+
+/// [`Spaces`] for `doc` under `poses`.
+pub(crate) fn spaces_of<P: crate::ProfilePayload>(doc: &Doc<P>, poses: &SolvedPoses) -> Spaces {
+    spaces_with(doc, |instance| {
+        poses.space(instance).unwrap_or(Space::World)
+    })
+}
+
+/// [`Spaces`] for `doc`, given each instance's space, in one pass in
+/// document order, which puts every input before its consumer.
+pub(crate) fn spaces_with<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    space_of: impl Fn(RecipeNodeId) -> Space,
+) -> Spaces {
+    let mut out = Spaces::default();
+    for &id in doc.order() {
+        let Some(node) = doc.node(id) else { continue };
+        let here = match node {
+            Node::Gauge { .. } | Node::Mate { .. } | Node::Declare { .. } => continue,
+            Node::InstantiatePart { .. } => space_of(id),
+            _ => {
+                let mut distinct: Vec<Space> = Vec::new();
+                for input in node.inputs() {
+                    if let Some(&s) = out.space.get(&input)
+                        && !distinct.contains(&s)
+                    {
+                        distinct.push(s);
+                    }
+                }
+                if distinct.len() > 1
+                    && let Some(own) = distinct.iter().find_map(|s| s.own())
+                {
+                    out.across.insert(id, own);
+                }
+                // A measure and an assertion read geometry and answer
+                // a number, which lives in no space.
+                if matches!(node, Node::Measure { .. } | Node::Assertion { .. }) {
+                    continue;
+                }
+                distinct.first().copied().unwrap_or(Space::World)
+            }
+        };
+        if let Some(own) = here.own() {
+            out.own.insert(id, own);
+        }
+        out.space.insert(id, here);
+    }
+    out
+}
+
+// ---- A11 (2): gauges ----
+
+/// **The gauge chain from `start` outward**: the gauges a reference to
+/// `start` stands on, innermost first, ending at the world.
+///
+/// # Errors
+///
+/// The first reference on the chain that names no live gauge: a
+/// deleted one, kept as A11 (2) keeps it. The doors refuse a live
+/// non-gauge and a cycle (`DocEdit::SetGauge`, the load door), so this
+/// reports one only for a document that skipped them, and stops
+/// rather than loop.
+pub fn gauge_chain<P>(
+    doc: &Doc<P>,
+    start: Option<RecipeNodeId>,
+) -> Result<Vec<RecipeNodeId>, RecipeNodeId> {
+    let mut chain = Vec::new();
+    let mut at = start;
+    while let Some(gauge) = at {
+        let Some(Node::Gauge { parent, .. }) = doc.node(gauge) else {
+            return Err(gauge);
+        };
+        if chain.contains(&gauge) {
+            return Err(gauge);
+        }
+        chain.push(gauge);
+        at = *parent;
+    }
+    Ok(chain)
+}
+
+/// **The frame a gauge reference names, at `env`**: the chain's
+/// placements composed outermost first, so `[world, g1, g0]` is
+/// `P(g1) ∘ P(g0)` acting on what sits on `g0`. The world is the
+/// bit-exact identity.
+///
+/// # Errors
+///
+/// The node whose placement refused, with its refusal; a dead chain
+/// is the caller's to have refused first, and is reported at the dead
+/// reference with the gauge-kind refusal here.
+pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
+    doc: &Doc<P>,
+    gauge: Option<RecipeNodeId>,
+    env: &ParamEnv<T>,
+    band: Band,
+) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
+    let chain = gauge_chain(doc, gauge).map_err(|dead| {
+        (
+            dead,
+            crate::eval::NodeErrorKind::Unplaced {
+                group: dead,
+                cause: Unplaced::DeadGauge { gauge: dead },
+            }
+            .into(),
+        )
+    })?;
+    let mut frame = crate::placement::Motion::Identity;
+    for &g in chain.iter().rev() {
+        let Some(Node::Gauge { placement, .. }) = doc.node(g) else {
+            unreachable!("gauge_chain yields live gauges only")
+        };
+        let step = placement.motion_at(env, band).map_err(|e| (g, e.into()))?;
+        frame = frame.compose(step);
+    }
+    Ok(frame)
+}
+
+/// **A placed group's frame, at `env`** (A11 (5)): its root's gauge
+/// chain composed with its root's offset.
+///
+/// # Errors
+///
+/// [`gauge_frame`]'s, and the root's own when its offset refuses.
+pub(crate) fn group_frame<P, T: geom_core::Decide>(
+    doc: &Doc<P>,
+    root: RecipeNodeId,
+    env: &ParamEnv<T>,
+    band: Band,
+) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
+    let Some(Node::InstantiatePart { gauge, offset, .. }) = doc.node(root) else {
+        return Ok(crate::placement::Motion::Identity);
+    };
+    let frame = gauge_frame(doc, *gauge, env, band)?;
+    let offset = match offset {
+        Some(offset) => offset.motion_at(env, band).map_err(|e| (root, e.into()))?,
+        None => crate::placement::Motion::Identity,
+    };
+    Ok(frame.compose(offset))
+}
+
+// ---- A12: reading edges, recomputed ----
+
+/// **A12's reading edges**, recomputed from the recipe, as
+/// `(reader, read)`: `(mate, instance)` for every mate reference that
+/// resolves to a member of the A11 vocabulary, landing on the MEMBER's
+/// instance — the one the walk from the operand ends on, which is the
+/// vertex the A9/A11 partitions see — and `(instance, gauge)` and
+/// `(gauge, parent)` for every gauge reference that names a live
+/// gauge (A11 (2)).
+///
+/// Never stored — the DAG stays the single structure, and a reference
+/// that resolves to nothing live simply contributes no edge (N5).
+/// Deterministic order: document order of the reader, then a mate's
+/// `a` before its `b`.
+pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    let mut out = Vec::new();
+    let live_gauge = |g: RecipeNodeId| matches!(doc.node(g), Some(Node::Gauge { .. }));
+    for &id in doc.order() {
+        match doc.node(id) {
+            Some(Node::Mate { a, b, .. }) => {
+                for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
+                    if let Ok(w) = walk_of(doc, id, side, name) {
+                        out.push((id, w.member.instance));
+                    }
+                }
+            }
+            Some(
+                Node::InstantiatePart { gauge: Some(g), .. }
+                | Node::Gauge {
+                    parent: Some(g), ..
+                },
+            ) if live_gauge(*g) => out.push((id, *g)),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// **A9's relative-freedom partition**: the connected components of the
+/// recipe DAG over CONSUMING ∪ READING edges, each component's nodes in
+/// document order, the components themselves ordered by their first
+/// node.
+///
+/// Two instances are relatively unconstrained exactly when they land in
+/// different components — decidable from recipe structure alone, which
+/// is the whole content of A9. Mates couple components precisely
+/// because their reading edges count here (A12) even though A10's
+/// invariants never see them, and so do gauges: two instances on one
+/// gauge sit at frames the gauge fixes between them, so they are one
+/// component with no mate.
+pub fn relative_freedom_components<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+) -> Vec<Vec<RecipeNodeId>> {
+    let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
+    let mut edges: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
+    for &id in doc.order() {
+        adjacency.entry(id).or_default();
+        if let Some(node) = doc.node(id) {
+            edges.extend(node.inputs().into_iter().map(|input| (id, input)));
+        }
+    }
+    edges.extend(reading_edges(doc));
+    for (x, y) in edges {
+        adjacency.entry(x).or_default().insert(y);
+        adjacency.entry(y).or_default().insert(x);
+    }
+    components(doc.order(), &adjacency)
+}
+
+/// Connected components over `adjacency`, seeded in `order` so both the
+/// components and their contents are document-ordered.
+fn components(
+    order: &[RecipeNodeId],
+    adjacency: &BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>>,
+) -> Vec<Vec<RecipeNodeId>> {
+    let position: BTreeMap<RecipeNodeId, usize> =
+        order.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let mut seen: BTreeSet<RecipeNodeId> = BTreeSet::new();
+    let mut out = Vec::new();
+    for &seed in order {
+        if !seen.insert(seed) {
+            continue;
+        }
+        let mut members = vec![seed];
+        let mut stack = vec![seed];
+        while let Some(id) = stack.pop() {
+            for &next in adjacency.get(&id).into_iter().flatten() {
+                if position.contains_key(&next) && seen.insert(next) {
+                    members.push(next);
+                    stack.push(next);
+                }
+            }
+        }
+        members.sort_by_key(|id| position[id]);
+        out.push(members);
+    }
+    out
+}
+
+// ---- A11: placement groups ----
+
+/// **Whether a mate on these two instances places** (A11 (2)): both
+/// name the same gauge reference — the world, or one gauge id, the
+/// identity intensional. Otherwise it declares (A5 verifies it).
+pub fn places<P>(doc: &Doc<P>, a: RecipeNodeId, b: RecipeNodeId) -> bool {
+    let gauge = |id| doc.node(id).and_then(Node::gauge_ref);
+    gauge(a) == gauge(b)
+}
+
+/// **A11's placement groups**: the connected components of the
+/// instance graph under PLACING mates ([`places`]), each in document
+/// order, the groups ordered by their earliest instance.
+///
+/// Every member of a group names one gauge reference, since a placing
+/// mate joins only instances that do. A lone instance is a singleton
+/// group.
+pub fn groups<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
+    groups_welded_by(doc, &welds(doc, &read_mates(doc)))
+}
+
+/// **A group's root, and why it is unplaced if it is** (A11 (2), (3)):
+/// its earliest member, in document order, that carries an offset,
+/// when its gauge chain is live; otherwise its earliest instance, and
+/// the cause. `members` is one of [`groups`]'s, in document order.
+pub(crate) fn root_and_cause<P>(
+    doc: &Doc<P>,
+    members: &[RecipeNodeId],
+) -> (RecipeNodeId, Option<Unplaced>) {
+    let Some(&earliest) = members.first() else {
+        unreachable!("a group has at least one instance")
+    };
+    let gauge = doc.node(earliest).and_then(Node::gauge_ref);
+    if let Err(dead) = gauge_chain(doc, gauge) {
+        return (earliest, Some(Unplaced::DeadGauge { gauge: dead }));
+    }
+    let offset = |id: &&RecipeNodeId| {
+        matches!(
+            doc.node(**id),
+            Some(Node::InstantiatePart {
+                offset: Some(_),
+                ..
+            })
+        )
+    };
+    match members.iter().find(offset) {
+        Some(&root) => (root, None),
+        None => (earliest, Some(Unplaced::NoOffset)),
+    }
+}
+
+/// One mate's two references as [`read_mates`] read them: both walks,
+/// or the first refusal that stops the mate being an edge at all.
+type ReadMate = Result<(Walk, Walk), MateFault>;
+
+/// **Which mates WELD, read once**: each live mate in document order
+/// with both its references walked, or the first refusal that stops
+/// it being an edge at all.
+///
+/// The one reading [`groups`] and [`solve_document`] share, so the
+/// partition the roots are read off and the partition the solve folds
+/// over cannot disagree.
+///
+/// STRUCTURAL, and that is the point: it walks and nothing more, so
+/// the partition never depends on a slot value. The solve's own
+/// further checks ([`check_reference`]) can refuse a mate this admits
+/// — such a mate welds its group and contributes no PAIR, so its
+/// instances keep the group's frame and no pose is invented for
+/// them.
+fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate)> {
+    let mut out = Vec::new();
+    for &id in doc.order() {
+        let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
+            continue;
+        };
+        out.push((
+            id,
+            walk_of(doc, id, MateSide::A, a)
+                .and_then(|wa| Ok((wa, walk_of(doc, id, MateSide::B, b)?))),
+        ));
+    }
+    out
+}
+
+/// The instance pairs [`read_mates`] welds — its resolving PLACING
+/// mates, projected onto the vertices A11's groups see.
+fn welds<P>(doc: &Doc<P>, read: &[(RecipeNodeId, ReadMate)]) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    read.iter()
+        .filter_map(|(_, r)| r.as_ref().ok())
+        .map(|(wa, wb)| (wa.member.instance, wb.member.instance))
+        .filter(|&(a, b)| places(doc, a, b))
+        .collect()
+}
+
+/// The groups a given set of WELDS produces.
+///
+/// A weld standing on ONE instance (two copies of a pattern mated to
+/// each other) joins nothing and is dropped here rather than at each
+/// caller, so no caller can forget it.
+fn groups_welded_by<P>(
+    doc: &Doc<P>,
+    welds: &[(RecipeNodeId, RecipeNodeId)],
+) -> Vec<Vec<RecipeNodeId>> {
+    let instances: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .collect();
+    let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
+    for &id in &instances {
+        adjacency.entry(id).or_default();
+    }
+    for &(x, y) in welds {
+        if x == y {
+            continue;
+        }
+        adjacency.entry(x).or_default().insert(y);
+        adjacency.entry(y).or_default().insert(x);
+    }
+    components(&instances, &adjacency)
+}
+
+/// The root of `instance`'s group ([`root_and_cause`]), or `instance`
+/// itself when it is not a live instance.
+pub fn root_of<P>(doc: &Doc<P>, instance: RecipeNodeId) -> RecipeNodeId {
+    groups(doc)
+        .into_iter()
+        .find(|c| c.contains(&instance))
+        .map_or(instance, |c| root_and_cause(doc, &c).0)
+}
+
+// ---- D-4: the per-pair coset solve ----
+
+/// **One solve's inputs**, borrowed for its duration and read by every
+/// step below `solve_document`: the document, its one nominal
+/// environment, the reach the lever is asked through, and the
+/// decision band with the tolerance it was derived from. Nothing here
+/// outlives the solve and nothing is derived into it — a cache would
+/// be a second answer to a question the document already answers.
+struct Solve<'a, P> {
+    doc: &'a Doc<P>,
+    env: &'a ParamEnv<f64>,
+    reach: &'a dyn MateReach,
+    band: Band,
+    tol: Tol,
+    record: Record,
+}
+
+/// **Where the solve's decisions go: each to the log of exactly one
+/// mate, the mate whose answer it decided.** Every decision the solve
+/// makes is made inside one [`Record::unit`], named by that mate:
+///
+/// - a decision about one mate's own datum — its references' checks
+///   ([`check_references`]), its sides' frames and face poses, its
+///   coset row and its rider — is that mate's;
+/// - a decision the fold makes while adding a mate to its pair's
+///   intersection is the added mate's;
+/// - a decision about the PAIR once its mates are folded — the
+///   determination check, the pair's static left factor — is the
+///   pair's first mate's, the one its own refusals name
+///   ([`solve_group`] chooses it, once, for both).
+///
+/// A [`Detached`] is not `Clone`, so a decision recorded in one unit
+/// has no second home.
+enum Record {
+    /// Into the caller's open frame as each unit finishes, which is
+    /// the order the decisions were made in — so a door's frame holds
+    /// what a solve that detached nothing would have put there
+    /// ([`solve_document`]'s, the door every caller but the
+    /// evaluation solves through).
+    Caller,
+    /// Kept per mate, in decision order, for the mate's own node to
+    /// splice ([`SolvedPoses::take_recordings`]) — the evaluation's
+    /// ([`solve_with_env`]), where the solve runs before any node's
+    /// frame is open.
+    PerMate(RefCell<BTreeMap<RecipeNodeId, Vec<Detached>>>),
+}
+
+impl Record {
+    /// Runs `work` as one unit of the solve's work, its decisions
+    /// recorded as `mate`'s.
+    fn unit<R>(&self, mate: RecipeNodeId, work: impl FnOnce() -> R) -> R {
+        let (out, recording) = detached(work);
+        match self {
+            Self::Caller => splice(recording),
+            Self::PerMate(kept) => kept.borrow_mut().entry(mate).or_default().push(recording),
+        }
+        out
+    }
+
+    /// What the units kept, for the solve's answer to carry.
+    fn kept(self) -> BTreeMap<RecipeNodeId, Vec<Detached>> {
+        match self {
+            Self::Caller => BTreeMap::new(),
+            Self::PerMate(kept) => kept.into_inner(),
+        }
+    }
+}
+
+/// The frame flip that applies an OPPOSED axis sense: the half turn
+/// about the mate frame's own local X, which reverses the axis and the
+/// handedness of the cross axis while staying proper (det = +1).
+fn opposed() -> Affine3<f64> {
+    Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        ),
+        Vec3::new(0.0, 0.0, 0.0),
+    )
+}
+
+/// **One side's frame through the witness ladder**, refused at the
+/// mate and the side — the one wrap both readers of a frame use
+/// ([`mate_coset`], and [`admit_mate`]'s replay arm).
+fn side_frame(
+    mate: RecipeNodeId,
+    side: MateSide,
+    frame: &AuthoredFrame,
+    tol: Tol,
+) -> Result<geom_core::linalg::OrthoFrame<f64>, Box<MateFault>> {
+    frame
+        .frame(tol)
+        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
+}
+
+/// One mate's coset: the relative poses (b's part coordinates into a's)
+/// its primitive admits.
+///
+/// The construction is the same three lines every time — build both
+/// mate frames, apply the sense, ride the primitive's own displacement
+/// onto the `a` side, and read off the subgroup the primitive leaves.
+/// The clocking RIDER is applied here too, because it never stands
+/// alone: it modifies its carrier's target frame and cuts its residual.
+///
+/// Each side's frame arrives RESOLVED (`a`, `b`: [`resolve_side`] —
+/// the authored vectors, or the face's pose read through the reach)
+/// and is read ONCE ([`AuthoredFrame::frame`], the witness ladder
+/// both arms meet): its affine is the placement and its `w` the axis
+/// witness, negated exactly for an opposed sense. Every primitive's
+/// target keeps that axis — a standoff translates along it and the
+/// rider spins about it — so no direction here is read back off a
+/// product of matrices, which would be unit only to rounding and a
+/// witness to nothing.
+///
+/// `lever` forms this mate's lever — the two mated parts' reach
+/// summed ([`pair_reach`]) plus the datum's own terms, through
+/// [`lever`]'s one door — and is asked at exactly one site: the
+/// rider on a coincidence, the one row of the table that levers a
+/// decision. Every other row decides on the datum alone, so a caller
+/// with no lever in hand (the edit door, [`admit_mate`]) forms none
+/// for them, and a caller that holds one already (the fold, which
+/// levers its intersections too) hands it in. Replay never reaches
+/// the table: with no reach it declines at [`admit_mate`], on the
+/// rule stated there.
+fn mate_coset(
+    mate: RecipeNodeId,
+    alignment: &Alignment,
+    a: &AuthoredFrame,
+    b: &AuthoredFrame,
+    lever: impl FnOnce() -> Result<Arm, Box<MateFault>>,
+    band: Band,
+    tol: Tol,
+) -> Result<Coset, Box<MateFault>> {
+    // THE DATUM'S OWN ORDER, which `admit_mate`'s replay arm restates
+    // over the sides it holds: `a`'s frame, then `b`'s, then the
+    // table's static gap at the arm it falls in — so a frame refusal
+    // precedes a gap, and both precede any lever.
+    let fa = side_frame(mate, MateSide::A, a, tol)?;
+    let fb = side_frame(mate, MateSide::B, b, tol)?.to_affine();
+    let (fa, axis) = match alignment.sense {
+        AxisSense::Aligned => (fa.to_affine(), fa.w()),
+        AxisSense::Opposed => (fa.to_affine() * opposed(), -fa.w()),
+    };
+    let local_z = Vec3::new(0.0, 0.0, 1.0);
+    let spin = |theta: f64| {
+        Affine3::from_parts(
+            Mat3::rotation_about(local_z, theta),
+            Vec3::new(0.0, 0.0, 0.0),
+        )
+    };
+    let (target, subgroup) = match alignment.primitive {
+        MatePrimitive::FrameCoincidence => {
+            // The table: on frame-coincidence the clocking rider is
+            // redundant-or-contradictory, DECIDED. A coincidence has
+            // already pinned the roll, so the only clocking it can
+            // agree with is zero.
+            // The lever is asked HERE and nowhere else in the table:
+            // no rider, no ask.
+            if let Some(theta) = alignment.clocking {
+                let arm = lever()?;
+                let roll = Measured::Lever(Lever::Roll {
+                    radians: theta,
+                    arm: arm.get(),
+                });
+                let sign = geom_core::k_stats::decide(
+                    Refuted::ClockingRedundant.name(),
+                    roll.margin(),
+                    band,
+                )
+                .map_err(|diag| {
+                    Box::new(MateFault::Indeterminate {
+                        mate,
+                        diag: Box::new(diag),
+                    })
+                })?;
+                if sign != geom_core::predicate::Sign::Zero {
+                    return Err(Box::new(MateFault::Contradictory {
+                        held: mate,
+                        added: mate,
+                        predicate: Refuted::ClockingRedundant.name(),
+                        clash: roll.clash(),
+                    }));
+                }
+            }
+            (fa, Subgroup::Trivial)
+        }
+        MatePrimitive::Coaxial => match alignment.clocking {
+            // The rider cuts the cylindrical residual to translation
+            // along the axis — the table's coaxial+clocking row.
+            Some(theta) => {
+                let target = fa * spin(theta);
+                (target, Subgroup::Prismatic { direction: axis })
+            }
+            None => {
+                let point = Point3::origin() + fa.translation;
+                (
+                    fa,
+                    Subgroup::Cylindrical {
+                        point,
+                        direction: axis,
+                    },
+                )
+            }
+        },
+        MatePrimitive::PlanarRest { offset } => {
+            // The table's static gap, read where the table keeps it
+            // (`super::table_gap`), at this arm so a frame refusal
+            // still precedes it.
+            if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
+                return Err(Box::new(MateFault::TableLacks { mate, what }));
+            }
+            let target = fa * Affine3::translation(local_z * offset);
+            (target, Subgroup::Planar { normal: axis })
+        }
+        MatePrimitive::Clocking => {
+            // The table's other static gap, from the same home
+            // (`super::table_gap`), which gaps a standalone clocking
+            // for every rider: an answer of `None` here is the table
+            // contradicting itself, not a mate the table admits.
+            let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) else {
+                unreachable!(
+                    "table_gap admits a standalone clocking, which the table has no row for"
+                )
+            };
+            return Err(Box::new(MateFault::TableLacks { mate, what }));
+        }
+    };
+    Ok(Coset {
+        subgroup,
+        representative: target * fb.inverse(),
+    })
+}
+
+/// The coset of the INVERSE relation: `{ x⁻¹ : x ∈ c }`, written as a
+/// left coset again by conjugating the subgroup.
+///
+/// A mate is authored on an ordered pair; the spanning tree may want it
+/// the other way round. Inverting the relation rather than re-reading
+/// the alignment keeps ONE construction of a mate's meaning.
+///
+/// The subgroup's directions are transported by the representative's
+/// rotation and re-minted under the band ([`derived_direction`]): a
+/// proper rotation keeps a witness's length one within rounding, so
+/// the mint decides a length within rounding of one and refuses on no
+/// document the doors build.
+///
+/// # Errors
+///
+/// The frame ladder's own refusal for a transported direction whose
+/// length could not be decided ([`derived_direction`]).
+fn invert(c: Coset, band: Band) -> Result<Coset, FrameError> {
+    let r = c.representative.inverse();
+    let dir = |u: UnitVec3<f64>| derived_direction(r.linear * u.get(), "mate_coset_inverse", band);
+    let pt = |p: Point3<f64>| r.transform_point(p);
+    let subgroup = match c.subgroup {
+        Subgroup::Se3 => Subgroup::Se3,
+        Subgroup::Trivial => Subgroup::Trivial,
+        Subgroup::Empty => Subgroup::Empty,
+        Subgroup::Planar { normal } => Subgroup::Planar {
+            normal: dir(normal)?,
+        },
+        Subgroup::Prismatic { direction } => Subgroup::Prismatic {
+            direction: dir(direction)?,
+        },
+        Subgroup::Cylindrical { point, direction } => Subgroup::Cylindrical {
+            point: pt(point),
+            direction: dir(direction)?,
+        },
+        Subgroup::Revolute { point, direction } => Subgroup::Revolute {
+            point: pt(point),
+            direction: dir(direction)?,
+        },
+    };
+    Ok(Coset {
+        subgroup,
+        representative: r,
+    })
+}
+
+/// **A direction the fold derives from a witness, re-minted under the
+/// run's band**, with the direction door's refusal in the frame
+/// ladder's vocabulary — the refusal a mate frame's own axis gets —
+/// so a decided ZERO stays a definite refusal and only an in-band
+/// length is the escalation: `Degenerate` and an underflowed length
+/// are the ladder's `Degenerate` and `UnderflowedLength` at the aim,
+/// an in-band length carries its diagnostic, a length that is no
+/// number is `NonFiniteLength`. The invariant a caller relies on is
+/// that a proper rotation of a witness has length one within
+/// rounding, so on a document the doors build the mint never refuses;
+/// a refusal is the witness doing its job.
+fn derived_direction(
+    v: Vec3<f64>,
+    site: &'static str,
+    band: Band,
+) -> Result<UnitVec3<f64>, FrameError> {
+    UnitVec3::new(v, site, band).map_err(|error| match error {
+        UnitVec3Error::Degenerate => FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: None,
+        },
+        UnitVec3Error::Escalated(diag) => FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: Some(diag),
+        },
+        UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength {
+            input: FrameVector::Aim,
+        },
+        UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength {
+            input: FrameVector::Aim,
+        },
+    })
+}
+
+/// **The part a member stands on**: its instance's reference, or the
+/// node when it is not a live instantiate node — which the member walk
+/// excludes and the readers still name rather than assume. The one
+/// derivation of the part a mate reads: the lever's ([`pair_reach`]),
+/// a face side's ([`resolve_side`]), and the part pin a face side's
+/// memo key carries (`eval`'s `SolveAnswer`), so the key and the solve
+/// cannot come to name two different parts for one side. It reads the
+/// part cache's own census ([`crate::eval::parts::instantiated`]), so
+/// every part a mate asks for is one the descent has entered.
+pub(crate) fn part_of<P>(
+    doc: &Doc<P>,
+    member: &Member,
+) -> Result<crate::ident::DocRef, RecipeNodeId> {
+    crate::eval::parts::instantiated(doc, member.instance).ok_or(member.instance)
+}
+
+/// **One side's frame as the solve reads it** — the two arms of
+/// [`MateFrame`] meeting at one [`AuthoredFrame`], which the coset
+/// table then reads through the frame witness ([`mate_coset`]).
+///
+/// An `Authored` frame is its own vectors. A `FromFace` frame is the
+/// named face's canonical pose, asked of the member's part through
+/// the reach ([`MateReach::face_pose`]) in the part's own coordinates
+/// — the same coordinates the authored vectors are written in, so no
+/// placement enters — with the pose's origin and CHART axis (the
+/// orientation sense is not folded in; the mate's own
+/// [`AxisSense`] says which way the sides point) and, for the roll,
+/// the carrier's own in-frame reference direction (`Pose::u_ref`). A
+/// face frame authors no reference of its own, so its roll is the
+/// carrier's and nothing else ([`MateFrame`]).
+///
+/// Asked before the coset table reads the frame and before the lever
+/// is formed (the datum's `‖origin‖` terms are the RESOLVED origins),
+/// and asked ONCE per side per read: the door asks it of a mate being
+/// inserted, the fold of every mate it folds.
+///
+/// # Errors
+///
+/// [`MateFault::FaceUnresolved`] naming the mate, the side, the
+/// instance and the part, carrying the reach's refusal in its own
+/// voice.
+fn resolve_side<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    mate: RecipeNodeId,
+    side: MateSide,
+    member: &Member,
+    frame: &MateFrame,
+) -> Result<AuthoredFrame, Box<MateFault>> {
+    let face = match frame {
+        MateFrame::Authored(authored) => return Ok(*authored),
+        MateFrame::FromFace(face) => face,
+    };
+    let unresolved = |refusal| {
+        Box::new(MateFault::FaceUnresolved {
+            mate,
+            side,
+            refusal: Box::new(refusal),
+        })
+    };
+    let part =
+        part_of(doc, member).map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
+    let named = |refusal| {
+        unresolved(FaceRefusal::Reach {
+            instance: member.instance,
+            part,
+            face: face.face.clone(),
+            refusal,
+        })
+    };
+    let pose = reach.face_pose(&part, &face.face).map_err(named)?;
+    // `topo::readback::face_pose` answers every carrier it answers
+    // through one constructor that fixes `u_ref` (an edge's pose is
+    // the only readback with none), so a face's pose always carries
+    // the roll reference the frame takes.
+    let Some(u_ref) = pose.u_ref else {
+        unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
+    };
+    Ok(AuthoredFrame {
+        origin: pose.origin.to_array(),
+        axis: pose.axis.to_array(),
+        reference: u_ref.to_array(),
+    })
+}
+
+/// **The per-reference prefix of a mate's admission**, after its two
+/// walks: the checks that need a number ([`check_reference`]) on both
+/// sides, then the pair as two DISTINCT members
+/// ([`MateFault::SelfMate`]) — the one function the solve's first
+/// loop and [`admit_mate`] both call, so the two cannot meet these
+/// refusals in different orders. The walks themselves stay
+/// [`walk_of`]'s, made before this is asked: the loop needs them for
+/// the welds whether or not these checks admit the mate. Two COPIES
+/// of one pattern are two members and pass: what a mate cannot relate
+/// is a member to itself.
+fn check_references<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    env: &ParamEnv<f64>,
+    mate: RecipeNodeId,
+    wa: &Walk,
+    wb: &Walk,
+) -> Result<(), MateFault> {
+    check_reference(doc, env, mate, MateSide::A, wa)?;
+    check_reference(doc, env, mate, MateSide::B, wb)?;
+    if wa.member == wb.member {
+        return Err(MateFault::SelfMate {
+            mate,
+            instance: wa.member.instance,
+        });
+    }
+    Ok(())
+}
+
+/// **The class door of a mate's own admission**: the class inside the
+/// vocabulary ([`MateFault::ClassNotAdmitted`]). The class table is
+/// the policy (`super::class_admission`); this door enforces its own
+/// half of it and nothing more.
+fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box<MateFault>> {
+    if super::class_admission(class) == super::ClassAdmission::NotAdmitted {
+        return Err(Box::new(MateFault::ClassNotAdmitted { mate }));
+    }
+    Ok(())
+}
+
+/// **One mate's own admission** — what the solve decides about a mate
+/// from its own datum alone, asked of that one mate (`node`, the
+/// `Node::Mate` the document holds or is about to hold at `mate`): the
+/// two walks ([`walk_of`]), the per-reference prefix
+/// ([`check_references`]), the class door ([`admit_class`]), each
+/// side's frame resolved ([`resolve_side`]) and the coset table
+/// ([`mate_coset`]), in the order the solve meets them, with the
+/// reach asked exactly where the solve asks it: a `FromFace` side's
+/// pose, once per such side, and the lever where the table levers a
+/// decision (the rider on a coincidence) and nowhere else.
+/// It is the per-mate prefix of the solve: [`solve_with_env`]'s first
+/// loop makes the walks and asks [`check_references`], and
+/// [`fold_pair`] asks [`admit_class`] and [`mate_coset`] of every
+/// mate it folds, adding only what a PAIR needs — the lever formed
+/// for every mate, because the fold levers its intersections too.
+///
+/// The edit door asks this of a mate being inserted, so a mate the
+/// solve refuses on its own datum is refused at the insert door
+/// (`ASSEMBLY.md` A11 rule 1). The solve records the same fault
+/// against the mate whenever it reads the datum; a mate on a pair the
+/// fold never reads — two members over one instance — is refused on
+/// the datum alone all the same, since which pairs the fold reads is
+/// a group fact this door does not decide. It folds nothing and
+/// reads no other mate: the relational verdicts — UNDER, a
+/// contradiction against ANOTHER mate, an escalation on a fold — are
+/// the solve's, because they are facts about a pair, not about a
+/// mate. A rider the band decides redundant is admitted, as the solve
+/// admits it. What the door does not cover is a state: a mate that
+/// COMES to carry one of these faults after insert — a head a rebind
+/// or a shrunk pattern strands, a `Part` re-pointed, a snapshot loaded
+/// from a doctored or older file — is the solve's at evaluation.
+///
+/// `env` is the document's own nominal environment, built by the
+/// door that asks (the evaluation's arrangement at [`solve_with_env`]:
+/// one build per entry, every reader handed it).
+///
+/// `reach` absent is replay's, and what needs the parts is then
+/// DECLINED — the rider on a coincidence, decided over a lever, and a
+/// `FromFace` side's frame, resolved from the part's own face
+/// ([`resolve_side`]): the door that recorded the edit decided them
+/// over the parts it had in hand, and re-deciding them would need a
+/// store replay never holds. Everything decided on the datum alone is
+/// decided again (each authored side's frame ladder, the table's
+/// static gaps). A declined decision leaves nothing false in the
+/// document: the datum is what it was — a `FromFace` side's name is
+/// the datum — and the next solve decides it again.
+///
+/// # Errors
+///
+/// The fault the solve records against the mate for its own datum,
+/// unaltered: [`MateFault::Band`] when no band forms; the walk's
+/// [`MateFault::DanglingHead`]; [`check_references`]'s; the class
+/// door's; [`resolve_side`]'s [`MateFault::FaceUnresolved`]; and
+/// [`mate_coset`]'s — `Frame`, `TableLacks`, the decided
+/// contradictory rider or its escalation, and
+/// [`MateFault::Unleverable`] where the rider needs a lever the reach
+/// cannot form.
+pub(crate) fn admit_mate<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    node: &Node<P>,
+    env: &ParamEnv<f64>,
+    reach: Option<&dyn MateReach>,
+    tol: Tol,
+) -> Result<(), Box<MateFault>> {
+    // The door asks this of the mate it is inserting, under the id it
+    // minted for it; any other node here is the caller's mistake, not
+    // a refusal the mate earned.
+    let Node::Mate {
+        a,
+        b,
+        class,
+        alignment,
+    } = node
+    else {
+        unreachable!(
+            "admit_mate is asked of a mate; {} is not one",
+            doc.spoken(mate)
+        )
+    };
+    let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
+    let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
+    let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
+    check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
+    admit_class(mate, *class)?;
+    // The two parts are asked in DOCUMENT order. The fold asks the
+    // tree's parent first, and the parent is wherever the root rule
+    // put the root, so where both parts are missing the two doors may
+    // name different ones; each names a part the mate needs.
+    // Document order is the order list's, not the ids': an id is a
+    // digest (N1), so comparing two says nothing about which came first.
+    let at = |id: RecipeNodeId| doc.order().iter().position(|&n| n == id);
+    let (first, second) = if at(wa.member.instance) <= at(wb.member.instance) {
+        (&wa.member, &wb.member)
+    } else {
+        (&wb.member, &wa.member)
+    };
+    let Some(reach) = reach else {
+        // Replay: a `FromFace` side is DECLINED, not resolved (the
+        // rule this function states), so the coset cannot be read.
+        // What the datum alone decides is decided again, in the order
+        // `mate_coset` meets it (stated there): each authored side's
+        // frame, `a` before `b`, then the table's static gaps. Not one
+        // shared function because the table asks the gap at the arm it
+        // falls in, inside the construction a declined side cannot
+        // reach; the order is the invariant both keep.
+        for (side, frame) in [(MateSide::A, &alignment.a), (MateSide::B, &alignment.b)] {
+            if let Some(authored) = frame.authored_vectors() {
+                side_frame(mate, side, authored, tol)?;
+            }
+        }
+        if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
+            return Err(Box::new(MateFault::TableLacks { mate, what }));
+        }
+        return Ok(());
+    };
+    let a = resolve_side(doc, reach, mate, MateSide::A, &wa.member, &alignment.a)?;
+    let b = resolve_side(doc, reach, mate, MateSide::B, &wb.member, &alignment.b)?;
+    let form = || {
+        let parts = pair_reach(doc, reach, first, second).map_err(|refusal| {
+            Box::new(MateFault::Unleverable {
+                mate,
+                refusal: Box::new(refusal),
+            })
+        })?;
+        lever(mate, parts, alignment, &a, &b)
+    };
+    mate_coset(mate, alignment, &a, &b, form, band, tol).map(|_| ())
+}
+
+/// **The per-pair fold** (A11 rule 1): every mate on the ordered
+/// MEMBER pair `(parent, child)`, intersected. The result's
+/// representative maps the child MEMBER's part coordinates into the
+/// parent MEMBER's — for a pattern-placed member, the coordinates its
+/// mate frames are authored in (the master's, which the copy shares
+/// key-for-key). The pair's derived offsets are NOT in this coset:
+/// they are the pair's static left factor
+/// ([`pair_left_factor`]), composed outside the fold, which is what
+/// keeps the coset algebra itself unchanged (the rider's rule-1
+/// clause).
+///
+/// Each mate passes its own admission first — the class door, each
+/// side's frame resolved, and the coset table, the doors
+/// [`admit_mate`] asks of a mate alone — and only then meets the fold.
+///
+/// # Errors
+///
+/// The first refusal: a malformed alignment, a table gap, an
+/// Indeterminate case split, or the CONTRADICTORY empty intersection —
+/// which names both mates, the predicate, and the measured clash.
+fn fold_pair<P: crate::ProfilePayload>(
+    s: &Solve<'_, P>,
+    parent: &Member,
+    child: &Member,
+    mates: &[PairMate],
+) -> Result<Coset, Box<MateFault>> {
+    let Solve {
+        doc,
+        reach,
+        band,
+        tol,
+        ..
+    } = *s;
+    let mut held = Coset::unconstrained();
+    let mut held_mate = None;
+    // The fold's lever is the largest of the mates' own: each is the
+    // pair's two part reaches plus that mate's datum terms, so it
+    // starts at nothing and no constant seeds it. The reaches are
+    // asked ONCE per pair, lazily, at the first mate that forms a
+    // lever — after that mate's own class and self-mate checks, so a
+    // part that does not resolve never pre-empts a refusal the mate
+    // earns on its own.
+    let mut arm: Option<Arm> = None;
+    let mut parts_reach: Option<f64> = None;
+    for pm in mates {
+        let mate = pm.mate;
+        let Some(Node::Mate {
+            class, alignment, ..
+        }) = doc.node(mate)
+        else {
+            continue;
+        };
+        // The members these two references resolved to, walked once
+        // where the pair map was built and carried here.
+        let (ha, hb) = (&pm.a.member, &pm.b.member);
+        // Everything decided while this mate is admitted and added to
+        // the intersection is a decision about THIS mate's answer.
+        s.record.unit(mate, || {
+            admit_class(mate, *class)?;
+            // The sides' frames, resolved before the lever they enter.
+            let a = resolve_side(doc, reach, mate, MateSide::A, ha, &alignment.a)?;
+            let b = resolve_side(doc, reach, mate, MateSide::B, hb, &alignment.b)?;
+            let parts = match parts_reach {
+                Some(parts) => parts,
+                None => {
+                    let parts = pair_reach(doc, reach, parent, child).map_err(|refusal| {
+                        Box::new(MateFault::Unleverable {
+                            mate,
+                            refusal: Box::new(refusal),
+                        })
+                    })?;
+                    parts_reach = Some(parts);
+                    parts
+                }
+            };
+            // This mate's lever, formed once: the pair's parts plus its
+            // own datum terms. The fold's is the largest so far.
+            let mate_arm = lever(mate, parts, alignment, &a, &b)?;
+            let fold_arm = arm.map_or(mate_arm, |held| held.max(mate_arm));
+            arm = Some(fold_arm);
+            let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
+            // The authored order is `a`'s coordinates from `b`'s; the
+            // tree may need the other direction. The transported
+            // direction is `a`'s axis carried into `b`'s coordinates,
+            // so a refusal is reported at side `a`.
+            if (ha, hb) != (parent, child) {
+                coset = invert(coset, band).map_err(|error| {
+                    Box::new(MateFault::Frame {
+                        mate,
+                        side: MateSide::A,
+                        error,
+                    })
+                })?;
+            }
+            held = match super::coset::intersect(held, coset, band, fold_arm) {
+                Ok(next) => next,
+                Err(FoldStop::Indeterminate(diag)) => {
+                    return Err(Box::new(MateFault::Indeterminate { mate, diag }));
+                }
+                Err(FoldStop::Clash { predicate, clash }) => {
+                    return Err(Box::new(MateFault::Contradictory {
+                        held: held_mate.unwrap_or(mate),
+                        added: mate,
+                        predicate,
+                        clash,
+                    }));
+                }
+            };
+            if matches!(held.subgroup, Subgroup::Empty) {
+                return Err(Box::new(MateFault::Contradictory {
+                    held: held_mate.unwrap_or(mate),
+                    added: mate,
+                    predicate: super::MATE_MEMBER_EMPTY,
+                    clash: Clash::Structural,
+                }));
+            }
+            Ok(())
+        })?;
+        held_mate.get_or_insert(mate);
+    }
+    Ok(held)
+}
+
+/// **A mate's lever, formed**: the pair's parts' reach `parts` plus
+/// the datum's own terms over its two resolved sides, through the one
+/// door that admits a length the predicates can decide over
+/// ([`Arm::of`]) — the door both the fold and the edit door
+/// ([`admit_mate`]) form a lever through.
+///
+/// # Errors
+///
+/// [`MateFault::Unleverable`] carrying [`super::LeverRefusal::OutOfRange`].
+fn lever(
+    mate: RecipeNodeId,
+    parts: f64,
+    alignment: &Alignment,
+    a: &AuthoredFrame,
+    b: &AuthoredFrame,
+) -> Result<Arm, Box<MateFault>> {
+    Arm::of(parts, alignment.lever_arm(a, b)).map_err(|refusal| {
+        Box::new(MateFault::Unleverable {
+            mate,
+            refusal: Box::new(refusal),
+        })
+    })
+}
+
+/// **The two mated parts' reach, summed** — the body terms of the
+/// pair's lever ([`Alignment::lever_arm`] states the whole sum). Each
+/// member's part is the one its instance stands on: a pattern copy or
+/// a transform on the chain moves the part rigidly and changes no
+/// reach, so the member's chain is not consulted.
+///
+/// # Errors
+///
+/// The first part whose reach is not in hand, in pair order — or a
+/// member standing on a node that is not a live instantiate node,
+/// which the member walk excludes and this door still names rather
+/// than assumes.
+fn pair_reach<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    parent: &Member,
+    child: &Member,
+) -> Result<f64, super::LeverRefusal> {
+    let of = |member: &Member| {
+        let doc_ref =
+            part_of(doc, member).map_err(|node| super::LeverRefusal::NotAnInstance { node })?;
+        reach
+            .reach(&doc_ref)
+            .map_err(|refusal| super::LeverRefusal::Reach {
+                instance: member.instance,
+                part: doc_ref,
+                refusal,
+            })
+    };
+    Ok(of(parent)? + of(child)?)
+}
+
+/// **The pair's static left factor**: what the members' derived
+/// offsets contribute to the child's pose. A placer's map acts in
+/// DOCUMENT coordinates — outside the instance's pose, where the
+/// evaluation composes it — so the tree's step is
+///
+/// ```text
+/// world_child = (O_child⁻¹ ∘ O_parent) ∘ world_parent ∘ rep
+/// ```
+///
+/// and this answers `O_child⁻¹ ∘ O_parent`, which [`Pose::left`]
+/// gathers OUTSIDE the group's frame. `None` when neither reference
+/// passes a placer — the factor is then the identity BY CONSTRUCTION,
+/// not numerically, so a document with no transform and no pattern
+/// between its mates and their instances composes nothing and its
+/// solve stays bit-for-bit what it was. No gauge frame is read: the
+/// group's frame sits between the two factors, and the evaluation
+/// composes it in its own lane.
+///
+/// The faults a reference's offset can raise are attributed through
+/// `mate` — the pair's first mate, whose sides name these members.
+fn pair_left_factor<P: crate::ProfilePayload>(
+    s: &Solve<'_, P>,
+    parent: &Member,
+    first: &PairMate,
+) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
+    // The authored sides for attribution: whichever of the pair the
+    // parent member is, the other is the child. The pair's mates all
+    // relate these two members, so the FIRST mate's own two
+    // references are the ones the offsets are derived from — and its
+    // two walks are in hand, so neither is walked a second time.
+    let mate = first.mate;
+    let ((parent_side, parent_walk), (child_side, child_walk)) = if first.a.member == *parent {
+        ((MateSide::A, &first.a), (MateSide::B, &first.b))
+    } else {
+        ((MateSide::B, &first.b), (MateSide::A, &first.a))
+    };
+    let Solve { doc, env, band, .. } = *s;
+    let op = derived_offset(doc, env, mate, parent_side, parent_walk, band)?;
+    let oc = derived_offset(doc, env, mate, child_side, child_walk, band)?;
+    Ok(match (oc, op) {
+        (None, None) => None,
+        (Some(oc), Some(op)) => Some(oc.inverse() * op),
+        (Some(oc), None) => Some(oc.inverse()),
+        (None, Some(op)) => Some(op),
+    })
+}
+
+/// **The document's solve** (D-4 + D-5): every group's spanning tree
+/// from its root, every tree pair folded and required DETERMINED,
+/// every other mate recorded DECLARING, and every instance's pose
+/// composed outward from the root.
+///
+/// Total by construction — a refusing group records its fault against
+/// its own mates and instances and leaves every other group solved.
+///
+/// `reach` is the door the solve's two geometric reads cross: each
+/// mated part's own extent, asked lazily per pair and entering only as
+/// the lever a parallelism verdict is decided over, and each
+/// `FromFace` side's pose, asked once per side where the frame is
+/// read. The evaluation hands its own part cache (`eval::mate_reach`
+/// is the door every other caller builds one through), so a mated
+/// part is evaluated exactly once and the instantiate node hits the
+/// cache afterwards.
+///
+/// **One nominal environment per solve.** Every number the solve
+/// reads out of the recipe — a pattern's count, a `Part`'s index, the
+/// slots a derived offset is composed from — is evaluated at the
+/// document's own parameter bindings, under no box and no seed: the
+/// solve is a fact about the document, not about any run over it.
+/// That environment is built here, once, and handed to every reader
+/// (`check_reference`, `derived_offset` and what they call) as a
+/// parameter, so "the document's own" is decided at one site and the
+/// readers cannot be given different ones. An evaluation, which has
+/// already built that same environment for its own f64-pinned
+/// readers, hands it in through [`solve_with_env`] instead of paying
+/// for a second.
+pub fn solve_document<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    tol: Tol,
+) -> SolvedPoses {
+    let env = doc.param_env::<f64>();
+    solve(doc, &env, reach, tol, Record::Caller)
+}
+
+/// [`solve_document`] over an environment the caller already holds —
+/// the evaluation's `LaneEnv::nominal`, which is the document's own
+/// by that field's contract. `env` must be that environment: the
+/// solve answers about the document, and a boxed or seeded one would
+/// make it answer about a run.
+///
+/// The evaluation's solve runs before any node's frame is open, so
+/// its decisions are kept on the answer, per mate
+/// ([`SolvedPoses::take_recordings`]), rather than recorded into the
+/// caller's frame: each mate's node splices its own.
+pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    env: &ParamEnv<f64>,
+    reach: &dyn MateReach,
+    tol: Tol,
+) -> SolvedPoses {
+    solve(
+        doc,
+        env,
+        reach,
+        tol,
+        Record::PerMate(RefCell::new(BTreeMap::new())),
+    )
+}
+
+fn solve<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    env: &ParamEnv<f64>,
+    reach: &dyn MateReach,
+    tol: Tol,
+    record: Record,
+) -> SolvedPoses {
+    let mut out = SolvedPoses::empty(doc.id(), tol);
+    let band = match Band::linear(tol) {
+        Ok(band) => band,
+        Err(error) => {
+            // No band, no decisions: every mate and instance refuses
+            // with the same typed cause rather than any of them
+            // guessing.
+            let fault = MateFault::Band { error };
+            for &id in doc.order() {
+                if matches!(
+                    doc.node(id),
+                    Some(Node::Mate { .. } | Node::InstantiatePart { .. })
+                ) {
+                    out.faults.insert(id, fault.clone());
+                }
+            }
+            return out;
+        }
+    };
+    let s = Solve {
+        doc,
+        env,
+        reach,
+        band,
+        tol,
+        record,
+    };
+    // Mates by the unordered MEMBER pair they relate, document order
+    // within a pair. The member — not just its instance — is the key:
+    // mates to sibling copies of one pattern are DIFFERENT pairs, so
+    // the second of them is a non-tree edge (declaring) rather than a
+    // fold-mate of the first, which is the rider's loop clause. A
+    // self-mate is one MEMBER named on both sides; two distinct copies
+    // of one pattern are a pair like any other (their edge just joins
+    // no groups, both ends standing on the same instance).
+    let mut by_pair: BTreeMap<(Member, Member), Vec<PairMate>> = BTreeMap::new();
+    let mut broken: Vec<(RecipeNodeId, MateFault)> = Vec::new();
+    // ONE walk per reference, here: the members below, the pair
+    // keying, the group welds and every derived offset the fold
+    // needs are all read off these two walks.
+    let read = read_mates(doc);
+    for (id, walked) in &read {
+        let id = *id;
+        out.roles.insert(id, MateRole::Declaring);
+        let (wa, wb) = match walked {
+            Ok(pair) => pair,
+            Err(fault) => {
+                broken.push((id, fault.clone()));
+                continue;
+            }
+        };
+        // **The checks that need a number, at the site the solve
+        // reads the reference** — for EVERY reference of EVERY live
+        // mate, not only the ones a tree edge's offset happens to
+        // derive — and the pair as two distinct members: the same
+        // prefix the edit door asks (`check_references`). The walk
+        // itself evaluated nothing, so this is where the name meets a
+        // count.
+        if let Err(fault) = s.record.unit(id, || check_references(doc, env, id, wa, wb)) {
+            broken.push((id, fault));
+            continue;
+        }
+        // A mate across gauges places nothing (A11 (2)): it stays
+        // DECLARING, and the at-rest gate verifies it.
+        if !places(doc, wa.member.instance, wb.member.instance) {
+            continue;
+        }
+        let (ha, hb) = (wa.member.clone(), wb.member.clone());
+        by_pair
+            .entry(unordered(ha, hb))
+            .or_default()
+            .push(PairMate {
+                mate: id,
+                a: wa.clone(),
+                b: wb.clone(),
+            });
+    }
+    for (mate, fault) in broken {
+        out.roles.insert(mate, MateRole::Refused);
+        out.faults.insert(mate, fault);
+    }
+    for group in groups_welded_by(doc, &welds(doc, &read)) {
+        let (root, cause) = root_and_cause(doc, &group);
+        if let Some(cause) = cause {
+            out.unplaced.insert(root, cause);
+        }
+        match solve_group(&s, &group, root, &by_pair) {
+            Ok(solved) => {
+                // The ROOT is the group's, and every instance in it
+                // is keyed by that root whether or not a pair placed
+                // it. A mate this solve refused still WELDS its
+                // group (the partition is structural), so an
+                // instance the spanning tree could not reach sits at
+                // the group's frame instead of being given a pose
+                // nothing decided.
+                for &instance in &group {
+                    out.root.insert(instance, root);
+                }
+                // Every further offset is a statement the solve checks
+                // (A11 (2)), a placed group's in the world and an
+                // unplaced group's in its own space.
+                let stranded = read.iter().find_map(|(mate, walked)| {
+                    let (wa, wb) = walked.as_ref().ok()?;
+                    (out.roles.get(mate) == Some(&MateRole::Refused)
+                        && places(doc, wa.member.instance, wb.member.instance)
+                        && group.contains(&wa.member.instance))
+                    .then_some(*mate)
+                });
+                for (instance, fault) in check_offsets(&s, &group, (root, cause), &solved, stranded)
+                {
+                    out.faults.insert(instance, fault);
+                }
+                out.pose.extend(solved.pose);
+                for (mate, role) in solved.roles {
+                    out.roles.insert(mate, role);
+                }
+            }
+            Err(fault) => {
+                // The refusal reaches exactly what it stops: every
+                // instance in the group (which now has no pose) and
+                // every mate holding it together.
+                for &instance in &group {
+                    out.root.insert(instance, root);
+                    out.faults
+                        .entry(instance)
+                        .or_insert_with(|| (*fault).clone());
+                }
+                for (pair, mates) in &by_pair {
+                    if group.contains(&pair.0.instance) {
+                        for pm in mates {
+                            out.roles.insert(pm.mate, MateRole::Refused);
+                            out.faults
+                                .entry(pm.mate)
+                                .or_insert_with(|| (*fault).clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out.recordings = Mutex::new(s.record.kept());
+    out
+}
+
+/// **One mate on a member pair, with both its references' walks.**
+///
+/// The walks are the solve's one reading of those two references: the
+/// members they resolved to key the pair, and the chains they carry
+/// are what [`pair_left_factor`] folds — so nothing below re-walks a
+/// reference the pair map already resolved.
+struct PairMate {
+    /// The mate node.
+    mate: RecipeNodeId,
+    /// The `a` side's walk, as authored.
+    a: Walk,
+    /// The `b` side's walk, as authored.
+    b: Walk,
+}
+
+/// One group's solved poses and mate roles.
+struct GroupSolve {
+    pose: BTreeMap<RecipeNodeId, Pose>,
+    roles: BTreeMap<RecipeNodeId, MateRole>,
+    /// Each instance the tree reached, by the first mate of the pair
+    /// that placed it: the mate whose log a decision about where the
+    /// instance sits goes on.
+    placed_by: BTreeMap<RecipeNodeId, RecipeNodeId>,
+}
+
+fn unordered<T: Ord>(x: T, y: T) -> (T, T) {
+    if x <= y { (x, y) } else { (y, x) }
+}
+
+/// One group: the deterministic spanning tree from the root, each
+/// tree pair folded and required DETERMINED (A11 rule 4), the poses
+/// composed outward (rule 5).
+///
+/// The tree spans INSTANCES, but its edges are member pairs: between
+/// two instances the tree takes the first member pair in key order and
+/// every other pair between them — a sibling copy's mate, say — is a
+/// non-tree edge and stays DECLARING. A pair standing on one instance
+/// twice (two copies of the same pattern mated to each other) can
+/// never be a tree edge at all — the pattern already determined both
+/// ends — so it stays declaring the same way.
+fn solve_group<P: crate::ProfilePayload>(
+    s: &Solve<'_, P>,
+    group: &[RecipeNodeId],
+    root: RecipeNodeId,
+    by_pair: &BTreeMap<(Member, Member), Vec<PairMate>>,
+) -> Result<GroupSolve, Box<MateFault>> {
+    let position: BTreeMap<RecipeNodeId, usize> =
+        group.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    // The tree edge between two instances: the FIRST member pair
+    // relating them, in the order `Member`'s key states with every node
+    // read as its position in the document — so the members the author
+    // placed first win, whatever ids the mint gave them. Every other
+    // pair between the same two is a non-tree edge and stays
+    // declaring.
+    let placed = s.doc.positions();
+    let at = |id: RecipeNodeId| placed.get(&id).copied().unwrap_or(usize::MAX);
+    let rank = |m: &Member| {
+        (
+            at(m.instance),
+            m.copy
+                .iter()
+                .map(|&(node, index)| (at(node), index))
+                .collect::<Vec<_>>(),
+            at(m.at),
+        )
+    };
+    let mut pairs: Vec<(&Member, &Member)> = by_pair
+        .keys()
+        .filter(|(x, _)| position.contains_key(&x.instance))
+        .map(|(x, y)| (x, y))
+        .collect();
+    pairs.sort_by_cached_key(|&(x, y)| {
+        let (rx, ry) = (rank(x), rank(y));
+        if rx <= ry { (rx, ry) } else { (ry, rx) }
+    });
+    let mut edge_of: BTreeMap<(RecipeNodeId, RecipeNodeId), (&Member, &Member)> = BTreeMap::new();
+    for (x, y) in pairs {
+        if x.instance == y.instance {
+            continue;
+        }
+        neighbours.entry(x.instance).or_default().push(y.instance);
+        neighbours.entry(y.instance).or_default().push(x.instance);
+        edge_of
+            .entry(unordered(x.instance, y.instance))
+            .or_insert((x, y));
+    }
+    for list in neighbours.values_mut() {
+        list.sort_by_key(|id| position.get(id).copied().unwrap_or(usize::MAX));
+        list.dedup();
+    }
+    // Each pose as its two factors around the group's frame
+    // ([`Pose`]): the placer offsets outside, the representatives
+    // inside.
+    let mut poses: BTreeMap<RecipeNodeId, (Option<Affine3<f64>>, Affine3<f64>)> = BTreeMap::new();
+    poses.insert(root, (None, Affine3::identity()));
+    let mut pose: BTreeMap<RecipeNodeId, Pose> = BTreeMap::new();
+    pose.insert(
+        root,
+        Pose {
+            left: None,
+            right: Frame::IDENTITY,
+        },
+    );
+    // Only THIS group's mates get a role here: a role written for
+    // another group's mate would race that group's own answer,
+    // and which one won would depend on document order.
+    let mut roles: BTreeMap<RecipeNodeId, MateRole> = BTreeMap::new();
+    let mut placed_by: BTreeMap<RecipeNodeId, RecipeNodeId> = BTreeMap::new();
+    for (pair, mates) in by_pair {
+        if position.contains_key(&pair.0.instance) {
+            for pm in mates {
+                roles.insert(pm.mate, MateRole::Declaring);
+            }
+        }
+    }
+    let mut queue = VecDeque::from([root]);
+    let mut visited: BTreeSet<RecipeNodeId> = BTreeSet::from([root]);
+    while let Some(parent) = queue.pop_front() {
+        for &child in neighbours.get(&parent).into_iter().flatten() {
+            if !visited.insert(child) {
+                continue;
+            }
+            let (x, y) = edge_of[&unordered(parent, child)];
+            let (pm, cm) = if x.instance == parent { (x, y) } else { (y, x) };
+            let mates = &by_pair[&(x.clone(), y.clone())];
+            let coset = fold_pair(s, pm, cm, mates)?;
+            // The PAIR's own verdicts — the determination check and the
+            // pair's left factor — are its first mate's: the mate an
+            // UNDER refusal names, and the mate whose log records what
+            // was decided about the pair ([`Record`]).
+            let first = &mates[0];
+            if !coset.subgroup.is_determined() {
+                // A11 rule 4: a tree edge that does not determine
+                // refuses, naming the residual and its parameters.
+                return Err(Box::new(MateFault::Under {
+                    mate: first.mate,
+                    parent,
+                    child,
+                    residual: coset.subgroup,
+                }));
+            }
+            let (parent_left, parent_right) = poses[&parent];
+            let right = parent_right * coset.representative;
+            let factor = s
+                .record
+                .unit(first.mate, || pair_left_factor(s, pm, first))?;
+            let left = match (factor, parent_left) {
+                (None, left) => left,
+                (Some(factor), None) => Some(factor),
+                (Some(factor), Some(left)) => Some(factor * left),
+            };
+            poses.insert(child, (left, right));
+            pose.insert(
+                child,
+                Pose {
+                    left: left.map(Frame::from_affine),
+                    right: Frame::from_affine(right),
+                },
+            );
+            for pm in mates {
+                roles.insert(pm.mate, MateRole::Determining);
+            }
+            placed_by.insert(child, first.mate);
+            queue.push_back(child);
+        }
+    }
+    Ok(GroupSolve {
+        pose,
+        roles,
+        placed_by,
+    })
+}
+
+/// **A group's checked offsets** (A11 (2)): every member that carries
+/// an offset states where it sits on its gauge, and every statement
+/// but the reference's is verified against the solve — never trusted
+/// and never skipped. A member that disagrees, whose statement cannot
+/// be decided, or that the solve gives no pose is faulted itself; the
+/// rest of the group stands. An unplaced group checks as a placed one
+/// does, inside its own space.
+///
+/// The reference is the earliest member carrying an offset that the
+/// solve posed — in a placed group, its root. Each member sits at
+/// `W = pose ∘ F` by the solve ([`Pose::compose_around`], the one
+/// composition every world pose is read through), `F` the group's
+/// frame: its gauge chain and root offset ([`group_frame`]) in the
+/// world, the identity in its own space. The reference's statement
+/// fixes where the gauge sits, `G = W_ref ∘ offset_ref⁻¹`, so a member
+/// agrees when `(G ∘ offset)⁻¹ ∘ W` is the identity, decided as a
+/// coset member of the trivial subgroup over the member part's reach.
+/// In a placed group `G` is the gauge's own frame, and a placer on the
+/// path is a map in document coordinates, conjugated by `F`. With no
+/// placer on either path `F` cancels and is not read; otherwise it is
+/// read at the document's own parameters, as every number the solve
+/// reads is.
+///
+/// `stranded` is the first mate of the group the solve refused,
+/// which is why a member the spanning tree cannot reach has no pose.
+fn check_offsets<P: crate::ProfilePayload>(
+    s: &Solve<'_, P>,
+    group: &[RecipeNodeId],
+    (root, cause): (RecipeNodeId, Option<Unplaced>),
+    solved: &GroupSolve,
+    stranded: Option<RecipeNodeId>,
+) -> Vec<(RecipeNodeId, MateFault)> {
+    let Solve {
+        doc,
+        env,
+        reach,
+        band,
+        ..
+    } = *s;
+    let offset_of = |id: RecipeNodeId| match doc.node(id) {
+        Some(Node::InstantiatePart {
+            offset: Some(offset),
+            ..
+        }) => Some(offset),
+        _ => None,
+    };
+    let unchecked = |instance, cause| MateFault::OffsetUnchecked {
+        instance,
+        cause: Box::new(cause),
+    };
+    let placement = |instance, node, error: crate::eval::NodeRefusal| {
+        unchecked(instance, OffsetCheck::Placement { node, error })
+    };
+    let Some((reference, stated_ref, pose_ref)) = group
+        .iter()
+        .find_map(|&id| Some((id, offset_of(id)?, *solved.pose.get(&id)?)))
+    else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for &instance in group {
+        let Some(stated) = offset_of(instance) else {
+            continue;
+        };
+        if instance == reference {
+            continue;
+        }
+        let Some(&pose) = solved.pose.get(&instance) else {
+            let Some(mate) = stranded else {
+                unreachable!(
+                    "a member the tree does not reach is welded through a mate the solve refused"
+                )
+            };
+            out.push((
+                instance,
+                unchecked(instance, OffsetCheck::Unreached { mate }),
+            ));
+            continue;
+        };
+        let check = || -> Result<(), MateFault> {
+            let stated = stated
+                .eval(env, band)
+                .map_err(|e| placement(instance, instance, e.into()))?;
+            let stated_ref = stated_ref
+                .eval(env, band)
+                .map_err(|e| placement(instance, reference, e.into()))?;
+            let frame = if (pose.left.is_none() && pose_ref.left.is_none()) || cause.is_some() {
+                crate::placement::Motion::Identity
+            } else {
+                group_frame(doc, root, env, band)
+                    .map_err(|(node, error)| placement(instance, node, error))?
+            };
+            let world = |p: Pose| p.compose_around(frame).affine();
+            let gauge = world(pose_ref) * stated_ref.inverse();
+            let offset = (gauge * stated).inverse() * world(pose);
+            let arm = crate::eval::parts::instantiated(doc, instance)
+                .ok_or(super::LeverRefusal::NotAnInstance { node: instance })
+                .and_then(|doc_ref| {
+                    reach
+                        .reach(&doc_ref)
+                        .map_err(|refusal| super::LeverRefusal::Reach {
+                            instance,
+                            part: doc_ref,
+                            refusal,
+                        })
+                })
+                .and_then(|parts| Arm::of(parts, 0.0))
+                .map_err(|refusal| unchecked(instance, OffsetCheck::Unleverable(refusal)))?;
+            super::coset::trivial_member(offset, band, arm).map_err(|stop| match stop {
+                FoldStop::Clash { predicate, clash } => MateFault::OffsetDisagrees {
+                    instance,
+                    root: reference,
+                    predicate,
+                    clash,
+                },
+                FoldStop::Indeterminate(diag) => {
+                    unchecked(instance, OffsetCheck::Indeterminate(diag))
+                }
+            })
+        };
+        // The check decides where the tree's pair placed the member,
+        // so its decisions are that pair's first mate's.
+        let decided = match solved.placed_by.get(&instance) {
+            Some(&mate) => s.record.unit(mate, check),
+            None => check(),
+        };
+        if let Err(fault) = decided {
+            out.push((instance, fault));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::ErrorTextReading;
+
+    const SITE: &str = "solve_test_direction";
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A derived direction refuses in the frame ladder's own
+    /// vocabulary, and a decided zero is not an escalation.** A length
+    /// inside `(ε, Kε)` is the in-band escalation carrying its
+    /// diagnostic under the site's name; one the band calls zero is
+    /// the definite `Degenerate` with no diagnostic; one that
+    /// underflowed the format, or is no number, is that arm; a proper
+    /// rotation of a witness mints.
+    #[test]
+    fn a_derived_direction_refuses_as_the_frame_ladder_does() {
+        let eps = Tol::witness().eps();
+        let in_band = derived_direction(Vec3::new(3.0 * eps, 0.0, 0.0), SITE, band()).unwrap_err();
+        let FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: Some(diag),
+        } = in_band
+        else {
+            panic!("an in-band length escalates with its diagnostic: {in_band:?}");
+        };
+        assert_eq!(diag.predicate, Some(SITE));
+        assert!(
+            matches!(diag.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9)
+        );
+        assert_eq!(
+            derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: None,
+            }
+        );
+        assert_eq!(
+            derived_direction(Vec3::new(f64::NAN, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::NonFiniteLength {
+                input: FrameVector::Aim,
+            }
+        );
+        assert_eq!(
+            derived_direction(Vec3::new(1e-200, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Aim,
+            }
+        );
+        let axis = UnitVec3::new(Vec3::new(1.0, 2.0, -3.0), SITE, band()).unwrap();
+        let turned = Mat3::rotation_about(Vec3::new(0.3, -0.7, 0.2), 1.234) * axis.get();
+        let minted = derived_direction(turned, SITE, band()).unwrap().get();
+        assert!((minted - turned).norm() <= 4.0 * f64::EPSILON);
+    }
+}

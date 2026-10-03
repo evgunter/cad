@@ -1,0 +1,2589 @@
+//! `replace_face_offset` — the face-replacement primitive: one face's
+//! surface becomes its certified offset, and the face's own boundary is
+//! re-described against the moved chart.
+//!
+//! The **offset** of a surface `S` at signed distance `d` is the normal
+//! pushforward `S_d(u, v) = S(u, v) + d·n(u, v)`
+//! (`geom_brep::offset_surface`'s definition). At THIS door `d` is
+//! along the chart normal AT THE FACES BEING MOVED, which is the stored
+//! normal for every kind but a cone below its apex, where the face's
+//! own normal is the stored field negated. The door turns `d` onto the
+//! mint's convention at its entrance, by the chart's nappe
+//! ([`crate::offset_nappe::group_nappe`]), and everything downstream —
+//! the mint, the parameter shift, the transport and the apex-window
+//! gate — reads that one turned number. The face's `sense` bit takes no
+//! part: the offset is a statement about the SURFACE, not about which
+//! side of it carries material.
+//!
+//! # What moves and what does not
+//!
+//! **The neighbours' surfaces are untouched.** Only the named face's
+//! surface is replaced; every other face keeps the chart it had.
+//!
+//! **That premise is this door's, not the verb's**, and it is what
+//! bounds the door: composing it over a whole boundary transports each
+//! corner once per chart, which is the offset body's corner only where
+//! the normals are mutually perpendicular. At an OBLIQUE junction it is
+//! not, and [`ReplaceFaceError::ReanchorOffCarrier`] is what refuses to
+//! build the difference (#1081). A body whose faces are ALL PLANES has
+//! another route — [`crate::offset_planes_together`], which moves every
+//! chart at once and solves each corner simultaneously; this door is
+//! what everything else still takes.
+//!
+//! What must then be re-derived is everything the replaced chart
+//! carries:
+//!
+//! - the face's boundary edges' carriers and descriptions,
+//! - the points of the vertices those edges end at,
+//! - the parameter range of every edge that ends at one of those
+//!   vertices without lying on the face's boundary — its carrier is
+//!   unchanged, because the surfaces holding it did not move; only
+//!   where the edge stops did.
+//!
+//! # The carrier lanes
+//!
+//! An edge on the boundary lies ON the replaced surface, so the offset
+//! ACTS on its carrier. That action is closed-form per (surface kind,
+//! carrier kind) and this module states it once, in [`transport_curve`]:
+//!
+//! - **Plane** — a rigid translation by `d·normal`; every carrier kind
+//!   transports, and the translation is exact.
+//! - **Cylinder** — a rigid translation of a chart LINE (or a spline
+//!   lying along one) by `d·radial`, and a radius update for a coaxial
+//!   circle.
+//! - **Cone** — `geom_brep::ConeOffset`'s action, read rather than
+//!   re-derived: a generator translates by the action's own pointwise
+//!   displacement, and a parallel re-mints at the shifted `v` about the
+//!   action's own SLID apex. The mint and this door therefore cannot
+//!   drift; they are one derivation with three faces.
+//! - **Sphere** — the homothety of ratio `(R + d)/R` about the centre.
+//! - **Torus** — a tube-radius update, either on a meridian (tube)
+//!   circle or on a parallel.
+//! - **NURBS** (the `Approx` mint's operand) — a translation by `d·n₀`,
+//!   `n₀` the chart normal at the domain midpoint. This lane is exact
+//!   only where the chart normal is constant; elsewhere it costs
+//!   `d·|n − n₀|`, which is the quantity the run's band classifies at
+//!   `set_edge_curve`. The door does not pre-empt that classification —
+//!   the certified gate is the honest meter, and a face whose budget is
+//!   spent refuses there by name.
+//!
+//! **On the mirror nappe the cone's action is not the per-point chart
+//! normal, and that is the mint's contract rather than this door's
+//! choice.** The pushforward follows the CONTINUOUS EXTENSION of the
+//! opening nappe's normal field, which is what makes the action a pure
+//! parameter shift; following the per-point normal would split the
+//! double cone. So a `v < 0` face's material moves `−d` along its own
+//! chart normal — which is why this door turns the caller's number
+//! before the mint sees it, from the chart's own decided nappe. What it
+//! REFUSES is a chart with no nappe to turn onto: a face whose corners
+//! reach its apex, or a chart whose faces do not all lie on one side of
+//! it ([`ReplaceFaceError::NappeStraddles`]).
+//!
+//! **The translating lanes accept a spline carrier**, not only a line:
+//! a translated control net is exact structure, so a `Curve3::Nurbs`
+//! on a plane, a cylinder ruling, a cone generator or a fitted chart
+//! transports with everything else. What the lane does NOT claim is
+//! that the transported spline still lies on the untouched surface its
+//! description may name — the attach layer's certification is the net
+//! for that, and it is the honest one, because the residual it measures
+//! is exactly the quantity in question.
+//!
+//! An `IsoCurve` on a NURBS chart takes a different, exact route: its
+//! carrier is the FIT's own boundary row (`geom_brep::nurbs_iso`), which
+//! lands the carrier in the fit's spline space — the degree AND the
+//! refined interior knots — by construction rather than by elevating and
+//! refining the old carrier into it.
+//!
+//! # Where it refuses
+//!
+//! The C5 table is the boundary: an intrinsic description whose pair
+//! `(new kind, neighbour kind)` has no route arm cannot be re-stated,
+//! and the door refuses naming the pair rather than storing a
+//! description nothing can certify. A pair that routes is then asked
+//! about its POSE (`geom_brep::route_pose`): the arms are
+//! configuration-scoped, and an offset can carry the moved surface out
+//! of the configuration its arm serves — a wedge cap through a cone's
+//! apex, moved off it, cuts a hyperbola — so the door refuses that
+//! pose by the arm's own grounds rather than admitting it on the kind
+//! pair's. `Approx × anything` has no arm, so a
+//! fitted face's intrinsically-described boundary is exactly where this
+//! door stops.
+//!
+//! # The apex window
+//!
+//! Offsetting a cone shifts its `v` parameterization by `d·cot α`
+//! (`geom_brep::offset`'s derivation). A face bounded on the opening
+//! nappe by `v ≥ v_min` therefore lands on `v ≥ v_min + d·cot α`, and a
+//! window that crosses zero images the MIRROR nappe — geometry the
+//! offset mint is right to produce and this door must not silently call
+//! a face's offset. The margined predicate `offset_apex_window` decides
+//! `inf(v-window) + d·cot α` before anything is minted — and its mirror
+//! `−(sup(v-window) + d·cot α)` on the OTHER nappe, which is not an
+//! extra case but the same statement: revolve aims every cone's chart
+//! axis at `+a₃`, so a downward-opening cone sweeps `v < 0` and its
+//! window's near end is its supremum. WHICH nappe that is comes from
+//! [`crate::offset_nappe::face_nappe`], the one home the door itself
+//! reads to turn `d`; the window says only whether that nappe's near
+//! end has cleared the apex, and one that has not — because it
+//! straddles, touches, or carries a face of the other nappe — refuses
+//! on the same variant.
+//!
+//! # Discipline
+//!
+//! Every decision — the mint, the refusals, the whole boundary plan —
+//! runs read-only against the incoming body. Mutation then runs on a
+//! clone in the attach layer's order (surface, then edge descriptions,
+//! then the whole-body pcurve mint), the clone is validated once, and
+//! only a valid clone is adopted. The body is untouched on every `Err`.
+
+use std::sync::Arc;
+
+use geom::SurfaceKind;
+use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
+use geom_core::k_stats::decide;
+use geom_core::{
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
+};
+
+use crate::attach::Rechart;
+use crate::body::Body;
+use crate::chart_groups::ChartGroups;
+use crate::entity::{EdgeKey, FaceKey, LoopBoundary, SolidKey, VertexKey};
+use crate::euler::EulerOpError;
+use crate::geometry::SurfaceKey;
+use crate::pcurves::{PcurveMintError, mint_pcurves};
+use crate::validate::{ValidationError, validate_closed};
+
+/// Typed refusal of the face-replacement door. Scalar payloads echo the
+/// classified quantity's ingredients — data, not a decision (the offset
+/// door's echo convention, one layer up).
+#[derive(Clone, Debug)]
+pub enum ReplaceFaceError<T: Real> {
+    /// The run's tolerance admits no linear band, so no margined
+    /// predicate on the face-replacement doors has a verdict to give.
+    /// [`replace_faces_offset`] derives its band at the door from the
+    /// tolerance witness alone; this is that derivation's refusal. Both
+    /// of `Band::linear`'s arms reach it from a tolerance the run's
+    /// validator admits (an ε within a factor K of `f64::MAX`, or a
+    /// subnormal ε with K near 1).
+    Band {
+        /// The band constructor's typed refusal.
+        error: BandError,
+    },
+    /// `face` does not resolve in the body.
+    StaleFace {
+        /// The unresolvable face.
+        face: FaceKey,
+    },
+    /// The body's own referential coherence broke mid-plan (a key that
+    /// resolved once did not resolve again) — a kernel bug, surfaced
+    /// rather than swallowed.
+    Corrupt,
+    /// The analytic offset mint refused: the radius floor, the torus
+    /// ring convention, non-closure, or an escalation.
+    Offset {
+        /// The face whose surface refused.
+        face: FaceKey,
+        /// The geometry door's typed refusal, verbatim.
+        error: geom_brep::OffsetError<T>,
+    },
+    /// The approximating-surface fit refused: the regularity or
+    /// collapse meter, a rational operand, the refinement budget, or a
+    /// certificate limb.
+    Fit {
+        /// The face whose fit refused.
+        face: FaceKey,
+        /// The fit door's typed refusal, verbatim.
+        error: geom_brep::OffsetFitError,
+    },
+    /// The face carries a NURBS surface and the mint was handed no
+    /// fit door, so the offset cannot be minted at all. Not a pass —
+    /// the same posture tier 3 takes on an unre-derivable certificate.
+    ///
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
+    ApproxLaneUnsupported {
+        /// The face whose kind needs the (`f64`-only) fit door.
+        face: FaceKey,
+        /// The scalar the mint ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
+    },
+    /// **The operand's surface key is SHARED within its solid.** Another
+    /// face of the same solid carries the same surface, so replacing the
+    /// named faces would re-point their boundary's descriptions at the
+    /// fresh key while the sharer keeps the old chart — a seam between
+    /// them would name one face's surface and lie on the other's.
+    /// Replacing a solid's wearers of a chart is a whole-group
+    /// operation: name every one.
+    SharedSurfaceKey {
+        /// The face the door was called on.
+        face: FaceKey,
+        /// A face of the same solid carrying the same surface key.
+        other: FaceKey,
+    },
+    /// No face was named.
+    EmptyGroup,
+    /// The named faces do not all carry ONE chart, so there is no
+    /// single surface to offset.
+    GroupChartsDiffer {
+        /// The first named face.
+        face: FaceKey,
+        /// The first face carrying a different surface.
+        other: FaceKey,
+    },
+    /// The face carries the "not yet described" placeholder surface,
+    /// which has no locus to offset.
+    PlaceholderSurface {
+        /// The face carrying the placeholder.
+        face: FaceKey,
+    },
+    /// **The apex-window predicate.** The face's `v`-window, shifted by
+    /// the cone offset's `d·cot α`, reaches or crosses the apex: the
+    /// minted cone's nappe attribution flips inside the window, so the
+    /// mint is not this face's offset.
+    ApexWindow {
+        /// The face whose window crosses.
+        face: FaceKey,
+        /// The window's infimum on the base chart, in meters of slant.
+        v_min: T,
+        /// The window's supremum on the base chart.
+        v_max: T,
+        /// The parameter shift `d·cot α` the offset applies.
+        shift: T,
+    },
+    /// **The nappe predicate** (`offset_nappe`, at
+    /// [`crate::offset_nappe`]). Either this cone face's own corners do
+    /// not all stand strictly on one side of its apex, or the faces of
+    /// one chart do not agree on a nappe — in both readings there is no
+    /// single side for the offset's sign to be turned onto. Refused
+    /// rather than guessed, at both offset doors.
+    NappeStraddles {
+        /// The face with no nappe, or the first group member that
+        /// disagreed.
+        face: FaceKey,
+        /// That face's least corner station, echoed as data.
+        station_min: T,
+        /// Its greatest.
+        station_max: T,
+        /// Which of the two readings it is.
+        what: &'static str,
+    },
+    /// The face carries a cone but has no boundary carrier to read a
+    /// `v`-window off. Refusing is the only honest answer: inventing a
+    /// window would decide the apex predicate on made-up data.
+    ApexWindowUnknown {
+        /// The cone-faced face with no derivable window.
+        face: FaceKey,
+    },
+    /// **The C5 boundary.** An intrinsic description's pair — the moved
+    /// surface's kind against the neighbour's — has no route arm, so
+    /// the edge cannot be re-stated as an intersection of the two.
+    NeighborPairUnroutable {
+        /// The edge that cannot be re-described.
+        edge: EdgeKey,
+        /// The replaced face's new surface kind.
+        kind: SurfaceKind,
+        /// The untouched neighbour's kind.
+        other_kind: SurfaceKind,
+    },
+    /// **The C5 boundary, asked about the POSE.** The pair has a route
+    /// arm, but that arm is configuration-scoped and the moved surface
+    /// stands against its untouched neighbour in a pose the arm does
+    /// not serve — an offset wedge cap no longer through a cone's apex
+    /// or a torus's axis, say — so the edge cannot be re-stated as an
+    /// intersection of the two either.
+    NeighborPoseUnroutable {
+        /// The edge that cannot be re-described.
+        edge: EdgeKey,
+        /// The replaced face's new surface kind.
+        kind: SurfaceKind,
+        /// The untouched neighbour's kind.
+        other_kind: SurfaceKind,
+        /// Why the pose is not served: the arm's own refusal text
+        /// where it gave one (a general-rung routing, an operand guard
+        /// that fired before the pose was classified), and
+        /// `route_pose`'s statement where the arm's refusal carries no
+        /// text (unequal cylinder radii, a torus off its ring
+        /// convention).
+        why: &'static str,
+    },
+    /// **The bounded-chart boundary.** A fitted chart covers exactly
+    /// its own parameter window, so a boundary edge it does not carry
+    /// as one of its own rows cannot follow the moved face: the
+    /// neighbour that holds the edge would have to EXTEND to meet it,
+    /// and a bounded chart does not extend. Named per edge, with what
+    /// the edge presented.
+    FittedBoundaryUnsupported {
+        /// The edge the fitted chart cannot carry.
+        edge: EdgeKey,
+        /// What the edge presented, in the door's own words.
+        what: &'static str,
+    },
+    /// The pair routes, but this door does not mint a carrier for the
+    /// (surface kind, carrier kind) combination the edge presents. A
+    /// scope statement, not a geometric verdict: the combination is
+    /// named so the unit that needs it knows what to build.
+    CarrierLaneUnsupported {
+        /// The edge whose carrier this door cannot transport.
+        edge: EdgeKey,
+        /// What the door could not do, in its own words.
+        what: &'static str,
+    },
+    /// The fitted chart's boundary-row extraction refused: an interior
+    /// iso parameter, an escalated coincidence, or a row the spline
+    /// layer would not build.
+    IsoRow {
+        /// The edge whose row could not be extracted.
+        edge: EdgeKey,
+        /// The extraction door's typed refusal, verbatim.
+        error: geom_brep::IsoRowError<T>,
+    },
+    /// A NURBS structure operation on a carrier or a fit row refused.
+    Structure {
+        /// The edge whose carrier could not be built.
+        edge: EdgeKey,
+        /// The spline layer's typed refusal.
+        error: geom_core::spline::SplineError,
+    },
+    /// Two boundary edges meeting at one vertex transport it to
+    /// definitely different points: the re-derivation is not coherent,
+    /// so no point is written.
+    VertexDisagreement {
+        /// The vertex the edges disagree about.
+        vertex: VertexKey,
+        /// The measured gap between the two transported points, in
+        /// meters.
+        gap: T,
+    },
+    /// **The PER-FACE door's finding**: an edge ending at a moved
+    /// vertex, but not on the replaced face's boundary, could not be
+    /// re-anchored — its new endpoint is definitely off its own
+    /// carrier, which did not move because the surfaces holding it did
+    /// not.
+    ///
+    /// This is the gate that stands between the per-face door and an
+    /// OBLIQUE junction's wrong body: composing that door over a whole
+    /// boundary transports each corner once per chart, which is not the
+    /// point an offset body needs, and the `gap` is the difference.
+    /// `offset_planes_together` solves such corners simultaneously and
+    /// does not reach here; everything outside that door's scope —
+    /// every curved corner — still does.
+    ///
+    /// The simultaneous door has its OWN disagreement finding,
+    /// [`ReplaceFaceError::TogetherEdgeDisagreement`]; this variant is
+    /// not reused for it.
+    ReanchorOffCarrier {
+        /// The edge whose carrier the moved vertex left.
+        edge: EdgeKey,
+        /// The measured distance from the moved point to the carrier,
+        /// in meters.
+        gap: T,
+    },
+    /// **The simultaneous door's scope gate**: a face it was asked to
+    /// move is not a plane. Its corner solve is three plane equations,
+    /// and a curved face has no such equation — the C5-table work that
+    /// follows this unit is where those corners land. Until then they
+    /// refuse where they always did, at
+    /// [`ReplaceFaceError::ReanchorOffCarrier`].
+    TogetherNonPlanar {
+        /// The face that is not a plane.
+        face: FaceKey,
+        /// What it carries instead.
+        kind: SurfaceKind,
+    },
+    /// **The simultaneous door's other scope gate**: a face of the body
+    /// was not in the moving set. Every corner's answer depends on all
+    /// the planes meeting it, so a set the door was not told about in
+    /// full is a set it cannot solve against.
+    TogetherPartialSet {
+        /// A face of the body that no chart move named.
+        face: FaceKey,
+    },
+    /// **A corner the simultaneous door cannot solve.** Either fewer
+    /// than three distinct planes meet there, or every triple of them
+    /// is singular, or — the valence-past-3 shape — the planes do not
+    /// concur after the offset, so no point satisfies them all. Refused
+    /// rather than solved on a subset and hoped over: a corner placed
+    /// off one of its own planes is a wrong body no tier catches.
+    TogetherCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct planes meet there.
+        planes: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
+    /// **The simultaneous door: two chart moves disagree about one
+    /// face**, or one chart's faces do not all wear the same surface.
+    ///
+    /// Raised by BOTH simultaneous doors, which is why its Display
+    /// names the OPERATION rather than one of them: a message that said
+    /// `offset_planes_together` under a body of revolution would send a
+    /// reader to the wrong file.
+    TogetherChartMixed {
+        /// The face whose surface differs.
+        face: FaceKey,
+        /// The chart's first face, whose surface it should have worn.
+        other: FaceKey,
+    },
+    /// **The simultaneous door: a face was named by more than one chart
+    /// move**, so its offset is two different numbers.
+    TogetherFaceRepeated {
+        /// The face named twice.
+        face: FaceKey,
+    },
+    /// **The simultaneous door: an edge's re-derived geometry
+    /// disagrees with a moved surface or carrier by `gap`.** Distinct
+    /// from [`ReplaceFaceError::ReanchorOffCarrier`], which is the
+    /// per-face door's finding about a moved vertex leaving an UNMOVED
+    /// neighbour's carrier. This one is the simultaneous door's
+    /// verification net over every edge it re-derives, and THREE
+    /// meters raise it — two about an endpoint, one about the carrier
+    /// itself:
+    ///
+    /// - `offset_together_edge_agreement` (the planar door): the far
+    ///   endpoint — solved independently, against a different triple
+    ///   of planes — read onto the carried line; `gap` is its distance
+    ///   off that line. Two solves agreeing is the claim; this is it
+    ///   failing.
+    /// - `offset_axial_edge_agreement` (the axial door's `param_on`):
+    ///   a moved endpoint read onto the minted carrier; `gap` is the
+    ///   endpoint's distance off it — the same two-solves claim, one
+    ///   carrier kind wider.
+    /// - `offset_axial_edge_on_surface` (the axial door): the minted
+    ///   carrier's own MIDPOINT metered against each of the two moved
+    ///   surfaces the edge separates; `gap` is the midpoint's residual
+    ///   to the surface that refused. No endpoint pair is compared at
+    ///   this meter at all — the carrier itself stands off a surface
+    ///   it claims to lie in. (The sphere lune's pre-RIMCAP refusal
+    ///   was this meter, on the axis edge between its two moved caps —
+    ///   the site an earlier draft of this doc misdescribed as an
+    ///   endpoint disagreement.)
+    TogetherEdgeDisagreement {
+        /// The edge whose re-derived geometry failed verification.
+        edge: EdgeKey,
+        /// The disagreement the raising meter measured, in meters.
+        gap: T,
+    },
+    /// **The axial door's kind gate**: a face wears a surface that is
+    /// not a plane, cylinder, cone, sphere or TORUS. The axial reduction
+    /// reads each surface as a line or a circle in the meridian
+    /// half-plane, and a NURBS or a fitted chart is neither — such
+    /// bodies keep the per-chart door and the refusal it gives them.
+    ///
+    /// A coaxial torus IS one of the kinds: its meridian is the circle
+    /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
+    /// one more number. An off-axis torus refuses at the axis gate
+    /// below, not here.
+    TogetherAxialUnsupported {
+        /// The face.
+        face: FaceKey,
+        /// What it carries.
+        kind: SurfaceKind,
+    },
+    /// **The axial door's axis gate**: a face's surface is one of the
+    /// door's kinds but is not a surface of revolution about the body's
+    /// axis — a cylinder skew to it, a sphere or torus centred off it, a
+    /// plane cutting it obliquely. The meridian reduction has no coordinates
+    /// for such a corner, so it refuses rather than solving in a frame
+    /// the geometry does not live in.
+    TogetherNotAxial {
+        /// The face.
+        face: FaceKey,
+        /// Which shape it is.
+        what: &'static str,
+    },
+    /// **A curved corner the axial door cannot solve.** Fewer than two
+    /// profile constraints and not an axis pole; a pair too tangent to
+    /// resolve the corner against its own edge chords; surfaces that do
+    /// not concur after the offset; or an azimuth more than one plane
+    /// through the axis over-determines. Refused rather than solved on
+    /// a subset: a corner placed off one of its own surfaces is a wrong
+    /// body no tier catches.
+    TogetherAxialCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct surfaces meet there.
+        surfaces: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
+    /// **An edge the axial door cannot re-derive.** Its carrier kind,
+    /// or its chart's offset map, is outside the closed forms this door
+    /// carries — a mapped description on a chart whose motion is a
+    /// radius change, a circular edge whose plane is not normal to the
+    /// axis, a carrier that is neither a line nor a circle.
+    TogetherAxialEdge {
+        /// The edge.
+        edge: EdgeKey,
+        /// Which shape it is.
+        what: &'static str,
+    },
+    /// A margined predicate escalated: the margin landed in the
+    /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
+    Escalated {
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// An attach-layer door refused the planned mutation.
+    Op {
+        /// The edge the attach door refused; absent for the re-chart,
+        /// whose refusal names the edges itself.
+        edge: Option<EdgeKey>,
+        /// The attach layer's typed refusal.
+        error: EulerOpError,
+    },
+    /// The whole-body pcurve mint refused on the re-described body.
+    Pcurve {
+        /// The mint's typed refusal.
+        source: PcurveMintError,
+    },
+    /// The re-described clone is not tier-2 valid, so it is discarded.
+    ResultNotClosed {
+        /// The validator's report.
+        errors: Vec<ValidationError>,
+    },
+}
+
+impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            // The carrier's own repairs (set a positive ε; raise ε or
+            // K) are addressed to a caller choosing a band's
+            // thresholds; a caller here holds a valid tolerance whose
+            // derived band failed anyway, and a less extreme ε forms
+            // a band at any admitted K.
+            Self::Band { .. } => write!(
+                f,
+                "replace_face_offset: the run's tolerance is too extreme for the ambiguity \
+                 band above it to form. Recourse: run at a less extreme tolerance"
+            ),
+            Self::StaleFace { face } => {
+                write!(f, "replace_face_offset: {face:?} does not resolve")
+            }
+            Self::Corrupt => write!(
+                f,
+                "replace_face_offset: the body's referential coherence broke mid-plan (kernel bug)"
+            ),
+            Self::Offset { face, error } => {
+                write!(f, "replace_face_offset: {face:?}'s offset refused: {error}")
+            }
+            Self::Fit { face, error } => write!(
+                f,
+                "replace_face_offset: {face:?}'s approximating-surface fit refused: {error}"
+            ),
+            Self::ApproxLaneUnsupported { face, scalar } => write!(
+                f,
+                "replace_face_offset: {face:?} carries a NURBS surface, and the mint at the \
+                 {scalar} scalar had no offset-fit door to fit its offset with; only {holders} \
+                 holds that door (the fit is derived there alone). Recourse: offset the face at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
+            ),
+            Self::SharedSurfaceKey { face, other } => write!(
+                f,
+                "replace_face_offset: {face:?}'s surface is shared with {other:?} in the same \
+                 solid, so replacing it would leave the sharer on the old chart while a shared \
+                 boundary names the new one — replacing a solid's wearers of a chart is a \
+                 whole-group operation"
+            ),
+            Self::EmptyGroup => write!(
+                f,
+                "replace_faces_offset: no face was named, so there is no chart to replace"
+            ),
+            Self::GroupChartsDiffer { face, other } => write!(
+                f,
+                "replace_faces_offset: {face:?} and {other:?} carry different surfaces — a \
+                 group is one chart's faces, not an arbitrary set"
+            ),
+            Self::PlaceholderSurface { face } => write!(
+                f,
+                "replace_face_offset: {face:?} carries the not-yet-described placeholder \
+                 surface, which has no locus to offset"
+            ),
+            Self::ApexWindow {
+                face,
+                v_min,
+                v_max,
+                shift,
+            } => write!(
+                f,
+                "replace_face_offset: {face:?}'s v-window [{v_min:?}, {v_max:?}] (m of slant) \
+                 shifted by the cone offset's d·cot α ({shift:?} m) reaches or crosses the apex \
+                 — the minted cone's nappe attribution flips inside the window, so it is not \
+                 this face's offset"
+            ),
+            Self::NappeStraddles {
+                face,
+                station_min,
+                station_max,
+                what,
+            } => write!(
+                f,
+                "the offset: {face:?} is {what} — its corner stations run [{station_min:?}, \
+                 {station_max:?}] m about its apex, and an offset distance has no side to be \
+                 turned onto"
+            ),
+            Self::ApexWindowUnknown { face } => write!(
+                f,
+                "replace_face_offset: {face:?} carries a cone but has no boundary carrier, so \
+                 the apex-window predicate has no window to decide over"
+            ),
+            Self::NeighborPairUnroutable {
+                edge,
+                kind,
+                other_kind,
+            } => write!(
+                f,
+                "replace_face_offset: {edge:?} cannot be re-described — {}",
+                geom_brep::intersect::route(*kind, *other_kind).refusal(*kind, *other_kind)
+            ),
+            Self::NeighborPoseUnroutable {
+                edge,
+                kind,
+                other_kind,
+                why,
+            } => write!(
+                f,
+                "replace_face_offset: {edge:?} cannot be re-described — the moved {} stands \
+                 against its {} neighbour in a pose the pair's closed form does not cover: \
+                 {why}",
+                kind.name(),
+                other_kind.name()
+            ),
+            Self::FittedBoundaryUnsupported { edge, what } => write!(
+                f,
+                "replace_face_offset: {edge:?} is on a fitted face's boundary but is not one of \
+                 the fit's own rows ({what}) — a bounded chart covers only its own window, so \
+                 the untouched neighbour holding this edge would have to extend to meet the \
+                 moved face"
+            ),
+            Self::CarrierLaneUnsupported { edge, what } => write!(
+                f,
+                "replace_face_offset: {edge:?}'s carrier is outside this door's transport \
+                 lanes ({what})"
+            ),
+            Self::IsoRow { edge, error } => write!(
+                f,
+                "replace_face_offset: {edge:?}'s row could not be extracted from the fitted \
+                 chart: {error}"
+            ),
+            Self::Structure { edge, error } => write!(
+                f,
+                "replace_face_offset: {edge:?}'s new carrier is not valid spline structure: \
+                 {error}"
+            ),
+            Self::VertexDisagreement { vertex, gap } => write!(
+                f,
+                "replace_face_offset: two boundary edges transport {vertex:?} to points \
+                 {gap:?} m apart — the re-derivation is not coherent"
+            ),
+            Self::ReanchorOffCarrier { edge, gap } => write!(
+                f,
+                "replace_face_offset: {edge:?} ends at a moved vertex that is {gap:?} m off its \
+                 own carrier, so its parameter cannot be re-anchored"
+            ),
+            Self::TogetherAxialUnsupported { face, kind } => write!(
+                f,
+                "offset_charts_together: {face:?} carries a {}, which the axial reduction has \
+                 no meridian curve for — this body keeps the per-chart door",
+                kind.name()
+            ),
+            Self::TogetherNotAxial { face, what } => write!(
+                f,
+                "offset_charts_together: {face:?} is {what}, so it is not a surface of \
+                 revolution about this body's axis and its corners have no meridian coordinates"
+            ),
+            Self::TogetherAxialCorner {
+                vertex,
+                surfaces,
+                what,
+            } => write!(
+                f,
+                "offset_charts_together: {vertex:?} has {surfaces} distinct moved surfaces and \
+                 {what}"
+            ),
+            Self::TogetherAxialEdge { edge, what } => write!(
+                f,
+                "offset_charts_together: {edge:?} cannot be re-derived — {what}"
+            ),
+            Self::Escalated { source } => {
+                write!(f, "replace_face_offset escalated: {source}")
+            }
+            Self::Op { edge, error } => match edge {
+                Some(e) => write!(
+                    f,
+                    "replace_face_offset: the attach door refused {e:?}: {error}"
+                ),
+                None => write!(f, "replace_face_offset: the attach door refused: {error}"),
+            },
+            Self::Pcurve { source } => {
+                write!(f, "replace_face_offset: the pcurve mint refused: {source}")
+            }
+            Self::TogetherChartMixed { face, other } => write!(
+                f,
+                "the simultaneous offset: {face:?} does not wear the same surface as its \
+                 chart's {other:?} — a chart move names ONE chart"
+            ),
+            Self::TogetherFaceRepeated { face } => write!(
+                f,
+                "the simultaneous offset: {face:?} is named by more than one chart move, so \
+                 its offset is two different numbers"
+            ),
+            Self::TogetherEdgeDisagreement { edge, gap } => write!(
+                f,
+                "the simultaneous offset: {edge:?}'s re-derived geometry is {gap:?} m out of \
+                 agreement — an independently solved endpoint stands off the edge's carrier, \
+                 or the minted carrier's own midpoint stands off a moved surface the edge \
+                 separates"
+            ),
+            Self::TogetherNonPlanar { face, kind } => write!(
+                f,
+                "offset_planes_together: {face:?} carries a {kind:?}, and this door solves \
+                 corners as plane equations — a curved corner has none"
+            ),
+            Self::TogetherPartialSet { face } => write!(
+                f,
+                "the simultaneous offset: {face:?} is a face of the body that no chart move \
+                 named — every corner's answer depends on all the surfaces meeting it, so a \
+                 partial set has corners no simultaneous door can solve"
+            ),
+            Self::TogetherCorner {
+                vertex,
+                planes,
+                what,
+            } => write!(
+                f,
+                "the simultaneous corner solve: the corner at {vertex:?} ({planes} distinct \
+                 planes) has no offset point — {what}"
+            ),
+            Self::ResultNotClosed { errors } => write!(
+                f,
+                "replace_face_offset: the re-described body is not tier-2 valid ({} errors); \
+                 the clone is discarded",
+                errors.len()
+            ),
+        }
+    }
+}
+
+impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
+
+// ---------------------------------------------------------------------
+// The transport lanes
+// ---------------------------------------------------------------------
+
+/// The offset's action on one curve that lies on `old`, at the curve's
+/// own parameterization: the transported carrier, plus the translation
+/// vector when the action WAS a rigid translation (a `MappedCurve`'s
+/// placement composes with that and with nothing else).
+///
+/// `mid` is the curve's mid-parameter point, which is what selects the
+/// ruling/nappe on the kinds whose chart normal varies with position.
+type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
+
+/// Why a transport could not be produced — kept distinct from "this
+/// lane does not exist", which is what `Ok(None)` says.
+enum TransportError {
+    /// A named margined predicate escalated.
+    Escalated(Indeterminate),
+    /// The transported control net is not valid spline structure. A
+    /// STRUCTURE failure, never a scope one: the lane exists and ran.
+    Structure(geom_core::spline::SplineError),
+}
+
+fn transport_curve<T: Decide>(
+    old: &Surface<T>,
+    nappe: Nappe,
+    d: T,
+    curve: &Curve3<T>,
+    mid: Point3<T>,
+    band: Band,
+) -> Result<Transported<T>, TransportError> {
+    Ok(match old {
+        Surface::Plane { normal, .. } => {
+            let delta = *normal * d;
+            Some((
+                translate_curve(curve, delta).map_err(TransportError::Structure)?,
+                Some(delta),
+            ))
+        }
+        Surface::Cylinder { origin, axis, .. } => match curve {
+            Curve3::Line { .. } | Curve3::Nurbs(_) => {
+                let radial = (mid - *origin).reject_from(*axis).normalize();
+                let delta = radial * d;
+                Some((
+                    translate_curve(curve, delta).map_err(TransportError::Structure)?,
+                    Some(delta),
+                ))
+            }
+            Curve3::Circle {
+                center,
+                axis: ca,
+                radius,
+                u_ref,
+            } => Some((
+                Curve3::Circle {
+                    center: *center,
+                    axis: *ca,
+                    radius: *radius + d,
+                    u_ref: *u_ref,
+                },
+                None,
+            )),
+            // Neither an ellipse nor a spiric lies on a cylinder.
+            Curve3::Ellipse { .. } | Curve3::Spiric { .. } => None,
+        },
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            // ONE derivation, read from `geom_brep`: the apex slide,
+            // the parameter shift and the pointwise displacement are
+            // three faces of the mint's own action, and this door reads
+            // all three rather than re-deriving any (the drift that
+            // costs is a second copy, not a second call).
+            let action = geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d);
+            let (sin_a, cos_a) = half_angle.sin_cos();
+            match curve {
+                // A chart line is a generator, and the action's
+                // displacement is constant along one (the azimuth does
+                // not vary), so the transport is rigid.
+                Curve3::Line { .. } | Curve3::Nurbs(_) => {
+                    let delta = action.displacement(nappe, mid);
+                    Some((
+                        translate_curve(curve, delta).map_err(TransportError::Structure)?,
+                        Some(delta),
+                    ))
+                }
+                // A parallel: `v` shifts by the action's own shift, and
+                // the circle re-mints against the action's own APEX —
+                // the slide the mint applies and this arm used to omit.
+                Curve3::Circle {
+                    center,
+                    axis: ca,
+                    u_ref,
+                    ..
+                } => {
+                    let v = (*center - *apex).dot(*axis) / cos_a;
+                    let v_new = v + action.shift();
+                    Some((
+                        Curve3::Circle {
+                            center: action.apex() + *axis * (v_new * cos_a),
+                            axis: *ca,
+                            radius: (v_new * sin_a).abs(),
+                            u_ref: *u_ref,
+                        },
+                        None,
+                    ))
+                }
+                // Neither an ellipse nor a spiric lies on a cone.
+                Curve3::Ellipse { .. } | Curve3::Spiric { .. } => None,
+            }
+        }
+        // The sphere's offset IS the homothety of ratio `(R + d)/R`
+        // about the centre, so every curve on it transports by that one
+        // map — no per-kind case analysis, only per-kind arithmetic.
+        Surface::Sphere { center, radius, .. } => {
+            let k = (*radius + d) / *radius;
+            homothety(curve, *center, k)
+                .map_err(TransportError::Structure)?
+                .map(|c| (c, None))
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => match curve {
+            Curve3::Circle {
+                center: c,
+                axis: ca,
+                radius,
+                u_ref,
+            } => {
+                // Meridian or parallel is a question about the STORED
+                // circle's frame against the torus'; the margin is the
+                // sine/cosine split at the half-turn, and a carrier
+                // whose axis sits between the two is not a curve either
+                // arm describes.
+                let along = ca.dot(*axis);
+                let parallel = matches!(
+                    decide(
+                        "offset_torus_carrier_axis",
+                        Margin::of(along.abs() - T::from_f64(0.5)),
+                        band,
+                    )
+                    .map_err(TransportError::Escalated)?,
+                    Sign::Positive
+                );
+                if parallel {
+                    // A parallel: recover `v` from the stored circle
+                    // (`radius = R + r·cos v`, axial offset `r·sin v`)
+                    // and re-mint it at `r + d`.
+                    let cos_v = (*radius - *major_radius) / *minor_radius;
+                    let sin_v = (*c - *center).dot(*axis) / *minor_radius;
+                    let r_new = *minor_radius + d;
+                    Some((
+                        Curve3::Circle {
+                            center: *center + *axis * (r_new * sin_v),
+                            axis: *ca,
+                            radius: *major_radius + r_new * cos_v,
+                            u_ref: *u_ref,
+                        },
+                        None,
+                    ))
+                } else {
+                    // A meridian (tube) circle: the tube centre is
+                    // fixed and the radius moves with the minor.
+                    Some((
+                        Curve3::Circle {
+                            center: *c,
+                            axis: *ca,
+                            radius: *minor_radius + d,
+                            u_ref: *u_ref,
+                        },
+                        None,
+                    ))
+                }
+            }
+            _ => None,
+        },
+        // The fitted lane: the chart normal at the domain midpoint is
+        // the one direction this door has, and the cost of using it is
+        // `d·|n − n₀|` — classified downstream by the certified gate,
+        // never assumed away here.
+        Surface::Nurbs(n) => match mid_domain_normal(n) {
+            None => None,
+            Some(n0) => {
+                let delta = n0 * d;
+                Some((
+                    translate_curve(curve, delta).map_err(TransportError::Structure)?,
+                    Some(delta),
+                ))
+            }
+        },
+        Surface::Approx(_) => None,
+    })
+}
+
+/// The chart normal at the centre of a NURBS surface's own domain.
+fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
+    let (u0, u1) = s.knots_u().domain();
+    let (v0, v1) = s.knots_v().domain();
+    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
+    let n = jet.du.cross(jet.dv).normalize();
+    (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
+}
+
+/// `curve` translated by `delta` — exact on every carrier kind (a
+/// translation acts on the stored anchor and leaves every frame,
+/// radius and weight alone).
+pub(crate) fn translate_curve<T: Real>(
+    curve: &Curve3<T>,
+    delta: Vec3<T>,
+) -> Result<Curve3<T>, geom_core::spline::SplineError> {
+    Ok(match curve {
+        Curve3::Line { origin, dir } => Curve3::Line {
+            origin: *origin + delta,
+            dir: *dir,
+        },
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Curve3::Circle {
+            center: *center + delta,
+            axis: *axis,
+            radius: *radius,
+            u_ref: *u_ref,
+        },
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => Curve3::Ellipse {
+            center: *center + delta,
+            axis: *axis,
+            major: *major,
+            minor: *minor,
+            u_ref: *u_ref,
+        },
+        Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => Curve3::Spiric {
+            center: *center + delta,
+            axis: *axis,
+            u_ref: *u_ref,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
+            n.knots().clone(),
+            n.control().iter().map(|p| *p + delta).collect(),
+            n.weights().to_vec(),
+        )?)),
+    })
+}
+
+/// `curve` under the homothety of ratio `k` about `c` — the sphere
+/// offset's own map.
+fn homothety<T: Real>(
+    curve: &Curve3<T>,
+    c: Point3<T>,
+    k: T,
+) -> Result<Option<Curve3<T>>, geom_core::spline::SplineError> {
+    let map = |p: Point3<T>| c + (p - c) * k;
+    Ok(Some(match curve {
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Curve3::Circle {
+            center: map(*center),
+            axis: *axis,
+            radius: *radius * k,
+            u_ref: *u_ref,
+        },
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
+            n.knots().clone(),
+            n.control().iter().map(|p| map(*p)).collect(),
+            n.weights().to_vec(),
+        )?)),
+        // A line, an ellipse or a spiric does not lie on a sphere, so
+        // a carrier of any of those kinds is not a curve this map was
+        // derived for.
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => return Ok(None),
+    }))
+}
+
+// ---------------------------------------------------------------------
+// The door
+// ---------------------------------------------------------------------
+
+/// One boundary edge's whole re-derivation, decided before anything is
+/// written.
+struct EdgePlan<T: Real> {
+    edge: EdgeKey,
+    spec: EdgeCurveSpec<T>,
+    start: VertexKey,
+    end: VertexKey,
+    p_start: Point3<T>,
+    p_end: Point3<T>,
+}
+
+/// Replaces `face`'s surface with its certified offset at signed
+/// distance `d` and re-describes the face's boundary against the moved
+/// chart (module docs).
+///
+/// `d` is along the chart's normal AT THIS FACE. On a cone's mirror
+/// nappe that is the negation of the stored `v > 0` field the mint
+/// moves along, and the door turns it (`crate::offset_nappe`) before
+/// anything is minted.
+///
+/// The run's ε arrives as the [`Tol`] witness alone, and the door
+/// derives the run's linear band from it once, so one call classifies
+/// at one ε by construction. The analytic kinds mint in closed form
+/// and read the band only for their margined decisions (the mint's
+/// radius floor and torus ring convention, this door's apex window and
+/// nappe); the NURBS lane hands the witness
+/// to the fit door (`geom_brep::approx_offset_surface`), which fits to
+/// the run's ε_precision and meters at the band it derives from the
+/// same witness. The boundary re-derivation reads the same band.
+///
+/// The body is **untouched on every `Err`**: the mint, the refusals and
+/// the whole boundary plan are decided read-only, the mutation runs on
+/// a clone, and the clone is adopted only after it validates.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError`] — [`ReplaceFaceError::Band`] when the run's
+/// tolerance forms no linear band, the offset door's own refusals, the
+/// fit door's, the apex-window predicate, the C5 routing boundary, the
+/// carrier lanes' scope, a re-derivation the attach layer's
+/// certification rejects, and a clone that does not validate.
+pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    d: T,
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    replace_faces_offset(body, &[face], d, tol)
+}
+
+/// [`replace_face_offset`] for a CHART: every face carrying one surface
+/// key, replaced together.
+///
+/// A surface can be worn by more than one face — a full revolve splits
+/// its wall into two bands over one cylinder, `step-import`'s adoption
+/// shares keys outright — and such a chart cannot be replaced one face
+/// at a time: the fresh key would leave the sharer on the old surface
+/// while their shared seam named the new one, and a `Seam` description
+/// requires ONE surface on both sides, so there is no re-description
+/// that repairs it afterwards. That is what
+/// [`ReplaceFaceError::SharedSurfaceKey`] refuses, and this door is the
+/// capability the refusal points at: name the whole group, and the
+/// chart moves as one.
+///
+/// **The whole group is the solid's.** What the door protects is that
+/// no edge joins a re-keyed wearer to one left on the old key. Every
+/// edge lies in one shell and so in one solid, so a wearer on another
+/// solid shares no edge with the group and keeps the old chart: a
+/// chart is body-wide, and the group is its wearers within the solids
+/// `faces` lie on.
+///
+/// `faces` must be exactly those wearers — not a subset (the refusal
+/// above) and not a mixture of charts
+/// ([`ReplaceFaceError::GroupChartsDiffer`]).
+///
+/// # Errors
+///
+/// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
+/// gates.
+pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    d: T,
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    // The one band every decision below classifies at, derived from the
+    // same witness the fit door reads.
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
+    // ---- Decide: the group. ----
+    let Some(&face) = faces.first() else {
+        return Err(ReplaceFaceError::EmptyGroup);
+    };
+    let face_data = body
+        .get_face(face)
+        .ok_or(ReplaceFaceError::StaleFace { face })?;
+    let old_key = face_data.surface;
+    for &member in &faces[1..] {
+        let data = body
+            .get_face(member)
+            .ok_or(ReplaceFaceError::StaleFace { face: member })?;
+        if data.surface != old_key {
+            return Err(ReplaceFaceError::GroupChartsDiffer {
+                face,
+                other: member,
+            });
+        }
+    }
+    // The group must be the WHOLE group within its solids: a wearer
+    // left behind there could share an edge with a re-keyed one.
+    let mut solids: Vec<SolidKey> = Vec::new();
+    for &member in faces {
+        let solid = body
+            .solid_of_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        if !solids.contains(&solid) {
+            solids.push(solid);
+        }
+    }
+    let mut scope: Vec<FaceKey> = Vec::new();
+    for &solid in &solids {
+        scope.extend(
+            body.faces_of_solid(solid)
+                .ok_or(ReplaceFaceError::Corrupt)?,
+        );
+    }
+    let charts = ChartGroups::within(body, scope).map_err(|_| ReplaceFaceError::Corrupt)?;
+    if let Some(&other) = charts.of(old_key).iter().find(|k| !faces.contains(k)) {
+        return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
+    }
+    let old_surface = body
+        .get_surface(old_key)
+        .ok_or(ReplaceFaceError::Corrupt)?
+        .clone();
+    // **The cone's mirror nappe is a consumer obligation, and this is
+    // where this door discharges it.** `geom_brep::ConeOffset`'s action
+    // moves material along the OPENING nappe's normal field, so a
+    // mirror-nappe face's material moves `−d` along its own chart
+    // normal; `d` arrives at this door along the FACE's outward
+    // direction, so the two conventions are opposite below the apex and
+    // the number has to be turned over before it reaches the mint. The
+    // nappe is decided at its one home, from the face's own corners.
+    //
+    // EVERY face of the group is decided and the answers are agreed
+    // ([`crate::offset_nappe::group_nappe`]), because the door moves a
+    // chart and a chart's faces need not share a nappe: one member's
+    // sign standing for another's is exactly the thing being ruled out.
+    //
+    // Only a cone is asked. Every other chart has ONE sheet, on which
+    // the face's own normal and the mint's stored field are the same
+    // direction, so the answer is `Opening` by construction and walking
+    // a plane's corners to be told so is work with no question behind
+    // it. `face_nappe` answers for those kinds too — the answer is
+    // total, so a caller that has no cone in hand still gets a turn to
+    // apply — but this door knows the surface already.
+    //
+    // Below this line `d` is the mint's own convention, not the door's.
+    let nappe = match old_surface {
+        Surface::Cone { .. } => crate::offset_nappe::group_nappe(body, faces, band)?,
+        _ => Nappe::Opening,
+    };
+    let d = nappe.turn(d);
+    let new_surface = mint_offset(
+        face,
+        &old_surface,
+        d,
+        band,
+        tol,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+    )?;
+
+    // ---- Decide: the apex window (cones only). ----
+    let shift = apex_shift(&old_surface, d);
+    if let Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = old_surface
+    {
+        let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+        // The nappe decides which end of the window is the one nearest
+        // the apex; the window decides whether that end has CLEARED the
+        // apex. One predicate, on the near end alone — the far end's
+        // sign follows from `v_min ≤ v_max` and needs no meter of its
+        // own — and a window that has not cleared it (because it
+        // straddles, touches, or carries a face of the other nappe) is
+        // refused before the collapse margin is taken.
+        let esc = |source| ReplaceFaceError::Escalated { source };
+        let (v_near, sense) = match nappe {
+            Nappe::Opening => (v_min, T::one()),
+            Nappe::Mirror => (v_max, -T::one()),
+        };
+        match decide("offset_apex_nappe", Margin::of(v_near * sense), band).map_err(esc)? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => {
+                return Err(ReplaceFaceError::ApexWindow {
+                    face,
+                    v_min,
+                    v_max,
+                    shift,
+                });
+            }
+        }
+        // `inf(v-window) + d·cot α > 0` on the opening nappe, and its
+        // mirror on the other — one margin, signed by the nappe.
+        let realized = (v_near + shift) * sense;
+        match decide("offset_apex_window", Margin::of(realized), band).map_err(esc)? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => {
+                return Err(ReplaceFaceError::ApexWindow {
+                    face,
+                    v_min,
+                    v_max,
+                    shift,
+                });
+            }
+        }
+    }
+
+    // ---- Decide: the boundary plan. ----
+    let boundary = group_boundary(body, faces).ok_or(ReplaceFaceError::Corrupt)?;
+    let mut plans: Vec<EdgePlan<T>> = Vec::with_capacity(boundary.len());
+    for &edge in &boundary {
+        plans.push(plan_edge(
+            body,
+            edge,
+            faces,
+            &old_surface,
+            old_key,
+            &new_surface,
+            nappe,
+            d,
+            shift,
+            band,
+        )?);
+    }
+
+    // ---- Decide: where each moved vertex lands, and the agreement. ----
+    // Every boundary edge transports its own endpoints, so a vertex on
+    // k edges gets k candidate points. They are checked PAIRWISE, not
+    // each against the first: a star comparison passes a spread of up
+    // to 2ε (two points each within ε of the centre but 2ε from each
+    // other), and the claim being made is that the re-derivation is
+    // coherent, which is a statement about the whole set.
+    let mut candidates: Vec<(VertexKey, Vec<Point3<T>>)> = Vec::new();
+    for plan in &plans {
+        for (vertex, point) in [(plan.start, plan.p_start), (plan.end, plan.p_end)] {
+            match candidates.iter_mut().find(|(v, _)| *v == vertex) {
+                Some((_, points)) => points.push(point),
+                None => candidates.push((vertex, vec![point])),
+            }
+        }
+    }
+    // Copies of one vertex on one point move together: their candidates
+    // are pooled and checked as one set, and the group lands on one
+    // point.
+    let mut groups: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    for group in group_by_point(body, candidates.iter().map(|(v, _)| *v))? {
+        let vertex = group[0];
+        let points: Vec<Point3<T>> = candidates
+            .iter()
+            .filter(|(v, _)| group.contains(v))
+            .flat_map(|(_, points)| points.iter().copied())
+            .collect();
+        for (i, a) in points.iter().enumerate() {
+            for b in &points[i + 1..] {
+                let gap = a.distance(*b);
+                match decide(
+                    "offset_vertex_agreement",
+                    Margin::of(T::from_f64(tol.eps()) - gap),
+                    band,
+                )
+                .map_err(|source| ReplaceFaceError::Escalated { source })?
+                {
+                    Sign::Positive | Sign::Zero => {}
+                    Sign::Negative => {
+                        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
+                    }
+                }
+            }
+        }
+        let Some(point) = points.first().copied() else {
+            return Err(ReplaceFaceError::Corrupt);
+        };
+        moved.extend(group.iter().map(|&v| (v, point)));
+        groups.push((group, point));
+    }
+
+    // ---- Decide: the incident edges that only need re-anchoring. ----
+    let anchored = plan_reanchors(body, &boundary, &moved, band, tol)?;
+
+    // ---- Mutation, on a clone (infallible decisions are done). ----
+    //
+    // The clone is under a surgery scope for the whole of it: the
+    // setters below are this door's operator sequence, and the door's
+    // whole-body check is the tier-2 gate the clone is adopted on.
+    let mut staged = body.clone();
+    let mut work = staged.begin_surgery();
+    // The whole group moves onto one new chart: it wore one surface
+    // before and wears one after, which is what keeps its shared seams
+    // describable, and a plan's `old_key` stands for that chart.
+    let chart = offset_rechart(&work, new_surface, faces)?;
+    let specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = plans
+        .into_iter()
+        .map(|plan| (plan.edge, plan.spec))
+        .collect();
+    move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
+    for (edge, spec) in anchored {
+        work.set_edge_curve(edge, spec, tol)
+            .map_err(|error| ReplaceFaceError::Op {
+                edge: Some(edge),
+                error,
+            })?;
+    }
+    mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    work.sweep_and_close();
+    validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
+
+    body.adopt(staged);
+    Ok(())
+}
+
+/// The offset surface for `old`: the analytic mint, or the fit door's
+/// certified `Approx` where the kind is not closed under offset.
+///
+/// `offset_fit` is that door ([`geom_brep::OffsetFitLane`]), handed in
+/// as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. `None` is not a
+/// pass — a caller that cannot mint the offset refuses with
+/// [`ReplaceFaceError::ApproxLaneUnsupported`].
+// `band` is the one [`replace_faces_offset`] derived from `tol`: the
+// analytic arm classifies at it, and the fit door re-derives the same
+// band from the witness it is handed.
+fn mint_offset<T: Decide>(
+    face: FaceKey,
+    old: &Surface<T>,
+    d: T,
+    band: Band,
+    tol: Tol,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+) -> Result<Surface<T>, ReplaceFaceError<T>> {
+    if let Surface::Nurbs(base) = old {
+        if base.is_placeholder() {
+            return Err(ReplaceFaceError::PlaceholderSurface { face });
+        }
+        return match offset_fit {
+            None => Err(ReplaceFaceError::ApproxLaneUnsupported {
+                face,
+                scalar: T::NAME,
+            }),
+            Some(lane) => lane
+                .mint(Arc::clone(base), d, tol)
+                .map(Surface::Approx)
+                .map_err(|error| ReplaceFaceError::Fit { face, error }),
+        };
+    }
+    // `d` is `geom_brep::offset_surface`'s own convention here, turned
+    // at the door by the face's nappe (`crate::offset_nappe`) — the
+    // mint is nappe-blind by contract and this call does not re-read it.
+    geom_brep::offset_surface(old, d, band)
+        .map_err(|error| ReplaceFaceError::Offset { face, error })
+}
+
+/// **The reach a pose is read over** at the C5 gate: an UPPER bound on
+/// how far the edge's carrier stands from either surface's ANCHOR (a
+/// cone's apex, a sphere's or torus's centre, a cylinder's origin; a
+/// plane has none). An arm's angular trilean meters a tilt `θ` as the
+/// locus displacement `θ·extent`, and about an anchor that displacement
+/// is largest at the carrier point farthest from it, so this is the
+/// extent at which the pose question means something for THIS edge.
+///
+/// The bound is per carrier, and never an underestimate — an
+/// underestimated lever would read a tilted pose as served:
+///
+/// - a **line** segment: its endpoints (distance to a point is convex
+///   along a line, so a segment attains its maximum at an end);
+/// - a **circle** or **ellipse**: centre distance plus the (major)
+///   radius, whatever the parameter span — a closed rim, whose two
+///   endpoints coincide, is exactly the case sampling misses;
+/// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
+/// - a **NURBS** carrier: its control points (the convex-hull property
+///   of positive weights).
+///
+/// A cylinder's origin is any point of its axis, so it can overstate
+/// the reach; an overstated lever reads more poses as definitely off
+/// the served class, which refuses rather than admits.
+fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    let mut reach = T::zero();
+    for s in surfaces {
+        let anchor = match *s {
+            Surface::Cone { apex, .. } => apex,
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Cylinder { origin, .. } => origin,
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => continue,
+        };
+        let far = match carrier {
+            Curve3::Line { origin, dir } => (*origin + *dir * t0 - anchor)
+                .norm()
+                .max((*origin + *dir * t1 - anchor).norm()),
+            Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
+            Curve3::Ellipse { center, major, .. } => (*center - anchor).norm() + major.abs(),
+            Curve3::Spiric {
+                center,
+                major_radius,
+                minor_radius,
+                ..
+            } => (*center - anchor).norm() + major_radius.abs() + minor_radius.abs(),
+            Curve3::Nurbs(n) => n
+                .control()
+                .iter()
+                .fold(T::zero(), |m, &p| m.max((p - anchor).norm())),
+        };
+        reach = reach.max(far);
+    }
+    reach
+}
+
+/// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
+/// other chart's parameterization moves under offset).
+fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
+    match old {
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d).shift(),
+        _ => T::zero(),
+    }
+}
+
+/// `face`'s `v`-window on a cone chart: the hull of its BOUNDARY
+/// carriers' `v`-ranges.
+///
+/// `v` is an affine functional of position on a cone chart
+/// (`v = (p − apex)·axis / cos α`), so each carrier's range is closed
+/// form — endpoints for a line, centre ± amplitude for a conic, the
+/// control net's own hull for a spline (the convex-hull property). And
+/// a coordinate's extremes over a compact chart region are attained on
+/// its boundary, so the hull of the boundary's ranges IS the face's
+/// window. Nothing is sampled and nothing is padded.
+///
+/// `None` when the face has no boundary carrier to read.
+fn group_cone_v_window<T: Decide>(
+    body: &Body<T>,
+    group: &[FaceKey],
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+) -> Option<(T, T)> {
+    let mut window: Option<(T, T)> = None;
+    for edge in group_boundary(body, group)? {
+        let edge_data = body.get_edge(edge)?;
+        let curve = body
+            .get_curve_geom(edge_data.curve)
+            .and_then(crate::null::CurveGeom::certified)?;
+        let (t0, t1) = curve.params();
+        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        window = Some(match window {
+            None => (lo, hi),
+            Some((a, b)) => (a.min(lo), b.max(hi)),
+        });
+    }
+    window
+}
+
+/// The `v`-range of one carrier on a cone chart (see
+/// [`group_cone_v_window`]).
+fn cone_v_range<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+) -> (T, T) {
+    let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    match carrier {
+        // `v` is affine in `t`, so the endpoints are the extremes.
+        Curve3::Line { .. } => {
+            let (a, b) = (v_of(carrier.eval(t0)), v_of(carrier.eval(t1)));
+            (a.min(b), a.max(b))
+        }
+        // A conic's `v` is `centre ± amplitude·cos(θ − φ)`: the
+        // amplitude is the semi-axes' own components along the cone
+        // axis. Taken over the FULL period, which is conservative on a
+        // sub-arc and exact on a closed rim.
+        Curve3::Circle {
+            center,
+            axis: ca,
+            radius,
+            u_ref,
+        } => {
+            let v_ref = ca.cross(*u_ref);
+            let amp = ((u_ref.dot(axis) * *radius).powi(2) + (v_ref.dot(axis) * *radius).powi(2))
+                .sqrt()
+                / cos_a;
+            let c = v_of(*center);
+            (c - amp, c + amp)
+        }
+        Curve3::Ellipse {
+            center,
+            axis: ca,
+            major,
+            minor,
+            u_ref,
+        } => {
+            let v_ref = ca.cross(*u_ref);
+            let amp = ((u_ref.dot(axis) * *major).powi(2) + (v_ref.dot(axis) * *minor).powi(2))
+                .sqrt()
+                / cos_a;
+            let c = v_of(*center);
+            (c - amp, c + amp)
+        }
+        // The convex-hull property: the image lies in the hull of the
+        // control polygon, and an affine functional's range over a hull
+        // is its range over the vertices.
+        Curve3::Nurbs(n) => {
+            let mut lo: Option<T> = None;
+            let mut hi: Option<T> = None;
+            for p in n.control() {
+                let v = v_of(*p);
+                lo = Some(lo.map_or(v, |x: T| x.min(v)));
+                hi = Some(hi.map_or(v, |x: T| x.max(v)));
+            }
+            (lo.unwrap_or_else(T::zero), hi.unwrap_or_else(T::zero))
+        }
+        // A spiric lies on no cone, and this range is asked of a cone
+        // face's own boundary edges — every one certified on its chart
+        // at rest — so a spiric here is a kernel bug, not a body's.
+        Curve3::Spiric { .. } => {
+            unreachable!("cone_v_range: a spiric carrier bounds no cone face")
+        }
+    }
+}
+
+/// The group's boundary edges, in face-then-loop-then-cycle order,
+/// each once — including the seams INTERNAL to the group, which move
+/// with the chart exactly as its outer edges do.
+fn group_boundary<T: Real>(body: &Body<T>, group: &[FaceKey]) -> Option<Vec<EdgeKey>> {
+    let mut out: Vec<EdgeKey> = Vec::new();
+    for &face in group {
+        boundary_edges_into(body, face, &mut out)?;
+    }
+    Some(out)
+}
+
+/// `face`'s boundary edges appended to `out`, each once.
+fn boundary_edges_into<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+    out: &mut Vec<EdgeKey>,
+) -> Option<()> {
+    let face_data = body.get_face(face)?;
+    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first)? {
+            let edge = body.get_half_edge(he)?.edge;
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+    }
+    Some(())
+}
+
+/// One boundary edge's re-derivation: the description re-stated against
+/// the moved chart, the carrier transported, the endpoints read off the
+/// transported carrier.
+#[allow(clippy::too_many_arguments)]
+fn plan_edge<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    group: &[FaceKey],
+    old_surface: &Surface<T>,
+    old_key: SurfaceKey,
+    new_surface: &Surface<T>,
+    nappe: Nappe,
+    d: T,
+    shift: T,
+    band: Band,
+) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
+    let edge_data = body.get_edge(edge).ok_or(ReplaceFaceError::Corrupt)?;
+    let he_plus = edge_data.he_plus;
+    let start = body
+        .get_half_edge(he_plus)
+        .ok_or(ReplaceFaceError::Corrupt)?
+        .start;
+    let end = body
+        .half_edge_end(he_plus)
+        .ok_or(ReplaceFaceError::Corrupt)?;
+    let curve = body
+        .get_curve_geom(edge_data.curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(ReplaceFaceError::Corrupt)?;
+    let (t0, t1) = curve.params();
+    let old_carrier = curve.carrier().clone();
+    let description = curve.description().clone();
+    let mid = curve.mid_point();
+
+    // The one description that gets an EXACT carrier rather than a
+    // transported one: an iso-curve of a fitted chart is a row of the
+    // fit's own control net, so extracting it lands the carrier in the
+    // fit's spline space — its degree and its refined interior knots —
+    // without elevating or refining anything.
+    if let (EdgeDescription::Chart(c), Surface::Approx(approx)) = (&description, new_surface)
+        && c.surface == old_key
+        && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
+    {
+        // An iso image on a DESCRIPTION is u-const by construction —
+        // `EdgeDescriptionSpec::iso` is the only door that mints one,
+        // and it fixes `u` and moves `v`. (The u-moving `IsoLine` the
+        // cap-rim lane mints is a stored CACHE, never a description.)
+        let (u, v0, v1) = (p0.x, p0.y + pl.y * t0, p0.y + pl.y * t1);
+        // The seam this row carries is shared with whatever face
+        // sits on the other side. If THAT face is a bounded chart
+        // too, it would have to move with this one to keep holding
+        // the edge — which is a body-wide offset, not a
+        // face-replacement, and this door says so rather than
+        // storing a row the neighbour's own lane will reject.
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
+        let other = if group.contains(&fa) { fb } else { fa };
+        if !group.contains(&other)
+            && matches!(
+                body.get_surface(
+                    body.get_face(other)
+                        .ok_or(ReplaceFaceError::Corrupt)?
+                        .surface
+                ),
+                Some(Surface::Nurbs(_) | Surface::Approx(_))
+            )
+        {
+            return Err(ReplaceFaceError::FittedBoundaryUnsupported {
+                edge,
+                what: "a seam shared with another bounded chart",
+            });
+        }
+        // The extraction itself lives in `geom_brep::nurbs_iso`, beside
+        // `boundary_iso_u` and its asserting rows: the door's lane is
+        // the call, not the arithmetic. PR-2's schedule for this lane
+        // is the fitted-boundary note below — until every chart
+        // bounding an edge moves together, the only reachable exit
+        // past this call is a refusal.
+        // **The fourth home of the same question** (PCURVE P-1b, found
+        // in review). This early return mints its own spec and never
+        // reaches `carried_declaration` below, so it too would answer
+        // `declared: None` and destroy the record. There is no `delta`
+        // here to transport with — the carrier is extracted from the
+        // NEW fit's control net rather than transported — and a fit's
+        // offset is not a rigid translation in any case, so the honest
+        // answer for a declared locus is the same refusal the other
+        // arms give rather than a silent drop.
+        //
+        // Latent today: an iso boundary of a face's own fit is minted
+        // by `nurbs_iso_derive`, which declares nothing, so no current
+        // fixture carries a declaration here. Written anyway, because
+        // "no fixture reaches it" is exactly what was true of the
+        // boundary lane's drop until a cap offset reached it.
+        if curve.authority().is_declared() {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a declared chart image whose surface's offset is not a rigid \
+                       translation (the image transports, its declaring pushforward \
+                       cannot)",
+            });
+        }
+        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
+            .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
+        let carrier = Curve3::Nurbs(Arc::new(row));
+        let p_start = carrier.eval(v0);
+        let p_end = carrier.eval(v1);
+        return Ok(EdgePlan {
+            edge,
+            spec: EdgeCurveSpec {
+                description: EdgeDescriptionSpec::iso(old_key, u_domain, v0, v1, v0, v1),
+                carrier,
+                param_start: v0,
+                param_end: v1,
+            },
+            start,
+            end,
+            p_start,
+            p_end,
+        });
+    }
+
+    // Past the fit's own rows, a fitted face's boundary has nowhere to
+    // go: every remaining lane transports a carrier off the chart that
+    // is supposed to hold it.
+    if matches!(new_surface, Surface::Approx(_)) {
+        return Err(ReplaceFaceError::FittedBoundaryUnsupported {
+            edge,
+            // The pre-collapse refusal "a mapped rim (a v-row is not
+            // an `IsoCurve`)" is GONE with the taxonomy that made it:
+            // a rim is a chart image like any other, and a u-const one
+            // takes the exact-row lane above whatever minted it. What
+            // is left refuses on GEOMETRY — the fit's rows run u-const
+            // — rather than on which variant the description was.
+            what: match description {
+                EdgeDescription::Chart(ref c) if c.surface == old_key => {
+                    "a chart image of this face's own fit that is not one of its u-const rows"
+                }
+                EdgeDescription::Chart(_) => "a chart image of a neighbour's chart",
+                EdgeDescription::Intersection { .. }
+                | EdgeDescription::TangentIntersection { .. } => {
+                    "an intrinsic intersection with an untouched neighbour"
+                }
+                EdgeDescription::Scaffold(_) => "scaffolding that never came to rest",
+            },
+        });
+    }
+
+    let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
+        .map_err(|e| match e {
+            TransportError::Escalated(source) => ReplaceFaceError::Escalated { source },
+            TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
+        })?
+        .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+            edge,
+            what: "this (surface kind, carrier kind) pair has no closed-form offset action",
+        })?;
+    let new_mid = carrier.mid_point(t0, t1);
+
+    // **The declaring pushforward travels with the face** (PCURVE
+    // P-1b), and it travels the same way whichever arm below the
+    // edge's description takes — so it is answered once, here, rather
+    // than three times inside the match.
+    //
+    // U2 split what used to be one datum in two. The LOCUS is a chart
+    // image, stated in the chart's own coordinates, so the offset
+    // re-parameterizes the chart and the image needs no transport —
+    // that argument is what let this unit retire the *"not a rigid
+    // translation"* refusal for conventional edges, and it is right.
+    // The DECLARATION beside it is the other half: a `MappedCurve`,
+    // sketch data under a 3-SPACE placement, which is exactly the
+    // thing that must be carried bodily with the face. Before the
+    // collapse that payload WAS the description and went down the
+    // scaffolding arm, which translated it; writing `declared: None`
+    // at its new home silently destroyed it for every edge the fence
+    // had converted.
+    //
+    // Measured, not reasoned: offsetting the tube's `y = 0.6` cap by
+    // `d = 0.05` and reading the moved cap seam's authority back —
+    //
+    //   as `Chart { declared: … }`, dropped → `Derived` (destroyed)
+    //   as `Scaffold(mc)`, what `main` stores → `Declared`, placement
+    //                                           translated by `(0, d, 0)`
+    //
+    // — same body, same door, same offset, differing only in which arm
+    // the description sends it down. So the branch CHANGED this lane
+    // rather than inheriting a defect, which is what puts it in scope
+    // here. Dropping it also flips `EdgeAuthority::is_declared`, which
+    // tier 3's prefer-intrinsic rules read — a verdict change, which
+    // this unit does not make.
+    //
+    // The `delta` requirement is the pre-collapse one, unchanged and
+    // for the pre-collapse reason: a pushforward can only be carried
+    // when the offset is a rigid translation of a family that
+    // translates. It is asked for ONLY when a declaration is actually
+    // present, so an edge whose locus nothing declared still crosses a
+    // non-translating offset freely — which is what the retirement
+    // bought, and this keeps it.
+    let carried_declaration =
+        || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
+            match curve.authority() {
+                geom_brep::EdgeAuthority::Derived => Ok(None),
+                geom_brep::EdgeAuthority::Declared(mc) => {
+                    let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a declared chart image whose surface's offset is not a rigid \
+                           translation (the image transports, its declaring pushforward \
+                           cannot)",
+                    })?;
+                    Ok(Some(translate_mapped(mc, delta).ok_or(
+                        ReplaceFaceError::CarrierLaneUnsupported {
+                            edge,
+                            what: "a rotation-family declaring pushforward (its trajectory \
+                               does not translate)",
+                        },
+                    )?))
+                }
+            }
+        };
+
+    let new_description = match description {
+        // A seam names a surface and nothing else — its image is
+        // DERIVED from the transported carrier against the new chart,
+        // exactly as it was derived from the old one, so there is no
+        // parameter to shift. Stated rather than left to the
+        // fall-through so the contrast with the line below is on the
+        // page.
+        EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
+            EdgeDescriptionSpec::Chart {
+                surface: old_key,
+                image: None,
+                seam: true,
+                declared: carried_declaration()?,
+            }
+        }
+        // Every other image on the MOVED chart shifts with the chart's
+        // own offset action: `d·cot α` in `v` on a cone, zero on every
+        // other kind.
+        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::Chart {
+            surface: old_key,
+            image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a chart image with no closed-form parameter shift: a fitted \
+                           image's v channel is a control net, and an offset cone section \
+                           is no plane section of the offset cone",
+                },
+            )?),
+            seam: false,
+            declared: carried_declaration()?,
+        },
+        EdgeDescription::Intersection { s1, s2, .. }
+        | EdgeDescription::TangentIntersection { s1, s2, .. }
+            if s1 == old_key || s2 == old_key =>
+        {
+            let other = if s1 == old_key { s2 } else { s1 };
+            let other_surface = body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?;
+            let other_kind = other_surface.kind();
+            let kind = new_surface.kind();
+            if !geom_brep::intersect::route(kind, other_kind).implemented {
+                return Err(ReplaceFaceError::NeighborPairUnroutable {
+                    edge,
+                    kind,
+                    other_kind,
+                });
+            }
+            // The kind pair routes; the arm is asked whether it serves
+            // THIS pose — the moved surface against the untouched one,
+            // read over the edge's own reach.
+            let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
+            let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
+                .map_err(|e| match e {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
+                    ReplaceFaceError::Escalated { source }
+                }
+                // `route_pose` returns only an escalation or a
+                // dispatch naming the wrong arm or seat — this
+                // kernel's own bug, not the body's (its `# Errors`);
+                // every other variant is answered inside it and
+                // never returned.
+                geom_brep::SectionError::WrongLane { .. }
+                | geom_brep::SectionError::RadiusDeclarationContradicted
+                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::BeyondOperandExtent { .. }
+                | geom_brep::SectionError::CoincidentSurfaces
+                | geom_brep::SectionError::DegenerateTorus
+                | geom_brep::SectionError::RoutesToGeneralRung { .. }
+                | geom_brep::SectionError::Carrier(_) => ReplaceFaceError::Corrupt,
+            })?;
+            if !posed.implemented {
+                return Err(ReplaceFaceError::NeighborPoseUnroutable {
+                    edge,
+                    kind,
+                    other_kind,
+                    why: posed.note,
+                });
+            }
+            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
+            let (n1, n2) = if s1 == old_key {
+                (old_key, s2)
+            } else {
+                (s1, old_key)
+            };
+            if tangent {
+                EdgeDescriptionSpec::TangentIntersection {
+                    s1: n1,
+                    s2: n2,
+                    witness: new_mid,
+                }
+            } else {
+                EdgeDescriptionSpec::Intersection {
+                    s1: n1,
+                    s2: n2,
+                    witness: new_mid,
+                }
+            }
+        }
+        // **A refusal the collapse retired for DERIVED conventional
+        // edges only — narrowed, after the wider claim was published
+        // and proved wrong** (PCURVE P-1b).
+        //
+        // Both `what`s below say the same thing about the same thing:
+        // a pushforward is stated in 3-SPACE, so it has to be carried
+        // bodily with the face it hangs off, and it can only be
+        // carried when the offset is a rigid translation of a family
+        // that translates.
+        //
+        // The wider claim was that a CHART IMAGE is stated in the
+        // chart's own coordinates — the offset re-parameterizes the
+        // chart and leaves the image untouched — so the question does
+        // not arise at all and these refusals stop firing for every
+        // conventional edge at rest. **The premise is right and the
+        // conclusion overreached.** U2 did not delete the pushforward,
+        // it MOVED it: out of the description, into the authority
+        // record beside the image (Q3). The image needs no transport;
+        // the declaration beside it does, and `carried_declaration`
+        // above raises this same statement from that arm. So what the
+        // retirement actually bought is narrower and still worth
+        // having: an edge the KERNEL derived — a seam, an iso
+        // boundary, a cap rim, anything with no declaring sketch
+        // entity — now crosses a non-translating offset freely, where
+        // before it refused.
+        //
+        // The wider claim looked true only because this lane was
+        // silently dropping the declaration (`declared: None`), so
+        // nothing was left to ask the transport question of. That is
+        // recorded rather than quietly narrowed, because it shipped in
+        // this PR as a "verdict that moved" and the two `demos/tour`
+        // teapot rows were re-baselined onto it.
+        //
+        // The arm below is NOT dead code: the scaffolding door is
+        // still real for edges whose surfaces do not exist yet, and it
+        // is unreachable for a body AT REST because tier 3's
+        // transience fence (`ValidationError::ScaffoldAtRest`) refuses
+        // a scaffold there. `demos/tour`'s
+        // `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+        // asserts both halves on the fixtures: no scaffolds (this arm
+        // unreachable) AND declarations present (the other arm is what
+        // answers).
+        EdgeDescription::Scaffold(mapped) => {
+            let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a mapped description whose surface's offset is not a rigid translation",
+            })?;
+            EdgeDescriptionSpec::Scaffold(translate_mapped(mapped, delta).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a rotation-family mapped description (its trajectory does not translate)",
+                },
+            )?)
+        }
+        // A description naming only OTHER surfaces still moves with the
+        // face — its carrier transports, and whether the untouched
+        // surface it names still holds the moved locus is a question
+        // the attach layer's certification answers, not this door.
+        //
+        // Its chart did not move, but the EDGE did — so the image
+        // stands and the declaring pushforward still travels with the
+        // face, by the same transport as every other arm.
+        EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: Some(c.pcurve.clone()),
+            seam: c.seam,
+            declared: carried_declaration()?,
+        },
+        EdgeDescription::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        }
+        EdgeDescription::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        }
+    };
+
+    Ok(EdgePlan {
+        edge,
+        spec: EdgeCurveSpec {
+            description: new_description,
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        start,
+        end,
+        p_start: carrier.eval(t0),
+        p_end: carrier.eval(t1),
+    })
+}
+
+/// A chart image with its `v` channel shifted by `shift` — the cone
+/// offset's `d·cot α` parameter action, and the identity on every
+/// other chart kind (`shift` is zero there).
+///
+/// The shift lands on the image's CONSTANT term, which is the only
+/// place a `v` translation can go for an image whose moving channels
+/// are the chart's own: the offset re-parameterizes the chart, it does
+/// not bend the curve drawn in it. `None` for a fitted image, whose
+/// `v` channel is a control net rather than a closed form — refused
+/// rather than shifted point-by-point, which would author a fit this
+/// door has no certificate for — and for a cone-section image, whose
+/// offset is no plane section of the offset cone.
+fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
+    use geom_brep::Pcurve;
+    Some(match *pcurve {
+        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pa,
+            pb,
+            pl,
+        },
+        Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pl,
+        },
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            ref breaks,
+        } => Pcurve::IsoArc {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+        },
+        // Both spiric images are affine in the chart's SECOND channel
+        // — the cap's `v` coordinate is its constant term's, the
+        // wall's is `v0` — so the shift lands on one field exactly, as
+        // it does on the three arms above. The shift this door
+        // computes is the cone's `d·cot α` and zero on every other
+        // chart kind, so on the two charts a spiric lives on it is
+        // zero; the arm is written for the action, not for the value.
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            ref image,
+        } => Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: match *image {
+                geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
+                    p0: geom_core::Point2::new(p0.x, p0.y + shift),
+                    pm,
+                    pa,
+                },
+                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0: v0 + shift,
+                    sense,
+                },
+            },
+        },
+        // A cone section's image is tied to its cone through `β`, the
+        // projected ellipse's eccentricity: the offset moves the curve
+        // off the plane section it was, so no image of the same form
+        // is shifted out of this one.
+        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+    })
+}
+
+/// `mapped` under the translation `delta` — the placement's own
+/// translation absorbs it. `None` on the rotation family, whose
+/// trajectory is not a rigid function of the placement's translation.
+pub(crate) fn translate_mapped<T: Real>(
+    mapped: geom_brep::MappedCurve<T>,
+    delta: Vec3<T>,
+) -> Option<geom_brep::MappedCurve<T>> {
+    let shifted = |place: Affine3<T>| Affine3::from_parts(place.linear, place.translation + delta);
+    Some(match mapped {
+        geom_brep::MappedCurve::PlacedSegment { segment, place } => {
+            geom_brep::MappedCurve::PlacedSegment {
+                segment,
+                place: shifted(place),
+            }
+        }
+        geom_brep::MappedCurve::ExtrudedPoint { point, place, vec } => {
+            geom_brep::MappedCurve::ExtrudedPoint {
+                point,
+                place: shifted(place),
+                vec,
+            }
+        }
+        _ => return None,
+    })
+}
+
+/// `faces` onto one fresh chart, `surface`, each keeping the material
+/// side it has now: an offset moves a chart along its own normal, so
+/// the side the material lies on does not change.
+pub(crate) fn offset_rechart<T: Real>(
+    body: &Body<T>,
+    surface: Surface<T>,
+    faces: &[FaceKey],
+) -> Result<Rechart<T>, ReplaceFaceError<T>> {
+    let sense = |face: FaceKey| {
+        body.get_face(face)
+            .map(|f| f.sense)
+            .ok_or(ReplaceFaceError::Corrupt)
+    };
+    let (&first, rest) = faces.split_first().ok_or(ReplaceFaceError::EmptyGroup)?;
+    let mut chart = Rechart::new(surface, first, sense(first)?);
+    for &face in rest {
+        chart = chart.with(face, sense(face)?);
+    }
+    Ok(chart)
+}
+
+/// **The points move first, then one re-chart**: every group in
+/// `moved` moves onto its new point, and then every chart moves in ONE
+/// [`Body::set_face_surfaces_describing`] with every spec, which so
+/// certifies each at the endpoints the offset leaves it. One call,
+/// because an edge between two moving charts certifies on neither pair
+/// of mixed charts; a spec names a chart by the key its face wears now.
+/// The offset doors' shared mutation step, run on their staged clone.
+///
+/// A group is the vertices that move together: the moved vertices on
+/// one point ([`group_by_point`]), solved once, so copies that share a
+/// point before the offset share one after it. A vertex the op does
+/// not move is in no group and keeps its point.
+pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
+    work: &mut Body<T>,
+    moved: &[(Vec<VertexKey>, Point3<T>)],
+    charts: Vec<Rechart<T>>,
+    specs: &[(EdgeKey, EdgeCurveSpec<T>)],
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    for (vertices, point) in moved {
+        work.move_vertices(vertices, *point)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+    }
+    work.set_face_surfaces_describing(charts, specs, tol)
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    Ok(())
+}
+
+/// `vertices` grouped by the point each sits on, groups in order of
+/// first appearance and each group in `vertices`' order (D9): the
+/// copies of one vertex that an op moves together.
+pub(crate) fn group_by_point<T: Real>(
+    body: &Body<T>,
+    vertices: impl IntoIterator<Item = VertexKey>,
+) -> Result<Vec<Vec<VertexKey>>, ReplaceFaceError<T>> {
+    let mut groups: Vec<(crate::PointKey, Vec<VertexKey>)> = Vec::new();
+    for vertex in vertices {
+        let point = body
+            .get_vertex(vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point;
+        match groups.iter_mut().find(|(k, _)| *k == point) {
+            Some((_, group)) => group.push(vertex),
+            None => groups.push((point, vec![vertex])),
+        }
+    }
+    Ok(groups.into_iter().map(|(_, group)| group).collect())
+}
+
+/// `description` with every occurrence of `old` re-pointed at `new` —
+/// the stale-key step a fresh surface mint forces.
+pub(crate) fn remap_description<T: Real>(
+    description: EdgeDescriptionSpec<T>,
+    old: SurfaceKey,
+    new: SurfaceKey,
+) -> EdgeDescriptionSpec<T> {
+    let map = |k: SurfaceKey| if k == old { new } else { k };
+    match description {
+        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection {
+                s1: map(s1),
+                s2: map(s2),
+                witness,
+            }
+        }
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1: map(s1),
+                s2: map(s2),
+                witness,
+            }
+        }
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image,
+            seam,
+            declared,
+        } => EdgeDescriptionSpec::Chart {
+            surface: map(surface),
+            image,
+            seam,
+            declared,
+        },
+        EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(m),
+    }
+}
+
+/// The edges that end at a moved vertex without lying on the replaced
+/// face's boundary: their carriers are unchanged (the surfaces that
+/// hold them did not move) and only the parameter at the moved end —
+/// and, for a mapped description, the sketch endpoint that parameter
+/// images — is re-anchored.
+fn plan_reanchors<T: Decide>(
+    body: &Body<T>,
+    boundary: &[EdgeKey],
+    moved: &[(VertexKey, Point3<T>)],
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, ReplaceFaceError<T>> {
+    let mut out = Vec::new();
+    let keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge in keys {
+        if boundary.contains(&edge) {
+            continue;
+        }
+        let edge_data = body.get_edge(edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let he_plus = edge_data.he_plus;
+        let start = body
+            .get_half_edge(he_plus)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .start;
+        let end = body
+            .half_edge_end(he_plus)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        let at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+        let (new_start, new_end) = (at(start), at(end));
+        if new_start.is_none() && new_end.is_none() {
+            continue;
+        }
+        let curve = body
+            .get_curve_geom(edge_data.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        let carrier = curve.carrier().clone();
+        let (mut t0, mut t1) = curve.params();
+        let mut description = curve.restated_description();
+        for (point, is_start) in [(new_start, true), (new_end, false)] {
+            let Some(point) = point else { continue };
+            let t_old = if is_start { t0 } else { t1 };
+            // Anchored at the parameter THIS ENDPOINT had, not at the
+            // span's midpoint: the stored range is the traversed arc,
+            // not a canonical one, so the turn it sits on is the datum
+            // the re-anchor must keep. `param_near` carries why an
+            // anchored read needs no branch selection.
+            //
+            // **THE `|δ| = π` POSE, ACCEPTED DELIBERATELY AND NOT BY
+            // OMISSION.** At exactly half a turn from `t_old` the point
+            // has TWO parameters within half a turn — `t_old ± π` —
+            // and which one `param_near` names is `atan2`'s cut, i.e.
+            // the sign bit of one dot product. `geom`'s
+            // `at_the_half_turn_boundary_the_two_forms_disagree_by_a_
+            // turn_and_both_are_right` measures the flip at 9 of 30
+            // boundary cases. The `gap` gate immediately below CANNOT
+            // see it: it asks `eval(t_new) ≈ point`, and both answers
+            // satisfy that exactly — they are the same point. What
+            // would differ is the STORED SPAN, by a whole turn.
+            //
+            // The pose is sound here because of what this door does,
+            // and that is a claim about the CALLER, not about the
+            // arithmetic: an offset MOVES an endpoint along its
+            // carrier, it does not teleport it half a turn, so `δ`
+            // stays small. Measured over the `sweep` suite — the only
+            // suite that reaches this door — 245 live calls, 236 on a
+            // `Line` (no branch at all) and 9 on a `Circle`, with
+            // `max |δ| = 0.244979` rad against a boundary of `π`: an
+            // order of magnitude of headroom, not a near miss.
+            //
+            // No refusal is added for it here. One would be a new
+            // named predicate, and a new predicate's margins cannot be
+            // policed on this branch while the K-telemetry probe
+            // census is red (#1288) — shipping an unpoliced predicate
+            // to close a gap no live call approaches is the worse
+            // trade. Banked with that measurement rather than waved
+            // through.
+            let t_new = carrier.param_near(point, t_old).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a re-anchored carrier that is neither a line nor a circle",
+                },
+            )?;
+            let gap = carrier.eval(t_new).distance(point);
+            match decide(
+                "offset_reanchor_on_carrier",
+                Margin::of(T::from_f64(tol.eps()) - gap),
+                band,
+            )
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+            {
+                Sign::Positive | Sign::Zero => {}
+                Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
+            }
+            // **The door RE-STATES the sketch datum; it does not
+            // patch the carrier around it.** The datum is the placed
+            // segment whose pushforward determined this locus, and it
+            // has to end where the edge now ends.
+            //
+            // **Both homes of that datum, since PCURVE P-1b.** It
+            // still IS the description while an edge is transient
+            // (the scaffolding door), and on an edge AT REST it is the
+            // AUTHORITY record beside a chart image (U2 Q3). Moving
+            // only the first was this unit's own miss: an at-rest cap
+            // seam re-anchored fine and kept a `declared` segment that
+            // still ended at the wall's OLD radius — a provenance
+            // record contradicting the geometry it claims to have
+            // determined. `verbs_offd::the_untouched_cap_seams_are_
+            // re_anchored` reads the datum where it now lives and is
+            // what caught it.
+            //
+            // The refusal is mirrored onto the new home DELIBERATELY,
+            // not by omission: an arc's carrier and a trajectory's
+            // family are sketch data this door cannot author, and that
+            // was a refusal before the collapse. Dropping the
+            // declaration instead would silently flip
+            // `EdgeAuthority::is_declared`, which tier 3's
+            // prefer-intrinsic rules read — a verdict change, which
+            // this unit does not make.
+            let restate = |m| {
+                move_mapped_endpoint(m, point, is_start).ok_or(
+                    ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a re-anchored mapped description that is not a placed line \
+                               segment (an arc's carrier and a trajectory's family are sketch \
+                               data this door does not author)",
+                    },
+                )
+            };
+            description = match description {
+                EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(restate(m)?),
+                EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(mc),
+                } => EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(restate(mc)?),
+                },
+                other => other,
+            };
+            if is_start {
+                t0 = t_new;
+            } else {
+                t1 = t_new;
+            }
+        }
+        // **The witness follows the parameter range.** An intrinsic
+        // description's witness is pinned to the edge's MID-PARAMETER
+        // point, so re-anchoring an endpoint moves the point the
+        // witness has to be — a stored witness from the old range
+        // fails `WitnessMidpoint` at the very gate that re-attaches it.
+        // The carrier did not move, so the new witness is that carrier
+        // read at the new midpoint.
+        let mid = carrier.mid_point(t0, t1);
+        description = match description {
+            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: mid,
+            },
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
+                EdgeDescriptionSpec::TangentIntersection {
+                    s1,
+                    s2,
+                    witness: mid,
+                }
+            }
+            other => other,
+        };
+        out.push((
+            edge,
+            EdgeCurveSpec {
+                description,
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            },
+        ));
+    }
+    Ok(out)
+}
+
+/// `mapped` with the sketch endpoint that images `is_start` moved to
+/// `point` — the authoritative sketch datum re-stated, not the carrier
+/// patched around it. `None` for anything but a placed line segment.
+fn move_mapped_endpoint<T: Real>(
+    mapped: geom_brep::MappedCurve<T>,
+    point: Point3<T>,
+    is_start: bool,
+) -> Option<geom_brep::MappedCurve<T>> {
+    let geom_brep::MappedCurve::PlacedSegment {
+        segment: geom_brep::SketchSegment::Line { a, b },
+        place,
+    } = mapped
+    else {
+        return None;
+    };
+    let q = place.inverse().transform_point(point);
+    let moved = geom_core::Point2::new(q.x, q.y);
+    Some(geom_brep::MappedCurve::PlacedSegment {
+        segment: geom_brep::SketchSegment::Line {
+            a: if is_start { moved } else { a },
+            b: if is_start { b } else { moved },
+        },
+        place,
+    })
+}
+
+/// **The offset mint's fit door, as the pass takes it** — the rows that
+/// say what each of its two answers costs.
+///
+/// [`mint_offset`] is called directly because these rows are about the
+/// PARAMETER: the public doors read the scalar's own seam
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Band, Tol};
+
+    use super::{Arc, ReplaceFaceError, Surface, mint_offset};
+
+    /// The `+0.05` mint on the bowed patch, through whatever door the
+    /// caller names.
+    fn mint(door: Option<OffsetFitLane<f64>>) -> Result<Surface<f64>, ReplaceFaceError<f64>> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        let base = Surface::Nurbs(Arc::new(crate::fixtures::bowed_patch()));
+        mint_offset(face, &base, 0.05, band, tol, door)
+    }
+
+    /// **No door: the mint refuses**, naming the face and the scalar it
+    /// ran at — here `f64`, the door's own scalar, handed none — never
+    /// an analytic fallback and never a pass.
+    #[test]
+    fn no_door_refuses_the_mint_by_name() {
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        match mint(None) {
+            Err(ReplaceFaceError::ApproxLaneUnsupported { face: f, scalar }) => {
+                assert_eq!((f, scalar), (face, "f64"));
+            }
+            other => panic!("the absence must name the face and the scalar: {other:?}"),
+        }
+    }
+
+    /// **The `f64` door mints what the free function mints**, limb for
+    /// limb, bit for bit — the assertion that the body moved rather
+    /// than being rewritten.
+    #[test]
+    fn the_f64_door_mints_the_free_function_s_surface() {
+        let tol = Tol::witness();
+        let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
+            panic!("the bowed patch's offset fits at the witness tolerance");
+        };
+        let Ok(free) =
+            geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
+        else {
+            panic!("the free function mints the same surface");
+        };
+        let (a, b) = (through_door.certificate(), free.certificate());
+        crate::fixtures::assert_certificates_agree("the mint door", a, b);
+        assert_eq!(a.rounds, b.rounds, "the refinement history moved");
+        // The fit's whole net, as bits: control points, weights and
+        // both knot vectors.
+        let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
+            n.control()
+                .iter()
+                .flat_map(|p| p.to_array())
+                .chain(n.weights().iter().copied())
+                .chain(n.knots_u().knots().iter().copied())
+                .chain(n.knots_v().knots().iter().copied())
+                .map(f64::to_bits)
+                .collect()
+        };
+        assert_eq!(
+            bits(through_door.fit()),
+            bits(free.fit()),
+            "the door's fit and the free function's differ in some bit of their nets"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod shift_chart_v_rows {
+    use geom_brep::Pcurve;
+    use geom_core::{Point2, Vec2};
+
+    use super::shift_chart_v;
+
+    /// The offset's `v` shift moves a harmonic image's constant term and
+    /// refuses a cone-section image, whose offset is no plane section of
+    /// the offset cone.
+    #[test]
+    fn a_cone_section_image_has_no_shift() {
+        let section = Pcurve::ConeSection {
+            u0: 0.1,
+            v0: 2.0,
+            va: -0.4,
+            vb: 0.0,
+            beta: 0.2,
+            sense: 1.0,
+        };
+        assert!(shift_chart_v(&section, 0.3).is_none());
+        let harmonic = Pcurve::Harmonic {
+            p0: Point2::new(0.0, 1.0),
+            pa: Vec2::new(0.5, 0.0),
+            pb: Vec2::new(0.0, 0.5),
+            pl: Vec2::new(0.0, 0.0),
+        };
+        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+            panic!("a harmonic image shifts");
+        };
+        assert_eq!(p0.y, 1.25);
+    }
+}

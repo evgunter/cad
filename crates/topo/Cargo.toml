@@ -1,0 +1,117 @@
+[package]
+name = "topo"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The differential suite's doors (M5 PR 8 fix pass): `sweep_traces`,
+# `PlantedDegradation`, and the pad-override knob are FAILURE-INJECTION /
+# instrumentation surface — test builds only. Enabled through the
+# self-dev-dependency below and consumers' dev-dependencies, so no
+# production dependent reaches an injector. That was PROSE ONLY until
+# S52, and it was false: `crates/sweep/Cargo.toml` had this feature in
+# its `[dependencies]` topo edge, which cargo unified into every
+# production dependent of `sweep` — a downstream crate compiled
+# `--release` naming `PlantedDegradation`. Fixed there;
+# `scripts/gates/test-features-dev-only.sh` is what keeps the sentence
+# true from here on.
+sweep-testing = []
+# Makes `test_support` — the vocabulary this crate's own `tests/`
+# binaries need — nameable from those binaries. A `tests/` file is a
+# SEPARATE crate, so it can name neither a `#[cfg(test)]` item nor a
+# `pub(crate)` one; without this feature every suite mints its own copy
+# of the vocabulary and the copies drift (S52). Off by default and
+# enabled only through the self-dev-dependency below, so it is on
+# exactly for this crate's own tests and off for every normal build.
+test-support = [
+    "dep:strum",
+    "geom-brep/test-support",
+    "geom/test-support",
+    "geom-core/test-support",
+]
+# THE SCALPEL for D1's once-per-door tier-1 postcondition (the ruling on
+# `work/perf/d1-per-op-tier1-sweep-price`). A door-level failure names
+# the door; with this on, the whole-body sweep runs after EVERY Euler
+# operator again — inside surgery scopes included — so the panic names
+# the operator instead. Opt-in, never default-on, and it changes no
+# result: it only decides where a debug assertion fires. The
+# `shadow-exec` shape (`work/perf/plan.md` §4.5).
+#
+#     cargo test -p topo --features topo/per-op-postcondition
+#     cargo test -p sweep --features topo/per-op-postcondition
+#
+# It is not a test-only feature by the naming convention
+# `scripts/gates/test-features-dev-only.sh` reads (no `-testing`
+# suffix, not `test-support`) and it opens no injector: a production
+# dependent that turns it on gets slower debug builds and identical
+# behaviour.
+per-op-postcondition = []
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["geom-core/probe", "geom-brep/probe"]
+# The boolean door's tier-3 meter (`boolean/door_meter.rs`): runs the
+# at-rest gate on every result the door builds and records its verdict
+# and cost beside the backstop's, for the measurement on
+# `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
+# Opt-in and instrumentation only — it changes no result — run through
+# `scripts/door-tier3-meter.py`.
+door-tier3-meter = []
+
+[dependencies]
+# Optional: `test-support` above (the `Undecided` roster).
+strum = { version = "0.28", features = ["derive"], optional = true }
+# The boolean sweep's candidate generation (M5 PR 8): the tree prunes,
+# predicates decide — see boolean/reduce.rs module docs.
+bvh = { path = "../bvh" }
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom = { path = "../geom" }
+slotmap = { workspace = true }
+
+[dev-dependencies]
+# The explicit-width pools the face walks' thread-count rows run under
+# (`props.rs`'s tests). The walks themselves map through
+# `geom_core::k_stats::map_detached`, so production takes no rayon edge
+# of its own here.
+rayon = { workspace = true }
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+proptest = { workspace = true }
+# The compiler-derived variant count behind the two Display-coverage
+# rows (`ValidationError`, `EulerOpError`). The derives are applied
+# under `cfg(test)` only, so nothing production-facing in this crate
+# names strum.
+strum = { version = "0.28", features = ["derive"] }
+# Self dev-dependency: turns `sweep-testing` and `test-support` on for
+# THIS crate's own integration tests without exposing either to
+# production dependents. A dev-dependency is in no consumer's build
+# graph, and a flagless `cargo build [--release]` does not build test
+# targets, so this is the only edge that ever enables them.
+# (`cargo build --all-targets` DOES build them, and cargo then unifies
+# the feature into the lib artifact of that same invocation — an
+# explicit test-inclusive build, not a production one.)
+topo = { path = ".", features = ["sweep-testing", "test-support"] }
+# Downstream export/tessellation consumers, dev-only (M5 S1): the
+# glued-union acceptance rows pin watertight STL + STEP export of the
+# REST-zip results (dev-dependency cycles are cargo-legal and never
+# reach production dependents).
+mesh = { path = "../mesh" }
+stl = { path = "../stl" }
+step-export = { path = "../step-export" }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

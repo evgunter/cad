@@ -1,0 +1,163 @@
+//! The B-rep geometry layer: D2's intensional edge descriptions,
+//! certified carrier caches, the dihedral classification predicate, and
+//! Newell face equations (M2 PR 3).
+//!
+//! This crate sits between the evaluators (`geom`) and the arena
+//! store (`topo`): it defines **what an
+//! edge's geometry is** ([`EdgeDescription`] — a description, never a bare
+//! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
+//! certification against the description, D4 ¶2; an uncertified carrier
+//! is unrepresentable), and the two geometric classifiers M2's
+//! constructions and tier-3 validation stand on:
+//!
+//! - [`classify_dihedral`] — the material wedge-angle predicate's first
+//!   arrival: transverse / smooth / sliver-escalation, via
+//!   implicit-form gradients (never chart normals) and D4 ¶1's
+//!   displacement-through-lever-arm margins.
+//! - [`newell_plane`] — certified planes from loop vertex data,
+//!   translate-to-origin by default.
+//!
+//! [`ssi`] is M5 PR 7's addition: rung 3 of the C1 ladder — surface
+//! intersection by march-then-certify, with the full three-limb C2
+//! certificate and the in-op exhaustiveness subdivision that makes
+//! "every branch found" a theorem or a typed refusal.
+//!
+//! [`offset_surface`] is the analytic offset mint: the analytic kinds
+//! close under normal offset by struct-update on public fields, with
+//! the door-owned degeneracy refusals (the realized-radius floor, the
+//! torus ring convention) decided before any mint — see [`offset`].
+//!
+//! [`offset_fit`] is the approximating half that [`offset`]'s NURBS
+//! arm refuses into: the Book's §9.4 grid interpolation plus a
+//! refine-until-certified loop, and the two-limb certificate of
+//! `sup ‖S_fit − (S + d·n)‖`. It stands on two meters
+//! ([`offset_meters`]) — a certified LOWER bound on `‖S_u × S_v‖`
+//! (the tree's first inf-side surface bound; the offset is undefined
+//! where the normal degenerates) and the collapse headroom `|d|`
+//! against the patch's certified curvature reach — both read off
+//! [`patch_bound`]'s per-cell control-hull enclosures, which are also
+//! what `mesh`'s tessellation deviation certificate consumes.
+//!
+//! The geometry-arena key types ([`PointKey`], [`CurveKey`],
+//! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
+//! arena key) and re-exported by `topo` for its `Body<T>` arenas —
+//! see [`keys`] for the layering rationale and Q1's lineage scoping.
+//!
+//! # Discipline (inherited, uniform)
+//!
+//! Everything is generic over [`geom_core::Real`] with decisions only
+//! through [`geom_core::Decide`]'s trilean door (named predicates, D4
+//! ¶3 escalation); evaluation is comparison-free and total (poison in,
+//! poison out — including the `Nurbs` representable-unimplemented
+//! placeholders, which certification rejects loudly); sampling is
+//! deterministic by fixed schedule (D9). Instantiates at `f64`,
+//! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
+
+pub mod certify;
+pub mod description;
+pub mod dihedral;
+pub mod edge_nurbs;
+pub mod enters;
+pub mod extent;
+pub mod fitted_lane;
+pub mod implicit;
+pub mod intersect;
+pub mod keys;
+pub mod locus;
+pub mod mapped;
+pub mod newell;
+pub mod nurbs_iso;
+pub mod offset;
+pub mod offset_fit;
+pub mod offset_fit_lane;
+pub mod offset_meters;
+pub mod patch_bound;
+pub mod pcurve;
+pub mod pcurve_cache;
+pub mod props;
+pub mod recourse;
+mod sphere_circle;
+pub mod ssi;
+pub mod tangent;
+pub mod torus_convention;
+
+pub use certify::{
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
+    IntersectionDraft, NurbsLane, edge_extent, sample_param, schedule_param,
+};
+pub use description::{
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+};
+pub use dihedral::{
+    DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
+};
+pub use edge_nurbs::{
+    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
+    PlaneNurbsRefusal, plane_nurbs_limbs,
+};
+pub use enters::{
+    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
+    enters_material_order2,
+};
+pub use extent::ExtentBall;
+pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
+/// The ring-torus convention's one home is `geom` (below this crate, so
+/// the spiric carrier's constructor reads it too); re-exported so the
+/// doors above read it by the name they already use.
+pub use geom::ring_torus;
+pub use implicit::{
+    ARC_RESIDUAL_SAMPLES, CircleCylinderHarmonics, CircleSphereHarmonic, circle_arc_residual_range,
+    circle_cylinder_harmonics, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature,
+};
+pub use intersect::{
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+};
+pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
+pub use mapped::{MappedCurve, SketchSegment};
+pub use newell::{NewellError, newell_plane};
+pub use nurbs_iso::{
+    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
+};
+pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
+pub use offset_fit::{
+    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
+    certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
+};
+pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use pcurve::{
+    PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
+};
+pub use pcurve_cache::{
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, MAX_BRANCH_PERIODS,
+    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    PcurveKind, SpiricImage, UncoveredClass, chart_pcurve, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, whole_periods,
+};
+pub use props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
+pub use ssi::{
+    ChartAxis, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
+    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
+    SSI_FLOOR, SSI_MAX_STEPS, SettlingRefusal, SsiBranch, SsiCertificate, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
+    TubeDegeneracy, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
+};
+pub use tangent::{
+    TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
+};
+pub use torus_convention::TorusConvention;

@@ -1,0 +1,195 @@
+---
+id: cosurface-disjoint-curved-walls-refuse
+kind: issue
+title: Two stacked parts cannot both have a rounded outline - cosurface-and-disjoint walls glue as planes and refuse as cylinders
+status: closed
+opened: 2026-08-31
+github: 1352
+refs: [1351]
+priority: P0
+cost: H
+closed: 2026-10-01
+pr: 3657
+branch: reach/cosurface-continuation
+---
+
+## From GitHub issue 1352
+
+Opened 2026-08-31; 0 comments.
+
+Two solids stacked on a shared footprint have COSURFACE outer walls with
+DISJOINT extents: same carrier, same outward sense, meeting only along the
+mating plane. While those walls are **planes** the boolean glues them with
+no declaration at all. Round the outline's corners so four of them become
+**cylinders**, and the same configuration refuses
+`CurvedPierceUnsupported` — declared or not.
+
+The practical consequence: **two stacked parts cannot both have a rounded
+outline.** A bolted plate pair, a housing and its cover, any two parts that
+sit on each other and share a profile — the moment that profile has a
+corner fillet, the mate stops building.
+
+Met in `demos/tour/src/twopeg.rs` doing Ev's montage-v3 ask to fillet the
+plates' extruded profile.
+
+## The controlled pair
+
+Plate P spans `z ∈ [0, 1]`, plate Q spans `[1, 2]`, same 6×4 footprint, two
+peg-in-hole fits between them. Everything but the outline held constant.
+
+**Sharp outline** — six cylindrical faces per plate, all peg/bore:
+
+```
+two-peg mate WITH the three contacts declared: GLUED — volume 48 exactly
+```
+
+**Filleted outline** — four PATHS corner fillets, r = 0.5, top and bottom
+edges left sharp so both mating faces stay the same rounded rectangle. Ten
+cylindrical faces per plate, and every shared-carrier pair declared, the
+four corner pairs included:
+
+```
+declared: 1 planar Rest + 22 cylindrical Rests (P has 10 cylinder faces,
+Q has 10 — matched by shared carrier, so cross-peg pairs never arise)
+
+panicked: declared two-peg mate failed: CurvedPierceUnsupported
+  { operand: A, face: FaceKey(3v5), edge: EdgeKey(9v1),
+    band: Band { zero: 1e-9, escalate: 1e-8 } }
+```
+
+— byte for byte the payload the **undeclared** mate gets. The only
+difference between the two runs is the four corner cylinders.
+
+## Why declaring does not fix it
+
+`ContactClass` has two members: `Rest` — *"Conformal contact: same carrier,
+**opposed senses**, gap ≡ 0"* — and `Tangent`. Neither describes this
+contact. P's north wall and Q's north wall lie on one carrier and face the
+**same** way: they are a cosurface CONTINUATION, not two surfaces resting
+against each other. Declaring them `Rest` is arguably a false statement, and
+the kernel does not accept it.
+
+I did not determine which of these it is, and the distinction shapes the fix:
+
+1. the reduction's curved arm refuses before any declaration is consulted
+   for these faces, or
+2. it consults the declaration, finds `Rest` does not hold (senses agree
+   rather than oppose), and refuses correctly.
+
+If (2), the missing piece is a **vocabulary** one — and `ContactClass`'s own
+docs already anticipate growth: the `ALL` slice exists precisely so a new
+variant cannot be silently omitted downstream, and the `content_tag` docs
+discuss *"inserting `Fit` between the two"*.
+
+## What the planar path does instead
+
+Nothing is declared for the flat walls in the working configuration and it
+glues, so the planar reduction tolerates cosurface-and-disjoint outright.
+`demos/tour/src/booleans.rs::flush_declarations` also declares same-sense
+flush PLANE pairs as `rest` (it computes `sigma = ±1` and accepts both
+signs), and `bool_bodies::table` glues its corner-aligned legs that way. So
+same-sense cosurface planes are accepted both undeclared and
+declared-as-`Rest`; the curved arm accepts neither.
+
+That asymmetry is the finding. However it is resolved — a curved arm for
+cosurface-disjoint, or a class that names a continuation — the two should
+agree, because a modeller who rounds a corner has not changed what the
+contact IS.
+
+## Not asserted
+
+Which face `FaceKey(3v5)` is. It is on operand A, and both plates carry ten
+cylinders in the filleted run; the controlled pair isolates the corner
+cylinders without needing the identity, so I did not spend a build
+confirming it.
+
+## Meanwhile
+
+The demo ships the plates SHARP (#1351), with the wall and this controlled
+pair stated at `outline`. Per `memories/demo-purpose.md` the scene is not
+contorted around it — no mismatched radii between the two plates, no
+rounding one and not the other — because a shape arranged to dodge a
+refusal stops measuring what using the library is like.
+
+## Home
+
+S-BOOL: the refusal is `CurvedPierceUnsupported` out of the boolean reduction in `crates/topo/src/boolean/*`, S-BOOL's territory, and the charter's containment doors that refuse legal inputs; the `ContactClass` vocabulary half is coordinated with S-MATE's declared-contact ground.
+
+## Re-homed at S-BOOL's exit (2026-09-16)
+
+Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Design weighed (2026-10-01)
+
+Two designers weighed it over two rounds and converged. The question
+is in front of Ev on an `[ev]` PR that edits C4 (`crates/topo/README.md`)
+and DESIGN's merge bullet. Measured on the way, so the row's own
+account changes:
+
+- The `Rest` declaration on the walls IS consulted, and it passes.
+  It moves the refusal from the cylinder's ruling edge (undeclared,
+  `(Zero, Zero)` → `Constant` → frontier) to the flat wall's top edge,
+  which is tangent to the other plate's corner cylinder at the seam
+  vertex (`WallRoots::Tangent` → `Unsettled` → frontier). No
+  declaration in today's vocabulary covers that edge.
+- The planar path does not tolerate the configuration: it ships an
+  illegal operand (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
+- `Rest` is read two ways: C4 and `contact_verify::rest_pair_verdict`
+  read opposed senses only, while the boolean's declaration door, the
+  flush detector and the REST lane accept aligned senses too.
+
+## Ruled (Ev, PR 3613, 2026-10-01)
+
+Ev approved the decisions, picked the sum type
+`Contact(ContactClass) | Continuation` for the boolean seat, and asked
+that the naming make "valid inputs to mate" and "valid inputs to union"
+easy to tell apart. C4 now names the two seats: `ContactClass` for
+mates, records and the census, and `BooleanCoincidence` for a boolean
+node. The implementing unit may refine those names, keeping the
+distinction they draw. What the unit builds is the C4 continuation
+clause, the one-sided cover clause and DESIGN's output rule. It also
+updates `demos/tour/src/twopeg.rs` and the flush helpers to declare
+continuations, which lets ZIP's
+`a-union-glues-same-sense-cosurface-walls-without-merging-them` refuse
+or merge as the rule says.
+
+## A definition question at review (2026-10-01)
+
+The dual review of PR 3657 found aligned one-carrier pairs whose
+interiors OVERLAP being minted and accepted as continuations: a flush
+pocket, overlapping equal-height plates, a sunk stack, a rabbet cut
+flush with a wall, and the die's pip-cutter cap. The results are
+correct. C4 as ratified in PR 3613 says "interiors disjoint, sharing
+only a boundary curve", which defines those pairs out. Before PR 3657,
+they were declared `Rest`. PR 3662 widened the definition to match the
+code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
+is an aligned one-carrier pair whether its faces abut or overlap, and an
+undeclared one refuses in every op.
+
+## Closed (2026-10-01, PR 3657)
+
+Two stacked parts can both have a rounded outline. A same-sense pair on
+one carrier is a *continuation* (C4 as ruled on PR 3613 and widened on
+PR 3662), and `BooleanCoincidence = Contact(ContactClass) | Continuation`.
+The census mints it, the author declares it, and the union merges it.
+Undeclared, it refuses `UndeclaredCoincidence` in every op, abutting or
+overlapping. The rounded two-peg plates build, and the tour's two-peg
+cell now fillets both outlines.
+
+The dual review found two things. The lint gate's bounds allowlist was
+red. Overlapping aligned pairs were minted as continuations although C4
+then said "interiors disjoint"; Ev ruled on PR 3662 that a continuation
+covers both. The main merge's delta review found the plane door offering
+`Rest` for an aligned pair. The offer now speaks `BooleanCoincidence` and
+reads the pair's senses.
+
+Residue, each in its own file:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent` (the
+  union, and the stacked pose's subtract and intersect);
+- `volume-backstop-refuses-a-closed-form-rounding-tie`;
+- `stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends`;
+- `stacked-plates-with-mismatched-fillet-radii-refuse-in-both-orders`;
+- `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`;
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`;
+- ZIP's `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`;
+- WIRE's `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`.

@@ -1,0 +1,184 @@
+//! Analytic and NURBS geometry: the [`Curve3`] and [`Surface`] closed
+//! enums, their evaluators, the validated NURBS payloads behind their
+//! universal-fallback variants, and the fitting, projection,
+//! composition and box machinery those payloads carry.
+//!
+//! The two halves live in [`curves`] and [`surfaces`]; each module's
+//! docs carry the conventions specific to its own entity kinds. What
+//! they share is stated once and only once: the parameterization
+//! conventions below; the §6.1 point-projection policy, whose four
+//! constants are re-exported here; the azimuthal frame convention;
+//! and the control-net helpers the three NURBS payloads are built
+//! from. The last three live in interior modules — they carry the
+//! argument, not API, and the names a consumer needs are at this
+//! root.
+//!
+//! One door is deliberately absent, and is named here so its absence
+//! reads as a decision rather than an omission: **iso-curve
+//! extraction** from a NURBS payload belongs to the EdgeDescription
+//! layer, under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs.
+//!
+//! # Conventions (normative, stated once)
+//!
+//! These are the parameterization conventions every consumer — edges,
+//! pcurves, tessellation — derives from. They are conventions in D2's
+//! sense: data like `u_ref` *carries* a convention (where θ = 0 lives)
+//! and is therefore never recomputable from the locus alone.
+//!
+//! - **Units (D6):** lengths in meters, angles in radians.
+//! - **Entities are complete loci.** A [`Curve3`] is the *whole*
+//!   infinite line or full circle — never a segment or arc; a
+//!   [`Surface`] is the whole infinite plane, the full cylinder, both
+//!   cone nappes. Bounds are the *topology's*: an edge bounds a
+//!   carrier curve by its **vertices**, and a face bounds a carrier
+//!   surface by its loops.
+//! - **Evaluators do not range-reduce.** `sin_cos` is total on ℝ and
+//!   evaluation is the same fixed formula at every parameter — no
+//!   comparison, no seam special-case. As loci the azimuthal kinds are
+//!   2π-periodic exactly, in the reals. Consumers that need a
+//!   canonical representative reduce explicitly with
+//!   [`geom_core::Real::reduce_periodic`] (θ mod 2π, seam blur
+//!   documented there).
+//! - **The bit-identity policy for periodicity, stated honestly:**
+//!   floating-point evaluation promises **no** bit-level periodicity.
+//!   2π is not representable, so `θ + k·fl(τ)` is a *different real
+//!   parameter* than `θ + 2πk`; evaluations at the two f64 parameters
+//!   agree to rounding (ulps scaled by `k` and by `r`), never bitwise —
+//!   and range reduction itself rounds, so reduced evaluation is also
+//!   value-close, not bit-identical. What IS promised: evaluation is a
+//!   pure function (same input bits → same output bits, D9), and at the
+//!   interval scalar the enclosure of an evaluation contains the true
+//!   image of every parameter in the input enclosure — the containment
+//!   form of periodicity (evaluate over `θ + k·Real::tau()` at interval
+//!   type and the true periodic image is enclosed).
+//! - **Unit-vector and orthogonality fields are conventional data,
+//!   unchecked here.** `dir`, `axis`, `normal`, `u_ref` are unit by
+//!   convention, `u_ref ⊥ axis` (⊥ `normal`) by convention.
+//!   Constructors do not renormalize (a hidden normalize would
+//!   silently reparameterize; D6's meters-per-parameter contract is the
+//!   caller's to establish) and evaluators consume the fields as given;
+//!   violating them yields well-defined garbage (a non-arc-length
+//!   parameterization, an elliptical "circle"), not poison and not a
+//!   panic. **At rest, `topo`'s tier-3 check 1 certifies what moves a
+//!   locus a datum can lever**: no direction may be the zero vector,
+//!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
+//!   ellipse or spiric must be unit and orthogonal to within the run's
+//!   ε of locus movement at the kind's radius
+//!   ([`Surface::representability_margins`],
+//!   [`Curve3::representability_margins`]). It does NOT certify a
+//!   line's unit `dir` or a plane's unit `normal`/`u_ref` — each spans
+//!   the same locus at any length — nor a plane's `u_ref ⊥ normal` or
+//!   a cone's frame, whose locus movement grows with the face's extent
+//!   rather than with a stored datum. A spline's stored datum is its
+//!   control net, and the same check refuses a net — a face's or an
+//!   edge carrier's — carrying a control point that is not a finite
+//!   number (NaN or `±∞`); its weights and knots are `f64` structure,
+//!   refused non-finite at construction.
+//!
+//! # Totality and poison (geom-core's policy, inherited)
+//!
+//! Every evaluator is **total**: no panic, no `Result`. Out-of-domain
+//! and undescribed cases produce the scalar's poison value (NaN at
+//! `f64`, NaI/empty at the interval scalar) which flows through values
+//! and is caught at the predicate/certification layer — in particular,
+//! evaluating a [`Curve3::nurbs_placeholder`] or
+//! [`Surface::nurbs_placeholder`] "no description yet" state yields an
+//! all-poison point (representable ≠ described; the poison fails every
+//! downstream certification loudly, per D4 ¶2).
+//!
+//! **There are THREE states, and telling them apart is one rule with
+//! one spelling.** The discriminator is the control net's poison. A
+//! placeholder's every control point is poison in **every channel** by
+//! construction; a described net of finite data carries none; and
+//! between them sits corrupt *described* geometry — a net with a
+//! poisoned CHANNEL of a point, which is not the placeholder (`all`,
+//! not `any`, and all over the channels as well as over the points)
+//! and which must fail loudly as such at every consumer's described
+//! arm (certification, +V, export), never masquerade as the benign
+//! placeholder. [`NetState`] names the three and is the one place they
+//! are defined; [`NurbsSurface::net_state`] is the door that answers
+//! it, and a consumer that must tell all three apart matches on that
+//! rather than composing predicates or re-deriving the test inline.
+//! [`NurbsCurve3::is_placeholder`] and
+//! [`NurbsSurface::is_placeholder`] answer the placeholder question
+//! alone, for the consumers that only ask it.
+//!
+//! **Which poison, per scalar, because the sets differ in extension.**
+//! The rule is spelled once, over [`geom_core::Real::is_poison`], and
+//! that predicate answers a different question at each instantiation:
+//! at `f64` exactly NaN (so `+∞` — which a STEP file can spell — is
+//! **not** poison and a net of infinities is described data); at the
+//! interval scalar NaI **or** the empty interval, so an all-empty net
+//! reads as the placeholder there and would not at `f64`; at `Dual`
+//! the **value channel only**, so a poisoned value over a finite
+//! derivative counts. The state is therefore preserved by a lift
+//! (`from_f64(NaN)` is each scalar's own poison) but is not the same
+//! SET of nets at every scalar, and a consumer reasoning about which
+//! nets reach its placeholder arm has to reason at its own scalar.
+//!
+//! **What a BOX asks instead.** A box is a claim about where the locus
+//! is, not about which state a payload is in, so the box constructors
+//! screen on poison ANYWHERE rather than everywhere — a net with one
+//! poisoned bracket bounds its locus on no axis. That door and its
+//! reason are `net::any_poison`'s.
+//!
+//! Only the two 3-D payloads carry the state at all: `NurbsCurve2`
+//! has no placeholder and no discriminator, so nothing exercises this
+//! rule at two channels.
+//!
+//! # Evaluation-code discipline
+//!
+//! All evaluation *arithmetic* here is comparison-free ring/trig code:
+//! `sin_cos` is the trig primitive, no fused operations, fixed
+//! documented association orders (D9). The enum evaluators are bounded
+//! by [`geom_core::spline::SpanLocate`] (as the **sole bound** — a
+//! sealed `Real` subtrait, the same style rule as `Bounds`): NURBS
+//! evaluation needs per-instantiation knot-span *selection*, a
+//! structure decision the seam localizes per scalar (its module docs
+//! carry each instantiation's semantics and the `Dual` kink
+//! convention). The bound adds no comparison surface to generic code.
+//! Everything instantiates at `f64`, `Probe`, `Dual<f64>`, `Interval`,
+//! and `Dual<Interval>` — the derivative-vs-dual consistency and
+//! enclosure-containment test axes rely on exactly that.
+
+mod azimuth;
+mod convention;
+pub mod curves;
+mod datum;
+mod net;
+mod param;
+mod periodic;
+mod projection_policy;
+mod scalar_lift;
+pub mod surfaces;
+// Test fixtures; see the module's docs. `doc(hidden)` because the
+// rustdoc gate runs `--all-features`.
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support;
+
+pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
+pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
+pub use curves::{
+    ComposeError, Curve3, CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3,
+    EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3,
+    Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid,
+    compose_chain, spiric_curvature_sup, spiric_f_range, spiric_radial,
+};
+pub use datum::{AnalyticData, DatumValue};
+pub use param::mid_param;
+pub use periodic::periodic_window_may_hold;
+// The §6.1 policy module is interior — its body is the argument for
+// these four values, not API — but the values themselves are the
+// public names both halves' callers have always used.
+pub use projection_policy::{
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
+};
+pub use surfaces::{
+    AnalyticPairs, ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface,
+    OffsetCertificate, PLACEHOLDER_SURFACE, Surface, SurfaceData, SurfaceDatum, SurfaceDescription,
+    SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection,
+    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, require_ring_torus, ring_torus,
+    torus_tube,
+};

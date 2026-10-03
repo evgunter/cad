@@ -1,0 +1,75 @@
+# In-house STEP AP214 analytic-subset IMPORT reader (M7-1; D7 "import
+# is adoption, not admission"). The inverse of `step-export`'s subset:
+# Part 21 substrate, AP214 entity resolution, and Euler-operator
+# topology assembly into first-class kernel bodies. Import layer like
+# `step-export`: f64-only, not scalar-generic (the file is decimal
+# text; f64 is the honest carrier — M7-1 spec §3).
+[package]
+name = "step-import"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["topo/probe"]
+
+[dependencies]
+# The reader rebuilds finished kernel bodies: Euler-operator assembly
+# and geometry attachment through `topo`'s public doors, carriers and
+# surfaces from the geometry crates, tolerance machinery from
+# geom-core.
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom = { path = "../geom" }
+topo = { path = "../topo" }
+
+[dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+# Round-trip oracle: the committed corpus fixtures are re-exported
+# through the writer and compared (fixed-point row). A normal
+# dependency per the M7-1 spec §0 (dev, reported): nothing in the
+# import path itself consumes the writer.
+step-export = { path = "../step-export" }
+# The M7-3 rational-arm row builds its arc_loft NATIVELY (no committed
+# fixture carries a rational wall) and compares the imported body's
+# state -- census, tiers, the identical typed tier-3 refusal --
+# against the source body's. Dev-only, same posture as step-export
+# above.
+sweep = { path = "../sweep" }
+# `test-support` ON: this crate's suites census a body through
+# `topo::test_support::arena_counts`, the kernel's ONE producer of
+# arena lengths, rather than re-walking the arenas beside it. Dev-only,
+# so no shipped build reaches the facade.
+topo = { path = "../topo", features = ["test-support"] }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../profile", features = ["test-support"] }
+# #653's import route: a face whose iso side the FILE states as two
+# collinear EDGE_CURVEs must still mesh watertight, which only the
+# mesher can say. Dev-only, same posture as step-export and sweep
+# above -- nothing in the import path consumes the mesher, and the
+# edge runs import -> tessellate, the direction the pipeline already
+# has (`mesh` does not depend on this crate).
+mesh = { path = "../mesh" }
+
+# The single aggregated test binary (see tests/all.rs header). `autotests
+# = false` above means this is the ONLY test target: a suite file not
+# `#[path]`-declared in all.rs does not compile and does not run, which
+# all.rs's own `every_suite_file_is_aggregated` catches.
+[[test]]
+name = "all"
+path = "tests/all.rs"

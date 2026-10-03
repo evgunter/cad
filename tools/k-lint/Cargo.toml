@@ -1,0 +1,37 @@
+# The large-K fragility lint (M4 PR 8b, spec D3). Deliberately OUTSIDE
+# the kernel workspace (the empty [workspace] table detaches it; the
+# root manifest lists `tools` in workspace.exclude): this is TOOLING —
+# its thresholds are lint policy derived from a committed baseline,
+# never kernel ε (D3: "tooling-level, no kernel ε"). The kernel crates
+# appear only as dev-dependencies of the litmus test, which resurrects
+# the #99 bracket datum at the recording scalar.
+[package]
+name = "k-lint"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+# `features = ["probe"]` because the litmus test IS the recording-scalar
+# test (see the header: it resurrects the #99 bracket datum at `Probe`).
+# Probe became opt-in when it was gated — it is a `Real` instantiation, so
+# carrying it unconditionally monomorphized every generic-over-`Real` body
+# in every build. Enabling it here rather than gating the test keeps
+# `cargo test` in this directory working exactly as CI invokes it, with no
+# workflow change; these are dev-dependencies of an excluded tooling
+# crate, so nothing ships with the feature on.
+[dev-dependencies]
+geom-core = { path = "../../crates/geom-core", features = ["probe"] }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../../crates/profile", features = ["probe", "test-support"] }
+
+# `test-utils` for `source`, the lexer the roster pin reads
+# `crates/geom-brep/src/props/quad.rs` through (`tests/predicate_roster.rs`
+# says why the kernel's source is READ and not depended on). It is a
+# LEAF with zero dependencies of its own, so it adds one path entry and
+# nothing else to this excluded crate's surface.
+test-utils = { path = "../../crates/test-utils" }

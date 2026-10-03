@@ -1,0 +1,140 @@
+//! M2 PR 6 adversarial review — error paths (assignment 8): δ edge
+//! values (incl. −0.0 and denormals) on curved bodies, honest
+//! CertificateExceeded unreachability through the public API, and the
+//! spade crossing pre-check (unreachable via validated profiles —
+//! reachable only through the θ ∈ (3π/2, 2π) walk finding, pinned in
+//! review_m2_pr6_walk_shapes).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use common::{axis_y, ball, cone, donut, validated, washer};
+use geom_core::{Point2, Tol};
+use mesh::{TessellateError, tessellate};
+use profile::ProfileLoop;
+use profile::{RawLoop, test_support::bulge_loop};
+use sweep::{Revolution, revolve};
+
+#[test]
+fn survives_negative_zero_delta_refused() {
+    // −0.0 is not > 0.0: must be refused, not treated as "very fine".
+    match tessellate(&donut(), -0.0, Tol::witness()) {
+        Err(TessellateError::InvalidChordalTolerance { value }) => {
+            assert_eq!(value.to_bits(), (-0.0f64).to_bits());
+        }
+        other => panic!("expected refusal of -0.0, got {:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn survives_denormal_delta_typed_overflow_on_curved_bodies() {
+    for body in [donut(), washer(), cone()] {
+        match tessellate(&body, 5e-324, Tol::witness()) {
+            Err(TessellateError::ResolutionOverflow { count }) => {
+                assert!(count > 16_777_216.0);
+            }
+            other => panic!("expected ResolutionOverflow, got {:?}", other.map(|_| ())),
+        }
+    }
+}
+
+#[test]
+fn survives_delta_fine_but_sane_still_tessellates() {
+    // δ small but with counts far below 2^24 must succeed (the cap is
+    // a sanity bound, not a usability cliff). NOTE (perf, measured in
+    // review): tessellation time scales ≈ quadratically in point count
+    // (spade insertion path): wall-clock grows far faster than the
+    // point count, and a δ well under the cap can fail to complete at
+    // all. The 2^24 cap bounds allocation, not wall-clock. The δ this
+    // row passes is chosen for the point-count regime.
+    let body = washer();
+    let mesh = tessellate(&body, 1e-6, Tol::witness());
+    assert!(mesh.is_ok(), "fine-but-sane delta refused");
+}
+
+#[test]
+fn survives_certificate_exceeded_unreachable_over_body_sweep() {
+    // The implementer claims CertificateExceeded is honest fail-loud
+    // for kernel defects, unreachable for valid bodies (sizing targets
+    // δ/2; certificates check ≤ δ). Sweep bodies × δ hunting one.
+    let extreme_torus = {
+        // R ≫ r: the conservative (~24×) torus bound at its most
+        // stressed relative to the grid heuristic.
+        let lp = bulge_loop(vec![
+            (Point2::new(10.0, -0.05), 1.0),
+            (Point2::new(10.0, 0.05), 1.0),
+        ]);
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
+    };
+    let flat_cone = {
+        // Nearly flat cone (half-angle → π/2) — cosα·sinα maximal
+        // sensitivity region for the cone bound.
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(4.0, 0.2),
+            Point2::new(0.0, 0.2),
+        ]);
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
+    };
+    for body in [ball(), cone(), donut(), extreme_torus, flat_cone] {
+        for delta in [3.0, 0.7, 0.09, 0.013] {
+            match tessellate(&body, delta, Tol::witness()) {
+                Ok(_) => {}
+                Err(TessellateError::CertificateExceeded {
+                    bound, requested, ..
+                }) => panic!("CertificateExceeded reached: bound {bound} > {requested}"),
+                Err(e) => panic!("unexpected error {e:?} at delta {delta}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn survives_torus_wedge_outside_pole_window() {
+    // Torus faces carry no poles: the θ ∈ (3π/2, 2π) pole-junction
+    // window must NOT affect a partial donut.
+    let lp = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ]);
+    let body = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(2.0 * core::f64::consts::PI - 0.1),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    common::check_mesh_acceptance(&body, 0.08, None);
+}
+
+#[test]
+fn survives_self_intersecting_profile_never_reaches_spade() {
+    // The crossing-constraint panic is pre-checked in-crate; the only
+    // way to feed spade crossing segments would be a self-intersecting
+    // boundary, which profile validation refuses upstream — typed.
+    let bowtie = ProfileLoop::polygon([
+        Point2::new(0.5, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(0.5, 1.0),
+    ]);
+    let res = profile::Profile::new(profile::SketchPlane::xy(), vec![bowtie])
+        .validate(geom_core::Tol::witness());
+    assert!(res.is_err(), "self-intersecting profile must be refused");
+}

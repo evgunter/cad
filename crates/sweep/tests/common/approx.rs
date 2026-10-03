@@ -1,0 +1,550 @@
+//! The `Surface::Approx` surgery vocabulary — shared by the OFF-C
+//! consumer suite and the r1 probe suite, which built it twice before
+//! it landed here (the S52 shape).
+//!
+//! It sits in `common` rather than in either suite because it is
+//! **section-and-body authoring**: what a suite builds a body FROM,
+//! which is exactly what this module's routing rule sends here.
+//!
+//! # The surgery, and why each step is forced
+//!
+//! [`approx_walls`] runs the M6-1 order — surfaces
+//! (`set_face_surface`), then descriptions, then `mint_pcurves` — plus
+//! one step the kind forces:
+//!
+//! - **Re-description.** `FaceSurface::New` mints a fresh arena key, so
+//!   every description naming the old wall goes stale and tier 3 says
+//!   so (`DescriptionNotAdjacent`).
+//! - **The carriers' SPLINE SPACE.** The iso lane's seam class bounds
+//!   `|B(v) − C(v)|` by a control-difference hull — a
+//!   partition-of-unity argument — so the chart's boundary row and the
+//!   carrier must share knots, degree and weights. A loft wall is
+//!   bilinear and its offset fit is bicubic, so the carrier needs
+//!   **degree elevation AND knot refinement**: on a curved wall the fit
+//!   refines past the seed grid, and elevation alone no longer lands
+//!   the carrier in the boundary row's space. Both are exact — same
+//!   locus, same parameterization, same endpoints — so this is a
+//!   representation change, not rim surgery. **The OFF-D
+//!   face-replacement primitive owes its edges both.**
+//!
+//! All walls convert together: a vertical edge is shared by two of
+//! them and both sides must agree on the carrier's space.
+//!
+//! # The pulled-back base
+//!
+//! A face's edges lie on its surface, so replacing a wall's surface
+//! with the offset of that same wall would move the face `d` off its
+//! own boundary. [`pulled_back`] instead builds the base whose OFFSET
+//! is the wall — the wall's net translated `−d·n` — so
+//! `Offset { base, d }` describes the surface the face already had.
+//! On a PLANE that is exact; on a saddle it is exact only to `d·Δn`,
+//! which is why the curved rows run at a much smaller `d`.
+
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use geom::{Curve3, NurbsSurface, Surface};
+use geom_brep::EdgeCurveSpec;
+use geom_brep::keys::SurfaceKey;
+use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use profile::test_support::bulge_loop;
+use sweep::Lofted;
+use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
+
+/// The offset fit door's degree — the spline space every wall carrier
+/// is elevated into (`geom_brep::offset_fit::OFFSET_FIT_DEGREE`).
+pub const FIT_DEGREE: usize = geom_brep::offset_fit::OFFSET_FIT_DEGREE;
+
+/// The run's linear band.
+pub fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
+
+/// A straight-walled square prism lofted between two identical
+/// sections — four PLANAR described-NURBS walls.
+pub fn prism() -> Body<f64> {
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    let square = || {
+        vec![bulge_loop(vec![
+            v(0.0, 0.0),
+            v(2.0, 0.0),
+            v(2.0, 2.0),
+            v(0.0, 2.0),
+        ])]
+    };
+    let places = [0.0, 1.0]
+        .iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect::<Vec<_>>();
+    sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
+        .expect("the square prism lofts")
+        .body
+}
+
+/// A loft between a square and the SAME square rotated `theta` about
+/// its own centre — four congruent bilinear SADDLE walls (nonplanar).
+///
+/// The body alone, for the consumers that only want faces to operate
+/// on. [`twisted_lofted`] is the same build with its keys kept, which
+/// is what an orientation row needs.
+pub fn twisted_loft(theta: f64) -> Body<f64> {
+    twisted_lofted(theta).body
+}
+
+/// The authored-ROLL loft, keyed: the tree's one lofted chart whose
+/// two sections are related by a ROTATION rather than by their
+/// placements, so the roll is authored into the section and no path
+/// carries it.
+///
+/// **`theta` is the angle the top SECTION is written at, and it is the
+/// body's roll.** The top square is written vertex for vertex as the
+/// images of the bottom one's, and validation keeps each loop's
+/// authored start, so the loft pairs each vertex with its own image:
+/// `twisted_loft(0.05)` is a twentieth of a radian of twist — measured,
+/// and asserted by the orientation row that reads this fixture's roll
+/// off its level rings.
+///
+/// The SIGN is part of the fixture either way: a body rolled the other
+/// way is a different body, and only a row that measures the roll
+/// reads that datum at all.
+pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    let (s, c) = theta.sin_cos();
+    let rv = |x: f64, y: f64| {
+        let (dx, dy) = (x - 1.0, y - 1.0);
+        (
+            Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy),
+            0.0,
+        )
+    };
+    let square = vec![bulge_loop(vec![
+        v(0.0, 0.0),
+        v(2.0, 0.0),
+        v(2.0, 2.0),
+        v(0.0, 2.0),
+    ])];
+    let rotated = vec![bulge_loop(vec![
+        rv(0.0, 0.0),
+        rv(2.0, 0.0),
+        rv(2.0, 2.0),
+        rv(0.0, 2.0),
+    ])];
+    let places = vec![
+        Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+    ];
+    sweep::loft_body::<f64>(&[square, rotated], &places, 1, Tol::witness())
+        .expect("the twisted square lofts")
+}
+
+/// The box `[0,2]² x [0,1]` — planar faces and `Line` carriers
+/// throughout, so the boolean gate's FACE rule is what decides on it.
+pub fn unit_box() -> Body<f64> {
+    sweep::test_support::block(2.0, 2.0, 1.0, Tol::witness())
+}
+
+/// [`unit_box`] moved to a general position — no face of it is
+/// coplanar with the unmoved one's, so the pair reaches the operand
+/// gate rather than a coincidence refusal.
+pub fn moved_box() -> Body<f64> {
+    topo::transform_rigid(
+        &unit_box(),
+        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
+        Tol::witness(),
+    )
+    .expect("a planar box transforms")
+}
+
+/// The box's `z = 1` cap.
+pub fn top_face(body: &Body<f64>) -> FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && origin.z > 0.5
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the extruded box has a top cap")
+}
+
+/// A flat bilinear patch at height `z` over `[0,2]²`.
+pub fn planar_patch(z: f64) -> NurbsSurface<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, z),
+        Point3::new(0.0, 2.0, z),
+        Point3::new(2.0, 0.0, z),
+        Point3::new(2.0, 2.0, z),
+    ];
+    NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap()
+}
+
+/// The wall's net pulled back `d` along its MID-POINT chart normal —
+/// exact on a plane, approximate (to `d·Δn`) on a saddle. See the
+/// module docs for why the base is the pull-back and not the wall.
+pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
+    let (u0, u1) = wall.knots_u().domain();
+    let (v0, v1) = wall.knots_v().domain();
+    let jet = wall.ders((u0 + u1) * 0.5, (v0 + v1) * 0.5);
+    let n = jet.du.cross(jet.dv).normalize();
+    NurbsSurface::new(
+        wall.knots_u().clone(),
+        wall.knots_v().clone(),
+        wall.control().iter().map(|p| *p - n * d).collect(),
+        wall.weights().to_vec(),
+    )
+    .expect("a translated net is a valid surface")
+}
+
+/// **A box whose top cap wears a certified `Approx` surface, described
+/// on its own chart** — the `Approx`-faced body with ANALYTIC carriers
+/// throughout, and the only shape of one this tree can build today.
+///
+/// The lofted [`prism`] cannot be moved by `topo::transform_rigid` and
+/// never could: its four vertical wall seams carry `Curve3::Nurbs`,
+/// which that pass refuses (`NurbsPlaceholder`) whether or not any face
+/// is `Approx`. A box's carriers are all `Line`, so this fixture is
+/// what reaches the map's `Approx` arm.
+///
+/// The surgery is the M6-1 order, one face wide: the cap's surface
+/// becomes the certified `Approx` of the cap plane pulled back by `d`
+/// ([`pulled_back`] of [`planar_patch`], exact on a plane, so
+/// `Offset { base, d }` describes the surface the face already had),
+/// and then its four edges are **re-described onto the new chart** —
+/// `FaceSurface::New` mints a fresh key, so a description naming the
+/// old plane goes stale.
+///
+/// **The re-description is `Chart` + `Pcurve::IsoLine`, and the
+/// alternative is refused.** Remapping the edges to
+/// `Intersection { approx, wall }` does not certify: an approximating
+/// surface's implicit layer is poison (the fit is the geometry, and a
+/// fit has no implicit form), so the attach gate refuses the pair the
+/// way it refuses every NURBS-side conventional description. The chart
+/// image is exact — the fit's chart is `(u, v) ↦ (2u, 2v, z)`, so a cap
+/// edge's image is its own carrier line read in chart coordinates,
+/// halved — and the module's own row checks that against the fit
+/// rather than assuming it.
+///
+/// It ends with the closing mint: every cap edge's row derives and
+/// certifies on the fit's chart, so the body is valid at rest and weighs.
+pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
+    let mut body = unit_box();
+    let face = top_face(&body);
+    let approx = geom_brep::approx_offset_surface_at(
+        Arc::new(pulled_back(&planar_patch(1.0), d)),
+        d,
+        target,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
+    // Lifts both refusals: the Approx chart goes on first; the edges are re-described on it after.
+    let surface = body
+        .set_face_surface_stranding_for_tests(
+            face,
+            FaceSurface::New {
+                surface: approx,
+                sense: true,
+            },
+        )
+        .expect("the attach-layer door accepts a live face");
+
+    let fit = match body.get_surface(surface) {
+        Some(Surface::Approx(a)) => a.fit().clone(),
+        other => panic!("the cap wears the approximating surface, got {other:?}"),
+    };
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the cap's outer loop is a cycle");
+    };
+    // Built first, attached second: attaching one edge does not change
+    // another's curve, and a single pass would stop at the first
+    // refusal with the others unexamined.
+    let mut specs = Vec::new();
+    for he in body.loop_cycle(first).unwrap() {
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(CurveGeom::certified)
+            .expect("a box edge carries a certified curve");
+        let Curve3::Line { origin, dir } = *curve.carrier() else {
+            panic!("a box edge's carrier is a line");
+        };
+        let (param_start, param_end) = curve.params();
+        // `(x, y) = (2u, 2v)` on this chart, so the image of the
+        // carrier `o + t·w` is `o/2 + t·(w/2)` — exact in binary
+        // arithmetic, and CHECKED against the fit rather than assumed.
+        let p0 = Point2::new(origin.x * 0.5, origin.y * 0.5);
+        let pl = geom_core::Vec2::new(dir.x * 0.5, dir.y * 0.5);
+        for t in [param_start, 0.5 * (param_start + param_end), param_end] {
+            let uv = Point2::new(p0.x + pl.x * t, p0.y + pl.y * t);
+            let gap = fit.eval(uv.x, uv.y).distance(curve.carrier().eval(t));
+            assert!(
+                gap <= 1e-12,
+                "the chart image is off the carrier by {gap:e}"
+            );
+        }
+        specs.push((
+            edge,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::chart_image(
+                    surface,
+                    geom_brep::Pcurve::IsoLine { p0, pl },
+                ),
+                carrier: curve.carrier().clone(),
+                param_start,
+                param_end,
+            },
+        ));
+    }
+    for (edge, spec) in specs {
+        body.set_edge_curve(edge, spec, Tol::witness())
+            .unwrap_or_else(|e| panic!("re-describing {edge:?} on the Approx chart: {e}"));
+    }
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the cap's rows derive on its chart");
+    (body, face)
+}
+
+/// Every non-placeholder spline wall of `body`, keyed.
+pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
+    body.faces()
+        .filter_map(|(key, face)| match body.get_surface(face.surface) {
+            Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
+                Some((key, Arc::clone(payload)))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The re-attach gate's honest refusal: an edge whose `IsoCurve`
+/// residual does not certify against the run's ε.
+///
+/// **Why the residual is carried here rather than read off the
+/// error.** `CertifyError::ResidualExceeded` reports a VERDICT — which
+/// check, which sample — and no number, unlike the escalating refusals
+/// of the #921 family whose `Indeterminate` carries an enclosure. So
+/// the fixture measures the quantity the check classifies
+/// ([`iso_residual`]) alongside the call, and
+/// [`reattach_certifies_at`] cross-checks that measurement against the
+/// kernel's own classifier so a drifted replica cannot pass silently.
+#[derive(Debug)]
+pub struct ReattachRefusal {
+    /// The first edge that refused.
+    pub edge: EdgeKey,
+    /// The attach layer's typed error.
+    pub error: topo::EulerOpError,
+    /// The largest `IsoCurve` residual measured over every edge the
+    /// surgery re-attaches, in metres — the threshold this fixture
+    /// certifies at or above.
+    pub max_iso_residual: f64,
+}
+
+/// The quantity `CertCheck::ChartResidual` classifies, for one
+/// `IsoCurve`-described spec: `max_i |C(tᵢ) − S(u, v(tᵢ))|` over the
+/// certification schedule, with `v` affine in the parameter — the
+/// kernel's own formula (`geom_brep::certify`'s iso arm), replicated
+/// so the fixture has a NUMBER where the refusal gives a verdict.
+fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
+    let geom_brep::EdgeDescriptionSpec::Chart {
+        surface,
+        image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+        ..
+    } = spec.description
+    else {
+        return None;
+    };
+    let (u, v0, v1) = (
+        p0.x,
+        p0.y + pl.y * spec.param_start,
+        p0.y + pl.y * spec.param_end,
+    );
+    let s = body.get_surface(surface)?;
+    let n = f64::from(geom_brep::CERT_SAMPLES - 1);
+    let mut worst = 0.0_f64;
+    for i in 0..geom_brep::CERT_SAMPLES {
+        // The schedule parameter is the KERNEL's own
+        // (`geom_brep::sample_param`), so only the `v` affine map is
+        // replicated here — and `reattach_certifies_at` cross-checks
+        // even that against the real classifier.
+        let t = geom_brep::sample_param(spec.param_start, spec.param_end, i);
+        let v = v0 + (v1 - v0) * (f64::from(i) / n);
+        worst = worst.max(spec.carrier.eval(t).distance(s.eval(u, v)));
+    }
+    Some(worst)
+}
+
+/// **The surgery** (module docs), fallible: every spline wall's surface
+/// becomes the certified `Approx` of its pulled-back base, every
+/// carrier is carried into the fit's spline space, and the pcurve map
+/// is re-minted.
+///
+/// The re-attach is the one step that can honestly refuse — on a
+/// CURVED fixture the pull-back is exact only to `d·Δn`, so the
+/// `IsoCurve` residual is construction arithmetic and a tight enough ε
+/// classifies it as a definite excess. That refusal is the kernel
+/// being right, so it is returned rather than panicked: the caller
+/// takes the two arms.
+///
+/// # Errors
+///
+/// [`ReattachRefusal`] naming the first edge that did not certify, and
+/// the measured residual that explains it.
+///
+/// `target` is the fit ENGINE's, not a door's: the kernel doors take the
+/// `Tol` witness and no number, so a fixture that wants a chosen one
+/// reaches `geom-brep`'s `_at` instrument, which is what this helper
+/// does.
+pub fn try_approx_walls(
+    body: &mut Body<f64>,
+    d: f64,
+    target: f64,
+) -> Result<Vec<FaceKey>, ReattachRefusal> {
+    let walls = nurbs_walls(body);
+    assert!(!walls.is_empty(), "the fixture has spline walls to convert");
+
+    // ---- 1: surfaces.
+    let mut remap: HashMap<SurfaceKey, SurfaceKey> = HashMap::new();
+    let mut faces = Vec::new();
+    let mut fit_interior_v: Vec<f64> = Vec::new();
+    let mut max_iso_residual = 0.0_f64;
+    for (face, wall) in walls {
+        let old = body.get_face(face).unwrap().surface;
+        let base = Arc::new(pulled_back(&wall, d));
+        let approx = geom_brep::approx_offset_surface_at(base, d, target, band())
+            .unwrap_or_else(|e| panic!("d = {d}: the wall's offset must fit: {e}"));
+        if let Surface::Approx(a) = &approx {
+            let kv = a.fit().knots_v().knots();
+            fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
+        }
+        // Lifts both refusals: the Approx chart goes on first; the edges are re-described on it after.
+        let new = body
+            .set_face_surface_stranding_for_tests(
+                face,
+                FaceSurface::New {
+                    surface: approx,
+                    sense: true,
+                },
+            )
+            .expect("the attach-layer door accepts a live face");
+        remap.insert(old, new);
+        faces.push(face);
+    }
+
+    // ---- 2: descriptions, and the carriers' spline space.
+    //
+    // Every spec is built and MEASURED first, then attached. The two
+    // passes are not a style choice: attaching is per edge, so a
+    // single pass would report a max truncated at whichever edge
+    // refused first — a number that depends on the refusal rather than
+    // describing the fixture. Building all the specs up front is sound
+    // because attaching one edge does not change another's curve.
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    let mut specs: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();
+    for edge in edges {
+        let ck = body.get_edge(edge).unwrap().curve;
+        let Some(curve) = body.get_curve_geom(ck).and_then(CurveGeom::certified) else {
+            continue;
+        };
+        let re = curve
+            .with_remapped_surfaces(|k| Some(remap.get(&k).copied().unwrap_or(k)))
+            .expect("the remap answers for every key");
+        let carrier = match re.carrier() {
+            Curve3::Nurbs(c) if c.knots().degree() < FIT_DEGREE => {
+                let mut e = c
+                    .elevate_degree(FIT_DEGREE - c.knots().degree())
+                    .expect("degree elevation of a clamped carrier");
+                if !fit_interior_v.is_empty() {
+                    e = e
+                        .refine_knots(&fit_interior_v)
+                        .expect("knot refinement into the fit's space");
+                }
+                Curve3::Nurbs(Arc::new(e))
+            }
+            other => other.clone(),
+        };
+        let (param_start, param_end) = re.params();
+        let spec = EdgeCurveSpec {
+            description: re.restated_description(),
+            carrier,
+            param_start,
+            param_end,
+        };
+        if let Some(r) = iso_residual(body, &spec) {
+            max_iso_residual = max_iso_residual.max(r);
+        }
+        specs.push((edge, spec));
+    }
+    for (edge, spec) in specs {
+        if let Err(error) = body.set_edge_curve(edge, spec, Tol::witness()) {
+            return Err(ReattachRefusal {
+                edge,
+                error,
+                max_iso_residual,
+            });
+        }
+    }
+
+    // ---- 3: the pcurve map.
+    topo::mint_pcurves(body, Tol::witness()).expect("the Approx charts mint their iso images");
+    Ok(faces)
+}
+
+/// [`try_approx_walls`] for the fixtures whose re-attach cannot
+/// honestly refuse — the PLANAR pull-backs, where `Δn = 0` and the
+/// `IsoCurve` residual is f64 dust at every ε the suite runs at.
+pub fn approx_walls(body: &mut Body<f64>, d: f64, target: f64) -> Vec<FaceKey> {
+    try_approx_walls(body, d, target)
+        .unwrap_or_else(|r| panic!("edge {:?} re-attach: {}", r.edge, r.error))
+}
+
+/// **The cross-check that keeps [`iso_residual`]'s replica honest**:
+/// does the kernel's own certification of `spec` succeed against a
+/// band at `eps`?
+///
+/// A replica that drifted from `geom_brep::certify`'s iso arm would
+/// pin a stale constant in silence; running the real classifier either
+/// side of the measured threshold makes that loud.
+///
+/// **ε is the caller's, K is the run's.** The caller varies `eps` —
+/// that is the whole point of the door — so this is not [`band`], the
+/// run's linear band. The escalate edge is read all the same: a
+/// residual between the two edges escalates rather than certifying, so
+/// the band's width is part of the answer this function reports, and a
+/// run configured at a K other than the default must see its own.
+pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool {
+    let Some(e) = body.get_edge(edge) else {
+        return false;
+    };
+    let Some(curve) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
+        return false;
+    };
+    let Some(plus) = body.get_half_edge(e.he_plus) else {
+        return false;
+    };
+    let Some(end_v) = body.half_edge_end(e.he_plus) else {
+        return false;
+    };
+    let (Some(start), Some(end)) = (
+        body.get_vertex(plus.start)
+            .and_then(|v| body.get_point(v.point)),
+        body.get_vertex(end_v).and_then(|v| body.get_point(v.point)),
+    ) else {
+        return false;
+    };
+    let (start, end) = (*start, *end);
+    let (param_start, param_end) = curve.params();
+    let spec = EdgeCurveSpec {
+        description: curve.restated_description(),
+        carrier: curve.carrier().clone(),
+        param_start,
+        param_end,
+    };
+    let Ok(band) = geom_core::Band::linear_at(Tol::witness(), eps) else {
+        return false;
+    };
+    geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()
+}

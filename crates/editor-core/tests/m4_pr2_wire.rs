@@ -1,0 +1,996 @@
+//! M4 PR 2 wiring tests (spec D3): datum evaluation, the revolve
+//! axis's decided in-plane projection, rotational transforms,
+//! patterns as data, Declare pass-through, and the typed operand
+//! refusal doors.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+use editor_core::{
+    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
+    PatternKind, ProfileDoc, ValuePayload, evaluate,
+};
+use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
+use geom_core::Tol;
+use topo::{mass_properties, validate, validate_closed};
+
+fn run(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+/// A unit-square profile `[x0,x0+1]×[y0,y0+1]` on the xy plane plus
+/// its extrude, as a two-node prelude.
+fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (x0, y0),
+            (x0 + 1.0, y0),
+            (x0 + 1.0, y0 + 1.0),
+            (x0, y0 + 1.0),
+        ]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        },
+    )
+}
+
+fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(origin_z)],
+            direction: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    )
+}
+
+#[test]
+fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    // Unit square touching the axis: full revolve → cylinder r=1 h=1.
+    let (doc, plane, prof) = on_frame_keeping(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    // The sketch's own +y through its origin — the same line the
+    // world-space `y_axis` named, in the coordinates the revolve reads.
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, rev) = insert(
+        doc,
+        Node::Revolve {
+            profile: prof,
+            axis,
+            angle: ang(TAU), // decided coincident with τ ⇒ Full
+        },
+    );
+    let ev = run(&doc);
+    let ValuePayload::Body(body) = &ev.value(rev).expect("revolve evaluated").payload else {
+        panic!("expected body");
+    };
+    assert_eq!(validate(body), Ok(()));
+    assert_eq!(validate_closed(body), Ok(()));
+    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
+    assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
+}
+
+/// **The out-of-plane revolve axis is not a refusal any more — it is
+/// not a document.**
+///
+/// This row asserted `AxisNotInSketchPlane`: a 3-D axis whose origin
+/// sat a metre off the sketch plane, caught by a decided projection.
+/// A revolve takes an axis written IN a frame now, so the two ways
+/// that authoring can go wrong are both KIND questions, and neither
+/// needs a band:
+///
+///  1. a 3-D `Datum::Axis` at the seat is the wrong kind of node, and
+///  2. an in-plane axis written in a DIFFERENT frame is the right kind
+///     in the wrong place.
+///
+/// The old row's own numbers cannot be spelled at all: `y_axis`'s
+/// `origin_z` has no counterpart in a frame's two coordinates, which
+/// is the whole claim of the rung.
+#[test]
+fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, plane, prof) = on_frame_keeping(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
+    );
+
+    // (1) The 3-D axis: a kind mismatch at the operand door, naming
+    //     what to author instead.
+    let (doc, world_axis) = y_axis(doc, 1.0);
+    let (doc, bad_kind) = insert(
+        doc,
+        Node::Revolve {
+            profile: prof,
+            axis: world_axis,
+            angle: ang(PI),
+        },
+    );
+
+    // (2) The right kind in the wrong frame: a SECOND frame, parallel
+    //     to the first and a metre up, carrying an axis of its own.
+    //     Nothing about the axis is out of ITS plane — the numbers are
+    //     identical to a legal one — so no projection could tell these
+    //     two documents apart. The node ids can, exactly.
+    let (doc, other_plane) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, stranger) = insert(
+        doc,
+        fixture::axis_in_plane(other_plane, (0.0, 0.0), (0.0, 1.0)),
+    );
+    let (doc, wrong_frame) = insert(
+        doc,
+        Node::Revolve {
+            profile: prof,
+            axis: stranger,
+            angle: ang(PI),
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&bad_kind) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == world_axis),
+            "got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+    match ev.nodes.get(&wrong_frame) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::AxisInDifferentPlane { axis, axis_plane, profile_plane }
+                    if axis == stranger
+                        && axis_plane == Some(other_plane)
+                        && profile_plane == Some(plane)
+            ),
+            "got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+#[test]
+fn rotational_transform_wires_and_preserves_volume() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 2.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(-1.5), len(3.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
+    );
+    let ev = run(&doc);
+    let ValuePayload::Body(body) = &ev.value(moved).unwrap().payload else {
+        panic!("expected body");
+    };
+    assert_eq!(validate(body), Ok(()));
+    assert_eq!(validate_closed(body), Ok(()));
+    let m = mass_properties(body, Tol::witness()).unwrap();
+    assert!((m.volume - 1.0).abs() < 1e-12);
+    assert!((m.surface_area - 6.0).abs() < 1e-12);
+}
+
+#[test]
+fn linear_pattern_evaluates_instances_as_data() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(2.0), scl(0.0), scl(0.0)], // normalized by eval
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    let ValuePayload::Instances(instances) = &ev.value(pat).unwrap().payload else {
+        panic!("expected instances");
+    };
+    assert_eq!(instances.len(), 3);
+    for (i, inst) in instances.iter().enumerate() {
+        assert_eq!(validate(inst), Ok(()));
+        assert_eq!(mass_properties(inst, Tol::witness()).unwrap().volume, 1.0); // dyadic exact
+        // Instance i sits at x offset 2i exactly (translation-only).
+        let min_x = inst
+            .points()
+            .map(|(_, p)| p.x)
+            .fold(f64::INFINITY, f64::min);
+        assert_eq!(min_x, 2.0 * i as f64);
+    }
+    // Patterns do NOT implicitly union: consuming one as a boolean
+    // operand is a typed refusal (part selection is PR 3 naming).
+    let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
+    let (doc2, boolean) = insert(
+        doc2,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: pat,
+            b: other,
+            declare: None,
+        },
+    );
+    let ev2 = run(&doc2);
+    match ev2.nodes.get(&boolean) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::WrongOperand {
+                expected: "body",
+                found: "instances",
+                ..
+            }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+#[test]
+fn circular_pattern_rotates_about_the_datum_axis() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 2.0, 0.0);
+    // The z axis through the origin, as a datum.
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(4),
+            kind: PatternKind::Circular {
+                axis,
+                step: ang(FRAC_PI_2),
+            },
+        },
+    );
+    let ev = run(&doc);
+    let ValuePayload::Instances(instances) = &ev.value(pat).unwrap().payload else {
+        panic!("expected instances");
+    };
+    assert_eq!(instances.len(), 4);
+    for inst in instances {
+        assert_eq!(validate(inst), Ok(()));
+        assert!((mass_properties(inst, Tol::witness()).unwrap().volume - 1.0).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn typed_refusal_doors() {
+    // Degenerate datum normal.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&plane) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::DegenerateDirection {
+                role: "datum plane normal"
+            }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // Degenerate datum AXIS direction — the second role, pinned by its
+    // own string: one role reaching the door proves nothing about the
+    // other, and they are wired separately.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&axis) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::DegenerateDirection {
+                role: "datum axis direction"
+            }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // **A datum normal whose LENGTH overflows** — finite components,
+    // an infinite norm. It reaches the wire like any other datum (the
+    // expression layer refuses non-finite VALUES, and 1e200 is
+    // finite), and the kernel constructor's finiteness gate is what
+    // turns it into a typed refusal here. At the merge base of the
+    // unit that introduced that gate this same document PANICKED on a
+    // `debug_assert`, and without the gate it would build a datum
+    // whose normal is the ZERO vector and answer definite wrong signs.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, huge) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(1e200), scl(0.0), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&huge) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::NonFiniteDirection {
+                    role: "datum plane normal"
+                }
+            ),
+            "expected the non-finite refusal, got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // **Which NAME a good datum's length decision is recorded under.**
+    // Not decoration: `verdict_summary` keys its per-node populations
+    // by this string and serializes them for the cross-process ε
+    // audit, so the name is comparable data, and two summaries that
+    // straddle the move to the kernel constructor disagree about a
+    // datum node's population keys for that reason alone.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, good) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(2.0)],
+        }),
+    );
+    let ev = run(&doc);
+    let names: Vec<&str> = ev
+        .value(good)
+        .expect("the datum evaluates")
+        .verdicts
+        .iter()
+        .map(|v| v.predicate)
+        .collect();
+    assert!(
+        names.contains(&"datum_unit_norm"),
+        "the datum's length decision is the kernel constructor's, by name: {names:?}"
+    );
+    assert!(
+        !names.contains(&"eval_direction_norm"),
+        "and it is no longer the evaluation layer's: {names:?}"
+    );
+
+    // Non-positive pattern count.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(0),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(1.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::NonPositiveCount { count: 0 }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // A Split value as a boolean operand (needs PR 3 naming).
+    let (doc, tool) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split_node) = insert(doc, Node::Split { target: cube, tool });
+    let (doc, second) = unit_cube(doc, 5.0, 5.0);
+    let (doc, boolean) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Intersect,
+            a: split_node,
+            b: second,
+            declare: None,
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&boolean) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::WrongOperand {
+                expected: "body",
+                found: "split",
+                ..
+            }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **A linear pattern's direction, with a length that is not a finite
+/// number, refuses at the direction door** — before the rule mints a
+/// single instance.
+///
+/// Components of 1e200 are finite VALUES, so the expression layer
+/// passes them; their norm is what overflows to +∞, and an ∞ margin
+/// reads as maximally definite, which normalizes the vector to zero.
+/// The rule then steps by a zero direction and mints coincident
+/// copies out of a decided path.
+///
+/// The refusal's own SENTENCE is pinned, not just its variant: a
+/// reader is told which vector refused, and the role word is a
+/// complete noun phrase, so the sentence names it once.
+#[test]
+fn non_finite_pattern_direction_refuses_at_the_direction_door() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e200), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::NonFiniteDirection {
+                        role: "pattern direction"
+                    }
+                ),
+                "expected the non-finite refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the pattern direction has no finite length"),
+                "the refusal names the direction once and says what is wrong \
+                 with it: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **A linear pattern's direction whose LENGTH underflowed refuses as
+/// an underflow, not as a zero length** — the other end of the
+/// arithmetic the row above pins.
+///
+/// Components of 1e-180 are finite VALUES and the expression layer
+/// passes them; their SQUARES are not representable, so
+/// `norm_squared` and the norm are exactly zero and the length
+/// decides `Zero` definitely — at every ε, because no tolerance makes
+/// an unrepresentable square nonzero. The direction is perfectly
+/// good; "the pattern direction has zero length", which is what this
+/// document used to be told, is the one thing about it that is false,
+/// and it sends a user to check a direction that is fine.
+///
+/// The pinned claim is therefore the SENTENCE and not just that a
+/// refusal happened: the row has to tell *refused for underflow* from
+/// *refused at all*, and the arm it must not be is the one it used to
+/// be.
+#[test]
+fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e-180), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::UnderflowedDirection {
+                        role: "pattern direction"
+                    }
+                ),
+                "expected the underflow refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the pattern direction underflowed to zero length"),
+                "the refusal names the direction and what happened to its \
+                 length: {said}"
+            );
+            assert!(
+                said.contains(geom_core::RANGE_RECOURSE),
+                "and the recourse that works — the overflow arm's: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The datum door, the same fact** — executed rather than assumed.
+///
+/// Both doors call one body, which is a reason to expect the same
+/// answer and not a measurement of it; the datum road was never run
+/// with an underflowed direction before this row.
+#[test]
+fn an_underflowed_datum_axis_refuses_as_underflow_not_as_zero_length() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(-1e-200), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&axis) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::UnderflowedDirection {
+                        role: "datum axis direction"
+                    }
+                ),
+                "expected the underflow refusal, got {:?}",
+                e.kind
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The zero arm keeps its meaning**, which is the half of this
+/// change a gate that over-fired would break silently.
+///
+/// A direction that really is zero, and one that is merely smaller
+/// than the band and whose square the format holds perfectly well,
+/// are both `DegenerateDirection` — the first because it names no
+/// direction, the second because the tolerance says so and a smaller
+/// ε would change the answer. Neither is an underflow.
+#[test]
+fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
+    for component in [0.0, 1e-30] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+        let (doc, pat) = insert(
+            doc,
+            Node::Pattern {
+                input: cube,
+                count: editor_core::Expr::count(3),
+                kind: PatternKind::Linear {
+                    direction: [scl(component), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            },
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&pat) else {
+            panic!("expected a refusal for the {component:e} direction");
+        };
+        assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "pattern direction"
+                }
+            ),
+            "{component:e} is a decided-zero length, not an underflowed one: \
+             got {:?}",
+            e.kind
+        );
+    }
+}
+
+/// **The same underflowed document at the ENCLOSURE scalar**, whose
+/// answer is different and deliberately so.
+///
+/// The gate is asked through the value channel with no bracket read,
+/// so it bites at the point scalars. At the interval scalar a
+/// `1e-180` component squares to `[0, 1e-323]` rather than to zero,
+/// the norm enclosure still contains the true length, and nothing
+/// underflowed out of the format — so the door goes on deciding
+/// against the band, which for this input answers zero. Pinning that
+/// is what separates a point-scalar gate from one that started
+/// reading brackets.
+#[test]
+fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() {
+    use geom_core::Interval;
+
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e-180), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "pattern direction"
+                }
+            ),
+            "the enclosure lane decides against the band as before, got {:?}",
+            e.kind
+        ),
+        Some(NodeResult::Ok(v)) => panic!(
+            "the enclosure lane admitted a 1e-180 pattern direction and \
+             produced {}",
+            v.payload.kind_name()
+        ),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// **A transform's rotation axis, same fact, its own door** — and its
+/// own test, because two asserts in one function only ever surface
+/// the first failure.
+///
+/// The two directions this layer owns are wired separately and one
+/// reaching the door proves nothing about the other. This document is
+/// refused downstream too — the rigidity check declines a linear part
+/// that is not an isometry — and that is exactly why the row is here:
+/// the refusal a user reads must be about the axis they wrote, not
+/// about a matrix property derived from it.
+#[test]
+fn non_finite_transform_axis_refuses_at_the_direction_door() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(1e200), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&moved) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::NonFiniteDirection {
+                        role: "transform rotation axis"
+                    }
+                ),
+                "expected the direction door's refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the transform rotation axis has no finite length"),
+                "the refusal names the axis once: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The mapping itself: every arm of the kernel's typed refusal, and
+/// the role word it carries.**
+///
+/// The length decision is one body in `topo::query` and this layer's
+/// door is a call to it under its own funnel name, so what this layer
+/// still owns is exactly two things — WHICH `NodeErrorKind` each
+/// kernel refusal becomes, and WHICH vector the sentence names. Both
+/// are invisible to the rows above, which each exercise one arm: a
+/// mapping that sent two kernel arms to one `NodeErrorKind`, or that
+/// dropped the role, would leave every one of them green.
+///
+/// So all four arms are walked here in one place, and the role word
+/// travels with each: a length that is not a finite number, a length
+/// that underflowed out of the format, a length decided to zero, and
+/// a length that lands in the ambiguity band.
+/// The last is not reachable by a large or a zero vector at all — it
+/// needs a length strictly inside (ε, K·ε), and it is built from the
+/// run's OWN ε and K (their geometric mean) so that the row means the
+/// same thing at every ε the matrix runs.
+#[test]
+fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
+    let eps = Tol::witness().eps();
+    let in_band = eps * Tol::witness().k().sqrt();
+
+    // A pattern direction, the four arms.
+    for (component, expected) in [
+        (1e200, "non-finite"),
+        (1e-180, "underflowed"),
+        (0.0, "degenerate"),
+        (in_band, "escalated"),
+    ] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+        let (doc, pat) = insert(
+            doc,
+            Node::Pattern {
+                input: cube,
+                count: editor_core::Expr::count(3),
+                kind: PatternKind::Linear {
+                    direction: [scl(component), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            },
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&pat) else {
+            panic!("expected a refusal for the {expected} direction {component:e}");
+        };
+        match (&e.kind, expected) {
+            (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::UnderflowedDirection { role }, "underflowed")
+            | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
+                assert_eq!(*role, "pattern direction", "the role word travels");
+            }
+            (NodeErrorKind::Escalated { predicate, source }, "escalated") => {
+                assert_eq!(
+                    *predicate, "eval_direction_norm",
+                    "an in-band length escalates naming THIS layer's funnel site"
+                );
+                // AND the name the FUNNEL recorded, which is a
+                // different fact: the field above is this layer's own
+                // constant, so a kernel that ignored the site it was
+                // passed and decided everything under one name would
+                // leave it green. The escalation carries what
+                // `decide` was actually called with.
+                assert_eq!(
+                    source.predicate,
+                    Some("eval_direction_norm"),
+                    "the kernel decided this length under the site it was PASSED"
+                );
+            }
+            (other, _) => panic!("the {expected} length mapped to {other:?}"),
+        }
+    }
+
+    // And a transform's rotation axis, which is the OTHER role this
+    // door carries: the two are wired separately, so one role reaching
+    // the mapping proves nothing about the other.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&moved) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "transform rotation axis"
+                }
+            ),
+            "expected the degenerate refusal for the axis, got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // **The DATUM road through the same map.** The two roads decide
+    // under two funnel names and share one refusal map, so the map's
+    // arms and its role word have to be exercised from both ends —
+    // and the datum road reaches it through the kernel TYPE's
+    // constructor, which is a different call.
+    for (component, expected) in [
+        (1e200, "non-finite"),
+        (1e-180, "underflowed"),
+        (0.0, "degenerate"),
+    ] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [scl(0.0), scl(component), scl(0.0)],
+            }),
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&axis) else {
+            panic!("expected a refusal for the {expected} datum axis");
+        };
+        match (&e.kind, expected) {
+            (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::UnderflowedDirection { role }, "underflowed")
+            | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
+                assert_eq!(*role, "datum axis direction", "the role word travels");
+            }
+            (other, _) => panic!("the {expected} datum length mapped to {other:?}"),
+        }
+    }
+}
+
+/// **The same document at the ENCLOSURE scalar**: the direction door
+/// does not refuse it, and nothing coincident is minted either.
+///
+/// The finiteness question is asked through the value channel with no
+/// bracket read, so an enclosure of any width passes it deliberately —
+/// an interval whose norm overflowed still CONTAINS the true length,
+/// and refusing it here would refuse a sound enclosure for being wide.
+/// What the point scalar gains from the door, the interval scalar gets
+/// from its own width: the collapsed direction is not zero but a very
+/// wide enclosure, and the instances it would place fail
+/// re-certification instead (`carrier_endpoint_start` escalates on an
+/// enclosure that cannot be classified against the band).
+///
+/// So the pinned claim is the one that matters and no more than it:
+/// **no instances are minted at this scalar either.** Where the
+/// refusal comes from is named here in prose rather than asserted,
+/// because it belongs to certification and moves when certification
+/// moves; that the document is refused at all does not.
+#[test]
+fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
+    use editor_core::{CancelToken, EvalOptions, evaluate};
+    use geom_core::Interval;
+
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e200), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(_)) => {}
+        Some(NodeResult::Ok(v)) => panic!(
+            "the enclosure lane admitted a 1e200 pattern direction and produced {}",
+            v.payload.kind_name()
+        ),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn declare_passes_through_and_boolean_accepts_it() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, a) = unit_cube(doc, 0.0, 0.0);
+    let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
+    // M4 PR 5: the flush contacts are DECLARED by name — this test's
+    // Declare is now the LIVE lane, not pass-through data.
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
+    let (doc, boolean) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    match &ev.value(decl).expect("declare is a value").payload {
+        ValuePayload::Declarations(pairs) => assert_eq!(pairs.len(), 4),
+        other => panic!("expected declarations, got {}", other.kind_name()),
+    }
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
+        &ev.value(boolean).expect("boolean evaluated").payload
+    else {
+        panic!("expected boolean body");
+    };
+    assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
+
+    // A non-Declare node on the declare edge: refused at the EDIT
+    // door, where the mis-wire is made.
+    //
+    // The node named here is the union ABOVE, not operand `a`: a
+    // node's inputs are pairwise distinct (DM5), so a declare edge
+    // pointing at one of the operands is refused for THAT reason and
+    // would say nothing about this one. Any live non-`Declare` node
+    // makes the same point.
+    let refused = doc.apply(
+        &editor_core::DocEdit::InsertNode {
+            node: Box::new(Node::Boolean {
+                op: BooleanOp::Union,
+                a,
+                b,
+                declare: Some(boolean),
+            }),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == boolean
+        ),
+        "expected the declare edge's kind refusal, got {refused:?}"
+    );
+}

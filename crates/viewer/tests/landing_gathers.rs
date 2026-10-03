@@ -1,0 +1,504 @@
+//! **One gather per landing**, and the landing's observables around it.
+//!
+//! `DocSession::land` has four consumers of the document's product —
+//! the product's own verdict, the advisory registry, the A5 badge, and
+//! the session itself, which KEEPS the body for the display fit — and
+//! each of the first three used to derive it for itself. What replaced
+//! that is an ORDER (fault, registry, badge) in which one gather is
+//! enough, because only the badge consumes the product; the fourth
+//! consumer takes what the badge did not eat. An order is not a thing
+//! a reader can see holding, so it is counted: the gather carries a
+//! debug-only counter and these rows read the DIFFERENCE across one
+//! `land`, or across a read that must not gather at all.
+//!
+//! The counter is `cfg(debug_assertions)` and so is this suite, so
+//! these rows are evidence only where assertions are on. That is every
+//! build this repo produces, not only its test builds: the workspace's
+//! `[profile.release]` keeps `debug-assertions` ON until publish. What
+//! the gate buys is that cargo's own release defaults strip the counter
+//! — for a consumer building the crate normally, and for this repo the
+//! day that stanza comes out.
+#![cfg(debug_assertions)]
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use crate::common;
+
+use std::sync::Arc;
+
+use pncad::document::{
+    Doc, DocumentId, Expr, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    ProfileProgram, SitedRef, gathers_on_this_thread,
+};
+use pncad::geom_core::Tol;
+use pncad::select::ContactClass;
+use pncad::workspace::Workspace;
+use viewer::evalseam::EvalDone;
+use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
+use viewer::tree::RowStatus;
+
+/// Re-land the result a session already holds, and answer how many
+/// times the gather ran while it did.
+///
+/// Landing a result the session has already landed is the same call on
+/// the same inputs — `land` is a pure fold of a finished evaluation
+/// into the session — so the count is `land`'s alone. Counting across
+/// `pump` instead would fold in the EVALUATION's gathers, and an
+/// assembly's evaluation gathers each instantiated part's own product
+/// at the seam, which is a different document's and not this claim.
+fn gathers_of_one_landing(session: &mut DocSession) -> u64 {
+    let evaluation = Arc::clone(
+        session
+            .evaluation_arc()
+            .expect("a result has already landed"),
+    );
+    let generation = session
+        .landed_generation()
+        .expect("and the session knows its generation");
+    let before = gathers_on_this_thread();
+    assert_eq!(
+        session.land(EvalDone {
+            generation,
+            evaluation,
+        }),
+        Landing::Landed,
+        "the re-land is a landing"
+    );
+    gathers_on_this_thread() - before
+}
+
+/// **A1 — a part document lands on one gather**, and carries all three
+/// of the landing's results from it: no fault, a report, and no badge
+/// (a part document is not assembly-shaped).
+#[test]
+fn a_part_document_lands_on_one_gather() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    assert_eq!(gathers_of_one_landing(&mut session), 1);
+    assert!(session.product_fault().is_none(), "the product gathers");
+    assert!(session.checks().is_some(), "and the registry reports");
+    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+}
+
+/// **A1 — an assembly-shaped document lands on one gather too**, and
+/// that is the case the order is FOR: the badge consumes the product,
+/// so it goes last and the registry reads it first.
+#[test]
+fn an_assembly_shaped_document_lands_on_one_gather() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("docm5-one-gather", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+
+    assert_eq!(gathers_of_one_landing(&mut session), 1);
+    assert!(session.product_fault().is_none(), "the product gathers");
+    assert!(session.checks().is_some(), "the registry reports");
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        "and the A5 badge is taken: {:?}",
+        session.at_rest()
+    );
+}
+
+/// **The landing's body is handed on, not gathered again**, on a part
+/// document — the path with no A5 gate to give it away.
+///
+/// Delete `land`'s `Some(Arc::new(product.body.into_body()))` and
+/// this row goes red on the `expect`, where the certified-assembly row
+/// below stays green; make `DocSession::landed_body` gather instead of
+/// borrow and it goes red on the count while the assembly row's count
+/// also moves.
+#[test]
+fn a_part_documents_body_is_borrowed_from_its_landing() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    let before = gathers_on_this_thread();
+    let solids = session
+        .landed_body()
+        .expect("a part document's landing keeps its body")
+        .solids()
+        .count();
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the landing's own gather is the only one"
+    );
+    assert!(solids > 0, "and it is the drawable body");
+}
+
+/// **A certified assembly hands its body back too.** The A5 gate
+/// consumes the product it judges, and a certification returns the
+/// same aggregate on its `Assembly` — so the one path that could have
+/// lost the body to the gate does not.
+///
+/// Take the body from `badge`'s `Ok` arm and return `None` there and
+/// this row goes red where the part-document row above stays green:
+/// the two differ in exactly the gate, which is the claim.
+#[test]
+fn a_certified_assembly_keeps_the_body_the_gate_was_given() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("landed-body-assembly", tol);
+    let session = common::asm::open_bench(&bench, tol);
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        "this row's premise is a certified gate: {:?}",
+        session.at_rest()
+    );
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_some(), "the aggregate is kept");
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the gate handed it back rather than eating it"
+    );
+}
+
+/// **A REFUSED A5 gate is the one landing that keeps no body**, and it
+/// is not the same `None` as a refused gather: the product gathered
+/// fine, and the gate ate it in refusing.
+///
+/// This is the path `scene::product_of_evaluation` exists for. Make
+/// `badge` hand the body back on its `Err` arm — by cloning before the
+/// gate, the trade `LandedRun::body` rejects — and this row goes red on
+/// the `is_none`, alone among the three.
+#[test]
+fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("landed-body-refused-gate", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    common::commit_mate(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
+        "this row's premise is a refused gate: {:?}",
+        session.at_rest()
+    );
+
+    assert!(
+        session.product_fault().is_none(),
+        "the GATHER succeeded — this is not the refused-gather case"
+    );
+    assert!(
+        session.landed_body().is_none(),
+        "and the body went into the gate that refused"
+    );
+}
+
+/// **A gather refusal has no body to hand out, and asking does not
+/// re-run the refusal.** `None` here means the pair has no product at
+/// all, which is what `product_fault` is already saying — the other
+/// `None` from the row above.
+///
+/// Make `landed_body` gather when the field is empty and this row goes
+/// red on the count, where every other row in this file stays green.
+#[test]
+fn a_refused_gather_hands_out_no_body_and_gathers_nothing() {
+    let tol = Tol::witness();
+    let (doc, _extrude, _transform) = common::broken_document(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+    assert!(session.product_fault().is_some(), "the gather refuses");
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_none());
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "a refusal is not re-derived by asking for its body"
+    );
+}
+
+/// **A4 — a gather refusal lands as it always did**: the fault is the
+/// gather's own refusal, the report is ABSENT rather than clean ("not
+/// checked" is not "checked and fine"), and the landing still costs one
+/// gather.
+#[test]
+fn a_gather_refusal_lands_with_a_fault_and_no_report() {
+    let tol = Tol::witness();
+    let (doc, _extrude, _moved) = common::broken_document(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    assert_eq!(gathers_of_one_landing(&mut session), 1);
+    assert!(
+        session.product_fault().is_some(),
+        "a root that did not evaluate is a gather refusal"
+    );
+    assert!(
+        session.checks().is_none(),
+        "and the registry has no subject, so there is no report"
+    );
+    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+}
+
+/// **A4 — a gather refusal that is NOT a per-node failure lands with
+/// no report.**
+///
+/// The row above uses a document whose ROOT failed, and the registry
+/// refuses that on its own precondition — so it cannot see whether the
+/// landing's `NoBodyRoots` filter is doing anything at all. This one
+/// can: two `Transform`s of one extrude are two roots placing one
+/// body, every root evaluates, and the ONLY thing that refuses is the
+/// gather. Widen the filter to `true` and
+/// this row goes red where the other stays green.
+#[test]
+fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-collision-landing", tol);
+    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.02),
+        },
+        tol,
+    );
+    let moved = |doc: &Doc<ProfileProgram>, dx: f64| {
+        common::inserted(
+            doc,
+            Node::transform(
+                extrude,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(dx), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
+            tol,
+        )
+    };
+    let (doc, _) = moved(&doc, 0.1);
+    let (doc, _) = moved(&doc, 0.2);
+
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    assert_eq!(gathers_of_one_landing(&mut session), 1);
+    assert!(
+        matches!(
+            session.product_fault(),
+            Some(ProductError::PlacedUnderTwoRoots { .. })
+        ),
+        "the premise: only the gather refuses here, and it is one body under two roots: {:?}",
+        session.product_fault()
+    );
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .all(|row| !matches!(row.status, RowStatus::Failed { .. })),
+        "and no node failed, so no other channel carries this"
+    );
+    assert!(
+        session.checks().is_none(),
+        "the registry has no subject and says so by reporting nothing"
+    );
+    assert!(
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
+        "this IS the fault channel's own case"
+    );
+    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+}
+
+/// **A4 — a document that denotes no body is not a refusal**
+/// (`ProductErrorKind::means_no_body` is that reading). The
+/// gather says `NoBodyRoots`, which the landing reads as a SUBJECT: the
+/// registry runs over it and reports clean. The fault field still
+/// carries the gather's answer, and the badge channel is the one that
+/// keeps quiet about it (`frame::product_badge`).
+#[test]
+fn a_document_with_no_body_lands_a_clean_report() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-empty-landing", tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    assert_eq!(gathers_of_one_landing(&mut session), 1);
+    assert!(
+        matches!(session.product_fault(), Some(ProductError::NoBodyRoots)),
+        "the gather's own answer: {:?}",
+        session.product_fault()
+    );
+    assert!(
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
+        "which the badge channel deliberately stays quiet about"
+    );
+    let report = session.checks().expect("the registry still reports");
+    assert!(report.findings.is_empty(), "cleanly: {report}");
+    assert!(session.at_rest().is_none(), "and there is no badge");
+}
+
+/// **A body-less ASSEMBLY takes no at-rest badge either.** An
+/// instance whose only reader is a measure read AT it is no root — the
+/// measure is, and it denotes no body — so the gather says
+/// `NoBodyRoots` while the document still holds an `InstantiatePart`.
+/// The landing reads that refusal as an absence for the registry, and
+/// the A5 badge agrees with it: there is no product for the gate to
+/// judge, and an at-rest badge reading "at rest: product: …" would
+/// show a failure the line above it says is not one.
+///
+/// This is one instance of the rule the row below witnesses for a
+/// refusal proper — a gather refusal takes no at-rest badge, whatever
+/// its class. `LandedRun`'s shape already keeps a badge off the
+/// refusal; what this row adds is the end-to-end reading at the
+/// session's door, over the one class the registry treats as an
+/// absence.
+#[test]
+fn a_body_less_assembly_takes_no_at_rest_badge() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("body-less-assembly", tol);
+    let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
+    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let top = common::asm::in_part(post, &bench.post_top);
+    common::insert_into(
+        &mut asm,
+        Node::measure(
+            MeasureExpr::value(common::len(1.0)),
+            vec![SitedRef::new(post, top)],
+        )
+        .expect("the measure indexes no reference it lacks"),
+        tol,
+    );
+    let path = Workspace::open(&bench.dir)
+        .expect("the bench's workspace opens")
+        .create(&asm, tol)
+        .expect("the assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("body-less-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert!(
+        matches!(session.product_fault(), Some(ProductError::NoBodyRoots)),
+        "the premise: the measure de-sinks the instance and denotes no body: {:?}",
+        session.product_fault()
+    );
+    assert!(
+        session.checks().is_some(),
+        "the landing reads it as an absence, so the registry still reports"
+    );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge agrees: a body-less assembly is not a refusal"
+    );
+}
+
+/// **An assembly whose gather REALLY refuses takes no at-rest badge
+/// either.** Beside an instance, an extrude whose distance divides by
+/// zero fails at evaluation, so the gather refuses with a class
+/// `ProductErrorKind::means_no_body` does not claim, in a document that
+/// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
+/// the refusal is `DocSession::product_fault`'s, and
+/// `frame::badge_site` routes it (a failed root to the feature tree).
+///
+/// The badge's absence is the type's doing, so the row witnesses the
+/// whole path rather than guarding one arm: the gather refuses, the
+/// session says nothing at rest, and the refusal is still loud where
+/// it belongs — the root's tree row reads `Failed`.
+#[test]
+fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("refused-gather-assembly", tol);
+    let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
+    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let extrude = common::insert_into(
+        &mut asm,
+        Node::Extrude {
+            profile,
+            distance: Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    let path = Workspace::open(&bench.dir)
+        .expect("the bench's workspace opens")
+        .create(&asm, tol)
+        .expect("the assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("refused-gather-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert!(
+        matches!(
+            session.product_fault(),
+            Some(ProductError::Root(NodeStanding::Failed { .. }))
+        ),
+        "the premise: a failed root, which is a refusal and not an absence: {:?}",
+        session.product_fault()
+    );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge takes no verdict on a product the gate never saw"
+    );
+    let rows = session.tree_rows();
+    assert!(
+        matches!(common::status_of(&rows, extrude), RowStatus::Failed { .. }),
+        "not silent everywhere: the failed root reads Failed at its tree row, got {:?}",
+        common::status_of(&rows, extrude)
+    );
+}
+
+/// **Every site of the counter carries the gate attribute.**
+///
+/// WHAT THIS PINS AND WHAT IT DOES NOT, stated because the row's first
+/// spelling claimed the second: it reads SOURCE, so it pins that the
+/// cell, the increment and the reader each sit behind
+/// `#[cfg(debug_assertions)]` and that there is no fourth site without
+/// one. It says NOTHING about any built artifact — and it must not,
+/// because this workspace's `[profile.release]` keeps
+/// `debug-assertions` ON until publish (`Cargo.toml`, and `demos/tour`
+/// the same), so the counter IS in every binary this repo produces.
+/// The gate's payoff is cargo's own release defaults, and the day the
+/// stanza comes out.
+///
+/// The behavioural half — that the counter counts what it claims to —
+/// is the rows above, which read it across a real landing.
+///
+/// The read goes through the shared reader's CODE view
+/// ([`test_utils::source::code_only`]): every anchor below is a code
+/// fragment — an attribute above the item it gates — and the count
+/// beside them is a count of SITES, so a mention of the cell in a
+/// comment must not answer for one and must not inflate the total.
+/// The view keeps every code byte at its own offset, so the three
+/// anchors and the count are exactly what the raw text offered. This
+/// site's ledger row is in `crates/test-utils/tests/reader_census.rs`.
+#[test]
+fn every_site_of_the_gather_counter_carries_the_debug_gate() {
+    let source = test_utils::source::code_only(include_str!("../../editor-core/src/product.rs"));
+    let gated = [
+        "#[cfg(debug_assertions)]\nthread_local! {\n    static GATHERS",
+        "#[cfg(debug_assertions)]\n    GATHERS.with(",
+        "#[cfg(debug_assertions)]\n#[must_use]\npub fn gathers_on_this_thread",
+    ];
+    for anchor in gated {
+        assert!(
+            source.contains(anchor),
+            "the counter's three sites are each behind the gate; missing: {anchor}"
+        );
+    }
+    assert_eq!(
+        source.matches("GATHERS").count(),
+        gated.len(),
+        "and there is no fourth site the gate does not cover"
+    );
+}

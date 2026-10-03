@@ -1,0 +1,770 @@
+# Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-implementation design doc)
+
+Status: **RATIFIED (Ev, PR #110, merged 2026-07-27 — 👍 on the
+round-2 sign-off comment).** E1–E11 are the error-propagation
+contract seed; the milestone that builds them is **M10**. Design
+history: Round 2 (#110): E1 restated as the *completion* of the
+Real-trait vision; E2 truncation → **tail-mass accounting** (Ev).
+Round 3 (Ev's careful pass, "broadly looks good"): E3 collapsed to
+one dimension-generic Measure sink; E6 adopts **no-flips v1** (Ev's
+proposal); E11 MC softened to a labeled advisory lane; E11.6
+histogram note. Post-ratification amendment on record (#110 thread,
+Ev's one-branch-tails observation, 2026-07-27): chamber containment
+added to E2. **Revision E12 (2026-09-03, RATIFIED — Ev on PR #1712, "lgtm";
+in-chat design conversation at M10's exit walk):** E12
+added (certification is parameter-aware — identities decide
+symbolically at any box width); E3 amended (the `min_clearance`
+primitive is binary; parallelism verdicts a measure consumes are
+levered by the operands' extent, no floor). Ev's ruling that opened
+it: the program does not close while a macroscopic tolerance box
+certifies nothing.
+
+Written alongside NAMING-DESIGN (#74) and SOLVER-DESIGN (#79) as the
+third pre-M4 design doc. Grounding: DESIGN.md's central commitment
+and M10 roadmap entry; the ratified Q1 subdivision-driver posture
+("outcome probabilities are the distribution's measure on the
+sub-boxes"); SOLVER-DESIGN W1–W9; M4's F1/F3/F4; PR 6's recorded-ε
+discipline; K-REPORT's scope honesty. NOT reopened: the `Real`
+surface, decoration-as-poison, the Dual kink conventions and
+value-part delegation, W1–W9, the F1 lattice,
+recorded-ε/SetTolerance. This doc pins what the MVP *is*, so M10
+planning starts decided.
+
+## 0. Term hygiene (read first)
+
+- **Parameter box**: an axis-aligned product of per-parameter
+  intervals in continuous-parameter space; structural (Count)
+  parameters are FIXED — a box varies topology only through
+  predicate flips.
+- **Chamber**: a connected flip-free region of parameter space (W3's
+  discriminant-chamber language). The driver certifies *leaves*
+  (sub-boxes), never chambers.
+- **Analyzed box vs. support vs. measure**: the kernel sees the
+  **analyzed box** — an analysis-time choice (E2), = the support
+  when bounded; the probability *measure* never enters kernel
+  evaluation — it prices leaves and tail at reporting (E1/E6).
+- **Certified / advisory**: certified = interval (or
+  Dual<Interval>) containment-true; advisory = first-order f64
+  (RSS, linearized contributions), always labeled, never gating.
+
+## E1 — Distributions are document-layer parameter metadata; the Real channel is the per-leaf engine
+
+**Decision**: a continuous `ParamDef` at the document layer gains an
+optional `Distribution` (E2). The kernel and geometry lanes never
+see a probability. The analysis lane projects a distribution to
+exactly three consumables: (a) the **analyzed box** (E2) for
+interval/driver work, (b) **seed vectors** for dual passes, (c) a
+**measure** pricing leaves and tail in reports. No `Real`
+instantiation carries probability; there is no `Distribution` scalar.
+
+**This completes the Real-trait vision; it does not depart from
+it.** `Real`'s original purpose was this feature, with Interval
+intuited as a quasi-stand-in for a uniform distribution (Ev,
+#110). That intuition is correct one level down: Interval turns out
+to be the **sound integration kernel for ANY input measure** — each
+leaf evaluates through the existing Interval `Real` (three-valued
+per-leaf answers via decorations) and the measure integrates over
+leaf verdicts; Dual rides the same way, per-leaf/per-chamber. The
+scalar channel does all propagation; only pricing lives above it.
+
+- Why measures cannot ride the scalar channel: dependency makes
+  distribution arithmetic **wrong, not loose**. Interval dependency
+  is sound-but-loose (`x−x` has width but contains truth); pushing
+  marginals through operators *forgets correlation*, with no
+  conservative direction to hide in ("wider" needs an order).
+- **Rejected alternative — p-boxes/credal enclosures** (Fréchet
+  bounds under unknown dependence), the rigorous scalar-channel
+  analogue: they collapse toward vacuity within a few dependent
+  operations, and shared-parameter dependence IS the kernel's
+  workload. The measure therefore prices **leaves of INPUT space
+  only**, where parameter identities still exist — derived-quantity
+  correlation never needs representing at all.
+- **Rejected alternative — F1 quantity extension**: making
+  distributions typed quantities flowing through expressions invites
+  exactly that marginal arithmetic. The F1 lattice stays a value
+  lattice; distributions annotate *parameters*, not values.
+- Counterargument (honest): you cannot state "this measurement is
+  normally distributed" as an input. Correct — measurement
+  distributions are *outputs*, and v1 deliberately does not even
+  compute output densities (E11.6).
+- Forecloses: distribution-valued expressions; per-node distribution
+  overrides; probability inside evaluation code.
+
+## E2 — v1 vocabulary: unbounded support welcome; the analysis box is an analysis-time knob; tail mass is accounted, never dropped
+
+```
+Distribution = Band            { lo, hi }             // worst-case only, NO measure
+             | Uniform         { lo, hi }
+             | Normal          { sigma }              // unbounded support
+             | TruncatedNormal { sigma, lo, hi }      // sugar: tail_mass ≡ 0
+```
+
+Offsets are relative to the parameter's nominal (which stays the
+single source of truth for the f64 build), dimensioned per F1 — a
+Length parameter's band is Lengths. Bounded forms require
+`lo ≤ 0 ≤ hi` (asymmetric legal; nominal outside its own support
+is a typed document error).
+
+- **The analyzed box is the analysis's knob, not the distribution's
+  property.** Distributions may have unbounded support — no ad-hoc
+  cutoff baked into the model. Each run chooses a bounded box
+  (request config; default = the symmetric quantile box for a named
+  default mass, a recorded policy dial like K). The choice only
+  moves mass between analyzed and tail columns — never truth.
+- **Tail-mass accounting**: mass outside the analyzed box is an
+  explicit additive term in every result — `P(defect) ∈ [computed ±
+  analysis bounds] + tail_mass` — reported, never dropped. In E6's
+  accounting the tail is `Unanalyzed` mass alongside the refusal
+  reasons; one **unresolved-mass budget** (refused + tail) is the
+  single honesty gate (E10). Truncation = optional sugar, tail ≡ 0.
+- **One-branch tails amendment (Ev, post-ratification 2026-07-27,
+  #110 thread)**: the no-flips commitment (E6) is what makes the
+  MERGED budget principled, not merely simple — under one branch,
+  tail, `FlipCrossing`, and undersubdivided mass all mean the same
+  thing ("the branch-valid analysis does not cover this mass"), so
+  one budget with a diagnostic breakdown (widen box / subdivide /
+  accept) is the honest shape. **Chamber containment**: if every
+  leaf touching the analyzed box's boundary is `FlipCrossing`-
+  refused, the witness chamber is contained in the box, ALL tail
+  mass is provably off-branch (not merely unexamined), the
+  unresolved budget becomes exact rather than conservative, and box
+  growth has a natural stopping rule (growth can only relabel
+  tail → `FlipCrossing`). Detection is a free predicate on the
+  existing leaf set; E6's driver SHOULD report containment when it
+  holds.
+- **Band carries no measure** — pure worst-case. Any report needing
+  a measure (RSS, leaf mass) over a Band parameter refuses typed,
+  never defaults to uniform: "I know the limits but not the shape"
+  is real information; uniform is a different, stronger claim.
+- **Independence**: product measure only, one distribution per
+  parameter; joint distributions are v1-foreclosed (E11.2; a `Joint`
+  form is an additive schema variant later).
+
+## E3 — A measurement is ONE dimension-generic recipe sink node
+
+**Decision**: F4's vocabulary grows exactly one `Measure { expr }`
+sink node — typed F1 quantity out, no body output. The quantity
+kind rides the measured *expression* through the F1 lattice, never
+per-kind node variants: measurement primitives are typed functions
+in the F7 extension — `distance(a, b)`, `min_clearance(a, b)` →
+Length; `angle(a, b)` → Angle; mass properties in their own
+dimensions (their Length-powers force the recorded *additive* F1
+lattice growth, never a Measure-local type) — over StableName
+entity references and node outputs.
+
+Evaluated at every `T` like all nodes; failures poison descendants
+only (F2 verbatim; sinks have none). Persisted as an ordinary node;
+resolved through name tables with N-machinery's typed failure;
+content-key cached like everything.
+
+- **Rejected — per-kind Measure taxonomy** (`Distance`/`Angle`/…
+  variants, the round-1 shape): a parallel type vocabulary beside
+  F1 for zero expressive gain. **Rejected — lever-arm unification**
+  of angle with distance: it requires a chosen length scale — an
+  ad-hoc constant, exactly the class this project refuses.
+
+- Rationale: measurements must be persisted, stable-named,
+  diffable, scalar-generic, cache-keyed — exactly what recipe nodes
+  already are. A side-channel query API would need a parallel
+  persistence + naming + genericity story (the banked no-parallel-
+  path principle forbids it), and its references would silently
+  dangle; Measure nodes fail loudly through N5 diagnosis. And the
+  sublanguage is total and finite by charter, so any expression is
+  Measure-wrappable and dual/interval-evaluable by construction.
+- Counterargument: DAG pollution — dozens of measurement sinks.
+  Accepted; sinks are lazily evaluable, the GUI presents them as a
+  panel, and the document is the right home for design intent
+  (E10's assertions).
+
+**E3 amendments (revision E12, 2026-09-03).**
+
+- **`min_clearance` is BINARY**: `min_clearance(a, b)` over two
+  selections, each "which faces of which body" (a body reference is
+  all of its faces, a face reference is that one); the value is the
+  minimum over the pairs A × B and the closest pair is the OUTPUT
+  (the witness), never an input. The same body on both sides is its
+  self-clearance (adjacent pairs excluded by the wedge rule). The
+  earlier `min_clearance(sel)` spelling read as "this selection
+  against the rest of the document" — the assembly consumer's
+  question — which the binary door asks only pairwise; a complement
+  selection ("everything but this") is a LATER selection spelling,
+  not a different primitive. (M10-6 shipped the binary door and
+  disclosed the arity as deviation D8; ratified here.)
+- **Parallelism verdicts a measure consumes are levered by the
+  operands' EXTENT, with no floor.** `distance`/`gap` over plane or
+  axis pairs consume `bool_plane_parallel` /
+  `carrier_cyl_axis_parallel` at margin `sin θ · L`. M10-2 shipped
+  `L = max(separation, 1 m)`, an ad-hoc absolute constant of exactly
+  the class the rejected lever-arm unification names: for every
+  sub-metre part the separation never enters and the tilt is priced
+  across a metre it does not span. The separation is the wrong
+  lever in either direction — at zero separation the distance VALUE
+  is zero whether or not the planes are tilted, but the verdict
+  "parallel" is consumed as "constant separation across the faces"
+  by the gap sign and the mate consumers, and two planes crossing
+  within ε of the reference point at 45° would certify it. The
+  lever is `L` = an UPPER bound on the extent of the two operands
+  together (their carrier windows' diameter, which E7's BVH already
+  carries): the margin then means "parallel to within ε across the
+  faces it is consumed over", scale-aware, and a real face has
+  positive extent by construction so no floor exists. Over-refusal
+  is the safe direction, which is why the bound is an upper one.
+  The mate solve's lever in `mate.rs` is the same lever, with no
+  floor. Status: shipped whole at the mate site — the lever is the two
+  mated parts' own extent from the datum, each part's reach an upper
+  bound taken from its evaluated body through the same boundary walk
+  (`mate/reach.rs`); no floor, no constant.
+
+## E4 — Sensitivity semantics: forward Dual<f64>, one seed per parameter, chamber-local and marked as such
+
+**Mechanism**: ∂m/∂pᵢ = evaluate the recipe at `Dual<f64>` with pᵢ
+seeded, others constant; n parameters ⇒ n independent passes (pure
+model; parallel under D9 idiom 1). The dual value channel is
+bit-identical to the f64 run (THE Dual contract), so every verdict
+— hence the topology — is the f64 build's: the sensitivity is of
+the as-built body, guaranteed.
+
+**Semantics honesty (the load-bearing clause)**: ∂m/∂pᵢ is the
+derivative of the *fixed-topology program* (per the ratified kink
+conventions), valid within the nominal's chamber; it can jump at a
+predicate flip. Therefore **a sensitivity is never reported bare**:
+it carries either a **chamber certificate** (an E6 leaf certified
+over the box asked about) or the explicit **`local_only` marking**
+— no third, unmarked state (D4 fail-loud applied to derivatives;
+the classic stackup lie is extrapolation across a topology change).
+
+**Certified tier**: `Dual<Interval>` over a leaf yields derivative
+*enclosures* (Clarke straddle hulls at kinks, per M0), consumed for
+E7's monotonicity pruning and E5's contribution bounds — never for
+refusal decisions (E9).
+
+**Not in v1**: reverse mode; vector-forward — n forward passes are
+O(n·build), trivially parallel; both are performance additives
+(E11.4).
+
+## E5 — Stackup deliverable: a typed per-measurement report; certified worst-case gates, RSS is labeled advisory
+
+```
+Stackup {
+  measurement:  StableName of the Measure node,
+  nominal:      f64 value (the f64 build's),
+  per_param:    [ { param, sensitivity (E4-marked), contribution } ], // advisory
+  worst_case:   certified enclosure of m over the certified leaves, // gates
+  rss:          Advisory<σ_m> | UnavailableBecause(Band params named),
+  coverage:     certified mass + refused mass + tail_mass (E2/E6; sums to 1),
+}
+```
+
+- **`worst_case` is the headline and the only gating number**: the
+  hull of interval evaluations of the Measure node over E6's
+  certified leaves — NOT the linearized Σ|∂m/∂pᵢ|·Δpᵢ (first-order,
+  silently wrong under curvature; it survives only as the advisory
+  per-contributor table).
+- **`rss`** = √Σ(∂m/∂pᵢ·σᵢ)², linearized, advisory. Available only
+  when *every* contributor carries a measure — a Band parameter
+  yields `rss: UnavailableBecause(...)`, never a partial RSS (a
+  partial RSS is still a lie).
+- **`coverage`** keeps the report honest: "99.2% certified; 0.3%
+  refused (reasons — flip-crossing mass included, E6); 0.5% tail
+  (unanalyzed)". `worst_case` is certified over the analyzed box's
+  witness-branch leaves; refused + tail say what it does not cover.
+- Counterargument: engineers will read RSS as the answer. Mitigation
+  is labeling and ordering, not omission — omit RSS and users
+  compute it outside, unlabeled.
+
+## E6 — The subdivision driver and `ParamBoxVerdict`
+
+The Q1-promised driver, built as an analysis-lane service on the
+`Real`-generic editor-core evaluation service (no parallel path).
+
+```
+drive(doc, box) -> ParamBoxVerdict {
+  certified: [ Leaf { box, verdict_vector_key, results } ],
+  refused:   [ Leaf { box, reason: SliverTerminal { predicate }
+               | FlipCrossing { flipped predicates }  // no-flips v1
+               | Bifurcation(WitnessBifurcation) | Infeasible  // E8
+               | Budget { depth/work bound hit } } ],
+  measure_accounting: per-reason mass under the product measure,
+                      + Unanalyzed = tail mass outside `box` (E2),
+}
+```
+
+**Leaf protocol**: replay the recipe at `T = Interval` over the leaf
+box (parameters = intervals; witness data verbatim per E8).
+
+- Every predicate definite AND the verdict vector matching the
+  witness branch's → leaf **certified**; lineage-scoped key identity
+  (Q1 PR 8) means the leaf shares the nominal build's topology;
+  Measure enclosures are containment-true over the whole leaf.
+- **No-flips v1 (adopted round 3; Ev's proposal)**: a leaf
+  definite on a *different* verdict vector is **refused mass**
+  (`FlipCrossing`, flipped predicates named) — no branch
+  enumeration, no analysis of the far side. Topology change under
+  tolerance is usually the reported defect itself; near a flip,
+  subdivision only localizes the boundary to shrink refused mass.
+  Branch enumeration = the recorded v2 door (with W3, E8).
+- Any `Indeterminate` → **bisect** and recurse. Split rule named,
+  deterministic (D9): max relative width, ties to lowest index.
+  Leaves are independent — parallel under D9 idiom 1, CPU/rayon per
+  the ratified GPU-boundary table.
+- **Terminal sliver** (enclosure wholly inside (ε, Kε)) → refuse,
+  never refine (ratified PR 7 semantics: a genuine semantic sliver).
+- **Budget exhaustion** (depth/work caps, run config like K) →
+  refuse with `Budget`, typed and priced. No silent partial answers.
+
+**Probability enters exactly once**: leaf and tail masses under the
+product measure, at reporting time — Normal CDF via f64 erf is fine
+because *reporting decides no topology and gates no certification*.
+
+**No chamber-connectivity claims**: certified leaves (all on the
+witness verdict vector under no-flips) may be *presented* coalesced,
+but the semantic unit stays the leaf — leaf results are
+self-contained; connectivity proofs would be machinery for zero
+certificate content.
+
+**K telemetry (T6/K-REPORT obligation)**: every driver-path
+predicate sample lands in the k_stats funnel — margins *driven
+toward* zero by refinement are the first genuinely ill-conditioned
+population K sees; an in-band landing there is exactly K-REPORT's
+stated re-open trigger (#89 CLOSED — K = 10 is the permanent
+ratified default).
+
+## E7 — Clearance & self-intersection: a trichotomy over box × domain; duals accelerate, never decide
+
+For a **certified leaf** (fixed topology), the analysis answers two
+questions:
+global self-intersection-freedom, and `min-clearance ≥ c` for a
+pair of selections (a `min_clearance` Measure + E10 assertion).
+
+**Mechanism**: two nested subdivisions. Outer: the E6 parameter
+leaves. Inner: geometry-domain subdivision with interval exclusion
+— the pre-M5 "SSI completeness is an interval obligation" posture
+run with interval *parameters*: candidate face pairs from a
+conservative interval BVH; a cell pair discharges at enclosure ≥ c,
+splits when indeterminate, reports on a definite violation.
+
+**The answer is a trichotomy, never silence**:
+
+- `Holds` — clearance ≥ c certified throughout the leaf box × all
+  domain pairs;
+- `Violated { param_witness, geometry_witness }` — a definite sub-c
+  distance at a concrete parameter point and closest-point pair
+  (verified definite at f64 — "here, at these parameter values");
+- `Refused { sliver | budget }` — the clearance margin `d − c` is a
+  margined predicate like any other: terminal slivers and budget
+  exhaustion refuse, typed and priced by measure.
+
+Probability never enters *inside* a leaf — no "probabilistically
+clear" verdict; mass accounting applies to leaves (E6), full stop.
+
+**Self-intersection scope**: the tier-3′ census made global and
+parametric — non-adjacent face pairs certified strictly positive
+distance; adjacent pairs are covered locally by the wedge predicates
+(their distance is legitimately 0). v1 geometry scope = the
+carriers the kernel has interval evaluators for; carriers without
+interval evaluation refuse typed (`Unsupported`), never downgrade
+to sampling.
+
+**Duals as pruning only**: over a leaf, a sign-definite
+`Dual<Interval>` enclosure of ∂d/∂pᵢ makes d monotone in pᵢ — the
+check restricts to a box facet, collapsing a dimension. An
+accelerator only: correctness never depends on it (E9).
+
+## E8 — Composition with the W-contracts: witnesses are fixed document state; walls become priced refusals
+
+- **The analysis lane is read-only.** The driver NEVER writes the
+  document: no auto-ReWitness however clean the certificate (W4's
+  ban stands; analysis is not a commit context). Every leaf replay
+  consumes the committed witness (W1) verbatim — leaf results stay
+  a pure function of (doc, box).
+- **Per leaf, sketch nodes run W2 at T = Interval**: the ratified
+  contraction-from-f64-witness over the leaf's box; the certificate
+  firing proves the *entire leaf* shares the witness's branch (W4's
+  certified-same-branch invisibility, point upgraded to box).
+- **When a leaf straddles a wall**, the certificate refuses and the
+  driver bisects; terminal refusals split by kind, vocabulary
+  preserved (W3 layer-2 language, never collapsed into "sliver"):
+  - `Infeasible` — no real solution over part of the box (the
+    elbow past straightening): typed refusal whose mass is a
+    *product-level finding* — "2.1% of the tolerance mass has no
+    solution" IS the detect-problems deliverable;
+  - `Bifurcation(WitnessBifurcation)` — the box reaches across a
+    fold/branch wall: refused with the W3 payload. **Distributions
+    do not cross witness walls** — the model is undefined there
+    without a recorded ReWitness, so the driver prices the mass and
+    refuses; the remedy is user intent, never machinery guessing a
+    branch. (E6's no-flips rule generalizes this to every predicate
+    flip in v1; solver walls are its sharpest case.) (`solver_branch_margin` samples from driver runs feed
+    E6's k_stats obligation.)
+
+## E9 — Tangent poison never refuses
+
+Ratified base: decoration-as-poison lives in the value lane;
+`Decide` classifies the value channel only — tangent data does not
+decide base-space topology. **Addendum**: in `Dual<Interval>`
+work, derivative-channel degradation (Clarke straddle hulls
+widening to the whole line, kink-jump enclosures like floor's
+`[0, +∞]`) NEVER contributes to leaf refusal — refusal is decided
+solely by value-channel predicates and W-certificates. A degraded
+tangent forfeits exactly its uses: no monotonicity pruning (E7);
+affected `per_param`/`rss` entries report `UnavailableBecause`
+(E5); `worst_case` untouched (value-channel interval evaluation,
+never linearization).
+
+- Rationale: refusing on tangent poison would let `abs` at a kink
+  veto an analysis whose value channel certifies cleanly —
+  inverting the ratified hierarchy. A straddle hull containing
+  zero IS information ("possibly non-monotone"), consumed as that.
+- Counterargument: a stackup whose every tangent degrades is weak.
+  True, and honest — it still carries the gating certified
+  worst-case; the advisory columns degrade loudly, never lie.
+
+## E10 — Reporting & persistence: distributions and assertions persist; verdicts are derived and CI-able
+
+**Persisted, in-document** (additive F3 migration, one schema step;
+fields named now):
+
+- `ParamDef.distribution: Option<Distribution>` (E2 forms, offsets
+  dimensioned per F1, shortest-round-trip floats as ratified);
+- the `Measure` node (E3) with its StableName references;
+- `Assertion { measure: NodeId, bound: Quantity, dir: AtLeast | AtMost }`
+  — tolerance *requirements* as recorded design intent (the CAD
+  analog of a test suite: "min wall ≥ 0.5 mm" lives in the document,
+  versioned and diffable, not in a script beside it).
+
+Unknown-field/version handling per F3 verbatim; the migration chain
+gains one explicit version-to-version step.
+
+**Derived, never persisted** (D3's "the recipe IS the save"):
+`ParamBoxVerdict`, `Stackup` reports, clearance verdicts —
+content-key cached on the bit-content of (recipe slice, box, ε, K;
+D9 makes the key the proof), serializable for CI goldening.
+
+**CI rows this MVP adds**: (1) assertion gating — corpus assertions must
+certify (`Holds`) with refused + tail mass within the recorded
+unresolved-mass budget (E2); `Violated`/`Refused`/budget overrun
+fail loudly; (2) goldened refusal- and tail-mass accounting on a
+margin-thin fixture (the honesty metric is itself regression-
+tested); (3) k_stats funnel rows for driver + solver predicates
+(the K re-examination evidence, E6/E8).
+
+**Open sub-question**: should a failing Assertion gate `build()`?
+v1 says no — assertions report; a gating mode is additive policy.
+
+## E11 — What the MVP does NOT do (loud)
+
+1. **Monte Carlo never gates** *(softened round 3, per Ev:
+   "probably fine" is fair once probabilities are on the table)*.
+   Certified intervals remain the ONLY gate; MC joins as a labeled
+   advisory estimator lane (the RSS pattern — pure replay makes
+   sampling trivial). Label discipline: MC results carry sample
+   count + seed (fixed, recorded, D9-deterministic); never
+   persisted as Assertions.
+2. **No correlated/joint distributions** — product measure only
+   (E2); `Joint` is an additive schema variant later.
+3. **No distributions on structural (Count) parameters** — typed
+   refusal. "Hole count ~ Uniform{3..5}" is design-space
+   exploration, not tolerance analysis (D8's explicit regime).
+4. **No reverse-mode AD, no vector-forward duals** (E4) —
+   performance additions, not semantic ones.
+5. **No GD&T semantics.** Stackups are parameter-space facts; ASME
+   Y14.5 is a language layer that could later *compile to* Measure
+   nodes + assertions — the MVP declines to speak it approximately.
+6. **Output densities deferred post-v1** — true pushforward is v2.
+   Near-free v1 note: leaf-mass × output-enclosure histograms are
+   an ADVISORY visualization (each certified leaf spreads its mass
+   over its output interval); zero new soundness claims.
+7. **Imported bodies carry no parameters** (D7): nothing to vary;
+   they participate in clearance checks as constants.
+8. **No optimization/inverse loops** ("resize until clearance
+   holds") — consumers of the MVP's reports, not part of it.
+
+## E12 — Certification is parameter-aware: identities decide symbolically, at any box width
+
+**Decision** (revision E12, 2026-09-03, ratified on #1712; opened by
+Ev at M10's exit walk: "we need to make this parameter-aware so it's usable; that's
+the whole point of this machinery"). The E6 leaf protocol gains a
+SYMBOLIC tier ahead of the numeric one: beside every lane value the
+replay carries a handle into a hash-consed expression DAG over the
+document's continuous-parameter symbols, and a funnel margin whose
+expression is IDENTICALLY ZERO in the parameters decides `Zero`
+before any enclosure is consulted — for every parameter value, at
+any box width. Everything else decides numerically as today.
+
+**The defect it closes** (measured by M10-3, pinned by
+`m10_3_driver_interval::a_macroscopic_box_refuses_all_of_its_mass_as_budget_today`).
+The funnel's certification population includes checked IDENTITIES —
+an edge endpoint lies on its carrier (`carrier_endpoint_start/end`),
+consecutive walls are cosurface (`side_planes_cosurface`); 57 names of
+that shape in PR #1231's sweep — whose margin is exactly zero in real
+arithmetic for every parameter value and whose interval enclosure over
+a box of width w is `[0, c·w]`, c ≈ 2–4. The two sides of the identity
+were evaluated into two separate intervals from ONE parameter
+upstream of the site, and interval arithmetic cannot see that the
+occurrences are one number. A leaf goes definite only below ~ε/8 of
+width, so a ±0.05 band on a 1.0 nominal (10⁸ ε) refuses all of its
+mass as `Budget` and the MVP's own sentence — "2.1% of the tolerance
+mass has no valid build" — is not sayable about any macroscopic box.
+
+**Mechanism.**
+
+- **The scalar.** `Sym<T>` for the lane scalar `T` (`Interval` in the
+  driver's replay): the numeric value as today plus a DAG node id.
+  Parameters are symbols; every `Real` op mints one hash-consed node
+  (structural sharing is free and deterministic — D9). Float
+  literals are atoms keyed by their bits. Nothing in the kernel
+  changes: `Sym<T>` is one more scalar in the Real-generic pipeline,
+  and no funnel site is edited.
+- **The identity test, on demand.** A `decide` site first asks the
+  DAG whether the margin's expression is identically zero: the
+  node's POLYNOMIAL NORMAL FORM in the parameter symbols, with
+  EXACT rational coefficients, in which `sqrt`, the transcendentals
+  and every non-rational literal are OPAQUE ATOMS keyed by the normal
+  form of their argument. Normal forms are computed lazily and
+  memoized per node, so their cost is paid only for margins that
+  reach a decide site (thousands per build), never per op. A form
+  exceeding a stated term/degree budget is FROZEN into an atom —
+  cancellation past that point is lost, soundness is not (an atom is
+  an unknown function; the margin falls to the numeric path).
+- **What "identically zero" buys.** `carrier.eval(t0) − start` with
+  both built from the profile vertex P(p): the zero polynomial.
+  `y₁ − y₂` with both `h`: zero. `|(Q − P) × d|` with `Q = P + t·d`:
+  zero after `d × d = 0`. A genuine coincidence at the nominal —
+  two segments collinear at p₀ but not for p ≠ p₀ — is NOT zero in
+  the normal form, decides numerically, widens with the box, and is
+  refined toward and priced as the flip it is: the symbolic tier
+  distinguishes an identity from a coincidence, which no enclosure
+  can.
+- **Soundness.** A symbolic `Zero` is a theorem about real
+  arithmetic (exact coefficients, no rounding in the test), so the
+  identity holds at every real parameter point in the box; the leaf
+  replay's numeric channel is untouched for every non-identity
+  margin, so E6's containment claims are unchanged. The f64 witness
+  pass still evaluates every residual numerically at a point, so a
+  constructor that fails to build what it claims is still caught
+  where widening cannot hide it.
+- **The K instrument sees it.** A symbolic `Zero` is recorded in the
+  k_stats funnel as its OWN outcome (`SymbolicZero`), never as a
+  vanished sample — the driver population E6 promised K stays
+  complete, and the ratio of symbolic to numeric decisions is itself
+  the E12 evidence.
+- **What opens.** With identities discharged, a leaf is bounded only
+  by the real geometry — a normal component's sign, a gap that can
+  cross zero — which is bounded away from zero over most of a
+  macroscopic box and, where it is not, is exactly a flip the driver
+  already refines toward and prices (no-flips v1). Certified worst
+  cases become statements about the study's box.
+
+**The frontier, named.** A quantity computed by ITERATION — an SSI
+march point, a projection foot, a polished root — has no expression
+in the parameters; its residual is a genuine numeric margin that
+widens with the box whatever the symbolic tier does. Over a box that
+is a parameter-dependent existence-and-uniqueness certificate per
+family (interval Newton / Krawczyk, uniform over p), a different
+deliverable:
+`work/sym/param-box-certification-of-implicit-quantities.md` (filed
+at this revision by S-CERT; M10's since S-CERT's exit). The driver's
+refusal for such a residual stays typed and priced. The plate does not reach it (plane × cylinder is
+closed form); the E12 unit's census says which of the 57 do.
+
+**Acceptance for the unit that builds this (M10-7).** The two-hole
+plate's REAL study — ±0.05 mm on the spacing, σ = 0.01 mm on the
+radii — returns certified leaves whose refusals are flips, slivers or
+the recorded tail, not `Budget`; the M10-3 limit row flips (it fails
+the day the widening closes, by design) and is re-cut as the
+positive pin; the K population reports the symbolic/numeric split;
+the ceiling is RE-MEASURED after the change so the next limit is a
+number.
+
+- **Rejected — an affine-form lane scalar** (noise symbols per box
+  axis, interval remainder): re-association performed by the
+  arithmetic, exact for identities affine in the parameters but
+  O(w²) for nonlinear ones — a ceiling at ~√ε, which is not the
+  study's box. The symbolic tier subsumes it on every explicit
+  identity; plain intervals suffice for the real margins.
+- **Rejected — per-site re-association** of the 57 residuals: the
+  sites receive VALUES, and the dependence was lost upstream when
+  one parameter became two intervals; no algebra at the site can
+  recover it. (Tempting for its simplicity — Ev — and ruled out for
+  this reason.)
+- **Rejected — mean-value / Taylor bounds**: the residual of a true
+  identity and its derivative are both identically zero, and the
+  interval evaluation of the derivative has the same dependency
+  loss; the enclosure stays O(w).
+- **Kept in reserve — discharge by provenance** (a typed "built as
+  `carrier.eval(t0)`" token, verified at the f64 witness point,
+  discharged structurally over the box): exact and simple but only
+  for same-OBJECT identities; the cosurface case is an
+  expression identity. Taken only if the census shows a family the
+  symbolic tier misses.
+
+  **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
+  M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
+  a session-level record that two DAG NODES denote one function of the
+  parameters, made by the site that guarantees it, counted apart from
+  both theorem kinds (`SymCounts::registered`, the K token
+  `registered`). The numeric channel is untouched — a registration
+  reads no value except its own witness and writes none — and the
+  numeric channel runs FIRST at every decide site, so no registration
+  can turn a margin the enclosure proved non-zero into a `Zero`; where
+  a registration WOULD have, the run counts the contradiction
+  (`SymCounts::registrations_contradicted`) instead of folding it away.
+
+  **What the witness is worth, stated exactly, because this clause's
+  own wording ("verified at the f64 witness point") overstates it.** A
+  registration is an AXIOM: its soundness rests on the registrant's
+  proof and on nothing the door checks. The witness refuses only a lie
+  visible AT THE POINT, or one whose two certified enclosures are
+  DISJOINT over the box — and "the enclosures meet" is satisfied by
+  every coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+  registration false by a geometric amount is recorded as soon as the
+  box is wide enough for the two enclosures to overlap. The door cannot
+  tell an identity from a coincidence. Two consequences ship with it:
+  every registrant carries its theorem in its doc comment, and the call
+  sites are an allowlist a reviewer can read
+  (`scripts/gates/register-equal-allowlist.sh`) — the method hands
+  every generic `T: Real` body a value comparison, which is the
+  capability evaluation-code discipline exists to keep out of that
+  position.
+
+  The point witness moves with the RUN'S ε: the slack is
+  `tol.eps() · max(|a|, |b|, 1)` — relative because ε is a length in
+  metres and `f64` rounding far from the origin exceeds it, floored at
+  one so a near-zero pair is compared absolutely at ε. The tolerance
+  ARRIVES: `Real::register_equal` takes a `tol: Tol` handed down from
+  the registrant's caller, because a library body may not mint one
+  (`scripts/gates/witness-not-ambient.sh`). The `Interval` refusal,
+  which is the one that matters over a box, carries no tolerance at
+  all and ignores the parameter: its witness is the exact meet.
+
+  **The refusal is TWO arms, split by the kind of witness** (Ev's D2
+  ruling on `[ev]` #2552, taken by SYM-6). `Disputed` is an INEXACT
+  witness's refusal — `f64` and `Probe`, two sides further apart than
+  the slack — and may be a lie or may be a theorem of the reals the
+  arithmetic lost at this scale, so it is counted and never asserted on.
+  `Contradicted` is reserved for the EXACT witness, `Interval`'s
+  disjoint certified enclosures: a proof that the two reals differ or
+  that an upstream enclosure does not contain its real, so a registrant
+  may assert on it and the swept and revolve registrants do.
+
+  The "same-OBJECT" limit in this bullet is exactly what M10-9
+  measured, and it BINDS: the swept arc's rim and span identities
+  discharge because the registrant builds the very nodes the consumer
+  asks about; the `Fillet` step's declared tangency does not, because
+  the CENTRE the joint classifier asks about is re-derived inside the
+  funnel from the stored `(a, b, bulge)` and the constructor does not
+  hold the operands that closed form needs
+  (`work/blend/fillet-tangency-is-not-the-constructors-node`); and the
+  residual that bounds every measured document,
+  `carrier_matches_mapped_source`, is an identity between two
+  INDEPENDENTLY BUILT objects, which is the line this bullet draws
+  (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). No
+  form-level axiom store was built, and the reason is this clause.
+
+  **The form-level mechanism is ALGEBRA, not registration (M10-10,
+  2026-09-07).** The two spellings of an arc meet once their trig is
+  written in closed form: rule D (`geom_core::sym::SymRules::trig_of_atan`)
+  rewrites `sin`/`cos` of `q · atan(X)` to rational functions of `X`
+  and the atom `sqrt(1 + X²)` — multiples by angle addition, halves on
+  the positive branch, which the RANGE of `atan` fixes and no value
+  reads — and rules A/B per node close the ring; and, under the same
+  dial (amendment A1), `atan2` of the zero form over a form
+  non-negative BY SYNTAX is the zero form, and `sin`/`cos` at an exact
+  half-multiple of π is its constant. All four of the plate's identity
+  residuals go: two as theorems, the scaffold residual through the door
+  at every sample (the rim identity the registrant states is what
+  closes it), and the chart's own phase — `atan2(0, r²/sqrt(r²))` from
+  the cylinder chart derivation, whose `u_ref` on the extrude's wall is
+  the start's own radial — folds as a fact about `atan2` on a syntactic
+  class (positive wherever the arc exists; the degenerate box is
+  clause 1's), with the rim identity closing the rest through the door.
+  No sign was read. The plate's whole-certifying box is 0.2368, 0.2631
+  and 0.2631 of its REAL study at ε = 1e-6, 1e-9, 1e-12 — the staged
+  walk's own end, and the ceiling stopped scaling with ε. What bounds
+  that CEILING is the class this bullet's second sentence hands the
+  ceiling to — dependency widening of a real margin
+  (`work/sym/real-margin-dependency-widening`), not a flip: the web
+  assertion's margin is affine, `1e-4 + 2·Δhs − Δr_a − Δr_b`, its true
+  range at the ceiling `[5.79e-5, 1.42e-4] > 0`, its enclosure
+  `[−2.09e-9, 2.00e-4]`, and the flip first enters the box at 0.625 of
+  the study. The LEAVES certify up to that flip: driven whole at 1024
+  leaves the real study is 431 certified / 593 refused at the budget
+  and nothing else, a refused leaf refined further is bounded by
+  `{assert_bound}` alone at every depth, and the requirement reads
+  `Violated` on a certified part of the mass (the tour's stop 1 says
+  the number). R1's annulus likewise certifies 0.70–0.84 of its real
+  study, bounded by the enclosures of its own dihedral and
+  arc-diameter margins (the latter cannot be zero for any `r > 0` —
+  the widening finding's second site). The link, the bracket and the
+  pad are still ε-scale, bounded by identity residuals whose squared
+  components the term/coefficient budget freezes at any affordable
+  width (the per-node cap is a cost wall, not a reach; what they wait
+  on is the scaffold residual's retirement, PCURVE/D3). And the
+  mechanism folds whole at the UNIT bulge; at any other bulge, a
+  parameter's included, the carrier's span meets the pushforward's
+  through the arc's decided turn (`4·atan(σ·b)`), and what stands is
+  the coefficient ring, the term budget and the sign of the apothem
+  (`work/decide/rule-d-reaches-the-unit-bulge-only`;
+  `work/tier/symbolic-tier-census`).
+
+Rationale: the driver's job is to certify over the STUDY's box; a
+certifier that can only certify boxes narrower than its own ε is
+correct and useless, and the honest state M10-3 pinned was never the
+deliverable. The symbolic tier is the minimal machinery that tracks
+the parameters fully for explicit geometry, touches no site, and
+leaves the numeric channel's soundness argument where it was.
+
+## Worked example: the two-hole plate
+
+Plate width w (Uniform ±0.1 mm), hole diameters d₁, d₂ (Normal
+σ = 0.02 mm, unbounded); `Measure { distance(hole1_wall,
+hole2_wall) }` (the web) and `Assertion { web ≥ 0.5 mm }` in the
+document. The analysis takes the default ±3σ quantile box for the
+d's — tail mass 1 − 0.9973² ≈ 0.54%, carried additively throughout.
+
+- Driver (E6): the analyzed 3-box certifies in four leaves after
+  one bisection in w (a coplanarity predicate goes indeterminate at
+  small w); one terminal-sliver leaf refuses — 0.4% of the mass. A
+  far-side-definite leaf would be `FlipCrossing` refused mass
+  (no-flips v1). Accounting: 99.06% certified, 0.4% refused,
+  0.54% tail.
+- Stackup (E5): ∂web/∂w = +0.5, ∂web/∂dᵢ = −0.5, chamber-certified;
+  certified worst-case web ∈ [0.487, 0.613] mm.
+- Verdict: the assertion FAILS with a parameter witness (w = lo,
+  dᵢ = box hi) — while RSS says σ_web ≈ 0.017 mm, "3σ fine." Both
+  print, the tail rides every line, the certified number gates.
+  That divergence — certified worst-case vs. RSS optimism — is the
+  MVP's reason to exist.
+- Clearance (E7): `Holds` on three leaves; on the fourth,
+  monotonicity pruning collapses w to a facet, which certifies.
+  Self-intersection-freedom certifies everywhere.
+
+## Open after this doc
+
+- **Driver constants**: split rule, budgets, default analyzed-box
+  quantile mass (E2's dial), leaf coalescing — PR-spec, not
+  blockers.
+- **Assertion gating of `build()`** (E10's flag): report-only vs. a
+  refuses-while-violated mode — needs editor-core UX input.
+- **Vector-forward duals / reverse mode** — pure performance;
+  revisit when the Band 4 corpus prices n-pass sensitivity runs.
+- **MC advisory lane concretes** (E11.1): sampler/PRNG choice,
+  sample-count defaults, report presentation — PR-spec.
+- **Branch enumeration (v2)**: analyzing the far side of a flip;
+  composes with WitnessBifurcation (E6's recorded door).
+- **Correlated distributions**: real tolerance chains correlate
+  (same machining setup); additive schema, but leaf-mass accounting
+  must then integrate non-product measures.
+- **Clearance `c` as a Band**: should the assertion bound carry its
+  own tolerance? v1 says exact; revisit with GD&T-adjacent cases.
+- **SetTolerance × distributions**: sliver-refusal mass depends on
+  ε, so ε edits move coverage numbers; the SetTolerance diff should
+  surface coverage deltas. Wiring is PR-spec.
+- **Naming-pillar composition**: Measure verdict vectors should
+  join the N-machinery diff reports; confirm at implementation.
+- **Implicit quantities over a box** (E12's frontier): per-family
+  box certificates for iterated quantities — S-CERT's item; the
+  driver names the refusal until then.
+- **The complement selection** for `min_clearance` (E3): "this
+  selection against everything else" as a selection spelling, for
+  the assembly consumer.

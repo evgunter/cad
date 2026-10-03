@@ -1,0 +1,1230 @@
+//! **The exact spiric rim carrier** — the partial-revolve torus rim
+//! under `shell`, minted as `Curve3::Spiric` by the offset-axial door.
+//!
+//! The rows here are the carrier's own: the closed forms against both
+//! implicit forms, the speed and extent bounds, the box, the kind's
+//! census refusals through public doors, and the re-pose parity of the
+//! minted rim — on the SECTIONED VESSEL (the tour's `torusvessel` wall
+//! 1), the partial revolve whose rims mint through a public door and
+//! reach tier 3. The klein ELBOW's rims mint too, its equator seams
+//! re-author, and its hollow reaches the same props door
+//! (`the_elbow_stops_at_the_props_door` below) — so its cavity, like
+//! the vessel's, is not readable through any public door at this head. The elbow rows that
+//! MOVE doors stay in their own suites (`torax_axial`, `verbs_shell`,
+//! `torax_interval`, `shell7_seam_corner`).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::TAU;
+
+use geom::{Curve3, Surface};
+use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::{Revolution, RevolveAxis, revolve};
+use topo::{Body, ShellError, transform_rigid};
+
+use crate::common::charts::hollow_moves;
+use crate::common::poses::torax_pose;
+use crate::common::torus_walls::{klein_elbow, props_door, vessel_cavity, vessel_quarter};
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+/// The klein elbow on a disc of radius `r`.
+fn klein_elbow_of_disc(r: f64) -> Body<f64> {
+    klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])])
+}
+
+/// Every spiric carrier of a body with its span.
+fn spiric_edges(body: &Body<f64>) -> Vec<(topo::EdgeKey, Curve3<f64>, (f64, f64))> {
+    body.edges()
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            matches!(c.carrier(), Curve3::Spiric { .. })
+                .then(|| (k, c.carrier().clone(), c.params()))
+        })
+        .collect()
+}
+
+/// The two moved surfaces a spiric rim separates: its torus and its
+/// plane, read from the edge's own faces.
+fn rim_surfaces(body: &Body<f64>, edge: topo::EdgeKey) -> (Surface<f64>, Surface<f64>) {
+    let e = body.get_edge(edge).expect("edge");
+    let face_of = |he| {
+        body.get_loop(body.get_half_edge(he).expect("he").parent_loop)
+            .expect("loop")
+            .face
+    };
+    let surf = |f| {
+        body.get_surface(body.get_face(f).expect("face").surface)
+            .expect("surface")
+            .clone()
+    };
+    let (a, b) = (surf(face_of(e.he_plus)), surf(face_of(e.he_minus)));
+    match (&a, &b) {
+        (Surface::Torus { .. }, Surface::Plane { .. }) => (a, b),
+        (Surface::Plane { .. }, Surface::Torus { .. }) => (b, a),
+        other => panic!("a spiric rim separates a torus and a plane, got {other:?}"),
+    }
+}
+
+/// **Row 1 — residuals against BOTH implicit forms.** Each minted rim,
+/// sampled at 10⁴ parameters over its whole period, lies on the moved
+/// torus and in the moved cap plane at rounding — the sectioned vessel
+/// (`R = 6/64`, `r = 5/64`) at two wall thicknesses. The elbow's and
+/// the two-arc torus's numbers are not readable through a public door
+/// at this head (their hollows refuse at the equator seams' re-author
+/// before tier 3, below). The other oval passes this row (it is the
+/// same section) and is killed by the endpoint meter, row 4; an
+/// `offset` sign error in `eval` puts the plane residual at `2|d|`.
+#[test]
+fn the_minted_rim_lies_on_both_implicit_forms() {
+    for t in [1.0 / 128.0, 1.0 / 256.0] {
+        let (_, cavity) = vessel_cavity(t);
+        let rims = spiric_edges(&cavity);
+        assert_eq!(rims.len(), 2, "the band's two rims, one per moved cap");
+        for (edge, carrier, _) in &rims {
+            let (torus, plane) = rim_surfaces(&cavity, *edge);
+            let (mut worst_t, mut worst_p) = (0.0_f64, 0.0_f64);
+            for i in 0..10_000 {
+                let v = f64::from(i) * TAU / 10_000.0;
+                let p = carrier.eval(v);
+                worst_t = worst_t.max(geom_brep::implicit_residual(&torus, p).abs());
+                worst_p = worst_p.max(geom_brep::implicit_residual(&plane, p).abs());
+            }
+            println!("[spiric] t = {t}: torus residual {worst_t:e}, plane residual {worst_p:e}");
+            assert!(worst_t <= 2e-15, "torus residual {worst_t}");
+            assert!(worst_p <= 2e-15, "plane residual {worst_p}");
+        }
+    }
+}
+
+/// **Row 2 — `edge_extent` below the sampled point-set diameter on
+/// every sub-span**, on the vessel's minted rim. The certified lever
+/// `max(chord, r′(1 − cos Δv/2))` never exceeds the sampled diameter
+/// of the arc it describes. This fixture CANNOT see the wrong-arm
+/// mutant (`major_radius` in place of `minor_radius`): the fold only
+/// overtakes the chord on the LONG spans, where
+/// `R(1 − cos Δv/2) > 2r′·sin(Δv/2)` needs `R ≳ 2r′`, and the vessel's
+/// `R/r′ = 1.33`. The row below, at the elbow's ratio `R/r = 5.3`, is
+/// the one that reds under it.
+#[test]
+fn the_edge_extent_stays_below_the_sampled_diameter() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let (_, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    for n in [1_usize, 2, 4, 8, 16, 64] {
+        let step = (t1 - t0) / n as f64;
+        for k in 0..n {
+            let (a, b) = (t0 + step * k as f64, t0 + step * (k + 1) as f64);
+            let chord = carrier.eval(a).distance(carrier.eval(b));
+            let extent = geom_brep::edge_extent(&carrier, a, b, chord);
+            let samples: Vec<Point3<f64>> = (0..=200)
+                .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 200.0))
+                .collect();
+            let mut diameter = 0.0_f64;
+            for p in &samples {
+                for q in &samples {
+                    diameter = diameter.max(p.distance(*q));
+                }
+            }
+            assert!(
+                extent <= diameter + 1e-15,
+                "span [{a}, {b}]: extent {extent} exceeds the sampled diameter {diameter}"
+            );
+        }
+    }
+}
+
+/// **Row 2′ — the extent arm at a ratio that can see it.** A spiric
+/// on the elbow's numbers (`R = 1.2`, `r = 0.225`, `d = 0.05`, so
+/// `R/r = 5.3`), minted through the kind's door: over the whole
+/// oval and its halves the certified lever stays below the sampled
+/// diameter, and the mutant that reads `major_radius` as the fold's
+/// arm exceeds it by `≈ 0.75` m on the full period (`R(1 − cos π)
+/// = 2.4` against a diameter of `≈ 1.65`). The lever is what
+/// transversality's dihedral pass classifies against, so a larger arm
+/// would let a sliver classify transverse — this is the row that pins
+/// it below the diameter.
+#[test]
+fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
+    let band = Band::linear(tol()).expect("band");
+    let carrier = Curve3::spiric(
+        Point3::new(0.3, -0.2, 0.7),
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+        1.2,
+        0.225,
+        0.05,
+        band,
+    )
+    .expect("the elbow's numbers are in regime");
+    for (a, b) in [
+        (0.0, TAU),
+        (0.0, core::f64::consts::PI),
+        (0.7, 2.9),
+        (2.0, 5.5),
+    ] {
+        let chord = carrier.eval(a).distance(carrier.eval(b));
+        let extent = geom_brep::edge_extent(&carrier, a, b, chord);
+        let samples: Vec<Point3<f64>> = (0..=400)
+            .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
+            .collect();
+        let mut diameter = 0.0_f64;
+        for p in &samples {
+            for q in &samples {
+                diameter = diameter.max(p.distance(*q));
+            }
+        }
+        println!("[spiric] span [{a}, {b}]: extent {extent}, sampled diameter {diameter}");
+        assert!(
+            extent <= diameter + 1e-15,
+            "span [{a}, {b}]: extent {extent} exceeds the sampled diameter {diameter}"
+        );
+    }
+}
+
+/// **Row 3 — the box.** 10⁴ sampled points of each minted rim lie
+/// inside its certified box on every axis, through `geom`'s door
+/// (`conic_arc_aabb` → `spiric_arc_aabb`). The boolean's own reader
+/// (`edge_box_rule` → `edge_box`) is crate-private and no public door
+/// reaches its spiric arm at this head; `topo`'s in-src row
+/// `the_spiric_edge_box_and_reach_contain_a_dense_sample` executes it
+/// on a hand-built sector.
+#[test]
+fn the_box_contains_every_sample_of_the_minted_rim() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    for (_, carrier, (t0, t1)) in spiric_edges(&cavity) {
+        let b = geom::curves::boxes::conic_arc_aabb(
+            &carrier,
+            t0,
+            t1,
+            carrier.eval(t0),
+            carrier.eval(t1),
+        )
+        .expect("a spiric boxes");
+        for i in 0..10_000 {
+            let v = f64::from(i) * TAU / 10_000.0;
+            let p = carrier.eval(v);
+            assert!(
+                b.min_x <= p.x
+                    && p.x <= b.max_x
+                    && b.min_y <= p.y
+                    && p.y <= b.max_y
+                    && b.min_z <= p.z
+                    && p.z <= b.max_z,
+                "sample {p:?} escapes {b:?}"
+            );
+        }
+    }
+}
+
+/// **Row 7 — rigid re-pose parity.** The cavity's minted spiric
+/// carriers re-posed by `transform` equal, field by field within one
+/// ulp, the carriers of the re-posed operand's own cavity — the
+/// lune's re-pose row, on the kind-changing mint.
+#[test]
+fn the_minted_rim_survives_a_rigid_re_pose() {
+    let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
+    let map = torax_pose();
+    // The cavity is sound short of check 7, which it reaches and cannot
+    // pass at any door (the vessel row below): the `_structural` door's
+    // only finding is the closed form's typed refusal there.
+    let verdict = topo::validate_geometric_structural(&cavity, tol());
+    assert!(
+        matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::VolumeUncomputable { .. }
+        ))),
+        "the cavity fails nothing but check 7: {verdict:?}"
+    );
+    let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
+    let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
+    let mut offset_after = posed_first.clone();
+    let band = Band::linear(tol()).expect("band");
+    topo::offset_charts_together(
+        &mut offset_after,
+        &hollow_moves(&posed_first, 1.0 / 128.0),
+        band,
+        tol(),
+    )
+    .expect("the posed vessel's rims mint");
+    let mut want = spiric_edges(&posed_after);
+    let got = spiric_edges(&offset_after);
+    assert_eq!((want.len(), got.len()), (2, 2));
+    let ulp = |x: f64| (x.abs() * f64::EPSILON).max(f64::MIN_POSITIVE);
+    for (_, g, _) in got {
+        let Curve3::Spiric {
+            center: gc,
+            axis: ga,
+            u_ref: gn,
+            major_radius: gr,
+            minor_radius: gm,
+            offset: gd,
+        } = g
+        else {
+            unreachable!()
+        };
+        let i = want
+            .iter()
+            .position(|(_, w, _)| matches!(w, Curve3::Spiric { center, axis, u_ref, .. }
+                if center.distance(gc) <= 1e-12 && (*axis - ga).norm() <= 1e-12 && (*u_ref - gn).norm() <= 1e-12))
+            .unwrap_or_else(|| panic!("no re-posed twin for {g:?}"));
+        let (_, w, _) = want.remove(i);
+        let Curve3::Spiric {
+            center: wc,
+            axis: wa,
+            u_ref: wn,
+            major_radius: wr,
+            minor_radius: wm,
+            offset: wd,
+        } = w
+        else {
+            unreachable!()
+        };
+        for (a, b) in [
+            (gc.x, wc.x),
+            (gc.y, wc.y),
+            (gc.z, wc.z),
+            (ga.x, wa.x),
+            (ga.y, wa.y),
+            (ga.z, wa.z),
+            (gn.x, wn.x),
+            (gn.y, wn.y),
+            (gn.z, wn.z),
+            (gr, wr),
+            (gm, wm),
+            (gd, wd),
+        ] {
+            assert!(
+                (a - b).abs() <= ulp(a),
+                "field {a} vs {b} differs by more than one ulp"
+            );
+        }
+    }
+}
+
+/// **Row 11 — the census refusals reachable through public doors**,
+/// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
+/// lane (its torus/plane roster is the MESH frontier,
+/// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
+/// and the STEP writer, which now WRITES an export-only spline and
+/// refuses this body for a different reason than "no arm": the
+/// sagitta certificate cannot state `ε/4` under the node cap at the
+/// kernel's ε (`work/curved/spiric-step-spline-bound-is-second-order.md`),
+/// which is why the row asserts that exact `kind` rather than any
+/// `spiric…` prefix — the two refusals are different facts and the
+/// day the bound is fixed this row must move, loudly. The props doors
+/// are the closing measurement row below.
+#[test]
+fn the_census_refusals_through_public_doors() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let other = klein_elbow_of_disc(0.1);
+    let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
+    assert!(
+        matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
+        "the operand gate names the spiric edge, got {e:?}"
+    );
+    let e =
+        mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
+    let mesh::TessellateError::UnsupportedCurve { note, .. } = &e else {
+        panic!("the trimmed frontier names its roster, got {e:?}");
+    };
+    assert!(
+        note.contains("trimmed-tessellation-lacks-torus-and-plane-arms"),
+        "got {note}"
+    );
+    let e = step_export::step_string(&cavity, &step_export::StepOptions::default(), tol())
+        .expect_err("the sagitta bound cannot state eps/4 under the node cap");
+    assert!(
+        matches!(
+            e,
+            step_export::StepExportError::UnsupportedCurve {
+                kind: "spiric: export tolerance not met",
+                ..
+            }
+        ),
+        "the node cap's typed refusal, got {e:?}"
+    );
+}
+
+/// **The elbow reaches the props door, as the vessel does.** The rims
+/// MINT (both endpoint meters and the midpoint meter pass — the
+/// mutants that flip the oval or the reach guard's sign refuse on the
+/// rim edge, `torax_axial`), each rim's window is read forward of its
+/// start, the equator seams' declarations follow the corners the moved
+/// caps turned about the axis, and the hollow reaches tier 3: check 7
+/// refuses `VolumeUncomputable` at a cap whose spiric loop's area has
+/// no closed form (`Unimplemented`). The old door was the attach
+/// layer's `RechartFalsifies { EdgeKey(2v1), IntervalNotForward }` — a
+/// rim window read backwards by `π·r′` on `atan2`'s branch cut.
+#[test]
+fn the_elbow_stops_at_the_props_door() {
+    let elbow = klein_elbow_of_disc(0.275);
+    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
+    println!("[spiric] the elbow's door: {e:?}");
+    let (_, source) = props_door(&e).unwrap_or_else(|| panic!("the props door, got {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric cap's area"
+    );
+}
+
+/// **The sectioned vessel reaches the props door** — the tour's
+/// `torusvessel` wall 1 on the scene's own body: a quarter turn of the
+/// bellied meridian hollows through the kind-changing mint, both
+/// endpoint meters, certification at the minor radius, insertion and
+/// pcurves (the torus wall's spiric half-edges NOW CACHED, which row 9
+/// asserts) to tier 3, whose checks
+/// 1–6 pass; **check 7 refuses** `VolumeUncomputable` — at a CAP,
+/// visited before the torus wall in arena order, so the payload is
+/// `loop_vector_area`'s `Unimplemented` (the oval's area is an
+/// elliptic integral). The torus wall behind it is NOT
+/// `torus_boundary`'s parse: `topo`'s face flux routes a loop carrying
+/// a spiric to the quadrature lane, whose chart gate refuses
+/// `QuadratureUnsupported { "conic trim on a cone/sphere/torus chart
+/// …" }` (`props.rs`, `cut_face_rounds`) — read from the source, since
+/// no public door visits the wall before the cap; the closed-form
+/// parse's own answer for the wall is the row below. The spec named
+/// the wall's parse first; the run shows the cap. Same door as the
+/// lune's (`NotIsoRectangle { "props_meridian_great" }`), different
+/// premise.
+#[test]
+fn the_sectioned_vessel_stops_at_the_props_door() {
+    let quarter = vessel_quarter();
+    assert_eq!(topo::validate_geometric(&quarter, tol()), Ok(()));
+    let e = topo::shell(&quarter, 1.0 / 128.0, tol()).expect_err("tier 3's volume");
+    println!("[spiric] the sectioned vessel's door: {e:?}");
+    let ShellError::NotValid { errors } = e else {
+        panic!("the hollow must reach tier 3, got {e:?}");
+    };
+    assert!(
+        matches!(
+            errors[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::Unimplemented,
+                    ..
+                },
+                ..
+            }]
+        ),
+        "check 7 at a cap's loop area, got {errors:?}"
+    );
+}
+
+/// **The torus wall's closed-form parse names its spiric rim** — the
+/// one public door that reaches `torus_boundary`'s named `Spiric` arm:
+/// the vessel cavity's torus face's loop, read through
+/// `topo::props::loop_edges`, handed to `geom_brep::curved_face` (the
+/// closed-form flux door `topo`'s face flux takes for an UNtrimmed
+/// loop). `NotIsoRectangle { "torus boundary edge is not a circle" }`,
+/// the arm the props door would raise if the quadrature lane did not
+/// take the face first.
+#[test]
+fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, _, _) = spiric_edges(&cavity).remove(0);
+    let e = cavity.get_edge(edge).expect("edge");
+    let face_of = |he| {
+        cavity
+            .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+            .expect("loop")
+            .face
+    };
+    let torus_face = [face_of(e.he_plus), face_of(e.he_minus)]
+        .into_iter()
+        .find(|f| {
+            matches!(
+                cavity.get_surface(cavity.get_face(*f).expect("face").surface),
+                Some(Surface::Torus { .. })
+            )
+        })
+        .expect("a spiric rim bounds a torus face");
+    let face = cavity.get_face(torus_face).expect("face");
+    let surface = cavity.get_surface(face.surface).expect("surface");
+    let (edges, _) = topo::props::loop_edges(&cavity, face.outer).expect("the loop reads");
+    let band = Band::linear(tol()).expect("band");
+    let e = geom_brep::curved_face(surface, &edges, face.sense, band)
+        .expect_err("the rim-or-meridian parse has no arm for a spiric");
+    assert_eq!(
+        e,
+        geom_brep::PropsError::NotIsoRectangle {
+            what: "torus boundary edge is not a circle"
+        }
+    );
+}
+
+/// **`classify_kind` opens no iso side for a spiric rim**: the vessel
+/// cavity's torus chart, asked about each of its spiric rims through
+/// the public `topo::classify_kind`, answers `None` — the coherence
+/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
+/// meridian `Meridian`.
+#[test]
+fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let rims = spiric_edges(&cavity);
+    assert_eq!(rims.len(), 2);
+    for (edge, _, _) in rims {
+        let e = cavity.get_edge(edge).expect("edge");
+        let curve = cavity
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("certified");
+        let face_of = |he| {
+            cavity
+                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                .expect("loop")
+                .face
+        };
+        let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
+            .into_iter()
+            .map(|f| {
+                cavity
+                    .get_surface(cavity.get_face(f).expect("face").surface)
+                    .expect("surface")
+            })
+            .find(|s| matches!(s, Surface::Torus { .. }))
+            .expect("a spiric rim bounds a torus face");
+        let chart = topo::Chart::of(chart_surface).expect("the torus charts");
+        assert!(
+            topo::classify_kind(&chart, curve).is_none(),
+            "a spiric opens no iso side"
+        );
+    }
+}
+
+/// **`split_edge` meters a spiric's interiority at its minor radius**:
+/// the vessel cavity's rim split at its mid-parameter yields two
+/// certified spiric pieces whose spans partition the original, on the
+/// same carrier. The only door that reads the kind's `split_edge`
+/// meter arm.
+#[test]
+fn a_spiric_rim_splits_at_its_mid_parameter() {
+    let (_, mut cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    let mid = (t0 + t1) * 0.5;
+    let made = cavity
+        .split_edge(edge, mid, tol())
+        .expect("a spiric rim splits at an interior parameter");
+    let piece = |k: topo::EdgeKey| {
+        let e = cavity.get_edge(k).expect("edge");
+        let c = cavity
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("certified");
+        assert!(
+            matches!(c.carrier(), Curve3::Spiric { .. }),
+            "the piece keeps the kind"
+        );
+        assert_eq!(
+            format!("{:?}", c.carrier()),
+            format!("{carrier:?}"),
+            "the piece keeps the carrier"
+        );
+        c.params()
+    };
+    let (a0, a1) = piece(edge);
+    let (b0, b1) = piece(made.new_edge);
+    let (lo, hi) = if a0 < b0 {
+        ((a0, a1), (b0, b1))
+    } else {
+        ((b0, b1), (a0, a1))
+    };
+    assert!(
+        (lo.0 - t0).abs() <= 1e-15 && (hi.1 - t1).abs() <= 1e-15,
+        "the spans cover the original"
+    );
+    assert!(
+        (lo.1 - mid).abs() <= 1e-15 && (hi.0 - mid).abs() <= 1e-15,
+        "the cut is at the midpoint"
+    );
+    let split_point = *cavity
+        .get_point(cavity.get_vertex(made.vertex).expect("vertex").point)
+        .expect("point");
+    assert!(
+        split_point.distance(carrier.eval(mid)) <= 1e-15,
+        "the new vertex is on the carrier"
+    );
+}
+
+/// **Row 9 — the pcurve lane.** The sectioned vessel's cavity, at
+/// rest, after the offset door's own pcurve mint:
+///
+/// - the TORUS wall's two spiric half-edges carry STORED caches whose
+///   statement is `SpiricIdentity` with `envelope == 0` and a schedule
+///   residual at rounding (the wall face is uncached at the merge base
+///   — `carrier_harmonic` answers `None` for a spiric, so `mint_faces`
+///   cleared the whole face);
+/// - each PLANE cap's spiric half-edge derives on demand (C4: planar
+///   faces store nothing) into a `SpiricImage::Cap`, and certifying it
+///   through the door answers `MapResidualClosedForm`;
+/// - `validate_pcurves` is clean on the body.
+///
+/// The named mutants (each planted, run and reverted; the PR body
+/// carries the payloads): `sense` flipped on the wall mint, and `u0`
+/// displaced by `1e-3`, whose residual is `≥ (R − r)·2|sin(δ/2)|` at
+/// every sample — the lower bound that is the whole reason the wall's
+/// between-samples statement is an identity and not a hull.
+#[test]
+fn the_cavity_pcurves_certify_on_both_charts() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let band = Band::linear(tol()).expect("band");
+    let mut walls = 0;
+    let mut caps = 0;
+    for (edge, _, _) in spiric_edges(&cavity) {
+        let e = cavity.get_edge(edge).expect("edge");
+        for he in [e.he_plus, e.he_minus] {
+            let face = cavity
+                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                .expect("loop")
+                .face;
+            let surface = cavity
+                .get_surface(cavity.get_face(face).expect("face").surface)
+                .expect("surface")
+                .clone();
+            match surface {
+                Surface::Torus { .. } => {
+                    walls += 1;
+                    let cache = cavity
+                        .pcurve(he)
+                        .expect("the torus wall's spiric half-edge carries a stored cache");
+                    assert!(
+                        matches!(
+                            cache.pcurve(),
+                            geom_brep::Pcurve::Spiric {
+                                image: geom_brep::SpiricImage::Wall { .. },
+                                ..
+                            }
+                        ),
+                        "the wall's image is the torus arm's, got {:?}",
+                        cache.pcurve()
+                    );
+                    let cert = cache.certificate();
+                    assert_eq!(cert.statement, geom_brep::EnvelopeStatement::SpiricIdentity);
+                    assert_eq!(
+                        cert.envelope, 0.0,
+                        "a minted wall image carries the carrier's own bits, so the \
+                         admitted-drift term is exactly zero"
+                    );
+                    assert!(
+                        cert.max_residual <= tol().eps(),
+                        "wall schedule residual {} exceeds eps",
+                        cert.max_residual
+                    );
+                    println!(
+                        "[pcurve] wall {he:?} max_residual={:e} envelope={:e}",
+                        cert.max_residual, cert.envelope
+                    );
+                }
+                Surface::Plane { .. } => {
+                    caps += 1;
+                    assert!(
+                        cavity.pcurve(he).is_none(),
+                        "a plane face stores nothing (C4)"
+                    );
+                    let derived =
+                        topo::pcurves::pcurve_of(&cavity, he, band).expect("the cap image derives");
+                    assert!(
+                        matches!(
+                            derived,
+                            geom_brep::Pcurve::Spiric {
+                                image: geom_brep::SpiricImage::Cap { .. },
+                                ..
+                            }
+                        ),
+                        "the cap's image is the plane arm's, got {derived:?}"
+                    );
+                    let (t0, t1) = cavity
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .expect("certified")
+                        .params();
+                    let window = derived.chart_box(t0, t1);
+                    let carrier = cavity
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .expect("certified")
+                        .carrier()
+                        .clone();
+                    let cache = geom_brep::PcurveCache::certify(
+                        derived, t0, t1, &carrier, &surface, window, band,
+                    )
+                    .expect("the derived cap image certifies through the door");
+                    assert_eq!(
+                        cache.certificate().statement,
+                        geom_brep::EnvelopeStatement::MapResidualClosedForm
+                    );
+                    assert!(
+                        cache.certificate().max_residual <= tol().eps(),
+                        "cap schedule residual {} exceeds eps",
+                        cache.certificate().max_residual
+                    );
+                    println!(
+                        "[pcurve] cap {he:?} max_residual={:e} envelope={:e}",
+                        cache.certificate().max_residual,
+                        cache.certificate().envelope
+                    );
+                }
+                other => panic!("a spiric rim separates a torus and a plane, got {other:?}"),
+            }
+        }
+    }
+    assert_eq!(
+        (walls, caps),
+        (2, 2),
+        "two rims, one wall side and one cap side each"
+    );
+    // The face's cache set is minted WHOLE: `mint_faces` answers one
+    // `UnsupportedCarrier` half-edge by leaving the entire face
+    // uncached, so a spiric with no image would cost the torus wall's
+    // two CIRCLE rims their harmonic caches too.
+    let torus_face = cavity
+        .faces()
+        .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))
+        .expect("the cavity carries a torus wall");
+    let lp = cavity.get_loop(torus_face.1.outer).expect("loop");
+    let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+        panic!("the wall's outer loop is a cycle");
+    };
+    for he in cavity.loop_cycle(first).expect("cycle") {
+        assert!(
+            cavity.pcurve(he).is_some(),
+            "{he:?} on the torus wall carries no cache — the face is half-minted"
+        );
+    }
+    assert_eq!(topo::pcurves::validate_pcurves(&cavity, band), vec![]);
+}
+
+/// **A displaced `u0` is visible at every sample** — the lower bound
+/// the wall's `SpiricIdentity` statement rests on, measured rather
+/// than asserted. Taking a minted wall image and moving its azimuth
+/// constant by `δ = 1e-3` puts the schedule's residual above
+/// `(R − r)·2|sin(δ/2)|` at every one of the samples, so the door
+/// refuses; the row prints the measured minimum beside the bound.
+#[test]
+fn a_displaced_azimuth_constant_reds_at_every_sample() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let band = Band::linear(tol()).expect("band");
+    let (edge, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    let e = cavity.get_edge(edge).expect("edge");
+    let (he, surface) = [e.he_plus, e.he_minus]
+        .into_iter()
+        .find_map(|he| {
+            let face = cavity
+                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                .expect("loop")
+                .face;
+            let s = cavity
+                .get_surface(cavity.get_face(face).expect("face").surface)
+                .expect("surface")
+                .clone();
+            matches!(s, Surface::Torus { .. }).then_some((he, s))
+        })
+        .expect("a spiric rim bounds a torus face");
+    let stored = cavity.pcurve(he).expect("stored").pcurve().clone();
+    let geom_brep::Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+    } = stored
+    else {
+        panic!("the wall's image is a spiric wall image");
+    };
+    let delta = 1e-3;
+    let moved = geom_brep::Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image: geom_brep::SpiricImage::Wall {
+            u0: u0 + delta,
+            v0,
+            sense,
+        },
+    };
+    let floor = (major - minor) * 2.0 * (delta / 2.0).sin();
+    let mut worst = f64::INFINITY;
+    for i in 0..9 {
+        let t = t0 + (t1 - t0) * f64::from(i) / 8.0;
+        let uv = moved.eval(t);
+        worst = worst.min(surface.eval(uv.x, uv.y).distance(carrier.eval(t)));
+    }
+    println!("[pcurve] u0 + {delta}: min sampled residual {worst:e}, floor {floor:e}");
+    assert!(
+        worst >= floor,
+        "every sample sees at least (R - r)*2|sin(d/2)|: {worst:e} < {floor:e}"
+    );
+    let window = moved.chart_box(t0, t1);
+    assert!(
+        geom_brep::PcurveCache::certify(moved, t0, t1, &carrier, &surface, window, band).is_err(),
+        "the schedule refuses a displaced azimuth constant"
+    );
+}
+
+/// **Row 10 — STEP.** The export-only cubic spline, both sides of
+/// §5's tolerance gate, on the vessel cavity's two spiric rims.
+///
+/// **At the kernel's own ε the arm REFUSES**, and that is a measured
+/// property of the spec's certificate rather than of the geometry:
+/// §5 bounds the export error by the node interval's sagitta,
+/// `h²·(M_s + M_P)/8`, which is SECOND order in `h`, while a cubic
+/// interpolant's true error is fourth order. On this fixture
+/// (`R = 0.09375`, `r = 0.0703125`, `|d| = 0.0078125`, span
+/// `1.7822450157733059`) the cap's own numbers are: at 1024 node
+/// intervals the stated bound is `5.012842262733273e-6` m and the
+/// densely sampled true deviation is `1.675804795143954e-14` m — a
+/// factor of 3·10⁸ — so `ε/4 = 2.5e-10` is unreachable under the
+/// 1024-node cap and the arm answers
+/// `UnsupportedCurve { kind: "spiric: export tolerance not met" }`.
+/// Filed as `work/curved/spiric-step-spline-bound-is-second-order.md`.
+///
+/// That refusal is also the row that kills §6's named mutant for this
+/// row: with the node cap ignored the loop does not refuse here at
+/// all, it walks past 1024 (the schedule needs ~2·10⁴ intervals to
+/// state `ε/4` with this bound).
+///
+/// **At a tolerance the bound can state** the whole arm runs: one
+/// `B_SPLINE_CURVE_WITH_KNOTS` per spiric edge, the bound `≤ ε/4`,
+/// and the `FILE_DESCRIPTION` sentence naming the worst bound over
+/// the file's spiric edges.
+#[test]
+fn the_spiric_body_exports_one_spline_per_rim_with_its_bound_stated() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let rims = spiric_edges(&cavity).len();
+    assert_eq!(rims, 2, "the cavity carries two spiric rims");
+
+    let e = step_export::step_string(&cavity, &step_export::StepOptions::default(), tol())
+        .expect_err("the sagitta bound cannot state eps/4 under the node cap");
+    println!("[step] at the kernel's eps: {e:?}");
+    assert!(
+        matches!(
+            e,
+            step_export::StepExportError::UnsupportedCurve {
+                kind: "spiric: export tolerance not met",
+                ..
+            }
+        ),
+        "the node cap's typed refusal, got {e:?}"
+    );
+
+    let loose = 1e-4;
+    let doc = step_export::step_string(
+        &cavity,
+        &step_export::StepOptions {
+            uncertainty_m: Some(loose),
+            ..Default::default()
+        },
+        tol(),
+    )
+    .expect("the spiric body exports at a tolerance the bound can state");
+    let line = doc
+        .lines()
+        .find(|l| l.starts_with("FILE_DESCRIPTION"))
+        .expect("the header states its description");
+    println!("[step] {line}");
+    assert!(
+        line.contains("spiric edges approximated to"),
+        "the file states its approximation budget: {line}"
+    );
+    let bound: f64 = line
+        .split("approximated to ")
+        .nth(1)
+        .and_then(|rest| rest.split(" m").next())
+        .and_then(|n| n.parse().ok())
+        .expect("the stated bound parses");
+    assert!(
+        bound <= loose / 4.0,
+        "the stated bound {bound:e} is within eps/4 = {:e}",
+        loose / 4.0
+    );
+    let splines = doc.matches("B_SPLINE_CURVE_WITH_KNOTS").count();
+    assert_eq!(
+        splines, rims,
+        "one export-only spline per spiric edge and no other B-spline curve"
+    );
+    // The node count rides the knot vector: a cubic interpolation of
+    // `n + 1` points on a clamped knot vector has `n + 3` control
+    // points, so the record says which power of two the schedule
+    // chose. Printed, because it is a measured quantity of this
+    // fixture and this tolerance; the row that FIXES a number is the
+    // cap's refusal above.
+    for record in doc.split(";\n") {
+        if record.contains("B_SPLINE_CURVE_WITH_KNOTS") {
+            println!("[step] spline record refs: {}", record.matches('#').count());
+        }
+    }
+}
+
+/// **The node cap is the binding number, and one extra doubling
+/// reads it.** §6's row-10 mutant is "the cap ignored", and the
+/// RAISING direction needs a tolerance the schedule can meet at 2048
+/// intervals and cannot at 1024. The bounds bracket one: `5.013e-6` at
+/// 1024 and `1.253e-6` at 2048, so any `uncertainty_m` whose `ε/4`
+/// lands in `[5.013e-6, 2.005e-5)` refuses under the shipped cap and
+/// would emit under a doubled one.
+///
+/// At `1.9e-5` (`ε/4 = 4.75e-6 < 5.013e-6`) the export refuses; at
+/// `2.1e-5` (`ε/4 = 5.25e-6 > 5.013e-6`) it emits at 1024. **This row
+/// is what a raised cap reds**: with `SPIRIC_MAX_NODES` at 2048 the
+/// first half succeeds and the `expect_err` fails. One 2049-point
+/// collocation solve is the whole cost — the PR body's earlier
+/// "not cheaply demonstrable" was wrong and is withdrawn.
+#[test]
+fn the_node_cap_refuses_one_doubling_short_of_the_tolerance() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let export = |eps: f64| {
+        step_export::step_string(
+            &cavity,
+            &step_export::StepOptions {
+                uncertainty_m: Some(eps),
+                ..Default::default()
+            },
+            tol(),
+        )
+    };
+    let e = export(1.9e-5).expect_err("1024 intervals cannot state eps/4 = 4.75e-6");
+    println!("[step] at 1.9e-5: {e:?}");
+    assert!(
+        matches!(
+            e,
+            step_export::StepExportError::UnsupportedCurve {
+                kind: "spiric: export tolerance not met",
+                ..
+            }
+        ),
+        "the cap's typed refusal, got {e:?}"
+    );
+    let doc = export(2.1e-5).expect("eps/4 = 5.25e-6 is met at the cap itself");
+    let line = doc
+        .lines()
+        .find(|l| l.starts_with("FILE_DESCRIPTION"))
+        .expect("the header states its description");
+    println!("[step] at 2.1e-5: {line}");
+    let bound: f64 = line
+        .split("approximated to ")
+        .nth(1)
+        .and_then(|rest| rest.split(" m").next())
+        .and_then(|n| n.parse().ok())
+        .expect("the stated bound parses");
+    assert!(
+        (4.9e-6..5.1e-6).contains(&bound),
+        "the cap's own bound is what the file states: {bound:e}"
+    );
+}
+
+/// **A `uncertainty_m` the writer cannot use is refused once, for one
+/// reason.** The budget is decided before any geometry, so a body
+/// with a spiric edge and a body without one answer the SAME typed
+/// refusal for the same bad option — they did not, when the geometry
+/// pass ran first and the spiric lane spent the number before anyone
+/// had checked it.
+#[test]
+fn an_invalid_uncertainty_refuses_the_same_way_with_or_without_a_spiric() {
+    let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
+    // `INFINITY` first, on purpose: with the check misplaced after the
+    // geometry, an infinite budget is "met" at the four-node floor, so
+    // the regression shows after one five-point fit instead of after
+    // a walk to the node cap.
+    for value in [f64::INFINITY, -1.0, 0.0, f64::NAN] {
+        for (what, body) in [("with a spiric", &cavity), ("without one", &quarter)] {
+            let e = step_export::step_string(
+                body,
+                &step_export::StepOptions {
+                    uncertainty_m: Some(value),
+                    ..Default::default()
+                },
+                tol(),
+            )
+            .expect_err("an unusable uncertainty is refused");
+            assert!(
+                matches!(e, step_export::StepExportError::InvalidUncertainty { .. }),
+                "{what}, value {value}: got {e:?}"
+            );
+        }
+    }
+}
+
+/// **The writer's certificate premise, measured.** The bound the file
+/// states is a sagitta over node intervals, and it is only a bound
+/// because the spline INTERPOLATES the carrier at every node. Row 10
+/// checks the header and the record count, both of which survive a
+/// wrong node schedule; this row checks the premise itself, through
+/// the same public door the writer spends (`spiric_export_spline`):
+/// the difference vanishes at every node, and a dense sweep of the
+/// whole span stays under the bound the door reported.
+#[test]
+fn the_export_splines_difference_vanishes_at_its_nodes_and_respects_its_bound() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    let Curve3::Spiric {
+        major_radius,
+        minor_radius,
+        offset,
+        ..
+    } = carrier
+    else {
+        panic!("a spiric rim carries a spiric");
+    };
+    let (spline, bound) = step_export::spiric_export_spline(
+        1e-4,
+        &carrier,
+        edge,
+        t0,
+        t1,
+        major_radius,
+        minor_radius,
+        offset,
+    )
+    .expect("the export fit at a tolerance the bound can state");
+    // A cubic interpolation of `n + 1` points has `n + 1` control
+    // points, so the node count is readable off the net.
+    let nodes = spline.control().len() - 1;
+    println!("[step] the export fit chose {nodes} node intervals, bound {bound:e}");
+    assert!(nodes.is_power_of_two(), "the schedule walks powers of two");
+    #[allow(clippy::cast_precision_loss)]
+    let n = nodes as f64;
+    for i in 0..=nodes {
+        #[allow(clippy::cast_precision_loss)]
+        let f = i as f64 / n;
+        let gap = spline.eval(f).distance(carrier.eval(t0 + (t1 - t0) * f));
+        assert!(
+            gap <= 1e-15,
+            "node {i}: the fit does not interpolate its own sample, gap {gap:e}"
+        );
+    }
+    let mut worst: f64 = 0.0;
+    for k in 0..=8192u32 {
+        let f = f64::from(k) / 8192.0;
+        worst = worst.max(spline.eval(f).distance(carrier.eval(t0 + (t1 - t0) * f)));
+    }
+    println!("[step] densely sampled true sup {worst:e} against the stated {bound:e}");
+    assert!(
+        worst <= bound,
+        "the stated bound must dominate the sampled truth: {worst:e} > {bound:e}"
+    );
+}
+
+mod interval_rows {
+    use geom_core::{Bounds, Interval};
+
+    use super::*;
+
+    use crate::common::interval::iv;
+
+    /// The vessel's meridian as a raw loop at any deciding scalar — the
+    /// band arc as its bulge (`tan(θ/4) = 1/2`, the 3-4-5 arc), so the
+    /// interval and f64 twins are built by one spelling.
+    /// NOT `common::torus_walls::vessel_quarter`: the scalar-generic twin,
+    /// its band an exact bulge rather than an arc about its centre.
+    fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
+        let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
+        bulge_loop(vec![
+            (p(0.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
+            (p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
+            (p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
+            (p(0.0, 24.0 / 64.0), iv(0.0)),
+        ])
+    }
+
+    fn vessel_at<T: geom_core::Decide + topo::AtRestPolicy>(iv: &impl Fn(f64) -> T) -> Body<T> {
+        let tol = Tol::witness();
+        let profile = Profile::new(SketchPlane::<T>::xy(), vec![vessel_loop(iv)])
+            .validate(tol)
+            .expect("the vessel meridian validates");
+        revolve(
+            &profile,
+            RevolveAxis {
+                origin: Point2::new(iv(0.0), iv(0.0)),
+                dir: Vec2::new(iv(0.0), iv(1.0)),
+            },
+            Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
+            tol,
+        )
+        .expect("the vessel revolves")
+        .body
+    }
+
+    /// **Row 8 — the `Interval` lane.** The sectioned vessel's cavity at
+    /// the certified scalar: every new `decide` site executes, the
+    /// minted rims are spirics, and each encloses its f64 twin — `eval`
+    /// at a bracketed `v` contains the f64 point. An escalation at a
+    /// strict band is the certified scalar's honest answer and is pinned
+    /// as such.
+    #[test]
+    fn interval_the_minted_rim_encloses_its_f64_twin() {
+        let tol = Tol::witness();
+        let body = vessel_at(&iv);
+        let moves: Vec<topo::ChartMove<Interval>> = super::hollow_moves(&body, iv(1.0 / 128.0));
+        let mut cavity = body.clone();
+        let band = Band::linear(tol).expect("band");
+        match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
+            Ok(()) => {}
+            Err(topo::ReplaceFaceError::Escalated { source })
+                if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
+            {
+                test_utils::vacuity::stood_down(
+                    &format!("the vessel's interval rim, eps = {:e}", tol.eps()),
+                    &format!("the certified scalar escalated ({source:?}) before the rims minted"),
+                );
+                return;
+            }
+            Err(e) => panic!("the vessel's rims mint at the certified scalar: {e:?}"),
+        }
+        let f64_body = vessel_at(&|x| x);
+        let mut f64_cavity = f64_body.clone();
+        topo::offset_charts_together(
+            &mut f64_cavity,
+            &super::hollow_moves(&f64_body, 1.0 / 128.0),
+            Band::linear(tol).expect("band"),
+            tol,
+        )
+        .expect("the f64 twin's rims mint");
+        let f64_rims = super::spiric_edges(&f64_cavity);
+        let mut n = 0;
+        for (_, e) in cavity.edges() {
+            let c = cavity
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .expect("certified");
+            let Curve3::Spiric { offset, .. } = c.carrier() else {
+                continue;
+            };
+            n += 1;
+            let (t0, t1) = c.params();
+            let twin = f64_rims
+                .iter()
+                .find(|(_, w, _)| {
+                    matches!(w, Curve3::Spiric { offset: wd, .. } if offset.lo() <= *wd && *wd <= offset.hi())
+                })
+                .map(|(_, w, _)| w)
+                .expect("an f64 twin with the same stand-off");
+            for k in 0..=8 {
+                let v = t0 + (t1 - t0) * iv(f64::from(k) / 8.0);
+                let p = c.carrier().eval(v);
+                let q = twin.eval(v.lo() + (v.hi() - v.lo()) * 0.5);
+                assert!(
+                    p.x.lo() <= q.x && q.x <= p.x.hi(),
+                    "x: {:?} vs {}",
+                    p.x,
+                    q.x
+                );
+                assert!(
+                    p.y.lo() <= q.y && q.y <= p.y.hi(),
+                    "y: {:?} vs {}",
+                    p.y,
+                    q.y
+                );
+                assert!(
+                    p.z.lo() <= q.z && q.z <= p.z.hi(),
+                    "z: {:?} vs {}",
+                    p.z,
+                    q.z
+                );
+            }
+        }
+        assert_eq!(n, 2, "two spiric rims at the certified scalar");
+
+        // **Row 9 at the certified scalar.** Every new `decide` site
+        // executed to get here — the mint's `pcurve_spiric_chart_axis`
+        // and check 1's four scalar gates — and the wall's identity
+        // compare ran at BRACKETED fields: the image's three scalars
+        // are the carrier's own brackets, endpoint for endpoint, which
+        // is what makes the drift term exactly zero and the statement
+        // an identity rather than a bound (§8 STOP 3's named risk, not
+        // fired).
+        let mut walls = 0;
+        for (edge, e) in cavity.edges() {
+            let Some(c) = cavity.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } = *c.carrier()
+            else {
+                continue;
+            };
+            for he in [e.he_plus, e.he_minus] {
+                let face = cavity
+                    .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                    .expect("loop")
+                    .face;
+                if !matches!(
+                    cavity.get_surface(cavity.get_face(face).expect("face").surface),
+                    Some(Surface::Torus { .. })
+                ) {
+                    continue;
+                }
+                walls += 1;
+                let cache = cavity
+                    .pcurve(he)
+                    .unwrap_or_else(|| panic!("{edge:?}'s wall side carries a stored cache"));
+                let geom_brep::Pcurve::Spiric {
+                    major,
+                    minor,
+                    offset: image_offset,
+                    image: geom_brep::SpiricImage::Wall { sense, .. },
+                } = *cache.pcurve()
+                else {
+                    panic!("the wall's image is a spiric wall image");
+                };
+                for (what, a, b) in [
+                    ("major", major, major_radius),
+                    ("minor", minor, minor_radius),
+                    ("offset", image_offset, offset),
+                ] {
+                    assert!(
+                        a.lo() == b.lo() && a.hi() == b.hi(),
+                        "{what}: the image's bracket {a:?} is not the carrier's {b:?}"
+                    );
+                }
+                assert!(
+                    geom_core::Real::abs(sense).lo() == 1.0
+                        && geom_core::Real::abs(sense).hi() == 1.0,
+                    "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
+                );
+                let cert = cache.certificate();
+                assert_eq!(
+                    cert.statement,
+                    geom_brep::EnvelopeStatement::SpiricIdentity,
+                    "the wall's between-samples statement at Interval"
+                );
+                // NOT exactly zero here, and the reason is the
+                // scalar rather than the geometry: the three scalars
+                // above are the carrier's own BRACKETS, and interval
+                // arithmetic cannot cancel a bracket against itself,
+                // so check 1's admitted-drift term reads the bracket's
+                // own width instead of a bit-zero difference
+                // (`EnvelopeStatement::SpiricIdentity`'s per-scalar
+                // paragraph). The f64 twin's row pins the exact zero;
+                // what this row pins is that the bracket's price stays
+                // at rounding level rather than growing into a claim.
+                // The gate is at ROUNDING LEVEL, not at ε: the measured
+                // bracket is `[-1.5e-323, 2.84e-15]` and ε is 1e-9, so a gate at ε could not see the price
+                // growing by four orders. The lower end is only required
+                // to straddle zero — outward rounding may put it a
+                // denormal below.
+                assert!(
+                    cert.envelope.lo() <= 0.0
+                        && cert.envelope.lo() >= -1e-300
+                        && cert.envelope.hi() <= 1e-13,
+                    "the bracket's own width, metered, is at rounding level \
+                     (measured [-1.5e-323, 2.84e-15]): {:?}",
+                    cert.envelope
+                );
+            }
+        }
+        assert_eq!(walls, 2, "two wall-side half-edges at the certified scalar");
+    }
+}

@@ -1,0 +1,185 @@
+//! Aggregated integration-test binary for `profile`.
+//!
+//! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
+//!
+//! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
+//! below. `autotests = false` in Cargo.toml means a file that is not
+//! listed here does not compile and does not run — `every_suite_file_is_
+//! aggregated` below fails loudly if you forget.
+//!
+//! Test IDs gain a module prefix (`export::round_trip` rather than
+//! `round_trip`, under binary `all` rather than binary `export`); the set
+//! of tests is otherwise identical.
+
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/common/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod common;
+
+#[path = "arc_fillet.rs"]
+mod arc_fillet;
+#[path = "arc_spec_census.rs"]
+mod arc_spec_census;
+#[path = "blend7_review_probes.rs"]
+mod blend7_review_probes;
+#[path = "bool11_probes.rs"]
+mod bool11_probes;
+#[path = "fillet_refusal_envelope.rs"]
+mod fillet_refusal_envelope;
+#[path = "review_fillet_attr_r1_probes.rs"]
+mod review_fillet_attr_r1_probes;
+#[path = "review_fillet_attr_r2_probes.rs"]
+mod review_fillet_attr_r2_probes;
+#[path = "review_fillet_overrun_nearest_fit_r1_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r1_probes;
+#[path = "review_fillet_overrun_nearest_fit_r2_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r2_probes;
+
+#[path = "bool12_probes.rs"]
+mod bool12_probes;
+
+#[path = "bool12_r1_probes.rs"]
+mod bool12_r1_probes;
+
+#[path = "bool12r2_probes.rs"]
+mod bool12r2_probes;
+#[path = "bool8_r1_probes.rs"]
+mod bool8_r1_probes;
+#[path = "bool9_probes.rs"]
+mod bool9_probes;
+#[path = "bool9r1_probes.rs"]
+mod bool9r1_probes;
+#[path = "canonical_invariance.rs"]
+mod canonical_invariance;
+#[path = "cert4r1_e2e.rs"]
+mod cert4r1_e2e;
+#[path = "cert4r2_e2e.rs"]
+mod cert4r2_e2e;
+#[path = "cusp_joints.rs"]
+mod cusp_joints;
+#[path = "declared_tangency.rs"]
+mod declared_tangency;
+#[path = "enclose_refusal_r2_probes.rs"]
+mod enclose_refusal_r2_probes;
+#[path = "fillet_overrun_nearest_fit.rs"]
+mod fillet_overrun_nearest_fit;
+#[path = "fillet_recourse_followability.rs"]
+mod fillet_recourse_followability;
+#[path = "fillet_stored_tangency.rs"]
+mod fillet_stored_tangency;
+#[path = "generic_replay.rs"]
+mod generic_replay;
+#[path = "guided_replay.rs"]
+mod guided_replay;
+#[path = "interval_lane.rs"]
+mod interval_lane;
+#[path = "lift_census.rs"]
+mod lift_census;
+#[path = "onarc_probe.rs"]
+mod onarc_probe;
+#[path = "path_differential.rs"]
+mod path_differential;
+#[path = "path_program.rs"]
+mod path_program;
+#[path = "path_property.rs"]
+mod path_property;
+#[path = "r1_bool11_review_probes.rs"]
+mod r1_bool11_review_probes;
+#[path = "r2_bool11_review_probes.rs"]
+mod r2_bool11_review_probes;
+#[path = "r2_bool9_review_probes.rs"]
+mod r2_bool9_review_probes;
+#[path = "raw_door_census.rs"]
+mod raw_door_census;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
+#[path = "review_fillet_recourse_arm_r2_probes.rs"]
+mod review_fillet_recourse_arm_r2_probes;
+
+#[path = "review_r2_differential.rs"]
+mod review_r2_differential;
+
+#[path = "rejections.rs"]
+mod rejections;
+#[path = "review_fillet_recourse_arm_r1_probes.rs"]
+mod review_fillet_recourse_arm_r1_probes;
+#[path = "review_fillet_stored_tangency_r1_probes.rs"]
+mod review_fillet_stored_tangency_r1_probes;
+#[path = "review_m2_pr2.rs"]
+mod review_m2_pr2;
+#[path = "review_m2_pr2_consumers.rs"]
+mod review_m2_pr2_consumers;
+#[path = "review_m2_pr2_probe.rs"]
+mod review_m2_pr2_probe;
+#[path = "review_s2.rs"]
+mod review_s2;
+#[path = "review_s2_probe.rs"]
+mod review_s2_probe;
+#[path = "review_s6_probe.rs"]
+mod review_s6_probe;
+#[path = "review_s8_probe.rs"]
+mod review_s8_probe;
+#[path = "scalar_channels.rs"]
+mod scalar_channels;
+#[path = "scalar_channels_probe.rs"]
+mod scalar_channels_probe;
+#[path = "scalar_lift_door.rs"]
+mod scalar_lift_door;
+#[path = "seal.rs"]
+mod seal;
+#[path = "sketch_plane.rs"]
+mod sketch_plane;
+#[path = "table_arcs_inside_scene_resolution.rs"]
+mod table_arcs_inside_scene_resolution;
+#[path = "validate_ok.rs"]
+mod validate_ok;
+#[path = "validate_ok_probe.rs"]
+mod validate_ok_probe;
+#[path = "validated_map.rs"]
+mod validated_map;
+
+test_utils::every_suite_file_is_aggregated!();
+#[path = "review_fillet_e2_probes.rs"]
+mod review_fillet_e2_probes;
+#[path = "review_fillet_stored_tangency_r2_probes.rs"]
+mod review_fillet_stored_tangency_r2_probes;
+
+#[path = "review_recourse_roster_r1_probes.rs"]
+mod review_recourse_roster_r1_probes;

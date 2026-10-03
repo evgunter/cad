@@ -1,0 +1,172 @@
+//! The canonical-form key property (D9-load-bearing): validation's
+//! output is invariant — byte-level on `Debug` — under traversal
+//! reversal of every input loop, and FOLLOWS each loop's authored
+//! starting vertex: canonical vertex 0 is the vertex the author wrote
+//! first.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+// Gated to the code it tests (TCOST-1). The claim is that validation's
+// output is byte-identical under traversal reversal of every input loop
+// and keeps each loop's authored start — a property of the canonicalisation inside
+// validation and of the structure it emits, not of the fixtures. It rests
+// on the validator, on the loop/segment types whose `Debug` form is the
+// byte-level comparison, and on the lift that turns a raw loop into one.
+// `geom-core`'s tolerance and predicate are named because a rotation-
+// reversal-invariant answer is only invariant if the decisions taken along the way
+// are, and both are decided there.
+// `tests/common/` is named for the same reason: every fixture loop and the
+// tolerance the byte comparison is taken at come from `common`. A marker's own
+// file is implicit; a sibling helper module is not.
+test_utils::gated_to![
+    "crates/profile/src/validate.rs",
+    "crates/profile/src/structure.rs",
+    "crates/profile/src/seg.rs",
+    "crates/profile/src/lift.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/profile/tests/common/",
+];
+
+use crate::common;
+
+use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
+use profile::{Profile, ProfileLoop, RawLoop, Segment};
+use proptest::prelude::*;
+
+/// Rotates a loop's starting vertex by `r` (a pure reindexing — the
+/// same closed chain).
+fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
+    let n = lp.vertices().len();
+    <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
+        let j = (r + k) % n;
+        (lp.vertices()[j], lp.segments()[j])
+    }))
+    // Declared joints follow their vertex through the reindexing.
+    .with_tangent_joints(
+        lp.tangent_joints()
+            .iter()
+            .map(|&j| (j + n - r) % n)
+            .collect(),
+    )
+}
+
+/// Translates a loop rigidly (fixture plumbing): every vertex and every
+/// arc's centre moved by `(dx, dy)`, radii and sweeps kept.
+fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
+    let shift = |v: geom_core::Point2<f64>| geom_core::Point2::new(v.x + dx, v.y + dy);
+    <ProfileLoop<f64> as RawLoop<f64>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(&v, &segment)| {
+            let segment = match segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(geom_core::Arc2 {
+                    centre: shift(arc.centre),
+                    ..arc
+                }),
+            };
+            (shift(v), segment)
+        },
+    ))
+    .with_tangent_joints(lp.tangent_joints().to_vec())
+}
+
+/// The named fixture set (every accepting fixture with ≥ 1 loop).
+fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
+    vec![
+        ("rect", profile(vec![rect(0.0, 0.0, 2.0, 1.0)])),
+        ("l_profile", profile(vec![l_profile()])),
+        ("rounded_rect", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
+        ("circle", profile(vec![circle_h(0.0, 0.0, 2.0)])),
+        // Mixed declared/undeclared joints (2 tangent of 7): the
+        // partial declaration set discriminates rotation/reversal
+        // remapping bugs the fully-declared fixtures cannot.
+        ("bracket", profile(vec![bracket()])),
+        ("annulus", annulus()),
+        ("lens", profile(vec![lens()])),
+        (
+            "plate_two_holes",
+            profile(vec![
+                rect(0.0, 0.0, 10.0, 4.0),
+                circle_h(2.5, 2.0, 1.0),
+                translated(&rounded_rect(4.0, 3.0, 0.5), 5.0, 0.5),
+            ]),
+        ),
+    ]
+}
+
+proptest! {
+    /// Reversing any loop of any fixture — authored from any starting
+    /// vertex — leaves the canonical form byte-identical, and every
+    /// canonical loop starts at the vertex its input loop was authored
+    /// from.
+    #[test]
+    fn canonical_form_is_reversal_invariant_and_keeps_the_authored_start(
+        rot in prop::collection::vec(0usize..64, 3),
+        rev in prop::collection::vec(any::<bool>(), 3),
+    ) {
+        for (name, base) in fixtures() {
+            let turned: Vec<ProfileLoop<f64>> = base
+                .loops
+                .iter()
+                .enumerate()
+                .map(|(i, lp)| rotated(lp, rot[i % rot.len()] % lp.vertices().len()))
+                .collect();
+            let canon = Profile::new(base.plane, turned.clone())
+                .validate(tol())
+                .expect(name);
+            let transformed = Profile::new(
+                base.plane,
+                turned
+                    .iter()
+                    .enumerate()
+                    .map(|(i, lp)| if rev[i % rev.len()] { lp.reversed() } else { lp.clone() })
+                    .collect(),
+            );
+            let canon2 = transformed.validate(tol()).expect(name);
+            prop_assert_eq!(
+                format!("{canon:?}"),
+                format!("{canon2:?}"),
+                "canonical form of {} not reversal-invariant",
+                name
+            );
+            // Every input loop's authored vertex 0 is some canonical
+            // loop's vertex 0 — the start is the author's.
+            let bits = |p: geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+            let starts: Vec<_> = canon2.loops().iter().map(|cl| bits(cl.vertices()[0])).collect();
+            for (i, lp) in turned.iter().enumerate() {
+                prop_assert!(
+                    starts.contains(&bits(lp.vertices()[0])),
+                    "{}: input loop {} was authored from {:?}, and no canonical loop starts there",
+                    name,
+                    i,
+                    lp.vertices()[0]
+                );
+            }
+        }
+    }
+
+    /// Reversal is a bit-exact involution on arbitrary chains (garbage
+    /// included — this is pure reindexing plus exact negation).
+    #[test]
+    fn reversal_involution_on_random_chains(
+        verts in prop::collection::vec(
+            (-1.0e3..1.0e3f64, -1.0e3..1.0e3f64, -10.0..10.0f64),
+            1..12,
+        ),
+    ) {
+        let lp = common::chain(
+            &verts.iter().map(|&(x, y, b)| (x, y, b)).collect::<Vec<_>>(),
+        );
+        let back = lp.reversed().reversed();
+        for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
+            prop_assert_eq!(a.x.to_bits(), b.x.to_bits());
+            prop_assert_eq!(a.y.to_bits(), b.y.to_bits());
+        }
+        // The segments too: kind, centre, radius and sweep, to the bit
+        // (`Debug` prints every f64 bit pattern apart, signed zeros
+        // included).
+        prop_assert_eq!(lp.segments().len(), back.segments().len());
+        for (a, b) in lp.segments().iter().zip(back.segments().iter()) {
+            prop_assert_eq!(format!("{a:?}"), format!("{b:?}"));
+        }
+    }
+}

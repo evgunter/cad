@@ -1,0 +1,140 @@
+//! R1 review E2E — a fused arc-fillet-arc tangency authored HERE, not
+//! the rocker eye, driven through replay at both lanes.
+//!
+//! The unit's fixtures are the rocker eye (carriers about (∓½, 0)
+//! through (0, −√3⁄2), radius 1) and the vesica lens. This row authors
+//! a different one: carriers about (∓3⁄2, 0) through (0, −2), so the
+//! carrier radius is exactly 5/2 — a 3-4-5 triangle, every coordinate
+//! and the radius exactly representable, so the squared-radius rule is
+//! not merely approximately exact here. The anchor is again one of the
+//! two carrier intersections, so the derived corner list contains it
+//! bitwise and the incoming advance gate measures a sweep from a point
+//! to itself: the class's live shape, at coordinates the unit never ran.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use common::{tol, try_replay_at};
+use geom_core::Point2;
+use profile::{ArcSweep, Center, Open, Step};
+
+/// My own fused tangency: 3-4-5 carriers, fillet radius 2/5.
+fn my_eye() -> Vec<Step<f64>> {
+    let loop_ = Open
+        .arc_fillet_arc(
+            Center {
+                c: Point2::new(-1.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Point2::new(0.0, -2.0),
+            },
+            0.4,
+            Center {
+                c: Point2::new(1.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: profile::Start,
+            },
+            tol(),
+        )
+        .unwrap();
+    loop_.program.clone()
+}
+
+/// The f64 lane: my tangency replays, and the anchor-coincident corner
+/// is discarded exactly as the eye's is.
+#[test]
+fn cert4r1_my_fused_tangency_replays_at_f64() {
+    let prog = my_eye();
+    let l = try_replay_at::<f64>(&prog).expect("the f64 lane must serve this profile");
+    assert!(l.vertices().len() >= 2, "a fused corner emits a real loop");
+}
+
+/// The interval lane: same profile, and every emitted enclosure is a
+/// hairline rather than a period. This is the consumer-visible claim —
+/// before the unit, a profile of this shape came back refused.
+#[test]
+fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
+    use geom_core::{Bounds, Interval};
+    let prog = my_eye();
+    let iv = try_replay_at::<Interval>(&prog)
+        .unwrap_or_else(|e| panic!("the interval lane refused my authored tangency: {e}"));
+    let f = try_replay_at::<f64>(&prog).unwrap();
+    let mut widest = 0.0f64;
+    for (k, (a, b)) in iv.vertices().iter().zip(f.vertices()).enumerate() {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(i), profile::Segment::Arc(e)) =
+            (iv.segments()[k], f.segments()[k])
+        {
+            channels.push(("sweep", i.sweep, e.sweep));
+        }
+        for (what, enc, exact) in channels {
+            let w = enc.hi() - enc.lo();
+            widest = widest.max(w);
+            assert!(
+                enc.lo() <= exact && exact <= enc.hi(),
+                "vertex {k}'s {what} enclosure [{}, {}] excludes the f64 answer {exact}",
+                enc.lo(),
+                enc.hi()
+            );
+            assert!(
+                w <= 1e-12,
+                "vertex {k}'s {what} enclosure is {w:e} wide — period-width, not input-width"
+            );
+        }
+    }
+    // Reported, not asserted as a band: what a consumer actually sees.
+    println!("cert4r1: widest enclosure on my authored tangency = {widest:e}");
+    assert!(widest > 0.0, "not all degenerate");
+}
+
+/// **What the unit's fixtures were too friendly to show.** The eye and
+/// the vesica are unit-scale, and the PR reports "~1e-16 against a
+/// 1e-12 ceiling". The enclosure width of a fused tangency scales with
+/// the profile, so the headroom under that ceiling is a property of the
+/// fixtures' size, not of the fix. This row walks the same construction
+/// over four decades of scale and REPORTS the widths.
+#[test]
+fn cert4r1_the_enclosure_width_scales_with_the_profile() {
+    use geom_core::{Bounds, Interval};
+    fn eye_at(s: f64) -> Vec<Step<f64>> {
+        Open.arc_fillet_arc(
+            Center {
+                c: Point2::new(-1.5 * s, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Point2::new(0.0, -2.0 * s),
+            },
+            0.4 * s,
+            Center {
+                c: Point2::new(1.5 * s, 0.0),
+                winding: ArcSweep::Ccw,
+                p: profile::Start,
+            },
+            tol(),
+        )
+        .map(|l| l.program.clone())
+        .unwrap_or_default()
+    }
+    for s in [1.0f64, 10.0, 100.0, 1000.0, 10_000.0] {
+        let prog = eye_at(s);
+        if prog.is_empty() {
+            println!("cert4r1 scale {s:>9}: not authorable (a lever refusal, not a fold)");
+            continue;
+        }
+        match try_replay_at::<Interval>(&prog) {
+            Ok(iv) => {
+                let mut widest = 0.0f64;
+                for (v, s) in iv.vertices().iter().zip(iv.segments()) {
+                    let sweep = match s {
+                        profile::Segment::Arc(arc) => arc.sweep,
+                        profile::Segment::Line => v.x,
+                    };
+                    for enc in [v.x, v.y, sweep] {
+                        widest = widest.max(enc.hi() - enc.lo());
+                    }
+                }
+                println!("cert4r1 scale {s:>9}: widest enclosure {widest:e}");
+            }
+            Err(e) => println!("cert4r1 scale {s:>9}: REFUSED — {e}"),
+        }
+    }
+}

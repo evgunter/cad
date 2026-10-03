@@ -1,0 +1,72 @@
+
+##### 04:26:19 A revert measurement mutant
+
+##### 04:26:19 B r2_bytes HEAD dev + release (default eps)
+21
+21
+
+##### 04:27:16 C base worktree: r2_bytes dev + release, cross-build cost x2 (release)
+21
+21
+r2 diffs (expect empty):
+dev: 21/21 identical
+rel: 21/21 identical
+head dev==rel
+
+##### 04:29:50 D mutation battery
+M1_no_uv_repeat: exit=101  red_rows=['curved::tests::identified_ids_takes_the_seam_the_pole_filter_misses', 'curved::tests::a_seam_vertex_fanned_over_one_column_is_caught']
+M2_threshold_4: exit=101  red_rows=['curved::tests::a_seam_vertex_fanned_over_one_column_is_caught']
+M3_drop_pole_keep: exit=101  red_rows=['curved::tests::identified_ids_keeps_a_pole_corner_and_drops_an_ordinary_walk']
+M4_old_pole_filter: exit=101  red_rows=['curved::tests::a_seam_vertex_fanned_over_one_column_is_caught']
+M5_chord_gt2: exit=101  red_rows=['tessellate::tests::a_boundary_the_second_face_renumbered_is_caught', 'tessellate::tests::a_segment_no_face_emitted_at_all_is_caught', 'tessellate::tests::ids_at_or_above_the_mark_are_never_probed']
+M6_no_mark: exit=101  red_rows=['tessellate::tests::ids_at_or_above_the_mark_are_never_probed']
+M7_bits_compare: exit=101  red_rows=['curved::tests::a_repeat_at_the_same_uv_is_one_spade_vertex_and_not_identified']
+restored; git status:
+
+##### 04:30:17 E liveness (release, and debug-assertions off)
+== L1: pole floor removed (pole_columns returns nu) — the identified-edge census should fire on the ball/cone in RELEASE
+  Executable tests/all.rs (target/release/deps/all-bbbf0efdcf975416)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 137 filtered out; finished in 0.53s
+-- same mutant, release with CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false (the post-publish manifest):
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 137 filtered out; finished in 0.41s
+== L2: one patch withheld from the chord census — should fire on every body in RELEASE
+  Executable tests/all.rs (target/release/deps/all-bbbf0efdcf975416)
+thread 'r2_bytes::r2_byte_stability_report' (15693) panicked at crates/mesh/src/tessellate.rs:211:9:
+chord segment Some((3, 4)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 137 filtered out; finished in 0.07s
+== L3: does the mesh LIB unit-test target compile with debug-assertions OFF? (head, then merge base)
+error[E0425]: cannot find function `identified_ids` in this scope
+error[E0425]: cannot find function `identified_ids` in this scope
+error[E0425]: cannot find function `identified_ids` in this scope
+error[E0425]: cannot find function `overused_identified_edge` in this scope
+error[E0425]: cannot find function `identified_ids` in this scope
+error[E0425]: cannot find function `overused_identified_edge` in this scope
+error[E0425]: cannot find function `overused_identified_edge` in this scope
+error[E0425]: cannot find function `unpaired_chord_segment` in this scope
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.96s
+== restored:
+
+##### 04:31:46 F bounds_census at head, then with a generic array-in-angle-list signature planted
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 116 filtered out; finished in 0.70s
+test bounds_census::every_sole_bracket_bound_door_is_in_the_roster ... FAILED
+thread 'bounds_census::every_sole_bracket_bound_door_is_in_the_roster' (19458) panicked at crates/geom-core/tests/bounds_census.rs:279:5:
+   2: all::bounds_census::angle_end
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 116 filtered out; finished in 0.31s
+
+##### 04:32:01 G three-eps battery, -p mesh (dev)
+eps=default: 3 ok-blocks, 0 FAILED lines
+test result: ok. 119 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 4.38s
+test result: ok. 137 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.51s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+eps=1e-6: 3 ok-blocks, 0 FAILED lines
+test result: ok. 119 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 4.33s
+test result: ok. 137 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.79s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+eps=1e-12: 3 ok-blocks, 0 FAILED lines
+test result: ok. 119 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 4.39s
+test result: ok. 137 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.50s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+##### 04:32:28 H final byte-identity check of PR-owned files
+phase2 done
+exit 0

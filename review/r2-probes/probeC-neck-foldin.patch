@@ -1,0 +1,5 @@
+--- a/demos/tour/src/lily.rs
++++ b/demos/tour/src/lily.rs
+@@
+-                }) if pucker.contains(&k) => {
++                }) => { // R2 PROBE C: fold the neck back into wall-7's measurement

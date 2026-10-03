@@ -1,0 +1,3751 @@
+//! **The frame loop's decisions, replayed.**
+//!
+//! Three rules used to live inside `app`-gated code that no test can
+//! execute: when a batch clears the status line, when the id pass is
+//! asked, and when the two picking paths are reported as disagreeing.
+//! A fourth — the rebuild-on-stale loop — was written at its one
+//! consumer and retried forever when a build refused. Each is a value
+//! now, and each is driven here the way the frame loop drives it.
+//!
+//! The rows that could not exist before are the point: every one of
+//! these is a rule whose failure is silent in a running application.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use crate::common;
+use crate::common::plate_index;
+use test_utils::refusal::tagged;
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use common::asm;
+use pncad::document::NodeStanding;
+use pncad::document::{
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Expr, Frame, Node,
+    ParamName, ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+};
+use pncad::geom_core::{Point3, Tol};
+use pncad::prelude::{EntityKind, StableName};
+use pncad::quantity::{M, MM};
+use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
+use viewer::camera::{Camera, CameraOp};
+use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
+use viewer::frame::{self, RankedVerdict, StatusUpdate};
+use viewer::generation::Generation;
+use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
+use viewer::input::{self, InputMap, ViewportSize};
+use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickindex::{self, IdMap, PictureKey};
+use viewer::platform;
+use viewer::prefs::{Absent, Prefs, PrefsStore};
+use viewer::props::SlotValue;
+use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
+use viewer::session::{
+    AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
+    Step,
+};
+
+fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
+    let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    (session, extrude)
+}
+
+// --- the status-line policy ----------------------------------------
+
+#[test]
+fn a_hover_only_batch_leaves_the_status_line_alone() {
+    // The defect this rule exists for: the pointer drifting over the
+    // viewport wiped the ratified expression-driven affordance, because
+    // a hover makes the batch non-empty on every frame it changes what
+    // the cursor is over.
+    let hover_only = [SessionOp::Hover(None)];
+    assert_eq!(
+        frame::frame_status(&[], &hover_only, None),
+        RankedVerdict::Keep,
+        "a hover is not an action on the document"
+    );
+    assert_eq!(
+        frame::frame_status(&[], &[], None),
+        RankedVerdict::Keep,
+        "and neither is a frame with no operations at all"
+    );
+}
+
+#[test]
+fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
+    let acted = [SessionOp::Select(Selection::None)];
+    assert_eq!(frame::frame_status(&[], &acted, None), RankedVerdict::Clear);
+
+    // A refusal always reaches the line, whatever the batch was: a
+    // hover cannot refuse today, and silence would be the wrong answer
+    // if one ever did.
+    let refusal = viewer::session::Refusal::NothingToDo {
+        direction: viewer::session::Step::Undo,
+    };
+    let shown = frame::frame_status(&[], &[SessionOp::Hover(None)], Some(&refusal));
+    assert_eq!(
+        shown,
+        RankedVerdict::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string(),
+            frame::Retold::Again,
+        )),
+        "the document's answer to the act is about the document"
+    );
+    assert!(!refusal.to_string().is_empty());
+}
+
+/// **A tool's notice is not erased by the batch that carried its own
+/// pick** — the composition seam, as the rule that closes it.
+///
+/// The defect this row exists for: the blend tool declines a pick on a
+/// second body and says so, but the declined click is still a `Select`
+/// that the session performs cleanly. The batch's own verdict is an
+/// acting op and no refusal, `Clear`, and the explanation is wiped in
+/// the same frame it was written — net effect, the selection jumps to
+/// another body and the sentence saying why it did not join the blend
+/// is shown for zero frames.
+///
+/// Both halves are asserted, because the first is what makes the
+/// second necessary rather than decorative.
+#[test]
+fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
+    let declined = [SessionOp::Select(Selection::None)];
+    // Both notices through the door the frame loop uses, so each
+    // carries the answer its event arm gives rather than a second
+    // spelling of it.
+    let target = BlendTarget {
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+    };
+    let notice = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::OtherTarget {
+            held: target,
+            picked: BlendTarget {
+                node: RecipeNodeId(tagged(5)),
+                body: 0,
+            },
+        }),
+        None,
+    );
+
+    // The batch alone, with the notice left out: the frame acted,
+    // nothing refused, so the line is cleared. This is the seam.
+    assert_eq!(
+        frame::frame_status(&[], &declined, None),
+        RankedVerdict::Clear,
+        "a declined pick still performs cleanly, so the batch alone clears"
+    );
+
+    // The frame policy: the notice is what the line shows.
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, None),
+        RankedVerdict::Show(notice.clone())
+    );
+
+    // A refusal outranks it — the answer to what the user asked the
+    // DOCUMENT for is the louder of the two.
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
+        RankedVerdict::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string(),
+            frame::Retold::Again,
+        ))
+    );
+
+    // SEVERAL notices in one frame are all shown, joined. Assigning
+    // `status` from each in turn keeps the last and loses the rest,
+    // which is the keep-last defect the batch policy already exists to
+    // stop for refusals.
+    let second = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::TargetLost {
+            target,
+            node: pncad::document::SpokenNode::absent(target.node),
+            edges: 6,
+        }),
+        None,
+    );
+    let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
+    let RankedVerdict::Show(line) = &both else {
+        panic!("two notices are shown, got {both:?}");
+    };
+    assert!(
+        line.text().contains(notice.text()) && line.text().contains(second.text()),
+        "{line}"
+    );
+    assert_eq!(
+        line.text(),
+        [notice.text(), second.text()].join(frame::NOTICE_SEPARATOR)
+    );
+    assert_eq!(
+        line.subject(),
+        frame::Subject::Document,
+        "notices that agree on a subject are joined under it, so the \
+         joined line still knows what retires it"
+    );
+}
+
+/// **A joined line splits back into the notices it was made from.**
+///
+/// The defect: `frame_status` joined notices with `"; "` and a notice
+/// is free to write `"; "` inside its own sentence, so at two notices
+/// a reader met a separator that might be a boundary and might be the
+/// notice talking. Unfalsifiable at one notice, wrong at two.
+///
+/// Both texts here are real faults' own renderings through a real
+/// door, not prose written for the row: `NonRigidFrame` writes a
+/// `LIST_SEPARATOR` inside one sentence — the hazard
+/// `work/view/joined-notices-nest-their-own-separator.md` records as
+/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// Under the old spelling the first alone makes this split return
+/// three pieces where two went in.
+///
+/// Asserted as the SPLIT and not as a separator count: a count is the
+/// weaker half of the same claim, and `Withdrawal`'s own row already
+/// says why a count passes over text that reads as one item too many.
+#[test]
+fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
+    let nests = frame::tool_news(
+        DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string(),
+        frame::Retold::Again,
+    );
+    let dashes = frame::tool_news(
+        AdmissionFault::FusedGeometry {
+            instance: SpokenNode::absent(RecipeNodeId(tagged(3))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            others: vec![SpokenNode::absent(RecipeNodeId(tagged(5)))],
+        }
+        .to_string(),
+        frame::Retold::Again,
+    );
+    assert!(
+        nests.text().contains(frame::LIST_SEPARATOR),
+        "the row is about a notice that carries the within-a-notice \
+         mark; this one no longer does, so it proves nothing: {nests}"
+    );
+
+    let RankedVerdict::Show(line) = frame::frame_status(
+        &[nests.clone(), dashes.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        vec![nests.text(), dashes.text()],
+        "the boundary between two notices is legible as a boundary and \
+         as nothing else, whatever either notice's own sentence says"
+    );
+}
+
+/// **A notice cannot be constructed carrying the boundary mark.**
+///
+/// The rule above is a claim about every string any producer will
+/// ever hand `Message`, which no signature carries — so the only door
+/// enforces it, and this is the row that goes red if it stops.
+///
+/// The door rewrites rather than refuses because it is reachable from
+/// the keyboard: `delta_not_a_number` echoes what was typed into the
+/// δ field, so a pasted bullet must not be able to take the
+/// application down. That path is asserted here too, through its own
+/// door, because it is the one that makes the choice necessary.
+#[test]
+fn a_notice_cannot_carry_the_boundary_mark() {
+    let asked = frame::Message::new(
+        frame::Subject::Document,
+        "one \u{2022} two",
+        frame::Retold::Again,
+    );
+    assert!(
+        !asked.text().contains(frame::NOTICE_MARK),
+        "the door takes the boundary mark out: {asked}"
+    );
+
+    let pasted = "1 \u{2022} 2".parse::<f64>().expect_err("not a number");
+    let typed = frame::delta_not_a_number("1 \u{2022} 2", &pasted);
+    assert!(
+        !typed.text().contains(frame::NOTICE_MARK),
+        "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
+    );
+
+    let RankedVerdict::Show(line) = frame::frame_status(
+        &[asked.clone(), typed.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text().split(frame::NOTICE_SEPARATOR).count(),
+        2,
+        "a notice that asked for the mark still cannot forge a boundary: {line}"
+    );
+}
+
+/// **The two marks are two marks**, which is the whole of the rule.
+///
+/// `Message::new` derives what it rewrites a boundary mark to from
+/// `LIST_SEPARATOR`, so an all-whitespace list separator would make
+/// `str::replace` insert between every character of every notice.
+/// Nothing else in the crate would notice.
+#[test]
+fn the_boundary_mark_belongs_to_the_boundary_alone() {
+    assert_eq!(
+        frame::NOTICE_SEPARATOR.matches(frame::NOTICE_MARK).count(),
+        1,
+        "the separator carries the mark it is named for, once"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.contains(frame::NOTICE_MARK),
+        "a notice's own list mark is not a boundary"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.trim().is_empty(),
+        "what the door rewrites a boundary mark TO has to be a mark"
+    );
+}
+
+/// Each admission fault's position in the vocabulary, as an
+/// exhaustive match — the census's oracle, and `path_authoring`'s
+/// `ordinal` shape ported to a payload-carrying enum.
+///
+/// **A fault added to `AdmissionFault` takes a number BEFORE
+/// `FusedGeometry`'s, and `FusedGeometry` keeps the last one.** The
+/// row below reads the vocabulary's size off `FusedGeometry` — it has
+/// no other way to know it — so a fault numbered past it would be a
+/// fault the census never renders. Renumbering the arms is free; the
+/// obligation is only that `FusedGeometry` ends them.
+fn cause_ordinal(cause: &AdmissionFault) -> usize {
+    match cause {
+        AdmissionFault::NoSuchNode { .. } => 0,
+        AdmissionFault::NotAnInstance { .. } => 1,
+        AdmissionFault::MateConstrained { .. } => 2,
+        AdmissionFault::FusedGeometry { .. } => 3,
+    }
+}
+
+/// One of each admission fault, payloads plural where the arm renders
+/// a list — the shape most likely to reach for a separator.
+fn every_cause() -> Vec<AdmissionFault> {
+    vec![
+        AdmissionFault::NoSuchNode {
+            node: SpokenNode::absent(RecipeNodeId(tagged(4))),
+        },
+        AdmissionFault::NotAnInstance {
+            node: SpokenNode::absent(RecipeNodeId(tagged(5))),
+        },
+        AdmissionFault::MateConstrained {
+            instance: SpokenNode::absent(RecipeNodeId(tagged(6))),
+            mates: vec![
+                SpokenNode::absent(RecipeNodeId(tagged(7))),
+                SpokenNode::absent(RecipeNodeId(tagged(8))),
+            ],
+        },
+        AdmissionFault::FusedGeometry {
+            instance: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(10))),
+            others: vec![
+                SpokenNode::absent(RecipeNodeId(tagged(11))),
+                SpokenNode::absent(RecipeNodeId(tagged(12))),
+            ],
+        },
+    ]
+}
+
+/// **No cause a withdrawal can carry writes the mark its causes are
+/// joined on.**
+///
+/// `Display for Withdrawal` joins a withdrawal's causes flat with
+/// `LIST_SEPARATOR`, so a cause whose own sentence writes one reads as
+/// an item more than it is — the ambiguity-at-two the notice level
+/// answered with a mark of its own. One level in there is no mark left
+/// to take: every remaining candidate is punctuation a sentence is
+/// entitled to, and a door that rewrote it would show a reader words
+/// its author did not write.
+///
+/// What is held instead is the POPULATION. The admission tests answer
+/// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
+/// the sentences this claim ranges over are exactly these four — the
+/// compiler's census, `cause_ordinal` being exhaustive and the
+/// ordinals having to run from 0 with no hole — and this row is the
+/// claim over it. Before the narrowing the field was the whole of
+/// `DisplayFault`, where `NonRigidFrame` writes a `LIST_SEPARATOR`
+/// inside one sentence: the property was true only because neither
+/// test happened to raise it, which is not something a reader of
+/// either type could see.
+#[test]
+fn a_withdrawn_cause_never_carries_the_list_mark() {
+    let covered: std::collections::BTreeSet<usize> =
+        every_cause().iter().map(cause_ordinal).collect();
+    let contiguous: std::collections::BTreeSet<usize> = (0..covered.len()).collect();
+    assert_eq!(
+        covered, contiguous,
+        "the causes covered here leave a hole: every ordinal from 0 needs a sample",
+    );
+    assert_eq!(
+        covered.len(),
+        cause_ordinal(&AdmissionFault::FusedGeometry {
+            instance: SpokenNode::absent(RecipeNodeId(tagged(1))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(2))),
+            others: vec![],
+        }) + 1,
+        "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
+    );
+
+    for cause in every_cause() {
+        let sentence = cause.to_string();
+        assert!(
+            !sentence.contains(frame::LIST_SEPARATOR),
+            "a cause that writes the list mark nests inside the join that \
+             uses it, and the withdrawal reads as one cause more than it \
+             has: {sentence}"
+        );
+    }
+}
+
+/// **A withdrawal's cause list splits back into the causes it joined.**
+///
+/// The row above is the claim about each sentence; this is the claim
+/// about the join, driven through the one public door from a report to
+/// its notices. Every cause the type admits is in this one withdrawal,
+/// so the split is over the whole population rather than over a pair
+/// chosen for the row.
+///
+/// The preamble is taken off at its own mark — the em-dash
+/// `Display for Withdrawal` writes once, before the first cause — and
+/// what is left is the list. A cause's own sentence may carry an
+/// em-dash and two of these do; `split_once` takes the first, which is
+/// the preamble's, and that is why the em-dash was never the boundary
+/// the notice level had to move off.
+#[test]
+fn a_withdrawals_cause_list_splits_back_into_its_causes() {
+    let causes = every_cause();
+    let report = PruneReport {
+        superseded: causes
+            .iter()
+            .enumerate()
+            .map(|(seat, cause)| Withdrawn {
+                instance: RecipeNodeId(tagged(seat as u64 + 20)),
+                cause: cause.clone(),
+            })
+            .collect(),
+        ..PruneReport::default()
+    };
+    let withdrawal = frame::Withdrawal::all(&report)
+        .next()
+        .expect("a report with superseded placements words them");
+    let sentence = withdrawal.to_string();
+    let (preamble, list) = sentence
+        .split_once(" \u{2014} ")
+        .expect("the preamble is followed by the causes");
+    assert!(
+        preamble.contains(&causes.len().to_string()),
+        "the preamble counts what it introduces: {preamble}"
+    );
+    assert_eq!(
+        list.split(frame::LIST_SEPARATOR).collect::<Vec<_>>(),
+        causes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        "the join is invertible: each piece is one cause's own rendering, \
+         whole, and there are as many pieces as there were causes"
+    );
+}
+
+/// **A startup line carrying two notices splits back into those two.**
+///
+/// The live case and not a constructed one: a preferences file naming
+/// a theme the registry does not hold AND an input preset it does not
+/// hold parses cleanly, both names resolve to `None`, and both arms
+/// report — which `prefs`'s module docs call the ordinary recovery.
+/// Three of `prefs::Notice`'s four arms write a `frame::LIST_SEPARATOR`
+/// inside one sentence, so a flat join on that mark made a two-notice
+/// line read as four items.
+///
+/// The boundary is `frame::NOTICE_SEPARATOR` because these are several
+/// notices, not the items of a list ONE notice carries: nothing counts
+/// them and no preamble introduces them.
+#[test]
+fn a_startup_line_splits_back_into_the_preferences_notices_it_was_made_from() {
+    let (prefs, parsed) =
+        Prefs::from_toml("[appearance]\ntheme = \"aurora\"\n\n[keys]\npreset = \"modal\"\n")
+            .expect("a file this well-formed parses");
+    assert!(
+        parsed.is_empty(),
+        "the file is understood; what is unknown is the two NAMES: {parsed:?}"
+    );
+    let (_, theme_notice) = prefs.resolve_theme();
+    let (_, keys_notice) = prefs.resolve_keys();
+    let notices: Vec<String> = [theme_notice, keys_notice]
+        .into_iter()
+        .flatten()
+        .map(|notice| notice.to_string())
+        .collect();
+    assert_eq!(
+        notices.len(),
+        2,
+        "two unknown names are two notices: {notices:?}"
+    );
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::LIST_SEPARATOR)),
+        "and each of them writes the list mark inside its own sentence, \
+         which is what a flat join on that mark cannot survive: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        notices.iter().map(String::as_str).collect::<Vec<_>>(),
+        "the join is invertible: each piece is one notice's own rendering, \
+         whole, and there are as many pieces as there were notices"
+    );
+}
+
+/// **The mark cannot be held by any claim about the sentences here,
+/// because two of the four arms echo text out of the user's file.**
+///
+/// A TOML quoted key may hold anything, [`prefs::Notice::UnknownKey`]
+/// prints it back, and so a preferences notice can carry any character
+/// a boundary might be spelled with — the bullet included. What holds
+/// the line is `frame::Message::new`, which rewrites the boundary mark
+/// out of every text that reaches it, and that is why the startup path
+/// builds one message per notice rather than one string.
+#[test]
+fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back() {
+    let key = format!("a{}b", frame::NOTICE_MARK);
+    let (_, parsed) = Prefs::from_toml(&format!("\"{key}\" = 1\n\"{key}2\" = 1\n"))
+        .expect("a quoted key is well-formed TOML");
+    let notices: Vec<String> = parsed.iter().map(ToString::to_string).collect();
+    assert_eq!(notices.len(), 2, "two unknown keys are two notices");
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::NOTICE_MARK)),
+        "each echoes the user's key, boundary mark and all: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text().matches(frame::NOTICE_SEPARATOR).count(),
+        1,
+        "one boundary in a line of two notices, whatever the file said: {}",
+        line.text()
+    );
+}
+
+/// **Every subject this unit assigned, pinned.**
+///
+/// The reason this row exists: a subject chosen inside an `app`-gated
+/// draw path is unfalsifiable — the reviewer of this unit changed the
+/// projection writer's subject from `Camera` to `Preferences` and the
+/// whole suite stayed green, because the paint in question is a
+/// `ViewerBehavior` method and nothing headless can execute one. The
+/// doors moved that decision into `frame`; this is what makes moving
+/// it worth anything.
+///
+/// One assertion per door, so a flipped subject reds exactly the line
+/// that names it.
+#[test]
+fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+    let disagreement = idpass::Disagreement {
+        from_gpu: idpass::IdAnswer::Nothing,
+        from_ray: Vec::new(),
+    };
+    assert_eq!(
+        disagreement
+            .notice(&Doc::empty_derived("cursor", Tol::witness()))
+            .subject(),
+        frame::Subject::Cursor,
+        "what the two picking paths said is about THIS cursor"
+    );
+
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    for (message, what) in [
+        (frame::delta_refusal(&delta), "a δ the display refused"),
+        (
+            frame::unindexed_refusal(&pickcache::NotIndexed::Building),
+            "a pick against an index still building",
+        ),
+        (
+            frame::delta_not_a_number("2,5", &"2,5".parse::<f64>().expect_err("not a number")),
+            "a δ field holding something that is not a number",
+        ),
+    ] {
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Display,
+            "{what} is about the picture drawn from the document"
+        );
+    }
+
+    assert_eq!(
+        frame::store_refusal(&viewer::prefs::StoreError {
+            doing: "write",
+            because: "read-only file system".to_owned(),
+        })
+        .subject(),
+        frame::Subject::Preferences,
+        "a preferences file that could not be written is about that file"
+    );
+    let startup = frame::startup_notices(&["preferences: unknown setting `x`".to_owned()])
+        .expect("a notice at startup is news");
+    assert_eq!(startup.subject(), frame::Subject::Preferences);
+    assert_eq!(
+        frame::startup_notices(&[]),
+        None,
+        "and a file with nothing to say says nothing"
+    );
+
+    for (message, what) in [
+        (
+            frame::pick_refusal(
+                &pickindex::PickError::Camera(projection),
+                &Doc::empty_derived("pick", Tol::witness()),
+            ),
+            "a cursor action the pick index refused",
+        ),
+        (
+            frame::tool_news(
+                "blend: the held edges are on another body",
+                frame::Retold::Again,
+            ),
+            "what a tool has to say",
+        ),
+    ] {
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Document,
+            "{what} answers an act aimed at the document"
+        );
+    }
+}
+
+/// **Both axes, stated independently.**
+///
+/// The ruling this row exists for: whether a fact is a badge or a line
+/// message is decided by whether it is a read of held state or the
+/// outcome of something that happened, and its subject is decided by
+/// which event retires it. Two questions, two answers, no forced
+/// pairing — so the table below has a badge and a message under one
+/// subject, and one channel carrying several subjects.
+///
+/// Unfalsifiable before: a badge had no subject to get wrong.
+#[test]
+fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
+    // The badges here carry no node, so the document they speak in
+    // holds none.
+    let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    let build = pickindex::PickIndexError::DrawnTwice {
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+    };
+    let collision = ProductError::Naming {
+        node: RecipeNodeId(tagged(2)),
+        name: Box::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(tagged(2)),
+            path: Vec::new(),
+        }),
+    };
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+        probe_triangles: 137_000,
+        largest_probe: 125_000,
+        stop: scene::ProbeStop::Converged,
+    };
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
+
+    // Every badge, and what ends it. The three seam reads first —
+    // these are the facts this ruling moved off the line.
+    for (badge, subject, what) in [
+        (
+            frame::scene_badge(Some(&delta)),
+            frame::Subject::Display,
+            "a scene the rebuild refused ends when a rebuild lands",
+        ),
+        (
+            frame::index_badge(Some(&build), &nodeless, None),
+            frame::Subject::Display,
+            "a held pick-index refusal ends when a build lands",
+        ),
+        (
+            frame::projection_badge(Some(&projection)),
+            frame::Subject::Camera,
+            "a view matrix that will not form ends when the camera moves \
+             somewhere one does",
+        ),
+        (
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+            frame::Subject::Document,
+            "the at-rest verdict ends when the document accepts another act",
+        ),
+        (
+            frame::checks_badge(Some(&ChecksReport {
+                document: DocumentId(1),
+                findings: vec![CheckFinding {
+                    check: CheckId::Connectedness,
+                    root: RecipeNodeId(tagged(3)),
+                    output_ix: 0,
+                    evidence: CheckEvidence::Connectedness {
+                        actual: 2,
+                        expected: 1,
+                    },
+                }],
+                skipped: Vec::new(),
+            })),
+            frame::Subject::Document,
+            "so do the advisory checks",
+        ),
+        (
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
+            frame::Subject::Document,
+            "and the gather's verdict on the landed pair",
+        ),
+        (
+            frame::delta_badge(Some(&budget), M),
+            frame::Subject::Display,
+            "the budget's δ ends when the picture is drawn at another",
+        ),
+        (
+            frame::prefs_badge(Some(&keeps_nothing)),
+            frame::Subject::Preferences,
+            "a store that keeps nothing ends when the file is written",
+        ),
+    ] {
+        assert_eq!(
+            badge.expect("this state badges").subject(),
+            subject,
+            "{what}"
+        );
+    }
+
+    // **The two axes are independent, and here is each of the four
+    // corners that this crate populates.** A subject never decided a
+    // channel: `Camera`, `Display` and `Preferences` each carry a
+    // badge AND a line message, so neither answer can be read off the
+    // other.
+    let refused_fold = frame::fold_status(&viewer::camera::Folded {
+        camera,
+        applied: Vec::new(),
+        refused: Some((
+            CameraOp::Dolly { factor: 0.0 },
+            viewer::camera::CameraOpError::NonPositiveDolly { factor: 0.0 },
+        )),
+    });
+    let StatusUpdate::Show(camera_news) = refused_fold else {
+        panic!("a refused fold is news");
+    };
+    assert_eq!(
+        camera_news.subject(),
+        frame::projection_badge(Some(&projection))
+            .expect("a projection that will not form badges")
+            .subject(),
+        "a move the camera refused is an OUTCOME and a projection that \
+         will not form is a READ, and both are about the camera"
+    );
+    assert_eq!(
+        frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
+        frame::index_badge(Some(&build), &nodeless, None)
+            .expect("a held refusal badges")
+            .subject(),
+        "and one seam does not speak with two voices: the click it \
+         refused is the line's, the build it refused is the toolbar's, \
+         and the subject is the seam's"
+    );
+
+    assert_eq!(
+        frame::store_refusal(&keeps_nothing.refusal()).subject(),
+        frame::prefs_badge(Some(&keeps_nothing))
+            .expect("a store that keeps nothing badges")
+            .subject(),
+        "and the preferences subject is the third: a write that failed \
+         is the line's, a store that can never be written is the \
+         toolbar's"
+    );
+
+    // The silence of each new member, so the `None` is a row like the
+    // rest of the family's.
+    assert_eq!(frame::scene_badge(None), None, "a scene that built");
+    assert_eq!(
+        frame::index_badge(None, &nodeless, None),
+        None,
+        "a cache holding no refusal"
+    );
+    assert_eq!(
+        frame::projection_badge(None),
+        None,
+        "a camera that projects"
+    );
+}
+
+/// **A pick-index refusal that follows from a failed node is drawn
+/// under that node's row, and names it.**
+///
+/// The index is built over every root, so a root with no value
+/// refuses it. The node whose failure caused that is already on screen
+/// as the tree's one loud row; the badge used to outrank it
+/// (`Actionable`, at the top of the window) and to name the root it
+/// refused on instead of the row carrying the cause. Every expected
+/// value here is a literal: a row comparing the badge against another
+/// rendering of the same refusal would not notice the badge naming the
+/// wrong node.
+#[test]
+fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
+    let tol = Tol::witness();
+    let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
+
+    // A POISONED root: the extrude fails and the transform over it is
+    // the root the index refuses on. The badge names the extrude.
+    let (doc, extrude, moved) = common::broken_document(tol);
+    assert_ne!(extrude, moved, "the root over the failure is another node");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let refusal = common::index_at(&session, common::plate_delta())
+        .expect_err("a poisoned root refuses the index");
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        badge.label(),
+        format!(
+            "pick index: waits on Extrude {}, which failed — {consequence}",
+            test_utils::refusal::tag(extrude.0)
+        ),
+        "the row the tree blames, not the root the build refused on"
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
+    assert_eq!(
+        badge.detail(),
+        Some(
+            format!(
+                "pick index: {}",
+                pncad::document::Said(
+                    &refusal,
+                    pncad::document::Speaker::of(session.landed_pair().expect("landed").0)
+                )
+            )
+            .as_str()
+        ),
+        "the index's own words are kept, as the tooltip, said from the landed document"
+    );
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::status_of(&rows, extrude).tone(),
+        frame::Tone::Actionable,
+        "the cause is the loud one"
+    );
+
+    // A FAILED root beside a healthy one — the shape of the report,
+    // where the Boolean the kernel refused is itself a root. The
+    // healthy root's picks go with it, which is what the label says.
+    let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
+    let (doc, healthy_profile) = common::framed_square(&empty, 0.04, tol);
+    let (doc, healthy) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: healthy_profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, broken_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, broken) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: broken_profile,
+            distance: Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    assert_ne!(healthy, broken, "two roots");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let refusal = common::index_at(&session, common::plate_delta())
+        .expect_err("one failed root refuses the whole index");
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        badge.label(),
+        format!(
+            "pick index: waits on Extrude {}, which failed — {consequence}",
+            test_utils::refusal::tag(broken.0)
+        )
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
+    assert_eq!(
+        badge.detail(),
+        Some(
+            format!(
+                "pick index: Extrude {} could not be indexed: pick: this node failed, so \
+                 it has no value — fix the node's own failure",
+                test_utils::refusal::tag(broken.0)
+            )
+            .as_str()
+        ),
+        "the tooltip says the root was not indexed and the standing says why"
+    );
+
+    // The refusals that are the index's own keep their tone and their
+    // words — and so does a standing refusal with no evaluation to
+    // find its cause in, since there is then no row it can defer to.
+    let own = pickindex::PickIndexError::DrawnTwice {
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+    };
+    let badge =
+        frame::index_badge(Some(&own), session.doc(), session.landed_pair()).expect("it badges");
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(badge.label(), format!("pick index: {own}"));
+    let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
+    assert_eq!(unread.tone(), frame::Tone::Actionable);
+    assert_eq!(unread.label(), format!("pick index: {refusal}"));
+
+    // A root that NEVER RAN, with an evaluation in hand: the tree draws
+    // it `Unevaluated` and `Advisory`, so there is no loud row above it
+    // to defer to, and quieting it would hide the only news there is.
+    let absent = RecipeNodeId(tagged(99));
+    assert!(
+        session
+            .evaluation()
+            .expect("landed")
+            .result(absent)
+            .is_none(),
+        "the fixture's absent id is absent"
+    );
+    let never_ran = pickindex::PickIndexError::Node {
+        node: absent,
+        error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
+    };
+    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.landed_pair())
+        .expect("it badges");
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(
+        badge.label(),
+        "pick index: root 000000000063 could not be indexed: pick: this node has no result in \
+         this evaluation: the run was canceled before it reached the node — \
+         re-evaluate the document to completion"
+    );
+}
+
+/// **The one path where the tree's blame and the index's words part**:
+/// a root the placement solve left without a pose because another mate
+/// in its group refused. The evaluation reports the root `Failed` in
+/// its own right, so the index's words say the ROOT failed; the tree
+/// draws the root downstream of the mate the fault blames, and the
+/// badge names that mate, because that is the row a reader can act on.
+#[test]
+fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("vnews-derived-mate", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let offender = common::commit_mate(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
+    );
+    let refusal = common::index_at(&session, common::asm::delta())
+        .expect_err("a root the solve refused refuses the index");
+    let pickindex::PickIndexError::Node {
+        node: root,
+        error: NodePickError::Standing(NodeStanding::Failed { node: failed }),
+    } = &refusal
+    else {
+        panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
+    };
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        (*root, *failed),
+        (bench.shelf_i, bench.shelf_i),
+        "the index's words name the root, which failed"
+    );
+    assert_ne!(offender, *root, "and the root is not the mate");
+    assert_eq!(
+        badge.label(),
+        format!(
+            "pick index: waits on Mate {}, which failed — until the index builds, no pick \
+             is answered and the picture is not redrawn",
+            test_utils::refusal::tag(offender.0)
+        ),
+        "the mate the tree blames, not the root the index's words name"
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
+}
+
+/// **What the line could not do with a seam refusal.**
+///
+/// The defect the three moves close, and it is an ORDERING one: the
+/// status line is painted in the toolbar, earlier in `update` than the
+/// panes that write these sentences, and `perform_batch` runs after
+/// both. So on every frame whose batch acted cleanly the `Clear` took
+/// the sentence before any frame drew it, and the chrome said nothing
+/// about a picture it could not draw for as long as the user kept
+/// acting.
+///
+/// **The badge half of that is a type fact and not an assertion**:
+/// `frame::apply` and `frame::deliver` write only the line, so no
+/// verdict of either kind can reach a badge. What the rows above pin is
+/// the badge's subject and its silence; what this one pins is the sweep
+/// it is out of.
+#[test]
+fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+
+    // A camera sentence, of the shape the projection refusal used to
+    // have, and the frame's own verdict on a clean acting batch.
+    let mut status = Some(frame::Message::new(
+        frame::Subject::Camera,
+        format!("projection: {projection}"),
+        frame::Retold::Again,
+    ));
+    let acting = [SessionOp::Undo];
+    let verdict = frame::frame_status(&[], &acting, None);
+    assert_eq!(
+        verdict,
+        RankedVerdict::Clear,
+        "an act the document accepted makes every standing complaint \
+         stale — including one about a picture that is still not drawn"
+    );
+    frame::apply(&mut status, verdict);
+    assert_eq!(
+        status, None,
+        "which is the sweep the seam refusals are now out of"
+    );
+
+    // And the read is unchanged by any of it: the fault is the same
+    // fault, so the toolbar says the same thing.
+    assert_eq!(
+        frame::projection_badge(Some(&projection)).map(|b| b.subject()),
+        Some(frame::Subject::Camera),
+    );
+}
+
+/// **The expiry-issuer roster names exactly the subjects with one.**
+///
+/// `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` had no reader anywhere,
+/// tests included, so the claim it makes about the vocabulary was
+/// prose in a `const`. It is a claim about MESSAGES — a badge asks no
+/// issuer for anything — and the two policies that issue are the only
+/// two there are.
+#[test]
+fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let clean = viewer::camera::Folded {
+        camera,
+        applied: vec![CameraOp::Orbit {
+            yaw: 0.2,
+            pitch: 0.1,
+        }],
+        refused: None,
+    };
+    let issued: Vec<frame::Subject> = [
+        frame::fold_status(&clean),
+        frame::cursor_status(IdStep::Void),
+        frame::cursor_status(IdStep::Ask { serial: 7 }),
+        frame::cursor_status(IdStep::Hold),
+    ]
+    .into_iter()
+    .filter_map(|update| match update {
+        StatusUpdate::Expire(subject) => Some(subject),
+        _ => None,
+    })
+    .collect();
+
+    for subject in frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER {
+        assert!(
+            issued.contains(&subject),
+            "{subject:?} is named as having an issuer and no policy issues it"
+        );
+    }
+    for subject in issued {
+        assert!(
+            frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER.contains(&subject),
+            "{subject:?} is issued by a policy and the roster does not name it"
+        );
+    }
+}
+
+/// **The rank-2 join's subject, including the arm nothing reached.**
+///
+/// `joined_subject`'s disagreeing arm is the one reviewable call in
+/// this unit and had no row: mutating its fallback left every other
+/// row green.
+#[test]
+fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
+    let acted = [SessionOp::Select(Selection::None)];
+    let cursor =
+        |text: &str| frame::Message::new(frame::Subject::Cursor, text, frame::Retold::Again);
+
+    // Agreeing notices keep the subject, so the joined line is still
+    // retired by that subject's own event.
+    let RankedVerdict::Show(shown) =
+        frame::frame_status(&[cursor("one"), cursor("two")], &acted, None)
+    else {
+        panic!("two notices are news");
+    };
+    assert_eq!(shown.subject(), frame::Subject::Cursor);
+    let mut status = Some(shown);
+    frame::deliver(
+        &mut Vec::new(),
+        &mut status,
+        frame::cursor_status(IdStep::Ask { serial: 3 }),
+    );
+    assert_eq!(
+        status, None,
+        "and it really is retired by that event, not merely labelled"
+    );
+
+    // Disagreeing notices fall back, because no single recurring event
+    // can retire a sentence about several things at once: expiring the
+    // whole line on a cursor move would delete the clause that was not
+    // about the cursor.
+    let mixed = [
+        cursor("the picking paths disagree"),
+        frame::tool_news(
+            "blend: the held edges are on another body",
+            frame::Retold::Again,
+        ),
+    ];
+    let RankedVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
+        panic!("two notices are news");
+    };
+    assert_eq!(
+        shown.subject(),
+        frame::Subject::Document,
+        "the fallback, and it is the conservative one: `Document` has \
+         no `Expire` issuer, so the joined line is swept only by an act \
+         the document accepts"
+    );
+    let mut status = Some(shown);
+    frame::deliver(
+        &mut Vec::new(),
+        &mut status,
+        frame::cursor_status(IdStep::Ask { serial: 4 }),
+    );
+    assert!(
+        status.is_some(),
+        "a cursor move must not take the half of the line that was not \
+         about the cursor"
+    );
+}
+
+/// **The two populations `crates/viewer/README.md` certifies, counted
+/// from the sources rather than by hand.**
+///
+/// Both are universals with a sweep rule written at the claim, and a
+/// rule with a hand-written number beside it is a measurement: §Q6
+/// says it owes a guard, a scheduled re-measure, or a written reason
+/// it can have neither. The completeness ARGUMENT — `Badge`'s fields
+/// and constructors private to `frame`, `ViewerApp::store` private to
+/// `app` — says the population is closed; it says nothing about the
+/// count staying right, and the store count shipped WRONG (it said
+/// four, counting `store.load()` on the local binding in the
+/// constructor, which is not a read of the field). This row is that
+/// guard.
+///
+/// **It runs the stated rule, not a proxy for it.** The badge rule
+/// ranges over what a function RETURNS, so the scan is over return
+/// types and takes multi-line headers (the #2055 lesson); the store
+/// rule ranges over reads of the FIELD, so the scan is over
+/// `self.store`, which is the only spelling a field read has.
+#[test]
+fn the_readme_counts_its_two_populations_correctly() {
+    let dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
+    let readme = std::fs::read_to_string(dir.join("README.md")).expect("the crate README");
+
+    // Every `frame` door that yields a badge, by return type. `Badge`
+    // has no public constructor, so this is the whole family.
+    let frame = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/frame.rs")).expect("frame.rs"),
+    );
+    // `Badge` must END there: `-> BadgeSite` is a door that returns a
+    // POLICY about a badge, and a prefix match counts it as one more
+    // badge. The three bracketed spellings already close themselves.
+    let bare_badge = frame
+        .match_indices("-> Badge")
+        .filter(|(at, needle)| {
+            frame[at + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        })
+        .count();
+    let badge_doors = frame.matches("-> Option<Badge>").count()
+        + bare_badge
+        + frame.matches("-> Vec<Badge>").count()
+        + frame.matches("-> [Badge").count();
+    assert_eq!(badge_doors, 11, "the badge family");
+    assert!(
+        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
+        "the README states the badge population as a word and it must be the counted one"
+    );
+
+    // Every read of `ViewerApp`'s store field. The field is private to
+    // `app`, so this file is the whole population.
+    let app = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/app.rs")).expect("app.rs"),
+    );
+    let store_reads = app.matches("self.store").count();
+    assert_eq!(store_reads, 3, "reads of ViewerApp::store");
+    assert!(
+        readme.contains("only `PrefsStore` value — three"),
+        "and the README states that population as a word too"
+    );
+}
+
+/// **Every badge's silence is a row now**, which is the whole reason
+/// the family became a vocabulary: the checks badge's "only when there
+/// are findings" rule used to be an `&&` inside a `ui` closure, where
+/// no test could reach it and nothing but a human eye said whether it
+/// was right.
+#[test]
+fn a_badge_that_has_nothing_to_say_says_nothing() {
+    assert_eq!(frame::at_rest_badge(None), None, "no verdict, no badge");
+    assert_eq!(
+        frame::checks_badge(None),
+        None,
+        "nothing landed, or the registry refused"
+    );
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
+            findings: Vec::new(),
+            skipped: Vec::new(),
+        })),
+        None,
+        "checked and fine is not a finding — the rule that lived in a \
+         `ui` closure until this type existed"
+    );
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
+            findings: Vec::new(),
+            skipped: vec![CheckId::Connectedness],
+        })),
+        None,
+        "and a SKIPPED check does not light it either: not checked and \
+         checked-and-found-something are different answers, and the \
+         window is where that distinction is drawn"
+    );
+    assert_eq!(frame::delta_badge(None, M), None, "the user's own δ");
+    assert_eq!(
+        frame::product_badge(None, &Doc::empty_derived("badge", Tol::witness())),
+        None
+    );
+    assert_eq!(
+        frame::prefs_badge(None),
+        None,
+        "a store that keeps preferences says nothing about keeping them"
+    );
+    assert_eq!(
+        frame::datums_badge(0),
+        None,
+        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
+    );
+    assert_eq!(
+        frame::profiles_badge(0),
+        None,
+        "every committed profile drew, or there are none — the same zero"
+    );
+    assert_eq!(
+        frame::held_edges_badge(None, None),
+        None,
+        "nothing held, or a held body the index names whole"
+    );
+}
+
+/// A refusal of one of `target`'s drawn edges' names, as
+/// `PickIndex::edge_names_in` answers it.
+fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+    pickindex::EdgeNamesRefused {
+        node: target.node,
+        body: target.body,
+        first: common::unnamed_edge(target.node, target.body),
+        named: 11,
+        refused: 1,
+    }
+}
+
+/// **One fault, one subject.** A drawn edge the index cannot name is
+/// badged on the held mark and said on the line by the refused load,
+/// and both wear the document's subject: the names are the document's
+/// evaluation's, so what can change the answer is an edit the document
+/// accepts, not another index build over the same table.
+#[test]
+fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
+    let target = BlendTarget {
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+    };
+    let refused = unnamed_on(target);
+    let spelled = frame::Spelled {
+        doc: None,
+        value: refused.clone(),
+    };
+    let badge = frame::held_edges_badge(Some(&spelled), None).expect("a refusal badges");
+    let line = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }),
+        None,
+    );
+    assert_eq!(badge.subject(), frame::Subject::Document);
+    assert_eq!(line.subject(), badge.subject());
+}
+
+/// **A held-edge refusal speaks its node only from the document it is
+/// spelled in.** The viewport made it last frame; an `Open` since then
+/// lands another document, which may hold the same id as another node,
+/// so the badge says the tag there rather than that document's label.
+#[test]
+fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let (landed, _) = session.landed_pair().expect("landed");
+    let refused = unnamed_on(viewer::blend::BlendTarget {
+        node: extrude,
+        body: 0,
+    });
+    let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
+        frame::held_edges_badge(Some(spelled), Some(landed))
+            .expect("a refusal badges")
+            .label()
+            .to_owned()
+    };
+    let own = label(&frame::Spelled::in_landed(refused.clone(), Some(landed)));
+    assert!(
+        own.contains(&landed.spoken(extrude).to_string()) && own.contains("Extrude"),
+        "spoken from the document it is spelled in: {own}"
+    );
+    let other: Doc<ProfileProgram> = Doc::empty_derived("another", tol);
+    let foreign = label(&frame::Spelled::in_landed(refused.clone(), Some(&other)));
+    assert_eq!(
+        foreign,
+        format!("held edges: the mark may leave some out — {refused}"),
+        "a refusal spelled in another document is said by its tags"
+    );
+}
+
+/// **The profiles badge counts, in agreeing words, and says it is the
+/// document's.** One and two are the two nouns; the subject is the
+/// document because no camera move brings an undrawable arc back.
+#[test]
+fn the_profiles_badge_counts_what_it_could_not_draw() {
+    for (undrawn, label) in [
+        (
+            1,
+            "profiles: 1 profile with an arc the viewport cannot draw",
+        ),
+        (
+            2,
+            "profiles: 2 profiles with an arc the viewport cannot draw",
+        ),
+    ] {
+        let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
+        assert_eq!(badge.label(), label);
+        assert_eq!(badge.subject(), frame::Subject::Document);
+        assert_eq!(
+            badge.tone(),
+            frame::Tone::Advisory,
+            "no camera move brings the arc back"
+        );
+    }
+}
+
+/// **The datums badge says how many, and says it in agreeing
+/// words.**
+///
+/// The count is the whole content: the picture already shows nothing,
+/// and what a reader cannot get from it is that there was something
+/// to show. The noun agreeing with the number is not a flourish —
+/// "1 datums" reads as a sentence nobody wrote, beside eight badges
+/// that were.
+#[test]
+fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
+    let one = frame::datums_badge(1).expect("one vanished datum badges");
+    assert_eq!(
+        one.label(),
+        "datums: 1 datum this view draws nothing of",
+        "the singular"
+    );
+    assert_eq!(
+        one.tone(),
+        frame::Tone::Actionable,
+        "a reader can move the camera and get them back"
+    );
+    assert_eq!(
+        one.subject(),
+        frame::Subject::Camera,
+        "what makes the count the wrong answer is the camera moving"
+    );
+    assert_eq!(
+        one.affordance(),
+        frame::Affordance::Read,
+        "there is no window of findings behind it"
+    );
+    assert_eq!(
+        frame::datums_badge(4)
+            .expect("four vanished datums badge")
+            .label(),
+        "datums: 4 datums this view draws nothing of",
+        "the plural"
+    );
+}
+
+/// The tone split is the actionable-or-not rule, stated by a value
+/// rather than picked at four call sites — the rule `pane::features`
+/// argues explicitly for poisoned rows and that nothing used to say.
+#[test]
+fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 4 }))
+        .expect("a certified assembly badges");
+    assert_eq!(
+        certified.tone(),
+        frame::Tone::Advisory,
+        "good news is a report: {}",
+        certified.label()
+    );
+    assert!(
+        certified.label().starts_with("at rest: "),
+        "{}",
+        certified.label()
+    );
+    assert!(certified.label().contains('4'), "{}", certified.label());
+
+    let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
+        message: "the gate declined to certify".to_owned(),
+    }))
+    .expect("a refusal badges");
+    assert_eq!(
+        refused.tone(),
+        frame::Tone::Actionable,
+        "and the reader is the only one who can answer a refusal"
+    );
+    assert!(
+        refused.label().ends_with("the gate declined to certify"),
+        "the typed refusal's own words, unaltered: {}",
+        refused.label()
+    );
+
+    let fitted = FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
+    assert_eq!(
+        frame::delta_badge(Some(&fitted), M),
+        None,
+        "a fit with nothing to say is the second half of this badge's \
+         `None`, and it used to be a second condition at the call site"
+    );
+
+    // A store that keeps nothing is the family's purest ADVISORY: the
+    // theme applies on screen either way and nothing a reader can do
+    // inside the session gives the store somewhere to write. It is
+    // also the row that holds the label to the store's own words
+    // rather than to prose the chrome composes about them.
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
+    let kept = frame::prefs_badge(Some(&keeps_nothing)).expect("this state badges");
+    assert_eq!(
+        kept.tone(),
+        frame::Tone::Advisory,
+        "there is nothing to act on: {}",
+        kept.label()
+    );
+    assert_eq!(
+        kept.label(),
+        format!("preferences: {keeps_nothing}"),
+        "the badge names itself and renders the store's own words"
+    );
+    assert!(
+        kept.label().contains(&keeps_nothing.because),
+        "the store's reason reaches the reader: {}",
+        kept.label()
+    );
+    assert_eq!(kept.detail(), None, "a label, and the label says it all");
+}
+
+/// The checks badge is a BUTTON, and that is ratified rather than
+/// incidental: a tooltip is the wrong home for text a reader needs to
+/// keep open while they act on it, because it is gone the moment the
+/// pointer moves toward the feature it names. A uniformity pass over
+/// the family must not flatten it, so the value says so.
+#[test]
+fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
+    let report = ChecksReport {
+        document: DocumentId(1),
+        findings: vec![CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(tagged(3)),
+            output_ix: 0,
+            evidence: CheckEvidence::Connectedness {
+                actual: 2,
+                expected: 1,
+            },
+        }],
+        skipped: Vec::new(),
+    };
+    let badge = frame::checks_badge(Some(&report)).expect("a finding badges");
+    assert_eq!(badge.affordance(), frame::Affordance::Opens);
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(badge.label(), "checks: 1 finding(s)");
+    assert!(
+        badge.detail().is_some(),
+        "and it says what opening it does — the hover is the invitation, \
+         never the findings themselves"
+    );
+    assert!(
+        !badge.label().contains("component"),
+        "the findings' own sentences live in the window it opens, so the \
+         badge composes no prose about them: {}",
+        badge.label()
+    );
+
+    // The other three, each NAMED and each required to be present. The
+    // previous spelling ran `.flatten()` over a list whose
+    // `product_badge(NoBodyRoots)` entry is `None` by design and whose
+    // δ member was missing altogether: it promised three labels and
+    // asserted about one, and stayed green with either affordance
+    // flipped.
+    let node = RecipeNodeId(tagged(2));
+    let collision = ProductError::Naming {
+        node,
+        name: Box::new(StableName {
+            kind: EntityKind::Face,
+            node,
+            path: Vec::new(),
+        }),
+    };
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+        probe_triangles: 137_000,
+        largest_probe: 125_000,
+        stop: scene::ProbeStop::Converged,
+    };
+    for (which, badge) in [
+        (
+            "at rest",
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+        ),
+        (
+            "product",
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
+        ),
+        ("δ", frame::delta_badge(Some(&budget), M)),
+        (
+            "preferences",
+            frame::prefs_badge(Some(&Absent.unusable().expect("this store keeps nothing"))),
+        ),
+    ] {
+        let badge = badge.unwrap_or_else(|| panic!("the {which} badge is drawn for this input"));
+        assert_eq!(
+            badge.affordance(),
+            frame::Affordance::Read,
+            "the {which} badge is a label, not a control: {}",
+            badge.label()
+        );
+    }
+}
+
+#[test]
+fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
+    // The first-light defect (#1097, a WSL distro): with no portal
+    // service and no zenity, `rfd` returns the same bare `None` a
+    // cancel does, and the app dropped it — Open/Save As "silently do
+    // nothing". The probe's decision logic is a pure function of the
+    // two readings, so these rows hold whatever is on the CI box's
+    // PATH.
+    use platform::{ChooserBackend, SessionBus, Zenity};
+    assert_eq!(
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
+        ChooserBackend::ZenityPresent
+    );
+    assert_eq!(
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
+        ChooserBackend::ZenityPresent,
+        "zenity needs no portal"
+    );
+    assert_eq!(
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
+        ChooserBackend::PortalPossible,
+        "a session bus makes a portal POSSIBLE — a hint, never a verdict"
+    );
+    assert_eq!(
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
+        ChooserBackend::Absent
+    );
+}
+
+#[test]
+fn the_chooser_verdict_is_unusable_only_when_absent_and_says_why_itself() {
+    // The gate and its reason are ONE answer: a control disabled over
+    // this value shows the `Some`'s words, so an arm that answered
+    // `Some` with no dialog missing would disable a working door with
+    // a false reason, and one that answered `None` with none possible
+    // is #1097's dead click.
+    use platform::ChooserBackend;
+    assert_eq!(ChooserBackend::ZenityPresent.unusable(), None);
+    assert_eq!(
+        ChooserBackend::PortalPossible.unusable(),
+        None,
+        "a portal is a hint, and a hint attempts the dialog"
+    );
+    assert!(
+        ChooserBackend::Absent.unusable().is_some(),
+        "the one arm the chrome disables the dialogs over, and it says why"
+    );
+}
+
+#[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
+    );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
+}
+
+#[test]
+fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
+    // The other half of the same defect: the event stream now carries
+    // cursor events, so "the stream was non-empty" stopped meaning "the
+    // camera moved" — and landing a fold that moved nothing cleared the
+    // status line on every hovering frame.
+    let camera = common::framed(4.0 / 3.0);
+    let viewport = ViewportSize {
+        width_px: 800.0,
+        height_px: 600.0,
+    };
+    let map = InputMap::default();
+    let cursor_only = [
+        input::ViewportEvent::Hover {
+            pos_px: [10.0, 20.0],
+        },
+        input::ViewportEvent::Leave,
+    ];
+    let folded = input::fold_events(&map, &camera, viewport, &cursor_only);
+    assert!(
+        !frame::folded_moved(&folded),
+        "cursor events denote no camera operation"
+    );
+
+    let orbit = [input::ViewportEvent::Drag {
+        button: input::PointerButton::Middle,
+        shift: false,
+        alt: false,
+        delta_px: [12.0, 0.0],
+    }];
+    let moved = input::fold_events(&map, &camera, viewport, &orbit);
+    assert!(frame::folded_moved(&moved));
+    assert!(matches!(
+        moved.applied.first(),
+        Some(CameraOp::Orbit { .. })
+    ));
+}
+
+// --- the id query's bookkeeping ------------------------------------
+
+/// What the viewport hands the log for a picture built at `revision`
+/// from the index at `generation`.
+fn subject(revision: u64, generation: Generation) -> IdSubject {
+    IdSubject {
+        revision,
+        generation: Some(generation),
+    }
+}
+
+#[test]
+fn the_id_query_is_asked_once_per_cursor_and_re_asked_when_the_picture_moves() {
+    let mut log = IdQueryLog::new();
+    let asked_about = subject(1, Generation::FIRST);
+    let IdStep::Ask { serial: first } = log.step(Some([10.0, 20.0]), asked_about) else {
+        panic!("the first look at a cursor asks");
+    };
+    assert_eq!(log.outstanding(), Some(first));
+    assert_eq!(
+        log.step(Some([10.0, 20.0]), asked_about),
+        IdStep::Hold,
+        "a still cursor over an unchanged picture asks nothing"
+    );
+    let IdStep::Ask { serial: moved } = log.step(Some([11.0, 20.0]), asked_about) else {
+        panic!("a moved cursor asks again");
+    };
+    assert_ne!(moved, first);
+    // The picture changing under a STILL cursor is also a new question:
+    // the answer is about what is drawn, not only about the pointer.
+    let IdStep::Ask { serial: repainted } =
+        log.step(Some([11.0, 20.0]), subject(2, Generation::FIRST.next()))
+    else {
+        panic!("a new generation re-asks");
+    };
+    assert_ne!(repainted, moved);
+}
+
+/// **Both halves of the subject, one direction each.**
+///
+/// The query's answer is an id the GPU read out of ONE picture and the
+/// viewport resolves through ONE index's id map, and the two move
+/// independently: `ViewerApp::sync_scene` rebuilds on a display or
+/// focus change at a standing generation, and a rebuild it REFUSES
+/// leaves a landed index beside the picture already on screen. So a key
+/// carrying either half alone holds a question that should be re-asked
+/// — silently, because a held query keeps the last answer MATCHED and
+/// the disagreement check then compares two pictures and reports two
+/// picking paths.
+#[test]
+fn a_new_picture_and_a_new_index_each_re_ask_on_their_own() {
+    let cursor = Some([10.0, 20.0]);
+    let mut log = IdQueryLog::new();
+    let IdStep::Ask { serial: opened } = log.step(cursor, subject(1, Generation::FIRST)) else {
+        panic!("the first look at a cursor asks");
+    };
+
+    // Hiding a part: a rebuilt picture at the generation already in
+    // hand. Keyed on the generation alone this is a `Hold`.
+    let IdStep::Ask { serial: repainted } = log.step(cursor, subject(2, Generation::FIRST)) else {
+        panic!("a new picture at one generation re-asks");
+    };
+    assert_ne!(repainted, opened);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST)),
+        IdStep::Hold,
+        "and the re-asked question is held once it is asked"
+    );
+
+    // An index landing over a refused rebuild: a new generation at the
+    // picture still on screen. Keyed on the revision alone this is a
+    // `Hold`.
+    let IdStep::Ask { serial: landed } = log.step(cursor, subject(2, Generation::FIRST.next()))
+    else {
+        panic!("a new index at one picture re-asks");
+    };
+    assert_ne!(landed, repainted);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST.next())),
+        IdStep::Hold,
+        "and that one is held once it is asked too"
+    );
+}
+
+#[test]
+fn leaving_the_pane_voids_the_outstanding_answer() {
+    // The defect: leaving issued no query, reset no serial, and left
+    // the last answer matched — so the comparison fired every frame
+    // against a hover that had been cleared, printing the exact message
+    // issue #1097 §4 tells the operator to read as a clear-value fault.
+    let mut log = IdQueryLog::new();
+    let asked_about = subject(1, Generation::FIRST);
+    assert!(matches!(
+        log.step(Some([10.0, 20.0]), asked_about),
+        IdStep::Ask { .. }
+    ));
+    assert!(log.outstanding().is_some());
+    assert_eq!(log.step(None, asked_about), IdStep::Void);
+    assert_eq!(
+        log.outstanding(),
+        None,
+        "nothing is outstanding once the pointer is gone"
+    );
+    // And coming back asks fresh rather than reusing the void answer.
+    assert!(matches!(
+        log.step(Some([10.0, 20.0]), asked_about),
+        IdStep::Ask { .. }
+    ));
+}
+
+// --- the two paths' agreement, by name ------------------------------
+
+/// The channel word the GPU side writes.
+fn answer(serial: u32, id: u32) -> u64 {
+    u64::from(serial) << 32 | u64::from(id)
+}
+
+/// **The status line tells two tied faces apart.**
+///
+/// A refusal whose whole subject is that two answers cannot be
+/// separated cannot render them as the same words. The kernel's own
+/// message numbers its faces by name alone — `StableName`'s `Display`
+/// omits the role path on purpose, so two faces of ONE node come out
+/// as one phrase twice, and the ordinal is all a reader has. That is
+/// right for the kernel, whose typed payload carries the path; it is
+/// not enough on a status line, where there is no payload to open.
+///
+/// So `frame::pick_refusal` renders each tied face the way
+/// `idpass::Disagreement` does — kind and minting node, then the role
+/// path. The premise is asserted first: these two names really do
+/// render identically through `Display` alone.
+#[test]
+fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    let index = plate_index(&session);
+    let (landed, _) = session.landed_pair().expect("landed");
+    let names: Vec<StableName> = index
+        .ids()
+        .ids()
+        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .cloned()
+        .collect();
+    let first = names.first().expect("the plate draws a face").clone();
+    let second = names
+        .iter()
+        .find(|name| name.path != first.path && name.to_string() == first.to_string())
+        .expect("the plate draws two faces of one node, which render as one phrase")
+        .clone();
+    let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
+        name,
+        node: index.parts().first().expect("a part").node(),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
+    let refusal = pickindex::PickError::HitTest(pncad::select::HitTestError::Ambiguous {
+        hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
+    });
+
+    // The premise: by name alone the two faces are one phrase.
+    assert_eq!(
+        first.to_string(),
+        second.to_string(),
+        "the two faces render identically through `Display` alone"
+    );
+
+    let text = frame::pick_refusal(&refusal, landed).text().to_owned();
+    let rendered = |name: &StableName| {
+        idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string()
+    };
+    assert!(
+        text.contains("minted by Extrude"),
+        "each tied face's minter is said as the landed document holds it: {text}"
+    );
+    assert!(
+        text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
+        "each tied face is rendered with its role path: {text}"
+    );
+    assert_ne!(
+        rendered(&first),
+        rendered(&second),
+        "and the two renderings differ, which is the whole point"
+    );
+    assert!(
+        !text.contains("PickHit"),
+        "a refusal's message is prose, not a struct dump: {text}"
+    );
+}
+
+#[test]
+fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    let index = plate_index(&session);
+    let hit = index
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.01, 0.01),
+        )
+        .expect("no refusal")
+        .expect("a hit");
+    let id = *index
+        .ids_of(&hit.name)
+        .first()
+        .expect("the picked face is drawn");
+
+    // Agreement: same face, no verdict.
+    assert_eq!(
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            Ok(std::slice::from_ref(&hit.name))
+        ),
+        None
+    );
+    // A stale answer is not a verdict at all — nor is one with nothing
+    // outstanding, which is the leave case.
+    assert_eq!(
+        idpass::disagreement(&index, answer(6, id), Some(7), Ok(&[])),
+        None
+    );
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), None, Ok(&[])),
+        None
+    );
+    // Nothing under the cursor on both sides is agreement.
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Ok(&[])),
+        None
+    );
+    // A real disagreement reports both sides.
+    let report = idpass::disagreement(
+        &index,
+        answer(7, IdMap::NOTHING),
+        Some(7),
+        Ok(std::slice::from_ref(&hit.name)),
+    )
+    .expect("nothing vs a face is a disagreement");
+    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
+    assert_eq!(report.from_ray, vec![hit.name.clone()]);
+    assert!(report.to_string().contains("disagree"));
+
+    // **A certified tie the id pass chose inside is NOT a
+    // disagreement.** The kernel said these two faces cannot be
+    // ordered; the rasterizer picking one of them is depth rounding,
+    // not a contradiction. A name from OUTSIDE the tie still is one,
+    // and the sentence says the ray path was tied.
+    let others: Vec<_> = index
+        .ids()
+        .ids()
+        .filter_map(|any| index.name_of(any).and_then(|n| n.as_ref().ok()))
+        .filter(|name| **name != hit.name)
+        .cloned()
+        .collect();
+    let second = others
+        .first()
+        .expect("the plate draws a second face")
+        .clone();
+    let outside = others
+        .iter()
+        .find(|name| **name != second)
+        .expect("the plate draws a third face")
+        .clone();
+    let tied = [hit.name.clone(), second];
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&tied)),
+        None,
+        "the id pass named one of the tied faces, which is agreement"
+    );
+    let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
+    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), Ok(&tied))
+        .expect("a face outside the tie is a disagreement");
+    assert_eq!(report.from_ray, tied.to_vec());
+    assert!(
+        report.to_string().contains("tied between"),
+        "the sentence says the ray path was tied: {report}"
+    );
+}
+
+/// **An id the index draws but cannot name is said as that id, in the
+/// naming layer's own words.** No document plants the naming layer's
+/// bug arm, so the state is built directly: the id side of a
+/// disagreement, holding the refusal the index would have stored.
+/// The sentence is fixed here, and the refusal rides through its own
+/// `Display` once, unaltered — and that `Display` names the lookup
+/// that built the index, not a hit test, because none ran.
+#[test]
+fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
+    let error = UnnamedEntity {
+        node: RecipeNodeId(tagged(2)),
+        entity: editor_core::names::EntityRef {
+            body: 0,
+            key: editor_core::names::EntityKey::Body,
+        },
+    };
+    let report = idpass::Disagreement {
+        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
+        from_ray: Vec::new(),
+    };
+    let sentence = report.to_string();
+    assert_eq!(
+        sentence,
+        format!(
+            "picking paths disagree at the cursor: id buffer id 9, a drawn patch: {error}, ray nothing"
+        )
+    );
+    assert!(!sentence.contains("hit test"), "{sentence}");
+}
+
+/// **The diagnostic's subject is the PATCH under the cursor, and the
+/// hover stopped being that answer when edges became pickable.**
+///
+/// The id buffer can only ever name a patch. With the cursor inside
+/// the edge radius the hover names an EDGE, so feeding the hover
+/// compares two different questions and reports a disagreement on
+/// every such frame — which is what the first half below pins, as the
+/// defect rather than as the behaviour. The second half is the fix:
+/// `face_under_cursor` answers the id buffer's own question, and there
+/// is no verdict.
+#[test]
+fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = session.evaluation().expect("landed");
+    let pane = ViewportSize {
+        width_px: 1280.0,
+        height_px: 720.0,
+    };
+    let aspect = pane.aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+
+    // A cursor ON a drawn edge of the plate: the priority rule answers
+    // with the edge, and the GPU would answer with the patch behind it.
+    let (cursor, edge) = index
+        .edges_in(extrude, 0)
+        .iter()
+        .find_map(|&id| {
+            let points = index.edge_polyline_for(id, &DisplayView::none());
+            if points.len() < 2 {
+                return None;
+            }
+            let at = (points.len() - 1) / 2;
+            let mid = Point3::new(
+                (points[at].x + points[at + 1].x) * 0.5,
+                (points[at].y + points[at + 1].y) * 0.5,
+                (points[at].z + points[at + 1].z) * 0.5,
+            );
+            let ndc = camera.project(mid, aspect).ok()??;
+            let cursor = pane.cursor_of([ndc[0], ndc[1]])?;
+            let hovered = index.hovered_at(eval, &camera, pane, cursor).ok()?;
+            match hovered {
+                Some(Hovered::Edge(edge)) => Some((cursor, edge)),
+                _ => None,
+            }
+        })
+        .expect("some drawn edge of the plate is hoverable from its own midpoint");
+
+    // One face under an ordinary edge cursor, the two faces the edge
+    // divides where the cursor is on their shared pixels — the ray
+    // path's whole answer either way, which is what the id buffer's
+    // cross-check is compared against.
+    let faces = index
+        .faces_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
+        .expect("the cursor un-projects");
+    let face = faces
+        .first()
+        .expect("an edge is only reachable where its body is, so a face is under it too");
+    let id = *index
+        .ids_of_target(face)
+        .first()
+        .expect("the face under the cursor is drawn");
+    let named: Vec<StableName> = faces.iter().map(|face| face.name.clone()).collect();
+
+    // The defect, pinned: the hover's name against the patch's.
+    assert!(
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            Ok(std::slice::from_ref(&edge.name))
+        )
+        .is_some(),
+        "an edge name against a patch name is two questions, and the check cannot know it"
+    );
+    // The fix: the ray side answers the question the id buffer asked.
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&named)),
+        None,
+        "the face under the cursor is what the id buffer named"
+    );
+}
+
+#[test]
+fn one_name_drawn_twice_is_not_a_disagreement() {
+    // The false positive the id comparison used to produce: the same
+    // face drawn under two roots has two ids, and comparing ids called
+    // that a fault. Names are the currency the property is about.
+    let tol = Tol::witness();
+    let (doc, _left, right) = two_placements(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let index = plate_index(&session);
+    let hit = index
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.115, 0.01),
+        )
+        .expect("no refusal")
+        .expect("the right placement is hit");
+    assert_eq!(hit.node, right);
+    let ids = index.ids_of(&hit.name);
+    assert!(
+        ids.len() > 1,
+        "the fixture must draw one name twice, got {ids:?}"
+    );
+    // The GPU answers the OTHER copy's id; both name the same face.
+    let other = ids
+        .iter()
+        .copied()
+        .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
+        .expect("a second occurrence");
+    assert_eq!(
+        idpass::disagreement(
+            &index,
+            answer(3, other),
+            Some(3),
+            Ok(std::slice::from_ref(&hit.name))
+        ),
+        None,
+        "two ids of one name are the same answer"
+    );
+}
+
+fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
+    FaceSelection {
+        name: hit.name.clone(),
+        node: hit.node,
+        body: hit.body,
+    }
+}
+
+/// Two `Transform` roots over one extrude: both drawn copies carry the
+/// extrude's names, because a transform contributes no role segment.
+fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    let place = |doc: &Doc<ProfileProgram>, x: f64| {
+        common::inserted(
+            doc,
+            Node::transform(
+                extrude,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(x), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
+            tol,
+        )
+    };
+    let (doc, left) = place(&doc, 0.0);
+    let (doc, right) = place(&doc, 0.1);
+    (doc, left, right)
+}
+
+// --- the highlight, scoped ------------------------------------------
+
+#[test]
+fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
+    let tol = Tol::witness();
+    let (doc, left, right) = two_placements(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let index = plate_index(&session);
+    let hit = index
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.115, 0.01),
+        )
+        .expect("no refusal")
+        .expect("a hit on the right placement");
+    let face = face_of(&hit);
+    // The narrowing is to ONE id, not merely to a smaller set: a node's
+    // name table is a bijection, so a name denotes at most one entity of
+    // one body. A wider answer here would be a naming-emission bug, and
+    // this row is where it would show.
+    assert_eq!(
+        index.ids_of_target(&face).len(),
+        1,
+        "the name table's bijection makes the scoped answer unique"
+    );
+    assert!(
+        index.ids_of(&face.name).len() > 1,
+        "the name is drawn twice"
+    );
+    let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
+    let key = index
+        .ids()
+        .key_of(marked.selected)
+        .expect("the mark names a patch");
+    assert_eq!((key.node, key.body), (right, hit.body));
+    assert_ne!(key.node, left);
+
+    // And every id in the right placement belongs to it.
+    for id in index.ids_in(right, hit.body) {
+        let key = index.ids().key_of(*id).expect("a drawn id");
+        assert_eq!(key.node, right);
+    }
+    assert!(!index.ids_in(right, hit.body).is_empty());
+    assert!(index.ids_in(RecipeNodeId(tagged(9999)), 0).is_empty());
+}
+
+// --- the rebuild loop, across the index seam -------------------------
+
+/// An [`InlineIndexer`] that counts what reaches it.
+///
+/// The receipt for *at most one attempt per (generation, δ)*: with the
+/// build behind a seam, a cache that submits on every frame and a
+/// cache that submits once are indistinguishable from the outside —
+/// both end with one index — unless something counts the submits.
+struct CountingIndexer {
+    inner: InlineIndexer,
+    submits: Arc<AtomicUsize>,
+}
+
+impl CountingIndexer {
+    fn new() -> (Box<Self>, Arc<AtomicUsize>) {
+        let submits = Arc::new(AtomicUsize::new(0));
+        (
+            Box::new(Self {
+                inner: InlineIndexer::new(),
+                submits: Arc::clone(&submits),
+            }),
+            submits,
+        )
+    }
+}
+
+impl IndexService for CountingIndexer {
+    fn submit(&mut self, request: IndexRequest) {
+        self.submits.fetch_add(1, Ordering::Relaxed);
+        self.inner.submit(request);
+    }
+
+    fn poll(&mut self) -> Option<IndexDone> {
+        self.inner.poll()
+    }
+
+    fn busy(&self) -> bool {
+        self.inner.busy()
+    }
+}
+
+/// **An unsettled δ submits nothing, and drops the index it held.**
+///
+/// The window between a document landing and the display budget's
+/// answer for it: there is a run to index and no number to index it
+/// at. Submitting at the δ still in force would build the very picture
+/// the budget exists to avoid paying for — the whole un-budgeted
+/// tessellation — so the cache is told `None` and takes the
+/// nothing-to-index way out.
+///
+/// The second half is the one a reader would doubt: the index of the
+/// PREVIOUS document must go, on the frame this one lands, and not
+/// survive the fit answering picks about a document nobody is looking
+/// at. "Current or absent, never behind" is the same rule here as on a
+/// submit, and `PickCache::forget` is where both get it.
+#[test]
+fn an_unsettled_delta_submits_nothing_and_drops_the_index_it_held() {
+    let tol = Tol::witness();
+    let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (seam, submits) = CountingIndexer::new();
+    let mut cache = PickCache::new(seam);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert!(cache.index().is_some());
+    assert_eq!(submits.load(Ordering::Relaxed), 1);
+
+    assert_eq!(
+        cache.sync(session.index_inputs(), None),
+        CacheStep::Nothing,
+        "a landing with no δ settled for it is nothing to index",
+    );
+    assert!(
+        cache.index().is_none(),
+        "and the index held for the previous picture is gone, not left \
+         answering picks while the budget decides",
+    );
+    assert!(!cache.indexing(), "nothing is outstanding either");
+    assert_eq!(
+        submits.load(Ordering::Relaxed),
+        1,
+        "no build was put on the worker at a δ nobody has chosen",
+    );
+
+    // And the δ arriving is an ordinary submit: the attempt the forget
+    // cleared is not held against it.
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(submits.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
+    // The defect: a failed or poisoned root is an ordinary editing
+    // state, and the app's guard stayed false forever afterwards — so
+    // every repainted frame re-tessellated every healthy root before
+    // reaching the failing one, behind a picture already stale.
+    //
+    // The policy now has a seam under it, so the row counts SUBMITS:
+    // the frames a stalled cache would have spent are frames it must
+    // not put work on the worker for either.
+    let tol = Tol::witness();
+    let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (seam, submits) = CountingIndexer::new();
+    let mut cache = PickCache::new(seam);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Current
+    );
+    assert!(cache.index().is_some());
+    assert!(cache.error().is_none());
+    assert_eq!(submits.load(Ordering::Relaxed), 1);
+
+    // Break the document so the root refuses to evaluate.
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(0.0),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(
+        cache.pump(),
+        vec![IndexLanding::Refused],
+        "a failed root refuses the index"
+    );
+    assert!(cache.error().is_some(), "the refusal is readable");
+    assert!(
+        cache.index().is_none(),
+        "and the index built for the document before the break is gone"
+    );
+    // **A refusal is an ANSWER.** The attempt keeps the picture it was
+    // made for — which is what the two `Held` steps below read — and
+    // stops being outstanding, which is what this reads. The two facts
+    // are one value's key and one value's state, and a chrome that
+    // promised an answer here would spin `indexing…` until the
+    // document moved.
+    assert!(
+        !cache.indexing(),
+        "a refusal answers the attempt; nothing is owed and nothing is \
+         being built"
+    );
+    // The frame after, and the frame after that: HELD. This is the
+    // whole row — before the fix, both of these were another full
+    // rebuild attempt.
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Held,
+        "a refused build is not retried on the next frame"
+    );
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Held
+    );
+    assert!(cache.pump().is_empty(), "and nothing was sent to answer");
+    assert_eq!(
+        submits.load(Ordering::Relaxed),
+        2,
+        "two pictures, two attempts — not one per frame"
+    );
+
+    // The same state is what the gather refuses on, and the tree badges
+    // the node — two channels, both saying something true.
+    assert!(
+        session.product_fault().is_some(),
+        "a failed root is a gather refusal too"
+    );
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .any(|row| matches!(row.status, viewer::tree::RowStatus::Failed { .. })),
+        "and the node itself badges"
+    );
+}
+
+#[test]
+fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let (seam, submits) = CountingIndexer::new();
+    let mut cache = PickCache::new(seam);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    // δ is part of the key: the parts are the tessellations the picture
+    // is drawn from.
+    let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(coarser)),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(coarser)),
+        CacheStep::Current
+    );
+
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(coarser)),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(submits.load(Ordering::Relaxed), 3);
+}
+
+#[test]
+fn a_cache_with_nothing_landed_has_nothing_to_do() {
+    let tol = Tol::witness();
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
+    // No `pump`, so nothing has landed.
+    let session = DocSession::inline(doc, tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Nothing
+    );
+    assert!(cache.index().is_none());
+    assert!(!cache.indexing());
+}
+
+/// **The window the seam creates, and what is in it.** Between the
+/// submit and the answer the cache holds NO index — not the previous
+/// one — so there is nothing a pick could be answered from, which is
+/// the whole reason the answer is allowed to arrive late.
+#[test]
+fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    let first = cache.index().expect("the plate indexes").generation();
+
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert!(
+        cache.index().is_none(),
+        "the index for the previous document is dropped at the SUBMIT, \
+         not when its replacement lands"
+    );
+    assert!(cache.indexing(), "and the chrome has something to say");
+    // Asked again on the next frame: still waiting, and nothing is
+    // resubmitted.
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Indexing
+    );
+
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert!(!cache.indexing());
+    let second = cache
+        .index()
+        .expect("the edited plate indexes")
+        .generation();
+    assert_ne!(first, second, "and the index that landed is the new one");
+}
+
+/// **The one arm where "current or absent, never behind" could break,
+/// and the only one that can produce a CONFIDENTLY WRONG pick.**
+///
+/// Every other transition swaps one picture's key for another's, so a
+/// late answer meets a key it does not match and is discarded. A
+/// `New document` (or an `Open`) under a build that is still with the
+/// seam leaves NO next key: the session's landed run is gone. Before
+/// `PickCache::forget`, the vanished picture's key stayed on the cache
+/// and the in-flight build matched it on arrival — installing the
+/// index of the document that was just replaced, over the scene of the
+/// one before THAT, with nothing running, nothing on the status line
+/// and no way to self-correct until the newly-opened document landed.
+#[test]
+fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+
+    // An edit lands, and its index build is submitted but not answered
+    // — the window this seam creates.
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert!(cache.index().is_none());
+
+    // The document is replaced mid-build. The session's landed run
+    // goes with it, so there is no picture for the outstanding build
+    // to be the index OF.
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Nothing
+    );
+    assert!(
+        !cache.indexing(),
+        "nothing the chrome should promise an answer for",
+    );
+
+    // The build finishes. It must be discarded, not installed.
+    assert_eq!(
+        cache.pump(),
+        vec![IndexLanding::Stale],
+        "an index of the replaced document is not an index of anything on screen",
+    );
+    assert!(
+        cache.index().is_none(),
+        "and no pick can be answered from it",
+    );
+    assert!(cache.error().is_none());
+
+    // The new document lands: an ordinary fresh attempt, not a state
+    // the cache has to be talked out of.
+    session.pump();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+}
+
+/// **The ordinary half of the same replacement**, which the row above
+/// cannot reach: a CURRENT index and no build in flight when the
+/// document is replaced.
+///
+/// The two rows constrain different halves of `PickCache::forget`.
+/// There, `index` and `error` are already `None` — the submit that
+/// opened the window cleared them — so only the attempt's two fields
+/// are doing anything. Here nothing is outstanding and the index is
+/// the live one, so it is the `index` field alone that decides whether
+/// a pick after the replacement is answered from the document that was
+/// just replaced.
+#[test]
+fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Current
+    );
+    assert!(cache.index().is_some());
+
+    let mut session = session;
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert!(!cache.indexing(), "nothing was outstanding to begin with");
+
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Nothing
+    );
+    assert!(
+        cache.index().is_none(),
+        "the picture is the replaced document's, and a pick answered from \
+         it would name entities of a document nobody can see",
+    );
+}
+
+/// **The confidently-wrong answer this seam makes possible**, refused.
+/// A build finishing for a generation the session has moved past is
+/// exactly what restart-without-cancel produces, and installing it
+/// would answer picks against a document that is gone.
+#[test]
+fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let stale = plate_index(&session);
+    assert_eq!(
+        stale.generation(),
+        session.landed_generation().expect("a generation")
+    );
+
+    let mut cache = PickCache::inline();
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+
+    let landing = cache.land(IndexDone {
+        key: PictureKey::of(stale.generation(), common::plate_delta()),
+        memo: MemoReport::default(),
+        index: Ok(stale),
+    });
+    assert_eq!(landing, IndexLanding::Stale);
+    assert!(
+        cache.index().is_none(),
+        "a pick answered from that index would name entities of a document \
+         nobody is looking at"
+    );
+    assert!(
+        cache.indexing(),
+        "and the build actually asked for is still owed"
+    );
+}
+
+/// The same refusal on the sharper half of the key: the document is
+/// RIGHT and only the δ is wrong, so a check that compared generations
+/// alone would install this one without complaint.
+#[test]
+fn an_answer_built_at_another_delta_is_discarded_too() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let coarse = plate_index(&session);
+    let generation = session.landed_generation().expect("a generation");
+
+    let mut cache = PickCache::inline();
+    let finer = common::plate_delta().scaled(0.5).expect("a positive delta");
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(finer)),
+        CacheStep::Submitted
+    );
+    let landing = cache.land(IndexDone {
+        key: PictureKey::of(generation, common::plate_delta()),
+        memo: MemoReport::default(),
+        index: Ok(coarse),
+    });
+    assert_eq!(
+        landing,
+        IndexLanding::Stale,
+        "same generation, other δ — the picture asked for is not this one"
+    );
+    assert!(cache.index().is_none());
+}
+
+/// **Not indexed yet is not nothing under the cursor.** A click during
+/// the window is news; the hover pushed on every frame the pointer is
+/// inside the pane is not.
+#[test]
+fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
+    let click = [input::PickAction::Select([10.0, 10.0])];
+    assert_eq!(
+        pickcache::unindexed(&click, None, true),
+        Some(pickcache::NotIndexed::Building),
+    );
+    assert_eq!(
+        pickcache::unindexed(&click, None, false),
+        Some(pickcache::NotIndexed::Absent),
+        "a refused build is not a build that is still running, and the \
+         sentence must not promise an answer that is not coming",
+    );
+    for indexing in [true, false] {
+        assert_eq!(
+            pickcache::unindexed(
+                &[
+                    input::PickAction::Hover([10.0, 10.0]),
+                    input::PickAction::ClearHover,
+                ],
+                None,
+                indexing,
+            ),
+            None,
+            "an observation asked every frame is not a refusal to report",
+        );
+        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
+    }
+    assert_ne!(
+        pickcache::NotIndexed::Building.to_string(),
+        pickcache::NotIndexed::Absent.to_string(),
+    );
+    for refusal in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
+        assert!(
+            refusal.to_string().contains("index"),
+            "and each sentence says which of the two answers it is",
+        );
+    }
+}
+
+/// **An index in hand for a picture nobody has seen is refused as
+/// itself**, not as an absence — Ev's ruling, 2026-09-15.
+///
+/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
+/// current only on a successful rebuild, so a landing over a refused
+/// one leaves a newer index beside an older picture. Answering from it
+/// selects geometry the screen is not showing; the ruling is that the
+/// click says so instead.
+///
+/// The sentence is asserted against the other two rather than quoted:
+/// what a reader needs from it is that it does not promise an arriving
+/// answer (`Building`) and does not claim there is nothing to ask
+/// (`Absent`), and a copy of the string here would go stale the first
+/// time anyone improves the wording.
+#[test]
+fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let held = plate_index(&session);
+    let click = [input::PickAction::Select([10.0, 10.0])];
+
+    assert_eq!(
+        pickcache::unindexed(&click, Some(&held), false),
+        Some(pickcache::NotIndexed::AnotherPicture),
+        "an index is in hand, so the refusal is not about an absence",
+    );
+    assert_eq!(
+        pickcache::unindexed(
+            &[
+                input::PickAction::Hover([10.0, 10.0]),
+                input::PickAction::ClearHover,
+            ],
+            Some(&held),
+            false,
+        ),
+        None,
+        "and the act filter is the same one: a hover is not news here \
+         either",
+    );
+
+    let stale = pickcache::NotIndexed::AnotherPicture.to_string();
+    for other in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
+        assert_ne!(stale, other.to_string());
+    }
+    assert!(
+        stale.contains("older"),
+        "the sentence names what is wrong with the picture, which is \
+         that it is behind the document the cursor is over",
+    );
+}
+
+/// One indicator for one wait, and the ranking that decides which.
+///
+/// The six points are the whole domain: the three states a session can
+/// owe, times the index seam's two.
+#[test]
+fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
+    assert_eq!(frame::progress(Outstanding::Current, false), None);
+    assert_eq!(
+        frame::progress(Outstanding::Evaluating, false),
+        Some(frame::Progress::Evaluating)
+    );
+    assert_eq!(
+        frame::progress(Outstanding::Canceled, false),
+        Some(frame::Progress::Canceled { indexing: false }),
+        "a spinner over no running work would be a lie",
+    );
+    assert_eq!(
+        frame::progress(Outstanding::Canceled, true),
+        Some(frame::Progress::Canceled { indexing: true }),
+        "a cancel with an index build still running is one state that \
+         carries the work, not a second indicator beside it",
+    );
+    assert_eq!(
+        frame::progress(Outstanding::Current, true),
+        Some(frame::Progress::Indexing)
+    );
+    assert_eq!(
+        frame::progress(Outstanding::Evaluating, true),
+        Some(frame::Progress::Evaluating),
+        "an index for a superseded generation is about to be discarded",
+    );
+}
+
+// --- the pairing sweep ----------------------------------------------
+
+#[test]
+fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
+    // The sibling the landed-pair fix missed: a row's badge is a
+    // statement about what a run said, so reading it off a document
+    // that run never saw describes a run that never happened.
+    let tol = Tol::witness();
+    let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let before = session.tree_rows().len();
+    assert!(before >= 2);
+
+    // Hold the seam: submit an edit and do NOT pump, so the document
+    // has moved past the landed evaluation.
+    session.perform(SessionOp::DeleteNode { node: extrude });
+    assert!(session.busy(), "a run is outstanding");
+    let rows = session.tree_rows();
+    let (landed_doc, _) = session.landed_pair().expect("a landed pair");
+    assert_eq!(
+        rows.len(),
+        landed_doc.order().len(),
+        "the tree describes the landed document, which is what is drawn"
+    );
+    session.pump();
+    assert_eq!(
+        session.tree_rows().len(),
+        before - 1,
+        "and then it catches up"
+    );
+}
+
+#[test]
+fn opening_a_document_drops_the_previous_ones_landed_run() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    assert!(session.landed_pair().is_some());
+
+    let dir = std::env::temp_dir().join("gui2-frame-open");
+    std::fs::create_dir_all(&dir).expect("a scratch dir");
+    let path = dir.join("plate.pncad");
+    let mut session = session;
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+
+    let opened = session.perform(SessionOp::Open(path.clone()));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    // Before the new run lands there is NO pair: the old one answered
+    // the previous document and would have rendered its tree and
+    // resolved the new document's names against it.
+    assert!(
+        session.landed_pair().is_none(),
+        "the previous document's run does not describe this one"
+    );
+    assert!(session.product_fault().is_none());
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .all(|row| matches!(row.status, viewer::tree::RowStatus::Unevaluated))
+    );
+    session.pump();
+    assert!(session.landed_pair().is_some(), "and the fresh run lands");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn a_well_formed_product_reports_no_fault_and_the_verdict_is_computed_once() {
+    // The gather's verdict (which channel reports which class is
+    // `frame::badge_site`'s). Nothing in the gallery refuses, so the
+    // row asserts the honest half: the verdict exists, is `None` for a
+    // good document, and is `None` before anything lands (which is not
+    // the same as "well formed").
+    let tol = Tol::witness();
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc, tol);
+    assert!(session.landed_pair().is_none());
+    assert!(session.product_fault().is_none());
+    session.pump();
+    assert!(session.landed_pair().is_some());
+    assert!(
+        session.product_fault().is_none(),
+        "the plate's product gathers: {:?}",
+        session.product_fault()
+    );
+}
+
+// --- the conversion's one home --------------------------------------
+
+#[test]
+fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
+    let viewport = ViewportSize {
+        width_px: 800.0,
+        height_px: 600.0,
+    };
+    // The corners, named: top-left is (−1, +1) because pixels count
+    // down and normalized device coordinates count up.
+    assert_eq!(viewport.ndc_of([0.0, 0.0]), Some([-1.0, 1.0]));
+    assert_eq!(viewport.ndc_of([800.0, 600.0]), Some([1.0, -1.0]));
+    assert_eq!(viewport.ndc_of([400.0, 300.0]), Some([0.0, 0.0]));
+    for px in [[0.0, 0.0], [123.0, 45.0], [800.0, 600.0]] {
+        let ndc = viewport.ndc_of(px).expect("a positive area");
+        let back = viewport.cursor_of(ndc).expect("a positive area");
+        assert!((back[0] - px[0]).abs() < 1e-9 && (back[1] - px[1]).abs() < 1e-9);
+    }
+    let empty = ViewportSize {
+        width_px: 0.0,
+        height_px: 600.0,
+    };
+    assert_eq!(empty.ndc_of([1.0, 1.0]), None);
+    assert_eq!(empty.cursor_of([0.0, 0.0]), None);
+
+    // And the camera's un-projection agrees with it, because it goes
+    // through it: the pane centre is the view axis.
+    let camera: Camera = common::framed(4.0 / 3.0);
+    let ray = camera
+        .ray_through([400.0, 300.0], viewport)
+        .expect("the centre un-projects");
+    let forward = camera.forward();
+    assert!((ray.dir.x - forward.x).abs() < 1e-12);
+    assert!((ray.dir.y - forward.y).abs() < 1e-12);
+    assert!((ray.dir.z - forward.z).abs() < 1e-12);
+}
+
+// --- the refuse-then-offer pair for an unknown parameter ------------
+
+/// **The unknown-parameter refusal carries its offer, and the frame
+/// policies hand both to the chrome.** An expression naming an
+/// undeclared parameter refuses at the parse door (typo-safety — text
+/// never creates a parameter); `creation_offer` extracts the name to
+/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// refused text back so acting on the offer does not cost the very
+/// expression that raised it.
+#[test]
+fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+
+    // The frame loop's exact shape: perform the batch, collect the
+    // preferred refusal, then ask the policies.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "margin * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert_eq!(
+        frame::creation_offer(refusal.as_ref()),
+        Some(ParamName::from_static("margin")),
+        "the offer is the undeclared name"
+    );
+    assert_eq!(
+        frame::retype_draft(&batch, refusal.as_ref()),
+        Some((extrude, SlotId::Distance, "margin * 2.0".to_owned())),
+        "and the refused draft comes back"
+    );
+
+    // A parse refusal that names NO parameter restores the draft but
+    // offers nothing to create.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "0.008 *".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_some(), "the malformed text refuses");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
+
+    // And a clean batch offers and restores nothing.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "8 mm * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_none(), "{refusal:?}");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
+}
+
+/// The XDG rules for where preferences live, held as a table.
+///
+/// Pure like the chooser probe beside it, and for the same reason:
+/// the ambient read is one line, and everything that can be WRONG
+/// here is the resolution. These rows hold whatever the CI box has in
+/// its environment.
+#[test]
+fn the_preferences_path_follows_the_xdg_rules() {
+    use std::ffi::OsStr;
+    use std::path::PathBuf;
+
+    let xdg = |c: Option<&str>, h: Option<&str>| {
+        platform::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+    };
+    let tail = PathBuf::from("pncad").join("viewer.toml");
+
+    // Set and non-empty wins outright — $HOME is not consulted.
+    assert_eq!(
+        xdg(Some("/cfg"), Some("/home/someone")),
+        Some(PathBuf::from("/cfg").join(&tail)),
+    );
+    assert_eq!(
+        xdg(Some("/cfg"), None),
+        Some(PathBuf::from("/cfg").join(&tail))
+    );
+
+    // Unset falls back to $HOME/.config, as the spec says.
+    assert_eq!(
+        xdg(None, Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+    );
+
+    // EMPTY counts as unset — the spec says so in as many words, and
+    // this is the row that matters: taking `""` as the base would
+    // build a RELATIVE path and write preferences into whatever
+    // directory the viewer was launched from.
+    assert_eq!(
+        xdg(Some(""), Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+        "an empty XDG_CONFIG_HOME is unset, not a relative base",
+    );
+    // The same trap one variable over.
+    assert_eq!(
+        xdg(Some(""), Some("")),
+        None,
+        "an empty HOME is unset too — it would be a relative path as well",
+    );
+
+    // With neither, nothing is invented. The caller's store is then
+    // unusable and says so, which is how a person learns their
+    // preferences are not being kept.
+    assert_eq!(xdg(None, None), None);
+
+    // Whatever it resolves to is absolute, which is the property the
+    // two empty-string rows above exist to protect.
+    for path in [
+        xdg(Some("/cfg"), None),
+        xdg(None, Some("/home/someone")),
+        xdg(Some(""), Some("/home/someone")),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        assert!(path.is_absolute(), "{} is not absolute", path.display());
+    }
+}
+
+/// **A superseded free move reaches the line — driven the way the
+/// frame loop drives it.**
+///
+/// The value the session computes here is the one the chrome used to
+/// drop: `OpOutcome::superseded`, which nothing outside the test suite
+/// read. This row fails if it goes silent again, and it is built from
+/// a REAL outcome — a real mate landing on a real assembly — because a
+/// hand-made `OpOutcome` would assert about a shape rather than about
+/// the path.
+#[test]
+fn a_superseded_free_move_is_news_the_ranking_shows() {
+    let tol = Tol::witness();
+    let bench = asm::bench("framepolicy-supersede", tol);
+    let mut session = asm::open_bench(&bench, tol);
+
+    // The user places the unconstrained post by hand and COMMITS it —
+    // only a committed placement is ever reported superseded.
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.04, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    assert!(
+        session.display().free_move_of(bench.post_b).is_some(),
+        "the placement is held, so there is something to discard"
+    );
+
+    // Then they mate it, and that placement is discarded under them.
+    let mate = asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    );
+    let outcome = session.perform(mate.clone());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // The mate the op landed, read off the document rather than off the
+    // fault under test.
+    let landed = *session.doc().order().last().expect("the mate landed");
+    assert!(
+        matches!(session.doc().node(landed), Some(Node::Mate { .. })),
+        "the newest node is the mate"
+    );
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.withdrawn.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate discards the hand placement"
+    );
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies.
+    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(
+        instance.id(),
+        bench.post_b,
+        "the fault names the same instance"
+    );
+    assert_eq!(
+        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        vec![landed],
+        "and names the mate that landed, which is what the line then reads"
+    );
+
+    // What the chrome does with it, in `perform_batch`'s order. The
+    // app-gated loop no row can reach is now ONE call, and this is
+    // that call rather than a hand-written mirror of it — which is the
+    // point: the mirror stood here listing two of the three producers
+    // after a third was added beside it, and a half-mirror passes
+    // while the real loop drops a kind. There is no list here to fall
+    // behind any more.
+    let notices: Vec<frame::Message> = frame::Withdrawal::all(&outcome.withdrawn)
+        .map(|withdrawal| withdrawal.notice())
+        .collect();
+    assert_eq!(
+        notices.len(),
+        1,
+        "a mate landing on a probed instance withdraws a placement and \
+         neither of the other two kinds, so they are silent here rather \
+         than absent"
+    );
+    let verdict = frame::frame_status(
+        &notices,
+        core::slice::from_ref(&mate),
+        outcome.refusal.as_ref(),
+    );
+    let RankedVerdict::Show(message) = verdict else {
+        panic!("a discarded placement is news, not silence: {verdict:?}");
+    };
+    assert!(
+        message.text().contains(&format!(
+            "InstantiatePart {}",
+            test_utils::refusal::tag(bench.post_b.0)
+        )),
+        "the line names which of the user's placements went: {message}"
+    );
+    assert_eq!(
+        message.subject(),
+        frame::Subject::Document,
+        "and it is about the document that superseded it"
+    );
+
+    // The counterfactual, so this row is not asserting about a frame
+    // where nothing had to survive anything: the SAME frame, with the
+    // supersession dropped on the floor as it used to be, clears the
+    // line instead of saying any of that.
+    assert_eq!(
+        frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
+        RankedVerdict::Clear,
+    );
+
+    // **A refusing sibling op does not take the sentence.** The same
+    // frame also carries a drag the user started on the post — which
+    // the mate that just landed has made unmovable, so it refuses. The
+    // refusal is about an op that did nothing, and the same drag says
+    // it again; nothing will ever again say that the mate took the
+    // placement. Both are on the line, the refusal first. The text is
+    // written out, so a rule that drops the supersession, or reorders
+    // the two, cannot pass by comparing the line with another
+    // rendering of itself.
+    let drag = SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    };
+    let refused = session.perform(drag.clone());
+    let refusal = refused
+        .refusal
+        .as_ref()
+        .expect("the premise: a mated instance refuses a free move");
+    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome)
+        .chain(frame::outcome_notices(&refused))
+        .collect();
+    let RankedVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    // The fault is said twice, once as why the drag refused and once
+    // as why the placement went: two typed values, each rendering
+    // itself, which is the join's rule.
+    let (post, mate_node) = (
+        test_utils::refusal::tag(bench.post_b.0),
+        test_utils::refusal::tag(landed.0),
+    );
+    assert_eq!(
+        line.text(),
+        format!(
+            "InstantiatePart {post} is mate-constrained (Mate {mate_node}): its pose is \
+             mate-derived, so the free-move probe refuses — delete the mate(s) if free \
+             relative motion is intended \u{2022} free move: a committed placement was \
+             discarded — InstantiatePart {post} is mate-constrained (Mate {mate_node}): its \
+             pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
+             free relative motion is intended"
+        )
+    );
+}
+
+/// **What rides beside a refusal is news nothing will say again** —
+/// the rule `frame::frame_status`'s ranking states, pinned in both
+/// directions through the doors the frame loop uses.
+///
+/// A tool's survival drop and its declined pick arrive through ONE
+/// door (`frame::tool_notice`), and the event's arm decides: nothing
+/// but the drop's sentence says a held pick was taken and why, so it
+/// rides beside the refusal; the declined pick and a panel's refusal
+/// are said again by the same pick or click, so they stay under it.
+/// The frame and its notices are the same in both halves of the row —
+/// only the refusal differs — so what moves is the rule and nothing
+/// else.
+#[test]
+fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::seats::{Seat, SeatEvent};
+    use viewer::tools::{ToolKind, ToolNotice};
+
+    let declined = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::OtherTarget {
+            held: BlendTarget {
+                node: RecipeNodeId(tagged(3)),
+                body: 0,
+            },
+            picked: BlendTarget {
+                node: RecipeNodeId(tagged(5)),
+                body: 0,
+            },
+        }),
+        None,
+    );
+    let dropped = frame::tool_notice(
+        &ToolNotice::Seated {
+            tool: ToolKind::Revolve,
+            event: SeatEvent::PickLost {
+                seat: Seat::RevolveProfile,
+                node: viewer::test_support::spoken(RecipeNodeId(tagged(4)), None),
+            },
+        },
+        None,
+    );
+    let panel = frame::tool_news(
+        "mate tool: no landed evaluation to derive frames from",
+        frame::Retold::Again,
+    );
+    let notices = [declined, dropped, panel];
+    let acted = [SessionOp::Select(Selection::None)];
+
+    // No refusal: rank 2, every notice, as before.
+    let RankedVerdict::Show(all) = frame::frame_status(&notices, &acted, None) else {
+        panic!("three notices are news");
+    };
+    assert_eq!(
+        all.text(),
+        "blend tool: the held edges are on node 000000000003 body 0, so the edge on node 000000000005 body 0 \
+         was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
+         pick (node 000000000004) is no longer in the document; the tool dropped it \u{2022} mate tool: \
+         no landed evaluation to derive frames from"
+    );
+
+    // A refusal: it, then the drop, and neither of the other two.
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let RankedVerdict::Show(line) = frame::frame_status(&notices, &acted, Some(&refusal)) else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} revolve tool: the profile pick (node 000000000004) is no longer in the \
+         document; the tool dropped it"
+    );
+}
+
+/// **Every typed refusal door says whether anything will say it
+/// again**, read off each door, then driven through the ranking beside
+/// a batch refusal: the ones the same act says again stay under it,
+/// and the store's, which nothing is sure to write again, rides.
+#[test]
+fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
+        camera,
+        applied: Vec::new(),
+        refused: Some((
+            CameraOp::Dolly { factor: 0.0 },
+            viewer::camera::CameraOpError::NonPositiveDolly { factor: 0.0 },
+        )),
+    }) else {
+        panic!("a refused fold is news");
+    };
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    let store = viewer::prefs::StoreError {
+        doing: "write the preferences",
+        because: "the disk is full".to_owned(),
+    };
+    let tied = |t: f64| pncad::select::PickHit {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(tagged(3)),
+            path: vec![],
+        },
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
+    let cases = [
+        ("a refused camera move", fold, frame::Retold::Again),
+        (
+            "a pick tied between faces",
+            frame::pick_refusal(
+                &pickindex::PickError::HitTest(HitTestError::Ambiguous {
+                    hits: vec![tied(1.0), tied(1.0)],
+                }),
+                &Doc::empty_derived("pick", Tol::witness()),
+            ),
+            frame::Retold::Again,
+        ),
+        (
+            "a pick the camera could not un-project",
+            frame::pick_refusal(
+                &pickindex::PickError::Camera(viewer::camera::CameraError::NotFinite {
+                    what: "x",
+                    value: f64::NAN,
+                }),
+                &Doc::empty_derived("pick", Tol::witness()),
+            ),
+            frame::Retold::Again,
+        ),
+        (
+            "a pick against an index still building",
+            frame::unindexed_refusal(&pickcache::NotIndexed::Building),
+            frame::Retold::Again,
+        ),
+        (
+            "a δ the display refused",
+            frame::delta_refusal(&delta),
+            frame::Retold::Again,
+        ),
+        (
+            "a δ field holding something that is not a number",
+            frame::delta_not_a_number("2,5", &"2,5".parse::<f64>().expect_err("not a number")),
+            frame::Retold::Again,
+        ),
+        (
+            "the picking paths disagreeing",
+            idpass::Disagreement {
+                from_gpu: idpass::IdAnswer::Nothing,
+                from_ray: Vec::new(),
+            }
+            .notice(&Doc::empty_derived("cursor", Tol::witness())),
+            frame::Retold::Again,
+        ),
+        (
+            "a refusal among the notices",
+            frame::refusal_message(&Refusal::NothingToDo {
+                direction: Step::Redo,
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "a preferences store that could not write",
+            frame::store_refusal(&store),
+            frame::Retold::Never,
+        ),
+    ];
+    for (what, message, retold) in &cases {
+        assert_eq!(message.retold(), *retold, "{what}");
+    }
+
+    let notices: Vec<frame::Message> = cases.into_iter().map(|(_, message, _)| message).collect();
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let RankedVerdict::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} preferences: could not write the preferences (the disk is \
+         full)"
+    );
+}
+
+/// **A refusal that arrives as a NOTICE stays under a batch refusal.**
+/// `frame::refusal_message` is the one door for a refusal by either
+/// route, and a refusal is news the same act says again — so a typed
+/// value the chrome refused before any op could carry it does not
+/// ride beside the refusal an op in the same frame met. The frame
+/// shows one refusal, as `Refusal::preferred` keeps one of an op
+/// batch's.
+#[test]
+fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
+    let noticed = frame::refusal_message(&Refusal::NothingToDo {
+        direction: Step::Redo,
+    });
+    assert_eq!(noticed.retold(), frame::Retold::Again);
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let RankedVerdict::Show(line) = frame::frame_status(
+        core::slice::from_ref(&noticed),
+        &[SessionOp::Undo],
+        Some(&refusal),
+    ) else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(line.text(), "nothing to undo");
+}
+
+/// **Every arm of every tool's event vocabulary answers for itself.**
+/// `a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not`
+/// drives two of them through the ranking; this one
+/// reads the answer off each of them, so an arm that flips sides
+/// goes red by name rather than waiting for a frame that happens to
+/// carry it beside a refusal.
+#[test]
+fn every_tool_event_says_whether_anything_will_say_it_again() {
+    use editor_core::{Resolution, ResolveIndeterminate};
+    use pncad::document::MateSide;
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::matetool::MateToolEvent;
+    use viewer::seats::{Seat, SeatEvent};
+    use viewer::session::FaceSelection;
+    use viewer::tools::{ToolKind, ToolNotice};
+
+    let target = BlendTarget {
+        node: RecipeNodeId(tagged(3)),
+        body: 0,
+    };
+    let face = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(3)),
+        path: vec![],
+    };
+    let cases = [
+        (
+            "mate: a held pick lost",
+            ToolNotice::Mate(MateToolEvent::PickLost {
+                side: MateSide::B,
+                node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                pick: FaceSelection {
+                    name: face.clone(),
+                    node: RecipeNodeId(tagged(3)),
+                    body: 0,
+                },
+                resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
+                    standing: NodeStanding::NotEvaluated {
+                        node: RecipeNodeId(tagged(3)),
+                    },
+                })),
+            }),
+            frame::Retold::Never,
+        ),
+        (
+            "seated: a held pick lost",
+            ToolNotice::Seated {
+                tool: ToolKind::Boolean,
+                event: SeatEvent::PickLost {
+                    seat: Seat::OperandA,
+                    node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                },
+            },
+            frame::Retold::Never,
+        ),
+        (
+            "blend: the target lost",
+            ToolNotice::Blend(BlendEvent::TargetLost {
+                target,
+                node: pncad::document::SpokenNode::absent(target.node),
+                edges: 4,
+            }),
+            frame::Retold::Never,
+        ),
+        (
+            "blend: held edges lost",
+            ToolNotice::Blend(BlendEvent::EdgesLost {
+                target,
+                names: vec![face.clone()],
+                kept: 2,
+            }),
+            frame::Retold::Never,
+        ),
+        (
+            "blend: a pick on another body declined",
+            ToolNotice::Blend(BlendEvent::OtherTarget {
+                held: target,
+                picked: BlendTarget {
+                    node: RecipeNodeId(tagged(5)),
+                    body: 0,
+                },
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door found none",
+            ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target draws edges the index cannot name",
+            ToolNotice::Blend(BlendEvent::EdgesUnnamed {
+                refused: unnamed_on(target),
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target has no value",
+            ToolNotice::Blend(BlendEvent::TargetHasNoValue {
+                target,
+                standing: NodeStanding::Failed { node: target.node },
+            }),
+            frame::Retold::Again,
+        ),
+    ];
+    for (what, notice, retold) in cases {
+        assert_eq!(frame::tool_notice(&notice, None).retold(), retold, "{what}");
+    }
+}
+
+/// **Every kind of withdrawal rides beside a refusal**, each by its own
+/// arm: a superseded placement, a dropped hide and a killed drag are
+/// each worded once, here, and a refusal in the same frame does not
+/// take the sentence. `a_superseded_free_move_is_news_the_ranking_shows`
+/// drives one of the three on a real assembly; this one holds all
+/// three, so a kind that stopped riding goes red by name.
+#[test]
+fn every_withdrawal_kind_rides_beside_a_refusal() {
+    let gone = |node: u64| Withdrawn {
+        instance: RecipeNodeId(tagged(node)),
+        cause: AdmissionFault::NoSuchNode {
+            node: SpokenNode::absent(RecipeNodeId(tagged(node))),
+        },
+    };
+    let report = PruneReport {
+        superseded: vec![gone(4)],
+        dropped_hides: vec![gone(5)],
+        killed_gesture: Some(gone(6)),
+    };
+    let notices: Vec<frame::Message> = frame::Withdrawal::all(&report)
+        .map(|withdrawal| {
+            assert_eq!(
+                withdrawal.notice().retold(),
+                frame::Retold::Never,
+                "{:?}",
+                withdrawal.kind
+            );
+            withdrawal.notice()
+        })
+        .collect();
+    assert_eq!(notices.len(), 3, "one notice per kind");
+
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let RankedVerdict::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} free move: a committed placement was discarded — node 000000000004 is \
+         not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
+         node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
+         000000000006 is not in the document"
+    );
+}
+
+/// **The δ badge reads in the working notation's length unit**, the
+/// label and the sentence behind it both: the same budget δ is
+/// `1 mm` in a millimetre notation and `0.001 m` in a metre one, so a
+/// badge that kept a fixed unit reds on one of the two.
+#[test]
+fn the_delta_badge_reads_in_the_working_length_unit() {
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+        probe_triangles: 137_000,
+        largest_probe: 125_000,
+        stop: scene::ProbeStop::Converged,
+    };
+    let in_mm = frame::delta_badge(Some(&budget), MM).expect("this state badges");
+    assert_eq!(in_mm.label(), "δ 1 mm chosen");
+    assert!(
+        in_mm
+            .detail()
+            .is_some_and(|detail| detail.starts_with("opened at δ = 1 mm: 0.001 mm needs")),
+        "{:?}",
+        in_mm.detail()
+    );
+    let in_m = frame::delta_badge(Some(&budget), M).expect("this state badges");
+    assert_eq!(in_m.label(), "δ 0.001 m chosen");
+    assert!(
+        in_m.detail()
+            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 0.000001 m needs")),
+        "{:?}",
+        in_m.detail()
+    );
+}

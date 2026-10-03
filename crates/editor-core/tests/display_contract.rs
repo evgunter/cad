@@ -1,0 +1,3507 @@
+//! **The Display contract for editor-core's façade-carried refusals**
+//! (#1111): a consumer renders a refusal through the layer's own words
+//! rather than composing a sentence about somebody else's failure, so
+//! every arm must state what happened in prose — and must never read
+//! as the `Debug` struct dump.
+//!
+//! The variant identifier and the field-name punctuation are the
+//! dump's fingerprints; asserting their ABSENCE is what keeps a future
+//! `write!(f, "{self:?}")` from passing these tests.
+//!
+//! `HitTestError`'s own contract test lives with the hit-test suite,
+//! beside the behaviour it renders.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use editor_core::ParamNameReason;
+use editor_core::mate::SurfaceKind;
+use editor_core::{
+    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
+    DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind, EvalError,
+    HitTestError, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide,
+    MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind,
+    NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault, ProgramFault,
+    ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
+};
+use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
+use geom_core::BandError;
+use test_utils::refusal::tagged;
+
+/// The gate's refusal over ONE of this document's own mates: the arm
+/// carries every row the gather recorded, and a row read here is read
+/// through the door that raises it.
+fn mint(refusal: MintRefusal) -> AssemblyError {
+    AssemblyError::Mint {
+        refusals: vec![refusal],
+    }
+}
+
+/// The `Debug` field-name punctuation **this binary can ban**, which is
+/// far short of what its refusal payloads carry.
+///
+/// Written ONCE for the binary rather than once per suite:
+/// `m4_pr4_hit`'s hit-test row goes through the same roster, and the
+/// divergence between its old one and this one is what a second
+/// spelling cost
+/// (`work/view/f6-display-predicate-is-spelled-three-times-with-no-home`).
+///
+/// **That scope is why the roster is two tokens and not twenty-odd.**
+/// It is binary-wide, so a token may be banned only if NO rendering
+/// anywhere in the binary opens on it as prose. `index:` is the live
+/// counter-example — `MeshPickError::PositionOutOfRange` renders "pick
+/// index: triangle … of patch …", which is a sentence — so `index:`
+/// is unbannable here although it is a genuine payload field name.
+/// Every other field these payloads carry is in the same position
+/// until someone checks it against all eight enums' renderings.
+///
+/// **Which scope is right.** Per-enum, as `mesh` and `topo` spell it:
+/// the ban is only as wide as the renderings it must hold against, so a
+/// per-enum roster can carry that enum's whole payload vocabulary,
+/// while a binary-wide one is bounded by the most prose-like door in
+/// the binary. This one stays binary-wide because its eight enums share
+/// one wrapper and one suite pair; splitting it is a change to make
+/// when a site needs a token this roster cannot hold, not before.
+const FIELDS: &[&str] = &["node:", "name:"];
+
+/// [`test_utils::f6::assert_f6`] with this binary's field roster.
+pub(crate) fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(
+    err: &E,
+    wants: &[&str],
+    dumps: &[&str],
+) {
+    test_utils::f6::assert_f6(err, wants, dumps, FIELDS);
+}
+
+/// [`test_utils::f6::assert_f6_every_variant`] with this binary's
+/// field roster. The weld itself — what the census guarantees, and
+/// what it still does not weld — is documented there, where the
+/// mechanism is, rather than restated per adopting suite.
+pub(crate) fn assert_f6_every_variant<E: core::fmt::Debug + core::fmt::Display>(
+    cases: &[(E, Vec<&str>)],
+    census: &test_utils::f6::VariantCensus<E>,
+    also_banned: &[&str],
+) {
+    test_utils::f6::assert_f6_every_variant(cases, census, also_banned, FIELDS);
+}
+
+/// Every [`Dimension`]'s `Debug`, which is what a refusal that names a
+/// dimension must not leak.
+///
+/// Taken off `Dimension::ALL` rather than written down, so a dimension
+/// added to the lattice is forbidden at every site that uses this
+/// without an edit — and it is ONE derivation, because two copies of
+/// it are two lists to keep in step.
+fn dimension_dump_words() -> Vec<String> {
+    Dimension::ALL
+        .iter()
+        .map(|dim| format!("{dim:?}"))
+        .collect()
+}
+
+/// Every [`Sign`](geom_core::predicate::Sign), so a ban list built from
+/// it is the whole enum rather than the signs one row happens to
+/// construct. The `match` is the exhaustiveness token: a sign added to
+/// the lattice leaves it non-exhaustive and this file stops compiling,
+/// which is what sends the author to the array beside it.
+fn all_signs() -> Vec<geom_core::predicate::Sign> {
+    use geom_core::predicate::Sign;
+    let all = vec![Sign::Negative, Sign::Zero, Sign::Positive];
+    for sign in &all {
+        match sign {
+            Sign::Negative | Sign::Zero | Sign::Positive => (),
+        }
+    }
+    all
+}
+
+/// The `&str` view of a list of derived identifier words.
+/// Node `n` as a refusal raised over a document holding it as a
+/// `kind` with no label speaks it.
+fn held(n: u64, kind: &'static str) -> SpokenNode {
+    editor_core::test_support::spoken(RecipeNodeId(tagged(n)), Some(kind))
+}
+
+fn as_strs(words: &[String]) -> Vec<&str> {
+    words.iter().map(String::as_str).collect()
+}
+
+/// A face name minted by node 7 — enough for the kind + minting-node
+/// spelling every user-facing message uses.
+fn face_name() -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(7)),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    }
+}
+
+/// [`face_name`] as a sentence speaks it over a document holding its
+/// minting node as an extrude.
+fn spoken_face_name() -> SpokenName {
+    editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
+}
+
+/// A stable name renders as its kind plus its minting node — the half
+/// a user can act on — and never its role path: a derivation is not
+/// something a person reads mid-sentence.
+#[test]
+fn stable_name_display_is_kind_plus_minting_node() {
+    let shown = face_name().to_string();
+    assert_eq!(shown, "face name minted by node 000000000007");
+    assert!(
+        !shown.contains("Cap") && !shown.contains('['),
+        "the role path leaked into prose: {shown:?}"
+    );
+}
+
+test_utils::f6_variants! {
+    /// `NodePickError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling, and writing it here
+    /// is writing it into the roster, so it then reds until it has a
+    /// case. What the weld does NOT hold is documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const NODE_PICK_ERROR: NodePickError =
+        [Standing, NotABody, NoSuchBody, Tessellate, Index];
+}
+
+#[test]
+fn node_pick_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(tagged(4));
+    let cases = [
+        (
+            NodePickError::NotABody { node },
+            vec!["node 000000000004", "not body-denoting"],
+        ),
+        (
+            NodePickError::NoSuchBody { node, body: 2 },
+            vec!["node 000000000004", "index 2"],
+        ),
+        // The standing speaks under this door's prefix; the wrapped
+        // kernel refusals are forwarded in their own doors' words, not
+        // paraphrased — prefix included.
+        (
+            NodePickError::Standing(NodeStanding::Failed { node }),
+            vec!["pick:", "node 000000000004", "failed"],
+        ),
+        (
+            NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
+                value: -1.0,
+            }),
+            vec!["tessellate:", "chordal tolerance"],
+        ),
+        (
+            NodePickError::Index(MeshPickError::PositionOutOfRange {
+                patch: 1,
+                triangle: 5,
+                index: 99,
+            }),
+            vec!["triangle 5", "patch 1", "position 99"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `NameLookupError`'s census — see [`NODE_PICK_ERROR`].
+    const NAME_LOOKUP_ERROR: NameLookupError = [EvaluationOfAnotherDocument, Standing];
+}
+
+/// The name doors' refusal of the whole call names the lookup, and
+/// then the pairing or the standing — never a hit test, which these
+/// doors do not run.
+#[test]
+fn name_lookup_error_display_names_its_content_not_its_struct() {
+    let expected = DocumentId::derive("name-lookup-expected");
+    let found = DocumentId::derive("name-lookup-found");
+    let cases = [
+        (
+            NameLookupError::EvaluationOfAnotherDocument(Mispaired { expected, found }),
+            vec![
+                "name lookup:".to_owned(),
+                format!("of document {found}, not of document {expected}"),
+                "two documents".to_owned(),
+            ],
+        ),
+        (
+            NameLookupError::Standing(NodeStanding::Poisoned {
+                node: RecipeNodeId(tagged(6)),
+                through: RecipeNodeId(tagged(2)),
+            }),
+            vec![
+                "name lookup:".to_owned(),
+                "node 000000000006".to_owned(),
+                "poisoned".to_owned(),
+                "node 000000000002".to_owned(),
+            ],
+        ),
+    ];
+    let cases: Vec<(NameLookupError, Vec<&str>)> = cases
+        .iter()
+        .map(|(e, want)| (*e, want.iter().map(String::as_str).collect()))
+        .collect();
+    assert_f6_every_variant(&cases, &NAME_LOOKUP_ERROR, &["Mispaired"]);
+    for (refusal, _) in &cases {
+        assert!(
+            !refusal.to_string().contains("hit test"),
+            "no hit test ran: {refusal}"
+        );
+    }
+}
+
+/// The name doors' per-entity refusal is a LOOKUP's, and its sentence
+/// says so: it names the lookup, the entity by kind and body, and the
+/// bug it is — and it names no hit test, because none ran.
+/// `NodePick::patch_names` and `boundary_names` build their index by
+/// a table read, and the viewer forwards this sentence whole into a
+/// status line about a drawn patch or edge, so a "hit test:" here
+/// would be a claim about an event that did not happen. The hit-test
+/// door's own arm forwards this sentence under its own prefix
+/// (`m4_pr4_hit`'s row), which is the one place that prefix is true.
+#[test]
+fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
+    let unnamed = UnnamedEntity {
+        node: RecipeNodeId(tagged(2)),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(topo::EdgeKey::default()),
+        },
+    };
+    assert_f6(
+        &unnamed,
+        &[
+            "name lookup:",
+            "node 000000000002",
+            "edge",
+            "body 0",
+            "kernel bug",
+        ],
+        &["UnnamedEntity", "Unnamed"],
+    );
+    let text = unnamed.to_string();
+    assert!(
+        !text.contains("hit test"),
+        "the lookup's sentence claims no hit test: {text}"
+    );
+    assert_eq!(
+        HitTestError::from(unnamed).to_string(),
+        format!("hit test: {text}"),
+        "the hit-test door forwards the lookup's sentence whole, under its own prefix"
+    );
+}
+
+test_utils::f6_variants! {
+    /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
+    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Failed, Poisoned];
+}
+
+/// The standing names itself — the node, its state, where the repair
+/// is — and no door: every door that carries it puts its own subject
+/// in front (`node_standing`'s rows hold that half).
+#[test]
+fn node_standing_display_names_its_content_and_no_door() {
+    let node = RecipeNodeId(tagged(6));
+    let cases = [
+        (
+            NodeStanding::NotEvaluated { node },
+            vec!["node 000000000006", "no result", "canceled", "re-evaluate"],
+        ),
+        (
+            NodeStanding::NotInDocument { node },
+            vec!["node 000000000006", "not a node of the document"],
+        ),
+        (
+            NodeStanding::Failed { node },
+            vec!["node 000000000006", "failed", "own failure"],
+        ),
+        (
+            NodeStanding::Poisoned {
+                node,
+                through: RecipeNodeId(tagged(2)),
+            },
+            vec![
+                "node 000000000006",
+                "poisoned",
+                "node 000000000002",
+                "upstream",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
+    for (standing, _) in &cases {
+        let text = standing.to_string();
+        for door in [
+            "hit test",
+            "pick",
+            "lookup",
+            "export",
+            "select",
+            "reference",
+        ] {
+            assert!(
+                !text.contains(door),
+                "the standing names no door ({door}): {text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn resolve_indeterminate_display_names_its_content_not_its_struct() {
+    assert_f6(
+        &ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: RecipeNodeId(tagged(6)),
+                through: RecipeNodeId(tagged(2)),
+            },
+        },
+        &[
+            "indeterminate",
+            "minting node",
+            "node 000000000006",
+            "poisoned",
+            "node 000000000002",
+            "upstream",
+        ],
+        &["ResolveIndeterminate", "Poisoned", "standing:"],
+    );
+}
+
+test_utils::f6_variants! {
+    /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
+}
+
+#[test]
+fn declare_error_display_names_its_content_not_its_struct() {
+    let cases = [
+        (
+            DeclareError::NoFindings,
+            vec!["no findings", "records no intent"],
+        ),
+        // The wrapping arm forwards the document edit's problem and
+        // states its own recourse: the caller passed findings, and the
+        // edit door's "name an entity" is about a node nobody wrote.
+        (
+            DeclareError::Edit(EditError::DeclareNamesMissingNode {
+                name: SpokenName::absent(face_name()),
+            }),
+            vec![
+                "the document edit refused",
+                "refers to a node that is not live",
+                "Recourse: declare findings inspected from this document as it now stands",
+            ],
+        ),
+        (
+            DeclareError::NoMintedId,
+            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
+    ///
+    /// `pub(crate)` because `lib_u5_interrogate` welds the ladder rungs
+    /// it drives against this same roster. A census of its own there
+    /// would be a second list of the same enum's identifiers: rustc
+    /// keeps both in step, so they could not drift, but the enum has
+    /// one roster in this binary and this is it.
+    pub(crate) const INTERROGATE_ERROR: InterrogateError = [
+        Standing,
+        NoSuchName,
+        Ambiguous,
+        WrongKind,
+        WholeBody,
+        NoBodies,
+        NoSuchBody,
+        Readback,
+    ];
+}
+
+#[test]
+fn interrogate_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(tagged(7));
+    let through = RecipeNodeId(tagged(3));
+    let cases = [
+        (
+            InterrogateError::Standing(NodeStanding::Poisoned { node, through }),
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
+        ),
+        (InterrogateError::NoSuchName, vec!["stale", "another node"]),
+        (
+            InterrogateError::Ambiguous { candidates: 4 },
+            vec!["4 entities", "no single geometry"],
+        ),
+        // Kinds render as prose nouns, never `Debug`.
+        (
+            InterrogateError::WrongKind {
+                wanted: EntityKind::Face,
+                found: EntityKind::Edge,
+            },
+            vec!["kind mismatch", "reads face", "denotes edge"],
+        ),
+        (
+            InterrogateError::WholeBody,
+            vec!["whole body", "faces, edges, or vertices"],
+        ),
+        (
+            InterrogateError::NoBodies { payload: "datum" },
+            vec!["datum", "no bodies"],
+        ),
+        (
+            InterrogateError::NoSuchBody { index: 2 },
+            vec!["index 2", "kernel bug"],
+        ),
+        // The kernel's own words are forwarded, not paraphrased.
+        (
+            InterrogateError::Readback(topo::ReadbackError::NoCarrier),
+            vec!["scaffolding", "tier 2 refuses at rest"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);
+}
+
+/// `SelectRefusal`'s exhaustiveness token — **the one here that the
+/// compiler does not keep**. `SelectRefusal` carries
+/// `#[non_exhaustive]`, so a `match` outside `editor-core` is REQUIRED
+/// to carry a wildcard arm and rustc checks nothing about the arms
+/// above it: a variant added to the enum compiles fine here. What the
+/// arms still buy is the other half — a variant renamed or removed
+/// breaks the pattern and the file stops compiling, exactly as for the
+/// six ordinary enums. Only ADDITION is unchecked, and the wildcard
+/// below does not repair it: reaching the panic needs a case that
+/// constructs the new variant, which is the vacuity this file exists to
+/// close. The census beside the enum, inside the crate where the
+/// attribute does not apply (`crates/editor-core/src/names/geompred.rs`,
+/// `mod census`), holds the enum's VARIANT SET; nothing ties this
+/// file's hand-written roster below, or its rendering cases, to that
+/// census, so a variant added there still reaches this file only by
+/// hand. The other six are not weakened to match this one.
+fn select_refusal_is_exhaustive(e: &SelectRefusal) {
+    match e {
+        SelectRefusal::InBand { .. }
+        | SelectRefusal::TiedDisagrees { .. }
+        | SelectRefusal::Unreadable { .. }
+        | SelectRefusal::NotADatum { .. }
+        | SelectRefusal::DatumHasNoValue(_)
+        | SelectRefusal::NodeHasNoValue(_)
+        | SelectRefusal::NotALength { .. }
+        | SelectRefusal::PairInBand { .. }
+        | SelectRefusal::BadValue(_)
+        | SelectRefusal::Band(_)
+        | SelectRefusal::DistinctFinding(_) => (),
+        other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
+    }
+}
+
+/// `SelectRefusal`'s census, built by hand rather than by
+/// [`test_utils::f6_variants!`] — the ONE site in this tree that
+/// cannot use the macro, for the reason stated on
+/// [`select_refusal_is_exhaustive`]: the macro writes a wildcard-free
+/// `match`, which a `#[non_exhaustive]` enum from another crate does
+/// not permit. So the token and the roster are two spellings here, as
+/// they were everywhere before, and only a rename or a removal is
+/// rustc's.
+const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
+    test_utils::f6::VariantCensus::hand_written(
+        select_refusal_is_exhaustive,
+        &[
+            "InBand",
+            "TiedDisagrees",
+            "Unreadable",
+            "NotADatum",
+            "DatumHasNoValue",
+            "NodeHasNoValue",
+            "NotALength",
+            "PairInBand",
+            "BadValue",
+            "Band",
+            "DistinctFinding",
+        ],
+    );
+
+/// An in-band margin with a named predicate — the shape a selection
+/// refusal carries out of the funnel.
+fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
+    geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::value(3e-11),
+        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
+        predicate: Some(predicate),
+        terminal_sliver: false,
+    }
+}
+
+#[test]
+fn select_refusal_display_names_its_content_not_its_struct() {
+    // `NotALength` states the dimension it read, and states it as a
+    // word, so the dimension identifiers are banned here too.
+    let dimension_words = dimension_dump_words();
+    let also_banned = as_strs(&dimension_words);
+
+    let cases = [
+        (
+            SelectRefusal::InBand {
+                name: Box::new(face_name()),
+                predicate: editor_core::SEL_DATUM_DISTANCE,
+                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+            },
+            vec![
+                "face",
+                "node 000000000007",
+                "neither certified in nor out",
+                "ambiguity band",
+                editor_core::SEL_DATUM_DISTANCE,
+            ],
+        ),
+        (
+            SelectRefusal::TiedDisagrees {
+                name: Box::new(face_name()),
+                matched: 1,
+                candidates: 3,
+            },
+            vec!["face", "node 000000000007", "3 candidates", "1 match"],
+        ),
+        (
+            SelectRefusal::Unreadable {
+                name: Box::new(face_name()),
+                error: InterrogateError::WholeBody,
+            },
+            vec!["face", "node 000000000007", "whole body"],
+        ),
+        (
+            SelectRefusal::NotADatum {
+                datum: RecipeNodeId(tagged(9)),
+                found: "a body",
+            },
+            vec!["node 000000000009", "a body", "evaluated datum"],
+        ),
+        (
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(tagged(9)),
+                through: RecipeNodeId(tagged(4)),
+            }),
+            vec![
+                "distance query's datum",
+                "node 000000000009",
+                "poisoned",
+                "node 000000000004",
+            ],
+        ),
+        (
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(tagged(9)),
+            }),
+            vec!["flush query's node", "node 000000000009", "failed"],
+        ),
+        (
+            SelectRefusal::NotALength {
+                dim: Dimension::Angle,
+            },
+            vec!["distance is a distance", "dimension angle"],
+        ),
+        // The detector's pair-shaped sibling of `InBand`: it names the
+        // PAIR, and says that detection reports only definite findings.
+        (
+            SelectRefusal::PairInBand {
+                pair: Box::new((face_name(), face_name())),
+                predicate: "bool_plane_side_of",
+                source: in_band("bool_plane_side_of"),
+            },
+            vec![
+                "the pair (",
+                "face",
+                "node 000000000007",
+                "neither certified in nor out",
+                "only definite findings",
+            ],
+        ),
+        (
+            SelectRefusal::BadValue(EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            }),
+            vec![
+                "the stated value did not evaluate",
+                "does not evaluate as a count",
+            ],
+        ),
+        // The F6 shape only; the arm's REACHABILITY and the payload
+        // it must forward are pinned through the real doors in
+        // `wire_band_cause`, which is where a `BandError` can be
+        // obtained from `Band::linear` rather than written down.
+        (
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["ambiguity band", "ambient tolerance", "not below"],
+        ),
+        (
+            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
+            vec!["DISTINCT carriers", "no finding carries"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
+}
+
+test_utils::f6_variants! {
+    /// `ResolveFault`'s census — see [`NODE_PICK_ERROR`].
+    const RESOLVE_FAULT: ResolveFault = [PinMismatch, EpsilonSeam, Unresolved];
+}
+
+#[test]
+fn resolve_fault_display_names_its_content_not_its_struct() {
+    let cases = [
+        (
+            ResolveFault::PinMismatch,
+            vec!["pin does not hold", "never retargeted silently"],
+        ),
+        (
+            ResolveFault::EpsilonSeam,
+            vec!["recorded tolerance", "one process, one ε"],
+        ),
+        (
+            ResolveFault::Unresolved,
+            vec!["did not resolve", "unknown id"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &RESOLVE_FAULT, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ParseError`'s census — see [`NODE_PICK_ERROR`].
+    const PARSE_ERROR: ParseError = [
+        UnexpectedChar,
+        UnexpectedEnd,
+        UnexpectedToken,
+        TrailingInput,
+        MalformedNumber,
+        IntegerOverflow,
+        UnknownUnit,
+        UnknownFunction,
+        WrongArity,
+        UnknownParam,
+        Dimension,
+    ];
+}
+
+#[test]
+fn parse_error_display_names_its_content_not_its_struct() {
+    let cases = [
+        (
+            ParseError::UnexpectedChar { pos: 3, ch: '#' },
+            vec!["byte 3", "alphabet"],
+        ),
+        (
+            ParseError::UnexpectedEnd {
+                pos: 5,
+                expected: "an operand",
+            },
+            vec!["byte 5", "an operand"],
+        ),
+        (
+            ParseError::UnexpectedToken {
+                pos: 2,
+                found: ")".to_string(),
+                expected: "an operand",
+            },
+            vec!["byte 2", "an operand"],
+        ),
+        (
+            ParseError::TrailingInput {
+                pos: 8,
+                found: "mm".to_string(),
+            },
+            vec!["byte 8", "complete expression"],
+        ),
+        (
+            ParseError::MalformedNumber {
+                pos: 0,
+                text: "1e".to_string(),
+            },
+            vec!["byte 0", "malformed"],
+        ),
+        (
+            ParseError::IntegerOverflow {
+                pos: 0,
+                text: "9223372036854775808".to_string(),
+            },
+            vec!["byte 0", "counts are exact"],
+        ),
+        (
+            ParseError::UnknownUnit {
+                pos: 4,
+                symbol: "furlong".to_string(),
+            },
+            vec!["byte 4", "unit table is closed"],
+        ),
+        (
+            ParseError::UnknownFunction {
+                pos: 0,
+                name: "tanh".to_string(),
+            },
+            vec!["byte 0", "not a function"],
+        ),
+        (
+            ParseError::WrongArity {
+                pos: 0,
+                name: "atan2",
+                expected: 2,
+                found: 1,
+            },
+            vec!["byte 0", "atan2", "2 argument", "with 1"],
+        ),
+        (
+            ParseError::UnknownParam {
+                pos: 0,
+                name: "width".to_string(),
+            },
+            vec!["byte 0", "not a parameter"],
+        ),
+        // The text door forwards the smart constructor's own refusal
+        // and adds only the position, so the dimension checker's words
+        // are what a reader sees.
+        (
+            ParseError::Dimension {
+                pos: 6,
+                error: DimensionError::MulNeedsScalar {
+                    left: Dimension::Length,
+                    right: Dimension::Length,
+                },
+            },
+            vec!["byte 6", "needs a scalar operand", "length x length"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &PARSE_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ParamNameReason`'s census — see [`NODE_PICK_ERROR`]. The
+    /// lexer's finding inside `ParamNameFault`, which is what
+    /// `ParamName::new` refuses with.
+    const PARAM_NAME_REASON: ParamNameReason = [
+        Blank,
+        OutsideAlphabet,
+        NotAnIdentifier,
+        NotOneToken,
+        Padded,
+    ];
+}
+
+#[test]
+fn param_name_reason_display_names_its_content_not_its_struct() {
+    let cases = [
+        (ParamNameReason::Blank, vec!["blank", "one identifier"]),
+        (
+            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+            vec!["byte 5", "'#'", "outside the expression alphabet"],
+        ),
+        (
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: "1".to_string(),
+            },
+            vec!["byte 0", "\"1\"", "not an identifier"],
+        ),
+        (
+            ParamNameReason::NotOneToken {
+                pos: 1,
+                found: "+".to_string(),
+            },
+            vec!["byte 1", "\"+\"", "after the identifier"],
+        ),
+        (ParamNameReason::Padded, vec!["padded", "whitespace"]),
+    ];
+    assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
+    // The wrapper frames the reason after the quoted text, and quotes
+    // for the parse door's reason: these are bytes an author typed.
+    let shown = editor_core::ParamNameFault {
+        offered: " width ".to_string(),
+        reason: ParamNameReason::Padded,
+    }
+    .to_string();
+    assert_f6(
+        &shown,
+        &["parameter name \" width \" is padded"],
+        &["Padded"],
+    );
+}
+
+/// Every rendering of a [`Dimension`] a user can reach, in one place.
+///
+/// A dimension is a quantity KIND — what a value measures — not an
+/// address, so refusal prose says the common noun and never the
+/// variant identifier; `Dimension`'s `Display` is the one home of that
+/// rule and `with_article` supplies the article the value decides
+/// ("an angle", not "a angle"). Each row forbids the identifiers that
+/// would appear if the arm went back to `Debug`, so a reverted arm
+/// fails here rather than passing on a sentence that still reads
+/// almost right.
+#[test]
+fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
+    let name = ParamName::from_static("width");
+    let dump_words = dimension_dump_words();
+    let dumps = as_strs(&dump_words);
+
+    // The edit door.
+    assert_f6(
+        &EditError::SlotDimensionMismatch {
+            slot: SlotId::Radius,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &["needs a length expression", "got an angle"],
+        &dumps,
+    );
+    assert_f6(
+        &EditError::PayloadDocParamDimension {
+            name: name.clone(),
+            node: held(3, "Measure"),
+            declared: Dimension::Length,
+            referenced: Dimension::Count,
+        },
+        &["is declared length", "references it as count"],
+        &dumps,
+    );
+    assert_f6(
+        &EditError::AssertionDimension {
+            node: held(5, "Assertion"),
+            measure: held(4, "Measure"),
+            measured: Dimension::Length,
+            bound: Dimension::Angle,
+        },
+        &[
+            "bounds Measure 000000000004, which measures a length",
+            "with an angle expression",
+        ],
+        &dumps,
+    );
+    assert_f6(
+        &EditError::SlotDocParamDimension {
+            name: name.clone(),
+            node: held(3, "Extrude"),
+            slot: SlotId::Distance,
+            declared: Dimension::Scalar,
+            referenced: Dimension::Length,
+        },
+        &["is declared scalar", "references it as length"],
+        &dumps,
+    );
+    assert_f6(
+        &EditError::DocParamValueKindMismatch {
+            name: name.clone(),
+            declared: Dimension::Length,
+            offered: DocParamValue::Count(2),
+        },
+        &["is declared length"],
+        &dumps,
+    );
+    assert_f6(
+        &EditError::DocParamCountHasNoDistribution { name: name.clone() },
+        &["is a count", "structural parameter", "no distribution"],
+        &dumps,
+    );
+
+    // The construction-time dimension checker.
+    assert_f6(
+        &DimensionError::Mismatch {
+            op: "+",
+            left: Dimension::Length,
+            right: Dimension::Angle,
+        },
+        &["to length and angle"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::MulNeedsScalar {
+            left: Dimension::Length,
+            right: Dimension::Length,
+        },
+        &["needs a scalar operand", "length x length"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::DivNeedsScalarDivisor {
+            left: Dimension::Length,
+            right: Dimension::Length,
+        },
+        &["needs a scalar divisor", "length / length"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::TrigNeedsAngle {
+            op: "sin",
+            found: Dimension::Count,
+        },
+        &["needs an angle operand", "got a count"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::NotCount {
+            found: Dimension::Scalar,
+        },
+        &["a count operand is required", "got a scalar"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::DisplayUnitMismatch {
+            unit: Dimension::Length,
+            literal: Dimension::Angle,
+        },
+        &["measures length", "literal is angle"],
+        &dumps,
+    );
+
+    // The evaluator.
+    assert_f6(
+        &EvalError::ParamDimensionMismatch {
+            name: name.clone(),
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &["referenced as length", "bound as angle"],
+        &dumps,
+    );
+    assert_f6(
+        &EvalError::ContinuousExprInCountEval {
+            found: Dimension::Length,
+        },
+        &["a length expression does not evaluate as a count"],
+        &dumps,
+    );
+    assert_f6(
+        &NodeErrorKind::AssertionDimension {
+            measured: Dimension::Length,
+            bound: Dimension::Angle,
+        },
+        &["bound is an angle", "constrains is a length"],
+        &dumps,
+    );
+
+    // The load door's checker. Its slot arm spells the slot address
+    // out, so only the dimensions are at issue there.
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node: held(5, "Extrude"),
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 2,
+                arg: StepArg::PointX,
+            },
+            expected: Dimension::Length,
+            found: Dimension::Count,
+        },
+        &["needs a length expression", "got a count"],
+        &dumps,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node: held(5, "Extrude"),
+            slot: SlotId::Radius,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &["needs a length expression", "got an angle"],
+        &dumps,
+    );
+    assert_f6(
+        &SnapshotError::AssertionBound {
+            node: held(5, "Assertion"),
+            measure: held(4, "Measure"),
+            measured: Dimension::Length,
+            bound: Dimension::Angle,
+        },
+        &["bounds Measure 000000000004, which measures a length, with an angle expression"],
+        &dumps,
+    );
+    assert_f6(
+        &SnapshotError::AssertionTarget {
+            node: held(5, "Assertion"),
+            measure: held(4, "Extrude"),
+            bound: Dimension::Count,
+        },
+        &["carries a count bound", "which is not a measure"],
+        &dumps,
+    );
+}
+
+test_utils::f6_variants! {
+    /// `SnapshotError`'s census — see [`NODE_PICK_ERROR`]. This is the
+    /// load door's whole persisted-refusal vocabulary, so a new
+    /// invariant that earns an arm earns a rendered case with it.
+    const SNAPSHOT_ERROR: SnapshotError = [
+        OrderMismatch,
+        NodeNotMinted,
+        DanglingInput,
+        ForwardInput,
+        DeclareInput,
+        WitnessSite,
+        WitnessOnMissingNode,
+        LabelOnMissingNode,
+        SlotDimension,
+        SlotUnknownDocParam,
+        SlotDocParamDimension,
+        PayloadUnknownDocParam,
+        PayloadDocParamDimension,
+        EpsilonInvalid,
+        Roots,
+        NotAGauge,
+        GaugeCycle,
+        PlacementNonFinite,
+        PlacementImproper,
+        PlacementNonRigid,
+        MateAlignment,
+        PlacementRule,
+        MeasureRefs,
+        InputList,
+        DuplicateInput,
+        AssertionTarget,
+        AssertionBound,
+        MetadataUnversioned,
+        StepIds,
+        MintLogOrder,
+        NameStepNotMinted,
+    ];
+}
+
+/// A node refusal that names a slot names it through [`SlotId::label`],
+/// never its `Debug`: a profile slot is a struct variant, and its braces
+/// are what the binding's prose predicate refuses — so a dumped slot
+/// would panic the binding at the arm meant to refuse gracefully.
+#[test]
+fn a_node_refusal_names_its_slot_by_its_label() {
+    let slot = SlotId::Profile {
+        loop_: 0,
+        step: 2,
+        arg: StepArg::CenterX,
+    };
+    let dumps = ["Profile", "CenterX", "loop_", "{", "}"];
+    assert_f6(
+        &NodeErrorKind::Expr {
+            slot,
+            source: EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            },
+        },
+        &["the expression at slot loop 0 step 2 · centre x failed"],
+        &dumps,
+    );
+    assert_f6(
+        &NodeErrorKind::MissingSlot { slot },
+        &["expected its loop 0 step 2 · centre x input"],
+        &dumps,
+    );
+}
+
+/// Every arm of the persistence door's snapshot vocabulary states what
+/// is wrong with the document and where, and none of them reads as the
+/// `Debug` dump.
+///
+/// The payload-carrying arms forward their payload's own `Display`
+/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
+/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// two placement-frame arms forward the frame rule's clause — so each
+/// case below asks for the payload's words, which is what proves the
+/// forwarding happened.
+#[test]
+fn snapshot_error_display_names_its_content_not_its_struct() {
+    // The node a document holds, labelled, and one it does not.
+    let node = || {
+        editor_core::test_support::spoken_labelled(
+            RecipeNodeId(tagged(5)),
+            "Extrude",
+            editor_core::Label::new("base plate").expect("a label"),
+        )
+    };
+    let absent = |n| SpokenNode::absent(RecipeNodeId(tagged(n)));
+    let cases = [
+        (
+            SnapshotError::OrderMismatch,
+            vec!["`order` list", "disagree"],
+        ),
+        (
+            SnapshotError::NodeNotMinted { id: node() },
+            vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
+        ),
+        (
+            SnapshotError::DanglingInput {
+                node: node(),
+                input: absent(9),
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "not live",
+            ],
+        ),
+        (
+            SnapshotError::ForwardInput {
+                node: node(),
+                input: absent(9),
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "does not precede it",
+            ],
+        ),
+        (
+            SnapshotError::DeclareInput {
+                node: node(),
+                input: absent(9),
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005)'s declare input names node 000000000009",
+                "not a declaration",
+            ],
+        ),
+        (
+            SnapshotError::WitnessSite { node: node() },
+            vec![
+                "a witness is attached to Extrude \"base plate\" (000000000005)",
+                "bears no sketch",
+            ],
+        ),
+        (
+            SnapshotError::WitnessOnMissingNode { node: absent(5) },
+            vec!["a witness is attached to node 000000000005", "not live"],
+        ),
+        (
+            SnapshotError::LabelOnMissingNode { node: absent(5) },
+            vec!["a label is attached to node 000000000005", "not live"],
+        ),
+        (
+            SnapshotError::SlotDimension {
+                node: node(),
+                slot: SlotId::Distance,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005): slot distance",
+                "needs a length expression",
+            ],
+        ),
+        (
+            SnapshotError::SlotUnknownDocParam {
+                node: node(),
+                slot: SlotId::Radius,
+                name: ParamName::from_static("fillet"),
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005): slot radius",
+                "fillet",
+                "does not declare",
+            ],
+        ),
+        (
+            SnapshotError::SlotDocParamDimension {
+                node: node(),
+                slot: SlotId::Distance,
+                name: ParamName::from_static("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec!["depth", "as a length", "declared angle"],
+        ),
+        (
+            SnapshotError::PayloadUnknownDocParam {
+                node: held(5, "Measure"),
+                name: ParamName::from_static("depth"),
+            },
+            vec![
+                "Measure 000000000005: its payload expression",
+                "depth",
+                "does not declare",
+            ],
+        ),
+        (
+            SnapshotError::PayloadDocParamDimension {
+                node: held(5, "Measure"),
+                name: ParamName::from_static("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec![
+                // The NODE, which is this arm's whole reason for
+                // existing beside the slot one: a payload expression
+                // has no slot, so the node is the only address the
+                // refusal can carry.
+                "Measure 000000000005: its payload expression",
+                "depth",
+                "as a length",
+                "declared angle",
+            ],
+        ),
+        (
+            SnapshotError::EpsilonInvalid { value: 0.0 },
+            vec!["recorded ε", "finite and strictly positive"],
+        ),
+        (
+            SnapshotError::Roots(RootFault::Ancestor {
+                ancestor: SpokenNode::absent(RecipeNodeId(tagged(1))),
+                descendant: SpokenNode::absent(RecipeNodeId(tagged(2))),
+            }),
+            vec![
+                "product root node 000000000001 is an ancestor of product root node \
+                 000000000002",
+            ],
+        ),
+        (
+            SnapshotError::NotAGauge {
+                node: held(5, "InstantiatePart"),
+                gauge: held(2, "Extrude"),
+            },
+            vec![
+                "InstantiatePart 000000000005's gauge reference names Extrude 000000000002, \
+                 which is not a gauge",
+            ],
+        ),
+        (
+            SnapshotError::GaugeCycle {
+                node: held(5, "Gauge"),
+                gauge: held(2, "Gauge"),
+            },
+            vec!["Gauge 000000000005 sits on Gauge 000000000002, which sits on it"],
+        ),
+        (
+            SnapshotError::PlacementNonFinite {
+                node: held(5, "InstantiatePart"),
+                at: editor_core::FrameSite::Step { index: 0 },
+            },
+            vec![
+                "step 1 of InstantiatePart 000000000005's placement",
+                "non-finite coordinate",
+            ],
+        ),
+        (
+            SnapshotError::PlacementImproper {
+                node: held(5, "Transform"),
+                at: editor_core::FrameSite::Step { index: 1 },
+                determinant: -1.0,
+            },
+            vec![
+                "step 2 of Transform 000000000005's placement",
+                "improper (mirroring)",
+            ],
+        ),
+        (
+            SnapshotError::PlacementNonRigid {
+                node: held(5, "InstantiatePart"),
+                at: editor_core::FrameSite::Step { index: 0 },
+                check: "transform_rigid_col01_orth",
+            },
+            vec![
+                "step 1 of InstantiatePart 000000000005's placement",
+                "not definitely rigid",
+                "may shear",
+            ],
+        ),
+        (
+            SnapshotError::MateAlignment {
+                node: held(5, "Mate"),
+            },
+            vec![
+                "Mate 000000000005's alignment datum",
+                "non-finite coordinate",
+            ],
+        ),
+        (
+            SnapshotError::PlacementRule {
+                node: held(5, "Pattern"),
+                fault: PlacementRuleFault::NoPlacements,
+            },
+            vec!["Pattern 000000000005: ", "placement list is empty"],
+        ),
+        (
+            SnapshotError::MeasureRefs {
+                node: held(5, "Measure"),
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "distance",
+                    index: 3,
+                    refs: 2,
+                },
+            },
+            vec!["Measure 000000000005: ", "reads reference 3"],
+        ),
+        (
+            SnapshotError::InputList {
+                node: held(5, "Union"),
+                fault: ListFault::TooFew { found: 1 },
+            },
+            vec!["Union 000000000005: a list input takes two or more entries"],
+        ),
+        (
+            SnapshotError::DuplicateInput {
+                node: held(5, "Union"),
+                input: held(9, "Revolve"),
+            },
+            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
+        ),
+        (
+            SnapshotError::AssertionTarget {
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
+                bound: Dimension::Count,
+            },
+            vec![
+                "Assertion 000000000005 carries a count bound against Measure 000000000004",
+                "which is not a measure",
+            ],
+        ),
+        (
+            SnapshotError::AssertionBound {
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec![
+                "Assertion 000000000005 bounds Measure 000000000004, which measures a length,",
+                "with an angle expression",
+            ],
+        ),
+        (
+            SnapshotError::MetadataUnversioned {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::Cap(CapEnd::Start)],
+                    },
+                    node(),
+                ),
+                key: "swatch".to_string(),
+                error: MetaVersionError::MissingVersion,
+            },
+            vec![
+                "metadata \"swatch\" on the face name minted by Extrude \"base plate\" (000000000005)",
+                "\"v\" version field",
+            ],
+        ),
+        (
+            SnapshotError::StepIds {
+                node: held(5, "Profile"),
+                fault: StepIdFault::Repeated {
+                    step: StepId(tagged(3)),
+                },
+            },
+            vec![
+                "Profile 000000000005's step ids",
+                "step id 000000000003 stands for two steps",
+            ],
+        ),
+        (
+            SnapshotError::MintLogOrder {
+                entry: editor_core::Minted::Step(StepId(tagged(6))),
+            },
+            vec![
+                "not strictly ascending at step 000000000006",
+                "which no mint writes",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::NameStepNotMinted {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::Lateral(
+                            editor_core::ProfileEdgeRef::Piece {
+                                step: StepId(tagged(8)),
+                                role: editor_core::PieceRole::Leg,
+                            }
+                            .into(),
+                        )],
+                    },
+                    node(),
+                ),
+                step: StepId(tagged(8)),
+            },
+            vec![
+                "minted by Extrude \"base plate\" (000000000005)",
+                "profile step id 000000000008",
+                "mint log does not hold",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
+}
+
+/// **The param-ref convention, measured in both halves** — the four
+/// names at each door, and the MAPPING of name to address.
+///
+/// The rule the two doors follow is stated once, on `EditError`'s own
+/// enum doc; this row is its guard and states none of it again.
+///
+/// **Half one, the set.** The eight names are read back off `Debug`,
+/// the one runtime value that carries them, and each door's four are
+/// compared with the `{address} x {fact}` product written as a product
+/// rather than as a third list of four names. A door that re-mints a
+/// name of its own reds here, and so does a rename applied at one door
+/// only.
+///
+/// **Half two, the mapping.** A set has no opinion about WHICH arm
+/// carries which member, so half one alone survives swapping the edit
+/// door's slot pair with its payload pair — measured: that swap leaves
+/// every row in this file green. Half two ties each name to its
+/// address through the one place the address is externally visible,
+/// the rendered sentence, which names a slot at a slot arm and says
+/// "payload expression" at a payload arm, at both doors. That is what
+/// makes `{Slot,Payload}` a convention rather than four interchangeable
+/// tokens spelled the same at both doors.
+#[test]
+fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address() {
+    /// The variant identifier a `Debug` dump opens with, up to the
+    /// first byte that cannot be part of one, paired with what the arm
+    /// renders. `Debug` carries the name and `Display` carries the
+    /// address, and both halves below read this one pair.
+    fn arm<T: core::fmt::Debug + core::fmt::Display>(value: &T) -> (String, String) {
+        let variant = format!("{value:?}")
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        (variant, value.to_string())
+    }
+
+    let node = || held(5, "Extrude");
+    let name = ParamName::from_static("width");
+
+    let edit_door: Vec<(String, String)> = vec![
+        arm(&EditError::SlotUnknownDocParam {
+            name: name.clone(),
+            node: held(5, "Extrude"),
+            slot: SlotId::Radius,
+        }),
+        arm(&EditError::SlotDocParamDimension {
+            name: name.clone(),
+            node: held(5, "Extrude"),
+            slot: SlotId::Radius,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        arm(&EditError::PayloadUnknownDocParam {
+            name: name.clone(),
+            node: held(5, "Extrude"),
+        }),
+        arm(&EditError::PayloadDocParamDimension {
+            name: name.clone(),
+            node: held(5, "Extrude"),
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+    let load_door: Vec<(String, String)> = vec![
+        arm(&SnapshotError::SlotUnknownDocParam {
+            node: node(),
+            slot: SlotId::Radius,
+            name: name.clone(),
+        }),
+        arm(&SnapshotError::SlotDocParamDimension {
+            node: node(),
+            slot: SlotId::Radius,
+            name: name.clone(),
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        arm(&SnapshotError::PayloadUnknownDocParam {
+            node: node(),
+            name: name.clone(),
+        }),
+        arm(&SnapshotError::PayloadDocParamDimension {
+            node: node(),
+            name,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+
+    let mut convention: Vec<String> = ["Slot", "Payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["UnknownDocParam", "DocParamDimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}{fact}"))
+        })
+        .collect();
+    convention.sort();
+
+    let names_of = |arms: &[(String, String)]| {
+        let mut names: Vec<String> = arms.iter().map(|(variant, _)| variant.clone()).collect();
+        names.sort();
+        names
+    };
+    assert_eq!(
+        names_of(&edit_door),
+        convention,
+        "the edit door's four param-ref refusals have left the address-then-fact convention"
+    );
+    assert_eq!(
+        names_of(&load_door),
+        convention,
+        "the load door's four param-ref refusals have left the address-then-fact convention"
+    );
+
+    for (door, arms) in [("edit", &edit_door), ("load", &load_door)] {
+        for (variant, rendered) in arms {
+            let says_slot = rendered.contains("slot ");
+            let says_payload = rendered.contains("payload expression");
+            if let Some(fact) = variant.strip_prefix("Slot") {
+                assert!(
+                    says_slot && !says_payload,
+                    "the {door} door's {variant} claims a SLOT address (fact {fact}) but renders \
+                     {rendered:?}"
+                );
+            } else if let Some(fact) = variant.strip_prefix("Payload") {
+                assert!(
+                    says_payload && !says_slot,
+                    "the {door} door's {variant} claims a PAYLOAD address (fact {fact}) but \
+                     renders {rendered:?}"
+                );
+            } else {
+                panic!("{door} door: {variant} does not open with an address word");
+            }
+        }
+    }
+}
+
+/// A predicate flip names the two signs as words and says what was
+/// decided in words: `Sign` has a `Display`, and the predicate's name
+/// is routing, kept to `Debug`.
+#[test]
+fn a_predicate_flip_names_its_signs_as_words() {
+    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
+    let sign_words = as_strs(&sign_debug);
+    assert_f6(
+        &Diagnosis::PredicateFlip {
+            predicate: "name_frag_order_along",
+            from: geom_core::predicate::Sign::Positive,
+            to: geom_core::predicate::Sign::Negative,
+        },
+        &[
+            "the margin deciding the order of two crossings along an edge flipped from positive \
+             to negative",
+        ],
+        // Every `Sign`, not the two this row happens to construct: a
+        // rendering that leaked `Zero` would be just as much a dump.
+        // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
+        // renders that one arm.
+        &[
+            sign_words.as_slice(),
+            &["PredicateFlip", "name_frag_order_along"],
+        ]
+        .concat(),
+    );
+    // A predicate with no words says so in the kernel's one phrase for
+    // it, never by its name: the volume backstop, wordless on purpose
+    // (`edit_refusal_recourse::WORDLESS` says why).
+    let unnamed = Diagnosis::PredicateFlip {
+        predicate: "volume_backstop",
+        from: geom_core::predicate::Sign::Zero,
+        to: geom_core::predicate::Sign::Positive,
+    }
+    .to_string();
+    assert!(
+        unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
+            && !unnamed.contains("volume_backstop"),
+        "{unnamed}"
+    );
+}
+
+/// The border delta names the walls in words through the stable
+/// name's own `Display`, both directions, and says "no wall" where a
+/// direction has none.
+#[test]
+fn a_border_delta_names_the_walls_that_moved() {
+    let wall = |n| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(n)),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    assert_f6(
+        &Diagnosis::BorderDelta {
+            node: RecipeNodeId(tagged(7)),
+            gone: vec![wall(3), wall(4)],
+            new: vec![],
+        },
+        &[
+            "at node 000000000007",
+            &format!("no longer borders the {} and the {}", wall(3), wall(4)),
+            "borders no wall it did not",
+        ],
+        &["BorderDelta", "gone", "new"],
+    );
+    assert_f6(
+        &Diagnosis::BorderDelta {
+            node: RecipeNodeId(tagged(7)),
+            gone: vec![],
+            new: vec![wall(5)],
+        },
+        &[
+            "no longer borders no wall",
+            &format!("borders the {} it did not", wall(5)),
+        ],
+        &["BorderDelta"],
+    );
+}
+
+/// The group-size diagnosis states the group fact and nothing more:
+/// how many entities the group the emitter divided the fragment's
+/// parent into held and holds, the same sentence at every count, which
+/// seams on the parent only one run spells — every cutter, each with
+/// its role in words so two walls of one extrude read as two, or none
+/// and why the tables cannot say — and no cause. Exact sentences, so a
+/// clause that claims more cannot slip in.
+#[test]
+fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
+    use editor_core::{
+        CapEnd, EntityKind, GroupCutters, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg,
+        StableName,
+    };
+    let vertex = StableName {
+        kind: EntityKind::Vertex,
+        node: RecipeNodeId(tagged(5)),
+        path: vec![RoleSeg::CapVertex(
+            CapEnd::End,
+            ProfileVertexRef::Piece {
+                step: StepId(tagged(1)),
+                role: editor_core::PieceRole::Leg,
+            },
+        )],
+    };
+    let wall = |step| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(6)),
+        path: vec![RoleSeg::Lateral(
+            ProfileEdgeRef::Piece {
+                step: StepId(tagged(step)),
+                role: editor_core::PieceRole::Leg,
+            }
+            .into(),
+        )],
+    };
+    // A union member's wall, as a union's seams spell it.
+    let member_wall = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(8)),
+        path: vec![RoleSeg::FromMember {
+            member: RecipeNodeId(tagged(7)),
+            of: NameRef::new(wall(2)),
+        }],
+    };
+    let cases = [
+        (
+            GroupCutters::Read {
+                gone: vec![vertex.clone()],
+                new: vec![],
+            },
+            "the parent's seams with the vertex name minted by node 000000000005 (the end cap vertex \
+             over the start of the leg of the profile step 000000000001) are gone",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![member_wall],
+            },
+            "the parent has new seams with the face name minted by node 000000000008 (the side wall \
+             over the leg of the profile step 000000000002, minted by node 000000000006)",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![wall(1), wall(3)],
+                new: vec![wall(0)],
+            },
+            "the parent's seams with 2 cutters (the face name minted by node 000000000006 (the side \
+             wall over the leg of the profile step 000000000001); the face name minted by node 000000000006 (the \
+             side wall over the leg of the profile step 000000000003)) are gone, and the parent \
+             has new seams with the face name minted by node 000000000006 (the side wall over the leg \
+             of the profile step 000000000000)",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![],
+            },
+            "the parent's seams name the same cutters in both runs",
+        ),
+        (
+            GroupCutters::NotSeamBounded,
+            "which cutter changed is not on record, because this group is not bounded by \
+             seams on one parent name",
+        ),
+        (
+            GroupCutters::TiedParents,
+            "which cutter changed is not on record, because tied parents share the name \
+             the seams are spelled on",
+        ),
+        (
+            GroupCutters::NoSeamOnRecord,
+            "which cutter changed is not on record, because the last-good run spells no \
+             seam on the parent",
+        ),
+        (
+            GroupCutters::SeamUnread,
+            "which cutter changed is not on record, because a seam on the parent is \
+             spelled in a shape this reading does not follow",
+        ),
+    ];
+    for (was, now) in [(2, 1), (3, 0), (2, 3)] {
+        for (cutters, clause) in &cases {
+            let d = Diagnosis::GroupResized {
+                node: RecipeNodeId(tagged(8)),
+                was,
+                now,
+                cutters: cutters.clone(),
+            };
+            assert_eq!(
+                d.to_string(),
+                format!(
+                    "at node 000000000008, the group this fragment's parent was divided into held \
+                     {was} entities in the last-good run and holds {now} now; {clause}; and \
+                     no verdict flip was found that explains the change"
+                )
+            );
+            assert_f6(
+                &d,
+                &[],
+                &[
+                    "GroupResized",
+                    "GroupCutters",
+                    "Read",
+                    "NotSeamBounded",
+                    "TiedParents",
+                    "NoSeamOnRecord",
+                    "SeamUnread",
+                    "CapVertex",
+                    "Lateral",
+                    "FromMember",
+                    "ProfileEdgeRef",
+                    "loop_index",
+                ],
+            );
+        }
+    }
+}
+
+/// The two scopes of the with-history lanes say which one answered,
+/// in exact sentences: a path arm claims the name's derivation path,
+/// and the upstream arm claims only that its node feeds the minting
+/// node without being on the path. Exact, so a scope cannot quietly
+/// claim the other's relation.
+#[test]
+fn the_path_and_upstream_scopes_state_which_one_answered() {
+    use editor_core::{RecipeEditRef, UpstreamCause};
+    use geom_core::predicate::Sign;
+    let count = SlotId::Count.label();
+    let path = [
+        (
+            Diagnosis::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                from: Sign::Negative,
+                to: Sign::Positive,
+            },
+            "the margin deciding which side of a face's plane a point lies on flipped from \
+             negative to positive on the name's derivation path"
+                .to_owned(),
+        ),
+        (
+            Diagnosis::StructuralParam {
+                node: RecipeNodeId(tagged(9)),
+                param: SlotId::Count,
+            },
+            format!(
+                "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
+            ),
+        ),
+        (
+            Diagnosis::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(tagged(4)),
+                },
+            },
+            "the recorded reference disagrees with the recipe as it stands on the derivation \
+             path (node 000000000004 was deleted)"
+                .to_owned(),
+        ),
+    ];
+    let upstream = |cause| Diagnosis::Upstream {
+        node: RecipeNodeId(tagged(11)),
+        cause,
+    };
+    let tail =
+        ", upstream of node 00000000000b, the name's minting node, but not on its derivation path";
+    let up = [
+        (
+            upstream(UpstreamCause::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                at: RecipeNodeId(tagged(10)),
+                from: Sign::Negative,
+                to: Sign::Positive,
+            }),
+            format!(
+                "the margin deciding which side of a face's plane a point lies on flipped from \
+                 negative to positive at node 00000000000a{tail}"
+            ),
+        ),
+        (
+            upstream(UpstreamCause::StructuralParam {
+                node: RecipeNodeId(tagged(10)),
+                param: SlotId::Count,
+            }),
+            format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
+        ),
+        (
+            upstream(UpstreamCause::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(tagged(4)),
+                },
+            }),
+            format!("the recipe changed (node 000000000004 was deleted){tail}"),
+        ),
+    ];
+    for (d, want) in path.into_iter().chain(up) {
+        assert_eq!(d.to_string(), want);
+        assert_f6(
+            &d,
+            &[],
+            &[
+                "Upstream",
+                "UpstreamCause",
+                "PredicateFlip",
+                "StructuralParam",
+                "RecipeEdit",
+            ],
+        );
+    }
+}
+
+/// A fold consumption points at the union that minted the name and
+/// says WHICH composition consumed the entity, in words a reader can
+/// tell apart — a split and
+/// a merge split later are two different sentences — and says why
+/// nothing is offered in its place.
+#[test]
+fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
+    use editor_core::FoldConsumption;
+    let banned = ["ConsumedByFold", "FoldConsumption", "FragmentedMerge"];
+    for (by, wants) in [
+        (
+            FoldConsumption::Split,
+            &["split it into fragments", "none is offered"][..],
+        ),
+        (
+            FoldConsumption::FragmentedMerge,
+            &[
+                "a declared merge consumed it",
+                "split the merged face",
+                "none is offered",
+            ][..],
+        ),
+    ] {
+        let d = Diagnosis::ConsumedByFold { by };
+        assert_f6(
+            &d,
+            &[&["the union that minted it"][..], wants].concat(),
+            &banned,
+        );
+    }
+}
+
+/// Refusals that name a stable name FORWARD its `Display` rather than
+/// re-spelling the kind-plus-minting-node phrase. The expectation is
+/// built from the impl, so a copy that stops tracking it fails here —
+/// which a literal expectation could not catch.
+#[test]
+fn refusals_that_name_a_stable_name_forward_its_display() {
+    let phrase = face_name().to_string();
+
+    let reference = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::Vanished,
+    });
+    let shown = reference.to_string();
+    assert!(
+        shown.contains(&format!("(a {phrase})")),
+        "the mate reference re-spells the name instead of forwarding it: {shown:?}"
+    );
+    assert!(
+        shown.contains(
+            "no entity answers to it, in the product or at the node the mate reads it at"
+        ),
+        "a vanished name is one neither table answers to: {shown:?}"
+    );
+}
+
+/// The WHY clause of a mate-reference refusal says what the gate
+/// checked and no more: a name read below a root names the operand
+/// and the rule (a reference resolves against a root's own rows); a
+/// tie names its width. Every other row asserting these sentences
+/// compares against the impl, so this is their one home.
+#[test]
+fn a_mate_reference_refusal_says_what_the_gate_checked() {
+    let below = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::ReadBelowARoot {
+            at: RecipeNodeId(tagged(5)),
+        },
+    });
+    assert_f6(
+        &below,
+        &[
+            "mate 000000000002's b reference",
+            "does not name a face of the product",
+            "it is read at node 000000000005, which is not a root of the product, and a reference \
+             resolves against a root's own rows",
+        ],
+        &["ReadBelowARoot", "Reference"],
+    );
+
+    let tied = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::Ambiguous { width: 2 },
+    });
+    assert_f6(
+        &tied,
+        &[
+            "mate 000000000002's a reference",
+            "2 entities answer to it",
+            "a tie is never broken by picking",
+        ],
+        &["Ambiguous", "Reference"],
+    );
+}
+
+/// An entity kind carries the article that agrees with it, because the
+/// value decides which one is correct: three of the four kinds take
+/// "a" and `Edge` takes "an", so a sentence that hard-codes one is
+/// wrong for every edge-kind refusal it can reach.
+///
+/// Two sentences read it, and they differ in how an edge reaches them.
+/// [`editor_core::NotAFaceName`] — what the mate head's one
+/// constructor answers — is RAISED with an edge wherever a boundary
+/// turns data into a head, so its article is live.
+/// `MintRefusal::Reference` renders the NAME's own kind: the gate
+/// raises it only over a face name, because a head is a `SitedFace`,
+/// but the row is public data with public fields and its article is
+/// therefore read off the value a consumer hands it rather than fixed
+/// at the raise.
+#[test]
+fn an_entity_kind_carries_the_article_that_agrees_with_it() {
+    let edge_name = StableName {
+        kind: EntityKind::Edge,
+        node: RecipeNodeId(tagged(7)),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+
+    let shown = editor_core::FaceName::new(edge_name.clone())
+        .expect_err("an edge is not a face name")
+        .to_string();
+    assert!(
+        shown.contains("an edge"),
+        "an edge-kind head refusal reads as \"a edge\": {shown:?}"
+    );
+    let shown = editor_core::FaceName::new(StableName {
+        kind: EntityKind::Vertex,
+        node: edge_name.node,
+        path: edge_name.path.clone(),
+    })
+    .expect_err("a vertex is not a face name")
+    .to_string();
+    assert!(
+        shown.contains("a vertex"),
+        "the consonant kinds must keep \"a\": {shown:?}"
+    );
+
+    let reference = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::A,
+        name: Box::new(edge_name.clone()),
+        why: RefusedRef::Vanished,
+    });
+    let shown = reference.to_string();
+    assert!(
+        shown.contains(&format!("(an {edge_name})")),
+        "an edge-kind mate reference reads as \"a edge\": {shown:?}"
+    );
+
+    let face = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::Vanished,
+    });
+    let shown = face.to_string();
+    assert!(
+        shown.contains(&format!("(a {})", face_name())),
+        "the consonant kinds must keep \"a\": {shown:?}"
+    );
+}
+
+/// The mint door's at-rest refusal ends on
+/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — read as the row's
+/// own sentence and read through the gate arm that carries it, because
+/// the gate FORWARDS the row rather than restating it. A recourse
+/// reached by only one of the two carriers is a user who sees the
+/// repair or not depending on how deep the mate was declared.
+#[test]
+fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let row = MintRefusal::NoAtRestRecord {
+        mate: RecipeNodeId(tagged(5)),
+        class: ContactClass::Tangent,
+        why,
+    };
+    assert_f6(
+        &row,
+        &[
+            "mate 000000000005's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
+        &["NoAtRestRecord"],
+    );
+    assert_f6(
+        &mint(row),
+        &[
+            "mate 000000000005's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
+        &["NoAtRestRecord"],
+    );
+}
+
+/// **Every refusal the gate holds is rendered**, each on its own
+/// indented line under a header that counts them — the two mint arms
+/// answer with the whole list the gather recorded, so an author with
+/// two broken mates reads two repairs rather than the first.
+///
+/// The count is built from the FIXTURE's own length rather than
+/// written as a word, so a header that reports a constant, or reports
+/// a count off by one, reds here. It is not a guard on the header
+/// tracking the body: those are one expression over one slice and
+/// cannot drift. What each arm's rows carry — each mate's own
+/// sentence, and for the carried arm the route and the ONE recourse in
+/// the header — is the rest of it.
+#[test]
+fn the_mint_arms_render_every_refusal_they_hold() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let raised = AssemblyError::Mint {
+        refusals: vec![
+            MintRefusal::Reference {
+                mate: RecipeNodeId(tagged(2)),
+                side: MateSide::A,
+                name: Box::new(face_name()),
+                why: RefusedRef::Vanished,
+            },
+            MintRefusal::NoAtRestRecord {
+                mate: RecipeNodeId(tagged(5)),
+                class: ContactClass::Tangent,
+                why,
+            },
+        ],
+    };
+    let AssemblyError::Mint { refusals } = &raised else {
+        panic!("built as the mint arm");
+    };
+    let counted = format!(
+        "this document did not mint {} of its own mate(s)",
+        refusals.len()
+    );
+    assert_f6(
+        &raised,
+        &[
+            &counted,
+            "mate 000000000002's a reference",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
+        ],
+        &["Reference", "NoAtRestRecord"],
+    );
+
+    let route = Route {
+        through: RecipeNodeId(tagged(1)),
+        of: editor_core::DocumentId::derive("display-contract-carried"),
+        via: vec![],
+    };
+    let carried = AssemblyError::CarriedMintRefusal {
+        refusals: vec![
+            CarriedRefusal {
+                route: route.clone(),
+                refusal: MintRefusal::Reference {
+                    mate: RecipeNodeId(tagged(2)),
+                    side: MateSide::A,
+                    name: Box::new(face_name()),
+                    why: RefusedRef::Vanished,
+                },
+            },
+            CarriedRefusal {
+                route,
+                refusal: MintRefusal::NoAtRestRecord {
+                    mate: RecipeNodeId(tagged(5)),
+                    class: ContactClass::Tangent,
+                    why,
+                },
+            },
+        ],
+    };
+    let AssemblyError::CarriedMintRefusal { refusals } = &carried else {
+        panic!("built as the carried arm");
+    };
+    let counted = format!(
+        "{} mate(s) of documents below this one did not mint",
+        refusals.len()
+    );
+    let shown = carried.to_string();
+    assert_f6(
+        &carried,
+        &[
+            &counted,
+            "mate 000000000002's a reference",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
+        ],
+        &["CarriedMintRefusal", "CarriedRefusal"],
+    );
+    // ONE recourse for the list, in the header: the repair is the same
+    // sentence for every row, and a per-row copy is the generic tail
+    // the finding sink exists to forbid.
+    assert_eq!(
+        shown
+            .matches("open those documents and repair the mates there")
+            .count(),
+        1,
+        "the carried repair is stated once, not once per row: {shown:?}"
+    );
+}
+
+/// A mate-solve contradiction states WHO is at fault. Two mates that
+/// cannot both hold are named as a pair; one mate that contradicts
+/// itself is named ONCE, because "mate 6 and mate 6" reads as an indexing
+/// fault and hides the shape the payload states.
+///
+/// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
+/// is why that sentence names neither a pair nor a count: one recourse
+/// covers a repair that is the same either way.
+#[test]
+fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
+    let pair = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(3)),
+        added: RecipeNodeId(tagged(5)),
+        predicate: "mate_member_translation_zero",
+        clash: Clash::Length { metres: 0.01 },
+    };
+    assert_f6(
+        &pair,
+        &[
+            "mate 000000000003 and mate 000000000005 cannot both hold",
+            "a clash of 0.01 m",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
+        &["Contradictory"],
+    );
+    assert!(
+        !pair.to_string().contains("contradicts itself"),
+        "two distinct mates are a PAIR: {pair}"
+    );
+
+    let itself = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(6)),
+        added: RecipeNodeId(tagged(6)),
+        predicate: "mate_clocking_redundant",
+        clash: Clash::Levered(Lever::Roll {
+            radians: core::f64::consts::FRAC_PI_2,
+            arm: 1.0,
+        }),
+    };
+    assert_f6(
+        &itself,
+        &[
+            "mate 000000000006 contradicts itself",
+            "the clocking disagrees with the roll the coincidence already pins",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
+        &["Contradictory"],
+    );
+    assert!(
+        !itself
+            .to_string()
+            .contains("mate 000000000006 and mate 000000000006"),
+        "one mate at fault is named once: {itself}"
+    );
+}
+
+/// **A levered clash prints the product of its two halves.** The
+/// metre figure is computed from the halves the message shows, and a
+/// stored figure that could disagree with them is not representable:
+/// `Clash::Levered` holds the lever and nothing beside it.
+#[test]
+fn a_levered_clash_prints_only_a_product_that_is_the_product() {
+    let fault = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(6)),
+        added: RecipeNodeId(tagged(6)),
+        predicate: "mate_clocking_redundant",
+        clash: Clash::Levered(Lever::Roll {
+            radians: core::f64::consts::FRAC_PI_2,
+            arm: 2.0,
+        }),
+    };
+    let shown = fault.to_string();
+    for want in [
+        "a roll of 1.5707963267948966 rad",
+        "on a 2 m arm",
+        "a deviation of 3.141592653589793 m",
+    ] {
+        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    }
+    let MateFault::Contradictory { clash, .. } = &fault else {
+        unreachable!()
+    };
+    assert_eq!(
+        clash.deviation(),
+        Some(core::f64::consts::FRAC_PI_2 * 2.0),
+        "the deviation is the product, to the bit"
+    );
+}
+
+/// **A residual clash names its pure number, says it is one, and
+/// prints the product** — the second levered sentence, for the three
+/// membership margins that lever a sine, a Frobenius departure or a
+/// reach rather than an authored roll. It never borrows the roll's
+/// words: a Frobenius norm is not radians, and a reader who multiplies
+/// the halves back gets the metre figure.
+#[test]
+fn a_residual_clash_prints_its_pure_number_and_the_product() {
+    let fault = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(3)),
+        added: RecipeNodeId(tagged(5)),
+        predicate: "mate_member_rotation_identity",
+        clash: Clash::Levered(Lever::Residual {
+            value: 0.25,
+            arm: 4.0,
+        }),
+    };
+    let shown = fault.to_string();
+    for want in [
+        "mate 000000000003 and mate 000000000005 cannot both hold",
+        "the relative rotation is not the identity",
+        "a dimensionless residual of 0.25",
+        "on a 4 m arm",
+        "a deviation of 1 m",
+        editor_core::CONTRADICTORY_RECOURSE,
+    ] {
+        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    }
+    assert!(
+        !shown.contains("rad") && !shown.contains("roll"),
+        "a residual is a pure number, never a roll in radians: {shown:?}"
+    );
+}
+
+/// **A non-finite clash that is not the empty set does not claim to
+/// be.** The structural refusal is the TYPE's fact (`Clash::Structural`),
+/// so a length that merely fails to be finite — a NaN, a negative
+/// infinity, an infinity — is reported as the non-measurement it is
+/// and never borrows the empty set's sentence, and a levered clash
+/// whose halves are not finite keeps its halves.
+///
+/// The exits below are every arm the type has, and each is checked
+/// to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the repair does
+/// not depend on which measurement the predicate could report, so no
+/// exit may drop it.
+#[test]
+fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
+    let empty = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(3)),
+        added: RecipeNodeId(tagged(5)),
+        predicate: "mate_member_empty",
+        clash: Clash::Structural,
+    };
+    let shown = empty.to_string();
+    assert!(
+        shown.contains("meet in the empty set") && !shown.contains("inf"),
+        "the structural refusal has no metre figure to print: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
+    );
+
+    for (what, clash) in [
+        ("NaN", f64::NAN),
+        ("-inf", f64::NEG_INFINITY),
+        ("+inf", f64::INFINITY),
+    ] {
+        let fault = MateFault::Contradictory {
+            held: RecipeNodeId(tagged(3)),
+            added: RecipeNodeId(tagged(5)),
+            predicate: "mate_member_translation_zero",
+            clash: Clash::Length { metres: clash },
+        };
+        let shown = fault.to_string();
+        assert!(
+            !shown.contains("empty set"),
+            "a {what} margin under another predicate is not the empty set: {shown:?}"
+        );
+        assert!(
+            shown.contains("not a finite length"),
+            "a {what} margin says it is no measurement: {shown:?}"
+        );
+        assert!(
+            shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+            "{shown:?}"
+        );
+    }
+
+    // A lever whose roll is not finite is still levered: the sentence
+    // keeps its halves and prints the product they make.
+    let levered = MateFault::Contradictory {
+        held: RecipeNodeId(tagged(6)),
+        added: RecipeNodeId(tagged(6)),
+        predicate: "mate_clocking_redundant",
+        clash: Clash::Levered(Lever::Roll {
+            radians: f64::INFINITY,
+            arm: 1.0,
+        }),
+    };
+    let shown = levered.to_string();
+    assert!(
+        shown.contains("a roll of inf rad") && !shown.contains("empty set"),
+        "a levered clash keeps its halves whatever they are: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
+    );
+}
+
+/// **A lever refusal names the instance and says why its part's reach
+/// is not in hand**, one sentence per arm — the resolver's own voice
+/// for a part that does not resolve, the face and its kind for one
+/// that cannot be bounded, the face for a malformed body, and the
+/// plain fact for a faceless body, a non-finite reach, and a member
+/// that stands on no instance.
+#[test]
+fn a_lever_refusal_names_the_instance_and_why() {
+    let instance = RecipeNodeId(tagged(7));
+    let part = DocRef {
+        id: DocumentId::derive("display-contract-lever"),
+        pin: editor_core::content_pin(
+            &editor_core::ProfileDoc::empty(
+                DocumentId::derive("display-contract-lever"),
+                geom_core::Tol::witness(),
+            ),
+            geom_core::Tol::witness(),
+        )
+        .unwrap(),
+    };
+    let mut body = topo::Body::<f64>::new();
+    let face = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+        .unwrap()
+        .face;
+    let reach = |refusal| LeverRefusal::Reach {
+        instance,
+        part,
+        refusal,
+    };
+    assert_f6(
+        &reach(ReachRefusal::PartUnresolved {
+            fault: PartFault::NoResolver,
+        }),
+        &["instance 000000000007", "no part resolver"],
+        &["PartUnresolved", "NoResolver"],
+    );
+    assert_f6(
+        &reach(ReachRefusal::FaceUnbounded {
+            face,
+            kind: SurfaceKind::Nurbs,
+        }),
+        &["instance 000000000007", "nurbs face", "cannot be bounded"],
+        &["FaceUnbounded", "Nurbs"],
+    );
+    assert_f6(
+        &reach(ReachRefusal::MalformedBody { face }),
+        &["instance 000000000007", "not well formed"],
+        &["MalformedBody"],
+    );
+    assert_f6(
+        &reach(ReachRefusal::NoExtent),
+        &["instance 000000000007", "no faces"],
+        &["NoExtent"],
+    );
+    assert_f6(
+        &reach(ReachRefusal::NoFiniteBound),
+        &["instance 000000000007", "non-finite"],
+        &["NoFiniteBound"],
+    );
+    assert_f6(
+        &LeverRefusal::NotAnInstance { node: instance },
+        &["node 000000000007", "not a live instantiate node"],
+        &["NotAnInstance"],
+    );
+    assert_f6(
+        &LeverRefusal::OutOfRange {
+            parts: 2.0,
+            datum: f64::INFINITY,
+        },
+        &[
+            "2 m of its parts' reach",
+            "a length of its datum that is not finite",
+            "too long",
+            geom_core::RANGE_RECOURSE,
+        ],
+        &["OutOfRange"],
+    );
+    let said = LeverRefusal::OutOfRange {
+        parts: 2.0,
+        datum: f64::INFINITY,
+    }
+    .to_string();
+    assert!(
+        !said.contains("inf"),
+        "a length that is not finite has no metre figure: {said}"
+    );
+}
+
+test_utils::f6_variants! {
+    /// `NamingError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases.
+    ///
+    /// This enum's sentences are checked in its own crate
+    /// (`names::emit`'s `display_tests`), which is where the framing a
+    /// variant must open with lives. What that suite cannot do is
+    /// notice a variant with no sample at all: its coverage check
+    /// compares sampled indices against `0..rows.len()`, which a
+    /// variant APPENDED past the end satisfies — measured, by adding a
+    /// probe variant and watching it stay green. This census is what
+    /// closes that.
+    const NAMING_ERROR: NamingError = [
+        Duplicate,
+        Unnamed,
+        MissingUpstream,
+        Emission,
+        SplitLineage,
+        FragmentLineage,
+        SeamVertexParentage,
+        SeamVertexPartners,
+        SharedRim,
+        MergedChord,
+        MergedChordOffRim,
+        MergedChordConstituents,
+        MemberEdgeTied,
+        Band,
+        Escalated,
+    ];
+}
+
+/// Two distinct keys of each kind, out of ONE real arena — slotmap keys
+/// have no hand constructor, and two bodies hand out the same index
+/// twice. Nothing below depends on their values.
+fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
+    let mut body = topo::Body::<f64>::new();
+    let born = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+        .expect("mvfs births a solid, shell, face and lone vertex");
+    let edge = body
+        .mev_line(
+            topo::MevSite::Lone {
+                r#loop: born.r#loop,
+            },
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Tol::witness(),
+        )
+        .expect("mev_line adds an edge")
+        .edge;
+    (edge, born.face, born.vertex)
+}
+
+/// **Every `NamingError` renders its subject, and no variant escapes
+/// the census.**
+///
+/// The emitter's refusals are the one route by which a naming failure
+/// reaches a human (Python's typed exception text is exactly this
+/// string), and this crate's own `display_tests` check what each
+/// SENTENCE says — which framing it opens with, that it leaks no braced
+/// payload, that it carries its subject. What they cannot check is that
+/// every variant has a sample at all. This does, and the two live
+/// together rather than one replacing the other.
+#[test]
+fn naming_error_display_names_its_content_not_its_struct() {
+    let (edge, face, vertex) = keys();
+    let cases = [
+        (
+            NamingError::Duplicate {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+            },
+            vec!["minted twice"],
+        ),
+        (
+            NamingError::Unnamed {
+                kind: EntityKind::Edge,
+                body: 3,
+            },
+            vec!["edge", "output body 3", "unnamed"],
+        ),
+        (
+            NamingError::MissingUpstream {
+                node: RecipeNodeId(tagged(11)),
+            },
+            vec!["upstream node 00000000000b"],
+        ),
+        (
+            NamingError::Emission {
+                what: "section face classified On",
+            },
+            vec!["section face classified On"],
+        ),
+        (
+            NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
+            vec!["split lineage of edge"],
+        ),
+        (
+            NamingError::FragmentLineage { face },
+            vec!["fragment lineage of face"],
+        ),
+        (
+            NamingError::SeamVertexParentage { vertex },
+            vec!["seam vertex", "half-decided"],
+        ),
+        (
+            NamingError::SharedRim {
+                node: RecipeNodeId(tagged(23)),
+                face,
+                other: face,
+                found: RimShare::Several,
+            },
+            vec!["operand node 000000000017", "more than one edge"],
+        ),
+        (
+            NamingError::MergedChord { edge },
+            vec!["merged faces", "the join's own edge"],
+        ),
+        (
+            NamingError::SeamVertexPartners {
+                vertex,
+                candidates: [3, 4]
+                    .map(|node| StableName {
+                        kind: EntityKind::Vertex,
+                        node: RecipeNodeId(tagged(node)),
+                        path: vec![RoleSeg::CapVertex(
+                            CapEnd::End,
+                            editor_core::ProfileVertexRef::Piece {
+                                step: StepId(tagged(0)),
+                                role: editor_core::PieceRole::Leg,
+                            },
+                        )],
+                    })
+                    .to_vec(),
+            },
+            vec![
+                "seam vertex",
+                "2 differently named vertices",
+                "vertex name minted by node 000000000003",
+                "vertex name minted by node 000000000004",
+            ],
+        ),
+        (
+            NamingError::MergedChordOffRim {
+                edge,
+                node: RecipeNodeId(tagged(29)),
+                rim: edge,
+            },
+            vec![
+                "merged faces",
+                "operand node 00000000001d",
+                "does not lie within",
+            ],
+        ),
+        (
+            NamingError::MergedChordConstituents {
+                edge,
+                face,
+                several: 2,
+            },
+            vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
+            NamingError::MemberEdgeTied {
+                member: RecipeNodeId(tagged(37)),
+                edge: Box::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(tagged(37)),
+                    path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+                        step: StepId(tagged(2)),
+                        role: editor_core::PieceRole::Leg,
+                    })],
+                }),
+            },
+            vec![
+                "member node 000000000025",
+                "a tie stands where one edge is needed",
+            ],
+        ),
+        (
+            NamingError::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["naming band", "5e-324"],
+        ),
+        (
+            NamingError::Escalated {
+                predicate: "name_frag_order_along",
+                source: geom_core::Indeterminate {
+                    margin: geom_core::predicate::MarginDiag::INVALID,
+                    band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
+                    predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
+                },
+            },
+            vec![
+                "the order of two crossings along an edge",
+                "too close to call",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
+    /// door's own refusal over a persisted profile program. A step
+    /// argument's DIMENSION is not here: a program slot is a slot like
+    /// any other, refused by the document-wide slot walk
+    /// ([`SnapshotError::SlotDimension`]), so what is left is the
+    /// replay probe's lattice coordinate.
+    const PROGRAM_FAULT: ProgramFault = [Lattice];
+}
+
+/// **A slot refusal addresses its slot in the slot vocabulary's own
+/// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
+/// — for every slot address alike, because one predicate decides them
+/// (`Node::slot_dimension_fault`) and one arm renders them.
+///
+/// **And the sentence is ONE clause.** The rule's own answer carries
+/// its `Display` (`SlotDimensionFault`), and each door forwards it
+/// into its own subject, so the last case below reads the load door's
+/// rendering as the edit door's under "node 7: ". A door that
+/// restated the sentence — as the two of them did, three times over,
+/// with a program slot spelled two ways — reds there.
+///
+/// **What the ban list holds.** What a reverted arm would leak is a
+/// `SlotId` or a `StepArg` identifier. Those are read off the very
+/// values the cases carry ([`test_utils::f6::variant_identifier`]) so
+/// a variant renamed in `src/` cannot leave this list saying the old
+/// name. `SlotId::Profile` carries a brace in its `Debug` as well, so
+/// that arm is held twice.
+#[test]
+fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
+    let profile_slot = SlotId::Profile {
+        loop_: 1,
+        step: 3,
+        arg: StepArg::CenterX,
+    };
+    let scalar_slot = SlotId::Radius;
+    let component_slot = SlotId::Origin(editor_core::Axis3::X);
+    let banned = [
+        test_utils::f6::variant_identifier(&profile_slot),
+        test_utils::f6::variant_identifier(&StepArg::CenterX),
+        test_utils::f6::variant_identifier(&scalar_slot),
+        test_utils::f6::variant_identifier(&component_slot),
+        "{".to_string(),
+    ];
+    let also_banned = as_strs(&banned);
+    let node = || held(7, "Extrude");
+
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node: node(),
+            slot: profile_slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &[
+            "Extrude 000000000007: slot loop 1 step 3 · centre x",
+            "needs a length expression",
+            "got an angle",
+        ],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node: node(),
+            slot: scalar_slot,
+            expected: Dimension::Length,
+            found: Dimension::Count,
+        },
+        &["slot radius", "needs a length expression", "got a count"],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node: node(),
+            slot: component_slot,
+            expected: Dimension::Length,
+            found: Dimension::Scalar,
+        },
+        &["slot origin x", "got a scalar"],
+        &also_banned,
+    );
+    // One clause, two subjects: whatever the sentence says, the two
+    // doors say it in the same words about the same address. The edit
+    // door adds its recourse after it.
+    for slot in [profile_slot, scalar_slot, component_slot] {
+        let at_load = SnapshotError::SlotDimension {
+            node: node(),
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        let at_edit = EditError::SlotDimensionMismatch {
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        let at_load = at_load.to_string();
+        let clause = at_load
+            .strip_prefix("Extrude 000000000007: ")
+            .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
+        assert_eq!(at_edit.problem().to_string(), clause);
+        assert_eq!(
+            at_edit.to_string(),
+            format!(
+                "{clause}. Recourse: write it from length literals and parameters declared length"
+            )
+        );
+    }
+}
+
+/// A program fault states the transition table's coordinate, not its
+/// struct.
+///
+/// **What it deliberately does not ban.** The `Lattice` arm renders its
+/// tip state and verb through `Debug`: the pair is the transition
+/// table's own coordinate, which `profile`'s `ReplayError` and this
+/// arm's comment both say, and `Verb`'s `Display` — the authoring
+/// spelling — is a different sentence from the coordinate. Banning
+/// those identifiers here would be this suite deciding a question
+/// settled the other way beside the code.
+#[test]
+fn a_program_fault_states_its_lattice_coordinate() {
+    let cases = [(
+        ProgramFault::Lattice {
+            loop_: 0,
+            step: 2,
+            state: profile::TipState::Entry,
+            verb: None,
+        },
+        vec![
+            "loop 0 step 2",
+            "not a legal chain-lattice walk",
+            "unclosed",
+        ],
+    )];
+    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, OrphanedDeclare];
+}
+
+/// **What an accepted edit DID reads as prose too** — the strand count
+/// beside the cascade count is rendered from these sentences.
+///
+/// The offset arm names the instance whose offset the mate door
+/// cleared, and why: the mate placed its group on the one it joined.
+/// The strand sentence's relative clause binds to the NODE: the name
+/// is what survives a strand, so a sentence reading "a name, which
+/// this edit deleted" would name the wrong casualty.
+/// The appearance arm names the STORE where the payload arm names a
+/// carrying node, because that is the difference between the two
+/// carriers, and it offers both repairs: `Rebind` moves the key,
+/// `ClearAppearance` retires it, and only the second works without a
+/// live node to move to.
+/// The orphan arm's subject is the SURVIVOR — the node named is the
+/// declaration that is still there — where both strand sentences name
+/// a carrier and close on the casualty, so it says what the
+/// declaration lost (its reader) rather than what was deleted.
+#[test]
+fn maintenance_display_says_what_the_edit_did() {
+    let cases = [
+        (
+            Maintenance::OffsetCleared {
+                instance: held(3, "InstantiatePart"),
+                offset: editor_core::Placement::IDENTITY,
+            },
+            vec![
+                "InstantiatePart 000000000003's group",
+                "InstantiatePart 000000000003's offset was cleared",
+            ],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Datum frame (on face)"),
+                name: spoken_face_name(),
+            },
+            vec![
+                "Datum frame (on face) 000000000005 carries a face name minted by Extrude \
+                 000000000007",
+                // The row is made by two edits — a delete and a
+                // reshaping — and the sentence names what either
+                // removed without claiming which.
+                "this edit removed what it denoted",
+                "its minting node, or the profile segment it named",
+                "resolves to nothing until it is rebound",
+            ],
+        ),
+        (
+            Maintenance::StrandedAppearance {
+                name: spoken_face_name(),
+            },
+            vec![
+                "the appearance store holds an attachment under a face name minted by Extrude \
+                 000000000007",
+                "this edit removed what it denoted",
+                "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::OrphanedDeclare {
+                declare: held(5, "Declare"),
+            },
+            vec![
+                "Declare 000000000005 declares contacts",
+                "deleted the last node that consumed it",
+                // What it lost is a CONSUMER. "nothing reads it"
+                // would be false — the same delete re-roots the
+                // declaration into the document's product roots.
+                "so no node consumes the declaration",
+                "until a boolean or union names it again",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `RecordedProgramError`'s census — see [`NODE_PICK_ERROR`].
+    /// Five arms: three are about the RECORDING the lift was handed,
+    /// two about the notation written beside it, and a consumer
+    /// telling those apart is the point of them being five arms
+    /// rather than one. One of the five — `NotationBeforeAnyStep` —
+    /// is raised at the WRITING door rather than at the lift, so this
+    /// census covers a sentence a caller can read without ever
+    /// lifting anything.
+    const RECORDED_PROGRAM_ERROR: RecordedProgramError = [
+        Literal,
+        SubdivisionCount,
+        CarrierInChain,
+        NotationOffProgram,
+        NotationBeforeAnyStep,
+    ];
+}
+
+/// **Every recorded-program refusal states what the lift could not
+/// take**, including the two that are about the notation rather than
+/// the recording.
+///
+/// The two notation arms are the pair a caller has to tell apart: one
+/// says the entry names an argument the recording has none of, the
+/// other that the derived door was asked to write against nothing.
+/// They differ by more than a step number, so the sentences differ by
+/// more than a step number.
+#[test]
+fn a_recorded_program_refusal_says_what_the_lift_could_not_take() {
+    let cases = [
+        (
+            RecordedProgramError::Literal(DimensionError::DisplayUnitMismatch {
+                unit: Dimension::Angle,
+                literal: Dimension::Length,
+            }),
+            vec!["recorded literal was refused", "measures angle"],
+        ),
+        (
+            RecordedProgramError::SubdivisionCount(1 << 40),
+            vec!["subdivision count", "does not fit a u32"],
+        ),
+        (
+            RecordedProgramError::CarrierInChain,
+            vec!["complete-loop carrier step", "inside a chain"],
+        ),
+        (
+            RecordedProgramError::NotationOffProgram {
+                step: 3,
+                arg: StepArg::TargetX,
+            },
+            vec!["target x", "step 3", "no argument at"],
+        ),
+        (
+            RecordedProgramError::NotationBeforeAnyStep {
+                arg: StepArg::Radius,
+            },
+            vec!["radius", "step just recorded", "nothing has been recorded"],
+        ),
+    ];
+    assert_f6_every_variant(
+        &cases,
+        &RECORDED_PROGRAM_ERROR,
+        &as_strs(&dimension_dump_words()),
+    );
+}
+
+test_utils::f6_variants! {
+    /// `StepIdFault`'s census — see [`NODE_PICK_ERROR`]. The ways a
+    /// profile program's step ids can fail to be the document's minted
+    /// names for its steps, at the edit door and the load door alike.
+    const STEP_ID_FAULT: StepIdFault = [
+        Preminted,
+        LoopCount,
+        Shape,
+        NotThisProfiles,
+        Repeated,
+        NotMinted,
+        Collides,
+    ];
+}
+
+/// **Every step-id fault names the id or the count it is about**, and
+/// the edit's arm that carries one frames it with the node.
+#[test]
+fn a_step_id_fault_names_the_id_or_the_count() {
+    let cases = [
+        (
+            StepIdFault::Preminted,
+            vec!["already carries step ids", "the insert mints them"],
+        ),
+        (
+            StepIdFault::LoopCount { loops: 2, given: 3 },
+            vec!["2 loops", "3 lists of step ids", "one list per loop"],
+        ),
+        (
+            StepIdFault::Shape {
+                loop_: 1,
+                authored: 5,
+                given: 4,
+            },
+            vec![
+                "loop 1 authors 5 steps",
+                "4 step ids",
+                "one id per authored step",
+            ],
+        ),
+        (
+            StepIdFault::NotThisProfiles {
+                step: StepId(tagged(9)),
+            },
+            vec![
+                "step id 000000000009",
+                "not a step of the program this node holds",
+            ],
+        ),
+        (
+            StepIdFault::Repeated {
+                step: StepId(tagged(4)),
+            },
+            vec!["step id 000000000004 stands for two steps"],
+        ),
+        (
+            StepIdFault::NotMinted {
+                step: StepId(tagged(12)),
+            },
+            vec![
+                "step id 00000000000c",
+                "not in the document's mint log",
+                "never minted it",
+            ],
+        ),
+        (
+            StepIdFault::Collides {
+                step: StepId(tagged(7)),
+            },
+            vec!["drew step id 000000000007", "mint log already holds"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
+    assert_f6(
+        &EditError::StepIdsRefused {
+            node: held(4, "Profile"),
+            fault: StepIdFault::Repeated {
+                step: StepId(tagged(2)),
+            },
+        },
+        &[
+            "Profile 000000000004's program cannot take the step ids given",
+            "step id 000000000002 stands for two steps",
+        ],
+        &["StepIdsRefused", "Repeated"],
+    );
+    assert_f6(
+        &EditError::NameStepNeverMinted {
+            name: editor_core::test_support::spoken_name(
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(tagged(3)),
+                    path: vec![RoleSeg::RimEdge(
+                        CapEnd::End,
+                        editor_core::ProfileEdgeRef::Piece {
+                            step: StepId(tagged(9)),
+                            role: editor_core::PieceRole::Leg,
+                        },
+                    )],
+                },
+                held(3, "Extrude"),
+            ),
+            step: StepId(tagged(9)),
+        },
+        &[
+            "edge name minted by Extrude 000000000003",
+            "profile step id 000000000009",
+            "never minted",
+            "mint log does not hold it",
+        ],
+        &["NameStepNeverMinted"],
+    );
+    assert_f6(
+        &EditError::SetProgramOnNonProfile {
+            node: held(4, "Extrude"),
+        },
+        &[
+            "Extrude 000000000004 holds no profile program",
+            "no program to set",
+        ],
+        &["SetProgramOnNonProfile"],
+    );
+}
+
+test_utils::f6_variants! {
+    /// `StepSegmentsError`'s census — see [`NODE_PICK_ERROR`]. The
+    /// step→profile-edge door's refusals (DM8): every arm is a question
+    /// the door could not answer, so every arm must say which question
+    /// in words a consumer can act on.
+    const STEP_SEGMENTS_ERROR: StepSegmentsError =
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RadiusNotAnArgument,
+         EmissionOffTheLoop, CarrierRecordsEmissions, SpanOffTheLoop];
+}
+
+#[test]
+fn step_segments_error_display_names_its_content_not_its_struct() {
+    let cases = [
+        (StepSegmentsError::NoSuchLoop { loops: 2 }, vec!["2 loops"]),
+        (StepSegmentsError::NoSuchStep { steps: 5 }, vec!["5 steps"]),
+        (
+            StepSegmentsError::NoRecord { loop_: 1 },
+            vec!["structure record", "loop 1"],
+        ),
+        (
+            StepSegmentsError::RecordShape {
+                loop_: 1,
+                authored: 5,
+                recorded: 4,
+            },
+            vec!["loop 1", "authors 5 steps", "describes 4"],
+        ),
+        (
+            StepSegmentsError::NoAnchor { loop_: 0 },
+            vec!["naming anchor", "loop 0"],
+        ),
+        // The WHOLE sentence, not three substrings of it: every
+        // radius-role label already ends in the word "radius"
+        // (`StepArg::label`), so a template that appended one of its
+        // own rendered "carrier radius radius" and passed a
+        // substring census without a murmur.
+        (
+            StepSegmentsError::RadiusNotAnArgument {
+                step: 3,
+                arg: editor_core::StepArg::CarrierRadius2,
+            },
+            vec![
+                "the record says step 3's arrival carrier radius drew a segment, \
+                 and that step holds no such argument",
+            ],
+        ),
+        (
+            StepSegmentsError::EmissionOffTheLoop {
+                step: 2,
+                arg: editor_core::StepArg::CarrierRadius,
+                segment: 9,
+                segments: 4,
+            },
+            vec![
+                "the record says step 2's carrier radius drew segment 9 on a loop \
+                 with 4 of them",
+            ],
+        ),
+        (
+            StepSegmentsError::CarrierRecordsEmissions {
+                loop_: 0,
+                emissions: 3,
+            },
+            vec![
+                "loop 0 is a carrier form, whose one radius is the whole boundary's \
+                 and draws no segment of its own, and its record carries 3 radius \
+                 emissions",
+            ],
+        ),
+        (
+            StepSegmentsError::SpanOffTheLoop {
+                step: 2,
+                end: 9,
+                segments: 4,
+            },
+            vec!["step 2", "up to 9", "4 of them"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &STEP_SEGMENTS_ERROR, &[]);
+}
+
+/// **A parameter name renders without quotes at every door but parse.**
+///
+/// [`ParamName`] is a `String` newtype, so a `{:?}` over it renders the
+/// name plus `Debug`'s quotes: prose, but carrying a delimiter the
+/// sentence did not ask for, and the crate spelled it both ways. The
+/// rule is the one [`ParamName`]'s `Display` carries — a door that
+/// FRAMES the name in a sentence of its own ("parameter width is
+/// declared length") renders it bare, and the one door that echoes the
+/// bytes an author typed, [`ParseError::UnknownParam`], keeps the
+/// quotes, because there the delimiter is what says which bytes were
+/// read.
+///
+/// The row is over the rendered SENTENCE rather than over the
+/// placeholder, so it holds whether a quote returns as a `{:?}`, as a
+/// literal pair written around the name, or through a `Debug` the
+/// newtype is given later. One arm per door: the spelling is a property
+/// of the door, and an arm added to one of these enums inherits
+/// whichever spelling its neighbours use.
+///
+/// The certified-range and stackup doors are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`].
+#[test]
+fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
+    use editor_core::{
+        DocParamField, InlineError, MeasureUnavailable, NonFiniteSite, ParamBoxError, PersistError,
+        SeedError, SplitError,
+    };
+
+    let name = ParamName::from_static("width");
+    let node = || held(5, "Extrude");
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "EditError::SlotUnknownDocParam",
+            EditError::SlotUnknownDocParam {
+                name: name.clone(),
+                node: held(5, "Extrude"),
+                slot: SlotId::Radius,
+            }
+            .to_string(),
+        ),
+        (
+            "EditError::ContinuousParamCannotBeCount",
+            EditError::ContinuousParamCannotBeCount { name: name.clone() }.to_string(),
+        ),
+        (
+            "PersistError::DisplayUnit",
+            PersistError::DisplayUnit {
+                name: name.clone(),
+                unit: Dimension::Angle,
+                declared: Dimension::Length,
+            }
+            .to_string(),
+        ),
+        (
+            "NonFiniteSite::DocParam",
+            NonFiniteSite::DocParam {
+                name: name.clone(),
+                field: DocParamField::Nominal,
+            }
+            .to_string(),
+        ),
+        (
+            "SnapshotError::SlotUnknownDocParam",
+            SnapshotError::SlotUnknownDocParam {
+                node: node(),
+                slot: SlotId::Radius,
+                name: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "EvalError::UnknownParam",
+            EvalError::UnknownParam(name.clone()).to_string(),
+        ),
+        (
+            "SplitError::UncutParamReference",
+            SplitError::UncutParamReference {
+                param: name.clone(),
+                cut_node: held(1, "Extrude"),
+                kept_node: held(2, "Extrude"),
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::ParamConflict",
+            InlineError::ParamConflict {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "SeedError::UnknownParam",
+            SeedError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "ParamBoxError::UnknownParam",
+            ParamBoxError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "MeasureUnavailable::BandHasNoMeasure",
+            MeasureUnavailable::BandHasNoMeasure {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
+
+    // The exception, and the reason it is one: the name is the bytes the
+    // author wrote, which may be a typo, so the quotes delimit what was
+    // read rather than decorating a name the document holds.
+    let echoed = ParseError::UnknownParam {
+        pos: 4,
+        name: name.as_str().to_owned(),
+    }
+    .to_string();
+    assert!(
+        echoed.contains(&format!("{:?}", name.as_str())),
+        "the parse door delimits the bytes it read: {echoed}"
+    );
+}
+
+/// Each sentence names the parameter and does not quote it — the shared
+/// predicate of
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
+/// certified-lane sibling, so the two cannot drift into asking
+/// different questions of the same rule.
+fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
+    let quoted = format!("{:?}", name.as_str());
+    for (door, shown) in framed {
+        assert!(
+            shown.contains(name.as_str()),
+            "{door} does not name the parameter at all: {shown}"
+        );
+        assert!(
+            !shown.contains(&quoted),
+            "{door} quotes the parameter name, which is `Debug`'s delimiter and not this \
+             sentence's: {shown}"
+        );
+    }
+}
+
+/// The two certified-lane doors, `range.rs` and `stackup.rs`, beside
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]'s.
+#[test]
+fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
+    use editor_core::{RangeRefusal, Unavailable};
+
+    let name = ParamName::from_static("width");
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "RangeRefusal::NotAContinuousParam",
+            RangeRefusal::NotAContinuousParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "Unavailable::TangentDegraded",
+            Unavailable::TangentDegraded {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
+}
+
+/// **An edit refusal does not say a noun its spoken node already
+/// says.** A spoken node opens with its kind (`Measure 000000000004`),
+/// so a template that still names the thing before it reads
+/// "a length measure (Measure …)" or "the mate Mate …". Every arm that
+/// names a held node is rendered over a node of the kind it really
+/// names, and the word before each spoken node must not be its kind.
+#[test]
+fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
+    let name = ParamName::from_static("width");
+    let rows: Vec<(EditError, Vec<SpokenNode>)> = vec![
+        (
+            EditError::AssertionDimension {
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec![held(5, "Assertion"), held(4, "Measure")],
+        ),
+        (
+            EditError::AssertionTarget {
+                node: held(5, "Assertion"),
+                measure: held(4, "Extrude"),
+            },
+            vec![held(5, "Assertion"), held(4, "Extrude")],
+        ),
+        (
+            EditError::MeasureMalformed {
+                node: held(4, "Measure"),
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "min_clearance",
+                    index: 2,
+                    refs: 2,
+                },
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::PayloadUnknownDocParam {
+                name: name.clone(),
+                node: held(4, "Measure"),
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::NonFiniteAlignment {
+                node: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::UpdateOnNonInstance {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::OffsetOnNonInstance {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::GaugeOnNonPlaced {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::GaugeNotLive {
+                node: held(3, "InstantiatePart"),
+                gauge: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            },
+            vec![
+                held(3, "InstantiatePart"),
+                SpokenNode::absent(RecipeNodeId(tagged(9))),
+            ],
+        ),
+        (
+            EditError::NotAGauge {
+                node: held(3, "InstantiatePart"),
+                gauge: held(4, "Extrude"),
+            },
+            vec![held(3, "InstantiatePart"), held(4, "Extrude")],
+        ),
+        (
+            EditError::GaugeCycle {
+                node: held(1, "Gauge"),
+                gauge: held(2, "Gauge"),
+            },
+            vec![held(1, "Gauge"), held(2, "Gauge")],
+        ),
+        (
+            EditError::WouldStartPlacing {
+                mate: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::DeclareInputNotDeclare {
+                node: held(5, "Union"),
+                input: held(4, "Extrude"),
+            },
+            vec![held(5, "Union"), held(4, "Extrude")],
+        ),
+        (
+            EditError::UnresolvedInput {
+                input: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            },
+            vec![SpokenNode::absent(RecipeNodeId(tagged(9)))],
+        ),
+    ];
+    for (error, said) in rows {
+        let text = error.to_string();
+        for node in said {
+            let spoken = node.to_string();
+            let at = text
+                .find(&spoken)
+                .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));
+            let before = text[..at].trim_end_matches([' ', '(']);
+            let word = before
+                .rsplit(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("")
+                .to_lowercase();
+            let noun = spoken
+                .split(' ')
+                .next()
+                .expect("a spoken node opens with a word")
+                .to_lowercase();
+            assert_ne!(word, noun, "the noun is said twice before {spoken}: {text}");
+        }
+    }
+}
+
+/// **The clearance goldening form prints a selection's node in full**: it
+/// is a machine channel, where two ids must never print alike, while the
+/// refusal's words say the node by its tag.
+#[test]
+fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
+    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
+    let node = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+    let refusal = ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody { node, index: 2 });
+    assert_eq!(
+        refusal.payload(),
+        "no_such_body node=3fa9c1d2a0b10042 index=2"
+    );
+    let ClearanceRefusal::Selection(selection) = &refusal else {
+        unreachable!("built above");
+    };
+    assert_eq!(
+        selection.to_string(),
+        "node 3fa9c1d2a0b1's value carries no body at index 2"
+    );
+    let standing = SelectionRefusal::NodeDidNotBuild(editor_core::NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId(7),
+    });
+    assert_eq!(
+        standing.payload(),
+        "node_did_not_build poisoned node=3fa9c1d2a0b10042 through=0000000000000007"
+    );
+}

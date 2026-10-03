@@ -1,0 +1,149 @@
+=== MUTATION M8_declared_arm_cusp_only ===
+---- r2_probes::r2_ordinary_solids_earn_no_wedge_verdict stdout ----
+
+thread 'r2_probes::r2_ordinary_solids_earn_no_wedge_verdict' (5713) panicked at crates/topo/src/r2_probes.rs:131:5:
+assertion `left == right` failed
+  left: Err([UncertifiableSurface { face: FaceKey(1v1) }, UncertifiableSurface { face: FaceKey(2v1) }, UncertifiableSurface { face: FaceKey(3v1) }, UncertifiableSurface { face: FaceKey(4v1) }, UncertifiableSurface { face: FaceKey(5v1) }, UncertifiableSurface { face: FaceKey(6v1) }, UncertifiableSurface { face: FaceKey(7v1) }, EdgeCertification { edge: EdgeKey(1v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(1v1) }, EdgeCertification { edge: EdgeKey(2v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(2v1) }, EdgeCertification { edge: EdgeKey(3v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(3v1) }, EdgeCertification { edge: EdgeKey(4v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(4v1) }, EdgeCertification { edge: EdgeKey(5v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(5v1) }, EdgeCertification { edge: EdgeKey(6v1), error: ResidualExceeded { check: EndpointEnd, sample: 8 } }, ScaffoldAtRest { edge: EdgeKey(6v1) }, EdgeCertification { edge: EdgeKey(7v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(7v1) }, EdgeCertification { edge: EdgeKey(8v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(8v1) }, EdgeCertification { edge: EdgeKey(9v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(9v1) }, EdgeCertification { edge: EdgeKey(10v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(10v1) }, EdgeCertification { edge: EdgeKey(11v1), error: ResidualExceeded { check: EndpointEnd, sample: 8 } }, ScaffoldAtRest { edge: EdgeKey(11v1) }, EdgeCertification { edge: EdgeKey(12v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(12v1) }, EdgeCertification { edge: EdgeKey(13v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(13v1) }, EdgeCertification { edge: EdgeKey(14v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(14v1) }, EdgeCertification { edge: EdgeKey(15v1), error: ResidualExceeded { check: EndpointStart, sample: 0 } }, ScaffoldAtRest { edge: EdgeKey(15v1) }])
+ right: Ok(())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:439:17
+   3: core::panicking::assert_failed::<core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>, core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: topo::r2_probes::r2_ordinary_solids_earn_no_wedge_verdict
+             at ./src/r2_probes.rs:131:5
+   5: topo::r2_probes::r2_ordinary_solids_earn_no_wedge_verdict::{closure#0}
+             at ./src/r2_probes.rs:128:46
+   6: <topo::r2_probes::r2_ordinary_solids_earn_no_wedge_verdict::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit stdout ----
+
+thread 'tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit' (5867) panicked at crates/topo/src/tier3_tests.rs:610:5:
+assertion `left == right` failed: the cusp's revert image is the slit, and it refuses on the same terms
+  left: [NegativeVolume]
+ right: [UndeclaredCusp { edge: EdgeKey(7v1), wedge: Slit }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<alloc::vec::Vec<topo::validate::ValidationError>, alloc::vec::Vec<topo::validate::ValidationError>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: topo::tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit
+             at ./src/tier3_tests.rs:610:5
+   5: topo::tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit::{closure#0}
+             at ./src/tier3_tests.rs:604:56
+   6: <topo::tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    face_normal::tests::every_hand_multiply_of_the_face_sign_is_inventoried
+    r2_probes::r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement
+    r2_probes::r2_ordinary_solids_earn_no_wedge_verdict
+    tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit
+
+test result: FAILED. 499 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.22s
+
+error: test failed, to rerun pass `-p topo --lib`
+--- step-export ---
+test m6_6_sense_gate::cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue ... ok
+test m5_pr13_curved::the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws ... ok
+test m6_6_sense_gate::donut_torus_flips_refuse ... ok
+test m6_6_sense_gate::lily_lantern_zone_and_pucker_flips_refuse ... ok
+test m6_6_sense_gate::notched_walls_both_directions ... ok
+test m6_6_sense_gate::planar_control_unchanged ... ok
+test m6_6_sense_gate::washer_cylinder_walls_both_directions ... ok
+test m6_6_sense_gate::whole_body_inversions_refuse ... ok
+test m6_6_sense_gate::whole_body_inverted_ball_stays_negative_volume ... ok
+test m7_swept_elbow::the_nonuniform_loft_exports_non_rational_and_both_oracles_reconstruct_it ... ok
+test m7_swept_elbow::the_swept_elbow_exports_and_both_oracles_reconstruct_it ... ok
+test m7_swept_elbow::the_swept_elbows_walls_go_out_non_rational ... ok
+test orientation_oracle::a_uniformly_reversed_shell_stays_coherent_by_design ... ok
+test orientation_oracle::committed_fixtures_have_exact_positive_shell_volumes ... ok
+test orientation_oracle::every_fixture_shell_is_edge_use_coherent ... ok
+test orientation_oracle::known_blind_spot_same_sense_only_corruption_reads_green ... ok
+test orientation_oracle::negative_control_double_composed_face_is_incoherent ... ok
+test orientation_oracle::negative_control_flipped_winding_reads_negative ... ok
+test orientation_oracle::negative_control_one_inverted_curved_face_is_incoherent ... ok
+test r2_probes::r2_lamina_verdicts_versus_measured_volume ... ok
+test rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent ... ok
+test rev_probe::conic_trimmed_wall_flip_probe ... ok
+test rev_probe::nappe_adversaries ... ok
+test m6_6_sense_gate::die_pips_dimple_flip_refuses ... ok
+test m5_pr13_curved::curved_exports_are_byte_deterministic ... ok
+test kernel_sidecars::kernel_sidecar_fields_match_live_kernel ... ok
+test review_k4_probe::k4_sidecar_volume_literals_round_trip_bit_exact ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.01s
+
+--- sweep m9_3 ---
+
+thread 'm9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection' (7731) panicked at crates/sweep/tests/m9_3_zip.rs:385:18:
+the undeclared rim must refuse as the slit it is: Ok(())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection
+             at ./tests/m9_3_zip.rs:385:18
+   3: all::m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection::{closure#0}
+             at ./tests/m9_3_zip.rs:264:64
+   4: <all::m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection
+
+test result: FAILED. 17 passed; 1 failed; 0 ignored; 0 measured; 911 filtered out; finished in 0.39s
+
+error: test failed, to rerun pass `-p sweep --test all`
+--- profile ---
+test crates/profile/src/path/family.rs - path::family (line 32) ... ok
+test crates/profile/src/path/family.rs - path::family (line 54) ... ok
+test crates/profile/src/validate.rs - validate::ValidatedLoop<T>::blend_arcs (line 799) ... ok
+test crates/profile/src/path/family.rs - path::family (line 78) ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 17 tests
+test crates/profile/src/lib.rs - ProfileLoop (line 208) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 165) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 182) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 173) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 189) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 197) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 203) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 213) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 240) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 220) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 230) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 253) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 273) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 263) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 284) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 317) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 332) - compile fail ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+all doctests ran in 0.57s; merged doctests compilation took 0.38s

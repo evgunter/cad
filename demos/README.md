@@ -1,0 +1,1035 @@
+# Demo tour
+
+A visual tour of what the kernel can do today, from a pure outside
+consumer's seat: sweep bodies through the public `profile` / `sweep`
+APIs, booleans through `union` / `subtract` / `intersect`
+(boolean-of-boolean chains included), a `topo::split` cutaway, the
+recipe layer (editor-core document, structural edit, downstream-only
+recompute, stable names), and the assembly layer (a workspace of pinned
+part documents, instances, patterns, mates solved constructively,
+split/inline, the pin-update door) — narrated (operations used, topology
+census + genus, validation tiers passed, exact-vs-meshed mass
+properties), exported as binary STL + AP214 STEP, and rendered to PNG.
+
+![The demo corpus](renders/montage.png)
+
+This directory is **deliberately outside the cargo workspace** (root
+manifest `workspace.exclude`, plus the empty `[workspace]` table in
+`tour/Cargo.toml`): viewer/render tooling is demo-only and must never
+become a kernel dependency.
+
+## Run the tour
+
+```sh
+cd demos/tour
+cargo run --release -- ../out                  # build, narrate, export STL + STEP
+cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
+cargo run --release -- certified               # the certified cells: plate tolerance, chain
+```
+
+The first command builds every scene through the public API, narrates each
+one, and writes binary STL, AP214 STEP and `scenes.json` into `demos/out/`.
+The second writes the document-authored scenes as `.pncad` files the GUI
+opens — *The document gallery*, below. The third narrates the two cells
+whose subject is the certified scalar rather than a scene (`tolerance.rs`,
+`chaintol.rs`); they take minutes where a scene takes seconds, so the walk
+leaves them to their own mode.
+
+**None of them renders anything, and none needs the render guard's override
+sentence.** The pictures in this repository are produced and committed by
+CI; *Rendering the montages* is that lane, and it is what the rest of this
+page is mostly about.
+
+## The stops
+
+| scene | what it shows |
+| --- | --- |
+| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. Its wall: `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends, and `Node::Chamfer` over those names refuses `UnsupportedRunOut` — a plane–plane chamfer cannot end at a corner whose other edges are unrequested (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`) |
+| `spacer` | machined spacer with every edge broken — `chamfer_edges` over all twelve edges at one setback: 12 flat strips + 8 flat corner patches. Off the sheet since the montage-v3 curation, which gave the chamfer verb's cell to `diechamfer` (a better part, and the same size as `diefillet`'s radius so the two panels compare verbs) |
+| `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
+| `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
+| `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
+| `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
+| `rocker` | **the fillet construction, in 2-D and in 3-D**: a rocker plate whose six profile corners are all authored through the PATHS fillet doors, covering arc×line, line×line, line×arc and — at the eye slot's rounded tip — **arc×arc**, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); then a **keyhole** through the arm whose two convex disc/slot creases are rounded on the SOLID by `fillet_edges` at r = 1/4, selected as lines between a cylinder and a plane on the keyhole's struts, the volume moving by exactly the closed-form `−2·A(r)·depth`; larger radii the keyhole would take are pinned as live walls (`RadiusHeadroom` at the outline's 1/2; `RingClearance` from the derived onset r* = 0.3097, pinned at ±1 %); genus 2 |
+| `diefillet` | the die blank: `Node::Fillet(cube, all edges, r = 0.12)` — the battery first, then plane–plane cylinder blends with sphere-octant corner patches |
+| `diepips` | the die's pips as ONE group cut — `cube ∖ (21 disjoint balls)`, S13's closed-group extent arm, each ball charted with its pole along the face it is cut by |
+| `diecomposed` | **the composed die**: the filleted blank, the 21 pips and the filleted pip rims in one body — `cube ∖ pips`, then `Node::Fillet` twice IN PLACE, selected by `select_where(CurveKind = Line)` for the twelve box edges and by `select_where(AdjacentKinds = {Plane} × {Sphere})` for all 21 rims as closed rings |
+| `diechamferblank` | the same blank one verb over: `chamfer_edges(cube, all twelve edges, d = 0.12)` — the fillet's battery minus the two rolling-ball predicates, then a ruled strip where the cylinder would go |
+| `diechamfer` | **the chamfered die** — `diecomposed`'s recipe with its twelve box edges BROKEN rather than rolled, at the setback the fillet used as its radius, so the two montage panels differ in the verb and in nothing else |
+| `budfillet` | the *Calochortus* bud as a bored solid of revolution, with three arms of the coaxial curved-support family rolled in ONE `fillet_edges` call: sphere×cone at the mouth, cone×plane at the lip, cylinder×plane at the bore's base. Off the sheet on its own stated grounds — at montage scale the fillets barely move the silhouette, so the evidence is numbers a picture cannot fake |
+| `tiltedcut` | a cylinder with **CUT engraved in its cap** — three glyphs of lines and arcs, each extruded and subtracted as a blind pocket whose volume is its **closed-form area × depth** — then cut by a tilted plane: the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r), the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and each half's volume is a **certified quadrature enclosure** asserted to bracket πr²H/2 (less the pockets above). Four live wall probes: the lettering on the elliptical section face, on a cap after the cut, and a C with one arc per side all refuse |
+| `bossplate` | a three-arc cylindrical boss unioned into a plate — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge, the claim no other scene makes |
+| `snowman` | **two coaxial balls of revolution under every boolean, and the union's waist rolled**: a 0.3 ball below and a 0.2 head above, centres 0.4 apart, each one `revolve` of a semicircle sketched in one plane. Four bodies in one cell under one camera: the union with its waist `fillet_edges`-rolled at r = 0.05 into an exact TORUS band (`BlendArm::SphereSphereTorus` — the ball rides at R + r from both centres, so the spine is a level circle), the plain union beside it, the bottom ball with the head subtracted (a spherical bite), and the lens they share. Every volume meets a closed form to a relative 1e-12 (the radii are a person's, so none is bit-exact): the two caps the radical plane cuts, and for the rolled union the band's ΔV by Pappus on its meridian section, `π∮ρ²dy` over three arcs. The waist is selected BY DESCRIPTION, and the description is ambiguous: `(Sphere, Sphere)` names the waist arcs and every seam meridian of both balls, and with no crease or convexity atom (GS-Q2) the scene separates them through `rim_of`'s `CoSurface` refusal — filed as `tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam`. Coaxial is what a snowman is and what builds; the scene's tests pin the poses beside it under every op — a head moved 0.05 off the axis along x or z refuses `SectionNotPolar` (`reach/tilted-sphere-pair-section-refuses-at-the-polar-gate`), and one spun 0.9 rad about it refuses `SectionArcWindow { NoChartedRun }` (`tang/pierce-ring-has-no-join-arm`) |
+| `tube_along_arc` | **the tube door, with its intent parameters STORED rather than reconstructed**: a ring-torus tube built from spine centre / axis / reference direction / major radius / angular window / minor radius. A `revolve` reaches the same walls but RECONSTRUCTS the tube radius from the profile's bulge arcs; this door keeps what it was given, and the scene asserts `minor_radius.to_bits()` against the authored value on **both** half-tube walls. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census, sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀) |
+| `lofts` | **the first NURBS-walled render, and its minimal pair, in one cell**: three polyline quad sections — squares at the ends, a NON-AFFINE trapezoid between — skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. `loft_prism` (z = 0/1/2) is the corpus fixture verbatim (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 8d/3 = 9 m³ (d = 0.375). `nonuniform_loft` stands beside it as the minimal pair — the SAME sections, the SAME 2 m height, ONLY the middle placement moved to z = 0/0.15/2 (the corpus fixture keeps 0/1/3, whose bulge peaks at 48.8% of height with half-width 1.415 against the prism's 50%/1.375: the same silhouette rescaled, so the scene leads the corpus). The chord-length parameterization (t = 3√29/(3√29 + √5701) ≈ 0.1763) makes the degree-2 skin OVERSHOOT: bulge half-width 1.646 — wider than any authored section — at 32.6% of height; derived V = 8 + 0.25/(t(1−t)) = 9.7219 m³ exactly. **Why one cell and not two**: `compose_montage.py` trims and scales every cell independently, so as two panels the pair reads at two different scales and the silhouette comparison — the whole content of a minimal pair — is distorted by the composer. One frame gives them one camera and one scale; the second body is placed 4 m along +x, which is a rigid motion of the whole loft and leaves every derivation invariant. `twisted_loft` (8 m along +x) is the third thing the cell shows a loft reading from its author: the prism's sections at the prism's placements (every vertex checked bitwise against the prism's), with ONLY the top square's corners listed from the second. A loft joins corners by where each loop starts, so strut k runs c_k → c_(k+1) — a quarter turn by correspondence alone — and the walls become ruled twists. The twist moves the chord-averaged middle parameter to t = (√73/(√73+5√17) + √73/(√73+√329))/2 ≈ 0.3066 (asked of `loft_parameters` and pinned); derived V = 16/3 + (8t + d(1 + 12t − 10t²))/(30t²(1−t)²) ≈ 8.1764 m³ against the prism's 9 |
+| `hollowring` | the one-call hollow ring — a holed profile fully revolved, two shells out of one `revolve` |
+| `hollowelbow` | the windowed hollow elbow — `tube_along_arc_hollow` over an arc window: a wall, and an open bore |
+| `hollowtorus` | the full-period hollow tube — `TubeWindow::Full`, where the inner traversal closes and enters as a REVERSED cavity shell through the shared void-insertion door |
+| `fivewall` | **every analytic surface kind the kernel holds, hollowed in ONE `shell` call**: one annular meridian mints two planes, two cylinders, a cone, a sphere and a torus, and the scene reads all five offsets back out of the STORED surfaces — each wall's cavity is a face of its OWN kind with one number moved (radius `∓ t`, the bore's growing where the rim's shrinks; the cone's half-angle unchanged and its apex slid; the torus's minor radius moved and its major left alone). The two arcs are what separate the last two kinds: `Center` ON the axis revolves to a sphere, the same arc about a centre OFF it to a torus. The curved radii are asserted as a GAP rather than bitwise, because an arc's radius is reconstructed from its endpoints and lands one ulp off its authored dyadic — stated rather than authored around. Genus 1 solid, genus 2 hollowed (the meridian never touches the axis, so the body is a bored SLEEVE); beside it in the same cell the same sleeve through `shell_open`, one annular rim, ONE shell |
+| `teapot` | **`shell`'s designated demo**: FOUR solids from ONE recipe document — a pot that is `Profile → Revolve → Node::Shell` opened at its mouth (one annular rim, genus 0), a lid whose three rims roll in ONE request (a SOLID knob and no vent: the lid's profile closes down the axis, so each rim is two half-arcs, asked for by both names and carved as one torus band each — 8/14/8 sharp, 14/23/11 rolled, sharp V = 5369π/3·256⁻³ m³, each band re-derived from its two tangency traces), and a CANAL of a spout and a handle set BESIDE the pot rather than joined. The spout is seven ANNULAR sections standing on the tangent frames of a circular arc, skinned by ONE `Node::Loft`: it bends 45°, tapers to half its root radius and thins as it goes, so no revolve reaches it at any axis and no extrude does either — which is what retired this scene's old finding that "a spout the shape of a spout is not authorable at all". **Its sections are ROUND, and what that costs at a tight ε is a volume NUMBER rather than a certificate.** A circle is RATIONAL, so lofted circular sections make rational walls; a rational wall is a quadrature face whose certified enclosure is chased to a reporting target derived from ε; and at ε = 1e-12 the schedule's own last-round bound proves that target unreachable after round 0 (`rounds: 1`, no work spent). **Tier 3 admits the body anyway**, and that is the part worth reading: the +V check consumes only the SIGN of that enclosure — the tier's own docs say deciding the sign "is an act of certification rather than a measurement" — and the enclosure excludes zero at the very round the chase stops on, its lower end about ten of its own half-widths clear at ε = 1e-12. So the scene certifies at every ε, and the volume ribbon reports the certified bracket (`V in [lo, hi] m^3, certified bracket`) where it has no number to print. More budget would not buy the number back, measured: one more round makes the early exit stop firing and the face then runs over half an hour without finishing. An OCTAGONAL authoring had a number at every ε — straight sides make polynomial walls, which take the integral lane's exact per-span rule, the same reason `twisted_tube` next door can be a loft and a solid at every ε — and it is REVERTED, because the shape a potter draws is round and a demo bent around a kernel's reporting floor hides the floor. So the scene PROBES its mass rather than asserting through a door that may not open, and where the door opens it asserts the BRACKET: the straightened frustum inside the kernel's own certified enclosure. The two joins still refuse, at TWO DIFFERENT DOORS, and both have moved. handle ∪ pot used to be torus × sphere at the operand gate; the torus is on the union's kind roster now, so the join gets past the gate and stops at the maximal-faces precondition on the POT — `NonMaximalFaces`, its full revolve's planar walls split in two (`work/carve/full-revolve-emits-split-planar-walls`). spout ∪ pot gets PAST the pair rung — a loft's walls are `Nurbs` and that arm exists — and dies one door in at `CurvedEdgeUnsupported` on the canal's own seams, because rung-3 edges are what the curved zip mints and not what it consumes (`work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule`). Making the spout the shape a potter draws moved the refusal off a pair nobody modelled and onto the body's own edges. Rendered see-through: a cavity is invisible in an opaque render at every camera |
+| `torusvessel` | the torus-walled vessel, hollowed — a donut band in the wall, `shell` of a revolve whose belly arc has its centre OFF the axis |
+| `torusvesselcup` | the same vessel opened at its mouth — `shell_open` on the mouth's chart, then `merge_coplanar_faces`: one annular rim, coplanar with the wall's top, the revolve's seam retired before the glue through the Euler doors alone |
+| `s_duct` | the first CURVED-path sweep body: a 0.5 m square swept through an S — two OPPOSED quarter arcs of radius 2 (degree-3 interpolant through exact points), v-degree 3, path-following frame (planar path ⇒ no roll). Not the not-a-revolve claim: TWO GLUED partial revolves reach this shape, since each planar arc sweep is a partial revolve's orbit. Volume expectation A·L (curvature moment cancels) |
+| `twisted_duct` | **nowhere-zero TORSION — the class NO assembly of revolves reaches**: a 0.5 m square swept along the twisted cubic (At, Bt², Ct³), degree-3 interpolant, v-degree 3. τ = 12ABC/\|r′×r″\|² has a constant numerator, so the spine is planar in NO plane and its curvature varies continuously too (no arc anywhere); a revolve's spine is a planar circular arc, and gluing revolves only concatenates planar arcs. The square visibly rolls as the bend plane turns. Two shadow proofs ride standalone (`twisted_duct_shadow_{z,y}`): a parabola down z, a one-inflection cubic S down y — parallel projections of a planar curve are affine images of each other and cannot differ in inflection count. Volume expectation A·L (centered symmetric section: curvature moment cancels, roll drops out) |
+| `twisted_tube` | **the same spine as `twisted_duct`, said as a LOFT**: the twisted cubic again — torsion nowhere zero, so no assembly of revolves reaches it — but with three things a sweep cannot be asked for, because `sweep_body` takes ONE profile and derives its own frame while `loft_body` takes the sections and the placements as two lists. The square TAPERS to half its width, ROLLS 1 rad about the spine, and the sections are ANNULAR, so the body is a capped tube of genus 1 against the solid twin's genus 0. Its volume is an EQUALITY against that twin times 1 − (3/5)² = 16/25 (both loops taper by the same factor at every station, so the area ratio is constant along the spine and each centred symmetric section's curvature moment vanishes). The taper is read off the stored end caps and the roll is isolated against the SAME body built roll-free, both folded mod a quarter turn because a square's axis is. Took `twisted_duct`'s montage cell; that scene keeps its standalone render, both shadow proofs and the torsion assertion this one cites |
+| `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
+| `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
+| `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T, both letters filling one 2×3×3 block — the T's stem spans exactly the H's bar band, so the flush contacts are DECLARED; undeclared, the same operands' typed `UndeclaredCoincidence` refusal is narrated first. V = 17/4 exactly |
+| `silhouette3` | a blocky **C** prism along +y ∩ the H×T solid — intersect-of-intersect, boolean-of-boolean, contacts declared; all three shadows are the whole letter. V = 11/4 exactly. Built C ∩ (H×T), and the order (H×T) ∩ C is checked to build the same volume (it refused `JoinDesync` before JOIN-1, `work/join/declared-flush-intersect-refuses-in-one-operand-order.md`) |
+| `az` | the A×Z silhouette intersect (#93's letter pair): counter-hole A (a true inner loop) × Z, both drawn in one block with their flush contacts declared; genus 4, volume gated on the exact oracle 38627/14336 |
+| `crosslap` | cross-lap joint, assembled: two half-depth-notched beams (each a boolean result), UNIONED through the declared planar REST zip; the undeclared mate's typed refusal stays narrated |
+| `crosslap_exploded` | the same joint exploded via `transform_rigid`, with re-minted witnesses |
+| `twopeg` | **the declared CYLINDRICAL contact**: two 6×4×1 plates located on each other by a mating plane and two peg-in-hole fits — plate P is the plate ∪ two three-arc pegs; plate Q is ONE extrude of a profile whose two circular INNER LOOPS are the bores, genus 2 by construction. So P is a boolean result and the mate is a boolean of one boolean. Three declared `Rest` contacts (one planar, two cylindrical) unlock the zip; UNDECLARED the mate still refuses at the coincidence door, and that contrast is narrated live. Volume is EXACTLY additive against a closed form — vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) = 48, bitwise — and full engagement removes every cylindrical patch, so the finished body carries no cylinder face at all: each peg survives as a rim circle, an inner ring on the plate's top. ONE cell carries both framings — the mated body and, beside it, the same two parts apart with Q lifted, so the three contacts are visible before the union makes them interior |
+| `projectbox` | enclosure: cavity + 6 vent through-slots + 4 round bosses standing on the floor (each union declaring the flush detector's findings: its cap-on-floor contact, plus continuations against the other bosses' disjoint tops that the union does not need) + 4 through-bores down the bosses — the longest sequential boolean chain — and beside it in the SAME cell the first `topo::split`, that body cut by a tilted plane through two bored bosses and the halves pulled apart, a machinist's section: each half's boss sections are single faces ringed by their bores, and `topo::plane_section` reads the same regions back against the closed-form areas. The cell takes the SECTION's camera: the box is a box from any azimuth, the section is only a section from one |
+| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's organic subject and a deliberate stress test. The **ROOTSTOCK** is the plant's one JOIN: a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, UNIONED into one body through the one contact they share — the socket's wall against the foot's, a CYLINDRICAL `Rest` declared as three face pairs (the bore's one face against the foot's three arcs), with no planar contact anywhere on the mate — its volume the two parts' sum. The **stem** is torus-segment tubes from the tube door, walked by a turtle so consecutive arcs are **G1 by construction**, carrying the AUTHORED `minor_radius` rather than a bulge-arc reconstruction of it. The **lantern** is a sphere zone from `revolve(Full)`, with a conical mouth below and a neck cone above cut at the arch tube's own radius — its rim IS that tube's terminal meridian circle, so flower and stem meet on one shared circle rather than crossing. The **bud** is that same meridian said three times PARTIALLY: pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally. The **blades** are the fitted pieces, a B-spline wall through exact spine points — the SWEPT ones carry a LANCEOLATE section, two arcs meeting at the margins, so their walls are rational and their volume is the quadrature's (a number at the default ε, a certified bracket at 1e-12, containing the lens's Pappus closed form either way); they hold one width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame. The LOFTED ones do both, because `loft_body` takes sections and placements as separate lists, so the long basal leaf runs rectangle to wide diamond to small diamond while turning about its own spine, and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Their sections stay straight lines, and that is a live wall: the same lens lofted refuses tier 3 on the quadrature's reporting budget although its sign is not in doubt (probe 16, `work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`), and the swept leaves are fitted at degree 2 because the cubic fit refuses the same way (probe 15). Everything ELSE is set beside its neighbour rather than welded, and the stop is followed by **live wall probes** that attempt the joins and shapes a plant actually wants and assert each typed refusal, panicking if one ever retires |
+| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder plus two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards, which is the better construction for coaxial supports and the one `fillet_edges` cannot make. The **top loop** is ONE `sweep_body` of the annular section along its whole U-turn spine — a 270° arc over the top and a 90° arc turning back onto the axis, joined tangent and interpolated as one curve (two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights) — drawn in the plane `path_start_frame` hands out at the spine's start. Its section is spelled as four quarter arcs per wall (`circle_split`) rather than `circle`, whose lofted semicircle walls the mesher refuses, and its 13 stations at skin degree 2 sit inside a measured neighbourhood of settings that pass tier 3 and mesh at every ε row; its rational walls make its volume a certified bracket, asserted to hold Pappus's A·L. The two bodies MEET on annular faces, each loop cap turned ~1e-4 m off the bulb's rim by its spine's end tangent, and they cannot be joined: union refuses the loop's NURBS edges at the operand gate, and subtract refuses the bulb's cone flare against a planar cap at the revert roster, which also leaves un-trimmed the self-intersection an immersed Klein bottle must have. Rendered SEE-THROUGH (the manifest's per-body `transparency`) from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **live wall probes**, one of which used to pin a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, which this bulb's annular cap is what hit. That case is CLOSED (issue 555): the projection writes the chart frame's structurally-zero far-point coordinate and floors every chart coordinate at spade's `MIN_ALLOWED_VALUE`, so wall 7 no longer pins a refusal — it re-runs the four flare-angle x rim-radius cells that used to refuse and requires all four to mesh |
+| `heatsink5/7/9` | **the recipe layer**: ONE document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `PlacedUnion`; each re-eval recomputes exactly 2 nodes and reuses 7 (counted in the caption); stable names survive the edits. The WHOLE part is in the document — the base plate's twelve edges rounded by a `Fillet` (r = 1/32), `PlacedUnion(fin, Linear{count})` fusing the fins into one body, and a `Boolean(Union)` folding them into the rounded base — so the two recomputed nodes are the group and the union, and everything upstream of the edited slot, the fillet included, is reused by content key. Volume is the rounded plate's closed form (twelve bands of r²(1 − π/4) per unit length, eight octant corners of r³(1 − π/6)) plus n fins, gated 1e-9. The fins are sunk 1/16 into the base, not flush, and the scene narrates why live: flush fins with their five feet declared as `Rest` contacts build at the closed form, but the count edit makes `Instance(5)` flush with nothing declaring it (a correct refusal), and no edit extends a live union's declaration (`work/recipe/declared-pairs-are-a-booleans-own-payload.md`). The door that exists, deleting the union and its `Declare` and re-adding both after re-detecting, is measured building at 7 fins; it costs four edits and a new union node, so the scene does not take it. One wall runs live: the base is rounded before the union, not after, because on the unioned part the fins' feet are rectangular rings of the top face, which the fillet's ring check refuses (`work/band/fillet-support-ring-must-be-a-circle.md`). r = 1/32, not 1/16: at 1/16 the ninth fin's wall stands on the end band's tangent line and the union refuses (`work/hone/a-wall-flush-with-a-fillets-tangent-line-refuses-the-pierce.md`). Montage cell held by `impeller12` below, which says the same thing about a relation rather than a number; all three counts keep their standalone renders |
+| `impeller6/8/12` | **the recipe layer's CIRCULAR rule: one parameter, TWO slots**. A 24-gon hub, one blade, and a `PlacedUnion` that places the blade about the hub's own `Datum::Axis` and fuses the group into ONE body, folded into the hub by a `Boolean(Union)` beside it. What separates this from `heatsink` above is that the blade COUNT and the angular STEP are not independent: the count is `blades` and the step is `360 deg / scalar(blades)`, both reading the SAME document parameter, so the tour's 6 → 8 → 12 is one `SetDocParamValue` each time and the blades still close the circle. A comb's count and spacing genuinely are independent; a wheel's are not, and the recipe layer can say which it is. Each edit recomputes exactly 2 nodes and reuses 7. The three volumes are EXACTLY linear in the count, and the reason is a constraint the scene chose on purpose: 6, 8 and 12 all divide the hub's 24 facets, so every blade meets the faceted hub at a clocking the hub repeats at. 5 blades (72°, not a multiple of 15°) breaks that linearity at 8e-5 relative — measured, and the faceted hub's own asymmetry showing up in a number. The hub is a PRISM rather than a cylinder because a box leaving a cylinder through its wall refuses to union — past the pierce door now, at the join (`SectionArcWindow`, `work/tang/pierce-ring-has-no-join-arm`) — so a ROUND hub cannot have a blade unioned into it at all: that is a library finding the scene is shaped around rather than hiding |
+| `bench` / `bench60` / `bench90` | **the assembly layer, placed on gauges**: an assembly document — `post.pncad` + `shelf.pncad` → three pinned `InstantiatePart`s → two `Mate`s solved constructively, the three standing on a TURNTABLE `Node::Gauge` whose swing is the document parameter `swing` (a three-step placement chain: to the pivot, the swing, back), and a `crate.pncad` instance on a shelf-top gauge NESTED on the turntable, its rest on the shelf a `Mate` across two gauges, which declares and is certified at the A5 gate. Three `SetDocParamValue` edits turn the bench to 30°, 60° and 90°; each re-runs exactly the turntable and the four instances its chain places and reuses the nested gauge and the three mates (5 recomputed, 4 reused, counted in the caption and asserted by node). Every placed vertex is checked against the gauge chain composed by hand, the shelf's centre stays on the pivot, the volume is the same at every swing, and the gate certifies each pose. The update walk runs on the whole bench and pins two live walls: the crate, on numbers on its nested gauge, cannot follow a thicker shelf or shorter posts (its mate across gauges places nothing), and the gate refuses its rest alone (`work/place/a-part-resting-on-a-gauge-cannot-follow-a-part-edit`). The 30° pose shares the montage cell with the flat-pack — the post and shelf through a linear pattern over explicit frames; 60° and 90° render on their own |
+
+## The document gallery
+
+`demo-tour gallery [dir]` (default `gallery/`) writes each
+**document-authored** scene as a `.pncad` file the GUI can open:
+`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot`, `impeller`,
+`plate` (the tolerance cells' two-hole plate) and `chain` (the chain cells'
+four-link chain) as single documents, plus the assembly scene's workspace under
+`assembly/`. It authors them through the same functions the tour renders — the
+gallery is the scenes, saved, not a second spelling of them.
+
+Every one of them saves and opens, but two do not denote what their scene means.
+`plate.pncad` draws a blank slab, because the document never subtracts its
+holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+draws its nine placed links under a product-fault badge but has no product:
+the gather refuses one link placed four times by transforms, so checks, mass
+properties and export have nothing to read
+(`work/wire/one-shape-placed-n-times-has-no-product.md`).
+The rest of the tour drives the kernel API directly and has no document
+to save; those scenes join the gallery as they are re-authored as
+documents, which is per-scene library work.
+
+Open one with `cargo run -p viewer --features app` and the toolbar's
+`Open…`.
+
+## Validation posture (tier 3′)
+
+Boolean stops validate the ACTUAL result body via
+`validate_pseudomanifold` with the op's own declared `contacts`.
+Non-boolean bodies run the plain tier-3 geometric gate; on contact-free
+bodies the two gates agree.
+
+Every scene body pre-flights tiers 1–2, prints exact B-rep volume/area
+from `topo::mass_properties`, and cross-checks the tessellation's signed
+volume. Boolean scenes assert exact (dyadic / closed-form) volume oracles
+after EVERY op.
+
+Every stop runs that standard ladder; there are no staged bodies. The
+pattern for the next frontier is available where one is needed: pin the
+honest refusal, and make the pin panic when the door opens.
+`skinned.rs`'s narration stays as the geometry layer (control nets,
+weights, the measured interpolation claim), which no render can show.
+
+The tour's coda feeds a self-intersecting (bowtie) profile to
+`Profile::validate` and prints the typed rejection — the fail-loud
+contract, demonstrated rather than claimed.
+
+## The STEP lane
+
+Every scene body exports an AP214 STEP file beside its STL, through the
+in-house writer's analytic subset: the whole elementary-surface
+vocabulary (`PLANE`, `CYLINDRICAL_`, `CONICAL_`, `SPHERICAL_`,
+`TOROIDAL_SURFACE`) plus `B_SPLINE_SURFACE_WITH_KNOTS`, with
+`LINE`/`CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS` carriers. Every arm
+is an **exact native entity**: a cylinder leaves as a cylinder, never as
+a spline approximation of one. The tour fails loud if a body it expects
+to export does not, and the STEP-lane montage draws every exported body
+from its own AP214 file.
+
+`same_sense = .F.` marks a concave ANALYTIC wall, whose chart has a
+canonical normal the wall may oppose. A NURBS wall's description is
+authored by the loft/sweep assembly itself, outward by construction, so a
+skinned body carries none regardless of concavity — the s_duct's and
+twisted duct's inner walls are concave and still `.T.`. A revolve mints
+both cap planes on the profile plane's own +y normal, so exactly one cap
+opposes the solid's outward normal: a `.F.` that is not on a curved wall
+at all.
+
+The lily is the widest single-scene spread the writer has been asked for
+— `TOROIDAL_` (stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
+`B_SPLINE_SURFACE_WITH_KNOTS` (leaf blades) in one cell. Its analytic
+bodies are checked against independent closed forms (Pappus for the torus
+segments, a zone-plus-frustum integral for the lanterns); its swept
+blades have no analytic wall to check that way, so they are pinned
+against Pappus instead — the lens's two circular segments' area times
+the centroid's arc length — which the kernel's certified volume must
+contain and the MESH must fall short of inside a **two-sided** band,
+since exact agreement would mean no real mesh was measured.
+
+One typed refusal remains as a named frontier: a multi-shell **curved**
+solid, whose shells the writer classifies outward or void with planar
+closed forms only (`CurvedShellClassification`;
+`work/export/step-export-reclassifies-shell-roles-with-its-own-planar-flux.md`).
+Five tour bodies are in it, each declared at the body with
+`SceneBody::step_at_frontier` and exported with a null `step`: four
+hollow ones, `hollowring` (`ring`), `hollowtorus` (`tubewall`),
+`torusvessel` and `fivewall`, and one of disjoint lumps, `cutaway_above`
+(`projectbox`), whose cut frees two bored boss tops.
+
+## Rendering the montages
+
+**Renders are hosted, and the hosted lane is the canonical producer.**
+Every committed cell of every lane `.github/workflows/render.yml`
+declares is that workflow's output, and byte-stability ("a clean
+re-render leaves `git status` clean") is defined against that producer.
+The lanes that DRAW — the ones whose trees `check_render_provenance.py`'s
+`LANE_DIRS` reads — come off a software GL or Vulkan stack under Xvfb
+with the FreeCAD 1.1.2 AppImage; the rest are renderer-free text and
+reproduce on any box. A locally-drawn frame carries this box's GL
+stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
+enforce the commit side.
+
+**You do not render locally — CI does it and commits the result.** A
+PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
+renders every lane over `main` and commits what drifted). A ready PR
+that moves frames asks for them with **`[render]` as a word of its head
+commit's subject line**:
+
+```sh
+git commit -m "scene: widen the bracket [render]"
+git push        # ci.yml's `render tag` step dispatches render.yml on the
+                #   branch; a lane that differs is committed back to it
+                #   with a neutral ("!") check naming the cells and
+                #   [skip ci]: the PR's CI ran on the tagged commit,
+                #   alongside the render, and gates the merge
+git pull        # the frames are on your branch: look at them
+```
+
+The tag counts only in the subject, delimited by whitespace, of the PR's
+head commit, read on a `pull_request` run: `[render]` in a commit body,
+or glued to other text, does not fire, and a later push without it
+renders nothing. A draft renders nothing; marking it ready re-reads the
+tag. The bot's re-baseline commit cannot ask again. A PR from a fork cannot be rendered this way (its run's
+token can neither dispatch nor push to the fork); the step says so in a
+warning.
+
+The head goes **red** rather than carrying only neutral checks when the
+render cannot vouch for it: a push to the branch while the render runs
+makes the lanes commit nothing and post a failing `render refused` check
+(push again with the tag), and lanes that did not all succeed after one
+committed, or a check on that which could not finish, post a failing
+`render incomplete` check.
+
+**If the render is what you intended, the neutral check is a pass.** It
+needs no re-run and no second commit. A drifting lane commits only when
+the run has a branch to write; a dispatch aimed at a bare SHA reports the
+drift instead.
+
+A re-baseline has two causes and they want different reactions — the
+geometry changed (these cells are the new truth; check they look like
+what you meant), or the runner image's mesa bumped and re-rasterised them
+(roughly monthly; the pixels moved and the geometry did not).
+
+What still **fails** loudly: a wedged pass, and the matplotlib-fallback
+assertion. The re-baseline is only reached when the render itself
+succeeded, so a wedge is reported as a wedge and never as drift.
+
+### Off-box: the hosted lanes
+
+`.github/workflows/render.yml` runs the render lanes on GitHub runners
+and hands each one back as a run artifact. It has **two entry points over
+one pipeline**: `workflow_call`, the nightly's render of `main`, and
+`workflow_dispatch`, which the `[render]` tag fires and which
+`render-hosted.sh` fires where `gh` can dispatch.
+
+```sh
+local-scripts/render-hosted.sh                        # dispatch, wait, install
+local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
+local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
+local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+```
+
+The script dispatches on every call except `--run`, and needs a `gh`
+allowed to dispatch workflows; a token that cannot (an agent's
+integration token answers 403) uses the `[render]` tag instead. A branch
+the tag already rendered needs no second dispatch: `git pull` has the
+cells. Dispatched runs re-baseline, so they also end in a `git pull`;
+the exception is a dispatch aimed at a bare SHA, which has no branch to
+commit to and reports the drift with the install command instead.
+
+`render-hosted.sh` **refuses** if your local HEAD is not what
+`origin/<branch>` points at — the runner checks out the pushed tree and
+cannot see local commits, so rendering an unpushed branch would draw
+scenes you are not looking at and look entirely plausible. A dirty
+working tree is a warning by the same logic one step down. While the run
+is going it prints per-job status on change plus a heartbeat every five
+minutes (a FreeCAD leg can legitimately be silent for twenty), and on a
+non-success conclusion it names the failing jobs and dumps the failing
+steps' log tail. On success it downloads each requested lane's artifact,
+installs it at the lane's committed path, **reports rather than deletes**
+any committed file the artifact does not contain, runs
+`check_render_provenance.py` over the result, and prints what moved.
+
+`--verify` is the round-trip proof that the artifact path is *lossless*:
+that a byte-reproducible lane which went out through `upload-artifact`'s
+zip and came back through `gh run download` is byte-identical to what is
+committed, **provenance `tEXt` chunks and all**. It is not a claim that
+hosted pixels match local ones. If it ever stops holding, the provenance
+guard is being handed laundered files and every lane's pull is suspect.
+
+The raw commands, if you want them:
+
+```sh
+gh workflow run render.yml -f ref=my-branch -f lanes=all
+gh run download <run-id> -n renders-kernel -D /tmp/cells   # then copy over
+```
+
+Note the `-D`: `gh run download` **refuses to overwrite existing files**,
+so pointing it straight at `demos/renders/` fails on the first cell —
+which is why the script (and the gate's failure message) stage into a
+temp directory and install from there.
+
+`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
+`wild`. The tour is built **once** and handed to the lanes that read it
+as an artifact; the two PNG lanes then run as parallel matrix legs
+(`fail-fast: false` — one lane wedging must not cancel the other's
+evidence), while the UV sheet (no renderer) and the wild-corpus montage
+(matplotlib, its own generator, no tour) land without waiting on either.
+
+The PNG lanes provision the **same** version-pinned, checksum-verified
+FreeCAD AppImage as `ci.yml`'s `step-import` job — same cache key, so a
+hosted render normally downloads nothing — and add what *drawing* needs
+on top of what importing needs: software GL (llvmpipe) and Xvfb, because
+Coin's offscreen renderer wants a GL context and a display even though Qt
+itself stays `offscreen`.
+
+The workflow adds no check of its own: a lane's verdict is
+`render.sh`'s exit status. It used to add one — every leg asserted
+`demos/renders-preview/` did not exist — because the kernel lane's
+automatic matplotlib fallback exited 0, so a hosted pass could be green
+having drawn nothing with FreeCAD. That fallback is gone (see
+*Provenance* below), so the condition the assertion detected can no
+longer arise.
+
+No job commits or pushes on a PR; each lane's diff against the committed
+tree is a real finding, and ci.yml's `renders` job fails on it. The one
+caveat is the runner image: its mesa bumps roughly monthly and
+re-rasterises the two FreeCAD PNG lanes. That is the gate working — the
+committed cells are *meant* to track the canonical producer — and it
+costs one mechanical commit, which the failing row spells out. Pinning
+the GL stack in a container image would remove even that; it remains a
+design call, not a config tweak. The UV lane carries no such caveat (it
+is renderer-free, and stays gated by `k-lint`'s own row — one gate per
+obligation), and neither does the wild lane, which is FreeCAD-free by
+scope: its cells come from matplotlib's Agg rasterizer over pinned
+`numpy`/`matplotlib` with no GL anywhere in the path, so byte-identity IS
+expected there. That is what makes wild the lane `--verify` round-trips:
+it exercises the whole stamp-bearing path, not just a text file.
+
+### Preview mode: the local override
+
+The local entry points are what the hosted lanes invoke, and what you
+reach for when you are still shaping a scene and do not intend to commit
+the frames:
+
+```sh
+# from demos/, with the tour already built into demos/out (see Run the tour)
+./render.sh                     # kernel-tessellation montage (renders/montage.png)
+./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
+./render.sh --matplotlib        # FreeCAD-free preview ONLY (renders-preview/renders/, gitignored)
+./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
+./render-gui.sh                 # the VIEWER, photographed (renders-gui/montage-gui.png)
+```
+
+`render.sh`, `render-wild.sh`, `render-uv.sh` and `render-gui.sh` each source
+`hosted-render-guard.sh` as their first act. They print a pointer at the
+push-and-pull flow above and **exit nonzero** unless the environment
+carries one of the two exact sentences the guard accepts. On a box that
+sentence is
+
+```sh
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
+```
+
+The other one belongs to the hosted renderer, two paragraphs down.
+
+The value is a sentence on purpose. `1` / `yes` / `true` are what anybody
+— human or agent — types reflexively when a script complains about an
+unset variable; a sentence naming what you are accepting is one nobody
+reaches by accident, and it reads as an admission in the shell history
+that produced the frames. A pass run this way is **preview only**: its
+frames carry *this* box's renderer and GL stack, which is the drift the
+sentence names.
+
+**There are two accepted sentences, because there are two acceptors.**
+The one above is a box's. The hosted renderer declares
+`CAD_RENDER_LOCAL_OVERRIDE=i-am-the-hosted-renderer` instead, and the
+guard then announces the pass as the canonical renderer rather than as a
+preview — which is what it is, since those are the frames that get
+committed. One message cannot be true of both, and the preview one ends
+in *do NOT commit what this pass draws*, which is the opposite of what
+the hosted job is about to do. Any other value, and unset, refuses
+exactly as before. The variable keeps its `LOCAL` for the reason the
+guard's header gives.
+
+The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
+in the guard. The sanctioned automated callers — `render.yml`'s render
+jobs, which declare the hosted sentence — set it **in the file, at the
+step that renders**, where a reviewer sees it. A sniffed exemption would be
+invisible at the call site and would grow silently with every new runner
+and local CI emulator.
+
+### Outputs
+
+`demos/out/*.{stl,step}` + `demos/out/scenes.json` + `demos/out/uv/*.svg`
++ `demos/out/uv.json` (untracked); `demos/renders/*.png` (tracked — one
+per scene plus `montage.png`); `demos/renders-freecad/*.png` (tracked —
+the montage cells plus `montage-freecad.png`);
+`demos/renders-wild/*.png` (tracked); `demos/renders-uv/montage-uv.svg`
+and `demos/renders-mc/*.svg` (both tracked, both text); and
+— only under `render.sh --matplotlib` —
+`demos/renders-preview/renders/*.png` (gitignored). The MC lane's own
+inputs are `demos/out/mc/*.svg` (untracked), written by the tour
+itself.
+
+A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
+published to the lane directory only once it is complete. The staging
+tree mirrors the lane directory's *name* and each scene process runs with
+the staging root as its working directory, so a staged frame's path reads
+the same as its published one.
+
+Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene PNGs
+before composing the montage. FreeCAD's `saveImage` stamps the wall clock
+into every file it writes (a `tEXt` "Creation Time" chunk and a `zTXt`
+"Description" chunk carrying its MIBA XML) and the output path (a `tEXt`
+"Title" chunk); the first two would make an unchanged re-render show up
+dirty in `git status`, and the third made the same pixels written to two
+paths two different files. All three are ancillary chunks, so dropping
+them is lossless: a dirty `git status` after a re-render then means the
+*pixels* changed, and two frames of the same pixels are comparable
+however they were routed.
+
+## Provenance: no matplotlib frame can be committed
+
+`render.sh --matplotlib` draws the tour scenes with the
+numpy+matplotlib STL renderer (`render.py`) instead of FreeCAD. **It is
+reached only when it is asked for by name.** The kernel lane used to
+select it automatically when FreeCAD was missing or a scene did not
+draw, and — because that path ended the pass at exit 0 — a pass that had
+drawn nothing looked exactly like one that had drawn everything, which
+is why `render.yml` carried a separate assertion whose only job was to
+tell the two apart. Both are retired: a missing renderer or an undrawn
+scene now fails the pass, nonzero and named, in this lane exactly as in
+`--freecad`.
+
+Three layers keep a matplotlib frame out of a committed path:
+
+* **Routing.** The preview lane renders into
+  `demos/renders-preview/renders/` — the preview tree mirrors the lane
+  structure and is **gitignored**, so such a frame cannot be committed
+  even by `git add -A`. It composes its own sheet there under a
+  `PREVIEW ONLY` banner, and `render.sh` prints a loud stderr block
+  naming the destination. Nothing under `renders/` is written on that
+  path — not even `montage.png`, because recomposing the committed sheet
+  from a stale or partial cell set is exactly the silent corruption this
+  guards. (`renders-preview/renders-freecad/` never appears: `--freecad`
+  has no preview lane by design — its whole point is the OCC reference
+  render.)
+* **Staging.** A pass renders into `demos/out/stage/<lane>/` and is moved
+  into the lane directory only once every scene is in hand, so no
+  incomplete pass ever reaches `renders/` — not a crashed one, not a
+  wedged one, not one killed at the terminal.
+* **Guard.** `check_render_provenance.py` asserts that every committed
+  per-scene PNG under `renders/` and `renders-freecad/` carries FreeCAD's
+  signature `tEXt` chunks (`Author: FreeCAD (…)`, `Software: FreeCAD` —
+  deterministic and provenance, so `strip_png_stamps.py` keeps them,
+  unlike the wall-clock and output-path chunks it drops). A
+  matplotlib-authored frame (`Software: Matplotlib …`) in a committed
+  path fails loud, naming the file. Both `render.sh` lanes run it after
+  the stamp strip and **before** composing the montage, so a sheet is
+  never composed from an uncertified cell set (stdlib only — no venv, no
+  FreeCAD). The wild lane runs under the
+  same guard with INVERTED per-lane rules: there matplotlib is the
+  primary renderer, and cells must carry the wild lane's own `Author`
+  stamp.
+
+**The montage sheets are exempt, and here is why that is safe.** Both
+FreeCAD-lane sheets are *composed* by matplotlib on purpose —
+`compose_montage.py` lays the rendered cells out on a grid with captions
+and a banner — so their `Software: Matplotlib` is correct, not a
+fallback. The exemption is a positive assertion rather than a hole:
+exactly the known sheet names are exempt, and each must actually carry
+the matplotlib signature. The sheet's pixels are covered *indirectly*,
+which is the honest statement of the guard's reach — a sheet is only ever
+composed from the cells sitting beside it, and the guard certifies those
+cells in the same pass, immediately before the compose step. What it
+cannot see is a **stale** sheet (cells fixed afterwards without
+recomposing); that is a `git status` / re-render question, and every lane
+is byte-reproducible after the stamp strip.
+
+`check_render_provenance.py --selftest` is the guard's own test:
+synthetic PNGs (real chunk framing and CRCs, stdlib only) for the good
+cell, the fallback cell, an unstamped cell, a sheet that is not a
+matplotlib composition, a missing lane directory, and the wild lane's
+inverted rules.
+
+## The montage sheets
+
+### The comparable pair: kernel vs FreeCAD/OCC
+
+Two sheets with identical grids, captions, scene order, and cameras (both
+read `scenes.json`) — cell-for-cell comparable, differing ONLY in whose
+tessellation is on screen:
+
+- `renders/montage.png` — **the kernel's own facets**. Every cell renders
+  the tour's exported STL mesh, i.e. the trimmed/pcurve tessellation lane
+  exactly as the kernel emitted it (flat-shaded chords on curved walls
+  and all).
+- `renders-freecad/montage-freecad.png` — **the FreeCAD/OCC reference**.
+  Every cell is FreeCAD importing the body's OWN AP214 STEP export and
+  letting OCC re-tessellate the B-rep — export → OCC import → render,
+  dogfooded end-to-end.
+
+**Both** sheets carry a provenance banner under the title naming whose
+tessellation is on screen and pointing at the other sheet, so the two
+superimpose exactly — cell for cell *and* banner for banner.
+
+Reading a disagreement: the STEP lane is the reference rendering of the
+*analytic surfaces the kernel claims to have exported*, and the kernel
+lane is what our own tessellator makes of the same bodies — so a
+cell-level mismatch is a visual differential with exactly two suspect
+pools. Coarse-but-faithful shape (visible facets, correct silhouette) is
+the expected gap: chordal, inscribed tessellation vs OCC's finer default
+deflection. Wrong GEOMETRY in a cell pair — missing walls, displaced
+features, a silhouette that differs beyond faceting — means either our
+tessellator or our STEP writer is lying about the same body, and which
+cell is wrong tells you which. A STEP-lane cell can also be a labeled
+placeholder naming an import/render failure (per-scene `freecadcmd` with
+a timeout; one bad scene costs one cell, never the sheet).
+
+**The cells are every scene the tour marks `montage: true`.** The tour
+prints the counts on its last line and `compose_montage.py` derives the
+grid from the manifest — nothing is hardcoded, this file included.
+
+**The rule for staying off the sheet**: a scene is `montage: false` when
+it is a *proof* rather than a part — a shadow render (a silhouette read
+against its own projection needs its own frame), a parameter variant
+whose point is the comparison and not the shape, or a scene whose
+interest is HOW it is built rather than how it looks — or a scene whose
+fact a richer cell already carries, which is what condensing the sheet
+into fewer, more complex parts means in practice. The authority is
+the `montage` field at each `Stop`, and each `false` says why beside it.
+Coming off the sheet costs a scene nothing else: it keeps its standalone
+render, its narration, its assertions, and its corpus/latency/STEP roles.
+
+Shadow proofs ride beside the montage panels as standalone renders. The
+three-way silhouette solid viewed straight down each axis renders an **H**
+(z), a **T** (x), and a **C** (y); the twisted duct gives a parabola down
+z and a cubic S down y, which is the planarity refutation (affine
+projections of a planar spine cannot differ in inflection count).
+
+### The wild-corpus montage (`renders-wild/`)
+
+A third sheet, deliberately unlike the pair above: **STEP files nobody on
+this project authored** (the wild corpus,
+`crates/step-import/tests/fixtures/wild/`), imported by `step-import` and
+tessellated by the kernel's own tessellator — **KERNEL-TESSELLATION LANE
+ONLY**, by Ev-approved scope. There is no FreeCAD import and no OCC
+comparison lane for these files, so the sheet does not join the
+superimposition contract; it keeps the same shape (grid, captions,
+provenance banner via `compose_montage.py`) under its own title and
+banner.
+
+```sh
+local-scripts/render-hosted.sh --lane wild   # the default path
+
+# preview only — see "Preview mode: the local override"
+cd demos/wild
+cargo run --release -- out    # import + tessellate + STL + scenes.json
+cd ..
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift ./render-wild.sh
+```
+
+**The cell set is license law plus pinned capability, not discovery.**
+`docs/WILD-CORPUS-LICENSES.md` governs eligibility — only files the audit
+marks render-OK may appear — and a file the importer refuses typed is
+pinned as a refusal rather than dropped. `demos/wild/src/main.rs` pins
+both and fails loudly on drift in any direction, so the sheet can never
+detach silently from the attribution block below.
+
+**Renderer + provenance.** Cells are drawn by `render.py` — the
+numpy+matplotlib STL renderer — as the lane's PRIMARY renderer, not a
+fallback: the facets on screen are exactly what `pncad::mesh::tessellate`
+emitted for the imported body. Every cell carries the lane's own `Author`
+stamp (`render.py --author=…`), and `check_render_provenance.py` runs
+wild-lane rules over `renders-wild/`: a committed wild cell must be
+matplotlib-drawn AND wild-stamped (a tour fallback frame or a FreeCAD
+frame is refused), and `montage-wild.png` joins the positively-asserted
+sheet exemption. matplotlib stamps no wall clock, so an unchanged
+re-render is byte-identical.
+
+#### Third-party source geometry — attribution
+
+> **Third-party source geometry.** The bodies in this montage were imported from
+> STEP files authored by others and tessellated by this project's own kernel; the
+> rendered images are our derived work, the underlying models are not.
+>
+> **Adafruit parts** (`1982 MPR121`, `328 2500mAh battery`, `64 Halfsize
+> Breadboard`, `805 slide switch`, `931 OLED 128x32 I2C`) from
+> <https://github.com/adafruit/Adafruit_CAD_Parts>, used under the MIT License:
+> *Copyright (c) 2016 Adafruit Industries. Permission is hereby granted, free of
+> charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without
+> restriction… THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.*
+> Full text: `crates/step-import/tests/fixtures/wild/adafruit/LICENSE-adafruit.txt`.
+>
+> **NIST model** (`nist_ftc_09_asme1_rd`) from the National Institute of
+> Standards and Technology's MBE PMI Validation and Conformance Testing project.
+> Produced by an agency of the U.S. Government and not subject to copyright in
+> the United States. Acknowledgement is given at NIST's request. *Neither NIST
+> nor the U.S. Government endorses, recommends, or has any connection with this
+> software; no NIST name or logo is used to imply endorsement.*
+>
+> **NIST model** (`nist_ftc_11_asme1_rb`) from the same NIST MBE PMI Validation
+> and Conformance Testing project, on the same terms as above: a U.S. Government
+> work not subject to copyright in the United States; acknowledgement given at
+> NIST's request, and the same no-endorsement statement applies.
+>
+> **CadQuery test model** (`cq_red_cube_blue_cylinder`) from
+> <https://github.com/CadQuery/cadquery> (`tests/testdata/red_cube_blue_cylinder.step`),
+> used under the Apache License, Version 2.0 — full text committed at
+> `crates/step-import/tests/fixtures/wild/occ-oss/LICENSE-cadquery.txt`. The
+> geometry was modified only by our own tessellation (the rendered facets are
+> this kernel's chordal approximation of the model's exact surfaces); CadQuery
+> ships no NOTICE file (verified in the license audit).
+
+`crates/step-import/NOTICE` carries the NOTICE text the audit requires
+separately. A file that gains a cell must gain its attribution paragraph
+in the same change — `demos/wild/src/main.rs` says so at the pin.
+
+## The UV trim-loop lane (`render-uv.sh`)
+
+The odd lane out: it draws no 3-D at all.
+
+A `Surface` in this kernel is unbounded — "the infinite plane", "the
+infinite cylinder". A `Face` is the patch of one that its boundary
+**loops** cut out, and those loops live in the surface's own `(u, v)`
+chart, stored as `geom_brep::Pcurve`s. That chart is *already* a 2-D
+drawing, so rendering it needs no camera, no projection and no silhouette
+machinery — which is why this is the one lane with **no external
+dependency whatsoever**: the tour writes the per-face SVGs
+(`demos/tour/src/uvdump.rs`, through `pncad::` like every other line of
+the tour), and `compose_uv_montage.py` tiles them using Python's standard
+library. No venv, no numpy/matplotlib, no `freecadcmd`.
+
+Consequences worth stating:
+
+* **The sheet is SVG, not PNG.** It is text, so an unchanged re-run
+  produces a byte-identical file and `git status` stays clean with none
+  of the wall-clock-stamp surgery the PNG lanes need. There is no
+  provenance guard here because there is no second renderer to confuse it
+  with — the kernel is the only thing that could have drawn it.
+* **It is a diagnostic, not a depiction.** Per face the cell measures and
+  prints: loop and half-edge counts, how many half-edges read a **stored**
+  pcurve cache vs. were derived on demand (derived ones draw dashed —
+  `mesh::trimmed` refuses those), the outer loop's signed chart area and
+  its winding, and the worst **closure gap** between consecutive
+  traversals. Winding is a *check*, not a readout: it is compared against
+  the face's own `Face::sense` bit, since a bore or a concave groove
+  carries `sense = false` and its outer loop is legitimately CW. Not every
+  face is checkable — a chart carrying a branch jump has no meaningful
+  shoelace — so the tour prints the split (checkable / branch-jumped /
+  disagreeing) on every run and **fails outright on a disagreement**,
+  which is why the alarm colour is reserved for a real contradiction
+  rather than spent on every hole. Periodic charts get their seams
+  (`u = k·2π`) drawn as dashed magenta lines, so a seam-crossing loop is
+  visible rather than inferred. Strokes are colored by pcurve form —
+  `Harmonic` blue, `IsoLine` green, `Fitted` orange.
+* **Closure is measured in 3-D, not in the chart**, and that distinction
+  is load-bearing. A chart-space closure metric false-alarms on every face
+  touching a chart singularity or a seam, because at a sphere's pole an
+  entire `u`-line is one 3-D point. Measured off the carriers instead, the
+  closure gap stays at round-off. The tour prints how many charts carry a
+  jump and the worst value of **both** measures per run. The chart jump is
+  still drawn — greyed, and named as seam/pole structure — so it informs
+  instead of alarming.
+* **The interior fill is drawn only when it means something.** A ring that
+  contains a branch jump — a loop crossing the seam or running through a
+  pole — closes in the chart through a straight segment that is not
+  boundary, so even-odd would shade a region that is not the face. Those
+  cells show the strokes alone and say why; the signed area and winding
+  are likewise not claimed there.
+* **This is the only lane a drift gate could ever fail on**, and the
+  failing one is local. The obstacle for the others is not FreeCAD
+  availability — CI can run it — but that the runner image's mesa drifts
+  month to month, so a firing PNG diff could be an image update rather
+  than a geometry change; a standing CI gate for the PNG lanes needs the
+  pinned-container work described in render.yml. This lane draws no 3-D,
+  so its sheet is byte-reproducible anywhere. Hosted CI nonetheless does
+  not fail on it: `render.yml`'s uv lane re-baselines the committed sheet
+  and reports the difference as a neutral check; no row fails on it. A
+  difference is either an uncommitted regeneration or a D9 determinism
+  finding.
+* **Nothing is refused.** Unlike the tessellator's trim walk, this one
+  accepts every pcurve form and falls back to `topo::pcurve_of`'s
+  derive-on-demand, because a face the tessellator refuses is exactly the
+  face worth looking at. A face whose loops cannot be walked at all gets a
+  cell naming the reason, first on the sheet — never a gap.
+* **Selection is stated, never silent.** `out/uv.json` carries *every*
+  face of every tour body. The sheet takes one representative per (body,
+  chart kind) among the curved charts — the richest, by distinct pcurve
+  forms then loop count then face ordinal — plus every failed walk
+  unconditionally. Planar charts are dropped as a class: a plane chart's
+  picture is the face's own outline, which the two 3-D lanes already show.
+  The composer prints every count it dropped, and every SVG stays in
+  `out/uv/` whether or not the sheet took it.
+
+Read it in a browser; nested-SVG-shy rasterizers are why the cells are
+placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
+
+### What the sheet says about the corpus
+
+Most cells are rectangles, and that is a fact about the corpus rather
+than a limitation of the drawing: **a face whose surface came out of a
+sweep has a boundary built entirely from iso-curves of its own chart, and
+only a face cut obliquely to its chart carries a real trim.**
+
+Every curved face here is *sweep-native*. Extrude, revolve, loft and
+sweep choose the surface's chart so that one direction IS the sweep
+parameter and the other IS the profile parameter — so a face's boundary
+is the profile at the start (`v = const`), the profile at the end, and
+the seams (`u = const`). Nothing is left to trim. This is what
+`mesh::trimmed` means by "the definitional payoff — no fit anywhere", and
+why `Pcurve::IsoLine` earns a variant of its own.
+
+The tilted cut is different because its boundary did not come from the
+sweep that made the cylinder: a plane cuts that cylinder **obliquely**, so
+the section is an ellipse in 3-D and, on the cylinder chart (`u` =
+azimuth, `v` = height), the sinusoid graph `v = a + b·cos(u − φ)` —
+exactly the image `Pcurve::Harmonic`'s docs name.
+
+No count of oblique faces can be read off what the lane writes: an
+iso-curve of a swept chart is stored as a `Pcurve::Harmonic` whose
+`cos`/`sin` coefficients are zero — the same variant carries every line
+and conic of an affine plane chart — so neither `uv.json`'s form list nor
+any printed line separates it from a genuine trim. The sheet is where you
+see which faces those are.
+
+Note what does *not* break the rectangle: `bossplate` is a genuine curved
+boolean, and its cylinder walls are still iso-rectangles, because the
+boss axis is perpendicular to the plate and the intersection circle
+therefore sits at constant height. **Obliquity to the chart is what
+produces a real trim, not the operation that made the edge.** The
+consequence for imported geometry: the trimmed-face machinery
+(`mesh::trimmed`'s CDT over an arbitrary trim polygon plus the even-odd
+interior pick) is exercised by one geometric family in this corpus, and
+foreign geometry will not be so courteous.
+
+What it is NOT: a replacement for `render.sh`. The eyeball gate needs
+shaded 3-D, and a chart domain is not a picture of the part. The parked
+SVG lanes that *would* draw the part — a projected-edge wireframe, and
+drawing-grade hidden-line removal — are filed as LONGTERM-IDEAS I4(a) and
+I4(b).
+
+## The viewer lane (`render-gui.sh`)
+
+**The fifth lane, and the first whose subject is the APPLICATION.** The
+other four draw geometry — solids, face charts, a sample cloud. This
+one opens documents in the real `viewer` binary on a virtual X server
+and photographs what a user would see: the feature tree, the properties
+panel, the named document parameters, and the status line's reading of
+the document's declarations.
+
+It photographs the tour's own assembly STORE (`out/assembly/*.pncad`),
+every document in it rather than a curated subset — which documents
+exist is the story, and a hand-picked list goes stale the first time
+the stop gains a part. The sheet reads as the assembly layer's arc:
+three leaf parts carrying their named parameters, each instantiated,
+patterned, flat-packed, and finally mated into the bench on its
+turntable gauge with the crate on its shelf, with
+`at rest: certified (N declaration(s))` going from 0 to 3 as the mates
+arrive.
+
+**Three things about it differ from the older lanes, each for a
+reason.**
+
+*It waits rather than sleeps.* The viewer evaluates, tessellates and
+builds a BVH before its first real frame, and how long that takes
+depends on the document and the runner. So each cell polls — shoot,
+hash, shoot again — and accepts a frame only when two consecutive grabs
+are byte-identical and the window is not still blank. A fixed sleep
+would either race the app (committing a HALF-DRAWN pixel, which looks
+like a rendering bug forever after) or waste minutes per cell.
+
+*Its sheet carries the lane signature.* The older sheets are matplotlib
+compositions of FreeCAD frames, so they carry no renderer stamp and
+`check_render_provenance.py` needs an exemption list naming them. This
+sheet is tiled from cells this lane drew and then stamped like one, so
+the guard has ONE rule for the whole directory and no name to
+special-case.
+
+*Its cells are cropped to the window.* There is no window manager on
+the virtual server, so the app sits at the origin in a window smaller
+than the screen, and a root grab carries a band of empty desktop that
+would be most of what a reader sees on a contact sheet. The geometry is
+read from `xdotool` at run time rather than hard-coded, because a
+viewer default that changed would otherwise clip the app silently.
+
+**What it does NOT show, and the planned cell that did not survive.**
+This lane was planned as *"clearance and measures, as the app shows
+them"*. The app shows neither: a measure is a tree row reading
+`"Measure"` with a status and no VALUE, and `clearance` appears nowhere
+in `crates/viewer/src/`. `work/view`'s
+`the-gui-shows-no-measure-value-and-no-clearance` carries the finding,
+including the half that makes it harder than a panel change —
+`min_clearance` has no value at the `f64` scalar the viewer runs at, by
+design. The declaration count on the status line is clearance-adjacent
+and genuinely on screen, but it is a COUNT, not a distance.
+
+## The MC density lane (`render-mc.sh`)
+
+**Two sheets, each the population an advisory number is a summary of.**
+The fourth lane, and the second renderer-free one: the tour writes the
+sheets and `render-mc.sh` only publishes them, one line of `SHEETS` per
+cell. Still no compose step — two sheets at two aspect ratios, each laid
+out where its own numbers are measured, is not a grid.
+
+### `renders-mc/plate-density.svg` — the two-hole plate
+
+The subject is the same two-hole plate the tolerance cell narrates
+(`demos/tour/src/plate.rs` holds the document; `tolerance.rs` runs the
+certified and advisory lanes over it and `mcplate.rs` draws it), and the
+subject is the trade E11 names:
+
+* the **certified** lane answers over a box, exactly, and says nothing
+  outside it. On this plate the widest box that certifies whole is
+  `7.81e-7` of the study — about `2e-5` of one pixel at the zoom
+  panel's scale. **A picture cannot show it, and that is the finding
+  rather than a drawing problem.**
+* the **advisory** lane draws from the whole distribution, tail
+  included, and reports a mean, a spread and two extremes. Those four
+  numbers summarize 512 built plates, and 512 built plates are
+  something a picture can show exactly.
+
+Two panels, one centre, two scales: the part at 51 px/mm, where the
+±0.05 mm study is 5 px wide and the cloud is a slightly thick line; and
+the 0.6 mm web at 294 px/mm, where the same 512 samples are 73 px of
+visible density. The zoom ratio is readable off the sheet — each panel
+carries its own scale bar — rather than only stated in the caption.
+
+* **Every circle is a `Surface::Cylinder` read off a body the kernel
+  built** — its `origin` and its `radius`, at the sample that built it.
+  Not the parameter that produced it, and not a polygonal
+  approximation: an SVG `<circle>` IS the stored circle, so the
+  drawing is a readback in `fivewall`'s sense. It is also what keeps
+  the file small — 512 samples cost 1024 elements and about 100 KB.
+* **It is this run's samples, and the tour checks that rather than
+  claiming it.** Each draw comes from `mc::sample_offsets(analyzed,
+  config, i)`; the cell then summarizes its own replay's web readings
+  and requires the mean, the spread and both extremes to equal
+  `monte_carlo`'s BIT FOR BIT. A mismatch fails the tour rather than
+  shipping a picture of a different population.
+* **Why SVG, and why no renderer.** Ev's constraint was latency: an
+  overlay worth having only if drawing it costs seconds. A 3-D render
+  of 512 bodies is minutes — the two montage lanes import one STL per
+  body through an external renderer. This geometry is already 2-D, so
+  the same three reasons the uv lane gives apply: text diffs, an
+  unchanged re-run is byte-identical, and there is no second renderer
+  for a provenance guard to tell apart. The replay itself is about a
+  second for the whole 512.
+* **A diff here means the DRAWS moved.** The seed is recorded
+  (`mc::DEFAULT_SEED`) and printed on the sheet, so a change is an
+  intended study change or a determinism finding, never noise.
+  `render.yml` re-baselines the lane and reports neutral, exactly as it
+  does for uv.
+
+### `renders-mc/chain-density.svg` — the four-link chain
+
+**Error propagation with a lever on it.** Four bars joined end to end,
+each joint carrying an independent normal angular error at σ = 0.01 rad;
+joint `j` rotates every link below it, so the last link has the longest
+lever and the fan gets wider all the way down. The document is
+`demos/tour/src/chain.rs` (read by both of its cells, as `plate.rs` is),
+the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`.
+
+Everything the plate's sheet does, this does with a longer document:
+512 replays from `mc::sample_offsets`, the four numbers checked BIT FOR
+BIT against `monte_carlo`'s own, the seed on the sheet, a diff meaning
+the draws moved.
+
+* **Every polygon is a link the kernel built**, walked off that body's
+  own cap face — `face.outer`, the loop's cycle, each half-edge's start
+  vertex through `readback::vertex_point` — and every pin is a
+  `Surface::Cylinder` read off the same body. A link drawn where the
+  parameters say it should be rather than where the transform stack put
+  it would make the sheet a picture of the arithmetic instead of of the
+  kernel.
+* **The growth is checked, not admired.** With one law at every joint
+  the lateral spread at pin `k` is `L·σ·sqrt(Σ (k−j)²)` over the joints
+  above it — `1 : 2.24 : 3.74 : 5.48` across four links — and the sheet
+  prints the measured ratio beside the predicted one.
+* **Two panels, two centres.** The plate's two panels share a centre;
+  these do not, because the chain is 48 mm long and its tip is at one
+  end of it. The wide panel carries the whole chain at 19 px/mm with
+  each joint's measured lateral range dimensioned on it; the tip panel
+  is 48 px/mm on the target pin and the asserted 1 mm position band.
+* **The certified half is on the sheet, unlike the plate's.** The
+  widest box that certifies this chain whole is `6.751e-8` of the study
+  since the extrude closes with the pcurve mint (PCERT): the placed
+  rows' angular comparisons are the wall. Before the mint it was
+  `0.111`, a millimetre-scale enclosure per joint, and the follow-on
+  `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
+  restores that. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  across the chain (the worst-case lever sum, every joint at its own
+  extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
+  (the quadrature sum). E11's trade, in one picture. Along the chain
+  the enclosure is microns, so the box draws as a line and is widened
+  to a 5 px floor to be visible at all; the true number is in the
+  legend.
+* **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
+  default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
+  measured: the wall is an enclosure escalating against the band; before
+  the mint it was `0.111` against `0.1083`, for the reason `chaintol`'s
+  header, "What sets the wall", gives), so at
+  another ε it is a different box, and `chaintol` (`demo-tour certified`)
+  declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
+  the frontier where the legend would have gone and draws no band. A
+  run at another ε where the box happens to certify anyway is
+  under-claimed, which is the direction to be wrong in.
+* **The sheet is checked by being read back.** The bit-equality
+  self-check covers the MEASURE and not the 10,752 coordinates the
+  picture is made of, so after the SVG is written every `<polygon>`
+  and every pin dot is parsed out of it, run through the inverse of
+  the panel map it was drawn with, and required to be the replay's own
+  coordinate. A one-millimetre displacement of every drawn pin — or of
+  one corner of every bar — reds it.
+
+## Renderers
+
+`render.sh` (kernel lane) prefers **headless FreeCAD** (`freecadcmd`,
+`QT_QPA_PLATFORM=offscreen`, no display/Xvfb) importing the tour's STL
+meshes — the facets on screen are the kernel's own tessellation
+regardless of renderer, which is why the STL source is unconditional here
+and the STEP imports live in the `--freecad` lane. Set `FREECADCMD` to
+override the binary location. Within one scene the bodies share one warm
+document with visibility toggling (per-scene document cycling races the
+offscreen view-provider setup — observed as blank frames and hangs).
+freecadcmd's Qt teardown can crash AFTER a successful render, so a scene
+counts as rendered when its PNG exists, never by exit status.
+
+Neither lane has a fallback: a missing `freecadcmd` is a loud exit in
+both, and so is a scene FreeCAD cannot draw twice. `render.sh
+--matplotlib` is the explicit alternative, and it renders to the preview
+tree only.
+
+`render.sh --freecad` (STEP lane) is the OCC reference render. A scene it genuinely cannot import or render costs one cell — the
+reason lands in `renders-freecad/<scene>.fail.txt` (full log under
+`out/freecad-logs/`) and `compose_montage.py` draws a labeled placeholder
+naming it, never a silent gap.
+
+`render.py` is the zero-dependency renderer (numpy + matplotlib, pure
+CPU, demo-local venv): binary-STL parsing, flat shading, exact backface
+culling (guaranteed by tier 3's +V invariant). It is what
+`render.sh --matplotlib` draws with, and the wild lane's primary.
+
+`compose_montage.py` builds a montage sheet from the per-scene PNGs in
+`scenes.json` order with captions; `--montage=NAME` / `--banner=TEXT`
+give a lane its own filename and provenance banner on the same grid.
+
+`manifest.py` is the one reader of `scenes.json` — imported by both
+renderers and the composer, and run as `manifest.py --scene-names` by
+`render.sh`'s scene loop. It holds the field names, the walk, and the
+`view.up` convention; the last of these in the world → display direction
+only, with the display → world direction a camera needs *derived* from
+it, so the two cannot drift apart. Every field it names is read, never
+defaulted: both producers write all of them for every entry, so a missing
+one refuses (naming the scene, the body and the key) instead of rendering
+something plausible. `python3 manifest.py --selftest` pins all of that.
+The UV lane's `uv.json` has one reader (`compose_uv_montage.py`) and is
+walked there.
+
+### Transparency is a scene property, not a renderer setting
+
+`scenes.json` carries a per-body `transparency` (0–100, 0 = opaque), and
+both PNG lanes honour it: FreeCAD sets `ViewObject.Transparency`, the
+matplotlib renderer keeps backfaces (culling them is what a see-through
+body is *for*) and drops the edge strokes, which would otherwise
+double-darken every triangle boundary and read as a wire mesh. It lives
+in the manifest rather than in a renderer because it is a claim about the
+SHAPE: the `klein` bottle's subject is the neck crossing the body wall
+and running down inside it, which no opaque render shows at any camera.
+Every other scene emits `0` and takes the byte-identical path.
+
+### One process per scene, on a budget
+
+**Both** FreeCAD lanes run one `freecadcmd` process per scene by default,
+each under a per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`,
+default 300 s; `render.sh` documents how that number was measured). The
+process boundary is what BOUNDS a hang.
+
+Each attempt runs in its own session, so the budget covers the process
+*tree*: when it expires the whole group is killed and the scene is
+retried **once**, in a fresh process. A single-scene process that
+CRASHED is retried once too — `freecadcmd` has been observed exiting
+rc=1 on a scene that rendered clean on the two preceding passes over
+identical inputs, so a crash is not reliably deterministic. Above one
+scene per process a crash is not retried in place: the batch split
+already re-runs each frameless scene alone, which is the same second
+attempt in a fresher, narrower process.
+
+The cost, exactly: a crashing scene takes **two** processes at the
+default one-scene-per-process, and **three** above it — the batch it
+poisoned, then the scene alone, twice, because the split re-enters the
+retry at one scene. A **wedge** is never split and so costs exactly two
+at every batch size. Either way a second failure is a loud, named
+failure that ends the pass — never a silent skip, never a degraded
+cell. A retry says so on stderr, both when it happens and when the
+second attempt succeeds; the hosted lane lifts a retried-but-green pass
+into a `::warning::` and the step summary, because a green lane that
+needed a retry must not read as a clean one. The first attempt's log is
+kept beside the second's (`<scene>.attempt1.log`) and cleared at the
+start of the next pass, so its presence always means *this* pass.
+Two signals come out with it: how long the process had been silent (a
+slow scene keeps writing to its log; a wedged one goes quiet), and, when
+the frame was written but the process still had to be killed, a note
+saying so — a post-render stall costs one budget and is never mistaken
+for a good pass. Because frames are staged and published only on a
+complete pass, a wedge leaves the committed lane directory exactly as it
+was.
+
+`CAD_RENDER_BATCH=B` renders B consecutive scenes (scenes.json order) in
+ONE process, which pays FreeCAD's startup once per B scenes instead of
+once per scene — and startup is most of a typical scene, which is why
+scenes of wildly different geometric complexity all cost about the same.
+**Default 1: exactly the behaviour above, down to the log filenames.**
+The trade it makes is blast radius, and it is linear: a wedge costs its
+whole batch, and the pass takes up to `2 x B x FREECAD_SCENE_TIMEOUT` to
+give up on it rather than `2 x FREECAD_SCENE_TIMEOUT`. A failure that is
+NOT a wedge is split — each frameless scene of the batch is re-run alone,
+one process each — so one scene FreeCAD cannot draw still costs one cell
+and not its whole batch, exactly as at B=1.
+
+`CAD_RENDER_JOBS=K` renders K scenes concurrently — still one fresh
+session per scene — and prints the pass's wall clock next to the summed
+per-scene times, which stop being the same number above K=1. What
+concurrency trades against is the budget: K scenes on a K-core box push
+every scene toward the contended figure. Keep K at or under the core
+count, and treat sequential as the reference — it is what the committed
+cells were rendered under.
+
+#### Batching is byte-checked
+
+`CAD_RENDER_BATCH` is admissible only because a batched frame is
+BYTE-IDENTICAL to an unbatched one — the same bar `CAD_RENDER_JOBS` had
+to clear, verified across every committed cell of both lanes plus both
+sheets at several batch sizes. PNG bytes are not comparable ACROSS GL
+stacks, so that is a statement about a repeat render on one box; the
+canonical hosted producer has to make it again for itself before the
+default moves off 1.
+
+What makes it safe is that `render_freecad.py` keeps ONE warm document
+and toggles per-scene visibility rather than cycling documents — the
+document accumulates the batch's bodies, but a hidden body contributes
+nothing to a render or to `fitAll`, and the camera is set outright from
+the scene's own spec before every frame. (Per-scene
+`newDocument`/`closeDocument` is worse: it races the event-loop-deferred
+view-provider setup offscreen, which shows up as blank frames and hangs.)

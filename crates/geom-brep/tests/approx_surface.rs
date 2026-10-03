@@ -1,0 +1,526 @@
+//! `Surface::Approx` — the triple's own acceptance rows.
+//!
+//! The body-level consumer (surgery + tier-3 re-derivation) lives in
+//! `sweep/tests/verbs_offc_consumer.rs`, where a NURBS-faced body can
+//! be lofted. What is pinned HERE is what the surface alone claims:
+//!
+//! - the door mints only a certified surface, and the fit door's
+//!   refusals (rational fits included) propagate out of it verbatim;
+//! - the evaluators, the derived normal and the boxes read the FIT;
+//! - the re-derivation door re-measures rather than reads, so a
+//!   coarsened fit goes red there while its stored certificate still
+//!   says it is fine;
+//! - **the composition law**: for a rigid map `M`,
+//!   `M(S + d·n) = M(S) + d·n_M` — so the fit of an offset, mapped, is
+//!   a fit of the offset of the mapped base, and certifies at the same
+//!   tolerance when its bound sits below it by more than the frame
+//!   moves the bound. That is why the description is the layer the map
+//!   composes with. `topo::transform_rigid` maps an `Approx` face on
+//!   exactly this identity, re-deriving the mapped fit's certificate
+//!   through the scalar's lane and re-fitting the mapped description
+//!   when a sound face's image refuses; what is pinned here is the
+//!   identity itself, at the surface, with no body in the way.
+//! - both signs of `d`, and the kind's own dispositions at the
+//!   dispatch sites that answer for it structurally.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::sync::Arc;
+
+use geom::{NurbsSurface, Surface};
+use geom_brep::offset_fit::{
+    OffsetFitError, approx_offset_surface_at, certify_offset_at, offset_point, recertify_approx_at,
+};
+use geom_core::{Affine3, Point3, Vec3};
+
+use crate::shared::fixture::{kv2, quarter_cylinder};
+use crate::shared::tol::band;
+
+/// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
+/// is genuinely not a NURBS, so the fit has real work to do.
+fn bowed() -> NurbsSurface<f64> {
+    let mut control = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            let (u, v) = (f64::from(i) * 0.5, f64::from(j) * 0.5);
+            control.push(Point3::new(u, v, 0.15 * u * (1.0 - u) + 0.1 * v * v));
+        }
+    }
+    NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap()
+}
+
+fn approx_of(s: &Surface<f64>) -> &geom::ApproxSurface<f64> {
+    match s {
+        Surface::Approx(a) => a,
+        other => panic!("the door must mint Surface::Approx, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------
+// The door
+// ---------------------------------------------------------------------
+
+/// The door mints the variant, and everything it stores is what it was
+/// asked for: the description names the base handed in (same `Arc`),
+/// the window is the base's own knot domain, and the certificate's
+/// distance is `d`.
+#[test]
+fn the_door_stores_what_it_was_asked_for() {
+    for d in [0.05_f64, -0.05] {
+        let base = Arc::new(bowed());
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band())
+            .unwrap_or_else(|e| panic!("d = {d}: {e}"));
+        let a = approx_of(&s);
+        let geom::SurfaceDescription::Offset {
+            base: stored,
+            d: sd,
+        } = a.description();
+        assert!(
+            Arc::ptr_eq(stored, &base),
+            "d = {d}: the base travels by Arc"
+        );
+        assert_eq!(*sd, d);
+        assert_eq!(a.certificate().distance, d);
+        assert_eq!(a.window(), geom::ApproxWindow::of(&*base));
+        assert!(
+            a.certificate().hull_sup <= 1e-6,
+            "d = {d}: the stored certificate is the one that certified"
+        );
+        // `rounds` is the FIT's provenance and travels with it — never
+        // flattened to the re-derivation's zero.
+        assert_eq!(
+            a.certificate().rounds,
+            geom_brep::offset_fit::fit_offset_at(&base, d, 1e-6, band())
+                .unwrap()
+                .1
+                .rounds,
+            "d = {d}: the stored round count is the fit loop's own"
+        );
+    }
+}
+
+/// The stored certificate is derived from the STORED pair, not carried
+/// out of the refinement loop: a re-derivation of the surface reports
+/// the identical two limbs.
+#[test]
+fn the_stored_certificate_is_a_certificate_of_the_stored_pair() {
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let a = approx_of(&s);
+    let re = recertify_approx_at(a, 1e-6, band()).expect("the surface re-certifies at rest");
+    assert_eq!(re.hull_sup, a.certificate().hull_sup);
+    assert_eq!(re.on_locus_max, a.certificate().on_locus_max);
+    assert_eq!(re.cells, a.certificate().cells);
+}
+
+/// A tolerance no fit can reach refuses at the door — nothing
+/// uncertified is minted, and the refusal is the fit door's own.
+#[test]
+fn an_unreachable_tolerance_refuses_typed() {
+    let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
+        .expect_err("1e-18 m on a bowed patch is not reachable");
+    assert!(
+        matches!(e, OffsetFitError::BudgetExhausted { .. }),
+        "expected the budget refusal, got {e}"
+    );
+}
+
+/// `d = 0` and a non-finite `d` are not offsets at all — the door's
+/// request check, propagated.
+#[test]
+fn a_degenerate_request_refuses_typed() {
+    for d in [0.0_f64, f64::NAN, f64::INFINITY] {
+        let e = approx_offset_surface_at(Arc::new(bowed()), d, 1e-6, band())
+            .expect_err("a degenerate d has no offset");
+        assert!(
+            matches!(e, OffsetFitError::InvalidRequest { .. }),
+            "d = {d}: got {e}"
+        );
+    }
+}
+
+/// A RATIONAL fit reaches the certification door and is bounded as
+/// the surface it is — the capability a consumer that fits an offset
+/// some other way, or stores a rational `ApproxSurface`, needs to
+/// re-derive its certificate.
+///
+/// The fixture is the sharpest case available: the offset of an exact
+/// rational quarter cylinder at `d` IS the exact rational quarter
+/// cylinder of radius `r + d`, sharing knots and weights. So `‖E‖`
+/// equals `|d|` identically, `X ≡ 0`, and a door that reads the fit's
+/// weights certifies it at essentially the ring's own noise. A door
+/// that read the net flat could not certify it at all.
+#[test]
+fn a_rational_fit_is_certified_as_the_surface_it_is() {
+    let base = quarter_cylinder(1.0, 1.0);
+    let exact_offset = quarter_cylinder(1.2, 1.0);
+    let cert = certify_offset_at(&base, &exact_offset, 0.2, 1e-3, band())
+        .expect("the exact rational offset is a fit the hull limb can bound");
+    let mut worst = 0.0f64;
+    for i in 0..=20 {
+        for j in 0..=20 {
+            let (u, v) = (f64::from(i) / 20.0, f64::from(j) / 20.0);
+            let target = offset_point(&base, 0.2, u, v).unwrap();
+            worst = worst.max((exact_offset.eval(u, v) - target).norm());
+        }
+    }
+    assert!(
+        cert.hull_sup >= worst,
+        "hull_sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    // The ceiling. The door's own `≤ 1e-3` is eleven orders away from
+    // what this fixture actually reaches, so it cannot witness the
+    // claim in the header — that reading the fit's weights certifies
+    // the exact rational offset at ring noise. Measured 2.84e-14;
+    // ceiling 1e-12, ~35x headroom. A hull limb reading the net flat
+    // lands near 1e-1 here.
+    assert!(
+        cert.hull_sup <= 1e-12,
+        "the exact rational offset no longer certifies at ring noise: hull_sup {} \
+         (measured 2.84e-14 when written)",
+        cert.hull_sup
+    );
+    eprintln!(
+        "exact rational offset: hull_sup={:.3e} sampled={worst:.3e} cells={}",
+        cert.hull_sup, cert.cells
+    );
+    // And the storage door's own fits are non-rational, so it mints.
+    let s = approx_offset_surface_at(Arc::new(base), 0.2, 1e-4, band()).unwrap();
+    assert!(
+        approx_of(&s).fit().weights().iter().all(|w| *w == 1.0),
+        "the door's fit is non-rational"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The fit IS the geometry
+// ---------------------------------------------------------------------
+
+/// Evaluation, the whole jet and the derived normal all read the fit,
+/// bit for bit — the variant's stated invariant, at the enum's doors.
+#[test]
+fn the_evaluators_delegate_to_the_fit_bitwise() {
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let fit = approx_of(&s).fit().clone();
+    for i in 0..=4 {
+        for j in 0..=4 {
+            let (u, v) = (f64::from(i) * 0.25, f64::from(j) * 0.25);
+            let p = s.eval(u, v);
+            let q = fit.eval(u, v);
+            assert_eq!((p.x, p.y, p.z), (q.x, q.y, q.z), "eval at ({u}, {v})");
+            let a = s.jet(u, v);
+            let b = fit.ders(u, v);
+            assert_eq!(a.du.x, b.du.x, "jet du at ({u}, {v})");
+            assert_eq!(a.dvv.z, b.dvv.z, "jet dvv at ({u}, {v})");
+            let n = s.normal(u, v);
+            let m = Surface::Nurbs(Arc::new(fit.clone())).normal(u, v);
+            assert_eq!((n.x, n.y, n.z), (m.x, m.y, m.z), "normal at ({u}, {v})");
+        }
+    }
+}
+
+/// And the fit really is within the certificate's bound of the
+/// described offset locus — the certificate says something true about
+/// the two things the surface carries.
+#[test]
+fn the_fit_is_within_the_certified_bound_of_the_description() {
+    for d in [0.05_f64, -0.05] {
+        let base = Arc::new(bowed());
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band()).unwrap();
+        let bound = approx_of(&s).certificate().hull_sup;
+        let mut worst = 0.0_f64;
+        for i in 0..=11 {
+            for j in 0..=11 {
+                let (u, v) = (f64::from(i) / 11.0, f64::from(j) / 11.0);
+                let exact = offset_point(&base, d, u, v).expect("the base is regular here");
+                worst = worst.max(s.eval(u, v).distance(exact));
+            }
+        }
+        assert!(
+            worst <= bound,
+            "d = {d}: a dense sample found {worst:e} m against the certified sup {bound:e} m"
+        );
+    }
+}
+
+/// `spline_chart` is the accessor every chart consumer routes through,
+/// and it answers the FIT for an approximating surface — the one place
+/// the delegation is stated once for all of them.
+#[test]
+fn the_spline_chart_accessor_answers_the_fit() {
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let chart = s
+        .spline_chart()
+        .expect("an approximating surface has a spline chart");
+    assert!(std::ptr::eq(chart, approx_of(&s).fit()));
+    // The analytic kinds have none, and the placeholder is still a
+    // chart (its own refusals live downstream).
+    assert!(
+        Surface::<f64>::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+        .spline_chart()
+        .is_none()
+    );
+}
+
+// ---------------------------------------------------------------------
+// The never-trust posture, red direction
+// ---------------------------------------------------------------------
+
+/// A **planted degraded fit**: an `ApproxSurface` minted through the
+/// injection door with a certifier that hands back a clean certificate
+/// for a coarsened net. Its stored certificate says the surface is
+/// fine; the re-derivation door measures and refuses. That is exactly
+/// the direction O5's never-trust posture exists for.
+#[test]
+fn a_planted_degraded_fit_goes_red_at_re_derivation() {
+    let base = Arc::new(bowed());
+    let target = 1e-6;
+    let honest = approx_offset_surface_at(Arc::clone(&base), 0.05, target, band()).unwrap();
+    let good = approx_of(&honest);
+
+    // Coarsen: push one interior control point of the fit a millimetre
+    // off. The surface is still a valid spline; it is no longer within
+    // the target of the offset locus.
+    let fit = good.fit();
+    let mut control = fit.control().to_vec();
+    let mid = control.len() / 2;
+    control[mid] = control[mid] + Vec3::new(0.0, 0.0, 1e-3);
+    let coarsened = NurbsSurface::new(
+        fit.knots_u().clone(),
+        fit.knots_v().clone(),
+        control,
+        fit.weights().to_vec(),
+    )
+    .unwrap();
+
+    let planted = geom::ApproxSurface::certify(
+        geom::SurfaceSpec {
+            description: geom::SurfaceDescription::Offset {
+                base: Arc::clone(&base),
+                d: 0.05,
+            },
+            fit: coarsened,
+            window: good.window(),
+        },
+        // A certifier that does not measure — the planted claim.
+        |_, _, _| Ok::<_, OffsetFitError>(*good.certificate()),
+    )
+    .expect("the injection door stores what the certifier returned");
+
+    assert_eq!(
+        planted.certificate().hull_sup,
+        good.certificate().hull_sup,
+        "the stored certificate still claims the honest bound"
+    );
+    let e = recertify_approx_at(&planted, target, band())
+        .expect_err("the re-derivation must refuse the coarsened fit");
+    assert!(
+        matches!(e, OffsetFitError::Limb { .. }),
+        "expected a limb refusal, got {e}"
+    );
+}
+
+/// **A loose mint re-derives green at its own target and red at a
+/// tighter one** — the classification tolerance is the caller's, not
+/// the mint's. A surface minted at a loose tolerance re-derives GREEN against that
+/// loose bound and RED against a tighter one — the edge machinery's
+/// exact posture, and the reason tier 3 classifies at the run's ε
+/// whatever target the fit was made at. D4 blesses the consequence:
+/// ε-tightening may escalate, and a mint that no longer meets the
+/// ratified `≤ ε_precision` claim refuses honestly.
+#[test]
+fn a_loose_mint_is_green_at_its_target_and_red_at_a_tighter_one() {
+    let base = Arc::new(bowed());
+    // Minted loose: the fit stops as soon as it is inside 1e-3.
+    let s = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-3, band()).unwrap();
+    let a = approx_of(&s);
+    recertify_approx_at(a, 1e-3, band()).expect("green at the bound it was minted at");
+    // The same surface, unchanged, at a tighter run epsilon.
+    let e = recertify_approx_at(a, 1e-12, band())
+        .expect_err("a loose mint must refuse at a tighter epsilon");
+    assert!(
+        matches!(e, OffsetFitError::Limb { .. }),
+        "expected a limb refusal naming the bound it measured, got {e}"
+    );
+}
+
+/// The storage door CHECKS the window it is asked for rather than
+/// taking it on trust: the certificate covers the base's whole chart
+/// rectangle and nothing narrower.
+#[test]
+fn a_window_the_certifier_cannot_honour_refuses_typed() {
+    let target = 1e-6;
+    let base = Arc::new(bowed());
+    let (fit, _) = geom_brep::offset_fit::fit_offset_at(&base, 0.05, target, band()).unwrap();
+    let narrow = geom::ApproxWindow {
+        u: (0.25, 0.75),
+        v: (0.25, 0.75),
+    };
+    let e = geom::ApproxSurface::certify(
+        geom::SurfaceSpec {
+            description: geom::SurfaceDescription::Offset {
+                base: Arc::clone(&base),
+                d: 0.05,
+            },
+            fit,
+            window: narrow,
+        },
+        |description, fit, window| {
+            let geom::SurfaceDescription::Offset { base, d } = description;
+            if window != geom::ApproxWindow::of(base) {
+                return Err(OffsetFitError::WindowUnsupported { window });
+            }
+            certify_offset_at(base, fit, *d, target, band())
+        },
+    )
+    .expect_err("a sub-window is not a bound this certificate proved");
+    assert!(
+        matches!(e, OffsetFitError::WindowUnsupported { .. }),
+        "got {e}"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The composition law
+// ---------------------------------------------------------------------
+
+/// **Rigid-map-then-offset ≡ offset-then-rigid-map.** A rigid map
+/// carries unit normals to unit normals, so `M(S + d·n)` is
+/// `M(S) + d·n_M`. The consequence the description layer rests on: the
+/// mapped fit certifies against the mapped base, at the same `d` and
+/// the same target — a certified statement, not a sampled one — for a
+/// fit whose bound sits under the target by more than the map moves
+/// it. This row's does (0.44 of the target, asserted under half); one
+/// minted near its target need not, which `topo`'s
+/// `rigid_map_near_eps_approx` suite reproduces.
+///
+/// **What survives the map is the sampled limb, not the bound.**
+/// `on_locus_max` is a distance between two points, computed the same
+/// way in either frame, and is asserted invariant to 1e-12. `hull_sup`
+/// is a certified BOUND assembled from control-hull enclosures in the
+/// AMBIENT frame: a rotation re-splits the same geometry across the
+/// axes and the bound moves. The row asserts that movement is REAL on
+/// at least one map — above a thousandth of the target, so it is not
+/// rounding — so that a change making the bound frame-independent fails
+/// here rather than leaving stale caveats behind (`topo::transform`'s
+/// `map_approx` cites this). The target is 1e-6, not a tighter one, for
+/// the same reason: a slack equal to the target would hold for any two
+/// certified limbs whatever.
+#[test]
+fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
+    // The fixed fit target of this row — not the run's ε.
+    const TARGET: f64 = 1e-6;
+    // Rigid maps (det = +1, the kernel's rigid contract): a pure
+    // translation, a rotation about ẑ, and a rotation about an oblique
+    // axis, the latter two composed with the translation.
+    let shift = Vec3::new(0.3, -0.2, 1.1);
+    let about = |axis: Vec3<f64>, angle: f64| {
+        let mut m = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), angle);
+        m.translation = m.translation + shift;
+        m
+    };
+    let maps: [(&str, Affine3<f64>); 3] = [
+        ("translation only", Affine3::translation(shift)),
+        ("z by 0.7", about(Vec3::unit_z(), 0.7)),
+        ("oblique axis by 1.1", about(Vec3::new(0.3, -0.4, 0.8), 1.1)),
+    ];
+    let mut worst_hull = 0.0_f64;
+    for d in [0.05_f64, -0.05] {
+        let base = Arc::new(bowed());
+        let s = approx_offset_surface_at(Arc::clone(&base), d, TARGET, band()).unwrap();
+        let here = approx_of(&s).certificate();
+        let fit = approx_of(&s).fit();
+        // The headroom the row's claim rests on (doc above): a bound
+        // this far under the target is not one a rotation carries past it.
+        assert!(
+            here.hull_sup <= 0.5 * TARGET,
+            "d = {d}: the fit's bound {} is not under half the target, so the map's drift \
+             could carry it past",
+            here.hull_sup
+        );
+        for (name, map) in &maps {
+            let mapped_base = base.map_points(|p| map.transform_point(p));
+            let mapped_fit = fit.map_points(|p| map.transform_point(p));
+            // The map of the fit is a certified fit of the offset of
+            // the map of the base — same d, same target.
+            let cert = certify_offset_at(&mapped_base, &mapped_fit, d, TARGET, band())
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "d = {d}, {name}: the composition law must hold under certification: {e}"
+                    )
+                });
+            assert!(
+                (cert.on_locus_max - here.on_locus_max).abs() <= 1e-12,
+                "d = {d}, {name}: the sampled residual is a distance and must survive the map: \
+                 {} vs {}",
+                cert.on_locus_max,
+                here.on_locus_max
+            );
+            worst_hull = worst_hull.max((cert.hull_sup - here.hull_sup).abs());
+        }
+    }
+    assert!(
+        worst_hull > 1e-3 * TARGET,
+        "the hull bound moved by only {worst_hull:e} across every map — if it has become \
+         frame-independent, this row and the caveats that cite it are the things to retire"
+    );
+}
+
+// ---------------------------------------------------------------------
+// Dispositions that answer for the kind structurally
+// ---------------------------------------------------------------------
+
+/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its
+/// fit is — and every pair the routing table names for it is refused.
+#[test]
+fn approx_is_its_own_kind_and_every_pair_refuses() {
+    use geom::SurfaceKind;
+    use geom_brep::intersect::route;
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    assert_eq!(s.kind(), SurfaceKind::Approx);
+    assert_ne!(s.kind(), SurfaceKind::Nurbs);
+    for other in [
+        SurfaceKind::Plane,
+        SurfaceKind::Cylinder,
+        SurfaceKind::Cone,
+        SurfaceKind::Sphere,
+        SurfaceKind::Torus,
+        SurfaceKind::Nurbs,
+        SurfaceKind::Approx,
+    ] {
+        for (a, b) in [(SurfaceKind::Approx, other), (other, SurfaceKind::Approx)] {
+            assert!(
+                !route(a, b).implemented,
+                "{a:?} x {b:?} must refuse: an SSI claim about a fit is not one about the \
+                 described surface"
+            );
+        }
+    }
+}
+
+/// Offsetting an approximating surface would nest one description
+/// inside another — refused typed, not silently fitted again.
+#[test]
+fn offsetting_an_approximating_surface_refuses_typed() {
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let e = geom_brep::offset_surface(&s, 0.05, band()).expect_err("nesting refuses");
+    assert!(
+        matches!(e, geom_brep::OffsetError::ApproxNesting),
+        "got {e}"
+    );
+}
+
+/// The implicit-form layer answers poison, as it does for a spline:
+/// there is no implicit form for a fit, and an offset description has
+/// none to lend.
+#[test]
+fn the_implicit_layer_is_poison_for_an_approximating_surface() {
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let p = Point3::new(0.5, 0.5, 0.2);
+    assert!(geom_brep::implicit_residual(&s, p).is_nan());
+    assert!(geom_brep::implicit_gradient(&s, p).x.is_nan());
+}

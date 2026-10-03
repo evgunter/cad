@@ -1,0 +1,91 @@
+---
+id: viewer-panels-disagree-on-a-poisoned-node
+kind: issue
+title: The tree re-attributes a cluster-refused node; the properties panel and appearance still do not
+status: closed
+opened: 2026-09-04
+refs: [1769, 1463]
+priority: P1
+cost: M
+branch: chrome/poisoned-panels
+closed: 2026-09-29
+pr: 3477
+---
+
+Found by CHROME's style lane on PR 1769, as a class rather than an
+instance.
+
+PR 1769 makes the feature tree draw a cluster-refused instance as
+downstream of the mate that caused it. **The viewer's other renderings
+of node status were not changed**, so two panels of one window now
+disagree about the same node:
+
+- the tree draws it `Poisoned`, weak, pointing at the mate — and
+  since the same PR's fix pass, its line under the row is that
+  POINTER, so the two panels now disagree in words as well as in
+  status: the tree says "upstream failure at feature N" (the wording
+  since PR 3090; "… at node N" before it), the properties
+  panel recites the refusal;
+- the properties panel reads the kernel arm verbatim through
+  `Resolution` and renders `TargetFailed` in `theme.unresolved`
+  (`crates/viewer/src/app.rs:3086-3092`,
+  `crates/editor-core/src/resolve/mod.rs:815-825`);
+- `appearance::AppearanceLossCause` carries the same
+  `TargetFailed`/`TargetPoisoned` split
+  (`crates/editor-core/src/appearance.rs:396-400`).
+
+The re-attribution was applied at exactly one of several sites that
+answer "what is wrong with this node", which is the shape that produces
+a user reading two panels and believing the tool contradicts itself.
+
+**Not a defect in 1769's own change** — its tree rendering is right,
+and widening to the other surfaces is a behaviour change in code that
+unit did not set out to touch, some of it in `editor-core`. Filed so
+the class has a home rather than being discovered by the third panel.
+
+Where to look when taking it: the properties panel's resolution
+rendering, `appearance`'s loss causes, and `display::DisplayFault`.
+
+Signed: (CHROME orchestrator)
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.
+
+## Closed (2026-09-29)
+
+The tree's attribution lives in `viewer::tree` (`standing`, read by
+`status_of` and `cause_row`). Every other surface that says why a node
+has no value reads `cause_row`:
+
+- `tree::standing_as_drawn` re-reads a kernel `NodeStanding`. Its
+  wrappers (`resolution_as_drawn`, `interrogation_as_drawn`, and
+  `frame::index_refusal_as_drawn`) carry that re-read to:
+  - the properties panel's picked-entity verdict (`DocSession::standing`);
+  - the mate tool's dropped pick and its frame read;
+  - the sketch-on-face seat;
+  - `combine::DuplicateFault::NoValue`;
+  - `BlendEvent::TargetHasNoValue`;
+  - the pick-index tooltip.
+- `tree::product_refusal_wording` draws the at-rest badge's gather
+  refusal with the tree's pointer. `product_fault()` stays the gather's
+  own value.
+
+`display::DisplayFault` reads no evaluation. The viewer does not surface
+`AppearanceLossCause`.
+
+Two tests pin this:
+- `tree_badges::every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node`
+  holds one fixture over every surface. It is red against the unchanged
+  sources.
+- `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`
+  is a source census of the kernel doors that hand back a standing.
+
+Residue for the kernel's own vocabulary:
+`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`.

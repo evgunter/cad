@@ -1,0 +1,142 @@
+//! Fixed-dimension linear algebra for the 2-D/3-D evaluation layer:
+//! vectors and points in both dimensions, matrices and affine maps in
+//! 3-D only (see the omission below).
+//!
+//! Hand-rolled per `docs/DESIGN.md`'s layering table — small, fixed
+//! dimension, and generic over our own [`Real`](crate::real::Real) scalar
+//! trait. No external
+//! linear-algebra crate sits in the kernel core: the scalar abstraction
+//! (and with it the totality, determinism, and no-comparison disciplines)
+//! is ours to control.
+//!
+//! # The affine/linear distinction is load-bearing
+//!
+//! Euclidean 2-/3-space is an *affine* space: a set of points acted on
+//! simply transitively by its translation vector space (equivalently, its
+//! tangent space — canonically the same space at every point, since the
+//! space is flat). The types encode the two sides of that torsor structure
+//! separately, so category errors fail to typecheck:
+//!
+//! - [`Vec2`] / [`Vec3`] are the **linear side** — tangent vectors:
+//!   displacements, directions, normals, derivatives. They form a vector
+//!   space: addition, negation, right scalar multiplication, dot/cross.
+//! - [`Point2`] / [`Point3`] are the **affine side** — locations. Points
+//!   do not add or scale; the operations are `Point − Point = Vec`,
+//!   `Point ± Vec = Point`, and affine combinations ([`Point3::lerp`]).
+//!   `Point + Point` does not typecheck, by design.
+//! - [`Mat3`] is a **linear endomorphism of the tangent space**, stored
+//!   column-major as named column fields.
+//! - [`Affine3`] is an **affine map**: a linear part (the
+//!   map's differential, which is all a pushed-forward tangent vector
+//!   feels) plus a translation (which only points feel).
+//!
+//! # Deliberate omissions
+//!
+//! - **No 2-D linear or affine maps.** [`Vec2`] and [`Point2`] have no
+//!   `Mat2`/`Affine2` to move them: the asymmetry with the 3-D half is
+//!   intended, not an oversight. Nothing in the kernel maps the 2-D
+//!   tangent space through a stored matrix — chart work carries its own
+//!   parameterization — and this layer adds only on consumer demand, so
+//!   the pair is absent until something asks for it.
+//! - **No array storage, no indexing, no `Index` impls.** Indexing has a
+//!   panic path on out-of-range input, and D9 forbids panic paths; named
+//!   fields (`x`, `y`, `z`, `c0`, …) make every component access total
+//!   and readable. The array form a persisted struct stores is reached
+//!   through conversions that destructure rather than index —
+//!   `from_array`/`to_array` on the four vector and point types,
+//!   `from_cols_array`/`to_cols_array`/`cols` on [`Mat3`], `cols` and
+//!   `components` on [`Affine3`] — and each reader binds its type's
+//!   fields by pattern, so a new field fails to compile at the door.
+//! - **No `PartialEq` / `PartialOrd` / `Hash` derives.** Comparison is
+//!   the predicate layer's job (M0 PR 3): geometric equality is a
+//!   tolerance decision, never a bit pattern — and the scalar `T` carries
+//!   no comparison surface anyway (see `real.rs` on why). A point set
+//!   has no canonical order in this kernel. Two clouds are compared by
+//!   matching under a tolerance (0 for exact), never by sorting and
+//!   zipping. Representation identity, where a site needs it, is
+//!   per-coordinate `to_bits` at that site with its reason.
+//! - **No left scalar multiplication `s * v`.** That impl must live on
+//!   the *scalar* type (`impl Mul<Vec3<T>> for T`), which coherence
+//!   forbids for a generic scalar and which we decline to special-case
+//!   for `f64` (generic evaluation code could not use it). Write `v * s`.
+//! - **No `Display`.** `Debug` (a [`Real`](crate::real::Real) supertrait)
+//!   is the diagnostic
+//!   affordance; user-facing formatting belongs above the kernel.
+//!
+//! # Totality and determinism
+//!
+//! Every operation is **total** — no `Result`, no panic. Out-of-domain
+//! inputs ([`Vec3::normalize`] of the zero vector, [`Mat3::inverse`] of a
+//! singular matrix) produce poison values (NaN at `f64`) that flow through
+//! subsequent *arithmetic*; only the predicate layer turns numbers into
+//! *decisions*, and certified residual checks catch poisoned caches (D4
+//! ¶2). This is the crate-wide policy documented in `real.rs`.
+//!
+//! Every reduction — dot, cross, determinant, matrix products — has a
+//! **fixed, documented association order** (D9: deterministic evaluation;
+//! reassociating floating-point sums changes results). The order is stated
+//! in each operation's doc comment and is part of its contract.
+//!
+//! **What a fixed order buys is bit-identity for non-NaN outputs only.**
+//! Where an output is NaN, Rust leaves its sign and payload unspecified
+//! (a NaN produced by arithmetic may come from the hardware's default
+//! NaN, from constant folding, or from either operand), so they are not
+//! stable under code motion. One concrete route: the compiler may commute
+//! an addition (`a + b` → `b + a`, exact for every non-NaN pair), and
+//! when both summands are NaN, which one's sign and payload survive
+//! follows the operand order it chose. Two inlined call sites of one
+//! [`Mat3`] product in a single release build have been seen to disagree
+//! in a NaN's sign bit that way. Every bit-level claim in this
+//! layer that cites D9 is a claim about non-NaN values; the kernel's
+//! geometry meets it because its gates refuse non-finite coordinates.
+//! `affine.rs`'s `two_spellings_of_a_product_agree_bitwise_off_nan` pins
+//! it over finite operands, both zeros, subnormals and overflow.
+//!
+//! The [`svd`] submodule (M5 PR 7) is the second C12.8 addition: the
+//! fixed-shape 2×3/3×4 decomposition of the SSI marcher's underdetermined
+//! derivative systems (Householder QR + one-sided Jacobi, fixed
+//! reflection/rotation order). Like [`lsq`] it is `f64`-only — the
+//! marcher is a candidate generator and the certificate, not the
+//! stepper, is what runs at every `T`.
+//!
+//! The [`frame`] submodule (LIB-U4b) is the placement vocabulary:
+//! point-at, mirror, and the path-start frame, as plain [`Affine3`]
+//! values rather than a new type. It is the one deciding module here —
+//! its degeneracy policy is stated in its own docs and routed through
+//! the predicate funnel, so the totality contract above is unchanged
+//! for everything else in this layer.
+//!
+//! Two types here carry a decided fact. The [`UnitVec3`] witness is a
+//! direction whose length decided positive under a band and was then
+//! normalized; it is minted by its normalizing constructor, by exact
+//! negation and by [`frame`]'s deciding ladders. The [`OrthoFrame`]
+//! witness is an origin and a right-handed orthonormal triple, minted
+//! by the Gram–Schmidt and aim ladders that decide its axes and by the
+//! exact world frames; it converts into an [`Affine3`], which stays the
+//! general affine map. Each type's own docs say what its fact means at
+//! every scalar and which doors take it.
+//!
+//! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
+//! `f64`-only structure machinery for the fitting systems (C6's f64
+//! lane), `Vec`-based with shapes validated at entry so every internal
+//! index is justified — the no-panic rule holds there too, with typed
+//! refusals in place of the fixed-dimension types' totality.
+
+mod affine;
+pub mod frame;
+pub mod lsq;
+mod mat;
+mod ortho_frame;
+mod point;
+pub mod svd;
+mod unit_vec;
+mod vec;
+
+pub use affine::Affine3;
+pub use frame::{FrameError, FrameInput, FrameVector};
+pub use mat::Mat3;
+pub use ortho_frame::{OrthoAxis, OrthoFrame, OrthoFrameError};
+pub use point::{Point2, Point3};
+pub use svd::{Svd, Svd2x3, Svd3x4};
+pub use unit_vec::{UnitVec3, UnitVec3Error, decide_unit_direction};
+pub use vec::{Vec2, Vec3};

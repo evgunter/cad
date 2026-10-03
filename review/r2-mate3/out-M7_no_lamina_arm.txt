@@ -1,0 +1,149 @@
+=== MUTATION M7_no_lamina_arm ===
+   5: topo::r2_probes::r2_ordinary_solids_earn_no_wedge_verdict::{closure#0}
+             at ./src/r2_probes.rs:128:46
+   6: <topo::r2_probes::r2_ordinary_solids_earn_no_wedge_verdict::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina stdout ----
+
+thread 'tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina' (2249) panicked at crates/topo/src/tier3_tests.rs:528:50:
+called `Result::unwrap_err()` on an `Ok` value: ()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: <core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>::unwrap_err
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1329:22
+   4: topo::tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina
+             at ./src/tier3_tests.rs:528:50
+   5: topo::tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina::{closure#0}
+             at ./src/tier3_tests.rs:523:65
+   6: <topo::tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers stdout ----
+
+thread 'tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers' (2250) panicked at crates/topo/src/tier3_tests.rs:667:5:
+[VolumeUncomputable { source: Face { face: FaceKey(1v1), source: NotIsoRectangle { what: "curved face without a rim (non-sphere)" } } }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers
+             at ./src/tier3_tests.rs:667:5
+   3: topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers::{closure#0}
+             at ./src/tier3_tests.rs:652:73
+   4: <topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    face_normal::tests::every_hand_multiply_of_the_face_sign_is_inventoried
+    r2_probes::r2_ordinary_solids_earn_no_wedge_verdict
+    tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina
+    tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers
+
+test result: FAILED. 499 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.47s
+
+error: test failed, to rerun pass `-p topo --lib`
+--- step-export ---
+a half-flipped ball is a lamina at the shared edges: ()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: <core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>::expect_err
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1298:22
+   4: all::rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent
+             at ./tests/rev_probe.rs:45:22
+   5: all::rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent::{closure#0}
+             at ./tests/rev_probe.rs:32:78
+   6: <all::rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m6_6_sense_gate::ball_half_flip_is_caught_at_the_shared_edge
+    m6_6_sense_gate::cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue
+    r2_probes::r2_lamina_verdicts_versus_measured_volume
+    rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent
+
+test result: FAILED. 51 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.07s
+
+error: test failed, to rerun pass `-p step-export --test all`
+--- sweep m9_3 ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.37s
+     Running tests/all.rs (target/debug/deps/all-0c93c36c4cbd0c9b)
+
+running 18 tests
+test m9_3_wall_door::tangent_outside_the_witness_lane_refuses_by_class ... ok
+test m9_3_wall_door::tangent_door_contradicts_escalates_and_admits ... ok
+test m9_3_wall_door::declared_rest_with_wrong_radius_contradicts ... ok
+test m9_3_wall_door::undeclared_touching_curved_pair_still_refuses_typed ... ok
+test m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection ... ok
+test m9_3_wall_door::declared_rest_two_peg_reaches_downstream_of_classification ... ok
+test r1_probes_m9_3::probe_partial_engagement_never_silent ... ok
+test r1_probes_m9_3::probe_cross_wired_declaration_contradicts ... ok
+test r1_probes_m9_3::probe_missing_declared_group_refuses_typed ... ok
+test r1_probes_m9_3::probe_rim_wall_pair_undeclared_refuses_typed ... ok
+test m9_3_zip::two_peg_plate_union_is_exactly_additive ... ok
+test r1_probes_m9_3::probe_peg_offset_definite_contradicts ... ok
+test r1_probes_m9_3::probe_tube_chain_additivity_error_measured ... ok
+test r1_probes_m9_3::probe_ring_count_mismatch_never_silent ... ok
+test r1_probes_m9_3::probe_tangent_on_conformal_walls_contradicts ... ok
+test r1_probes_m9_3::probe_peg_offset_one_ulp_characterized ... ok
+test r1_probes_m9_3::probe_two_peg_oracle_rederivation ... ok
+test r1_probes_m9_3::probe_two_ring_patch_unions_exactly ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 911 filtered out; finished in 0.38s
+
+--- profile ---
+test crates/profile/src/path/family.rs - path::family (line 32) ... ok
+test crates/profile/src/path/family.rs - path::family (line 54) ... ok
+test crates/profile/src/path/family.rs - path::family (line 78) ... ok
+test crates/profile/src/validate.rs - validate::ValidatedLoop<T>::blend_arcs (line 799) ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 17 tests
+test crates/profile/src/lib.rs - ProfileLoop (line 208) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 173) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 182) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 165) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 189) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 203) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 197) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 213) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 220) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 230) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 240) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 263) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 253) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 273) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 284) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 317) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 332) - compile fail ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+all doctests ran in 0.57s; merged doctests compilation took 0.38s

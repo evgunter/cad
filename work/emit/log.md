@@ -1,0 +1,1651 @@
+# EMIT — the log
+
+## 2026-09-20 — opened
+
+Cut out of WIRE, which was carrying 85.5 budget points, when Ev
+ratified the priority and track-size conventions in chat the same day.
+The cut followed WIRE's PRIORITY seam per `work/README.md` "Track
+size", into several tracks at once so they can run in PARALLEL — Ev, in
+chat: *"for these high priority tracks it's ideal to have several
+components that can be worked on in parallel."*
+
+8 rows arrived by `git mv` with their ids, bodies and history
+unchanged. WIRE keeps its band 3700-3799; band 8300-8399 is claimed
+for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
+dispatched.
+
+## 2026-09-23 — picked up
+
+An orchestrator took the track (status `active`). Ev set the posture in
+chat: no A/B protocol, since the account has no Fable usage left, so
+implementer and reviewer lanes are Opus and each unit gets a single
+reviewer lane (plan, Review posture).
+
+First wave, run in parallel on separate worktrees:
+
+- `loft-anchors-every-section-with-section-zeros-map` — the plan's
+  first row. The lane measures before choosing between a per-section
+  anchor and a refusal of non-corresponding sections, and stops to
+  report if the choice turns out to be a fork about what a loft admits.
+- `three-emission-bugs-...` and `names-emit-keeps-an-unguarded-...` —
+  the two `E` drive-bys in `names/emit.rs`, one lane, one PR.
+- `the-b-side-contact-record-rescue-arm-never-fires` — decide whether
+  the arm has a subject; `emit_topo.rs`, disjoint from the other two.
+
+The two vanish classes wait for the second wave, as the plan says, so
+they are specified together.
+
+## 2026-09-23 — loft anchors: the measurement, and the fix chosen
+
+The lane stopped before implementing, as briefed. What it measured
+(red rows on `emit/loft-anchors`, `tests/edit_step_segments.rs`):
+
+- the kernel lofts a section authored reversed or rotated relative to
+  section 0, and the solid is correct. The skin reads each section's
+  canonical form, so authoring order is gone before pairing.
+- the row's premise that "the refs are per-section already" is false.
+  `name_swept_topology` mints ONE `ProfileEdgeRef` per wall, shared by
+  every section, so one anchor can be right for one section only.
+
+Both of the row's options were rejected. A refusal would reject lofts
+whose solid is right, which changes what a loft admits. Per-section refs
+in a name change D5's vocabulary and the stored selection bits. Chosen:
+the table stays anchored on section 0, and the one door generalises to
+compose `published ∘ own⁻¹`, where the published anchor comes from the
+loft's own evaluation rather than from the caller. This is an additive
+answer with a dominant argument over the other two, so it did not go to
+Ev. The lane files the twisted-loft pairing question (canonical lex-min
+start versus the author's intended correspondence) on the sweep
+program's slate.
+
+## 2026-09-23 — loft anchors goes to Ev
+
+PR 3102, reviewed and fix-passed, CI green. The reviewer's S1 finding
+decided the shape: the door's anchoring can only be read off the node
+whose table is being read. Before, a caller holding a later section's
+own naming reproduced the bug silently. That changes what DM8
+(`crates/editor-core/REFERENCES.md`, ratified at `1fd5e16eb`) says
+twice. For a later loft section, the answer is in the loft table's
+numbering, not in the section program's own. And the clause now binds
+where the caller's anchoring comes from. Because the clause is a
+ratified one, the PR is retitled `[ev]` and the row carries `needs_ev`.
+The other two first-wave PRs do not wait on it.
+
+## 2026-09-23 — the two `emit.rs` drive-bys close (PR 3099)
+
+- **`EMISSION_FRAMING`.** All six emission bugs now open with the
+  framing, which was reworded to be true of all six: "name emission
+  found a kernel bug — an invariant it relies on does not hold". The
+  old wording, "inconsistent with the result body", was false for
+  `MissingUpstream` and `Duplicate`. The display test now checks that
+  each message starts with the framing, not merely that it contains it.
+- **The walk guard.** The first version read the source file. Review
+  probed it: it failed on 4 of 7 edits that kept behaviour and passed 1
+  of 4 edits that really merged two refusals. It also hand-rolled a
+  lexer next to `test_utils::source`. It is replaced by behavioural
+  rows. topo gains `Body::with_entity_removed_for_tests`, gated on
+  `sweep-testing`. The guard drives every hop's refusal of
+  `rim_between`, `face_half_edges`, `edge_ends` and `emit_topo`'s
+  `chord_faces` through a genuinely dangling body. Folding the rim
+  walk onto `face_of_half_edge` turns it red.
+
+## 2026-09-23 — the two vanish rows are one event
+
+A design lane measured both rows before anything was specified. In
+every scene it measured, neither row is a missing predicate flip.
+Both are the same event: a fragment group changed size between the
+two runs (2 → 1) while every discriminator verdict held. So the
+shadow-exec rung can answer neither, whatever witness it is given:
+
+- `name_frag_order_along` ranks siblings against each other. It has
+  no cutting partner, so a partner in the `OrderAlong` qualifier would
+  have been a name-vocabulary and stored-bits migration that still
+  finds no flip.
+
+Chosen: one new rung, `Diagnosis::GroupResized { node, was, now }`,
+read off the two name tables. It sits last, before the evidence-free
+fallback, so it only converts rows that would otherwise hit that
+fallback and can never outrank a recorded flip. It touches no name,
+serde or content key. It does add an arm and a rung to N5
+(`crates/editor-core/src/names/README.md`, ratified) and re-pins the
+diagnosis digest, so the PR goes to Ev as `[ev]`. The rows re-price
+from H + H to D + E, with the SideOf row riding with the OrderAlong
+one.
+
+The orchestrator's picks on the proposal's open questions:
+- the rung goes last;
+- the name is `GroupResized`, because a group that grows also vanishes
+  every rank;
+- a group that vanishes entirely (`now: 0`) is reported;
+- the SideOf base offer lands in the same PR;
+- the `cutters_gone` enrichment becomes a follow-up row.
+
+Ev can overturn any of these on the PR.
+
+## 2026-09-23 — the B-side rescue arm closes (PR 3103)
+
+The arm had a real subject, and its own key read was correct. The
+subject never reached it because the sibling read `operand_identity`
+treated "not a graft destination" as "an A key". In the `(Absent,
+Direct)` layout, where the result is B's clone, it looked B-arena keys
+up in A's table. That was a live SILENT WRONG NAME on main. Every
+union or intersection whose result is B's clone named B's vertices
+from A's table where slot keys collided (`big ∩ small` named small's 8
+corners `FromA(big …)`), and refused `Emission` where they did not.
+
+Now there is one layout read (`operand_key`) and one side type
+(`OpSide<K>`), shared by the face, edge and vertex passes. Before,
+there were three hand-written copies and three enums. An
+operand-swap symmetry row, over 5 fixtures × {∪, ∩} × both orders,
+guards symmetry. Absolute rows (nested corners, split reflex edge,
+assembly touch) pin which side a name belongs to. A corrupt-body
+`Emission` in `resolve_edge_carrier` is no longer swallowed into a
+tie.
+
+Filed:
+- `b-arena-edges-skip-the-split-lineage-chase` (P0, measured): an
+  order-dependent `SharedRim` refusal on a legal union. It is the next
+  P0 on this slate.
+- `contact-partner-lookup-takes-the-first-of-several-vv-rows` (P3).
+
+## 2026-09-23 — the B-arena edge chase closes (PR 3114)
+
+`union(tip, bar)` refused `SharedRim` where `union(bar, tip)` named the
+edges. The cause, measured: in a B-clone result, `chase_b` stepped
+through an always-empty `fwd_edges`. Now the edge-root chase is chosen
+by where a side's keys live (`operand_key` returns the side with its
+key space): `Direct` chases in the arena for either side, and
+`Grafted` goes through `chase_b`. Whole-table diffs changed only the
+two cells that had refused.
+
+Review measured the filed seam-chain row and found it a live silent
+rename under `Node::Union`: member order rebinds `OrderAlong` edge
+names. It is re-banded P0 and dispatched to the same lane on
+`emit/seam-chain-ranks`.
+## 2026-09-23 — seam-junction closes (PR 3112)
+
+`emit_union::collapse` now reads a seam junction's run of `Seam` lines
+as one head. The run is admitted only as the whole path of a
+Vertex-kind name, and every other shape still refuses FOREIGN. Each
+line collapses to member space through the head-`Seam` rule, and the
+run is re-sorted. Two lines that collapse to one refuse loudly. No
+stored name bit moves: review diffed whole tables across 308
+(document, order) cells, and the only transitions were refusals
+becoming names.
+
+Filed from the unit and its review:
+- `seam-edge-between-two-merged-faces-refusal-a-legal-declared-union-reaches`
+  (P0, re-banded at adjudication): an `Emission` refusal on legal
+  unions of ordinary blocks.
+- `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1): measured with 0 names rebinding, so a reorder makes names
+  vanish typed rather than silently rebind.
+- `name-ordered-positions-in-a-path-have-no-single-home` (P1, class):
+  the sort rule lives in four partial lists. `collapse` does not
+  re-sort `SideOf`, contrary to `role.rs`.
+
+## 2026-09-23 — Ev on the loft anchors: a deeper design issue
+
+Ev, on PR 3102: the split between "program numbering" and "published
+numbering" for a later loft section points at a deeper design issue.
+The orchestrator's reading, posted on the PR: a loft's section
+correspondence is the kernel's lex-min canonical guess, not the
+author's order. Three open rows share that root:
+
+- this unit;
+- carve's twisted-loft P0 (`loft-pairs-sections-by-canonical-start-not-authored-order`,
+  which reaches main with 3102);
+- carve's first-strip v-parameterization row.
+
+Proposed: make the correspondence authored (step k of every section →
+wall k). A mismatched-orientation section is refused typed, option
+(a), or normalized with its start kept, option (b); the orchestrator
+leans to (a). 3102 is held rather than merged. Its loft machinery
+would be deleted by the redesign, and the wrong answer it fixes has no
+production caller today. Waiting on Ev's answer.
+
+## 2026-09-23 — Ev ratifies authored loft correspondence
+
+On PR 3102's thread, Ev accepted option (1): orientation is
+canonicalized per loop, and each loop's start vertex and the hole
+order are as authored. He ruled out an explicit per-section offset as
+redundant. The new unit is `loft-section-correspondence-is-authored`
+(P0, H). It is given to the lane that did 3102, which has the context.
+
+3102 will close unmerged once the unit's PR opens, and its red rows
+carry over. `loft-anchors-every-section-with-section-zeros-map` closes
+with the unit. Carve's first-strip row stays open on carve: authored
+correspondence does not remove its sensitivity.
+
+## 2026-09-23 — the loft unit stops on the opposite-sense section
+
+The lane measured both scopes before committing.
+
+- **The global canonical-start change.** It sets `start = 0` in
+  `profile::validate`. It moves no published name for any verb, and
+  body point sets are identical. It does move arena order in 4 corpus
+  documents and an extrude volume by 1 ulp, and about 30 goldens and
+  verdict counts. It would also retire the ratified V3 clause ("lex-min
+  start"). It is outside the agreement, so it was not taken.
+- **The loft-only change.** Inside the agreement, but it leaves one
+  point open. A section authored in the opposite sense to section 0
+  pairs program step n−1−k with section 0's step k. A loft publishes
+  one ref per wall, so the ordinary door, asked with that section's
+  own naming, would name the reflected wall. The door needs the
+  published sense.
+
+Options went to Ev on 3102:
+1. one derived orientation bit per section on the loft value;
+2. canonical numbering for every verb's refs, a migration for
+   clockwise-authored profiles;
+3. refuse opposite-sense sections.
+
+The orchestrator recommends option 1. The unit carries `needs_ev`.
+
+## 2026-09-23 — GroupResized lands (PR 3115, Ev approved)
+
+The two vanish rows close together. Their premises were refuted
+rather than fixed. `OrderAlong` never needed a partner, because
+`name_frag_order_along` ranks siblings against each other. Both rows
+are one event: a fragment group that changed size while every verdict
+held.
+
+N5 gains `Diagnosis::GroupResized`, placed after every cause-naming
+rung and before the evidence-free fallback. Ev accepted the
+justification that the ladder orders cause before effect. On whether
+it needed his sign-off, Ev said an additive rung that contradicts no
+principle he asked for is fine. The Display sentence states only the
+two-table fact.
+
+Filed from the review:
+- P0 `global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause`,
+  measured. This predates the PR.
+- P1 `group-size-re-derives-group-membership-from-name-shape`.
+- P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
+- P4 `name-counts-saturate-silently-at-u32-max`.
+
+## 2026-09-23 — the global flip lanes are scoped to ancestors
+
+The lane stopped on a definitional fork: what the global lanes may
+report as a vanish's cause. The two candidates:
+
+- (a) N1's derivation path, under which the global lanes disappear;
+- (b) the transitive ancestors of the minting node, with sentences
+  saying "upstream of", not "on the path".
+
+The measurement: the digest corpus and the whole suite are identical
+under both. The two differ in a cutter-union scene, where a recorded
+flip sits upstream of the cut but not in the vanished name.
+
+The orchestrator chose (b) without asking Ev. It applies the
+cause-before-effect principle Ev approved on 3115. An upstream flip is
+a candidate cause and outranks the `GroupResized` effect, as long as
+its sentence claims only what is known. Under (a), GroupResized's "no
+flip was found" would be false. A flip on a non-ancestor node is never
+reported, which closes the live wrong answer.
+## 2026-09-23 — union seam-chain ranks close (PR 3121)
+
+A union's `Seam` canonicalization swapped the pair into name order
+but kept an `OrderAlong` tail ranked along n_a×n_b, A side first. So
+reordering members rebound seam-edge names silently: a P0 found by
+3114's review. Now a swapped pair reads a seam EDGE's rank as
+of−1−rank, which is exact because negating the direction reverses a
+certified strict order and keeps ties. A ranked seam vertex keeps its
+rank, and a unit row guards that exemption. Its unreachable two-edge
+case refuses typed. Pair-boolean names are untouched, and no union in
+the tree today collapses a ranked seam edge.
+
+Review found the sibling: a three-member union can rank one seam once
+as a two-edge chain along n_a×n_b and once as a descent sub-edge
+chain along the edge's own direction. `collapse` flattens both to one
+spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
+It goes to the same lane next, aimed at one orientation rule for both
+rankers.
+
+## 2026-09-23 — merged-face chords close (PR 3120)
+
+A seam edge whose two crossing faces were both merged faces refused as
+`Emission`, a kernel bug, on legal declared unions of blocks. Measured
+cause: the edge was never a crossing. It was a piece of one member's
+rim edge that a slab had split, lying between two merged faces. The
+merged-face read-through needed a partner face that did not exist.
+
+The key now says which side to look at. A certified geometric check,
+`chord_on_rim` under predicate `name_chord_on_rim`, decides whether
+the chord is that side's rim piece; if it is not, it refuses typed as
+a missing rule. Whole-table diffs over 924 cells: 0 fused names moved,
+82 of 89 former `Emission` refusals now fuse, and none remain.
+
+Filed from the unit and its reviews:
+- P0 `shared-rim-several-is-a-missing-rule-legal-declared-unions-reach`,
+  re-banded: the commonest refusal on legal unions.
+- P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
+- P4 `opside-unit-respells-topo-operand`.
+
+## 2026-09-24 — Ev rules the loft unit global
+
+On 3102's thread, Ev chose the global canonical start (V3's lex-min
+start retired) and canonical numbering for every verb's published
+profile refs. That means migrating the names of clockwise-authored
+extrudes and revolves. Re-baselining is not a cost against a correct
+change. The loft unit's `needs_ev` is cleared, and the unit is
+re-dispatched with the wider scope.
+
+The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
+UTC. They were resumed on 2026-09-24 from their pushed branches and
+worktrees.
+
+## 2026-09-24 — a second usage-limit stop
+
+The weekly limit stopped every lane again at about 05:00 UTC. At 12:10
+every branch was fully pushed and every worktree was clean, so nothing
+was lost except in-flight edits the lanes re-derive. The four lanes
+and the review of 3133 were resumed:
+
+- loft correspondence, whose PR is about to open;
+- the 3125 fix pass;
+- the 3124 fix pass;
+- 3133, the split spur, in review.
+
+## 2026-09-24 — Ev on tangent splits
+
+Ev, in chat: a split plane that grazes the target within the sliver
+band refuses, and an exact tangency has to be declared. Both are
+unlikely to happen by coincidence when the cut elsewhere does not
+depend on them. So refusing, as 3133's guard does, is the correct
+posture, not a P0. What remains is verb breadth: `split` has no way to
+declare an exact tangency, with the boolean's declared contacts as the
+precedent. That is filed P1 on REACH's slate from 3133.
+## 2026-09-24 — the global flip lanes close (PR 3124)
+
+A vanished name's diagnosis now reads two scopes, through one lane
+table (flip, then structural parameter, then recipe edit):
+
+1. its derivation path;
+2. its minting node's strict ancestors in either run, each walked
+   within its own run's document, minus the path. Answers from this
+   scope are reported as `Diagnosis::Upstream`.
+
+A node the name does not depend on is never read. The ladder runs:
+path lanes, `qualifier_delta`, `Upstream`, `GroupResized`, fallback.
+Review caught a MAJOR: the first ancestor walk mixed the two runs'
+edges, so a rewired recipe could reach a node that was an ancestor in
+neither run. The fix pass walks each run separately, through the
+shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
+claimed per-pair evidence now state their node-level trigger.
+
+## 2026-09-24 — seam-line ranks close (PR 3125)
+
+A union's seam-edge pieces rebound across member orders, because two
+rankers oriented one seam line differently: a seam chain minted
+already cut, and a descent chain cut later. After three review rounds
+there is one home, `names::seam_pair`. It answers which seam line a
+rank runs along, through one exhaustive wrapper list, for the emitter
+and for the collapse alike. The pair emitter keeps its structural
+sides. An equal-named pair (two placements of one prototype) ranks
+along its own carrier, and a union cannot produce one because members
+are wrapped in `FromMember`.
+
+Measured rebinds, main to head, all 0: 192 in `far`, 352 in `two_b`,
+108 in `two`, and 368 in the reviewer's `two_ribs`. Some pair-boolean
+names move and are listed in the PR: 12 rows in `cross`, 12 in
+`cross_plain`, 4 in the split repro. Filed: P3
+`seam-line-sides-is-a-missing-rule`, raised to P0 if a document
+reaches it.
+## 2026-09-24 — the split spur closes (PR 3133)
+
+A split plane touching the target along an edge while cutting it
+elsewhere used to "succeed" with a zero-area spur on the section face.
+That left two null-pair copies of one vertex, and the naming layer
+reported the result as a truthful `Duplicate`. Review corrected the
+mechanism: the direct join refused, and the D7 pinch lane's mirrored
+rerun laundered that refusal into a spurred success. The join now
+refuses a spur tip as `SplitJoinError::SectionSpur`, with its own
+message. Following Ev's ruling in chat, that message says an exact
+tangency would need to be declared. Rows now name which predicate
+refused, so an area refusal substituting for the spur refusal goes
+red.
+
+Filed:
+- REACH P1 `split-cannot-declare-an-exact-tangency-with-its-target`;
+- REACH P3 `split-section-spur-guard-skips-curved-spurs`;
+- ATREST `validate-passes-a-body-with-a-zero-width-slit-face`,
+  rewritten and re-banded P3: `split` runs no validation tier on its
+  own outputs.
+
+## 2026-09-24 — loft correspondence closes (PR 3147)
+
+Ev's two rulings on 3102 are implemented:
+
+- A profile loop's canonical start is its authored vertex 0, with
+  orientation normalized. V3's lex-min start is retired and survives
+  only as the containment representative.
+- Every verb publishes profile refs in canonical numbering, so the door
+  answers any loft section through the section's own anchor.
+
+Consequences:
+
+- The +30° twisted loft builds the author's solid.
+- The tour lily's blades lose the twist lex-min gave them: one leaf
+  drops from 43,738 to 21,390 triangles.
+- 12 of the corpus's 1,612 names migrate, in `plate_param`.
+- About 30 goldens and counts are re-baselined. Each is listed in the
+  PR with its cause; review verified the four riskiest.
+- The fix pass swept stale "program-anchored" and "exact-order band"
+  prose.
+- New rows that go red under a lex-min start.
+- `replay_naming`, so a SetProgram over an old program that replays
+  but does not validate keeps its names.
+- The now-dead offset knob is removed.
+
+`loft-anchors-every-section-with-section-zeros-map` closes with it,
+superseded.
+
+Filed:
+- P3 `a-lofts-names-follow-only-its-first-sections-reshaping`.
+- `a-param-jump-that-swaps-the-outer-loop-renumbers-names-unreported`,
+  re-banded P0 at merge because it is a silent rebind.
+## 2026-09-24 — SharedRim(Several) is held for its rebind sibling
+
+PR 3167 names a chord over a rim that exists in several collinear
+pieces: the chord takes the one piece it lies within. On the probe
+corpus, all 62 refusing union cells fuse, and 0 names that fused on
+main move. But measured over member orders, 42 order pairs that used
+to refuse loudly would now silently bind a rim-piece name to a
+different piece. That silent class already exists on main: 18 of 162
+pairs that both fuse on main rebind.
+
+The project is fail-loud, so 3167 does not land alone. The P0
+`union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
+stacked on it and dispatched to the same lane. The two land together
+once the probe corpus shows 0 rebinds.
+
+## 2026-09-24 — the narrowing rule has its doors (PR 3169)
+
+`name_placed_union` now narrows through `defer::narrow_into`. The
+"several ⇒ tied" minting decision, spelled at six sites plus a
+SectionEdge third form, now goes through one door,
+`defer::mint_candidates`. "A lone member keeps the base name" stays
+local at each site, because each site's discriminator would answer it
+trivially. The change is behaviour-preserving: the corpus name
+digests, the 304-cell probe and a reviewer-built ≥2-survivor
+placed-union tie are identical to main.
+
+## 2026-09-24 — name-ordered positions have one home (PR 3173)
+
+`names/canonical.rs` is now the one place a path's name-ordered
+positions are put in order:
+- `Merged` and `BandFace` sets;
+- `SideOf` partners (the collapse never sorted these before);
+- junction runs;
+- a union `Seam`'s sides, and the `OrderAlong` rank value that depends
+  on them.
+
+Mint, collapse and every rewrite (`rewrite_path`, `refactor::remap_*`)
+go through one core. The rank rule is derived inside it by comparing
+the name before and after, for every rank on a seam line, including
+one reached through a wrapper.
+
+Review round 1 caught a pair boolean's ranks along an embedded union
+seam re-binding silently under a reordering remap. On the reviewer's
+probe over every permutation there are now 0 wrong binds and 0
+dangling names; main had 990 dangling. Published names that move: 42
+`SideOf` partner-order rows, each binding the same geometry.
+## 2026-09-24 — three small rows close (PR 3175)
+
+- Naming counts narrow to u32 through one helper, `names::emit::to_u32`,
+  and refuse typed rather than saturating. The resolve rung declines.
+- `OpSide<()>` gives way to `topo::Operand` and its existing `other()`.
+- The seam-vertex pass reads every contact vv row. Agreeing rows name
+  the vertex; distinct names refuse `SeamVertexPartners`. No suite or
+  probe reaches two rows, measured over 3,747 vertices.
+
+Filed: `naming-index-casts-saturate-silently-at-u32-max` (P4), widened
+at review to the 14 truncating `as u32` casts in `editor-core`.
+
+## 2026-09-24 — value edits report a numbering move (PR 3180)
+
+A value edit (SetParam, SetExpression, SetStructuralParam, SetDocParam,
+SetDocParamValue) that moves a profile's canonical numbering used to
+rename silently: a hole grown past its outer loop, or a loop whose
+sense flipped. It now runs the same carry-and-report door as
+SetProgram. DM7 is re-worded to cover edits that move a name's
+numbering.
+
+Review found a two-step path through an unreadable state (no replay,
+a tie, or zero area). The interim rule makes it loud: an unreadable
+side strands every name on that profile. The lossless answer needs
+the last published numbering, and that is not recipe state (two
+saves are byte-identical while the same name denotes different
+walls). The choice between option A (persist it) and option B
+(doc-param edits refuse unreadable results) is with Ev in
+`a-value-edits-last-published-numbering-is-not-recipe-state`
+(`needs_ev`).
+
+Filed:
+- P0 `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+- P1 `the-viewer-drops-every-dm7-rename-report`
+- P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
+
+## 2026-09-24 — the stable-name question put to Ev (PR #3193)
+
+Ev's comment on EDIT's #3163 asked for "a more general stable name
+system". Three open rows share one cause: a profile locator spells a
+canonical (loop, segment) position, and that position is recomputed from
+current state. The rows are this program's two `needs_ev` rows and
+EDIT's zero-fit row. The `[ev]` PR states the id rule in
+`names/README.md` ("N1, the profile pieces").
+
+Evidence behind the PR:
+- **Authored positions in names.** `ProfileEdgeRef` and
+  `ProfileVertexRef` are the only authored-positional coordinates in
+  `RoleSeg`.
+  - Nodes and union members are already ids.
+  - `Instance { i }` is structural.
+  - `Fragment`, `SectionFace { section }` and `HoleRim { hole }` are
+    ordered by the kernel, and change only at recorded verdicts (N2, N7).
+  - `OrderAlong` carries `of`, so a resized group vanishes
+    (`GroupResized`) instead of aliasing.
+  - I did not check whether `HoleRim`'s pairing order can reorder at
+    an unchanged hole count.
+- **Size of the change.** 79 non-test references to the locator types
+  across 24 files:
+  - `sweep` and `profile` validate;
+  - editor-core: names, anchor, program, edit, node, eval;
+  - `pncad` and `pncad-py` selectors;
+  - viewer marks.
+- **What the id rule deletes.** The SetProgram rename machinery in
+  `edit.rs`: `LoopProvenance`, `SegmentMap`'s rewrite, `RETIRED_FLOOR`,
+  `reanchor_report` and `numbering_move`. That is several hundred lines:
+  about 500 around `SegmentMap`, 140 in the value-edit door and 200 of
+  provenance types. Part of the `SegmentMap` code stays as the strand
+  walk. DM7's
+  strand report becomes a difference between two sets of ids.
+- **Ids can be diffed across versions.** A pin update can compute its
+  strand report from the two versions alone. #3187 showed that
+  positional names cannot do that.
+- **Ratification checks** (`git log -S`):
+  - V3's "index CANONICAL positions" was written by 9ee28b0c7a, which
+    built Ev's PR 3102 ruling.
+  - DM7's "rewritten in place" arm was written by 7b9423eeca, which
+    built Ev's #2904 ruling.
+  - DM7's value-edit arm was written by 94f7a773de and revised by e96a305bab (both #3180, agent-landed).
+  - N1's "combinatorial identities" dates from the ledger move
+    (585b3422ff).
+  - The id rule keeps PR 3102's substance: correspondence by canonical
+    `k` from the authored start. It changes only what the loft wall's
+    name spells.
+- **Prior art.** From general knowledge; not checked against source,
+  and `references/` is absent in this checkout. Onshape sketch
+  entities carry author-level string ids, and extrude faces are queried
+  by them. FreeCAD 1.0's element map builds names from Sketcher
+  geometry ids. Neither versions a rename ledger for sketch elements.
+## 2026-09-24 — rim-piece ranks follow the finished body (PRs 3168 → 3167)
+
+A union now numbers each member edge's pieces by the cells the
+finished body cuts it into (#3168). Before, it ranked them per fold
+step, so one rim-piece name denoted different pieces in different
+member orders. #3167 (the shared-rim rule) lands with it. Alone,
+#3167 would have turned refusals into silent rebinds: on the review
+probe, 407 signature mismatches against main's 108. It was merged
+only after #3168 had been merged into its branch.
+
+What landed with the review rounds:
+- the cell check moved into the `name_frag_` family;
+- `of` counts cells, not pieces;
+- the clustering is an order-free union–find, and refuses when the
+  ambiguity band is narrower than 2 (`NarrowBand`);
+- whole-group re-ranking in `cite_member_edges`;
+- one same-side-rim rule;
+- loud guards for a fold-ranked member-edge piece and for a moved
+  vertex that has no single seam.
+
+The rebind row is now able to go red. It pins the 25 cases that
+refuse in some orders and publish in others (`KNOWN_MIXED`). The two
+causes without an owner are filed P1 as
+`union-refuses-in-some-member-orders-and-publishes-in-others`.
+
+Measured on the review probe:
+- names absent in one order: main 5200, #3167 alone 12478, both
+  7742;
+- no case is worse than main;
+- the remaining absences all belong to
+  `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1), which now carries the evidence that the declared-flush body
+  itself is order-dependent.
+
+Filed:
+- P2 `cite-member-edges-group-rerank-can-reverse-the-folds-rank-direction`
+  (review O4b; unreached, untested branch)
+## 2026-09-24 — a parent's held names rebind silently across a pin update (PR 3187)
+
+Measured, and the row stays P0. A part inserts a leg before its
+wall 1. The part's own door reports the rebind for names the part
+holds. A parent that painted `InPart { part wall 1 }` then moves its
+pin: `UpdateReference` reports nothing, and the held spelling now
+denotes the leg. The new row `asm_parent_held_names` pins that
+behaviour.
+
+The fix needs new persisted state. Nothing connects an old pin to a
+new one at `UpdateReference`:
+- rename rows are not logged;
+- the store keeps one snapshot per id;
+- two snapshots cannot say whether a leg was inserted or a wall was
+  replaced.
+
+The fix would be a per-version rename ledger that `UpdateReference`
+carries as data. The PR lists every carrier that holds a name across
+a document boundary.
+
+The loud interim (strand every held name at every pin move) is not
+landed: it would break every mate on every update. The row is
+`needs_ev`, together with
+`a-value-edits-last-published-numbering-is-not-recipe-state`, whose
+option A is the per-document half of the same ledger. Both go to Ev
+as one question.
+## 2026-09-24 — the group-size rung reads the emitter's groups (PR 3184)
+
+`GroupResized` used to count a group by how its members' names were
+spelled. Tied parents were then summed (4 → 2), and a face a split no
+longer divided read 2 → 0. Now each emitter records the groups it
+forms, by entity (`names::FragmentGroups`, not persisted), and the
+rung only looks the count up. At a union the count is the distinct
+published entities a fold step's group descends to, followed by
+entity through every later step. Where a group is formed by names (a
+seam group a tie formed), the rung declines. No name, stored bit or
+`DIAGNOSIS_DIGEST` row moved.
+
+The review took three rounds:
+- Round 1 found a partly swallowed union group reporting its full step
+  size.
+- The fix for that matched rows across fold steps by name, which
+  summed tied parents again.
+- Round 3 moved the descent to emit time, by entity.
+
+Documented as a known undercount: a piece a later step re-mints as a
+`Seam` edge along its own line is not counted as the parent's
+descendant.
+
+## 2026-09-25 — a declared flush union names vertices and member edges the same in every order (PR 3198)
+
+Four end passes in `emit_union::name_union` replace fold history with
+facts read off the finished body:
+- **`Flush`:** a flush stretch is named for the least member edge it
+  lies along.
+- **`least_vertex`:** a member corner is named for the least member
+  vertex, among faces that descend there.
+- **`crossing`:** a face crossing a member edge is `Seam{edge, face}`.
+- **`retire_into_merges`:** a seam side cites the merge only when the
+  merge is the face beside it. It never cites a duplicate or a false
+  adjacency.
+
+Absences on the rebind probe fell from 7398 to 816, with vertices and
+member-edge pieces at 0.
+
+The review found three regressions against main, all fixed with rows
+that go red:
+- a two-shell member refused;
+- the ZIP document refused `Duplicate`;
+- 46 seam sides named a face they do not border.
+
+A new permanent row checks seam adjacency across the corpus. Cost is
+about 1.1–1.3× main on a 100-step union chain.
+
+Closed `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+Filed:
+- P1 `union-face-names-follow-fold-order` (the faces that remain; the
+  fork goes to Ev);
+- via the PR, zip's leftover-vertex row and EMIT's
+  `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`.
+## 2026-09-25 — the viewer shows each edit's DM7 rows (PR 3196)
+
+The viewer used to keep only `cluster_rows()` of an applied edit, so no
+`Strand`, `StrandedAppearance`, `OrphanedDeclare` or `Rebound` row ever
+reached a GUI user.
+- **Carried and shown.** `OpOutcome` now carries the rows. The chrome's
+  status line shows one notice per row, in the row's own sentence.
+- **Netted in one place.** The net over a multi-edit action lives in
+  editor-core as `MaintenanceNet`. It takes an edit's rows and its
+  after-document together (`&Applied`), and it checks that each row's
+  claim still holds:
+  - a strand survives only while its carrier still holds the name;
+  - an orphan survives only while it is still unconsumed;
+  - a rebound folds, and is dropped when a later edit strands or re-lands
+    its target.
+- **The panic.** `MaintenanceNet` panics if two surviving rebounds share
+  a target. It is a bug assertion with a written proof, and it is
+  reachable only from test-gated hand rows.
+
+Two review rounds found:
+- a rebound whose target a later edit stranded kept a false "still
+  denotes" sentence;
+- liveness checks tested existence, not the claim;
+- the panic's stated reason was false (`Rebind` does merge names, but
+  reports no rebound).
+
+The lane pushed one empty commit to restart CI after a runner shutdown.
+That is against the session rules; it stays in the history, and it was
+not repeated.
+
+Filed elsewhere:
+- work/vseam: redo re-lands an edit's maintenance unreported (P3);
+- work/chrome: cluster acts are not shown on the line (P4);
+- work/chrome: a long cascade crowds the status line (P3);
+- work/lib: Python has no `MaintenanceNet` door (P3).
+## 2026-09-25 — Ev: profile pieces are named by minted step ids (PR 3193)
+
+Ev ruled "yes this makes sense!" on #3193: a profile piece is named
+`{ step, role }`, where the step id is minted when the step is
+authored. The rule is N1's paragraph "the profile pieces". Three open
+problems share one cause, a name spelled by a position that is
+recomputed from current state:
+- a parent's held names across a pin update (P0);
+- a value edit through an unreadable state (P1);
+- EDIT's zero-fit renumbering (#3163).
+
+Under the rule nothing renumbers, so none of them arises.
+
+- **Filed:** P0 unit `profile-pieces-are-named-by-minted-step-ids`,
+  cost H, which builds the rule.
+- **Parked on that unit:**
+  - `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`;
+  - `a-value-edits-last-published-numbering-is-not-recipe-state`;
+  - `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+- **Not EMIT's to close:** EDIT's row, and EDIT's #3158 retirement
+  question. Both are moot under the rule, and EDIT's orchestrator closes
+  them.
+
+## 2026-09-25 — Ev: union contact is pairwise, before the fold (PR 3200)
+
+The first recommendation was that a flush contact covered by a third
+member is not a contact. Ev rejected it: "a whole set can get out of
+having any declared contacts just by having none of the contacts be
+blamed on a single pair". The ruled rule:
+- every touching member pair is judged as its own two-member union,
+  before the fold;
+- an undeclared contact refuses in every order, and that includes a
+  covered one;
+- a declared contact is satisfied wherever the fold meets it.
+
+DM4 is re-worded, and its footer records the ruling. Filed the P1 unit
+`union-contact-is-judged-pairwise-before-the-fold` (cost D). Measured
+across the fixtures: 5 of 153 member pairs touch undeclared, and the
+only new refusals are `row` and `rowids`.
+
+## 2026-09-25 — Ev: step roles (PR 3202)
+
+Ev answered the step-id build's three open questions:
+- **Roles.** Roles are the path-language side of the name. Ev noted that
+  the path algebra and its lowering are "two ways of describing the
+  same thing"; user-facing text keeps the language the path was
+  written in.
+- **Circles.** A circle is `Piece(0)`/`Piece(1)` for now, and the P0
+  step-id build ships without waiting.
+- **Loft seams.** One vertex locator per section.
+- **Q4 withdrawn.** Ev was right: a fillet never has an authored corner,
+  so no authored point leaves the path.
+
+Ev raised the deeper point: vertex + bulge cannot express a full turn,
+so a circle is split in two and the lowering diverges from the
+authored path. EMIT filed it on PATHS's slate as
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (P1, H),
+with a recommendation that a dedicated PATHS orchestrator take it.
+`needs_ev` is cleared on `profile-pieces-are-named-by-minted-step-ids`.
+
+## 2026-09-25 — GroupResized names the seams that changed (PR 3205)
+
+`GroupResized` now carries `cutters: GroupCutters`, with these arms:
+- `Read { gone, new }`: the seams on the group's parent that only one run
+  spells, read from both tables;
+- `NotSeamBounded`, `TiedParents`, `NoSeamOnRecord` and `SeamUnread`:
+  each says why it cannot read, and none claims without evidence.
+
+The review found several misreports:
+- a partial read (deep `[Seam, Frag, Frag]` rows) claimed "same cutters"
+  or a false `gone`;
+- a cutter that the fold re-ranked read as both gone and new;
+- the docs said "stopped cutting" where the evidence is a seam spelled in
+  one run;
+- two walls rendered identically.
+
+All are fixed:
+- one fragment-tail helper, plus the `SeamUnread` arm;
+- union cutters compared with their fold tail stripped;
+- relabelled docs;
+- role words in Display.
+
+`DIAGNOSIS_DIGEST` moved once: `flip-vanish` now names B's cap vertex as
+gone.
+
+Known limit: a cutter vertex fused onto the parent edge reads as gone.
+It is documented and not detected, because telling it apart needs the
+body. The change is additive to N5 and was not taken to Ev, per his
+ruling on #3115.
+
+## 2026-09-25 — union contact is judged pairwise before the fold (PR 3213)
+
+`wire_union` now judges every member pair as `m ∪ n` before the fold,
+using only the declarations sited at those two members:
+- pairs are visited in node-id order;
+- undeclared pairs whose boxes are disjoint are pruned.
+
+Consequences:
+- **Undeclared contact.** An undeclared contact, covered or not,
+  refuses in every order.
+- **Declared contact.** It is satisfied wherever the fold meets it. A
+  face the fold consumed whole satisfies its pair.
+- **Measured.** `row` and `rowids` refuse undeclared in all 24 orders,
+  and fuse in the same 6 once declared. `KNOWN_MIXED` went from 25 to
+  23.
+- **Cost.** Dense unions cost about 3× more; the die is unchanged.
+  Ev's note on cost is in DM4.
+
+Ev's two rulings on #3213 ("yes these both sound good!"):
+- a declared pair is judged whatever its boxes;
+- a fold step's contact refusal becomes an `Emission` bug assertion,
+  and the `UndeclarableContact` paragraph is re-worded.
+
+The review found the code correct, and the fixes landed:
+- two rows over-admitted orders;
+- two helpers were duplicated;
+- one silent `continue` became an assertion.
+
+Filed: wire P1 `a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`.
+## 2026-09-25 — union face names go to Ev: re-derive over the merge closure
+
+The fork on `union-face-names-follow-fold-order` went to Ev. The
+recommendation is to re-derive. A union face's parent is its merge
+closure: the member faces the union's merges link, transitively. A
+parent held as one face takes the parent's name. A parent held as
+several faces gets one `SideOf` against the parents across the group's
+seam edges. N2 and N3 in `names/README.md` state it.
+
+Measured with a scratch probe (deleted) over the rebind row's corpus
+(45 case-unions; 248 fused orders; the probe's 186 refusing orders are
+the known mixed and all-refusing cases, untouched):
+- **The absences, by the shape where the name IS published:**
+  - `Merged#SideOf` (merged then cut): 234;
+  - bare constituent a merge lists: 66;
+  - `Merged` whole: 54;
+  - one four-partner `SideOf`: 84;
+  - two stacked `SideOf`s: 48.
+
+  That totals 486. The 330 seam absences split into 120 citing a
+  fragment, 120 citing a merge and 90 citing bare faces.
+- **Re-derive:**
+  - Across 552 parents, the finished body's faces per parent and their
+    seam partners agree in every fused order (0 mismatches).
+  - Partners read from the fold's names instead disagree in 25
+    parents, so the partners must come from the body.
+  - Axis-plane verdicts separate every piece: no new ties.
+  - All 342 seam parent-pairs hold one edge each and agree across
+    orders.
+  - Renamed: 238 of 3468 face rows (90 of 702 distinct names), of which
+    102 are stacked or misplaced fragments, 76 have a parent that is not
+    the closure (56 bare constituents and 20 sub-merges, the latter in
+    `r2endsg`), 48 have a different partner set, and 12 cite a partner
+    as a piece. Seam rows: 132 of 1924.
+  - Faces already in merged-then-cut, single-step form keep their
+    spelling.
+- **Refuse:** refusing only where the fold's spelling varies would
+  itself follow order. The order-free test is "a merged parent is cut,
+  or a face is cut by two or more other members". It refuses 134 of 248
+  fused orders, and 26 of 45 case-unions in every order, `r1two`,
+  `abg` and every `fam0**` among them. It renames nothing.
+- **The collision freeze** (`retire_into_merges`) fires on none of the
+  corpus. It fires only on the ZIP-shape row: four seam edges in each
+  of its four runs, two edges of one seam line between the same two
+  faces. Under the rule, those are two pieces of the seam, ranked
+  along it.
+## 2026-09-25 — a cited seam-vertex group always ranks along its member edge (PR 3219)
+
+`cite_member_edges` ranks every group of two or more vertices that
+share one seam citing one member edge. It ranks along that edge,
+oriented as in the member's own body, whether or not a vertex of the
+group moved. Before, an unmoved group kept the fold's ranks, and those
+could run the other way, so `#0 of 2` could name different vertices in
+different member orders.
+
+The case is latent. Instrumented, the corpus and union rows form no
+group of two or more, since planar members meet a line at most once,
+and the curved probes refuse in the boolean first. Unit rows red on
+main pin the case, plus the two refusal arms that were untested before.
+No name moved.
+
+After #3198 landed, the unit fixture needed a `Flush` argument. The
+merge added it.
+## Announced seam from PATHS (2026-09-25)
+
+Ev ruled on #3218 that a profile lowers to verbatim vertices +
+`Line | Arc { centre, radius, Δθ }`, so a circle becomes one segment.
+PATHS's `circle-lowers-to-one-segment` (unit 4 of 6, parked behind three
+refactor units) will re-spell a circle's step-id pieces from
+`Piece(0)`/`Piece(1)` to one `Carrier`, which is the second names break
+agreed on #3202. Nothing is needed from EMIT now. PATHS will announce
+again before unit 4 dispatches.
+
+Signed (PATHS orchestrator).
+
+## 2026-09-25 — editor-core's narrowing casts refuse or widen (PR 3226)
+
+The 14 `as u32` truncations in editor-core are gone, along with the
+saturating `emit_sweep::ix`.
+- **Stored identity** now goes through `names::emit::to_u32` and refuses
+  as a typed `Emission`. That covers name indices, the anchor's loop and
+  count, and a sweep hole index.
+- **Wire's loop coordinates** use one `loop_coordinates` door.
+- **Refusal payloads** now carry `usize`, like their sibling fields:
+  tie widths, `RepeatedDesignation`, `SelectionNotCanonical`. The row
+  allowed widening, and refusing inside a refusal would have needed new
+  arms on N5's closed trio.
+- **A measure ref index** that doesn't fit now reads `Unread` instead of
+  aliasing `u32::MAX`.
+
+Left as they are, with reasons in the PR: the `param_source` prefix code,
+`sign_ix as u8`, and every widening cast.
+
+Filed: gather P4 `product-instance-output-body-index-saturates`.
+
+## 2026-09-25 — Ev: a union names its faces from the finished body (PR 3222)
+
+Ev chose re-deriving over refusing:
+- a face's parent is its merge closure;
+- one `SideOf` per piece, with partners read from the finished body;
+- seams cite parents.
+
+Measured, the rule:
+- renames 90 of 702 distinct face names;
+- refuses nothing new;
+- is order-free over the rebind corpus;
+- lets N3's "constituents retire" hold in every order.
+
+Refusing would have refused 134 of 248 fused orders.
+`union-face-names-follow-fold-order` becomes the build.
+
+## 2026-09-25 — profile pieces are named by minted step ids (PR 3223)
+
+N1's rule is built, as Ev ruled it on #3193 and #3202:
+- every profile step carries a `StepId`, minted from the document's
+  step counter and never reused;
+- a profile locator is `{ step, role }`;
+- a tube's sections are named structurally, as `Section { Outer | Bore }`;
+- a loft wall or seam holds one locator per section.
+
+The positional rename machinery is deleted: `LoopProvenance`, the
+`SegmentMap` rewrite, `RETIRED_FLOOR`, `reanchor_report` and the
+signed-area anchor. The wire format breaks, and the goldens are
+re-baselined.
+
+Nothing renumbers any more:
+- the held name in `asm_parent_held_names` survives a pin update;
+- EDIT's zero-fit chain keeps its names;
+- a dropped step's names vanish, with a DM7 report.
+
+Review found one alias (B1): a fillet claimed the next step's tangent
+arc as its run out, so dropping that step moved a paint silently. It is
+fixed, with the run out tied to its arrival carrier. The implementer
+was lost to a container restart mid-unit, and a second lane finished
+the fix pass.
+
+Closed:
+- `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+  (P0);
+- `a-value-edits-last-published-numbering-is-not-recipe-state`;
+- `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+
+Notes left on:
+- EDIT's zero-fit and stranded-names rows;
+- WIRE's two signed-area rows, which are now moot.
+
+Filed:
+- P3 `a-fillets-run-out-rides-by-segment-kind-only`;
+- P2 `sibling-branches-mint-one-step-id-for-different-steps` (via the
+  PR);
+- the Python handles remainder, `python-spells-a-piece-by-its-authoring-calls-step-handle`.
+
+## 2026-09-26 — Ev: step ids carry lineage, via a digest chain (PR 3262)
+
+Sibling branches of one document minted the same `StepId` for
+different steps. A parent that pinned one branch and then updated to
+the other silently re-denoted a painted leg, with `maintenance: []`.
+The measured rows are in `asm_parent_held_names`.
+
+Ev ruled (b): step ids are minted from a digest chain, which keeps D9,
+and siblings never collide. He first asked whether `UpdateReference`
+should catch it. It cannot without the lineage the id should carry.
+
+The row becomes the build. Node ids share the defect and are left for
+a later row.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — step ids mint from a digest chain (PR 3455)
+
+This builds Ev's ruling (b) from #3262.
+
+**The review found:**
+- the unreachable encode failure had been typed as an error, where D9
+  requires a panic;
+- a mint log that is out of order loaded silently;
+- the headline row pinned `Vanished` loosely.
+
+All three are fixed, along with the smaller items.
+
+**Unilateral reading:** display units are left out of the mint's bytes,
+following D6's "a display unit is never part of identity". N1 is
+unchanged beyond the re-wording the code forced.
+
+**Visible to users:** `select` now answers in id order.
+## 2026-09-29 — the run-out carrier, reviewed twice (PR 3266)
+
+A fillet's run out is now claimed only by an emission on its arrival
+carrier, decided geometrically under `path_run_out_carrier`.
+
+**First review.** It found that the circle test rebuilt the run's
+circle from its chord, which rounds at ~ε·R²/chord. Short legal runs
+escalated or were silently named `Leg`. The fix measures point
+deviations instead.
+
+**Second review.** It found two more gaps:
+- Major arcs, where the end nearly meets the head, could leave the
+  circle between samples. The fix adds quarter points.
+- Backward arcs rode. The circle carrier now carries its winding.
+
+**Evidence rows.** Main's merge brought SYM's deliberately red evidence
+rows. Stored values there are main's plus this PR's own delta (pad
++3/+3, bracket +1/+1), so the rows stay red by exactly SYM's
+unattributed drift. The gating row stores measured values.
+
+**Closed with it:** the loft-sections row. #3223 had already resolved
+it, and this PR pins it.
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/names/emit.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — the fold-contact P0 was already fixed (PR 3476)
+
+A first-parent bisect puts the fix at CONTACT-8 (#3377).
+
+**The defect:** an area-overlap declared pair was left unmerged inside
+the accumulation, and the next step's census refused it. The refusal
+was reported as a fold-minted contact verdict.
+
+**This PR:** adds no code change. It adds per-order outcome rows for
+three fixtures.
+
+**Still open:** `SeamVertexParentage` is live in 2/6, 8/24 and 18/24
+orders across those fixtures. It is WIRE's chord-rule row.
+
+**Also found on the way:** EDIT's new hex-id check in test-utils read
+a float's exponent as an id, which turned main red at ε = 1e-6. EMIT
+fixed it in #3466, with a seam note to EDIT.
+
+## 2026-09-29: Python step handles (PR 3481), ruled on [ev] #3473
+
+Ev ruled that the author states the loop, that there is one role list per verb with the accessors generated from it, and that `set_program` takes one keep dict per loop.
+
+**The review found a real defect.** The first version bypassed `rides` for a fused step's own emission. That missed Radius/Via arrivals, whose arc a later binder step emits. Far from the origin at ε 1e-11, those panicked the new role check: 106 of 3,600 grid cases.
+
+**The fix is structural:** the fused verb claims `RunOut` where it emits the arc. #3266's circle measurement is gone, and only the ray arm still decides geometrically.
+
+**Friction noted:**
+- Twice today, main went red where the PR gate had skipped the rows: the 1e-6 hex-id row (#3466) and the demo `chaintol` rows (#3479). Both were fixed by EMIT, with seam notes to EDIT and CHROME.
+- #3266's test job took about 14 minutes.
+
+## 2026-09-30: `Borders` replaces `SideOf` for split faces (PR 3241)
+
+**How the design settled.** Ev read the aligned-feature case and judged
+the plane half-space semantics fragile. A second designer pair agreed
+on `Borders`: a piece is named by the divider walls it touches. Ev
+took it on #3454.
+
+**Choosing the mechanism by measurement.** A prototype compared the
+options against rasterized planar truth, over 434 corpus runs plus
+constructed fixtures in every member order:
+- The face-path variant was wrong on through-slots, cups and arches.
+- A walk without geometry was wrong on every island.
+- The kernel's discard record, chained across fold steps, matched in
+  all 703 groups.
+
+The record needed the discarded edges' split chains, because `carve`
+drops that provenance.
+
+**What was built.**
+- topo exports `BooleanNaming::discards` (seam note to ZIP).
+- One `names::borders::Obstacles` function serves the pair boolean and
+  the union.
+- Union parents are keyed by entity.
+- The border-delta rung replaces the `SideOf` and shadow-exec rungs.
+
+**Effect on names.** 48 corpus names moved, all inside `Fragment(..)`.
+No tie changed, and there was no timing cost.
+
+**Review.** It found `border_delta` naming an untouched sibling. Fixed:
+a counterpart must share a wall.
+
+**Known tension, noted to Ev.** A kernel-bug state refuses with
+`Emission`/`JoinDesync` rather than panicking. That follows the editor's
+no-panic convention, where D9's letter says panic.
+
+**Still open:** the tied-face swap (rewritten with evidence under
+`Borders`) and the union's order-dependent refusals.
+
+## 2026-09-30 — a face cut and merged in one step (PR 3526)
+
+The pair boolean published a cut piece under the bare name its merge retires. It now names the piece `base#Borders(..)` through the same helper the union uses (`name_parent_faces`).
+
+The union's declaration door refuses `ConsumedByFold{Split}` on that shape. That costs totality in 6 member orders:
+- r2endsg's 4 had bound the correct face;
+- r4trig's 2 had bound the wrong face silently.
+
+No names-only rule recovers both. They are owned by the new design row `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+
+N3 (a retired name never resolves to a face) now holds in every step table and every published table over 434 union runs.
+
+## 2026-09-30 — a curved seam chain refuses as a missing rule (PR 3542)
+
+A pair boolean whose seam chain runs along a curved face (a cylinder across a plate top, unioned) refused `Emission`, the emission-bug category, on a legal recipe. It now refuses `SplitReference { curved: true }`, the missing-rule refusal the union already raised for the same `n_a × n_b` ranking. Both seam rankers read a side's normal through `seam_side_normal`, and one constructor serves them and the union. No ranking direction was chosen.
+
+**Review.** Nothing blocking. The fixes folded in:
+- the union's refusal is traced to the fold's pair step, and the test compares seam sides as a set because `a`/`b` follow member order;
+- the refusal's `group` now names the group actually being ranked;
+- stale `face_plane` citations are fixed.
+
+`seam_line_dir`'s curved refusal is still untested: no cheap fixture reaches it.
+
+**Filed:**
+- `curved-seam-pieces-have-no-ranking-direction` (P0, design): the open question.
+- `a-plane-split-of-a-curved-face-refuses-as-an-emission-bug` (P0, design): the split ranker's sibling.
+- `a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name` (P0): found while looking for a fixture.
+
+## 2026-09-30 — a merged parent held as several faces (PR 3547)
+
+The pair boolean gave every kernel merge group a bare `Merged(set)` name. A slab slot across a sunk boss therefore minted two faces under one name, and the table refused `Duplicate`.
+
+**The fix.** Merged parents are now keyed by the set of operand-face entities their merges list, as N2 says, and never by name:
+- A parent held by one face keeps its bare name, and tied parents stay tied.
+- A parent held by several faces takes `Merged(set)` plus a `Borders` tag.
+
+The recipe now refuses one step later, with a typed missing rule: the wire row's `MergedChordConstituents`, which is now P0 with two witnesses.
+
+**Review.** One blocking finding: the first version keyed by name, which merged tied parents into one and refused them as an emission bug. It was fixed, and the reviewer's repro is now a test. The review also exposed an unrecorded single-holder group that would make `GroupResized` report `now = 0`; that is fixed too.
+
+Not added: a positive synthetic test that two holders get distinct `Borders`. No cheap body gets through the edge pass. The end-to-end test gains that positive check when the chord rule lands.
+
+## 2026-09-30 — curved seam pieces: designer pair (fork-log row 22, PR 3553)
+
+Put to a designer pair (byte 119). Both reject the framing "which direction?": the fixture's seam is two parallel lines. After two rounds they converged:
+- edge pieces take `Ends`, the sorted end-vertex names, and the union's cell count retires with them;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side face pieces take `Keeps`;
+- nothing refuses.
+
+A separate question for Ev is whether section chords (Ev's A2 on PR 512) take `Ends`. The probes filed `a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank` (P0; a lane is diagnosing it) and `edge-dir-is-a-chord-so-curved-edge-pieces-misrank` (P1).
+
+## 2026-09-30 — a split's lineage chase crosses halves (PR 3555)
+
+A cylinder split by a plane that crosses its start rim arc twice refused `MissingUpstream` on the extrude. The second crossing splits the first crossing's child, and the middle piece lies in the other half. The split's edge and vertex lanes chased lineage within one half, so the chase stopped at a key the extrude never named.
+
+`emit_topo::chase_split_edge_to_table` now reads each hop from whichever half holds the key. When both halves hold it, a debug assert checks that their records agree. No design choice was involved, and the review confirmed that no existing name moves.
+
+The recipe now refuses `Duplicate`: the split has no multiplicity rule for a twice-crossed edge. That is filed as `a-split-mints-a-twice-crossed-edges-pieces-under-one-name` (P0, design), which the ruling on #3553 covers.
+
+Also filed:
+- `reach/a-split-half-loses-the-lineage-of-a-twice-crossed-edge` (P3): `topo::props` and `mesh::memo` still walk one half.
+- `origin/the-split-edge-lineage-walk-has-four-homes` (P1).
+
+## 2026-09-30 — node ids off the counter: sizing, unit 1 (PR 3569), display fork (row 23, PR 3565)
+
+**Sizing.** The lane replaced the counter's ids with a scramble and ran the suites. 519 of 2376 editor-core tests assumed small sequential node ids. No shipped code depends on id order. I accepted a split into three units:
+1. tests stop assuming ids;
+2. the digest mint itself, as one document `Mint` for node and step ids;
+3. display.
+
+The row's Sizing section carries the probe inline.
+
+**Unit 1** (PR 3569) is merged. 41 test files now take ids from the insert door or from `doc.order()`. Three library `next_id` comparisons now call `has_minted`, which is behaviour-preserving. Under the probe, 123 failures remain, and all of them are unit 2's. The review found two viewer rows made tautological or weakened (B1, B2); both are fixed. `PART_BODY` (329 uses in 34 files) is split out as a P1 row that must land before unit 2. I posted seam notes on the tcost, tint, chrome and vdoc logs.
+
+**Display fork** (fork-log row 23, byte 36). The designers crossed in round 1 and were run to round 3. B found the `DocRef` precedent: a 12-hex prefix in kernel text, with the file name shown beside it. The split was put to Ev as [ev] #3565:
+- the kernel says which node, as a 12-hex tag on every row and in every sentence (B, likely);
+- the surface says which node, as an address `Extrude 2` through a namer (A, unsure).
+
+Under either answer:
+- `eval::schedule` must break ties by `Doc::order`;
+- one mint chain serves node and step ids.
+
+## 2026-09-30 — each part's body comes from its part (PR 3581)
+
+The assembly suites no longer name every part's body by one constant, `PART_BODY` (329 uses in 34 files). Each part builder returns the id its own extrude minted, and `in_part` takes it. The change is test-only.
+
+It was checked with a per-document salted scramble: main failed 419 tests and the branch 125, and the branch's failures are all unit 2's or artefacts of the probe itself.
+
+**Review.** One blocking finding: the docm6 own-mate row borrowed the good stand's cube ids for the broken stand. It is fixed. The review also added asserts that a re-pinned part keeps its body, and folded two duplicate local `in_part` helpers into the fixture.
+
+Nothing yet catches a body paired with the wrong part's instance while ids come from the counter. That is filed as `tint/part-body-paired-with-the-wrong-instance-stays-green-under-the-counter` (P3).
+
+**Next:** node-id unit 2, the digest mint, is unblocked on the test side. The display half waits on [ev] #3565.
+
+## 2026-09-30 / 10-01 — node-id unit 2 (PRs 3593, 3594), held on #3565
+
+**PR 3593 (merged).** `eval::schedule` breaks ties by position in `Doc::order`. Under the counter nothing moved; ratified text named no id-order tie-break.
+
+**PR 3594 (open, held until [ev] #3565 decides how a person sees a node).**
+- Node ids mint from one document `Mint` shared with step ids, and `next_id` is gone.
+- Old files refuse with the regenerate advice.
+- Split and inline carry nodes one insert at a time.
+- The id-ordered walks are restated in `Doc::order`: the mate tree edge, resolve lanes, `drive`, the appearance tie site (a real regression the walk caught) and the placement backstop.
+
+**Review.** No defect in the mint, the load door or refactor. Two blocking findings, both folded:
+- **B1.** Memo rows built from two documents became true by id alone. They now carry teeth independent of ids, such as content-key inequality. 117 sites were swept.
+- **B2.** The corpus name evidence had blanked `FromMember` members. It was re-measured with each id read as its position in `Doc::order` (`name_tables_by_position`, `#[ignore]`d):
+  - 353 of 359 tables are identical;
+  - 6 respell only the wall order inside `Borders`, naming the same entities;
+  - all 819 `FromMember` segments are unchanged.
+
+The optional findings also landed: per-variant mint pins, one collision recourse, `Doc::positions()`, and a narrowed API.
+
+**Filed:**
+- `name-order-was-insertion-order-under-the-counter` (P2, design): what "least name" should mean;
+- `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
+
+The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
+
+- 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
+
+
+## 2026-10-01 — tied-face swap ruled by design (PR 3523, fork-log row 21)
+
+Ev approved: "this sounds good! … the behavior you suggest seems safe and principled".
+
+**What changed.**
+- N2 no longer promises a recorded per-candidate choice. A tie is repaired by a discriminator in the recipe, or by `Rebind`.
+- N4 names a divider as a discriminator among a tie's candidates.
+- The tie-swap row is closed as by-design, with `emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it` pinning the motion by centroid.
+
+**Not filed:** the optional datum-side discriminator, because Ev did not ask for it.
+
+**Fork log.** Main already held a row 21, so there are now two rows numbered 21, following the duplicate 15s and 18s. The open `[ev]` PRs 3553 and 3565 use 22 and 23, which other branches also use. Row numbers are no longer unique; the fork column identifies each row.
+
+## 2026-10-01 — edge pieces by their ends ruled (PR 3553); node labels ruled (PR 3565)
+
+**PR 3553, fork-log row 22.** Ev approved the recommendation, "including the change to what was decided in 512". It is written into N2:
+- edge pieces take `Ends`, the sorted end-vertex names;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side faces take `Keeps`;
+- section chords take `Ends` in place of #512 A2's tie.
+
+The four design rows fold into the P0 unit `edge-pieces-are-named-by-their-ends`, and an implementer lane is on it.
+
+**PR 3565, fork-log rows 23 and 24.** Ev narrowed the hex-tag-versus-address split by asking whether the kernel should hold names. A second pair (byte 104) converged after two rounds: a node's **label** is document data the kernel stores and speaks (DESIGN.md Band 1, "Node labels"). Its shape:
+- it sits outside `Node`;
+- it is set by `SetLabel` only;
+- it is not unique and never identity;
+- every sentence reads kind + label + tag;
+- create forms propose an editable "Kind N".
+
+Ev approved, including the form proposals. The unit `node-labels-are-document-data` is filed. Sequencing:
+1. kind + 12-hex-tag spelling first, on the counter (lane running);
+2. then #3594's digest mint;
+3. then labels.
+
+**Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.
+
+## 2026-10-01 — edge pieces are named by their ends (PR 3629)
+
+Implements the ruling on PR 3553.
+
+**What it does.**
+- Every edge piece takes `Ends`: seam chains, operand-edge pieces, earlier seams, union member edges, and section chords, which replaces #512 A2's tie.
+- A split's same-side faces take `Keeps`.
+- A crossing vertex is ranked along the crossed edge by its carrier's parameter.
+- Retired: `SplitReference`, `SeamLineSides`, `NarrowBand`, the cell count, and the plane-reading helpers.
+- Recipes that used to refuse now name: the cylinder across a plate, the cylinder split twice, the rim crossed twice, and the slot along x across a sunk boss.
+- In the corpus, 90 edge rows changed, from `OrderAlong` to `Ends`. No face, vertex or body name moved.
+
+**Review.** Two blocking findings, both fixed:
+- **N5's locality sentence overclaimed.** A second crossing by a face that already crosses the parent renames the first crossing and every piece whose ends cite it. The sentence is qualified, a test pins the case, and the question is filed as a design row.
+- **Departures from the rule had no rows.** These are now filed:
+  - NURBS crossings tie;
+  - a union seam made of several curves ties;
+  - crossings whose sides' names don't settle which side is first tie;
+  - whether the Upstream-flip and RecipeEdit diagnosis rungs are still reachable from emitted names.
+
+`m10_sym_profile_interval`'s ledger move was main's (#3612, re-pinned by #3652), not this PR's.
+
+## 2026-10-01 — node ids are digests (PR 3594 merged); spoken node (PR 3631); main red fixed (PR 3684)
+
+**PR 3631** (first slice of the labels unit): a node is spoken as kind + 12-hex tag in kernel sentences, the tree, pickers and headings; machine channels print the full 16 hex; the `node-id-spoken` gate refuses a bare `.0` in format macros. Two seams carried onto `node-labels-are-document-data`: refusal values still print `node <tag>` without kind; the memoized `NodeError` keeps a bare id.
+
+**PR 3684** (unblocked main, cleave's row): #3645's `geom::mid_param` changed which forms the m10 sym walks build (same points, different forms); re-baselined slab and plate after confirming the old formula restores the pins exactly.
+
+**PR 3594** merged: node ids mint from the document's one `Mint` shared with step ids; the tag switched to the id's high 48 bits (a 12-hex prefix, the `DocRef` rule). Merged main twice; evidence on the merged tree: 359/359 value channels bit-identical, 353/359 name tables identical (6 reorder `Borders` walls), 966 `FromMember` segments identical. One diagnosis probe's edge key moved (`9v1`→`15v1`, same group, same diagnosis). Next: the labels unit (dispatched).
+
+## 2026-10-01 — node labels are document data (PR 3713, PR 1 of 2)
+
+Implements the ruling on PR 3565:
+- `Label` and `Doc.labels`, kept outside `Node`.
+- One `SetLabel { node, label: Option<Label> }` edit.
+- The spoken form `Extrude "base plate" (tag)`.
+- Python `Doc.label` / `DocEdit.set_label` / `insert(label=)`.
+- Viewer rename, a labelled tree headline, and an editable "Kind N" proposal on every creation form.
+- Python `Doc(label=)` renamed `Doc(seed=)`.
+- Unlabelled files keep their bytes. `kitchen_sink`'s persisted-text hash moved because the corpus now authors a `SetLabel`; its name table did not move.
+
+**Review.** One blocking finding, fixed: a labelled Boolean lost its label silently, because the label rode a session field that only `commit_run` read. The label is now applied after whichever commit door the creation takes, by extending that recorded state (`History::extend_current`). A test runs every `creates_a_node` op labelled, each as one undo.
+
+**Rulings.** "Kind N" counts the kind's live nodes plus one, then steps past a taken N. A refused creation keeps its typed label. A quoted label escapes `"` and `\`.
+
+**Seams filed.**
+- PR 2 is `refusal-values-speak-the-node-with-its-label`: refusal values and the memoized `NodeError`.
+- Other rows:
+  - a bad label in a file gets the regenerate recourse;
+  - the part chooser has no label field;
+  - the seated-tool nouns are unpinned;
+  - invisible or bidi-only labels are admitted;
+  - `Attr::Label` has no reader;
+  - "label" has other meanings.
+
+Next: PR 2 (dispatched).
+
+## 2026-10-01 — edit refusals speak the node (PR 3728, labels PR 2)
+
+Every `EditError` node field is a `SpokenNode`, built at the edit door:
+- a held node is spoken from the pre-edit document;
+- a minting node by kind alone (`entering`);
+- a gauge from after the edit, falling back to before;
+- an absent id by tag (`absent`).
+
+The rule is stated on `edit::written`.
+
+**Memoized `NodeError`.** It keeps a bare id and is spoken by the frame that hands it out (`NodeError::spoken`, `CarriedLevel::line_in`). A level inside a part stays a tag.
+
+**Python.** Payloads keep the full id. Exception text is spoken from the evaluated document.
+
+**`PathOffTree` and `LabelUnchanged`.** Each now holds its fact once.
+
+**Review.** Nothing blocking. Folded:
+- three doubled nouns, now held by a display-contract test;
+- the size comment, now a 64-bit const assert;
+- the concision fixture, which now speaks each node by its real kind;
+- tests for the dropped-gauge arm, a labelled `SetMembers` input, and a frame's `Evaluation` drawn across a rename.
+
+**A test assertion that would have been false.** The asked-for "recomputed == 0" does not hold: the memo reuses only `Ok` values, so a failed node recomputes every run. The test pins the frame-held evaluation instead.
+
+**Closed** chrome's `kernel-refusals-say-node-where-the-tree-says-feature`. Ev ruled kind + label/tag everywhere. The inner `node <tag>` is a leftover on the memoized row.
+
+**Filed** (parent: the labels unit):
+- `kernel-door-refusals-beyond-edit-speak-the-node`, which includes `StableName`'s minting node inside about 14 `EditError` sentences;
+- `viewer-refusals-speak-the-node`, which notes that a kept `Refusal::Edit` freezes its label;
+- `memoized-refusals-speak-inner-nodes-through-the-frame`.
+
+## 2026-10-01 — kernel refusals at every door speak the node (PR 3735)
+
+**`RootFault`.** It speaks at all three doors. The edit door uses `spoken_before_else_after`. The load and save doors speak from the document they validate.
+
+**Names.** A forwarded name speaks its minting node through `SpokenName` in the 15 `EditError` name arms.
+
+**Maintenance rows.** The strand and orphan rows speak from the document as it stood before the edit, so a strand says the label of the node it lost.
+
+**Articles.** A first-letter `sentence::article` fixes "a edge", "a arc", "a empty" and similar across editor-core.
+
+**Load-door ruling, mine, on review.** The lane first kept the bare tag at the load door, but both of its premises were false:
+- the validator judges a parsed `Doc`;
+- labels pass `Label::new` at the parse, and `LabelOnMissingNode` runs first.
+
+Also, save runs the same validator, and `EditReplay` already spoke labels at load. DESIGN.md Band 1 makes no exception for load or save. The `spoken.rs` sentence the lane cited was an agent's own wording, never ratified, and is now corrected.
+
+**Filed**, each with parent the labels unit:
+- `split-and-inline-refusals-speak-the-node` (also records `SplitError` printing decimal `u64`s);
+- `analysis-door-refusals-speak-the-node`;
+- `selection-door-refusals-speak-the-node`;
+- `persist-door-refusals-speak-the-node`;
+- the issue `a-cluster-act-speaks-its-gauges-by-tag`.
+
+**Also today:** `[ev]` PR 3734 is open. It asks how a union decides which member faces a merged face cites. The designers converged on linking in member space; fork-log row 37.
+
+## 2026-10-01 — split/inline (PR 3740) and persist-door (PR 3741) refusals speak the node
+
+**PR 3740: split and inline errors.** `SplitError` and `InlineError` speak each node from the document whose ids it is spelled in.
+- Fixed: `TornGroup`, `OperandSeveredFromMate` and `SeveredEdge` printed their cut and kept ends as decimal ids. They now name each end once, by role.
+- Review folds:
+  - inline's choice of document is pinned by labelled tests (checked by mutation);
+  - `carry` now copies each label right after its insert, so a refusal raised mid-carry has labels to speak;
+  - the placeholder `RecipeNodeId(0)` is now `unreachable!`.
+- Corrected premise: ids are not document-scoped. `Mint::empty()` starts every document at the zero chain, so the speaking document is fixed by the raise site, never looked up. This is now stated on `SplitError`.
+
+**PR 3741: load and save errors.** `SnapshotError`'s 30 node fields and two names, `NonFiniteSite`, `PersistError::ProfileProgram` and `FrameSite::subject` speak from the document being validated.
+- New arm `SnapshotError::DuplicateInput` (Python `duplicate_input`). `InputList` now holds a `ListFault`, which cannot be a duplicate.
+- Duplicate-key refusals at parse time have one helper and one sentence.
+- Filed `work/doctail/load-door-refusals-tag-ids-the-file-spells-in-decimal` (P4, a design question).
+
+**Remaining rows of the labels unit:**
+- `analysis-door-refusals-speak-the-node`
+- `selection-door-refusals-speak-the-node`
+- `viewer-refusals-speak-the-node`
+- `memoized-refusals-speak-inner-nodes-through-the-frame`
+- `a-cluster-act-speaks-its-gauges-by-tag`
+## 2026-10-01 — union parents link in member space (PR 3734, ruled)
+
+**Ruling.** Ev approved the fork-log row 37 recommendation:
+- A union links two member faces when their pair is declared coincident (or shares a source), same-oriented, and consumed by that pair's own judgement.
+- Linking is transitive.
+- A finished face takes the parent of the member faces it descends from, whatever the fold kept.
+
+**Effect.** This replaces N2's union-parent sentences from PR 3222.
+
+**Designers.** A started from a per-step kernel record and moved to B's siting, adding the "consumed" condition. B took that condition in round 2.
+
+**Next.** The build has been dispatched, on the row `a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush`.
+
+## 2026-10-02 — analysis-door refusals speak the node (PR 3749)
+
+**Spoken at the raise:**
+- the range, drive and mc refusals;
+- the stackup refusals, including `PairingViolation`, which the name sweep had missed.
+
+**Reports.** Report values keep the bare id, and their human forms speak the node.
+- `Stackup`, `Sensitivity`, `McReport` and `LeafHistogram` carry the `DocumentId` they were taken of. `render` fails loud on any other document, because ids are not document-scoped.
+- The golden forms print the full id. `Stackup::serialize`'s sensitivity field moved from the tag to the full id; nothing persisted reads it.
+
+**Divergence.** `VerdictNotOfThisBuild` names its node as `DivergedAt`:
+- `Replayed`: spoken from the replayed document;
+- `Recorded`: "the drive record's node <tag>", never looked up.
+
+**Python.** `McReport` holds its run's document.
+
+**Review fixes:**
+- a test that could not fail, which filtered on "node";
+- tests that could not tell documents apart;
+- two echoing sentences;
+- untested raise sites.
+
+**Filed.** `product-refusals-speak-the-node` (`design: true`). Its sentence is memoized inside a part's evaluation, so it needs a designer pair and Ev.
+
+## 2026-10-02 — union member-space linking built (PR 3753)
+
+This builds Ev's PR 3734 ruling.
+
+**Kernel (topo)**
+- `BooleanNaming::covered` records coincident pairs where one copy is kept. It is written symmetrically, on the section path, the REST path and `finish_fallback`.
+- `judge_pairwise_contact` keeps each pair's naming.
+- `emit_union::Links` links member faces before the fold.
+
+**Results**
+- `KNOWN_ABSENT` for r4tri/r4trig went from 168/564 to 0.
+- New cross-order cases: `r5covered`, `r5poke`, `r5pokehi`, `xmerge`.
+- lib_g16 and the names corpus did not move.
+
+**`near`**
+- Linking made `near` refuse in two orders, a `Borders` gap. I ruled this a mechanism question, not a design one: N2 already fixes the outcome, and the kernel records the fact.
+- So `BooleanReduction::held` now records the kept copy's edges that run into the dropped face. They attach to the discarded fragment that holds their entry vertex, and `Obstacles` reads them as seams.
+
+**Review**
+- M1, reproduced: held edges were first attached by lineage, which joined a pillar's hole to the slab's obstacle in 6 of 14 orders. Fixed by the entry-vertex rule, and the pillar case is now a test.
+- Re-review: clean.
+
+**Filed**
+- `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` (`design: true`). Ev ruled unions only.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` (P3). It now also records the latent attach-by-vertex gap at reflex vertices, which the kernel refuses today.
+
+## 2026-10-02 — selection-door refusals speak through their frame (PR 3760)
+
+**The ruling.** Every type in the row is either memoized (`NodeStanding`, `ResolveError`, `NamingError`, `MintRefusal`) or raised by doors that hold only an `Evaluation`. Those doors are pick, hit, select, flush, read-back and `step_for_node`. `AssemblyError` and `ExportError` also have doc-less siblings. So every one of them keeps bare ids, and the frame that hands it out speaks it with `spoken(doc)`.
+
+**`Speaker` / `Say`.** The template lives in one place: `Speaker` / `Say` in `spoken.rs`. It is public, so `ExportError` uses it too.
+
+**Python.** Python speaks from the `Evaluation`'s captured document. That includes the `__str__` of the assembly row objects.
+
+**Carried rows** from a part keep the part's tags. A collision fixture (the outer document and the part both mint the same id, under different labels) pins this. Both reviewer mutations turn it red.
+
+**Wording.** `NodeGone` says the node once, and the `ForeignNode` contradiction is fixed.
+
+**Filed:**
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- The product row gained the forward sites.
+- The viewer row gained about 80 reads.
+
+## 2026-10-02 — memoized refusals speak their inner nodes through the frame (PR 3782)
+
+`NodeErrorKind`, `MateFault`, `LeverRefusal`, `FaceRefusal`, `OffsetCheck`, `PoseRefusal`, `PartFault`, `NamingError` and `SelectionRefusal` keep bare ids and gain `Say`.
+
+- **One-time naming.** `Speaker::about` says the row's own node once ("this mate", "this node"), so "Mate X … mate X's" is gone.
+- **Parts.**
+  - A part's ids keep their tags unless the frame holds the part.
+  - `PartFault::spoken` and `line_in_part` assert the part's id and its pin (`spoken::assert_pinned`).
+- **`EditError::MateRefused`** gains `HeldNodes`, which is spoken at the door.
+- **Python.** `SolvedPoses` speaks `fault()` from its solve-time copy and `placement()` from the document passed in.
+- **`SelectionRefusal::payload`** prints full ids. A refused-selection clearance report's `content_key` moves.
+- **Prose census** now reads `impl Say` as well. It had lost PR 3760's sentences.
+
+Filed:
+- `work/lib/the-clearance-payload-spells-a-node-standing-in-its-own-words` (P4)
+- `work/census/prose-census-finds-sentence-impls-by-their-trait-names` (P4)
+
+**Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.
+
+## 2026-10-02 — the viewer's own refusal types speak the node at the raise (viewer-refusals-speak-the-node)
+
+`Refusal`'s node arms, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError` and `HeldRefusal` hold `SpokenNode`, built from the document the raising door holds; a kernel `Say` value they carry keeps its `HeldNodes`.
+
+**Ruling (implementer, revised in review): a kept refusal is not a fork.** The status line is a sentence made once, at the end of its batch (`frame::batch_refusal` speaks the refusal again from the document the batch leaves, unless it replaced the document; `Refusal::Edit` excepted, filed as `edit-error-respeaks-from-a-later-version`), and any batch that acts clears it; `SetLabel` acts, so a rename retires a refusal that said the old label. Recorded on the row.
+
+**Split:** `viewer-pick-path-refusals-speak-the-node`, `viewer-panes-speak-the-kernel-refusals-they-draw`, `viewer-product-badge-speaks-the-node` (carried by this PR once 3794 merged), `edit-error-respeaks-from-a-later-version`. **Filed on vnews:** `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label` (P4).
+## 2026-10-02 — product refusals speak the node (PR 3794)
+
+**Shape.** Built on PR 3760's pattern:
+- `ProductError` and `SourceFinding` keep their ids and gain `Say`.
+- `PartFault::PartProduct` and `ChecksError::Product` hold the refusal rather than a pre-rendered string, so the frame speaks it. A part's product refusal keeps its tags in a host frame; this is pinned by the zero-chain collision fixture.
+- The assembly and export forwards now say `Said(e, by)`.
+- Python `product_err` speaks from the evaluation's document.
+
+**Review folds:**
+- One shared `editor_core::Refusal<E>` wrapper. `NodeRefusal` and `ProductRefusal` are now aliases of it.
+- `Labelled::open` is the one spelling of the stage opening.
+- The `Naming` arms use `by.name`.
+- `SourceLine::subject` renders through `SourceFinding`'s `Say`.
+- The demos speak `ChecksError`.
+
+**Filed:** `separation-unavailable-carries-the-kernel-refusal-shared`.
+
+**CI.** The test job went red on #3733's `circle_image_envelope`, which was missing from geom-core's `bounds_census` roster and was red on every merge ref. The lane added the roster line, classing it as `Selection` with two refusal gates.
+
+## 2026-10-02 — viewer refusals speak the node, part 1 (PR 3806)
+
+**What changed.**
+- The viewer's own refusal types now hold a `SpokenNode` built at the raise: `Refusal`, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError`, `HeldRefusal` and `RefusedBoolean`.
+- Kernel errors carry `HeldNodes` beside them.
+- These also speak: the at-rest badge, the product badge and `NoProduct`.
+
+**Kept refusal (ruled by the lane, not a fork).** The status line is a sentence made once, and the next accepted act retires it. The review found two holes, both fixed:
+- A refusal and a rename in one batch: `frame::batch_refusal` now re-speaks the batch's refusal from the document the batch leaves.
+- A stale mate-tool label: it is now spoken from the session document. Ids are stable within one document's history, which the mint check verifies.
+
+The rule is now stated in the viewer README.
+
+**Not fixed: `Refusal::Edit`.** `EditError` stores its nodes already spoken, so it cannot re-speak them. Filed as `edit-error-respeaks-from-a-later-version`.
+
+**Main formatting.** Main was red on fmt in `crates/sweep/tests/run_walls_built.rs` (from `ea80b402fc`). This PR carried the fix, so main is green again.
+
+**Filed:**
+- `viewer-pick-path-refusals-speak-the-node`
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- the vnews in-band-mark issue, now covering `•` and the `"; "` join
+
+## 2026-10-02 — viewer pick-path refusals speak the node (PR 3821)
+
+**What changed**
+- These types keep bare ids and gain `Say`: `PickIndexError`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`, `BlendTarget`, `BlendEvent`, `IdAnswer`, `Disagreement`.
+- Each is spoken where it is drawn, from `DocSession::landed_pair`.
+- A forwarded sentence says "this node" through `about`.
+
+**Review fixes**
+- The blend panel line is spoken.
+- `frame::Spelled<T>` carries a cross-frame value's `DocumentId`. It speaks only in that document and says the tag otherwise; this closes the held-edges badge's speaking one document's id in another after an `Open`.
+- A gated-evaluator test proves the landed document is the one spoken.
+- `TargetLost` speaks from a `SpokenNode` snapshot taken at pick time, as seats and the mate tool do.
+- `NameAndPath` is the one home for "name with path".
+- `ToolNotice` gets `Say`, with an exhaustive match.
+- Five open items are re-cited.
+- The `names-render-a-faces-leaf-role-in-words` premise is corrected: Ev's ruling must also reach `Speaker::name` / `SaidName`.
+
+**README** The viewer README's channel section now states the pick-path rule and the landed lag.
+
+**Still open in the labels unit**
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- `edit-error-respeaks-from-a-later-version`
+- P3/P4 residue rows
+
+## 2026-10-02 — viewer panes speak the kernel refusals they draw (PR 3827)
+
+**Done**
+- `standing_verdict` now speaks `ResolveError` from the landed document.
+- `indeterminate_wording` now takes a `Speaker`.
+- A gated-evaluator test shows the verdict says the landed label while a rename has not landed.
+- Sweep: no other kernel `Say` value is drawn by tag. The blind spots each have a row.
+
+**Split off as a design question**
+- `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` (P3, `design: true`). No frame holds a resolved part.
+- The options are:
+  - (a) re-resolve the part at landing;
+  - (b) the fault carries the part;
+  - (c) retire the part speakers;
+  - (d) a `HeldNodes` snapshot taken inside the nested evaluation. Labels are pinned content.
+
+**Filed**
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- The check-root button note, added to `check-findings-speak-their-root-by-tag`.
+
+**State of the labels unit:** every door and viewer surface now speaks. Open residue:
+- `edit-error-respeaks-from-a-later-version` (P3)
+- the part design row (P3)
+- the selected-node snapshot row (P3)
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- the earlier P3/P4 label rows
+
+## 2026-10-02 — EditError re-speaks from a later version (PR 3832); check findings speak their root (PR 3833)
+
+**PR 3832: re-speaking edit refusals**
+
+- `SpokenNode`, `SpokenName`, `HeldNodes`, `RootFault` and `EditError` all gain `respoken(doc)`.
+- The rule: a node the later document holds is spoken as that document holds it now. Otherwise it keeps the spelling it was raised with. The mint-chain soundness argument has one home, at `SpokenNode::respoken`.
+- This replaced the row's specified `doc.spoken` rule. That rule would have dropped every refused insert's minting node to a bare tag.
+- Arms whose sentence asserts absence or collision stay as raised, alongside `LabelUnchanged`.
+- The viewer's `Refusal::Edit` now re-speaks within `batch_refusal`. Every viewer walk, `held_by` sets included, follows the one rule.
+- `replaces_the_document` is an exhaustive match over `SessionOp`.
+
+**PR 3833: check findings and reports**
+
+- `CheckFinding` gains `Say`.
+- `ChecksReport` and `CheckRefusal` carry `document` and `speaker` / `spoken`, with an assert on the document id (the PR 3749 pattern). The assert refuses another document, not another version of the same one.
+- The viewer's checks window speaks from the landed pair.
+- Python `Evaluation.doc` is shared through an `Arc`. Reports and findings speak from it.
+- Python equality means the same findings over the same document; labels are not compared.
+
+**Labels residue still open**
+
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- the part design row (needs a designer pair)
+- earlier P3/P4 rows

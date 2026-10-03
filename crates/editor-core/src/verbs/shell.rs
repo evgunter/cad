@@ -1,0 +1,488 @@
+//! **The shell's correspondence** — the hollowing verb, in the same
+//! per-instance-data pattern as the blends', the boolean's, the
+//! split's and the sweeps'.
+//!
+//! # What it declares, and what stays upstairs
+//!
+//! `Node::Shell` has one input and one slot: a `target` whose evaluated
+//! body AND name table the lowering reads, and a `thickness`. Its
+//! payload is a frozen, ORDERED list of face names — the faces opened
+//! into rims — resolved through the target's table exactly as a blend's
+//! selection is, with the kind check demanding a FACE. What is declared
+//! here is the correspondence proper: which slot is the verb's scalar
+//! parameter ([`SlotJoin`]), how resolved face keys and the evaluated
+//! thickness become the kernel verb (`build`), which arm of the closed
+//! record channel the result arrives in (`record`), and which emitter
+//! mints names from the birth record (`emitter`). The order of the
+//! designation crosses to the kernel untouched: the record says the
+//! first designated face of a chart carries the rim, so the order is
+//! authored data the kernel reads and this module never sorts it.
+//!
+//! # Every field is direct per-instance data
+//!
+//! As in the sibling modules: function pointers and literals per
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
+//! a future verb never has to open it. There is one instance, and the
+//! struct is carried anyway: it is the seam where the lowering reads
+//! its four literals, and reading them off a struct is what keeps the
+//! lowering free of a shell-specific spelling.
+//!
+//! # The door value
+//!
+//! The kernel door validates what it built with a CERTIFIED claim
+//! (`topo::shell_open`'s last act is the certified at-rest validator),
+//! so it is formed only at a scalar with certification rights — and
+//! not every evaluation scalar has them: a dual does not certify (the
+//! DL3 ruling), so no `Body<Dual<_>>` can be handed to the door at all.
+//! That fact is a VALUE and not a trait here: [`topo::ShellDoor`] is
+//! the door, its one constructor is bounded on the right, and
+//! [`topo::AtRestPolicy::shell_door`] is the one seam each scalar
+//! writes its answer at. The lowering reads that seam, hands the door
+//! to the seat, and refuses TYPED on [`None`] rather than building an
+//! unvalidated hollow.
+//!
+//! # The refusal fold
+//!
+//! `ShellError<T>` is the first kernel refusal reaching the document
+//! layer that carries lane scalars, and `NodeErrorKind` is scalar-free
+//! by construction. [`fold_shell_error_at`] is the TOTAL fold to `f64`,
+//! arm by arm through every nested generic payload — no wildcard
+//! anywhere, so a new arm in any of the four kernel enums is a compile
+//! error here and never a silently dropped number. Each numeric field
+//! declares WHICH END of a bracket is its honest witness
+//! ([`BracketEnd`], the argument at the field), and the scalar's own
+//! bracket answers it ([`geom_core::Bounds`]): at a point scalar both
+//! ends are the value, at the interval scalar the declared end, at a
+//! wrapped scalar the base's. Nothing here decides on the number — it
+//! is displayed and tagged, the reporting side of the `Bounds` scope
+//! rule.
+
+use geom_core::Real;
+use std::sync::Arc;
+use topo::{Body, FaceKey, ReplaceFaceError, ShellError, ShellNaming};
+use verbs::{ScalarParam, Verb, VerbRecord};
+
+use super::SlotJoin;
+use crate::names::{self, NameTable, NamingError};
+use crate::node::{RecipeNodeId, SlotId};
+
+/// The shell's naming emitter: this node's id, its operand's id and
+/// table, the result body and its birth record, in.
+pub(crate) type ShellEmitter<T> = fn(
+    RecipeNodeId,
+    RecipeNodeId,
+    &NameTable,
+    &Body<T>,
+    &ShellNaming,
+) -> Result<Arc<NameTable>, NamingError>;
+
+/// **The shell's correspondence**, as data — everything the lowering
+/// needs to turn a `Node::Shell` into a [`verbs::Verb`] and its result into a
+/// name table. Adding a field here is how the verb declares something
+/// the lowering must know; adding an arm to a match inside the
+/// lowering is not.
+pub(crate) struct ShellVerb<T: geom_core::Real> {
+    /// **Resolved open faces + slot value → the kernel verb.** The
+    /// designation order crosses verbatim (module docs).
+    pub(crate) build: fn(Vec<FaceKey>, T) -> Verb<T>,
+    /// This verb's naming emitter.
+    pub(crate) emitter: ShellEmitter<T>,
+    /// **This family's arm of the closed record channel**, as a
+    /// projection — read through [`super::read_record`], which owns
+    /// the foreign-family refusal. The record is not an `Option`: the
+    /// doors write it as they act, so a shell result always carries
+    /// one and there is no "no records" sentence to invent.
+    pub(crate) record: fn(VerbRecord<T>) -> Option<ShellNaming>,
+    /// The thickness slot and the kernel parameter it is
+    /// ([`SlotJoin`]).
+    pub(crate) slots: SlotJoin,
+    /// What a WRONG-FAMILY record is called when this verb's result
+    /// arrives carrying another family's channel — a kernel bug
+    /// surfaced typed, unreachable while the doors and the
+    /// correspondences agree; the sentence names the door so the
+    /// refusal does too.
+    pub(crate) foreign_record: &'static str,
+}
+
+/// The shell's join.
+pub(crate) const SHELL_SLOTS: SlotJoin = SlotJoin {
+    size_slot: SlotId::ShellThickness,
+    size_param: ScalarParam::ShellThickness,
+};
+
+/// The shell's kernel payload. A named function rather than a closure
+/// so it can be a plain `fn` pointer in the struct above.
+fn build_shell<T: geom_core::Real>(open: Vec<FaceKey>, thickness: T) -> Verb<T> {
+    Verb::Shell { thickness, open }
+}
+
+/// The shell family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn shell_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<ShellNaming> {
+    match record {
+        VerbRecord::Shell(naming) => Some(naming),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_) => None,
+    }
+}
+
+/// The shell's correspondence.
+///
+/// A function rather than a `const` because the struct is generic in
+/// the lane scalar and a module-level const cannot be: the call is
+/// monomorphized and inlined, so this costs nothing at run time.
+pub(crate) fn shell<T: geom_core::Real>() -> ShellVerb<T> {
+    ShellVerb {
+        build: build_shell,
+        emitter: names::name_shell,
+        record: shell_record,
+        slots: SHELL_SLOTS,
+        foreign_record: "the shell returned a record that is not a shell's",
+    }
+}
+
+/// Which end of a bracket a folded refusal number reports, declared
+/// per field by the fold below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BracketEnd {
+    /// The bracket's infimum: the number at its smallest.
+    Infimum,
+    /// The bracket's supremum: the number at its largest.
+    Supremum,
+}
+
+/// **The `f64` witness of a shell refusal at any scalar**: the total
+/// fold below, every field read at the end it declares off the
+/// scalar's own bracket.
+///
+/// A free function and not a per-scalar method, because there is
+/// nothing per-scalar left to say: the arms are the kernel's and the
+/// same at every scalar, and the end reading is [`geom_core::Bounds`].
+/// A scalar that never forms the shell call still folds — it simply
+/// never holds a `ShellError` of its own to fold.
+pub(crate) fn fold_shell_error_at<T: geom_core::Bounds>(error: ShellError<T>) -> ShellError<f64> {
+    fold_shell_error(error, |x, end| match end {
+        BracketEnd::Infimum => x.lo(),
+        BracketEnd::Supremum => x.hi(),
+    })
+}
+
+/// **The total fold of a shell refusal to `f64`** (module docs), with
+/// the bracket end each numeric field reports declared at the field.
+/// Every arm of every nested enum is written out, so the fold can
+/// neither drop an arm nor a number without failing to compile.
+pub(crate) fn fold_shell_error<T: Real>(
+    error: ShellError<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> ShellError<f64> {
+    use BracketEnd::{Infimum, Supremum};
+    use ShellError as E;
+    match error {
+        E::Band { error } => E::Band { error },
+        // The wall at its thinnest is what failed to clear zero.
+        E::Thickness { thickness } => E::Thickness {
+            thickness: end(thickness, Infimum),
+        },
+        E::NoSolid => E::NoSolid,
+        E::Roles { error } => E::Roles { error },
+        E::OperandOuterShells { solid, outer } => E::OperandOuterShells { solid, outer },
+        E::Partition { shell, error } => E::Partition { shell, error },
+        // The pessimistic pair, which is the reading under which the two
+        // offsets cross: the material as thin as the bracket admits,
+        // the wall the offsets need as thick as it admits.
+        E::WallClearance {
+            face,
+            other,
+            gap,
+            needed,
+        } => E::WallClearance {
+            face,
+            other,
+            gap: end(gap, Infimum),
+            needed: end(needed, Supremum),
+        },
+        E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
+        E::Face { face, error } => E::Face {
+            face,
+            error: Box::new(fold_replace_face_error(*error, end)),
+        },
+        E::OpenFaceStale { face } => E::OpenFaceStale { face },
+        E::OpenFaceRepeated { face } => E::OpenFaceRepeated { face },
+        E::OpenFacesExhaustShell { shell } => E::OpenFacesExhaustShell { shell },
+        E::OpenFacesDisconnect { shell, components } => {
+            E::OpenFacesDisconnect { shell, components }
+        }
+        E::OpenFaceRingUnsupported { face, kind } => E::OpenFaceRingUnsupported { face, kind },
+        E::OpenFaceChartPartial { face, other } => E::OpenFaceChartPartial { face, other },
+        E::Lift { face, error } => E::Lift {
+            face,
+            error: Box::new(fold_replace_face_error(*error, end)),
+        },
+        E::Insert { error } => E::Insert { error },
+        E::OpenFaceRimNotExpressible { face, what } => E::OpenFaceRimNotExpressible { face, what },
+        E::Rim { face, error } => E::Rim { face, error },
+        E::Escalated { source } => E::Escalated { source },
+        E::Corrupt { key } => E::Corrupt { key },
+        E::Pcurve { source } => E::Pcurve { source },
+        E::NotValid { errors } => E::NotValid { errors },
+    }
+}
+
+/// The face-replacement door's refusal, folded arm by arm.
+fn fold_replace_face_error<T: Real>(
+    error: ReplaceFaceError<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> ReplaceFaceError<f64> {
+    use BracketEnd::{Infimum, Supremum};
+    use ReplaceFaceError as R;
+    match error {
+        R::Band { error } => R::Band { error },
+        R::StaleFace { face } => R::StaleFace { face },
+        R::Corrupt => R::Corrupt,
+        R::Offset { face, error } => R::Offset {
+            face,
+            error: fold_offset_error(error, end),
+        },
+        R::Fit { face, error } => R::Fit { face, error },
+        R::ApproxLaneUnsupported { face, scalar } => R::ApproxLaneUnsupported { face, scalar },
+        R::SharedSurfaceKey { face, other } => R::SharedSurfaceKey { face, other },
+        R::EmptyGroup => R::EmptyGroup,
+        R::GroupChartsDiffer { face, other } => R::GroupChartsDiffer { face, other },
+        R::PlaceholderSurface { face } => R::PlaceholderSurface { face },
+        // The window as wide as the bracket admits, and the shift as far
+        // as it admits: the reading under which the window reaches the
+        // apex.
+        R::ApexWindow {
+            face,
+            v_min,
+            v_max,
+            shift,
+        } => R::ApexWindow {
+            face,
+            v_min: end(v_min, Infimum),
+            v_max: end(v_max, Supremum),
+            shift: end(shift, Supremum),
+        },
+        // The face's own station span, widened to the bracket that
+        // makes the refusal most true: the least corner read at its
+        // infimum and the greatest at its supremum is the widest span
+        // the operand admits, and a span that reaches across the apex
+        // is what this refuses.
+        R::NappeStraddles {
+            face,
+            station_min,
+            station_max,
+            what,
+        } => R::NappeStraddles {
+            face,
+            station_min: end(station_min, Infimum),
+            station_max: end(station_max, Supremum),
+            what,
+        },
+        R::ApexWindowUnknown { face } => R::ApexWindowUnknown { face },
+        R::NeighborPairUnroutable {
+            edge,
+            kind,
+            other_kind,
+        } => R::NeighborPairUnroutable {
+            edge,
+            kind,
+            other_kind,
+        },
+        R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        } => R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        },
+        R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
+        R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },
+        R::IsoRow { edge, error } => R::IsoRow {
+            edge,
+            error: fold_iso_row_error(error, end),
+        },
+        R::Structure { edge, error } => R::Structure { edge, error },
+        // A disagreement as large as the bracket admits.
+        R::VertexDisagreement { vertex, gap } => R::VertexDisagreement {
+            vertex,
+            gap: end(gap, Supremum),
+        },
+        R::ReanchorOffCarrier { edge, gap } => R::ReanchorOffCarrier {
+            edge,
+            gap: end(gap, Supremum),
+        },
+        R::TogetherNonPlanar { face, kind } => R::TogetherNonPlanar { face, kind },
+        R::TogetherPartialSet { face } => R::TogetherPartialSet { face },
+        R::TogetherCorner {
+            vertex,
+            planes,
+            what,
+        } => R::TogetherCorner {
+            vertex,
+            planes,
+            what,
+        },
+        R::TogetherChartMixed { face, other } => R::TogetherChartMixed { face, other },
+        R::TogetherFaceRepeated { face } => R::TogetherFaceRepeated { face },
+        R::TogetherEdgeDisagreement { edge, gap } => R::TogetherEdgeDisagreement {
+            edge,
+            gap: end(gap, Supremum),
+        },
+        R::TogetherAxialUnsupported { face, kind } => R::TogetherAxialUnsupported { face, kind },
+        R::TogetherNotAxial { face, what } => R::TogetherNotAxial { face, what },
+        R::TogetherAxialCorner {
+            vertex,
+            surfaces,
+            what,
+        } => R::TogetherAxialCorner {
+            vertex,
+            surfaces,
+            what,
+        },
+        R::TogetherAxialEdge { edge, what } => R::TogetherAxialEdge { edge, what },
+        R::Escalated { source } => R::Escalated { source },
+        R::Op { edge, error } => R::Op { edge, error },
+        R::Pcurve { source } => R::Pcurve { source },
+        R::ResultNotClosed { errors } => R::ResultNotClosed { errors },
+    }
+}
+
+/// The analytic offset mint's refusal, folded arm by arm.
+fn fold_offset_error<T: Real>(
+    error: geom_brep::OffsetError<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> geom_brep::OffsetError<f64> {
+    use BracketEnd::{Infimum, Supremum};
+    use geom_brep::OffsetError as O;
+    match error {
+        // The realized radius at its smallest is the end that met the
+        // floor.
+        O::RadiusFloor { kind, realized } => O::RadiusFloor {
+            kind,
+            realized: end(realized, Infimum),
+        },
+        // The realized minor at its largest is the end that reaches the
+        // major.
+        O::TorusRing { realized_minor } => O::TorusRing {
+            realized_minor: end(realized_minor, Supremum),
+        },
+        O::NotClosedUnderOffset => O::NotClosedUnderOffset,
+        O::ApproxNesting => O::ApproxNesting,
+        O::Escalated { source } => O::Escalated { source },
+    }
+}
+
+/// The boundary-row extraction's refusal, folded arm by arm.
+fn fold_iso_row_error<T: Real>(
+    error: geom_brep::IsoRowError<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> geom_brep::IsoRowError<f64> {
+    use BracketEnd::Infimum;
+    use geom_brep::IsoRowError as I;
+    match error {
+        // Either end is interior to the domain; the infimum is the one
+        // reported.
+        I::Interior { u, domain } => I::Interior {
+            u: end(u, Infimum),
+            domain,
+        },
+        I::Structure { source } => I::Structure { source },
+        I::Escalated { source } => I::Escalated { source },
+        I::WeightsNotSeparable { control_counts } => I::WeightsNotSeparable { control_counts },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use verbs::VerbKind;
+
+    /// The correspondence builds the verb its name claims, in the
+    /// order it was handed, and its slot join names the shell's own
+    /// scalar parameter.
+    #[test]
+    fn the_correspondence_builds_the_shell_in_designation_order() {
+        let v: Verb<f64> = (shell::<f64>().build)(Vec::new(), 1.0);
+        assert_eq!(v.kind(), VerbKind::Shell, "the shell built a {v:?}");
+        assert_eq!(
+            shell::<f64>().slots.size_param.verb(),
+            VerbKind::Shell,
+            "the shell's correspondence names another verb's scalar parameter"
+        );
+        assert_eq!(shell::<f64>().slots.size_slot, SlotId::ShellThickness);
+    }
+
+    /// The fold keeps every number: at `f64` the witness IS the value,
+    /// so the folded kernel error displays exactly as the unfolded one
+    /// (the document's `NodeErrorKind::Shell` wraps it under a prefix;
+    /// the claim is about the inner error).
+    #[test]
+    fn the_fold_at_f64_is_the_identity_on_display() {
+        let e: ShellError<f64> = ShellError::Thickness { thickness: -0.25 };
+        let text = e.to_string();
+        assert_eq!(fold_shell_error_at(e).to_string(), text);
+    }
+
+    /// **Which end each field reports**, pinned on brackets whose two
+    /// ends differ: the refused thickness and a clearance gap at their
+    /// infimum, the needed wall at its supremum. A fold that read one
+    /// end everywhere would red here on the field it got wrong.
+    #[test]
+    fn the_interval_witness_reports_the_end_each_field_declares() {
+        use geom_core::{Interval, Point2, Tol};
+        use profile::RawLoop;
+        // The keys are carried verbatim by the fold; any two faces of
+        // any body serve, so a unit cube's first two are read.
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+        ));
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(Tol::witness())
+            .expect("a unit square validates");
+        let cube = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
+            .expect("a unit cube extrudes");
+        let mut faces = cube.body.faces().map(|(k, _)| k);
+        let (face, other) = (
+            faces.next().expect("a face"),
+            faces.next().expect("another"),
+        );
+        let e: ShellError<Interval> = ShellError::WallClearance {
+            face,
+            other,
+            gap: Interval::from_bounds(0.9, 1.1),
+            needed: Interval::from_bounds(1.2, 1.3),
+        };
+        match fold_shell_error_at(e) {
+            ShellError::WallClearance { gap, needed, .. } => {
+                assert_eq!(gap, 0.9, "the gap reports its infimum");
+                assert_eq!(needed, 1.3, "the needed wall reports its supremum");
+            }
+            other => panic!("the arm moved: {other:?}"),
+        }
+        let e: ShellError<Interval> = ShellError::Thickness {
+            thickness: Interval::from_bounds(-0.2, 0.1),
+        };
+        match fold_shell_error_at(e) {
+            ShellError::Thickness { thickness } => {
+                assert_eq!(thickness, -0.2, "the thickness reports its infimum");
+            }
+            other => panic!("the arm moved: {other:?}"),
+        }
+    }
+}

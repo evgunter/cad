@@ -1,0 +1,747 @@
+name: nightly
+
+# Everything the per-PR gate (ci.yml) does not run on every PR: the whole
+# suite at every eps row including the slow set, the k-lint rows, the render
+# lanes (which re-baseline and commit to main), rustdoc, wasm32, and each
+# path-gated PR row, ungated. A red here is a red on main; the orchestrator
+# that finds it assigns the fix.
+
+on:
+  schedule:
+    - cron: '19 5 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          SHA (or ref) to run at. THE BISECTION HANDLE: a regression in the
+          rebuild-latency table or in the opt-level verdict is a question
+          about a commit, and without this the only way to ask it is to wait
+          for that commit to be main's tip again, which never happens. A
+          dispatch with a ref RUNS THE ROWS AND WRITES NOTHING — no history
+          commit, no tag — so a bisection cannot corrupt either record with
+          measurements of an old tree.
+        required: false
+        default: ''
+      force:
+        description: >-
+          Run even if main has not moved since the last nightly. For
+          re-taking a measurement after changing how it is taken.
+        required: false
+        default: 'false'
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+# The same pins as ci.yml's env block.
+env:
+  NEXTEST_VERSION: "0.9.140"
+  MATURIN_VERSION: "1.14.1"
+  TY_VERSION: "0.0.39"
+jobs:
+  gate:
+    name: has main moved
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      base: ${{ steps.decide.outputs.base }}
+      why: ${{ steps.decide.outputs.why }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: has main moved since the last nightly
+        id: decide
+        env:
+          RUSTUP_TOOLCHAIN: stable
+          DISPATCH_REF: ${{ inputs.ref }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          say() { echo "run=$1" >> "$GITHUB_OUTPUT"; echo "why=$2" >> "$GITHUB_OUTPUT"; echo "$2"; }
+          echo "base=" >> "$GITHUB_OUTPUT"
+          if [ -n "$DISPATCH_REF" ]; then
+            say true "dispatched at an explicit ref ($DISPATCH_REF): the rows run and NOTHING is written"
+            exit 0
+          fi
+          if [ "$FORCE" = "true" ]; then
+            say true "dispatched with force: running without asking whether main moved"
+            exit 0
+          fi
+          prev="$(git tag --list 'nightly/*' | sort | tail -1)"
+          if [ -z "$prev" ]; then
+            say true "no nightly/* tag: this workflow has never recorded a run"
+            exit 0
+          fi
+          base="${prev#nightly/}"
+          base="${base#*-}"
+          echo "last nightly: $prev (sha $base)"
+          if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+            say true "the last nightly's sha ($base) is not in this checkout: cannot prove main held still"
+            exit 0
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          changed="$(git diff --name-only "${base}...HEAD" -- \
+            ':(exclude)docs/perf-data/rebuild-latency/**' \
+            ':(exclude)docs/perf-data/opt-level/**' \
+            ':(exclude)docs/perf-data/criterion/**')"
+          if [ -z "$changed" ]; then
+            say false "main has not moved since $base except by this workflow's own measurement commits"
+            exit 0
+          fi
+          echo "changed files:"; echo "$changed"
+          tier="$(printf '%s\n' "$changed" | scripts/ci-filter.py --files - | sed -n 's/^TIER=//p')"
+          echo "tier: $tier"
+          if [ "$tier" = "docs" ]; then
+            say false "everything that changed since $base is TIER=docs — nothing here can have moved"
+          else
+            say true "main moved since $base (TIER=$tier)"
+          fi
+  watertight:
+    name: watertight (admesh)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: install admesh
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh admesh
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: export acceptance STLs
+        run: cargo run -p stl --example export_acceptance -- target/stl-acceptance
+      - name: admesh check (watertight/manifold, no repair accepted)
+        run: scripts/check_admesh.sh target/stl-acceptance
+  viewer-toolkit:
+    name: viewer app feature (eframe + wgpu)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (viewer app feature - eframe + wgpu)
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+      - name: rustdoc (viewer, all features)
+        if: '!cancelled()'
+        run: cargo doc -p viewer --all-features --no-deps
+      - name: clippy (viewer, all features)
+        if: '!cancelled()'
+        run: cargo clippy -p viewer --all-targets --all-features -- -D warnings
+      # The app-feature rows run on a PR only when it seeds viewer, pncad or
+      # bvh; a kernel change underneath them is caught here.
+      - name: install a software Vulkan adapter (lavapipe)
+        if: '!cancelled()'
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: '!cancelled()'
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        if: '!cancelled()'
+        run: cargo nextest run -p viewer --features app
+  rustdoc-roots:
+    name: rustdoc (gate, every root)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - name: derive the cargo roots the rustdoc gate documents
+        id: doc-roots
+        run: |
+          roots=$(scripts/doc-gate.sh --print-roots)
+          {
+            echo 'roots<<DOC_GATE_ROOTS'
+            printf '%s\n' "$roots"
+            echo 'DOC_GATE_ROOTS'
+          } >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nightly-rustdoc-roots
+          workspaces: ${{ steps.doc-roots.outputs.roots }}
+      - name: rustdoc (gate, every root)
+        run: |
+          scripts/doc-gate.sh --selftest
+          scripts/doc-gate.sh
+  rebuild-latency:
+    name: rebuild latency (reporting)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: per-document full-rebuild + incremental-recompute table
+        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
+        env:
+          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
+          CAD_LATENCY_COMMIT: ${{ github.sha }}
+          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
+      - name: upload measurement (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-latency-${{ github.sha }}
+          path: ${{ runner.temp }}/rebuild-latency.json
+          if-no-files-found: warn
+      - name: commit measurement to the timing history (main only)
+        if: github.ref == 'refs/heads/main' && inputs.ref == ''
+        env:
+          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
+          stamp="$(date -u +%s)"
+          name="${stamp}-${SHA:0:7}.json"
+          dest="docs/perf-data/rebuild-latency/${name}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/rebuild-latency
+            cp "$MEASUREMENT" "$dest"
+            git add "$dest"
+            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${dest}"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the measurement after 4 attempts" >&2
+          exit 1
+  k-lint:
+    name: k-lint (${{ matrix.row }})
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        row: [dev-default, release-default, release-budget, dev-budget, dev-probe]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-k-lint-${{ matrix.row }}
+          workspaces: |
+            .
+            demos/tour
+            demos/wild
+            tools/k-lint
+            tools/tess-lint
+            tools/tess-meter
+      - name: demos tour fmt + clippy
+        if: matrix.row == 'dev-default'
+        run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: demos wild fmt + clippy
+        if: matrix.row == 'dev-default'
+        run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: matrix.row == 'release-default'
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: demos tour suite (the #99 ε pin + the tour's own probes)
+        if: matrix.row == 'release-default'
+        run: cd demos/tour && cargo nextest run --release --no-fail-fast
+      # The per-PR `eps_regression` runs `demo-tour certified` at the default
+      # ε only (#3291: minutes per run, almost never red at one ε alone), so
+      # the other two rows are re-taken here, once a day. The cells assert
+      # their captions inside the narration, so exit 0 is the check.
+      - name: the tour's certified cells at the other ε rows
+        if: matrix.row == 'release-default'
+        run: |
+          set -euo pipefail
+          cd demos/tour
+          for eps in 1e-6 1e-12; do
+            echo "== demo-tour certified at eps = $eps"
+            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified
+          done
+      - name: the tour die corpus is regenerable byte-for-byte
+        if: matrix.row == 'release-default'
+        run: |
+          cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
+          diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
+      - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
+        if: matrix.row == 'dev-default'
+        run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
+        if: matrix.row == 'dev-default'
+        run: |
+          cd tools/tess-lint
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+      - name: tess-meter tool fmt + clippy + tests
+        if: matrix.row == 'dev-default'
+        run: |
+          cd tools/tess-meter
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+      - name: mesh budget meter + certificate falsifier (feature = budget)
+        if: matrix.row == 'dev-budget'
+        run: |
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings
+          cargo test -p mesh --features budget
+      - name: tessellation-budget sweep (every tour scene, per face)
+        if: matrix.row == 'release-budget'
+        run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
+      - name: tessellation-budget lint (gate — a grown budget fails this row)
+        if: matrix.row == 'release-budget'
+        run: |
+          cd tools/tess-lint && cargo run -- \
+            ../../target/tess-budget-fresh.csv \
+            --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
+      - name: compile and list every probe-gated test target
+        if: matrix.row == 'dev-probe'
+        run: |
+          set -euo pipefail
+          crates=$(scripts/gates/probe-suite-census.sh --crates)
+          test -n "$crates"
+          echo "probe-gated crates: $(echo "$crates" | tr '\n' ' ')"
+          for c in $crates; do
+            extra=$(grep -hE '^#!\[cfg\(.*feature = "probe"' "crates/$c"/tests/*.rs 2>/dev/null \
+              | grep -oE 'feature = "[a-z0-9_-]+"' | grep -v '"probe"' \
+              | sed 's/feature = //; s/"//g' | sort -u | paste -sd, -) || true
+            feats="probe${extra:+,$extra}"
+            echo "building $c with --features $feats"
+            cargo test -p "$c" --features "$feats" --all-targets --no-run
+            cargo test -p "$c" --features "$feats" --test all -- --list \
+              | scripts/gates/probe-suite-census.sh --check-listing "$c"
+          done
+      - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
+        if: matrix.row == 'dev-probe'
+        run: scripts/k_probe_sweep.sh target/k-fresh
+      - name: large-K lint (gate — a flagged margin fails this row)
+        if: matrix.row == 'dev-probe'
+        run: |
+          cd tools/k-lint && cargo run -- \
+            ../../target/k-fresh/k-eps-1e-6.csv \
+            ../../target/k-fresh/k-eps-1e-9.csv \
+            ../../target/k-fresh/k-eps-1e-12.csv
+      - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
+        if: matrix.row == 'dev-probe'
+        run: |
+          set -uo pipefail
+          cd tools/k-lint
+          status=0
+          cargo run -- --gate-rule-1-only \
+            ../../target/k-fresh/driver/k-eps-1e-6.csv \
+            ../../target/k-fresh/driver/k-eps-1e-9.csv \
+            ../../target/k-fresh/driver/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-driver.out
+          status=${PIPESTATUS[0]}
+          {
+            echo "### driver K-telemetry (E6 evidence)"
+            echo
+            echo '```'
+            grep -E '^k-lint: (TOTAL|.*samples,)' ../../k-lint-driver.out || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "no rule-1 margin: every margin the driver produced was DECIDED. Rule-2/3 flags, if any, are distribution EVIDENCE — the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "RULE 1 FIRED — a driver margin was indeterminate or invalid. This is the E6 re-open trigger, not a distribution note: read docs/K-REPORT.md's runbook and the flagged rows before anything else." >&2; exit 1 ;;
+            *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
+          esac
+          echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
+  full-suite:
+    name: full suite (every eps row, slow set included)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 180
+    # opt-level 2: this job is execution-bound (the whole suite three times),
+    # and on the hosted runner opt-2 beat opt-1 over build + execution
+    # (docs/perf-data/opt-level, 2026-09-27: 1859 s against 2053 s). The PR
+    # gate stays at opt-1, where the build dominates.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-opt2
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      - name: build
+        run: cargo nextest run --workspace --no-run
+      - name: every eps row, the whole suite (default profile — no slow-set filter)
+        run: |
+          rc=0
+          for eps in default 1e-6 1e-12; do
+            echo "::group::eps=$eps"
+            if [ "$eps" = default ]; then
+              cargo nextest run --workspace --no-fail-fast || rc=1
+            else
+              CAD_TOLERANCE_EPS=$eps cargo nextest run --workspace --no-fail-fast || rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $rc
+      - name: doc-tests
+        if: '!cancelled()'
+        run: cargo test --doc --workspace
+      - name: the per-op postcondition scalpel (topo)
+        if: '!cancelled()'
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
+      - name: wasm32 check (kernel + editor-core)
+        if: '!cancelled()'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
+  python:
+    name: python suite (wheel + guide + north-star)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-python
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
+      - name: build and install the wheel
+        run: |
+          curl -LsSf --retry 5 "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
+          maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
+          python -m venv --clear "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install target/wheels/pncad-*.whl "ty==$TY_VERSION"
+      - name: run the Python suite
+        env:
+          PNCAD_TY: ${{ runner.temp }}/venv/bin/ty
+        run: |
+          set -o pipefail
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover \
+            --start-directory crates/pncad-py/tests \
+            --top-level-directory crates/pncad-py/tests 2>&1 | tee "$RUNNER_TEMP/py.log"
+          grep -qE '^Ran [1-9][0-9]* test' "$RUNNER_TEMP/py.log"
+
+  topo-release:
+    name: corrupt input (release profile)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-topo-release
+      - name: corrupt-input suites, release profile
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
+        run: |
+          set -o pipefail
+          cargo test --release -p topo --lib -- \
+            review_m1_pr2::release_corruption \
+            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_d18 | tee release-corruption.log
+          grep -qE '^test result: ok\. [1-9][0-9]* passed' release-corruption.log
+
+  step-import:
+    name: step import (freecad)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: cache freecad
+        id: cache-freecad
+        uses: actions/cache@v4
+        with:
+          path: ~/freecad-appimage
+          key: freecad-1.1.2-appimage-extracted
+      - name: install freecad (AppImage 1.1.2, checksum-verified)
+        if: steps.cache-freecad.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/freecad-appimage && cd ~/freecad-appimage
+          curl -sLO --retry 5 https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          curl -sLO --retry 5 https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          sha256sum -c FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          chmod +x FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          ./FreeCAD_1.1.2-Linux-x86_64-py311.AppImage --appimage-extract > /dev/null
+          rm FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+      - name: freecad import check (validity, counts, volume)
+        run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
+
+  interval:
+    name: interval
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    uses: ./.github/workflows/interval.yml
+    permissions:
+      contents: read
+    with:
+      run_interval_backend: ${{ 'true' }}
+      run_interval_oracle: ${{ 'true' }}
+  renders:
+    name: render lanes
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    uses: ./.github/workflows/render.yml
+    permissions:
+      contents: write
+      checks: write
+    with:
+      lanes: all
+      ref: ${{ inputs.ref }}
+  criterion:
+    name: criterion benchmarks (reporting)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nightly-criterion
+          workspaces: "benches -> target"
+      - name: build the benchmark binary
+        run: cd benches && cargo bench --no-run
+      - name: run the six rows
+        run: cd benches && cargo bench
+      - name: emit the history entry
+        env:
+          CRITERION_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
+        run: |
+          scripts/criterion-emit.py --selftest
+          scripts/criterion-emit.py \
+            --criterion-dir benches/target/criterion \
+            --out "${{ runner.temp }}/criterion.json" \
+            --commit "${{ github.sha }}"
+      - name: upload measurement (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-${{ github.sha }}
+          path: ${{ runner.temp }}/criterion.json
+          if-no-files-found: warn
+      - name: commit measurement to the benchmark history (main only)
+        if: github.ref == 'refs/heads/main' && inputs.ref == ''
+        env:
+          MEASUREMENT: ${{ runner.temp }}/criterion.json
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
+          stamp="$(date -u +%s)"
+          name="${stamp}-${SHA:0:7}.json"
+          dest="docs/perf-data/criterion/${name}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/criterion
+            cp "$MEASUREMENT" "$dest"
+            git add "$dest"
+            git commit -m "perf(ci): criterion benchmarks for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${dest}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the measurement after 4 attempts" >&2
+          exit 1
+      - name: clippy (benches — its own cargo root)
+        if: '!cancelled()'
+        run: cd benches && cargo clippy --benches --examples -- -D warnings
+  ci-latency:
+    name: PR CI latency (alarm)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      # The alarm: the median wall-clock of the last day's completed PR runs
+      # of ci.yml, queue included, from creation to completion. Raise it
+      # deliberately, with the reason, if the gate has to grow.
+      MAX_MEDIAN_MIN: "20"
+    steps:
+      - name: median PR CI wall-clock over the last 24 h
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, json, os, statistics, sys, urllib.request
+          now = dt.datetime.now(dt.timezone.utc)
+          since = (now - dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+          def get(page):
+              url = (f"https://api.github.com/repos/{os.environ['REPO']}/actions/workflows/ci.yml/runs"
+                     f"?event=pull_request&status=completed&created=%3E%3D{since}&per_page=100&page={page}")
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json"})
+              return json.load(urllib.request.urlopen(req))["workflow_runs"]
+          runs, page = [], 1
+          while batch := get(page):
+              runs += batch
+              page += 1
+          t = lambda s: dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+          mins = sorted((t(r["updated_at"]) - t(r["created_at"])).total_seconds() / 60
+                        for r in runs if r["conclusion"] in ("success", "failure"))
+          limit = float(os.environ["MAX_MEDIAN_MIN"])
+          if not mins:
+              print("no completed PR runs in the last 24 h; nothing to judge")
+              sys.exit(0)
+          med = statistics.median(mins)
+          p90 = mins[min(len(mins) - 1, int(0.9 * len(mins)))]
+          line = f"PR CI wall-clock, last 24 h: n={len(mins)} median={med:.1f} min p90={p90:.1f} min (alarm at median > {limit:g})"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(line + "\n")
+          if med > limit:
+              print(f"::error::median PR CI wall-clock {med:.1f} min exceeds {limit:g} min: "
+                    "look at what the gate runs and at the queue (work/ciw/latency-cut.md)")
+              sys.exit(1)
+          PY
+  record:
+    name: record that the nightly ran
+    runs-on: ubuntu-latest
+    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, full-suite, k-lint, python, topo-release, step-import, interval, renders]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: push the nightly/<epoch>-<sha> tag
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="nightly/$(date -u +%s)-${SHA:0:7}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag" "$SHA"
+          git push origin "refs/tags/$tag"
+          echo "recorded $tag" >> "$GITHUB_STEP_SUMMARY"
+  interaction-limit:
+    name: re-arm the collaborators-only interaction limit
+    runs-on: ubuntu-latest
+    steps:
+      - name: arm the limit, then read it back
+        env:
+          GH_TOKEN: ${{ secrets.INTERACTION_LIMITS_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::INTERACTION_LIMITS_TOKEN is unset, so the collaborators-only interaction limit is NOT being re-armed and the six-month clock on whatever was last set by hand is running down unwatched. Create a fine-grained PAT scoped to this repository alone with Administration: write, and add it as the repository secret INTERACTION_LIMITS_TOKEN."
+            exit 1
+          fi
+          api() {
+            local method="$1" path="$2"; shift 2
+            curl -sS -X "$method" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -w '\n%{http_code}' \
+              "https://api.github.com/repos/$REPO$path" "$@"
+          }
+          split() { body="$(sed '$d' <<<"$1")"; code="$(tail -n1 <<<"$1")"; }
+          split "$(api PUT /interaction-limits \
+            -d '{"limit":"collaborators_only","expiry":"six_months"}')"
+          if [ "$code" != "200" ]; then
+            echo "::error::PUT /interaction-limits answered $code: $body"
+            exit 1
+          fi
+          split "$(api GET /interaction-limits)"
+          if [ "$code" != "200" ]; then
+            echo "::error::GET /interaction-limits answered $code: $body"
+            exit 1
+          fi
+          limit="$(jq -r '.limit // "NONE"' <<<"$body")"
+          expires="$(jq -r '.expires_at // "unknown"' <<<"$body")"
+          if [ "$limit" != "collaborators_only" ]; then
+            echo "::error::read-back says limit=$limit, expected collaborators_only: $body"
+            exit 1
+          fi
+          echo "interaction limit: **$limit**, expires \`$expires\`" >> "$GITHUB_STEP_SUMMARY"

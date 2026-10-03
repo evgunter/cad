@@ -1,0 +1,14 @@
+# `NameRef` (`crates/editor-core/src/names/role.rs`) is a name-table KEY
+# that carries one word of interior mutability — the cached position
+# `NameTable::seal_order` writes onto it — so `clippy::mutable_key_type`
+# fires on every map keyed by a `StableName` or a `NameRef`, which is
+# most of the naming layer and the appearance store with it.
+#
+# The lint's premise is that mutating a key can change its `Ord`/`Eq`
+# and corrupt the map. Here it cannot, and that is the type's stated
+# invariant rather than a hope: the stamp is a CACHE whose only reader
+# short-circuits a comparison whose structural answer it reproduces, so
+# `NameRef`'s order is `StableName`'s order at every pair, stamped or
+# not. Nothing else in the value is reachable for mutation — the name
+# itself is behind a shared `Arc` with no mutable door.
+ignore-interior-mutability = ["editor_core::names::role::NameRef"]

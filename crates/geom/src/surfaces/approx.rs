@@ -1,0 +1,351 @@
+//! The approximating surface: an intensional description, a fitted
+//! NURBS that stands in for it, and a private certificate binding the
+//! two.
+//!
+//! The offset of a NURBS surface is not a NURBS — normalizing the chart
+//! normal introduces a square root that breaks rationality — so the
+//! kernel fits one and carries the *intent* alongside the fit. That is
+//! the same triple `EdgeCurve` uses one dimension down (description,
+//! uncertified spec, certified product with private fields), and the
+//! same invariant: **an uncertified approximating surface is
+//! unrepresentable**. [`ApproxSurface`] has no public constructor other
+//! than [`ApproxSurface::certify`], which takes the certifier as an
+//! argument and stores only what that certifier returned.
+//!
+//! # Why the certifier is injected
+//!
+//! The certificate's derivation (hull bounds over a span schedule, a
+//! regularity floor, a curvature-reach meter) lives one crate up, in
+//! `geom_brep::offset_fit` — it needs the ring/interval composite
+//! machinery this crate does not carry, and it is `f64`-only while
+//! [`Surface`](crate::Surface) is generic. So the door takes the
+//! capability as a parameter, exactly as edge certification takes its
+//! plane × NURBS lane: a caller that can derive the certificate hands
+//! one in, and there is no second door that skips it.
+//!
+//! # Why the base is owned, not an arena key
+//!
+//! `EdgeDescription::Intersection` names its surfaces by arena key, and
+//! that is the precedent this description would otherwise follow. Two
+//! concrete obstructions rule it out here:
+//!
+//! - **Layering.** `SurfaceKey` is `geom_brep`'s, one crate above the
+//!   [`Surface`](crate::Surface) enum this description is stored
+//!   inside. A key-carrying description inverts the dependency.
+//! - **Self-containment.** An edge description is only ever read with
+//!   its body in hand (certification is a body-level pass). A surface
+//!   is not: `Surface` values are cloned out of arenas and evaluated,
+//!   boxed, tessellated and exported with no arena anywhere in reach —
+//!   `mesh`, `step-export` and `geom`'s own evaluators all take a bare
+//!   `&Surface<T>`. A keyed base would make those paths unable to read
+//!   the description at all, and would leave a dangling handle behind
+//!   every clone that outlives its arena.
+//!
+//! So the base travels as an `Arc<NurbsSurface<T>>`: shared, immutable,
+//! cheap to clone, and readable wherever the surface is.
+//!
+//! # The base is NURBS, here
+//!
+//! [`SurfaceDescription::Offset`]'s base is a NURBS surface, not a
+//! `Surface`. Analytic kinds are closed under offset — plane, cylinder,
+//! cone, sphere and torus all mint their offset exactly through
+//! `geom_brep::offset_surface` — so an analytic base never needs a fit
+//! and never reaches this type. Making that structural (rather than a
+//! refusal inside the fit door) is what dissolves the apex-window
+//! question for an approximating surface: no cone-based description can
+//! be built, so there is no apex band to window around. Mixed analytic
+//! surgery is the face-replacement problem, and it lives with the
+//! consumer that performs it.
+
+use std::sync::Arc;
+
+use geom_core::Real;
+
+use super::nurbs::NurbsSurface;
+
+/// The `(u, v)` rectangle an approximating surface's fit is certified
+/// over — the base's own chart domain, in parameter units.
+///
+/// Knot vectors are `f64` whatever the surface's scalar is, so this
+/// window is `f64` too: it names parameters, not geometry.
+///
+/// **Named for the surface, not the chart**, because `geom_brep` has a
+/// generic `ChartWindow<T>` of its own with a different job (the
+/// pcurve lane's trim window); two types under one name across two
+/// crates is a reader's trap, and this one is the newcomer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ApproxWindow {
+    /// The u-direction interval `(u₀, u₁)`.
+    pub u: (f64, f64),
+    /// The v-direction interval `(v₀, v₁)`.
+    pub v: (f64, f64),
+}
+
+impl ApproxWindow {
+    /// The window a NURBS surface's own knot vectors span.
+    pub fn of<T: Real>(s: &NurbsSurface<T>) -> Self {
+        Self {
+            u: s.knots_u().domain(),
+            v: s.knots_v().domain(),
+        }
+    }
+}
+
+/// The two-limb certificate of a fitted offset surface. Every field is
+/// a bound, in metres, that the corresponding limb proved — or the
+/// structure it proved it over.
+///
+/// The derivation is `geom_brep::offset_fit`'s; the record lives here
+/// because [`ApproxSurface`] stores it and [`Surface`](crate::Surface)
+/// stores that.
+#[derive(Clone, Copy, Debug)]
+pub struct OffsetCertificate {
+    /// The signed offset distance the claim is about, in metres.
+    pub distance: f64,
+    /// How many `(u,v)` cells the span schedule has.
+    pub cells: u32,
+    /// The per-direction on-locus sample count inside each cell.
+    pub samples: u32,
+    /// Limb 1: the largest on-locus residual over the schedule, in
+    /// metres (the sampled max — it steers, it does not certify).
+    pub on_locus_max: f64,
+    /// Limb 2: the certified **sup-norm** bound over the whole chart
+    /// rectangle, in metres. This is the number that certifies.
+    pub hull_sup: f64,
+    /// The regularity floor the normal enclosure rests on — a
+    /// certified lower bound on `‖S_u × S_v‖` (m² per unit parameter
+    /// area).
+    pub normal_floor: f64,
+    /// The collapse meter's certified fold radius on the folding side,
+    /// in metres.
+    pub curvature_reach: f64,
+    /// How many refinement rounds the fit that this certificate is
+    /// about took to reach its tolerance.
+    ///
+    /// **Provenance of the FIT, not a limb**, and the one field a
+    /// re-derivation cannot recompute: re-measuring a finished fit runs
+    /// no refinement. A bare `geom_brep::certify_offset` — which has no
+    /// loop behind it — therefore reports `0`.
+    ///
+    /// **This is the one home of the carry argument**, and the two
+    /// doors that carry it cite this field rather than restate it; both
+    /// carry it through [`OffsetCertificate::carrying_rounds`].
+    /// Whoever holds the honest count passes it across a re-derivation:
+    /// the storage door (`geom_brep::approx_offset_surface`) has the
+    /// mint loop's, and `topo::transform_rigid` has the operand
+    /// surface's — the mapped fit is the rigid image of a fit that took
+    /// exactly that many rounds; on a re-fit it is the mint door's
+    /// count, as at any mint. Nothing classifies against this field,
+    /// so carrying it cannot make a bad surface look good; resetting it
+    /// to `0` would only lose provenance.
+    pub rounds: u32,
+}
+
+impl OffsetCertificate {
+    /// This re-derived certificate with `rounds` carried from the fit it
+    /// is about — every measured field stays the re-derivation's
+    /// ([`OffsetCertificate::rounds`] states why the count travels).
+    #[must_use]
+    pub fn carrying_rounds(self, rounds: u32) -> Self {
+        Self { rounds, ..self }
+    }
+}
+
+/// What an approximating surface **is**, independent of any fit — the
+/// intensional layer, and the authority a re-derivation measures
+/// against.
+///
+/// One inhabitant today. The canal blend is the next, and the enum is
+/// closed for the same reason `Surface` is (D3): a second inhabitant
+/// must make every consumer say what it does with it.
+#[derive(Clone, Debug)]
+pub enum SurfaceDescription<T: Real> {
+    /// The normal pushforward `S(u, v) + d·n(u, v)` of a NURBS base at
+    /// signed distance `d`, with `n` the base's unit chart normal
+    /// (`∂u × ∂v` normalized — `geom`'s derived normal, so the sign is
+    /// the base's parameterization's).
+    Offset {
+        /// The base surface. Shared and immutable; see the module docs
+        /// on why it is owned rather than an arena key, and why it is
+        /// NURBS rather than a `Surface`.
+        base: Arc<NurbsSurface<T>>,
+        /// The signed offset distance in metres.
+        d: T,
+    },
+}
+
+impl<T: Real> SurfaceDescription<T> {
+    /// The same description read at another scalar: the base through
+    /// [`NurbsSurface::map_scalar`] (whose own door states why the
+    /// net's invariants survive), the distance through `f`. A
+    /// structural map, exact whenever `f` is; this enum carries no
+    /// invariant of its own beyond its base's, so there is nothing
+    /// here for a check to re-establish.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> SurfaceDescription<U> {
+        match self {
+            SurfaceDescription::Offset { base, d } => SurfaceDescription::Offset {
+                base: Arc::new(base.map_scalar(&f)),
+                d: f(*d),
+            },
+        }
+    }
+}
+
+/// The uncertified input to [`ApproxSurface::certify`]: the intent, the
+/// fit that claims to realize it, and the window the claim is made
+/// over. Plain data — the certified product is [`ApproxSurface`].
+///
+/// There is no tolerance here: the claim is O3's `≤ ε_precision`, and
+/// ε is the run's (D4 ¶1: one value per run, no per-entity tolerance).
+/// The certifier handed to [`ApproxSurface::certify`] carries its own
+/// target, and every production certifier's is the run's witness.
+#[derive(Clone, Debug)]
+pub struct SurfaceSpec<T: Real> {
+    /// The intensional description (authoritative).
+    pub description: SurfaceDescription<T>,
+    /// The fitted surface that stands in for it.
+    pub fit: NurbsSurface<T>,
+    /// The `(u, v)` rectangle the claim is made over. Passed to the
+    /// certifier, which decides whether it can honour it.
+    pub window: ApproxWindow,
+}
+
+/// A certified approximating surface: description, fit, window and
+/// the [`OffsetCertificate`] of the run that bound them together.
+///
+/// Fields are private and the only constructor from uncertified parts
+/// is [`ApproxSurface::certify`], so an uncertified value is
+/// unrepresentable (D4 ¶2 made structural — the `EdgeCurve` invariant,
+/// lifted one dimension). [`ApproxSurface::map_scalar`] only re-reads
+/// a value that already passed that door at another scalar.
+///
+/// **The certificate is provenance, not authority**, and that holds at
+/// every scalar by one of two mechanisms. Where the derivation exists —
+/// `f64`, the only scalar the offset fit runs at — tier-3 validation
+/// re-derives it against the description on every call and never
+/// consults the stored copy. Where it does not, tier 3 does not fall
+/// back on the carried record either: the validation lane reports that
+/// it has no re-derivation at this scalar and the face is REFUSED. So
+/// the stored copy is never the thing a claim rests on; it is what the
+/// construction run measured, kept so a consumer can report it.
+#[derive(Clone, Debug)]
+pub struct ApproxSurface<T: Real> {
+    description: SurfaceDescription<T>,
+    fit: NurbsSurface<T>,
+    window: ApproxWindow,
+    certificate: OffsetCertificate,
+}
+
+impl<T: Real> ApproxSurface<T> {
+    /// **The only door.** Runs `certifier` against the spec's
+    /// description and fit, and stores the certificate it returned.
+    ///
+    /// The certifier carries its own classification target, captured
+    /// where the closure is written; every production certifier's is
+    /// the run's ε, captured as the `Tol` witness. The surface stores no
+    /// ε of its own, so a re-derivation classifies at the ε of the run
+    /// that performs it.
+    ///
+    /// The certifier's refusal propagates verbatim — this door neither
+    /// interprets it nor works around it, so a capability the
+    /// certification stack does not have stays a refusal all the way
+    /// out. (A RATIONAL fit is not one of those: the fit door's
+    /// composite is weighted, so rationality takes the polynomial
+    /// path and a rational base mints like any other.)
+    ///
+    /// **The window is handed to the certifier**, not merely stored
+    /// beside its answer: the today's certifier
+    /// (`geom_brep::certify_offset`) derives over the base's whole
+    /// chart rectangle and so can check the window it is asked for
+    /// rather than have one attested at it. A certifier that ever
+    /// bounds a SUB-rectangle needs this argument to know which.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `certifier` returns as its error, unchanged.
+    pub fn certify<E>(
+        spec: SurfaceSpec<T>,
+        certifier: impl FnOnce(
+            &SurfaceDescription<T>,
+            &NurbsSurface<T>,
+            ApproxWindow,
+        ) -> Result<OffsetCertificate, E>,
+    ) -> Result<Self, E> {
+        let certificate = certifier(&spec.description, &spec.fit, spec.window)?;
+        Ok(Self {
+            description: spec.description,
+            fit: spec.fit,
+            window: spec.window,
+            certificate,
+        })
+    }
+
+    /// The intensional description — what this surface is *meant* to
+    /// be, and what a re-derivation measures against.
+    pub fn description(&self) -> &SurfaceDescription<T> {
+        &self.description
+    }
+
+    /// The fitted NURBS that stands in for the description. Every
+    /// evaluation, box and tessellation of an approximating surface
+    /// goes through this: the fit **is** the geometry, and the
+    /// certificate bounds its distance from the intent.
+    pub fn fit(&self) -> &NurbsSurface<T> {
+        &self.fit
+    }
+
+    /// The `(u, v)` rectangle the certificate covers.
+    pub fn window(&self) -> ApproxWindow {
+        self.window
+    }
+
+    /// The construction-time certificate. Provenance: the validator
+    /// re-derives rather than reading this (see the type docs).
+    pub fn certificate(&self) -> &OffsetCertificate {
+        &self.certificate
+    }
+
+    /// The same certified surface read at another scalar: the
+    /// description and the fit through their own `map_scalar`s, the
+    /// window and certificate carried over verbatim.
+    ///
+    /// **Not a second door, and why `certify`'s work is not redone.**
+    /// This type's one invariant is "the certificate was produced by a
+    /// certifier run over this description and this fit". The
+    /// description and fit go through their own structural doors
+    /// ([`SurfaceDescription::map_scalar`], [`NurbsSurface::map_scalar`],
+    /// which state why the payload invariants survive), and a
+    /// structural map of the geometry — exact for every scalar
+    /// embedding, `Real::from_f64` or `Dual::constant` — is the same
+    /// geometry, so the certifier's record still describes what it was
+    /// run over. The certificate is provenance, not authority (type
+    /// docs): at `f64` the validator re-derives against the description
+    /// on every call, and at a scalar whose validation lane has no
+    /// re-derivation it refuses the face rather than accept the carried
+    /// record — so a lift can neither mint a claim nor launder one, and
+    /// the lift is not what decides which of the two it gets. The
+    /// scalar this type can hold is
+    /// therefore no longer only the fit door's `f64`: a consumer that
+    /// argued "no other scalar can hold an `ApproxSurface`" now needs
+    /// the refusal it already has, not the premise.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ApproxSurface<U> {
+        ApproxSurface {
+            description: self.description.map_scalar(&f),
+            fit: self.fit.map_scalar(&f),
+            window: self.window,
+            certificate: self.certificate,
+        }
+    }
+
+    /// The uncertified spec this surface would certify from — the
+    /// input a re-derivation reconstructs.
+    pub fn spec(&self) -> SurfaceSpec<T> {
+        SurfaceSpec {
+            description: self.description.clone(),
+            fit: self.fit.clone(),
+            window: self.window,
+        }
+    }
+}

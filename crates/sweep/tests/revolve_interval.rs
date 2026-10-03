@@ -1,0 +1,100 @@
+//! Interval-lane revolve: the acceptance shapes
+//! REQUIRED to build tier-valid at the certified scalar (the lane is
+//! fully live post-B1 — refusals here are defects, not honesty).
+//! Trigonometry (rotation matrices, full-period rim samples) runs in
+//! enclosures throughout; the full-period-is-identity convention keeps
+//! the seam coincidences exact at Interval too.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::interval::{p2, v2};
+use geom_core::Tol;
+use geom_core::{Interval, Real};
+use profile::RawLoop;
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::{Revolution, RevolveAxis, revolve};
+use topo::{validate, validate_closed, validate_geometric};
+
+fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
+    Profile::new(SketchPlane::<Interval>::xy(), loops)
+        .validate(Tol::witness())
+        .unwrap()
+}
+
+fn axis_y() -> RevolveAxis<Interval> {
+    RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    }
+}
+
+fn assert_tiers(body: &topo::Body<Interval>) {
+    assert_eq!(validate(body), Ok(()));
+    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
+}
+
+#[test]
+fn interval_washer_builds_tier_valid() {
+    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_tiers(&t.body);
+    assert_eq!(t.body.vertices().count(), 4);
+    assert_eq!(t.body.edges().count(), 8);
+    assert_eq!(t.body.faces().count(), 4);
+}
+
+#[test]
+fn interval_ball_builds_tier_valid() {
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), Interval::from_f64(1.0)),
+        (p2(0.0, 1.0), Interval::from_f64(0.0)),
+    ]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_tiers(&t.body);
+    assert_eq!(t.body.faces().count(), 2);
+}
+
+#[test]
+fn interval_cone_builds_tier_valid() {
+    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_tiers(&t.body);
+    // The cone's two bands and one whole base disc.
+    assert_eq!(t.body.faces().count(), 3);
+}
+
+#[test]
+fn interval_partial_wedge_builds_tier_valid() {
+    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    // π/2 is not dyadic: the wedge exercises non-dyadic rotation
+    // enclosures end-to-end.
+    let theta = Interval::from_f64(core::f64::consts::FRAC_PI_2);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_tiers(&t.body);
+    assert_eq!(t.body.faces().count(), 5);
+}

@@ -1,0 +1,569 @@
+# geom-brep: curved geometry and offsets
+
+`geom-brep` is the layer between the evaluators (`crates/geom`: analytic
+surfaces, NURBS curves and surfaces) and the arena store (`crates/topo`:
+the B-rep, a solid represented by its boundary faces, edges and
+vertices). It defines what an edge's geometry *is* (an `EdgeDescription`,
+never a bare curve), how a concrete curve earns the right to stand in for
+it (an `EdgeCurve` is constructible only through certification against
+its description, so an uncertified carrier is unrepresentable), and the
+geometric classifiers topology stands on: dihedral wedges, tangency jets,
+the surface-pair intersection table, surface–surface intersection (SSI)
+by marching, per-half-edge pcurves, certified mass properties, and the
+analytic and fitted offset surfaces that `shell` consumes. The thesis,
+stated once: exact closed forms where they exist (DESIGN.md D3),
+intensional descriptions with certified caches where they do not (D2/D4),
+and every completeness claim backed by an enclosure rather than by an
+algorithm's diligence. Marching proposes; certification decides; nothing
+a marcher does is trusted. Every decision is a named margined predicate
+through `geom_core::Decide` (DESIGN.md Q1): definite, coincident, or an
+escalated typed refusal, never a raw comparison.
+
+## Where in the code
+
+| Decisions | Lives in |
+|---|---|
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system}.rs` |
+| C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
+| C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
+| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
+| C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
+| C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
+| C10 BVH | `crates/bvh` |
+| C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
+| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad.rs`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
+| O1 analytic offset mint | `crates/geom-brep/src/offset.rs` |
+| O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
+| O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
+| O4 shell | `crates/topo/src/shell.rs`, `boolean/voids.rs`, `replace_face.rs`, `offset_together.rs`, `offset_axial.rs` |
+| O5 validator posture | `crates/topo/src/validate.rs` (`OffsetFitLane::recertify`) |
+
+## Curved geometry (CURVED-DESIGN C1–C12)
+
+### The locus ladder and its certificate
+
+**C1 — Intersection loci live on a three-rung ladder.** The *carrier*
+of an `Intersection` edge (the 3-D curve cached against the intensional
+description `{s1, s2, witness}`) is, by surface-kind pair and most exact
+first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
+`Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
+equal-radius cylinder×cylinder)
+and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
+section, one oval in the torus's own minor angle — minted by the
+offset-axial door for a hollowed partial revolve's rim, not by the C5
+table), whose residuals are zero by construction; rung 3, a fitted cubic
+`Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
+outside the inventory by decision: a plane×cone section of either kind
+refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
+an export/tessellation form, never as the kernel carrier (the axes and
+centre are what dispatch consumes). There is no polyline rung.
+
+**C2 — A fitted carrier's certificate has three limbs, all mandatory.**
+(1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
+in metres for an analytic operand (`implicit.rs`); for a NURBS operand
+`|C(t) − S(u*,v*)|` at a certified foot point whose orthogonality
+residual is banded too, so a bad projection cannot launder a bad cache.
+(2) Sup-norm honesty between samples, by control-coefficient hull bounds
+in certification arithmetic (C9): `geom_core::spline::compose` composes
+the implicit form with the carrier (converted to metres exactly for
+plane, cylinder and sphere; cone and torus need a root, and certification
+arithmetic takes none, which is why their rung-3 arms are unretired),
+and `compose::tensor` encloses
+`S(P(t)) − C(t)` as one composite for a NURBS operand so the
+cancellation that is the whole content of the claim survives into the
+bound. (3) The uniqueness tube: over a chain of boxes of certified radius
+around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
+by a mean-value argument each slice holds at most one solution and the
+solution set in the chain is one arc. For plane×NURBS the chain is the
+wall pcurve's per-span windows, padded along each chart axis by the
+radius over that axis's chart speed (minted once over the wall's domain,
+refusing a zero or non-finite axis by name), and the enclosure is the
+chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
+by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
+the exhaustiveness accounting banks exactly the region it records.
+The tube says nothing about a disjoint component at other `e`-levels;
+that is C3's exhaustiveness obligation, a separate theorem. Refusal
+is typed, never a retry loop: an enclosure that does not clear the
+band at any rung escalates (`ssi_tube_transversality`,
+`SsiError::TubeStraddles`). Two branches passing within the band of
+each other is a genuine sliver of the operand pair, and escalation is
+correct for it, F6's ladder speaking. The enclosure's own remaining
+slack can straddle too, and escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
+certificate ever reaches an at-rest body, and the tube is required for
+every fitted `Intersection`, not only where several branches were found.
+The witness is `carrier(mid)`, minted from the cache the schedule sees.
+
+**A check's name is the taxonomy's to say, not a rendering each sentence
+picks.** `CertCheck` carries a `Display` on its declaring row, written
+as an exhaustive match so a check the taxonomy gains has no word until
+someone writes one, and `CertifyError`'s three check-naming arms render
+through it. Each word is the phrase a person would write ("the
+out-of-halfplane component"), not the variant identifier: these rows are
+not doors anyone calls, so the identifier buys a reader nothing that the
+typed field does not already give a program, and every neighbouring arm
+of the same `Display` is English prose. The word also carries the KIND
+of quantity the check meters, because the sentence cannot — five of the
+fifteen checks that reach the definite arm meter no residual. The
+censuses beside the taxonomy hold the words apart and hold each away
+from its identifier: two checks saying one phrase makes a refusal
+ambiguous about what it refused, and a phrase that IS the identifier is
+the rendering this contract replaced.
+
+### Surface–surface intersection
+
+**C3 — March, then certify; the stepper is trusted for nothing.** No
+per-step predicate can prove "no other branch within reach" from local
+data, so none is asked to. `ssi/march.rs` is a candidate generator
+(Hoffmann §6.2: third-order local approximant from the underdetermined
+jet system solved by SVD, Frenet choice of free coefficients, Newton
+refinement; all f64, libm-only, fixed iteration order). Two trace shapes
+are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
+SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
+`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`), from which the
+3-D curve and both pcurves fall out as projections of one traced object
+on one shared parameter. A branch jump is a certificate refusal. The
+stepper guards the step where it mints it: no step is longer than the
+march domain's diagonal, and a march speed that is not positive and
+finite, a step that is not finite or does not move the state
+(`SsiError::StepUnusable`), or one that collapses into the band
+(`StepCollapsed`) refuses naming the speed. The longest step is
+`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
+one place a whole branch is known, marches once more any trace that
+has length but too few samples for the cubic fit: its steps are then
+capped at the trace's own polyline length over the fewest odd count
+that gives the fit its samples (five). The count is odd so that a seed
+near the branch's middle does not walk a state onto each end; that
+lowers the odds of a state landing in band of the boundary and
+guarantees nothing
+(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+A trace with no length to cut, or one the re-march leaves still too
+short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
+surfaces touch at a point, the branch is shorter than the boundary
+search resolves at the step, it runs within the band of the domain's
+boundary (a plane flush with a face's edge, whose states are never
+decided inside), or no crossing settles at either end
+(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+The fit therefore only sees a trace with the samples it needs or a
+non-finite sample, which it refuses by name. The extent keeps its other
+roles: the lever arm's clamp, the seeding floor and the tube ladder.
+Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
+the bounded domain is *excluded* (an implicit residual bounded away from
+zero by enclosure), *accounted* (contained in a found branch's tube), or
+refined to the named floor, where the op refuses
+`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+the domain it bisects (`SweepFloor`), and a floor that domain cannot
+resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
+one that is not a positive finite width, or one narrower than the
+finest cell bisection can cut at the domain's largest coordinate. On
+the chart lane the refusal names the rate that crossed the floor, so
+the cell budget never answers for a floor no cell can reach (an
+attainable floor can still spend the budget by cell count). Before
+any of it, every SSI door refuses a domain whose centre is not finite
+or whose half-extent, feature extent or floor scale is not positive and
+finite (`SsiError::DomainUnusable`). The receipt and that refusal
+state their lengths in the units their own lane subdivides in and carry
+an `ExhaustLane` saying which — metres on the ℝ³ lane, chart units plus
+the certified `SupSpeed` that crossed them on the chart lane — so metres
+come from `floor_meters()` rather than from a caller holding the rate.
+The op does not return until every branch is found or it refuses; the
+subdivision doubles as the seed generator, so finding never depends on
+luck. Closure of a trace and loop
+topology are named trileans on parameter-space distances. Near-tangential
+configurations (the transversality band along the trace) refuse toward
+C7; Hoffmann §6.5's tracing through singular points is deliberately not
+adopted. Subdivision is recursive bisection with a linear scan over
+tubes; the C10 tree is not wired in.
+
+### Pcurves
+
+**C4 — Pcurves are per-half-edge certified caches, certified in metres
+through the map.** A *pcurve* is an edge's image in a face's `(u,v)`
+chart. Its home is the half-edge (`Body::pcurves`, a
+`SecondaryMap<HalfEdgeKey, PcurveCache>`): a seam edge has both
+half-edges on one surface with two chart images (`u = α` and
+`u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
+`he_plus`-forward parameter; traversal sense per face is derived, never
+stored. `PcurveCache::certify` is the only constructor. The certified
+statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
+edge, bounded by an envelope whose own statement the certificate names
+(`EnvelopeStatement`, whose variants carry their own derivations).
+Where `S ∘ P` has a closed form, the envelope alone is the certified
+statement: it bounds the displacement over the whole span, spelled in
+the carrier's own coefficients so that a minted row's identity is a
+theorem rather than a trig round trip, and a sampled check adds
+nothing it does not already prove. For `Pcurve::Harmonic` (both sides
+in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
+is unrepresentable) that spelling is the carrier's incidence with the
+chart (centre on the axis, radius, orientation, axial line, per chart
+arm, and the chart frame's own unit and orthogonality defects) plus the
+stored image's fidelity to the image `certify` re-derives from the
+carrier, metered through the chart's stretch; the shared schedule is
+then the closed-form tables' cross-check, run on the point lane (the
+f64 witness replay, the `Witness::Inexact` scalars) and as a property
+test of `chart_image_harmonic ∘
+chart_pcurve = carrier_harmonic` over the covered classes, not in a
+certificate over a parameter box. Where no closed form exists, the
+certificate falls back to the displacement at the shared schedule plus
+a between-samples envelope: hull-bounded for fitted images on NURBS
+charts, and only the carrier's incidence with the chart surface
+(`OnLocusHull`) for a fitted image over a rung-3 carrier on a periodic
+analytic chart, where `S ∘ P` is transcendental. A sphere's general
+circle (neither polar nor meridian) has no closed form either, but its
+envelope still bounds the whole span: its image is a piecewise quintic
+Hermite interpolant of the circle's chart image, and the envelope
+(`MapResidualHermite`) bounds `|S(P(t)) − C(t)|` as the circle's
+distance from the sphere, plus per span the image's control distance
+from the Hermite data and the Hermite remainder, through the chart
+map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
+in the certified statement. No UV-space tolerance appears in
+any certified statement; the chart's stretch is the lever arm. Domain
+validity is part of the certificate: one branch pinned at the start (a
+τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
+is chosen once by the loop walk in `topo::pcurves` and certified by loop
+continuity) and trim containment against the caller's `ChartWindow`
+(`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
+demand. On every other chart the row is mandatory at rest: every
+half-edge of the face stores its certified row, and tier 3 reports a
+missing row as a finding, saying why it is missing by re-deriving the
+face (never minted, or the derivation refuses), and re-certifies every
+stored row, a half-minted face's included. A topology door may drop
+rows mid-surgery; every public producer ends with a full mint, so
+validity is judged on what the producer returns. Every class of carrier
+a chart can hold has a route into a certified row, and a face no route
+covers refuses at the producer rather than reaching rest uncached. The
+lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+closed from the carrier's own parameter), `ConeSection` (a tilted
+plane×cone ellipse on its cone: the slant harmonic, the azimuth the
+Kepler true anomaly of the ellipse's projection, whose focus is the
+axis; its envelope is the harmonic closed form plus one remainder
+term), `Fitted`, `General`
+(the general curve-in-UV at the honest fitted grade). Carrier-primary
+stands: the 3-D carrier is the authoritative machinery and the edge's
+parameter stays chart-neutral. The description form every conventional
+edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
+`EdgeAuthority` recording who declared the locus; that collapse and its
+fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume, area
+and tessellation still refuse typed on a face carrying a `General`
+pcurve.
+
+### Dispatch
+
+**C5 — One total kind-pair table, no runtime fallback.**
+`intersect::route(SurfaceKind, SurfaceKind) -> PairRoute { rung,
+implemented, note }` is an exhaustive match with no wildcard arm, so
+adding a `SurfaceKind` breaks the build (D3). "Try closed-form, else
+march" does not exist: an arm's rung is a documented decision, and an
+unimplemented arm refuses typed naming its routing and what it lacks.
+Within-pair degeneracies are trileans run before any rung (axis
+parallelism at derived angular thresholds, centre/axis distances against
+radii): definitely generic goes to the arm's rung, exactly degenerate to
+the closed form, in-band to `SectionError::Escalated`. Equal cylinder
+radii are structural or declared (`RadiusEvidence`), never inferred from
+values. Tangential outcomes (`TangentLine`, `TangentPoint`) are
+classification data, refused as carriers. `SurfaceKind::Approx` is its
+own kind, not `Nurbs`: a locus claim against an approximating surface is
+a claim about the fit, and `Approx × anything` refuses because composing
+the fit's precision claim with the SSI limbs is not a ratified rule.
+Implemented: plane×plane, plane×sphere, sphere×sphere, axis-aligned
+plane×torus (rung 1); plane×cylinder, plane×cone (all but the parabola
+and hyperbola), declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
+plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
+and torus metres conversion (C2 limb 2).
+
+### Fitted-cache structure
+
+**C6 — Cache structure is an f64-lane artifact; certification is
+scalar-generic.** Knots, weights, degrees and every combination
+coefficient are `f64` structure (`geom_core::spline`); control points are
+the only generically typed data; the fitting loops (`curves/fit.rs`)
+take `f64` points. The certificate re-evaluates against the pinned
+structure at any `Real`, so the interval lane proves what the f64 lane
+chose. No topology-determining predicate reads knot counts, spans or
+fitted coefficients except through named certified margins; the name
+table is a function of recipe structure and verdicts only.
+
+### Tangency
+
+**C7 — `TangentIntersection` and second-order sector classification.**
+`EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
+`Intersection` one differential order up. Its jet (`tangent.rs`,
+`TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
+coincidence within ε, normal parallelism within the derived angle at
+lever arm `1/κ_rel`, and the relative transverse normal curvature
+`κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
+system), with C2's hull bounds and tube between samples. Where
+first-order sector ranking ties exactly, classification descends one
+order (`enters_material_order2`, consumed by
+`topo::splitting::neighborhood` and `topo::boolean::sectors`); an in-band
+second-order tie escalates. Tier 3 has two levels: every
+definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
+jet-determinate, `SmoothUnderdetermined` when the surfaces
+under-determine the locus, e.g. a G2 sketch join), and the must-carry
+rule `TangentNotIntrinsic` fires only on `ContactMark::Tangent`. NURBS-
+and `Approx`-adjacent edges are exempt by kind (`Unmarked`). Curved
+contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
+
+### Fillets
+
+**C8 — Fillet validity is reified predicates, evaluated before any
+construction; blends are analytic-first.** Implemented in
+`crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
+What binds from here: the six named margined predicates over the inputs
+run in order before any ball exists (radius vs `1/κ_max` of each
+support, face clearance, spine regularity, chain G1, convexity-sign
+consistency, corner configuration), which is what lets an interval
+replay certify validity over a parameter box. Every constant-radius arm
+mints a torus or a cylinder (the envelope of equal spheres over a circle
+or a line spine); a cone belongs to the variable-radius family.
+Trimlines are stored as `TangentIntersection`. Scope: the
+three-convex-edge sphere-octant corner is in, and so is the ruled band's
+transverse cap (a plane face perpendicular to the ruling, where the
+band ends in the cap's own section of it — `CornerConfig::TransverseCap`,
+`RunOutPolicy::CutOffAtTransverseCap`, decided by
+`fillet3_cap_transverse` at the link's extent); every other corner
+refuses with a `CornerConfig` tag and the `RunOutPolicy` that would
+handle it (`RunOutStopAtVertex`, `RunOutFeather`), refusal-payload names
+only. A
+spine that is neither line nor circle refuses `SpineUnsupported`: the
+canal-surface blend, an approximating surface per O2, is not
+implemented.
+
+### Arithmetic substrate and the BVH
+
+**C9 — Enclosures run on the in-repo interval backend.** Every enclosure
+certification needs is transcendental-free (implicit residuals are
+polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
+so certification arithmetic is IEEE-754's correctly rounded operations —
+`±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
+`geom_core::Interval` — the evaluation scalar itself, a newtype over
+`interval-transcendentals`' `DInterval`, outward-rounded where the
+operation is inexact, always compiled, MIT-clean. Its refusal is the
+backend's decoration (`dec < Def`), read as `!is_certified()`: a bracket
+that may not certify carries ordinary endpoints, so a consumer asks the
+refusal by name, and the certification doors refuse it whatever its
+endpoints say. The doors are the `Certification` trait's
+(`geom_core::interval::certification`), sealed to `Interval` and
+imported by name: a file that imports them has no `Real` in its
+production code, so a value typed `Interval` there reaches neither
+evaluation's weaker `is_poison` nor a transcendental, and
+`scripts/gates/certification-doors.sh` holds that over its list of
+importers. Generic code over a lane scalar in the same file (`Bounds`,
+`CertifiedBounds` and `Decide` are `Real` subtraits) evaluates on that
+lane, at `T = Interval` too, and crosses into certification arithmetic
+only through `Interval::from_certified` — inherent, since the crossing
+is written where a lane scalar is held — which carries the certified
+door's verdict as a `Def`/`Trv` cap on the decoration. No copyleft
+dependency exists in any build configuration. Certification code reads
+brackets through `Bounds` and asks admission through
+`CertifiedEnclosure`.
+
+**C10 — One deterministic AABB tree, conservative-superset contract.**
+`crates/bvh`: arena-order build, median split on the longest centroid
+axis with total tie-breaks, no hash iteration; a query may only prune
+pairs whose padded boxes definitely do not interact, so results stay a
+function of exact predicates (D9), pinned by an idealized/realized
+differential suite. Boxes of curved entities are certified-conservative
+(analytic extents closed-form, NURBS from control hulls). Wired: the
+boolean edge×face sweep, placement separation, viewport picking. Not
+wired: SSI seeding/exhaustiveness (C3).
+
+### NURBS scope
+
+**C11 — The NURBS substrate, bounded.** Clamped knot vectors only
+(periodic and unclamped forms are a designed absence); strictly positive
+weights enforced at construction (the convex-hull property every hull
+bound stands on); evaluation and derivatives generic over `Real` by de
+Boor in fixed order. Algorithms: knot insertion, refinement, removal and
+degree elevation on curves and surfaces (`split_at` is insertion to full
+multiplicity), point projection with certified orthogonality residuals,
+and the fitting stack (interpolation, column-wise collocation for
+skinning, the bounded approximation loop). Lofts and sweeps
+(`crates/sweep`) are *definitional* surfaces: the produced NURBS is the
+definition, with no residual obligation; only items derived from them
+carry certificates. Absent by decision: scattered-data surface fitting,
+degree reduction, UV-space booleans beyond trim loops.
+
+### The seams the curved work touched
+
+**C12 — The refactor inventory, as it now stands.** (1) The
+face-intersection seam consumes the C5 table; the curved-boolean
+refusal retires arm by arm, never wholesale. (2) Sector classification
+has the C7 second-order lane. (3) `EdgeCurveSpec::split_specs` splits a
+NURBS carrier by knot insertion and a conic by parameter interval.
+(4) The census is CONTACT-DESIGN's. (5) `merge_faces.rs` merges
+cosurface runs through the same never-numeric ladder; a curved run that
+closes its chart's full period refuses. (6) Curved tessellation
+(`mesh/src/curved.rs`) takes iso-rectangle chart domains from the
+boundary walk with certified chordal bounds from hull-bounded jets
+(`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
+are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
+curved-cut faces are certified quadrature (C9, `props/quad.rs`):
+harmonic pcurve boundaries, polynomial and rational patch flux; a cone
+face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
+the boundary's vector area; rational
+pcurve channels refuse `QuadratureUnsupported`; exhaustion is
+`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+boundary circles are tilted against its chart has no conic or spline
+trim and is on the closed-form lane, measured by Gauss–Bonnet over its
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
+least-squares solvers with fixed elimination order
+(`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
+(it has no SSI); the stance is DESIGN.md Q5.
+
+## Offsets and shell (OFFSET-DESIGN O1–O6)
+
+The *offset* of a surface `S` at signed distance `d` is the normal
+pushforward `S_d(u,v) = S(u,v) + d·n(u,v)` along the unit chart normal
+(`∂u × ∂v` normalized; positive `d` is along the stored normal, the
+face's `sense` bit takes no part). *Shelling* turns a solid into a
+thin-walled one: offset the boundary inward by the wall thickness and
+either keep the hollow closed (a cavity) or open it through designated
+faces, leaving annular rims where the wall shows.
+
+**O1 — Analytic offsets are minted by struct-update; degeneracies refuse
+at the door.** The analytic kinds close under offset (`offset.rs`,
+`offset_surface`): plane `origin + d·normal`; cylinder and sphere
+`radius + d`; torus `minor + d`; cone with `axis`, `half_angle`, `u_ref`
+verbatim and the apex slid by `−axis·(d/sin α)`, i.e. the pure parameter
+shift `v ↦ v + d·cot α` (`ConeOffset` states the apex, the shift and the
+pointwise displacement as one derivation, along the continuous extension
+of the opening nappe's normal field, so nappe attribution follows the
+shift; the turn a face-outward distance owes that convention is the
+consumer's, discharged at `topo::offset_nappe::face_nappe` for every
+door that needs it). Refusals are named predicates over the *realized*
+stored float,
+decided before any mint: `offset_radius_floor` (margin `radius + d`;
+`OffsetError::RadiusFloor`) and `ring_torus_convention` (`geom::ring_torus`,
+the convention's one home, on the realized minor: margin
+`major − (minor + d)`; `TorusRing`). The cone has no door predicate
+because nothing stored degenerates; whether a face's `v`-window crosses
+the shifted apex is the consumer's question (`offset_apex_window` in
+`topo/src/replace_face.rs`). NURBS refuses `NotClosedUnderOffset` into
+the O2 lane. Self-intersection has no special case: where `d` reaches
+the collapse threshold the door refuses (O3), never a silently looped
+surface. Trimmed offsets and solved-distance offsets are not
+implemented; nothing here forecloses them.
+
+**O2 — The approximating surface lifts the `EdgeCurve` triple one
+dimension.** The offset of a NURBS is not a NURBS (normalizing `n`
+introduces a square root), so the kernel fits one and carries the
+intent beside the fit (`geom/src/surfaces/approx.rs`):
+`SurfaceDescription::Offset { base: Arc<NurbsSurface>, d }` is the
+intensional layer and its only inhabitant (the canal blend is the next,
+not built); `SurfaceSpec { description, fit, window }` is the
+uncertified input; `ApproxSurface::certify(spec, certifier)` is the sole
+door and its fields are private, so an uncertified approximating surface
+is unrepresentable. The certifier is injected because the derivation
+lives one crate up (`offset_fit.rs`) and is `f64`-only. The certifier
+carries its own target, and every production certifier's is the run's
+`Tol`, so the surface stores no tolerance and every re-derivation
+classifies at the ε of the run that performs it (D4 ¶1). The base is an
+owned `Arc`, not an arena key (layering, and `Surface` values travel
+without an arena), and it is NURBS by type: analytic bases mint exactly
+under O1 and never reach this door. Storage is the seventh variant
+`Surface::Approx(Arc<ApproxSurface>)`, so every dispatch site must say
+what it does with one (most delegate to the fit; kind-indexed tables
+treat it as its own kind, C5).
+
+**O3 — The certificate is C2 lifted, on two meters the fit needs.** The
+claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
+base's own chart parameters. Meters (`offset_meters.rs`, read off
+`patch_bound.rs`'s per-cell control-hull enclosures): the *regularity
+floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
+largest wins: componentwise mignitude, fixed-direction projection, and
+the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
+the patch's faster chart speed as lever, deliberately not `|d|`, since
+whether the normal degenerates does not depend on `d`; and the
+*collapse headroom*, principal curvatures `[κ_lo, κ_hi]` from the closed
+form of the two fundamental forms, refusing through
+`offset_curvature_headroom` when `|d|` reaches `1/κ` on the folding side.
+Both bound conservatively (they can refuse a regular patch, never accept
+a degenerate one). The fit (`offset_fit.rs`) is the NURBS Book's A9.4
+grid interpolation at the base's own parameters, then a
+certify-and-insert loop that refines the cells carrying the sup until
+every cell certifies or the loop refuses naming what stopped it —
+`BudgetExhausted` (the round budget, saying whether the last round
+improved or did not improve) or `SampleCapReached` (the per-direction
+sample cap); `RefinementStalled` when the strongest step gains nothing,
+on the last round as on any other; each carries the last grid's bound
+and the smallest any round reached (`BestBound`, whose doc states when a
+request at it certifies); `BoundNotFinite`, carrying that smallest
+finite bound or none, when the last grid's bound is not finite;
+A9.10's downward knot-removal compression is not built.
+`OffsetCertificate` has two limbs: `on_locus_max`, a sampled residual
+that steers, and `hull_sup`, the certified bound via
+`spline::compose::patch` over the rationalized composites
+`X = Ẽ·Ẽ − d²·w̃²` and `Y = Ẽ × M̃`, which are small exactly when the
+fit is good, plus the sign witness `D = Ẽ·M̃`. `D` does double duty:
+it proves `E·n` carries `d`'s sign, and it floors `‖E‖` at
+`|D|/(w̃·‖M̃‖)` — the reading of the three components TOGETHER, which
+is what keeps a small-`|d|` bound near `|d|`'s own scale where the
+componentwise mignitude of `Ẽ` collapses on a rotating normal. A
+rational base is ordinary here: its weights decide only which terms
+`M̃ = w³·m` carries, and the rational quarter cylinder certifies
+through this door — `offset_surface` is where a NURBS base refuses
+typed, `NotClosedUnderOffset` on every one of them, rational or not,
+because normalizing the chart normal is what breaks rationality. This
+fit is the approximating-surface route that refusal names.
+
+**O4 — What shell is.** `shell(B, t) := B − offset_inward(B, t)` by
+definition, boolean-family; its execution never runs the crossing
+pipeline. An open shell is unrepresentable by construction (every edge
+has exactly two half-edges; D1 is manifold-first), and shell does not
+need one. *Sealed* (`topo::shell`): one clone with every boundary face
+moved to its inward offset (all-planar bodies through
+`offset_planes_together`, which solves each corner against all moved
+planes at once; planes meeting revolved walls through
+`offset_charts_together`; anything else chart by chart through
+`replace_faces_offset`, whose oblique corners refuse
+`ReanchorOffCarrier`), then inserted through the shared void-insertion
+door `boolean::voids::insert_void` with the construction's own
+d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
+door never derives containment. The result is a two-shell solid, and the
+invariant this preserves is that every cavity is born through that one
+door (three producers: boolean subtraction, shell, the full revolve of a
+holed profile). *Opened* (`shell_open`): the sealed construction, then
+each designated chart's cavity counterpart offset back outward onto it
+and the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to
+one annular rim face. Nothing opens; the result is closed, the
+designated shell's thin solid is single-shell (a hollow operand's other
+thin solids keep their two), and the invariant is closure, not genus
+(one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
+inverted cavity walls at edge re-attachment. A NURBS-walled body still
+cannot be shelled: `Approx × anything` has no C5 arm, so the
+face-replacement door refuses on a fitted face's intrinsically described
+boundary.
+
+**O5 — The validator re-derives per face, as it does per edge.** Tier 3
+never trusts a stored certificate: `validate.rs` re-runs the O3
+derivation on every `Approx` face on every call through
+`geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
+parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
+where the scalar's seam hands the pass no door). The
+stored `OffsetCertificate` is provenance, kept for reporting. `Approx`
+faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
+
+**O6 — Sequencing and the demo gates.** The units are landed in the
+order O1 → O3 meters and fit → O2 storage → face replacement and shell.
+Live gates, each named where it refuses: a multi-shell curved solid
+refuses STEP export (`CurvedShellClassification`, the outward/void
+classifier is planar-only); the area enclosure is unmetered; rational
+pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
+the `cylinder × torus` and `cone × torus` arms — its own two rims. The
+bulb has no cone-abutting-cylinder adjacency at all: its flare is
+bracketed by two tori, by construction.
+
+## Open
+
+- Shell's curved wall clearance: two facing curved walls closer than
+  `2t` shell to a self-intersecting cavity that tier 3 does not catch
+  (`wall_clearance` gates planar operands only); the general clearance
+  certificate over a parameter box belongs to the error-propagation
+  lane (`docs/ERROR-DESIGN.md`).
+- Corner taxonomy: the uniformly concave trihedron is carved but has no
+  `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
+  setback parameters) is reserved for the design that implements
+  run-outs.
