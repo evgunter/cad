@@ -375,12 +375,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   boundary — spindle tori have no representation.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
   value (`BooleanResult::Empty`), not an error. **A solid is one piece
-  of material**: exactly one `Outer` shell and the `Void` shells whose
-  nearest enclosing shell it is. A body is any number of solids, so a
-  disjoint union is a body of several solids and a cavity is a `Void`
-  of the piece around it. Booleans, `shell` and `split` take bodies and
-  return bodies, and each sorts its result into solids by nesting, so
-  every output is an operand. Which solids are one part stays recipe
+  of material**: the `Outer` shell around it and the `Void` shells of
+  the cavities in its material, which together bound that material and
+  nothing else. A cavity belongs to the piece whose material surrounds
+  it, so an island inside a cavity is a solid of its own, and a cavity
+  inside that island is the island's. Pieces that only touch (at a
+  corner, along an edge, or across a face that contact records hold
+  apart) are distinct solids, because touching is between distinct
+  entities (tier 3′). A piece that touches itself stays one solid. A
+  body is any number of solids, so a disjoint union is a body of
+  several solids. Booleans, `shell` and `split` take bodies and return
+  bodies, and each sorts its result into solids, so every output is an
+  operand. Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
   The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
