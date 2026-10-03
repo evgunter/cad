@@ -32,11 +32,23 @@ use geom_core::Tol;
 /// `doc.order()[2]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let x0e = || Expr::param(VarName::from_static("x0"), Dimension::Length);
+    // Declared at one value and moved to `x0`, so the documents of
+    // every `x0` share their ids: a declare mints from its value.
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("x0"),
-                value: FreeVar::continuous(Dimension::Length, x0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc
+        .apply(
+            &DocEdit::SetVarValue {
+                var: VarName::from_static("x0").into(),
+                value: editor_core::FreeValue::Continuous(x0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

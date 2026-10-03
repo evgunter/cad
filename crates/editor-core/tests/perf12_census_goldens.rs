@@ -62,9 +62,9 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         .expect("the corpus carries the heat sink");
     apply(
         &entry.doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("fins"),
-            value: FreeVar::Count { value: fins },
+            def: editor_core::VarDef::Free(FreeVar::Count { value: fins }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

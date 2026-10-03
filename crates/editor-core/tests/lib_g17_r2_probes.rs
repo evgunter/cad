@@ -248,14 +248,14 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         let blank = blank_of(&d.doc);
         let doc = apply(
             &d.doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("t"),
-                value: FreeVar::Continuous {
+                def: editor_core::VarDef::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
                     distribution: None,
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -271,9 +271,9 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             ),
         )
     };
-    let widened = || EvalOptions {
+    let widened = |doc: &ProfileDoc| EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
-            VarName::from_static("t"),
+            doc.var_named("t").expect("the parameter declares"),
             BoxAxis::Varying {
                 lo: -width,
                 hi: width,
@@ -282,8 +282,13 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         ..EvalOptions::default()
     };
     let refused = |doc: &ProfileDoc, node: RecipeNodeId| -> ShellError<f64> {
-        let mut ev =
-            evaluate::<Interval>(doc, None, &CancelToken::new(), &widened(), Tol::witness());
+        let mut ev = evaluate::<Interval>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &widened(doc),
+            Tol::witness(),
+        );
         match ev.nodes.remove(&node) {
             Some(NodeResult::Failed(e)) => match e.kind {
                 NodeErrorKind::Shell(inner) => *inner,

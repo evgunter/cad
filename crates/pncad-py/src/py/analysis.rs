@@ -260,7 +260,7 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
             ),
             (
                 "param",
-                PyString::new(py, param.as_str()).unbind().into_any(),
+                PyString::new(py, &param.to_string()).unbind().into_any(),
             ),
         ],
     )
@@ -620,13 +620,29 @@ impl AnalyzedParam {
 }
 
 /// **The analyzed box**: one axis per CONTINUOUS document parameter,
-/// in name order. Derived on request from a document and a policy,
+/// in the order of the variables' minted ids. Derived on request from a document and a policy,
 /// never stored, and never seen by evaluation.
 ///
 /// `Count` parameters are not axes: a structural count is fixed under
 /// any error analysis.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct AnalyzedBox(a::AnalyzedBox);
+
+impl AnalyzedBox {
+    /// The axis named `name`, if the box holds one.
+    fn axis(&self, name: &super::doc::ParamName) -> Option<pncad::document::VarId> {
+        self.0
+            .params()
+            .keys()
+            .copied()
+            .find(|&id| self.0.spoken(id).name() == Some(&name.0))
+    }
+
+    /// The name of axis `id`, when its variable has one.
+    fn name_of(&self, id: pncad::document::VarId) -> Option<super::doc::ParamName> {
+        self.0.spoken(id).name().cloned().map(super::doc::ParamName)
+    }
+}
 
 #[pymethods]
 impl AnalyzedBox {
@@ -636,7 +652,7 @@ impl AnalyzedBox {
         self.0
             .params()
             .keys()
-            .map(|name| super::doc::ParamName(name.clone()))
+            .filter_map(|&id| self.name_of(id))
             .collect()
     }
 
@@ -646,7 +662,7 @@ impl AnalyzedBox {
     fn varying(&self) -> Vec<super::doc::ParamName> {
         self.0
             .varying()
-            .map(|(name, _)| super::doc::ParamName(name.clone()))
+            .filter_map(|(id, _)| self.name_of(id))
             .collect()
     }
 
@@ -654,7 +670,7 @@ impl AnalyzedBox {
     /// continuous parameter.
     fn get(&self, name: &super::doc::ParamName) -> Option<AnalyzedParam> {
         self.0
-            .get(&name.0)
+            .get(self.axis(name)?)
             .map(|inner| AnalyzedParam { inner: *inner })
     }
 
@@ -669,7 +685,10 @@ impl AnalyzedBox {
     /// support escapes the interval: how much of it escapes is
     /// precisely what a band does not say.
     fn tail_mass(&self, py: Python<'_>, name: &super::doc::ParamName) -> PyResult<Option<f64>> {
-        match self.0.axis_tail_mass(&name.0) {
+        let Some(axis) = self.axis(name) else {
+            return Ok(None);
+        };
+        match self.0.axis_tail_mass(axis) {
             None => Ok(None),
             Some(Ok(mass)) => Ok(Some(mass)),
             Some(Err(err)) => Err(measure_err(py, &err)),
@@ -697,7 +716,10 @@ impl AnalyzedBox {
     ) -> PyResult<Option<f64>> {
         let (lo, hi) = (offset(lo)?, offset(hi)?);
         let dim = agreed(py, "AnalyzedBox.box_mass", &[lo, hi])?;
-        if let Some(axis) = self.0.get(&name.0)
+        let Some(id) = self.axis(name) else {
+            return Ok(None);
+        };
+        if let Some(axis) = self.0.get(id)
             && axis.dim != dim
         {
             return Err(dimension_mismatch(
@@ -707,7 +729,7 @@ impl AnalyzedBox {
                 dim,
             ));
         }
-        match self.0.axis_box_mass(&name.0, (lo.canonical, hi.canonical)) {
+        match self.0.axis_box_mass(id, (lo.canonical, hi.canonical)) {
             None => Ok(None),
             Some(Ok(mass)) => Ok(Some(mass)),
             Some(Err(err)) => Err(measure_err(py, &err)),
@@ -753,7 +775,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(param.as_str())
+            text(&param.to_string())
         }
         a::McRefusal::NoSamples | a::McRefusal::NominalDoesNotBuild { .. } => py.None(),
     };
@@ -1134,7 +1156,8 @@ fn sample_offset(
     dist: &Distribution,
     u: f64,
 ) -> PyResult<Py<PyAny>> {
-    match a::sample_offset(&param.0, &dist.inner, u) {
+    let spoken = pncad::document::SpokenVar::new(pncad::document::VarId(0), Some(param.0.clone()));
+    match a::sample_offset(&spoken, &dist.inner, u) {
         Ok(offset) => quantity(py, offset, dist.dim),
         Err(err) => Err(measure_err(py, &err)),
     }

@@ -120,6 +120,8 @@ use crate::expr::Expr;
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::{VarDef, VarId};
 
 /// The field a range is asked about: one document parameter, or one
 /// node slot.
@@ -129,8 +131,8 @@ use crate::spoken::SpokenNode;
 /// vary, and a slot is a literal that has to be given one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RangeField {
-    /// A document parameter, boxed directly.
-    Param(VarName),
+    /// A free variable of the document, boxed directly.
+    Param(VarId),
     /// A continuous slot of one node, widened through a synthetic
     /// parameter of the derived document.
     Slot {
@@ -324,7 +326,7 @@ pub struct CertifiedRange {
     field: RangeField,
     nominal: f64,
     seed: RangeSeed,
-    pinned: Vec<VarName>,
+    pinned: Vec<VarId>,
     lo: RangeSide,
     hi: RangeSide,
 }
@@ -351,12 +353,12 @@ impl CertifiedRange {
     }
 
     /// **The condition this answer holds under**: the parameters whose
-    /// declared distribution the derivation cleared, in name order, so
+    /// declared distribution the derivation cleared, in id order, so
     /// the drive had one axis. Every one of them is at its nominal for
     /// the whole certificate, and empty means the document declared no
     /// other spread to drop.
     #[must_use]
-    pub fn pinned(&self) -> &[VarName] {
+    pub fn pinned(&self) -> &[VarId] {
         &self.pinned
     }
 
@@ -420,8 +422,8 @@ pub enum RangeRefusal {
     /// The document declares no such parameter, or declares it
     /// `Count` — a structural parameter is not a box axis.
     NotAContinuousParam {
-        /// The name asked for.
-        param: VarName,
+        /// The variable asked for.
+        param: SpokenVar,
     },
     /// The document has no such node.
     UnknownNode {
@@ -574,14 +576,14 @@ pub struct DerivedRange {
     /// parameter field, and the input plus one synthetic parameter
     /// with the slot rewritten to name it for a slot field.
     pub doc: Doc<ProfileProgram>,
-    /// The parameter whose axis IS the seed.
-    pub axis: VarName,
+    /// The variable whose axis IS the seed.
+    pub axis: VarId,
     /// The field's value in the input document, bit for bit.
     pub nominal: f64,
     /// The parameters whose declared distribution this derivation
-    /// CLEARED, in name order — the condition the answer holds under
+    /// CLEARED, in id order — the condition the answer holds under
     /// ([`CertifiedRange::pinned`]).
-    pub pinned: Vec<VarName>,
+    pub pinned: Vec<VarId>,
 }
 
 /// The synthetic parameter a slot of `node` is widened through: the
@@ -597,7 +599,7 @@ fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> VarName {
     let base = format!("query_certified_range_{}", node.full());
     let mut spelled = base.clone();
     let mut n = 0_usize;
-    while doc.params().contains_key(spelled.as_str()) {
+    while doc.var_named(spelled.as_str()).is_some() {
         n += 1;
         spelled = format!("{base}_{n}");
     }
@@ -644,13 +646,13 @@ pub fn derive(
         hi: seed.hi,
     };
     let (mut derived, axis, nominal) = match field {
-        RangeField::Param(name) => {
-            let Some(FreeVar::Continuous { value, .. }) = doc.params().get(name) else {
+        RangeField::Param(var) => {
+            let Some(FreeVar::Continuous { value, .. }) = doc.free(*var) else {
                 return Err(RangeRefusal::NotAContinuousParam {
-                    param: name.clone(),
+                    param: doc.spoken_var(*var),
                 });
             };
-            (doc.clone(), name.clone(), *value)
+            (doc.clone(), *var, *value)
         }
         RangeField::Slot { node, slot } => {
             let Some(n) = doc.node(*node) else {
@@ -688,51 +690,41 @@ pub fn derive(
             // verbatim, and a literal and a parameter reference reach
             // the evaluator through the same `T::from_f64`, so the
             // derived document's f64 build is the input's bit for bit.
-            let with_param = edit(
+            let declared = apply(
                 doc,
-                &DocEdit::SetDocParam {
+                &DocEdit::DeclareVar {
                     name: name.clone(),
-                    value: FreeVar::continuous(dim, value),
+                    def: VarDef::Free(FreeVar::continuous(dim, value)),
                 },
                 tol,
-            )?;
+                &crate::mate::RefusingReach,
+            )
+            .map_err(|e| RangeRefusal::Derivation(Box::new(e)))?;
+            let Some(var) = declared.record.minted_var else {
+                unreachable!("an accepted declare mints a variable")
+            };
             let rewritten = edit(
-                &with_param,
+                &declared.doc,
                 &DocEdit::SetParam {
                     node: *node,
                     slot: *slot,
-                    expr: Expr::param(name.clone(), dim),
+                    expr: Expr::param(name, dim),
                 },
                 tol,
             )?;
-            (rewritten, name, value)
+            (rewritten, var, value)
         }
     };
     // The axis takes the seed; every other continuous parameter is
     // pinned at its nominal, because this query's contract is one
     // field.
-    let annotated: Vec<(VarName, FreeVar)> = derived
-        .params()
+    let annotated: Vec<(VarId, Option<Distribution>)> = derived
+        .vars()
         .iter()
-        .filter_map(|(name, p)| match p {
-            FreeVar::Continuous {
-                dim: d,
-                value,
-                display_unit,
-                distribution,
-            } => {
-                let wanted = if *name == axis { Some(band) } else { None };
-                (*distribution != wanted).then(|| {
-                    (
-                        name.clone(),
-                        FreeVar::Continuous {
-                            dim: *d,
-                            value: *value,
-                            display_unit: *display_unit,
-                            distribution: wanted,
-                        },
-                    )
-                })
+        .filter_map(|(&id, var)| match var.free()? {
+            FreeVar::Continuous { distribution, .. } => {
+                let wanted = if id == axis { Some(band) } else { None };
+                (*distribution != wanted).then_some((id, wanted))
             }
             FreeVar::Count { .. } => None,
         })
@@ -741,13 +733,20 @@ pub fn derive(
     // spread and lost it, which is the condition the answer holds
     // under. The axis itself is never in the list — it did not lose a
     // spread, it was given one.
-    let pinned: Vec<VarName> = annotated
+    let pinned: Vec<VarId> = annotated
         .iter()
-        .filter(|(name, value)| *name != axis && value.distribution().is_none())
-        .map(|(name, _)| name.clone())
+        .filter(|(id, wanted)| *id != axis && wanted.is_none())
+        .map(|(id, _)| *id)
         .collect();
-    for (name, value) in annotated {
-        derived = edit(&derived, &DocEdit::SetDocParam { name, value }, tol)?;
+    for (var, distribution) in annotated {
+        derived = edit(
+            &derived,
+            &DocEdit::SetVarDistribution {
+                var: var.into(),
+                distribution,
+            },
+            tol,
+        )?;
     }
     Ok(DerivedRange {
         doc: derived,
@@ -801,7 +800,7 @@ pub fn certified_range(
     // tolerance.
     let asked = (seed.lo, seed.hi);
     let derived_axis = analyzed
-        .get(&derived.axis)
+        .get(derived.axis)
         .map_or((0.0, 0.0), |p| (p.offsets.lo, p.offsets.hi));
     if derived_axis != asked {
         return Err(RangeRefusal::SeedIsNotTheAnalyzedAxis {
@@ -815,7 +814,7 @@ pub fn certified_range(
     }
     let verdict = drive(&derived.doc, &analyzed, config, tol)
         .map_err(|e| RangeRefusal::Drive(Box::new(e)))?;
-    let leaves = walkable_leaves(&verdict, &derived.axis, seed)?;
+    let leaves = walkable_leaves(&verdict, derived.axis, seed)?;
     Ok(CertifiedRange {
         field: field.clone(),
         nominal: derived.nominal,
@@ -853,7 +852,7 @@ struct Leaf<'a> {
 /// rather than claiming a guard nothing has shown to work.
 fn walkable_leaves<'a>(
     verdict: &'a ParamBoxVerdict,
-    axis: &VarName,
+    axis: VarId,
     seed: RangeSeed,
 ) -> Result<Vec<Leaf<'a>>, RangeRefusal> {
     let span = |box_: &ParamBox| -> Result<(f64, f64), RangeRefusal> {

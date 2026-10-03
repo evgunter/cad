@@ -61,9 +61,9 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::Count { value: 3 },
+            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -116,10 +116,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
             }]
         });
         // ... and the parameter it reads leaves the table.
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(params.remove(name.as_str()).is_some());
+        crate::wire::wire_undeclare(wire, name.as_str());
     });
 
     let verdict = load(&corrupt, Tol::witness());
@@ -185,9 +182,9 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

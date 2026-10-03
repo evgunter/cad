@@ -889,7 +889,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::DocParamValueKindMismatch {
-            name: name.clone(),
+            var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
             declared: Dimension::Length,
             offered: FreeValue::Count(2),
         },
@@ -897,7 +897,9 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::DocParamCountHasNoDistribution { name: name.clone() },
+        &EditError::DocParamCountHasNoDistribution {
+            var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
+        },
         &["is a count", "structural parameter", "no distribution"],
         &dumps,
     );
@@ -1037,6 +1039,10 @@ test_utils::f6_variants! {
         WitnessSite,
         WitnessOnMissingNode,
         LabelOnMissingNode,
+        VarKind,
+        VarNotMinted,
+        NameOnMissingVar,
+        VarNameTwice,
         SlotDimension,
         SlotUnknownDocParam,
         SlotDocParamDimension,
@@ -1158,6 +1164,47 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::LabelOnMissingNode { node: absent(5) },
             vec!["a label is attached to node 000000000005", "not live"],
+        ),
+        (
+            SnapshotError::VarKind {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("width")),
+                ),
+                kind: editor_core::VarKind::Length,
+                def: editor_core::VarKind::Angle,
+            },
+            vec![
+                "width is stored as kind length",
+                "definition is of kind angle",
+            ],
+        ),
+        (
+            SnapshotError::VarNotMinted {
+                var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+            },
+            vec![
+                "variable 000000000007 is not in the document's mint log",
+                "never minted",
+            ],
+        ),
+        (
+            SnapshotError::NameOnMissingVar {
+                var: editor_core::VarId(tagged(7)),
+                name: VarName::from_static("width"),
+            },
+            vec![
+                "the name width is attached to variable 000000000007",
+                "not live",
+            ],
+        ),
+        (
+            SnapshotError::VarNameTwice {
+                name: VarName::from_static("width"),
+                a: editor_core::VarId(tagged(7)),
+                b: editor_core::VarId(tagged(8)),
+            },
+            vec!["width is held by two variables, 000000000007 and 000000000008"],
         ),
         (
             SnapshotError::SlotDimension {
@@ -3252,6 +3299,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     };
 
     let name = VarName::from_static("width");
+    let spoken = editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone()));
     let node = || held(5, "Extrude");
     let framed: Vec<(&str, String)> = vec![
         (
@@ -3265,12 +3313,15 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         ),
         (
             "EditError::ContinuousParamCannotBeCount",
-            EditError::ContinuousParamCannotBeCount { name: name.clone() }.to_string(),
+            EditError::ContinuousParamCannotBeCount {
+                var: spoken.clone(),
+            }
+            .to_string(),
         ),
         (
             "PersistError::DisplayUnit",
             PersistError::DisplayUnit {
-                name: name.clone(),
+                var: spoken.clone(),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
             }
@@ -3279,7 +3330,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "NonFiniteSite::DocParam",
             NonFiniteSite::DocParam {
-                name: name.clone(),
+                var: name.clone().into(),
                 field: DocParamField::Nominal,
             }
             .to_string(),
@@ -3317,21 +3368,21 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "SeedError::UnknownParam",
             SeedError::UnknownParam {
-                param: name.clone(),
+                param: spoken.clone(),
             }
             .to_string(),
         ),
         (
             "ParamBoxError::UnknownParam",
             ParamBoxError::UnknownParam {
-                param: name.clone(),
+                param: spoken.clone(),
             }
             .to_string(),
         ),
         (
             "MeasureUnavailable::BandHasNoMeasure",
             MeasureUnavailable::BandHasNoMeasure {
-                param: name.clone(),
+                param: spoken.clone(),
             }
             .to_string(),
         ),
@@ -3379,18 +3430,19 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
     let name = VarName::from_static("width");
+    let spoken = editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone()));
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",
             RangeRefusal::NotAContinuousParam {
-                param: name.clone(),
+                param: spoken.clone(),
             }
             .to_string(),
         ),
         (
             "Unavailable::TangentDegraded",
             Unavailable::TangentDegraded {
-                param: name.clone(),
+                param: spoken.clone(),
             }
             .to_string(),
         ),

@@ -41,7 +41,7 @@ fn a_property_edit_emits_exactly_one_committed_docedit() {
     // leaves the declaration alone.
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
 }
@@ -573,7 +573,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     // The last previewed value is the one recorded, and the driven
@@ -818,8 +818,7 @@ fn refusals_render_as_sentences() {
     // (`create_param` reads `existing.dim()`), and a fixture that
     // asks for the dimension it declared cannot tell that apart from
     // an arm forwarding the request — which is the one mistake the
-    // refusal guards, `SetDocParam` being create-or-replace at the
-    // API. `thickness` is declared a length; this asks for an angle.
+    // refusal guards. `thickness` is declared a length; this asks for an angle.
     let exists = session
         .perform(SessionOp::CreateParam {
             name: common::thickness_param(),
@@ -980,7 +979,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
 
-    // Create: exactly one committed SetDocParam — the CREATE door
+    // Create: exactly one committed DeclareVar — the CREATE door
     // really is authoring a declaration — and one undo step.
     let outcome = session.perform(SessionOp::CreateParam {
         name: margin.clone(),
@@ -990,7 +989,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     assert_eq!(outcome.committed.len(), 1);
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParam { .. })
+        Some(DocEdit::DeclareVar { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     let row = props::param_rows(session.committed_doc())
@@ -1034,8 +1033,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     );
 }
 
-/// **Create is not replace.** `DocEdit::SetDocParam` is
-/// create-or-replace at the API; the panel's create door refuses an
+/// **Create is not replace.** The panel's create door refuses an
 /// already-declared name typed, with the existing declaration's
 /// dimension in the payload — and the replace act stays spellable
 /// through the door that says so (`SetParam`).
@@ -1171,7 +1169,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(matches!(
         outcome.committed.as_slice(),
-        [DocEdit::SetDocParamUnit { .. }]
+        [DocEdit::SetVarUnit { .. }]
     ));
     let row = param_row(&session, &name);
     assert_eq!(row.unit.map(|u| u.symbol()), Some("m"));
@@ -1311,7 +1309,7 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
 }
 
 /// **The row's unit picker moves the notation and nothing else** — one
-/// `SetDocParamUnit`, and the stored value bit-identical.
+/// `SetVarUnit`, and the stored value bit-identical.
 #[test]
 fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     let tol = Tol::witness();
@@ -1332,7 +1330,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(matches!(
         outcome.committed.as_slice(),
-        [DocEdit::SetDocParamUnit { .. }]
+        [DocEdit::SetVarUnit { .. }]
     ));
     let row = param_row(&session, &name);
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));

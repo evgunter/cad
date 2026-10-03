@@ -213,9 +213,9 @@ fn distributed_plate() -> ProfileDoc {
     const RADIUS: f64 = 1.25e-3;
     let spread = half();
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("half_spacing"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: SPACING / 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -223,19 +223,19 @@ fn distributed_plate() -> ProfileDoc {
                 lo: -0.05 * spread,
                 hi: 0.05 * spread,
             }),
-        },
+        }),
     });
     for n in ["hole_a_r", "hole_b_r"] {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name(n),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: RADIUS,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Normal {
                     sigma: 0.2 * spread,
                 }),
-            },
+            }),
         });
     }
     let plane = r.insert(fixture::xy_frame());
@@ -383,14 +383,14 @@ fn band_placement() -> ProfileDoc {
 
 fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(distribution),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -762,7 +762,12 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     let forced = analyzed_box(&band_placement(), &AnalysisPolicy::default());
     assert_eq!(MassBasis::of(&priced), MassBasis::Priced);
     match MassBasis::of(&forced) {
-        MassBasis::Forced { by } => assert_eq!(by, vec![name("place")]),
+        MassBasis::Forced { by } => {
+            assert_eq!(
+                by.iter().map(|v| v.name().cloned()).collect::<Vec<_>>(),
+                vec![Some(name("place"))]
+            );
+        }
         other => panic!("a band parameter forces the basis: {other:?}"),
     }
     // And the RENDERING says so in words, which is what a consumer

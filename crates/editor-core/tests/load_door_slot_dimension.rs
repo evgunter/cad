@@ -186,9 +186,12 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
     let (doc, _, extrude) = doc();
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: editor_core::FreeVar::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+                Dimension::Length,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -240,13 +243,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery is aimed at the declaration the slot reads"
-        );
+        crate::wire::wire_undeclare(wire, name.as_str());
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
@@ -262,51 +259,36 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
 
 /// **A slot expression reading a parameter at another dimension than
 /// it is declared with — both doors.** The edit door re-asks the rule
-/// of every slot when a declaration lands, so the redeclaration is
-/// what it refuses; the load door reads the same broken pairing off a
-/// file whose declaration was retyped after the fact.
+/// The edit door cannot write the pairing at all: a variable's kind is
+/// fixed, so the retyping is what it refuses; the load door reads the
+/// broken pairing off a file whose declaration was retyped after the
+/// fact.
 #[test]
 fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: name.clone(),
-            value: editor_core::FreeVar::continuous(Dimension::Angle, 1.0),
+        &DocEdit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(Dimension::Angle, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotDocParamDimension {
-            name: n,
-            node,
-            slot,
-            declared,
-            referenced,
-        }) => {
+        Err(EditError::VarKindFixed { var, kind, offered }) => {
+            assert_eq!(var.name(), Some(&name));
             assert_eq!(
-                (n, node.id(), slot),
-                (name.clone(), extrude, SlotId::Distance)
-            );
-            assert_eq!(
-                (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (kind, offered),
+                (editor_core::VarKind::Length, editor_core::VarKind::Angle)
             );
         }
-        other => panic!("the edit door must refuse the redeclaration, got {other:?}"),
+        other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
-        assert_eq!(
-            decl["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the declared dimension"
-        );
-        decl["dim"] = serde_json::json!("Angle");
-        decl["display_unit"] = serde_json::json!("rad");
+        crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotDocParamDimension {

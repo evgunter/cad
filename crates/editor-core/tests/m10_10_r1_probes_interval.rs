@@ -76,14 +76,14 @@ fn plen(n: &'static str) -> Expr {
 pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -314,13 +314,12 @@ fn r1_the_segment_bosss_per_predicate_split_at_the_nominal() {
 fn halve(b: &ParamBox) -> Option<(ParamBox, ParamBox)> {
     let (name, lo, hi) = b
         .varying()
-        .max_by(|a, c| (a.2 - a.1).partial_cmp(&(c.2 - c.1)).unwrap())
-        .map(|(n, lo, hi)| (n.clone(), lo, hi))?;
+        .max_by(|a, c| (a.2 - a.1).partial_cmp(&(c.2 - c.1)).unwrap())?;
     let mid = 0.5 * (lo + hi);
     let mut left = b.axes().clone();
     let mut right = b.axes().clone();
     left.insert(
-        name.clone(),
+        name,
         editor_core::analysis::BoxAxis::Varying { lo, hi: mid },
     );
     right.insert(

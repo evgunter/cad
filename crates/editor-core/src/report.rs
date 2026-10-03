@@ -35,8 +35,8 @@ use std::collections::BTreeMap;
 
 use crate::analysis::{AnalyzedBox, MeasureUnavailable};
 use crate::distribution::Distribution;
-use crate::doc::VarName;
 use crate::eval::{ContentKey, KeyHasher, key_of};
+use crate::spoken::SpokenVar;
 
 /// **Priced or forced** — the honesty type the unresolved-mass budget
 /// was missing (the M10-1 adjudication's R2 MINOR-1, this unit's named
@@ -65,8 +65,8 @@ pub enum MassBasis {
     /// report that called them "priced" would be claiming a shape
     /// nobody stated.
     Forced {
-        /// Every band-carrying parameter, in name order.
-        by: Vec<VarName>,
+        /// Every band-carrying variable, in id order.
+        by: Vec<SpokenVar>,
     },
 }
 
@@ -79,10 +79,10 @@ impl MassBasis {
     /// measure with σ = 0, and a document of nothing but fixed
     /// parameters is priced (trivially, and truthfully).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
-        let by: Vec<VarName> = analyzed
+        let by: Vec<SpokenVar> = analyzed
             .varying()
             .filter(|(_, p)| matches!(p.distribution, Some(Distribution::Band { .. })))
-            .map(|(name, _)| name.clone())
+            .map(|(id, _)| analyzed.spoken(id))
             .collect();
         if by.is_empty() {
             Self::Priced
@@ -113,7 +113,7 @@ impl core::fmt::Display for MassBasis {
                  masses are what set theory forces on any measure consistent with those \
                  limits, and none of them is a probability",
                 by.iter()
-                    .map(|p| p.as_str().to_owned())
+                    .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", "),
                 if by.len() == 1 { "ies" } else { "y" }
@@ -170,7 +170,7 @@ impl MassBudget {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "band {}", p.as_str());
+                let _ = writeln!(s, "band {}", p.id().full());
             }
         }
         let _ = writeln!(s, "certified {}", mass_bits(&self.certified));
@@ -511,8 +511,8 @@ pub fn report_key(
     h.write_str(kind);
     h.write_u64((slice >> 64) as u64);
     h.write_u64(slice as u64);
-    for (name, axis) in box_.axes() {
-        h.write_str(name.as_str());
+    for (var, axis) in box_.axes() {
+        h.write_u64(var.0);
         let (lo, hi) = axis.span();
         h.write_f64_bits(lo);
         h.write_f64_bits(hi);
@@ -577,7 +577,7 @@ pub(crate) fn mass_bits(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("band:{}", param.as_str())
+            format!("band:{}", param.id().full())
         }
     }
 }

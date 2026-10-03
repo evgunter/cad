@@ -168,7 +168,7 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), 1, "a fresh history: root only");
 
     // ── 2. The user declares the proportions FIRST — four parameters,
-    // each one committed `SetDocParam` edit and one undo step.
+    // each one committed `DeclareVar` edit and one undo step.
     let base_r = VarName::from_static("base_r");
     let taper = VarName::from_static("taper");
     let height = VarName::from_static("height");
@@ -187,7 +187,7 @@ fn the_parametric_living_walk() {
         assert!(outcome.refusal.is_none(), "{name:?}: {:?}", outcome.refusal);
         assert_eq!(outcome.committed.len(), 1);
         assert!(
-            matches!(outcome.committed.first(), Some(DocEdit::SetDocParam { .. })),
+            matches!(outcome.committed.first(), Some(DocEdit::DeclareVar { .. })),
             "the create door authors a declaration"
         );
         assert_eq!(session.history().len(), before + 1, "one undo step");
@@ -203,8 +203,8 @@ fn the_parametric_living_walk() {
     // already stands there — a layer-3 narrowing of an edit that is
     // create-or-replace, so no door below refuses it. A value write to
     // an undeclared name — here a typo — is refused by the EDIT door
-    // instead: `DocEdit::SetDocParamValue` carries an existing
-    // declaration forward and says so, `EditError::DocParamNotDeclared`
+    // instead: `DocEdit::SetVarValue` carries an existing
+    // declaration forward and says so, `EditError::UnknownVar`
     // naming the parameter and the one recourse both doors render
     // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
     // Neither commits or mints history.
@@ -235,8 +235,10 @@ fn the_parametric_living_walk() {
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
             // The door rides along now; this row is about the NAME.
-            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.as_str(), "tapper"),
-            ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
+            EditError::UnknownVar { ref var, .. } => {
+                assert_eq!(*var, VarName::from_static("tapper").into());
+            }
+            ref other => panic!("expected UnknownVar, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),
     }
@@ -511,7 +513,7 @@ fn the_parametric_living_walk() {
     assert_eq!(outcome.committed.len(), 1);
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert!(
         session.bounds().is_none(),
@@ -629,7 +631,7 @@ fn the_parametric_living_walk() {
     // spot, and the same gesture machinery through its own door. Mid-
     // drag the preview drives the EVALUATION (the picture follows the
     // scratch document), the document is locked against other edits,
-    // and the release commits one `SetDocParamValue`.
+    // and the release commits one `SetVarValue`.
     let before = session.history().len();
     assert!(
         session
@@ -681,7 +683,7 @@ fn the_parametric_living_walk() {
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     assert_eq!(

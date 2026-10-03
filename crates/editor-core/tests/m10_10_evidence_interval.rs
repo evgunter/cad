@@ -632,7 +632,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                     .box_
                     .axes()
                     .iter()
-                    .map(|(n, a)| format!("{}={:?}", n.as_str(), a.span()))
+                    .map(|(n, a)| format!("{}={:?}", doc.spoken_var(*n), a.span()))
                     .collect();
                 println!("      leaf {spans:?}");
             }

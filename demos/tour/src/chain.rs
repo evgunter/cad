@@ -319,9 +319,13 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name,
-            value: FreeVar::continuous_with(Dimension::Angle, value, distribution),
+            def: pncad::document::VarDef::Free(FreeVar::continuous_with(
+                Dimension::Angle,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,

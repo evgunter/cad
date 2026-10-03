@@ -15,6 +15,7 @@ use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
+use crate::var::{Var, VarId};
 use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
@@ -148,7 +149,7 @@ pub enum FreeVar {
         ///
         /// It rides with the DECLARATION, beside `dim` and
         /// `distribution`, and not with the value — which is exactly
-        /// why [`crate::DocEdit::SetDocParamValue`] leaves it alone
+        /// why [`crate::DocEdit::SetVarValue`] leaves it alone
         /// (see [`FreeValue`]): how a parameter is written is a
         /// fact about the parameter, not about the number being typed
         /// into it.
@@ -185,14 +186,15 @@ pub enum FreeVar {
 
 /// The VALUE half of a document parameter, with no declaration
 /// attached: what a value-only edit
-/// ([`crate::DocEdit::SetDocParamValue`]) writes.
+/// ([`crate::DocEdit::SetVarValue`]) writes.
 ///
 /// A parameter's declaration — its dimension, and its optional
 /// [`Distribution`] — belongs to the parameter, not to the number
 /// being typed into it. Carrying only the number is what lets the
 /// value door leave both alone; a caller that rebuilds a whole
-/// [`FreeVar`] from `(dim, value)` deletes the annotation, silently,
-/// because [`crate::DocEdit::SetDocParam`] is create-or-replace.
+/// [`FreeVar`] from `(dim, value)` for [`crate::DocEdit::DefineVar`]
+/// deletes the annotation, silently, because a definition is replaced
+/// whole.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FreeValue {
     /// A continuous parameter's nominal, in its ALREADY-DECLARED
@@ -372,8 +374,9 @@ impl FreeVar {
     /// annotation's offsets in [`Distribution::first_non_finite`]'s
     /// order.
     ///
-    /// One predicate with one home, asked by the create-or-replace
-    /// edit door ([`crate::DocEdit::SetDocParam`]) and by the
+    /// One predicate with one home, asked by every edit door that
+    /// writes a definition ([`crate::DocEdit::DeclareVar`] and its
+    /// siblings) and by the
     /// save/load validator's float walk, each naming the answer in
     /// its own vocabulary. It answers WHICH field rather than a bare
     /// yes: the walk has to identify one to decide there is a defect
@@ -405,8 +408,9 @@ impl FreeVar {
     /// with `Count` is the structural/continuous divide spelled two
     /// ways at once (spec D3).
     ///
-    /// The create-or-replace edit door ([`crate::DocEdit::SetDocParam`])
-    /// is the one that asks it, and the one where it can fire: the
+    /// The edit doors that write a definition
+    /// ([`crate::DocEdit::DeclareVar`], [`crate::DocEdit::DefineVar`])
+    /// are the ones that ask it, and where it can fire: the
     /// `pub` payload is what makes the state reachable at all. The
     /// save/load validator does not, because the same declaration
     /// refuses one walk earlier there — `UnitSym::measures` answers
@@ -659,7 +663,7 @@ impl FreeVar {
     /// offered distribution [`Distribution::check`] refuses, the SAME
     /// check the persistence doors run.
     ///
-    /// [`crate::DocEdit::SetDocParam`] reaches that same
+    /// [`crate::DocEdit::DeclareVar`] reaches that same
     /// [`Distribution::check`] without this door, so the shared write
     /// path runs it again rather than trusting this one; neither copy
     /// is the other's fallback, and a door that leaned on the tail
@@ -753,6 +757,17 @@ impl FreeVar {
             | (Self::Count { .. }, Self::Continuous { .. }) => false,
         }
     }
+
+    /// The display unit read as the dimension's canonical one (D6):
+    /// what the mint hashes, since a notation is never identity.
+    pub(crate) fn erase_display_unit(&mut self) {
+        match self {
+            Self::Continuous {
+                dim, display_unit, ..
+            } => *display_unit = crate::expr::UnitSym::canonical_for(*dim),
+            Self::Count { .. } => {}
+        }
+    }
 }
 
 /// The document: recipe DAG (node map + insertion-ordered list) +
@@ -805,9 +820,20 @@ pub struct Doc<P> {
     /// product's solid ORDER, which is therefore semantic. No
     /// duplicates; every entry is live.
     pub(crate) roots: Vec<RecipeNodeId>,
-    /// Document-level named parameters.
-    #[serde(with = "crate::persist::strict::params")]
-    pub(crate) params: BTreeMap<VarName, FreeVar>,
+    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id. Every
+    /// key is logged in the mint as [`crate::Minted::Var`].
+    #[serde(with = "crate::persist::strict::vars")]
+    pub(crate) vars: BTreeMap<VarId, Var>,
+    /// **The variables' names** (VR2), beside the variables as
+    /// `labels` is beside the nodes: in neither the id's mint nor any
+    /// content key. Unique within the document; every key names a
+    /// live variable. Absent from the wire while empty.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        with = "crate::persist::strict::var_names"
+    )]
+    pub(crate) var_names: BTreeMap<VarId, VarName>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -944,7 +970,8 @@ impl<P> Doc<P> {
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
-            params: BTreeMap::new(),
+            vars: BTreeMap::new(),
+            var_names: BTreeMap::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
@@ -1069,21 +1096,104 @@ impl<P> Doc<P> {
     pub(crate) fn param_ref_fault(&self, expr: &Expr) -> Option<ParamRefFault> {
         let mut refs = Vec::new();
         expr.param_refs(&mut refs);
-        refs.into_iter()
-            .find_map(|(name, referenced)| match self.params.get(&name) {
+        refs.into_iter().find_map(|(name, referenced)| {
+            match self
+                .var_named(name.as_str())
+                .and_then(|id| self.vars.get(&id))
+            {
                 None => Some(ParamRefFault::Unknown { name }),
-                Some(p) if p.dim() != referenced => Some(ParamRefFault::Dimension {
-                    declared: p.dim(),
-                    name,
-                    referenced,
-                }),
+                Some(var) if var.kind().dimension() != referenced => {
+                    Some(ParamRefFault::Dimension {
+                        declared: var.kind().dimension(),
+                        name,
+                        referenced,
+                    })
+                }
                 Some(_) => None,
-            })
+            }
+        })
     }
 
-    /// The document-level named parameters.
-    pub fn params(&self) -> &BTreeMap<VarName, FreeVar> {
-        &self.params
+    /// The variables, by id.
+    pub fn vars(&self) -> &BTreeMap<VarId, Var> {
+        &self.vars
+    }
+
+    /// The variable `id`, if live.
+    pub fn var(&self, id: VarId) -> Option<&Var> {
+        self.vars.get(&id)
+    }
+
+    /// The free variable `id`, if live and free.
+    pub fn free(&self, id: VarId) -> Option<&FreeVar> {
+        self.vars.get(&id).and_then(Var::free)
+    }
+
+    /// The name the document holds for `id`, if any.
+    pub fn var_name(&self, id: VarId) -> Option<&VarName> {
+        self.var_names.get(&id)
+    }
+
+    /// The names, by id.
+    pub fn var_names(&self) -> &BTreeMap<VarId, VarName> {
+        &self.var_names
+    }
+
+    /// The variable named `name`, if any. A linear scan: documents are
+    /// small, and a name is unique, so the first match is the only one.
+    pub fn var_named(&self, name: &str) -> Option<VarId> {
+        self.var_names
+            .iter()
+            .find_map(|(&id, held)| (held.as_str() == name).then_some(id))
+    }
+
+    /// The free variable named `name`, if any.
+    pub fn free_named(&self, name: &str) -> Option<&FreeVar> {
+        self.var_named(name).and_then(|id| self.free(id))
+    }
+
+    /// **The parser's scope**: every named variable, by name, at the
+    /// dimension a reader reads it at.
+    pub fn var_scope(&self) -> BTreeMap<VarName, Dimension> {
+        self.var_names
+            .iter()
+            .filter_map(|(id, name)| Some((name.clone(), self.vars.get(id)?.kind().dimension())))
+            .collect()
+    }
+
+    /// `id` as a sentence names it: its name, or `variable <tag>`.
+    pub fn spoken_var(&self, id: VarId) -> crate::spoken::SpokenVar {
+        crate::spoken::SpokenVar::new(id, self.var_names.get(&id).cloned())
+    }
+
+    /// **How a declare of `def` under `name` speaks its variable**:
+    /// under the id that declare would mint here, which is what a
+    /// refused declare's refusal carries. Read without declaring.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn spoken_declare(
+        &self,
+        name: &VarName,
+        def: &crate::var::VarDef,
+    ) -> crate::spoken::SpokenVar {
+        let id = match self.mint.clone().declare(def) {
+            Ok(id) => id,
+            Err(collides) => collides.id,
+        };
+        crate::spoken::SpokenVar::new(id, Some(name.clone()))
+    }
+
+    /// The live variable `var` addresses, if any.
+    pub fn resolve_var(&self, var: &crate::var::VarRef) -> Option<VarId> {
+        match var {
+            crate::var::VarRef::Id(id) => self.vars.contains_key(id).then_some(*id),
+            crate::var::VarRef::Name(name) => self.var_named(name.as_str()),
+        }
+    }
+
+    /// Whether this document minted `id` as a variable's.
+    #[must_use]
+    pub fn has_minted_var(&self, id: VarId) -> bool {
+        self.mint.has_var(id)
     }
 
     /// The recorded modeling tolerance ε (spec D2; edited by PR 6's
@@ -1226,20 +1336,20 @@ impl<P> Doc<P> {
     /// the evaluator is scalar-generic; units erase here, GQ5).
     pub fn param_env<T: Real>(&self) -> ParamEnv<T> {
         let bindings = self
-            .params
+            .var_names
             .iter()
-            .map(|(name, p)| {
+            .filter_map(|(id, name)| {
                 // The nominal alone crosses into evaluation: a
                 // distribution is document metadata the scalar channel
                 // never sees (E1).
-                let v = match *p {
+                let v = match *self.free(*id)? {
                     FreeVar::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
                         value: T::from_f64(value),
                     },
                     FreeVar::Count { value } => ParamValue::Count(value),
                 };
-                (name.clone(), v)
+                Some((name.clone(), v))
             })
             .collect();
         ParamEnv { bindings }
@@ -1276,12 +1386,13 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .get(id)
                     .is_some_and(|theirs| node.bit_eq(theirs))
             })
-            && self.params.len() == other.params.len()
-            && self.params.iter().all(|(name, p)| {
+            && self.var_names == other.var_names
+            && self.vars.len() == other.vars.len()
+            && self.vars.iter().all(|(id, var)| {
                 other
-                    .params
-                    .get(name)
-                    .is_some_and(|theirs| p.bit_eq(theirs))
+                    .vars
+                    .get(id)
+                    .is_some_and(|theirs| var.bit_eq(theirs))
             })
     }
 }

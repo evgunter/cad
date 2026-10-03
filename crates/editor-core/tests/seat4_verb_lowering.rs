@@ -318,12 +318,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
+///
+/// RE-BLESSED, `heat_sink` only, when declaring a variable began
+/// minting its id on the document's chain: every node minted after a
+/// declare was renumbered, and this digest feeds ids. The id-free body
+/// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
+/// untouched, and every row of a document that declares nothing held
+/// its word.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("crossing_slots", 0x681d_d105_677a_1f01u64),
-        ("heat_sink", 0xee9f_3000_1a12_d645),
+        ("heat_sink", 0x69af_685f_6c01_2fc2),
         ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
     ] {
         let doc = corpus::documents()

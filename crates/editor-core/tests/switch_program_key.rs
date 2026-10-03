@@ -164,35 +164,37 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+        let doc = with_frame(ProfileDoc::empty_derived(
+            "switch_program_key",
+            Tol::witness(),
+        ));
         let doc = doc
             .apply(
-                &DocEdit::SetDocParam {
+                &DocEdit::DeclareVar {
                     name: VarName::from_static("r"),
-                    value: FreeVar::continuous(Dimension::Length, value),
+                    def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
-        with_frame(doc)
-            .apply(
-                &DocEdit::InsertNode {
-                    node: Box::new(Node::Profile(ProfileProgram {
-                        plane: plane(),
-                        loops: vec![LoopProgram::Circle {
-                            centre: [len(0.0), len(0.0)],
-                            radius: Expr::param(VarName::from_static("r"), Dimension::Length),
-                        }],
-                        ids: Vec::new(),
-                    })),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .unwrap()
-            .doc
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Box::new(Node::Profile(ProfileProgram {
+                    plane: plane(),
+                    loops: vec![LoopProgram::Circle {
+                        centre: [len(0.0), len(0.0)],
+                        radius: Expr::param(VarName::from_static("r"), Dimension::Length),
+                    }],
+                    ids: Vec::new(),
+                })),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc
     };
     let k_half = key_of(&with_param(0.5));
     let k_quarter = key_of(&with_param(0.25));
@@ -216,19 +218,22 @@ fn resolved_values_feed_the_key() {
 /// what happened.
 #[test]
 fn a_carrier_centre_respelled_keys_identically() {
-    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    let doc = with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    ));
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("cx"),
-                value: FreeVar::continuous(Dimension::Length, 1.0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
-    let parameterized = with_frame(doc)
+    let parameterized = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
@@ -280,31 +285,33 @@ fn one_arc_chain(radius: Expr) -> LoopProgram {
 /// A document declaring `r` at `value`, carrying one profile built from
 /// `loops` — the same two nodes every row here uses.
 fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
-        .apply(
-            &DocEdit::SetDocParam {
-                name: VarName::from_static("r"),
-                value: FreeVar::continuous(Dimension::Length, value),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap()
-        .doc;
-    with_frame(doc)
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
-                    loops,
-                    ids: Vec::new(),
-                })),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap()
-        .doc
+    let doc = with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    ))
+    .apply(
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc;
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                plane: plane(),
+                loops,
+                ids: Vec::new(),
+            })),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc
 }
 
 /// **A CHAIN's arc radius is flow-bearing exactly as a carrier loop's

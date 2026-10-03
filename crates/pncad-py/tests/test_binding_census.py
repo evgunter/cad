@@ -1517,6 +1517,20 @@ FAMILIES: dict[str, str] = {
         "row asking a box edge for `Line` and a face name for the "
         "refusal."
     ),
+    # THE FOURTH ARRIVED WITH THE VARIABLE TABLE (INTENT-VARS-1 PR 2):
+    # a document's variables are keyed by a minted id with the name a
+    # label beside it, and the Rust surface names that id, its kind and
+    # its definition. Python still addresses a variable by its name,
+    # which the table keeps unique, so every door answers; what Python
+    # cannot hold is the IDENTITY a rename will keep, and that is the
+    # unit's PR 3 (readers read ids, the `Var` handle of spec row 13).
+    "B-VAR-ID": (
+        "a variable's minted identity in Python — `VarId`, its `VarKind`, "
+        "its `VarDef`, the `Var` entry and the `VarRef` a door takes. "
+        "Closing it needs a `Var` handle a rename keeps (INTENT-VARS-1 "
+        "spec §4 row 13), the read doors that answer one, and the edit "
+        "constructors taking either a handle or a name."
+    ),
     "B-MC-DRAWS": (
         "the MC lane's per-sample draws — `mc::sample_offsets`, which "
         "hands out one member of the population `monte_carlo` "
@@ -2282,6 +2296,15 @@ NOT_BOUND = {
     "spoken_by": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
+    # A variable as a refusal speaks it: its name, or its tag where it
+    # has none. Python reads a refusal's variable as the name its
+    # message and payload carry.
+    "SpokenVar": SHAPE,
+    "Var": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "VarId": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "VarKind": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
     # direction door refused and which of its four facts it reported.
@@ -2296,12 +2319,12 @@ NOT_BOUND = {
     # the message; the snapshot refusal's payload is the snapshot door's
     # surface, as the `SnapshotError` row above says.
     "ListFault": SHAPE,
-    # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
+    # `EditError::UnknownVar`'s second field: WHICH of the two
     # carry-forward doors was refused. It is `DirectionRefusal`'s row
     # one carrier over, and flattened for a reason of its own: a Python
-    # caller holds the edit it just submitted, so `set_doc_param_value`
-    # versus `set_doc_param_unit` is answered by the call site together
-    # with the `doc_param_not_declared` tag. The field exists so the
+    # caller holds the edit it just submitted, so `set_var_value`
+    # versus `set_var_unit` is answered by the call site together
+    # with the `unknown_var` tag. The field exists so the
     # RUST sentence can name the door rather than say "a carry-forward
     # edit" and leave a reader to work out which.
     "CarryForwardDoor": SHAPE,
@@ -3527,7 +3550,10 @@ MEMBERS_BOUND_AS = {
     "EditError::SlotUnknownDocParam": "EditError.variant",
     "EditError::SlotDocParamDimension": "EditError.variant",
     "EditError::ContinuousParamCannotBeCount": "EditError.variant",
-    "EditError::DocParamNotDeclared": "EditError.variant",
+    "EditError::UnknownVar": "EditError.variant",
+    "EditError::VarNameTaken": "EditError.variant",
+    "EditError::VarIdCollides": "EditError.variant",
+    "EditError::VarKindFixed": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
     "EditError::DocParamCountHasNoUnit": "EditError.variant",
     "EditError::DocParamCountHasNoDistribution": "EditError.variant",

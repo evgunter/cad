@@ -863,12 +863,12 @@ impl core::fmt::Display for SplitError {
                     format!(
                         "promote {cut_node} (Promote), so its offset stays in this document; or \
                          put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 } else {
                     format!(
                         "put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 })
             ),
@@ -1247,7 +1247,7 @@ impl core::fmt::Display for InlineError {
                 "inline: parameter {param} is declared by both documents with different \
                  values. {}",
                 Recourse(&format!(
-                    "set this document's {param} to the referenced document's (SetDocParam), \
+                    "define this document's {param} as the referenced document's (DefineVar), \
                      then inline"
                 ))
             ),
@@ -1527,7 +1527,10 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::AssertionTarget { .. }
             | EditError::AssertionDimension { .. }
             | EditError::ContinuousParamCannotBeCount { .. }
-            | EditError::DocParamNotDeclared { .. }
+            | EditError::UnknownVar { .. }
+            | EditError::VarNameTaken { .. }
+            | EditError::VarIdCollides { .. }
+            | EditError::VarKindFixed { .. }
             | EditError::DocParamCountHasNoUnit { .. }
             | EditError::DocParamCountHasNoDistribution { .. }
             | EditError::DocParamUnitMismatch { .. }
@@ -2706,13 +2709,13 @@ pub fn split(
     }
     for param in cut_refs.keys() {
         // The reference was validated against this table, so the
-        // declaration exists; a miss would refuse at the insert below.
-        if let Some(value) = doc.params().get(param) {
+        // variable exists; a miss would refuse at the insert below.
+        if let Some(var) = doc.var_named(param.as_str()).and_then(|id| doc.var(id)) {
             part_apply(
                 &mut part,
-                DocEdit::SetDocParam {
+                DocEdit::DeclareVar {
                     name: param.clone(),
-                    value: value.clone(),
+                    def: var.def().clone(),
                 },
             )?;
         }
@@ -3331,9 +3334,10 @@ pub fn inline(
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
     // Parameters merge only when they already agree bit for bit; a
     // disagreeing shared name refuses (no silent pick).
-    for (name, value) in part.params() {
-        match doc.params().get(name) {
-            Some(existing) if existing.bit_eq(value) => {}
+    for (id, name) in part.var_names() {
+        let Some(var) = part.var(*id) else { continue };
+        match doc.var_named(name.as_str()).and_then(|held| doc.var(held)) {
+            Some(existing) if existing.bit_eq(var) => {}
             Some(_) => {
                 return Err(InlineError::ParamConflict {
                     param: name.clone(),
@@ -3341,9 +3345,9 @@ pub fn inline(
             }
             None => step(
                 &mut current,
-                DocEdit::SetDocParam {
+                DocEdit::DeclareVar {
                     name: name.clone(),
-                    value: value.clone(),
+                    def: var.def().clone(),
                 },
             )?,
         }

@@ -66,10 +66,10 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn box_of(axis: &'static str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name(axis),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -79,9 +79,9 @@ fn box_of(axis: &'static str) -> ParamBox {
 }
 
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(axis),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -89,7 +89,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
 }
 
@@ -325,7 +325,7 @@ fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
 fn the_combs_internal_gaps_answer_at_three_bounds() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated"), (1.5, "Violated")] {
         let report = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(65_536, 40)));
         assert!(
@@ -398,7 +398,7 @@ fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     );
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &sel,
         &sel,
         &at_least(0.7, cfg(65_536, 40)),
@@ -489,7 +489,7 @@ fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
     let (doc, a, b) = blocks_apart(0.0);
     let touching = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &Selection::body_of(a),
         &Selection::body_of(b),
         &strict(cfg(4_096, 24)),
@@ -512,7 +512,7 @@ fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
     let (doc, a, b) = blocks_apart(eps / 2.0);
     let pruned = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &Selection::body_of(a),
         &Selection::body_of(b),
         &strict(cfg(4_096, 24)),
@@ -564,7 +564,13 @@ fn an_interpenetration_is_reported_violated_not_refused() {
     let (doc, a, b) = blocks_apart(-1.5);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     for pairs in [4_096usize, 16_384, 65_536] {
-        let report = clearance_with(&doc, &box_of("place"), &sa, &sb, &strict(cfg(pairs, 40)));
+        let report = clearance_with(
+            &doc,
+            &box_of(&doc, "place"),
+            &sa,
+            &sb,
+            &strict(cfg(pairs, 40)),
+        );
         let r = report.receipt();
         assert!(r.holds(), "{r:?}");
         assert!(
@@ -617,7 +623,7 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
     let (doc, minted, _placed) = comb();
     let report = self_intersection(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &Selection::body_of(minted),
         Tol::witness(),
     );
@@ -655,7 +661,7 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
     let block = Selection::body_of(block_node);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &cap,
         &block,
         &at_least(0.3, cfg(65_536, 40)),
@@ -721,7 +727,7 @@ fn holds_over_the_window_is_holds_over_the_face() {
     let block = Selection::body_of(block_node);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &wall,
         &block,
         &at_least(0.2, cfg(65_536, 40)),
@@ -748,7 +754,7 @@ fn holds_over_the_window_is_holds_over_the_face() {
 fn every_configuration_lands_in_one_arm_with_a_holding_receipt() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let mut seen: BTreeMap<&'static str, usize> = BTreeMap::new();
     for c in [0.0, 0.05, 0.5, 0.75, 4.0] {
         for pairs in [0usize, 1, 7, 512] {
@@ -780,7 +786,7 @@ fn every_configuration_lands_in_one_arm_with_a_holding_receipt() {
 fn the_strict_question_is_total_over_budgets_too() {
     let (doc, a, b) = blocks_apart(0.0);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for pairs in [0usize, 1, 3, 64, 4_096] {
         for depth in [0u32, 2, 12] {
             let report = clearance_with(&doc, &leaf, &sa, &sb, &strict(cfg(pairs, depth)));
@@ -803,7 +809,7 @@ fn a_selection_with_no_pair_answers_holds_at_an_empty_receipt() {
     let one = named(minted, vec![wall_name(&doc, minted, 0)]);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &one,
         &one,
         &at_least(1.0, cfg(65_536, 40)),
@@ -823,7 +829,7 @@ fn a_bound_that_is_not_a_number_still_lands_in_the_trichotomy() {
     for c in [f64::NAN, f64::INFINITY, -1.0] {
         let report = clearance_with(
             &doc,
-            &box_of("place"),
+            &box_of(&doc, "place"),
             &sel,
             &sel,
             &at_least(c, cfg(256, 8)),
@@ -847,7 +853,7 @@ fn a_bound_that_is_not_a_number_still_lands_in_the_trichotomy() {
 struct AlwaysDecreasing;
 
 impl MonotoneOracle for AlwaysDecreasing {
-    fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
+    fn monotone_in(&self, _param: editor_core::VarId) -> Option<Sign> {
         Some(Sign::Negative)
     }
 }
@@ -863,13 +869,13 @@ impl MonotoneOracle for AlwaysDecreasing {
 fn the_accelerator_changes_no_verdict_on_the_comb() {
     struct Constant;
     impl MonotoneOracle for Constant {
-        fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
+        fn monotone_in(&self, _param: editor_core::VarId) -> Option<Sign> {
             Some(Sign::Zero)
         }
     }
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for c in [0.3, 0.7, 1.5] {
         let off = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
         let on = clearance_with(
@@ -904,7 +910,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
 fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for c in [0.3, 0.7] {
         let off = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
         let forfeited = clearance_with(
@@ -941,7 +947,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
 fn a_lying_oracle_is_indistinguishable_at_the_seam() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let truthful = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
     let lying = clearance_with(
         &doc,
@@ -1097,7 +1103,7 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
         minted,
         vec![wall_name(&doc, minted, 9), wall_name(&doc, minted, 7)],
     );
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let a = clearance_with(
         &doc,
         &leaf,
@@ -1145,7 +1151,7 @@ fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
     let sel = Selection::body_of(minted);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &sel,
         &sel,
         &at_least(0.3, cfg(65_536, 40)),
@@ -1163,7 +1169,7 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     let sel = Selection::body_of(minted);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &sel,
         &sel,
         &at_least(1.5, cfg(1, 40)),
@@ -1190,7 +1196,7 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
     let sel = Selection::body_of(minted);
     let report = clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &sel,
         &sel,
         &at_least(1.5, cfg(4_096, 40)),
@@ -1236,7 +1242,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
         minted,
         vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
     );
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {
         let report = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(65_536, 40)));

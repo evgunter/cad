@@ -63,9 +63,9 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-slab", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: width_param(),
-            value: FreeVar::continuous(Dimension::Length, 0.005),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.005)),
         },
         tol,
     );

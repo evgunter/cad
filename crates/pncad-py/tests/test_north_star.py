@@ -269,7 +269,7 @@ class TestHeatsinkFins(unittest.TestCase):
 
     ONE `PlacedUnion(Linear)` node carries the whole fin family, its
     count bound to the document parameter `fins`, and 5 -> 7 -> 9 is
-    ONE `set_doc_param` edit each. That is what G8 said could not be
+    ONE `define_var` edit each. That is what G8 said could not be
     said: no pattern node, no structural-param edit.
 
     The BASE deliberately stays out. Fusing the group into it is the
@@ -288,7 +288,7 @@ class TestHeatsinkFins(unittest.TestCase):
 
     def build(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(5)))
+        doc.apply(DocEdit.declare_var(ParamName("fins"), DocParam.count(5)))
         profile = doc.insert(
             Node.polygon(
                 [
@@ -317,7 +317,7 @@ class TestHeatsinkFins(unittest.TestCase):
         doc, fins = self.build()
         for count in (5, 7, 9):
             with self.subTest(fins=count):
-                doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(count)))
+                doc.apply(DocEdit.define_var(ParamName("fins"), DocParam.count(count)))
                 ev = evaluate(doc)
                 self.assertTrue(ev.succeeded(fins))
                 body = ev.value(fins).body()
@@ -340,7 +340,7 @@ class TestPlateParam(unittest.TestCase):
 
     The corpus' parametric flagship `plate_param` — a plate whose two
     hole radii are ONE `DocParam` — driven from Python: the
-    `set_doc_param` edit is authored here with the bound
+    `define_var` edit is authored here with the bound
     `ParamName`/`DocParam` vocabulary, and the result is checked
     against the same analytic oracle the Rust acceptance rows assert
     (`crates/editor-core/tests/switch_plate_param.rs`).
@@ -386,7 +386,7 @@ class TestPlateParam(unittest.TestCase):
             with self.subTest(hole_r=r):
                 doc, solid = self.plate()
                 doc.apply(
-                    DocEdit.set_doc_param(
+                    DocEdit.define_var(
                         ParamName("hole_r"), DocParam.length(r * m)
                     )
                 )
@@ -395,10 +395,10 @@ class TestPlateParam(unittest.TestCase):
                 )
 
     def test_the_value_door_moves_the_holes_and_keeps_the_declaration(self):
-        """`set_doc_param_value` is the SAFE spelling of a value change.
+        """`set_var_value` is the SAFE spelling of a value change.
 
-        `set_doc_param` is create-or-replace: passing it a `DocParam`
-        rebuilt from a dimension and a number replaces the declaration,
+        `define_var` replaces the whole definition: passing it a
+        `DocParam` rebuilt from a dimension and a number replaces it,
         and any distribution the parameter carried (ERROR-DESIGN E1/E2)
         is deleted with no refusal. The value door carries the
         declaration forward instead — it names no declaration, so it
@@ -411,7 +411,7 @@ class TestPlateParam(unittest.TestCase):
             with self.subTest(hole_r=r):
                 doc, solid = self.plate()
                 doc.apply(
-                    DocEdit.set_doc_param_value(
+                    DocEdit.set_var_value(
                         ParamName("hole_r"), DocParamValue.length(r * m)
                     )
                 )
@@ -427,14 +427,14 @@ class TestPlateParam(unittest.TestCase):
         doc, _solid = self.plate()
         with self.assertRaises(pncad.EditError) as ctx:
             doc.apply(
-                DocEdit.set_doc_param_value(
+                DocEdit.set_var_value(
                     ParamName("never_declared"), DocParamValue.length(1 * m)
                 )
             )
-        self.assertEqual(ctx.exception.variant, "doc_param_not_declared")
+        self.assertEqual(ctx.exception.variant, "unknown_var")
         with self.assertRaises(pncad.EditError) as ctx:
             doc.apply(
-                DocEdit.set_doc_param_value(
+                DocEdit.set_var_value(
                     ParamName("hole_r"), DocParamValue.count(3)
                 )
             )
@@ -443,12 +443,12 @@ class TestPlateParam(unittest.TestCase):
         )
 
     def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):
-        """The acceptance suite's deliberate asymmetry: `set_doc_param`
+        """The acceptance suite's deliberate asymmetry: `define_var`
         itself applies cleanly even for a refusing value — the refusal
         belongs to REPLAY, which names the profile node."""
         doc, solid = self.plate()
         doc.apply(
-            DocEdit.set_doc_param(ParamName("hole_r"), DocParam.length(0 * m))
+            DocEdit.define_var(ParamName("hole_r"), DocParam.length(0 * m))
         )
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(solid))
@@ -1014,10 +1014,10 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
         self.assertTrue(ev.succeeded(node), "the loft evaluated")
         return ev.value(node).body().mass_properties()
 
-    def test_one_set_doc_param_moves_the_skin(self):
+    def test_one_define_var_moves_the_skin(self):
         doc = Doc()
         prism = prism_loft(doc, [0.0, 1.0, 2.0])
-        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("skin"), DocParam.count(2)))
         doc.apply(DocEdit.bind_v_degree_param(prism, ParamName("skin")))
 
         bound = self.volume(doc, prism)
@@ -1027,7 +1027,7 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
 
         # The whole point: ONE edit, and the solid is a different
         # solid. A literal degree would have been a re-authoring.
-        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(1)))
+        doc.apply(DocEdit.define_var(ParamName("skin"), DocParam.count(1)))
         ruled = self.volume(doc, prism)
         self.assertLessEqual(
             abs(ruled.volume - self.DEGREE_1), ruled.volume_pad + 1e-9
@@ -1040,9 +1040,9 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
         evaluation, bound exactly as it does literal."""
         doc = Doc()
         prism = prism_loft(doc, [0.0, 1.0, 2.0])
-        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("skin"), DocParam.count(2)))
         doc.apply(DocEdit.bind_v_degree_param(prism, ParamName("skin")))
-        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(3)))
+        doc.apply(DocEdit.define_var(ParamName("skin"), DocParam.count(3)))
         self.assertFalse(evaluate(doc).succeeded(prism))
 
     def test_the_door_names_its_own_slot(self):
@@ -1051,7 +1051,7 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
         went looking for."""
         doc = Doc()
         prism = prism_loft(doc, [0.0, 1.0, 2.0])
-        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("skin"), DocParam.count(2)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(prism, ParamName("skin")))
         self.assertEqual(caught.exception.variant, "unknown_slot")
@@ -4377,14 +4377,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "bind_instance_param",
-                "bind_v_degree_param", "delete_node", "fold",
+                "bind_v_degree_param", "declare_var", "define_var",
+                "delete_node", "fold",
                 "insert_node", "promote", "rebind", "set_declare",
-                "set_doc_param",
-                "set_doc_param_distribution", "set_doc_param_unit",
-                "set_doc_param_value", "set_extrude_side",
+                "set_extrude_side",
                 "set_gauge", "set_label", "set_members", "set_offset",
                 "set_param", "set_program", "set_roots",
-                "set_tolerance", "update_reference",
+                "set_tolerance", "set_var_distribution", "set_var_unit",
+                "set_var_value", "update_reference",
             ],
         )
 
@@ -4531,7 +4531,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # Executed at the verb the row names, and at the parameter
         # door beside it, because those are the two the row's sentence
         # is about. Both refuse at the boundary: an `Expr` is not a
-        # `Length`, and `set_doc_param` writes a NUMBER, so a
+        # `Length`, and `declare_var` writes a NUMBER, so a
         # parameter defined in terms of another is unsayable too.
         radius = Doc().parse_expr("3 mm")
         self.assertEqual(radius.dimension, "length")

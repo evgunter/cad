@@ -129,14 +129,14 @@ fn measure_value<T: geom_core::Decide>(
 }
 
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(n),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: dist,
-        },
+        }),
     });
 }
 
@@ -955,7 +955,12 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
-        MassBasis::Forced { by } => assert_eq!(by, vec![name("lift")]),
+        MassBasis::Forced { by } => {
+            assert_eq!(
+                by.iter().map(|v| v.name().cloned()).collect::<Vec<_>>(),
+                vec![Some(name("lift"))]
+            );
+        }
         other => panic!("{other:?}"),
     }
     let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
@@ -966,7 +971,7 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     // a band axis prices nothing, typed.
     let mut sub = BTreeMap::new();
     sub.insert(
-        name("lift"),
+        r.doc.var_named("lift").expect("declared"),
         BoxAxis::Varying {
             lo: -half(),
             hi: 0.0,

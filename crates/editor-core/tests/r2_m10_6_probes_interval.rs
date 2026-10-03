@@ -75,6 +75,14 @@ use fixture::{Recorder, ang, len, scl};
 /// limitation of the tier, not a property of these fixtures: with the
 /// tier on the driver refuses this document up front rather than
 /// certifying leaves whose clearance measure was never computed.
+/// A variable as the free mass doors' refusals speak it.
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
 fn numeric_lane() -> DriveConfig {
     DriveConfig {
         symbolic: SymbolicDials::off(),
@@ -114,9 +122,12 @@ fn eval_over<T: editor_core::EvalScalar>(
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
-fn one_axis(n: &'static str, h: f64) -> ParamBox {
+fn one_axis(doc: &ProfileDoc, n: &'static str, h: f64) -> ParamBox {
     let mut axes = BTreeMap::new();
-    axes.insert(name(n), BoxAxis::Varying { lo: -h, hi: h });
+    axes.insert(
+        doc.var_named(n).expect("the fixture declares it"),
+        BoxAxis::Varying { lo: -h, hi: h },
+    );
     ParamBox::from_axes(axes)
 }
 
@@ -132,9 +143,9 @@ fn one_axis(n: &'static str, h: f64) -> ParamBox {
 /// interval scalar while the f64 witness decides it.
 fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -142,7 +153,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -589,7 +600,7 @@ fn report_key_tells_the_dials_that_move_a_report_apart() {
         b.serialize(),
         "two different dials produce two different reports"
     );
-    let box_ = one_axis("place", half());
+    let box_ = one_axis(&doc, "place", half());
     let drive_cfg = numeric_lane();
     let mc_a = McConfig {
         samples: 128,
@@ -668,7 +679,7 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     let uniform = Distribution::Uniform { lo: -2.0, hi: 6.0 };
     for i in 0..8u64 {
         let u = MyRng::for_sample(editor_core::mc::DEFAULT_SEED, i).unit();
-        let got = sample_offset(&name("p"), &uniform, u).expect("a uniform is sampleable");
+        let got = sample_offset(&sp("p"), &uniform, u).expect("a uniform is sampleable");
         let want = -2.0 + 8.0 * u;
         assert_eq!(
             got.to_bits(),
@@ -683,13 +694,13 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     let mut prev = f64::NEG_INFINITY;
     for k in 1..20 {
         let u = f64::from(k) / 20.0;
-        let z = sample_offset(&name("p"), &normal, u).expect("a normal is sampleable");
+        let z = sample_offset(&sp("p"), &normal, u).expect("a normal is sampleable");
         assert!(
             z > prev,
             "the quantile is monotone in u at u={u}: {z} <= {prev}"
         );
         prev = z;
-        let mirror = sample_offset(&name("p"), &normal, 1.0 - u).expect("sampleable");
+        let mirror = sample_offset(&sp("p"), &normal, 1.0 - u).expect("sampleable");
         assert!(
             (z + mirror).abs() < 1e-9,
             "Phi^-1 is odd about the median: u={u} gives {z} and 1-u gives {mirror}"

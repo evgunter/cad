@@ -52,10 +52,10 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn box_of(axis: &'static str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name(axis),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -65,14 +65,14 @@ fn box_of(axis: &'static str) -> ParamBox {
 }
 
 fn declare_with(r: &mut Recorder, axis: &'static str, nominal: f64, hw: f64) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(axis),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform { lo: -hw, hi: hw }),
-        },
+        }),
     });
 }
 
@@ -181,7 +181,7 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let (doc, a, b) = blocks(eps() / 2.0);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let strict = query(ClearanceBound::StrictlyPositive, ClearanceConfig::default());
-    let report = clearance_with(&doc, &box_of("gap"), &sa, &sb, &strict);
+    let report = clearance_with(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     assert_eq!(
@@ -200,7 +200,7 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let c = 0.4;
     let (doc, a, b) = blocks(c + 5.0 * eps());
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of("gap"), &sa, &sb, c, Tol::witness());
+    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, c, Tol::witness());
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     assert!(
@@ -233,7 +233,7 @@ fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of("gap"), &sa, &sb, &strict);
+    let report = clearance_with(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
     let r = report.receipt();
     println!("[r1] handed-over strict pair: {}", report.serialize());
     assert!(r.holds(), "{r:?}");
@@ -312,7 +312,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
         body: 0,
         faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Start))]),
     };
-    let leaf = box_of("lift");
+    let leaf = box_of(&doc, "lift");
     let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());
     assert_eq!(
         sound.verdict(),
@@ -442,7 +442,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         },
         oracle: &NoTangents,
     };
-    let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
+    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     println!(
         "[r1] bumped block self-intersection: {}",
         report.serialize()
@@ -522,7 +522,14 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
-    let report = clearance(&r.doc, &box_of("place"), &sq, &sb, 1.0, Tol::witness());
+    let report = clearance(
+        &r.doc,
+        &box_of(&r.doc, "place"),
+        &sq,
+        &sb,
+        1.0,
+        Tol::witness(),
+    );
     println!(
         "[r1] quarter annulus vs block at c = 1.0: {}",
         report.serialize()
@@ -598,7 +605,14 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let placed = r.insert(translated(block, [len(0.0), param("place"), len(0.0)]));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
-    let report = clearance(&r.doc, &box_of("place"), &sq, &sb, 1.0, Tol::witness());
+    let report = clearance(
+        &r.doc,
+        &box_of(&r.doc, "place"),
+        &sq,
+        &sb,
+        1.0,
+        Tol::witness(),
+    );
     println!(
         "[r1] z-axis quarter annulus vs block at c = 1.0 in {:?}: {}",
         started.elapsed(),
@@ -627,7 +641,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
 fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let leaf = box_of("gap");
+    let leaf = box_of(&doc, "gap");
     let cfg = |pairs: usize, depth: u32| ClearanceConfig {
         max_cell_pairs: pairs,
         max_cell_depth: depth,
@@ -765,7 +779,7 @@ fn a_nan_bound_is_not_refused_at_the_door() {
     let started = std::time::Instant::now();
     let report = clearance_with(
         &doc,
-        &box_of("gap"),
+        &box_of(&doc, "gap"),
         &sa,
         &sb,
         &query(
@@ -904,7 +918,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 fn e2e_channel_slider_over_an_epsilon_box() {
     let (doc, channel, slider) = channel_and_slider(half());
     let (sc, ss) = (Selection::body_of(channel), Selection::body_of(slider));
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
     println!(
         "[r1 e2e] whole-body c = 0.3: windows {:?}, {}",
@@ -1143,7 +1157,7 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
     let _placed = r.insert(translated(dumbbell, [param("place"), len(0.0), len(0.0)]));
     let report = self_intersection(
         &r.doc,
-        &box_of("place"),
+        &box_of(&r.doc, "place"),
         &Selection::body_of(dumbbell),
         Tol::witness(),
     );

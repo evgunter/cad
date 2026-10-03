@@ -36,6 +36,19 @@ use geom_core::Tol;
 
 use fixture::{Recorder, ang, len, scl};
 
+/// A variable as the free mass doors' refusals speak it.
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+}
+
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
@@ -54,14 +67,14 @@ fn half() -> f64 {
 /// vary.
 fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(law),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -563,9 +576,9 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
     let (doc, _, _) = plate(Distribution::Normal { sigma: half() });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let exact = editor_core::tail_mass(
-        &name("place"),
+        &sp("place"),
         &Distribution::Normal { sigma: half() },
-        &analyzed.get(&name("place")).expect("the axis").offsets,
+        &analyzed.get(v(&doc, "place")).expect("the axis").offsets,
     )
     .expect("a normal prices its tail");
     assert!(

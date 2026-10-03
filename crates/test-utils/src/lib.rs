@@ -41,6 +41,8 @@
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.
+//! - [`symbol_id`], a symbolic-tier parameter's id spelled as text, for
+//!   a test that names its parameters rather than minting them.
 //! - [`tightness`], its companion for a certified bound: the CEILING a
 //!   `bound >= truth` row cannot state, measured per site, plus the
 //!   check that the ceiling sits below the scale at which the
@@ -71,6 +73,18 @@ pub mod seam_census;
 pub mod source;
 pub mod tightness;
 pub mod vacuity;
+
+/// **A test's parameter id, from the text it names the parameter by**:
+/// the bytes of `name` folded by FNV-1a. A document mints its variables'
+/// ids; a test of the symbolic tier has no document, and naming its
+/// parameters `"x"` and `"y"` is what keeps the row readable. One name
+/// is one id, so two occurrences spelled alike are one symbol.
+#[must_use]
+pub fn symbol_id(name: &str) -> u64 {
+    name.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
 
 /// Declares the source paths a randomized or otherwise expensive suite is
 /// SPECIFIC TO, so a pull-request gate can skip it when none of them moved.

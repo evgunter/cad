@@ -51,9 +51,9 @@ fn round_trip(value: f64) -> ProfileDoc {
     };
     doc = push(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("p"),
-            value: FreeVar::continuous(Dimension::Length, value),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     // **The profile has no raw-float channel any more.** v4's was the
@@ -106,8 +106,7 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(FreeVar::Continuous { value: p, .. }) = doc.params().get(&VarName::from_static("p"))
-    else {
+    let Some(FreeVar::Continuous { value: p, .. }) = doc.free_named("p") else {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);

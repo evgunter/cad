@@ -716,10 +716,10 @@ pub use stl::{
 // `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `ParamEnv`, so both are needed to write a
 // position filter at all.
-// `VarName` and `FreeVar` ride here because they are what
-// `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
-// could previously hold the param-editing doors and not open them —
-// the parametric flagship (`plate_param`, guide §3.2) imports both.
+// `VarName`, `FreeVar` and `VarDef` ride here because they are what
+// `DocEdit::DeclareVar` and `Expr::param` take, so a prelude user
+// could otherwise hold the variable doors and not open them — the
+// parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other
 // argument of `LoopProgram::from_recorded_with_notation`: a prelude user
 // holding the lift door but not the notation can only lift a recording
@@ -734,7 +734,7 @@ pub use crate::document::{
     FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParseError,
     PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
-    VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
+    VarDef, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

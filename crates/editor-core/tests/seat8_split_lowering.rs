@@ -167,13 +167,20 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// union builds in the chord join rather than the REST zip (JOIN-1), and
 /// an op's copies of one vertex share its point, so the arena order the
 /// digest hashes moved (main) — and the merged tree is neither value.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink` only, when declaring a
+/// variable began minting its id on the document's chain: every node
+/// minted after a declare was renumbered, and this digest feeds ids.
+/// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x1676_4144_da9e_6975u64),
-        ("part_select", 0x5979_9ec4_a0a9_0c18),
-        ("kitchen_sink", 0x4451_36a7_db54_a9a7),
+        ("part_select", 0x6a66_4bd5_be35_7369),
+        ("kitchen_sink", 0xfe07_5ca8_68b9_cc6d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

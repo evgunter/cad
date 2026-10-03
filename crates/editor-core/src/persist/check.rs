@@ -20,7 +20,7 @@
 //! Two things no roster can carry stay in prose. **The ORDER** — which
 //! adjacencies are contracts and which are free — is on
 //! [`validate_document`]. **Why most walks read the SNAPSHOT only** is
-//! this, said once instead of at each: a `SetDocParam` in the log
+//! this, said once instead of at each: a `DeclareVar` in the log
 //! carries its payload through `apply` on replay, which is the same
 //! door and the same check, so a second walk over the log would ask a
 //! question `apply` has already answered. Every walk that says
@@ -44,7 +44,9 @@ use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
 use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
+use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
+use crate::var::{VarId, VarKind, VarRef};
 use geom_core::Tol;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
@@ -52,10 +54,12 @@ use geom_core::Tol;
 pub enum NonFiniteSite {
     /// The recorded ε.
     Epsilon,
-    /// A continuous document parameter (snapshot).
+    /// A continuous free variable: one the snapshot holds, by its name
+    /// where it has one, or one a logged edit addresses, as the edit
+    /// addresses it.
     DocParam {
-        /// The parameter.
-        name: VarName,
+        /// The variable.
+        var: VarRef,
         /// Which float of the parameter it is — the nominal, or the
         /// annotation's offset. The walk has to identify the field to
         /// decide there is a defect at all, so it says which one
@@ -93,16 +97,29 @@ impl core::fmt::Display for NonFiniteSite {
         match self {
             Self::Epsilon => f.write_str("the recorded ε"),
             Self::DocParam {
-                name,
+                var,
                 field: DocParamField::Nominal,
-            } => write!(f, "document parameter {name}"),
-            Self::DocParam { name, field } => {
-                write!(f, "document parameter {name}, {field}")
+            } => write!(f, "{}", SiteVar(var)),
+            Self::DocParam { var, field } => {
+                write!(f, "{}, {field}", SiteVar(var))
             }
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on the {name}, at {path}")
             }
             Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
+        }
+    }
+}
+
+/// A site's variable as prose: `variable w`, or the bare address's own
+/// `variable <tag>`.
+struct SiteVar<'a>(&'a VarRef);
+
+impl core::fmt::Display for SiteVar<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.0 {
+            VarRef::Name(name) => write!(f, "variable {name}"),
+            VarRef::Id(_) => write!(f, "{}", self.0),
         }
     }
 }
@@ -153,6 +170,11 @@ pub(crate) enum Walk {
     /// the load side re-runs it); a `FreeVar` does, because its
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
+    /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
+    /// VR1–VR3): every variable's stored kind is its definition's,
+    /// every id is logged in the mint as a variable's, every name sits
+    /// on a live variable, and no name is held twice. Snapshot only.
+    Vars,
     /// [`first_slot_fault`] over every node's slots: every node's SLOT
     /// expressions carry the dimension their addresses fix (spec D6),
     /// by the same `Node::slot_dimension_fault` the edit doors ask.
@@ -207,10 +229,11 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 8] = [
+    pub(crate) const ORDER: [Walk; 9] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
+        Walk::Vars,
         Walk::SlotDimension,
         Walk::SlotParamRef,
         Walk::PayloadParamRef,
@@ -238,16 +261,15 @@ impl Walk {
             Walk::NonFinite => first_non_finite(snapshot, edits)
                 .map(|site| super::PersistError::NonFinite { site }),
             Walk::Distribution => first_distribution_fault(snapshot)
-                .map(|(name, fault)| super::PersistError::Distribution { name, fault }),
-            Walk::DisplayUnit => {
-                first_display_unit_fault(snapshot).map(|(name, unit, declared)| {
-                    super::PersistError::DisplayUnit {
-                        name,
-                        unit,
-                        declared,
-                    }
-                })
-            }
+                .map(|(var, fault)| super::PersistError::Distribution { var, fault }),
+            Walk::DisplayUnit => first_display_unit_fault(snapshot).map(|(var, unit, declared)| {
+                super::PersistError::DisplayUnit {
+                    var,
+                    unit,
+                    declared,
+                }
+            }),
+            Walk::Vars => first_var_fault(snapshot).map(super::PersistError::Snapshot),
             Walk::SlotDimension => first_slot_fault(snapshot)
                 .map(|(node, fault)| slot_refusal(snapshot.spoken(node), fault)),
             Walk::SlotParamRef => {
@@ -414,7 +436,7 @@ fn param_ref_refusal(
 /// what was declared)`, or `None`.
 ///
 /// The SNAPSHOT only, for the reason `first_distribution_fault` walks
-/// it alone: a `SetDocParam` in the log carries its declaration through
+/// it alone: a `DeclareVar` in the log carries its definition through
 /// `apply` on replay, and a replayed document is a snapshot this same
 /// validator sees.
 ///
@@ -426,8 +448,8 @@ fn param_ref_refusal(
 /// covers.
 fn first_display_unit_fault(
     snapshot: &ProfileDoc,
-) -> Option<(VarName, crate::expr::Dimension, crate::expr::Dimension)> {
-    snapshot.params.iter().find_map(|(name, p)| match p {
+) -> Option<(SpokenVar, crate::expr::Dimension, crate::expr::Dimension)> {
+    free_vars(snapshot).find_map(|(id, p)| match p {
         FreeVar::Continuous {
             dim, display_unit, ..
         } => {
@@ -435,10 +457,58 @@ fn first_display_unit_fault(
             // constructor make (`UnitSym::measures`): what a unit
             // measures is one fact, stated once.
             let measured = display_unit.measures();
-            (measured != *dim).then(|| (name.clone(), measured, *dim))
+            (measured != *dim).then(|| (snapshot.spoken_var(id), measured, *dim))
         }
         FreeVar::Count { .. } => None,
     })
+}
+
+/// The snapshot's free variables, by id.
+fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
+    snapshot
+        .vars
+        .iter()
+        .filter_map(|(&id, var)| Some((id, var.free()?)))
+}
+
+/// The first fault of the variable table itself, in the order the
+/// variable is built: its kind against its definition, its id against
+/// the mint log, then the names — each on a live variable, none held
+/// twice. The names are walked by id, so the pair a twice-held name
+/// reports is the two lowest ids holding it.
+fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    for (&id, var) in &snapshot.vars {
+        if !var.kind_holds() {
+            return Some(SnapshotError::VarKind {
+                var: snapshot.spoken_var(id),
+                kind: var.kind(),
+                def: var.def().kind(),
+            });
+        }
+        if !snapshot.mint.has_var(id) {
+            return Some(SnapshotError::VarNotMinted {
+                var: snapshot.spoken_var(id),
+            });
+        }
+    }
+    let mut held: std::collections::BTreeMap<&VarName, VarId> = std::collections::BTreeMap::new();
+    for (&id, name) in &snapshot.var_names {
+        if !snapshot.vars.contains_key(&id) {
+            return Some(SnapshotError::NameOnMissingVar {
+                var: id,
+                name: name.clone(),
+            });
+        }
+        if let Some(&a) = held.get(name) {
+            return Some(SnapshotError::VarNameTwice {
+                name: name.clone(),
+                a,
+                b: id,
+            });
+        }
+        held.insert(name, id);
+    }
+    None
 }
 
 /// The first node whose slots break spec D6's rule, by the ONE
@@ -541,8 +611,11 @@ fn first_non_finite(
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
     }
-    for (name, p) in &snapshot.params {
-        if let Some(site) = param_site(name, p) {
+    for (id, p) in free_vars(snapshot) {
+        let var = snapshot
+            .var_name(id)
+            .map_or(VarRef::Id(id), |name| VarRef::Name(name.clone()));
+        if let Some(site) = param_site(var, p) {
             return Some(site);
         }
     }
@@ -578,9 +651,9 @@ fn first_non_finite(
 /// site vocabulary a document author reads. The distribution's offsets
 /// belong to this walk rather than to a second spelling of the same
 /// defect — the shape invariants are `first_distribution_fault`'s.
-fn param_site(name: &VarName, p: &FreeVar) -> Option<NonFiniteSite> {
+fn param_site(var: VarRef, p: &FreeVar) -> Option<NonFiniteSite> {
     Some(NonFiniteSite::DocParam {
-        name: name.clone(),
+        var,
         field: p.first_non_finite()?,
     })
 }
@@ -594,14 +667,11 @@ fn param_site(name: &VarName, p: &FreeVar) -> Option<NonFiniteSite> {
 ///
 /// Runs after the float walk, so a non-finite offset is reported as a
 /// non-finite float rather than as a shape fault.
-fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(VarName, DistributionFault)> {
-    snapshot
-        .params
-        .iter()
-        .find_map(|(name, p)| match p.distribution()?.check() {
-            Ok(()) => None,
-            Err(fault) => Some((name.clone(), fault)),
-        })
+fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(SpokenVar, DistributionFault)> {
+    free_vars(snapshot).find_map(|(id, p)| match p.distribution()?.check() {
+        Ok(()) => None,
+        Err(fault) => Some((snapshot.spoken_var(id), fault)),
+    })
 }
 
 fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
@@ -616,7 +686,14 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
 /// starts from.
 fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
     match edit {
-        DocEdit::SetDocParam { name, value } => param_site(name, value),
+        DocEdit::DeclareVar {
+            name,
+            def: crate::var::VarDef::Free(value),
+        } => param_site(VarRef::Name(name.clone()), value),
+        DocEdit::DefineVar {
+            var,
+            def: crate::var::VarDef::Free(value),
+        } => param_site(var.clone(), value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its
         // continuous arm IS a raw float the format writes.
@@ -627,22 +704,22 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // predicate to read. What it shares with the walk over the
         // table is the SITE vocabulary, which is what a reader
         // comparing the two refusals sees.
-        DocEdit::SetDocParamValue {
-            name,
+        DocEdit::SetVarValue {
+            var,
             value: crate::doc::FreeValue::Continuous(v),
         } if !v.is_finite() => Some(NonFiniteSite::DocParam {
-            name: name.clone(),
+            var: var.clone(),
             field: DocParamField::Nominal,
         }),
         // The annotation door's whole payload is a distribution, so
         // its offsets are floats the format writes and they belong to
-        // THIS walk — the same site vocabulary `SetDocParam`'s
-        // declaration goes through, offending field and all.
-        DocEdit::SetDocParamDistribution {
-            name,
+        // THIS walk — the same site vocabulary a definition goes
+        // through, offending field and all.
+        DocEdit::SetVarDistribution {
+            var,
             distribution: Some(d),
         } => Some(NonFiniteSite::DocParam {
-            name: name.clone(),
+            var: var.clone(),
             field: DocParamField::Offset(d.first_non_finite()?),
         }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
@@ -675,12 +752,12 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
-        DocEdit::SetDocParamValue { .. }
+        DocEdit::SetVarValue { .. }
         // A notation is a table code, not a float.
-        | DocEdit::SetDocParamUnit { .. }
+        | DocEdit::SetVarUnit { .. }
         // The partial arm above, completed: a CLEARED annotation
         // carries no float at all.
-        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::SetVarDistribution { .. }
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
@@ -825,6 +902,39 @@ pub enum SnapshotError {
     LabelOnMissingNode {
         /// The offending node id.
         node: SpokenNode,
+    },
+    /// A variable whose stored kind is not its definition's — the
+    /// pairing `Var::new` makes and no door can break.
+    VarKind {
+        /// The variable.
+        var: SpokenVar,
+        /// The kind stored beside the definition.
+        kind: VarKind,
+        /// The kind the definition holds.
+        def: VarKind,
+    },
+    /// A variable id the mint log does not hold as a variable's — one
+    /// the document never minted (VR1).
+    VarNotMinted {
+        /// The variable.
+        var: SpokenVar,
+    },
+    /// A name attached to a variable id that names nothing live.
+    NameOnMissingVar {
+        /// The id the name is attached to.
+        var: VarId,
+        /// The name.
+        name: VarName,
+    },
+    /// One name held by two variables (VR2: a name is unique within a
+    /// document).
+    VarNameTwice {
+        /// The name.
+        name: VarName,
+        /// The lower id holding it.
+        a: VarId,
+        /// The higher id holding it.
+        b: VarId,
     },
     /// The recorded ε is not finite and strictly positive.
     EpsilonInvalid {
@@ -1156,6 +1266,24 @@ impl core::fmt::Display for SnapshotError {
             Self::LabelOnMissingNode { node } => {
                 write!(f, "a label is attached to {node}, which is not live")
             }
+            Self::VarKind { var, kind, def } => write!(
+                f,
+                "{var} is stored as kind {kind} and its definition is of kind {def}"
+            ),
+            Self::VarNotMinted { var } => write!(
+                f,
+                "{var} is not in the document's mint log — the document never \
+                 minted it"
+            ),
+            Self::NameOnMissingVar { var, name } => write!(
+                f,
+                "the name {name} is attached to variable {var}, which is not live"
+            ),
+            Self::VarNameTwice { name, a, b } => write!(
+                f,
+                "the name {name} is held by two variables, {a} and {b}, and a name is unique \
+                 within a document"
+            ),
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not finite and strictly positive"
@@ -1720,6 +1848,7 @@ mod tests {
             NonFinite,
             Distribution,
             DisplayUnit,
+            Vars,
             SlotDimension,
             SlotParamRef,
             PayloadParamRef,
@@ -1737,9 +1866,11 @@ mod tests {
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
-            Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
-                true
-            }
+            Walk::Vars
+            | Walk::SlotDimension
+            | Walk::SlotParamRef
+            | Walk::PayloadParamRef
+            | Walk::Snapshot => true,
         }
     }
 
@@ -1761,6 +1892,10 @@ mod tests {
             WitnessSite,
             WitnessOnMissingNode,
             LabelOnMissingNode,
+            VarKind,
+            VarNotMinted,
+            NameOnMissingVar,
+            VarNameTwice,
             SlotDimension,
             SlotUnknownDocParam,
             SlotDocParamDimension,
@@ -1791,6 +1926,10 @@ mod tests {
         match err {
             // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
+            SnapshotError::VarKind { .. }
+            | SnapshotError::VarNotMinted { .. }
+            | SnapshotError::NameOnMissingVar { .. }
+            | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             SnapshotError::SlotUnknownDocParam { .. }
             | SnapshotError::SlotDocParamDimension { .. } => Walk::SlotParamRef,
@@ -1893,6 +2032,23 @@ mod tests {
             SnapshotError::WitnessSite { node: node() },
             SnapshotError::WitnessOnMissingNode { node: node() },
             SnapshotError::LabelOnMissingNode { node: node() },
+            SnapshotError::VarKind {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+                kind: crate::VarKind::Length,
+                def: crate::VarKind::Angle,
+            },
+            SnapshotError::VarNotMinted {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+            },
+            SnapshotError::NameOnMissingVar {
+                var: crate::VarId(7),
+                name: VarName::from_static("w"),
+            },
+            SnapshotError::VarNameTwice {
+                name: VarName::from_static("w"),
+                a: crate::VarId(7),
+                b: crate::VarId(8),
+            },
             SnapshotError::SlotDimension {
                 node: node(),
                 slot: SlotId::Distance,

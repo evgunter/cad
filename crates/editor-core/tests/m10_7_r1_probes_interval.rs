@@ -348,9 +348,9 @@ fn bracket_with(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -358,7 +358,7 @@ fn bracket_with(
                 lo: -half_width,
                 hi: half_width,
             }),
-        },
+        }),
     });
     let w = || param("w");
     let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();

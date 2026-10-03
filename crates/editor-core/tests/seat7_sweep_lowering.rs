@@ -88,9 +88,9 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(name), tol());
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            value: FreeVar::continuous(Dimension::Length, R),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     )
     .0
@@ -289,14 +289,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
 /// realized-vs-idealized bit equality) were green across the change
 /// untouched.
+///
+/// RE-BLESSED, `die` and `kitchen_sink` only, when declaring a variable
+/// began minting its id on the document's chain: every node minted
+/// after a declare was renumbered, and this digest feeds ids. The
+/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb23f_de75_dcfd_65e9),
+        ("die", 0x44f0_2fda_3ec7_0a2f),
         ("corner_table", 0xd8b1_634f_074f_de08),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
         ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x4451_36a7_db54_a9a7),
+        ("kitchen_sink", 0xfe07_5ca8_68b9_cc6d),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -757,9 +764,9 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let doc = doc_with_r("seat7-hole-first");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            value: FreeVar::continuous(Dimension::Length, Q),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     // Hole first, deliberately.
@@ -920,9 +927,9 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     // the old one under a token that claims `r`.
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: VarName::from_static("r"),
-            value: FreeVar::continuous(Dimension::Length, 2.0 * R),
+        DocEdit::DefineVar {
+            var: VarName::from_static("r").into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1149,9 +1156,9 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            value: FreeVar::continuous(Dimension::Length, Q),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     let (doc, profile_node, chain) =

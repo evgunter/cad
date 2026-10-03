@@ -1449,8 +1449,8 @@ pub enum NodeErrorKind {
     SeedPinnedSection {
         /// The section profile node the seed reaches and stops at.
         section: RecipeNodeId,
-        /// The seeded parameter the section reads.
-        param: crate::doc::VarName,
+        /// The seeded variable the section reads.
+        param: crate::var::VarId,
     },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
@@ -2374,7 +2374,7 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
-                "the seed on parameter {param} reaches section {}, which stays f64 \
+                "the seed on variable {param} reaches section {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
                 by.node_as(*section, "profile node")
@@ -3313,14 +3313,14 @@ pub struct EvalOptions {
     /// Exactly one parameter per evaluation (E4: n parameters ⇒ n
     /// independent passes; a multi-seed vector mode is E11.4's door,
     /// deliberately not this field's). Scalar-free like the box: the
-    /// seed is a name, and the evaluation's scalar decides whether it
+    /// seed is a variable, and the evaluation's scalar decides whether it
     /// can carry a tangent ([`crate::analysis::SeedScalar`]) — a
     /// tangentless scalar refuses every node typed rather than silently
-    /// dropping the seed, and an unknown or `Count` name refuses at env
+    /// dropping the seed, and an unknown or `Count` variable refuses at env
     /// construction, before any node runs. Seeding composes with
     /// `param_box` exactly where both capabilities meet
     /// (`Dual<Interval>`: value channel the box, tangent the seed).
-    pub seed: Option<crate::doc::VarName>,
+    pub seed: Option<crate::var::VarId>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -3709,9 +3709,9 @@ where
     // on the environment the box door built, never a property of the
     // box — `AxisScalar`'s dual impl states the boundary): exactly one
     // binding gains tangent 1.0, checked here, before any node runs.
-    let env = match opts.seed.as_ref() {
+    let env = match opts.seed {
         None => env,
-        Some(name) => match crate::analysis::seed_env(doc, env, name) {
+        Some(var) => match crate::analysis::seed_env(doc, env, var) {
             Ok(env) => env,
             Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
@@ -3752,7 +3752,7 @@ where
             lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
-            seed: opts.seed.as_ref(),
+            seed: opts.seed.and_then(|var| Some((var, doc.var_name(var)?))),
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();

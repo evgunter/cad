@@ -119,7 +119,7 @@ fn boxes(doc: &ProfileDoc) -> [(&'static str, ParamBox); 3] {
             .map(|(n, a)| {
                 let m = a.midpoint();
                 (
-                    n.clone(),
+                    *n,
                     BoxAxis::Varying {
                         lo: m - eps(),
                         hi: m + eps(),
@@ -263,6 +263,12 @@ fn eps_row(eps: f64) -> usize {
 /// are unchanged. Measured by restoring the old end samples on a probe,
 /// which restores the old line.
 ///
+/// Re-captured again when a variable's symbol became its minted id
+/// (INTENT-VARS-1 PR 2) rather than a hash of its name: the slab's
+/// variables sort differently inside the forms, so three digests move
+/// at every row while every count — calls, forms, frozen — holds, and
+/// `Early/Decision`, which reads no variable, holds its digest.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -271,20 +277,20 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest d7f80a97523e0c39f3318a28750839c1\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest c18ac00caa1b0391828ec79840682aa1\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 43369e2cc15dc0eadf7fdc305262f7bf\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 0c566cca00821f84e4604ae58ff7a39b",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 2710dc0cfa425787e71ead1da8b6beaf\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 171492de32d25fe6935b26414f2731fc\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 3685dedb2f8311b0e77bcec48e7b9382\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 0f1a8f4c67c37ad58a65c376611f6086",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 855dea1b67548e891960c9fa117e7ad3\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 42c82666273310119519dee1e98224af\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 38c874546e529e8b4b82e279071a53d8\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 9942a851eca2bc7ddd99205fdf616826",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -448,14 +454,19 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   through the `Max`, so the blocked residuals the `Report` lines
 ///   render rise 32 → 40 (40 → 48 without the canonical root). Every
 ///   verdict passes as before: Zero and Negative are both contained.
+/// - **The variable table (INTENT-VARS-1 PR 2).** A variable's symbol
+///   is its minted id rather than a hash of its name, so the plate's
+///   variables sort differently inside the forms: the five digests of
+///   lines that build forms move, and every count — calls, forms,
+///   frozen — holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16623 frozen 696 digest 564299a4e7f245e5717082b470b50f25\n\
-     Plain/Assertion calls 650 forms 3921 frozen 372 digest 13019e1a84e8d26407b49d2ab3f1ec0e\n\
+     Plain/Decision calls 1143 forms 16623 frozen 696 digest 8ae2136c2be132627da768b1603db438\n\
+     Plain/Assertion calls 650 forms 3921 frozen 372 digest 7846add41e3f66bb4fd297505d3901a8\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9430 frozen 8 digest 919e8d0c8669a3afabecb1956d03c6ee\n\
-     Early/Assertion calls 650 forms 4837 frozen 0 digest 5d5cb64c097e59cec613513a3f057915\n\
+     Early/Decision calls 432 forms 9430 frozen 8 digest 53611a510f613dec4c64d1750a6bf2cf\n\
+     Early/Assertion calls 650 forms 4837 frozen 0 digest b077e5a4af31d330138b35f6c0064d63\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 582 forms 13610 frozen 0 digest 2840bad2fcb2ea12b632d651d7b1ff97\n\
+     Door/Decision calls 582 forms 13610 frozen 0 digest 6fcccaa74a48913add6a187507995b58\n\
      Door/Assertion calls 394 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

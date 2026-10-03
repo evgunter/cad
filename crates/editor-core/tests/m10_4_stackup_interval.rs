@@ -92,6 +92,11 @@ const PLATE_ROUNDING: f64 = 1.0e-14;
 /// zero to four decimals at the wider rows).
 const DEGRADED_HULL_ROUNDING_PER_HALF_WIDTH: f64 = 1.0e-2;
 
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+}
+
 fn eps() -> f64 {
     Tol::witness().eps()
 }
@@ -150,10 +155,24 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
+/// The variable `doc` declares as `n`.
+fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
+    doc.var_named(n).expect("the fixture declares it")
+}
+
+/// `doc`'s variable `n` as a refusal speaks it.
+fn spoken(doc: &ProfileDoc, n: &str) -> editor_core::SpokenVar {
+    doc.spoken_var(var(doc, n))
+}
+
+fn entry<'a>(
+    doc: &ProfileDoc,
+    entries: &'a [Sensitivity],
+    n: &'static str,
+) -> &'a SensitivityOutcome {
     &entries
         .iter()
-        .find(|s| s.param == name(n))
+        .find(|s| s.param == var(doc, n))
         .unwrap_or_else(|| panic!("no entry for {n}"))
         .outcome
 }
@@ -219,13 +238,13 @@ fn plate_spaced(
     depth: Option<Distribution>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        value: continuous(Dimension::Length, R0, radius),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, radius)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: continuous(Dimension::Length, 0.1, depth),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, depth)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -287,9 +306,9 @@ fn plate_spaced(
 /// the report's arithmetic alone.
 fn square(nominal: f64, dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("a"),
-        value: continuous(Dimension::Scalar, nominal, Some(dist)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let m = r.insert(
@@ -310,9 +329,9 @@ fn square(nominal: f64, dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
 /// root — a degraded tangent under a perfectly finite value.
 fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("t"),
-        value: continuous(Dimension::Length, 1.0, Some(dist)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(dist))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -367,9 +386,9 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
 /// sensitivity is exactly 1.
 fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: continuous(Dimension::Length, 1.0, Some(uniform(half))),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -478,7 +497,7 @@ fn the_two_hole_plate_stackup() {
         node: measure,
         refusal: LiftRefusal::PinnedSection {
             section: assertion,
-            param: name("hole_r"),
+            param: var(&doc, "hole_r"),
         },
     };
     let golden = unliftable.serialize();
@@ -516,18 +535,18 @@ fn the_two_hole_plate_stackup() {
         .iter()
         .map(|p| Sensitivity {
             document: doc.id(),
-            param: p.param.clone(),
+            param: p.param,
             outcome: p.sensitivity.clone(),
         })
         .collect();
-    match entry(&rows, "hole_r") {
+    match entry(&doc, &rows, "hole_r") {
         SensitivityOutcome::Derivative { value, chamber } => {
             assert_eq!(value.to_bits(), (-2.0f64).to_bits(), "∂web/∂hole_r");
             assert!(contains_nominal(chamber), "{chamber:?}");
         }
         other => panic!("hole_r: {other:?}"),
     }
-    match entry(&rows, "depth") {
+    match entry(&doc, &rows, "depth") {
         SensitivityOutcome::Derivative { value, chamber } => {
             // IEEE zero, not bit zero: a zero tangent arrives SIGNED on
             // other fixtures (a sign factor times zero), and this row
@@ -544,7 +563,7 @@ fn the_two_hole_plate_stackup() {
     // over the certified leaf's own half-width, which is what the mark
     // covers. On a drive that split, the box span is the larger.
     for p in &report.per_param {
-        let expect = if p.param == name("hole_r") {
+        let expect = if p.param == var(&doc, "hole_r") {
             2.0 * half
         } else {
             0.0
@@ -676,8 +695,10 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
-            let named: Vec<&VarName> = blockers.iter().map(Unavailable::param).collect();
-            assert_eq!(named, vec![&name("depth"), &name("hole_r")], "{blockers:?}");
+            let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.param().id()).collect();
+            let mut want = vec![var(&doc, "depth"), var(&doc, "hole_r")];
+            want.sort_unstable();
+            assert_eq!(named, want, "{blockers:?}");
             assert!(
                 blockers
                     .iter()
@@ -766,7 +787,7 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     // The driver alone: a forfeiture entry, not a refusal.
     let entries = sensitivities(&doc, measure, None, Some(&verdict), false, Tol::witness())
         .expect("no refusal");
-    match entry(&entries, "t") {
+    match entry(&doc, &entries, "t") {
         SensitivityOutcome::TangentDegraded { tangent } => assert!(!tangent.is_finite()),
         other => panic!("a 0/0 tangent is the forfeiture state: {other:?}"),
     }
@@ -795,12 +816,16 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     ));
     assert_eq!(
         row.contribution,
-        Err(Unavailable::TangentDegraded { param: name("t") })
+        Err(Unavailable::TangentDegraded {
+            param: spoken(&doc, "t")
+        })
     );
     assert_eq!(
         report.rss,
         Rss::UnavailableBecause {
-            blockers: vec![Unavailable::TangentDegraded { param: name("t") }]
+            blockers: vec![Unavailable::TangentDegraded {
+                param: spoken(&doc, "t")
+            }]
         }
     );
     let wc = report.worst_case;
@@ -839,8 +864,8 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
     let edited = fixture::label_every_node(
         push(
             &doc,
-            &DocEdit::SetDocParamValue {
-                name: name("hole_r"),
+            &DocEdit::SetVarValue {
+                var: name("hole_r").into(),
                 value: FreeValue::Continuous(0.21),
             },
         ),
@@ -902,7 +927,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
     let (doc, measure) = slab(0.05);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let local = sensitivities(&doc, measure, None, None, false, Tol::witness()).expect("ok");
-    match entry(&local, "depth") {
+    match entry(&doc, &local, "depth") {
         SensitivityOutcome::Derivative { value, chamber } => {
             assert_eq!(value.to_bits(), 1.0f64.to_bits());
             assert_eq!(*chamber, Chamber::LocalOnly);
@@ -928,7 +953,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
     assert!(verdict.certified().is_empty(), "{:?}", verdict.receipt());
     let refused =
         sensitivities(&doc, measure, None, Some(&verdict), false, Tol::witness()).expect("ok");
-    match entry(&refused, "depth") {
+    match entry(&doc, &refused, "depth") {
         SensitivityOutcome::Derivative { chamber, .. } => assert_eq!(*chamber, Chamber::LocalOnly),
         other => panic!("{other:?}"),
     }
@@ -970,7 +995,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
     let certified =
         sensitivities(&doc, measure, None, Some(&verdict), false, Tol::witness()).expect("ok");
-    match entry(&certified, "depth") {
+    match entry(&doc, &certified, "depth") {
         SensitivityOutcome::Derivative { chamber, .. } => assert!(contains_nominal(chamber)),
         other => panic!("{other:?}"),
     }
@@ -1136,8 +1161,8 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     let edited = fixture::label_every_node(
         push(
             &doc,
-            &DocEdit::SetDocParamValue {
-                name: name("hole_r"),
+            &DocEdit::SetVarValue {
+                var: name("hole_r").into(),
                 value: FreeValue::Continuous(0.21),
             },
         ),
@@ -1262,7 +1287,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     )
     .expect("a leaf of this build holding the nominal is a certificate over itself");
     assert!(matches!(
-        entry(&marked, "hole_r"),
+        entry(&doc, &marked, "hole_r"),
         SensitivityOutcome::Derivative { chamber, .. } if contains_nominal(chamber)
     ));
     let _ = narrow_measure;
@@ -1294,9 +1319,9 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
 fn the_bore_pin_gap_stackup_pins_the_lift() {
     let half = eps() / 16.0;
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("r"),
-        value: continuous(Dimension::Length, 0.2, Some(uniform(half))),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
     // One frame, named by the bore and the pin alike: they are drawn
     // on the same plane, so they bind the same id.
@@ -1344,7 +1369,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            seed: Some(name("r")),
+            seed: Some(var(&doc, "r")),
             ..EvalOptions::default()
         },
         Tol::witness(),
@@ -1418,9 +1443,9 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
 fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let half = eps() / 16.0;
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(Dimension::Length, 2.0, Some(uniform(half))),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
     });
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.
@@ -1479,14 +1504,14 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let doc = r.doc;
 
     let entries = sensitivities(&doc, measure, None, None, false, Tol::witness()).expect("ok");
-    match entry(&entries, "w") {
+    match entry(&doc, &entries, "w") {
         SensitivityOutcome::Unliftable { node, refusal } => {
             assert_eq!(*node, loft, "the loft is where the seed stops");
             assert_eq!(
                 *refusal,
                 editor_core::LiftRefusal::PinnedSection {
                     section: p0,
-                    param: name("w"),
+                    param: var(&doc, "w"),
                 }
             );
         }
@@ -1518,13 +1543,17 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     ));
     assert_eq!(
         row.contribution,
-        Err(Unavailable::Unliftable { param: name("w") })
+        Err(Unavailable::Unliftable {
+            param: spoken(&doc, "w")
+        })
     );
     assert!(row.chamber_span.is_none());
     assert_eq!(
         report.rss,
         Rss::UnavailableBecause {
-            blockers: vec![Unavailable::Unliftable { param: name("w") }]
+            blockers: vec![Unavailable::Unliftable {
+                param: spoken(&doc, "w")
+            }]
         }
     );
     assert!(report.worst_case.lo <= 2.0 && 2.0 <= report.worst_case.hi);
@@ -1541,7 +1570,7 @@ fn an_undistributed_parameter_is_a_point_mass_in_the_rss() {
     let half = eps() / 8.0;
     let (doc, measure, _) = plate(Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    assert_eq!(analyzed.axis_std_deviation(&name("depth")), Some(Ok(0.0)));
+    assert_eq!(analyzed.axis_std_deviation(v(&doc, "depth")), Some(Ok(0.0)));
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
     let report = stackup(
         &doc,
@@ -1561,7 +1590,7 @@ fn an_undistributed_parameter_is_a_point_mass_in_the_rss() {
     let depth = report
         .per_param
         .iter()
-        .find(|p| p.param == name("depth"))
+        .find(|p| p.param == var(&doc, "depth"))
         .expect("depth row");
     assert_eq!(depth.contribution, Ok(0.0));
 }
