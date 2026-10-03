@@ -680,9 +680,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             Err(super::PlaneEqError::Undeclared { coincidence, .. }) => {
+                let pair = [(operand, f1), (operand, f2)];
                 return Err(coplanar(
-                    match super::readable_coincidence(coincidence, [(operand, f1), (operand, f2)])?
-                    {
+                    match super::readable_coincidence(coincidence, pair)? {
                         CoincidenceMeasure::Zero { decided, .. } => NeighbourOffset::Zero(decided),
                         undecided => NeighbourOffset::Undecided(undecided.reported()),
                     },
