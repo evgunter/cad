@@ -1961,13 +1961,17 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # `Node.placed_union` refuses BEFORE the document layer sees
         # the edit — the boundary decides it — and the exception is
         # still one shape: every attribute present, `None` where this
-        # refusal carries nothing.
+        # refusal carries nothing, and the two words the document
+        # layer's own refusal of the same rule publishes.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as caught:
             Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
-        self.assertEqual(self.set_of(caught.exception), {"variant"})
+        self.assertEqual(caught.exception.inner_variant, "listed_with_count")
+        self.assertEqual(
+            self.set_of(caught.exception), {"variant", "inner_variant"}
+        )
 
 
 class TestNodeLabels(unittest.TestCase):

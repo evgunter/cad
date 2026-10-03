@@ -2502,14 +2502,23 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::UnschedulableCycle),
         ("unschedulable_cycle", None)
     );
-    // The word is already the fault's, under the carrier's own name:
-    // `kind` IS the inner discriminant here, and projecting it twice
-    // would say the same thing in two places.
+    // The fault's word is already the carrier's own (`kind` IS that
+    // discriminant), so the second word is the count mismatch's shape,
+    // as `EditError.inner_variant` publishes it, and a fault with no
+    // arms of its own has none.
     assert_eq!(
         pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling
+            PlacementRuleFault::CountSpelling {
+                shape: pncad::document::CountMismatch::ListedOnPattern,
+            }
         )),
-        ("placement_rule_mismatch", None)
+        ("placement_rule_mismatch", Some("listed_on_pattern"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::PlacementRule(
+            PlacementRuleFault::NoPlacements
+        )),
+        ("empty_placement_list", None)
     );
 }
 
@@ -2733,7 +2742,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(
+        &E::PlacementRuleMismatch {
+            node: sp(1),
+            shape: pncad::document::CountMismatch::ListedOnPattern,
+        },
+        &["node"],
+    );
     carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
@@ -4670,6 +4685,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_operand",
             "seam_contradicted",
             "seam_orientation",
+            "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
             "torn_component",
@@ -4683,6 +4699,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "zip_correspondence",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "boundary_edit_inner_tag",
+        values: &[],
+        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
     },
     TagEntry {
         function: "boundary_edit_tag",
@@ -4764,6 +4785,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "encloses_leg_carrier",
             "no_corner_side_candidate",
             "offset_carriers_disjoint",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "count_mismatch_tag",
+        values: &[
+            "listed_on_pattern",
+            "listed_with_count",
+            "stepped_without_count",
         ],
         delegates: &[],
     },
@@ -4877,6 +4907,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
+            "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",
@@ -5036,8 +5067,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
+            "moved_member_offset",
             "name_on_dropped_step",
-            "needs_a_gauge",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
@@ -5303,6 +5334,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "param_attach_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
+            "placement_rule_inner_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -5459,6 +5491,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "placement_rule_fault_tag",
         values: &[],
         delegates: &["node_error_tag"],
+    },
+    TagEntry {
+        function: "placement_rule_inner_tag",
+        values: &[],
+        delegates: &["count_mismatch_tag"],
     },
     TagEntry {
         function: "product_error_tag",
@@ -5813,7 +5850,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "split_error_tag",
         values: &[
             "body_name_crosses_cut",
-            "cut_holds_gauge",
             "dead_gauge_reference",
             "empty_cut",
             "hoisted_member_offset",
@@ -5821,6 +5857,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
+            "no_material",
             "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
@@ -5828,6 +5865,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placing_mate_left",
             "remainder_edit",
             "severed_edge",
+            "severed_gauge",
             "split_pin",
             "torn_group",
             "two_anchors",
@@ -10224,13 +10262,24 @@ fn a_split_node_map_reaches_python_in_document_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    // One instance gives the cut its material (a cut of frames alone
+    // refuses `no_material`); the frames give it its many ids.
+    let material = || {
+        insert(
+            ProfileDoc::empty_derived("place-node-map", Tol::witness()),
+            Node::instantiate_part(pncad::document::DocRef {
+                id: DocumentId::derive("place-node-map-ref"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            }),
+        )
+    };
     let (doc, cut) = (3..12u32)
         .map(|n| {
             (0..n).fold(
-                (
-                    ProfileDoc::empty_derived("place-node-map", Tol::witness()),
-                    Vec::new(),
-                ),
+                {
+                    let (doc, instance) = material();
+                    (doc, vec![instance])
+                },
                 |(doc, mut cut), i| {
                     let (doc, id) = insert(doc, frame(f64::from(i)));
                     cut.push(id);

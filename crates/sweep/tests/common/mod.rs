@@ -70,12 +70,20 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
 //! - [`seam_pairs`] — the face pairs of two face sets that meet along
 //!   a curve, so a seam or `Tangent` declaration names only those: what
 //!   a suite drives a door WITH, as [`revert_ops`];
+//! - [`differential`] — the differential batteries' polygon oracles,
+//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   truth derived without the kernel plus the check every battery
+//!   prints, so beside [`oracles`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -240,6 +248,12 @@ pub mod bead;
 /// cross product of seam or `Tangent` declarations. What a suite drives
 /// a door WITH, so it routes here.
 pub mod seam_pairs;
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
+/// The differential batteries' polygon oracles, per-pose outcome line
+/// and reflex-corner pose.
+pub mod differential;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

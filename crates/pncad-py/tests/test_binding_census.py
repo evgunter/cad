@@ -978,6 +978,15 @@ BOUND_AS = {
     # it could not build was the one whose third field this façade did
     # not carry.
     "MetaVersionError": "EditError.inner_variant",
+    # `CountMismatch` is what `EditError::PlacementRuleMismatch` carries:
+    # which answer to "how many placements" the node gives twice, three
+    # shapes with three different repairs, crossing at the carrier's
+    # second word (`listed_with_count`, `stepped_without_count`,
+    # `listed_on_pattern`). Every carrier of the fault publishes it the
+    # same way: `Node.placed_union`'s boundary refusal on
+    # `EditError.inner_variant` too, and `NodeErrorKind::PlacementRule`
+    # on `EvaluationError.inner_kind`.
+    "CountMismatch": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
     # `PersistError.variant` says WHICH stage refused; three of these
@@ -3555,7 +3564,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",
     "InlineError::Unplaced": "InlineError.variant",
-    "InlineError::NeedsAGauge": "InlineError.variant",
+    "InlineError::MovedMemberOffset": "InlineError.variant",
     "InlineError::PartDeadGauge": "InlineError.variant",
     "InlineError::MateFrameCrosses": "InlineError.variant",
     "InlineError::MateFaceFrameCrosses": "InlineError.variant",
@@ -3691,9 +3700,10 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
-    "SplitError::CutHoldsGauge": "SplitError.variant",
+    "SplitError::SeveredGauge": "SplitError.variant",
     "SplitError::TwoAnchors": "SplitError.variant",
     "SplitError::DeadGaugeReference": "SplitError.variant",
+    "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",

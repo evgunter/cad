@@ -216,6 +216,8 @@ mod cert5_offgrid_knot_rational;
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "conic_edge_curved_face.rs"]
+mod conic_edge_curved_face;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]
@@ -604,6 +606,8 @@ mod join1_mechanisms;
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
+#[path = "join_rc_probes.rs"]
+mod join_rc_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]

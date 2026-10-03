@@ -88,7 +88,7 @@ fn undeclared_touching_curved_pair_still_refuses_typed() {
     // The SAME typed refusal, at the SAME site, as before this unit
     // opened the declared rung: the sweep's curved frontier door on
     // the on-carrier rim circle (the spike's run-1 measurement of the
-    // undeclared posture — bool_circle_curved_clearance decides Zero,
+    // undeclared posture — bool_conic_curved_clearance decides Zero,
     // the frontier door fires).
     assert!(
         matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
