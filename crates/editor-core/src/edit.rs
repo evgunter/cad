@@ -3664,6 +3664,31 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
+/// What [`regauge_then_mate`] did: the document the whole action
+/// produced, the edits that produce it, the maintenance they
+/// performed, and the mate's id. The edits are a record beside a
+/// document the door has already applied — the shape of
+/// [`crate::InlineOutcome`] — so a caller that keeps edits (a history,
+/// the log [`crate::persist::save`] writes) records the action whole,
+/// and one that keeps only documents takes up `doc` and `maintenance`
+/// together. Undo is the caller keeping the input value: the input is
+/// untouched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegaugeThenMateOutcome<P> {
+    /// The input document with the action applied.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the input, in the order the
+    /// door applied them: a [`DocEdit::SetGauge`] for each member of
+    /// `a`'s group not already on `b`'s gauge, then the mate's
+    /// [`DocEdit::InsertNode`].
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order.
+    pub maintenance: Vec<Maintenance>,
+    /// The mate's id, minted by its insert.
+    pub mate: RecipeNodeId,
+}
+
 /// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)), as
 /// one action: every member of the group the mate's `a` side reads is
 /// put on the gauge its `b` side's instance sits on, then the mate is
@@ -3671,33 +3696,16 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
 /// operand's group is placed on the second's ([`DocEdit::InsertNode`]'s
 /// mate door clears the offsets `a`'s group held).
 ///
-/// The answer is the one document the whole action produces, as
-/// [`apply`] answers one edit: [`EditRecord::minted`] is the mate's
-/// id, and [`Applied::maintenance`] is what the action performed (a
-/// re-gauge performs none, so it is the insert's). There is no
-/// intermediate document to take up and no edit list to apply in
-/// part: the re-gauges are computed against the document they apply
-/// to, and a refusal at any step refuses the whole action.
+/// The door applies the whole action and answers the result with its
+/// record ([`RegaugeThenMateOutcome`]). The re-gauges are computed
+/// against the input document, and each edit is applied to the
+/// document the one before it produced; a refusal at any step refuses
+/// the whole action, and no outcome comes back.
 ///
 /// The action is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
 /// mate, which has no gauge to copy.
-///
-/// ```compile_fail,E0308
-/// use editor_core::{Doc, DocEdit, MateReach, Node, ProfileProgram, regauge_then_mate};
-///
-/// // This example must NOT compile: the action answers a document,
-/// // never edits for a caller to apply out of order or in part.
-/// fn the_list(
-///     doc: &Doc<ProfileProgram>,
-///     mate: Node<ProfileProgram>,
-///     tol: geom_core::Tol,
-///     reach: &dyn MateReach,
-/// ) -> Vec<DocEdit<ProfileProgram>> {
-///     regauge_then_mate(doc, mate, tol, reach).unwrap()
-/// }
-/// ```
 ///
 /// # Errors
 ///
@@ -3711,24 +3719,29 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     mate: Node<P>,
     tol: Tol,
     reach: &dyn MateReach,
-) -> Result<Applied<P>, EditError> {
+) -> Result<RegaugeThenMateOutcome<P>, EditError> {
+    let mut edits = regauges_for(doc, &mate)?;
+    edits.push(DocEdit::InsertNode {
+        node: Box::new(mate),
+    });
     let mut done = doc.clone();
-    let mut structural = false;
-    for edit in regauges_for(doc, &mate)? {
-        let applied = apply(&done, &edit, tol, reach)?;
-        structural |= applied.record.structural;
+    let mut net = MaintenanceNet::new();
+    let mut minted = None;
+    for edit in &edits {
+        let applied = apply(&done, edit, tol, reach)?;
+        net.push(&applied);
+        minted = applied.record.minted;
         done = applied.doc;
     }
-    let mut applied = apply(
-        &done,
-        &DocEdit::InsertNode {
-            node: Box::new(mate),
-        },
-        tol,
-        reach,
-    )?;
-    applied.record.structural |= structural;
-    Ok(applied)
+    let Some(mate) = minted else {
+        unreachable!("an accepted InsertNode mints its node's id")
+    };
+    Ok(RegaugeThenMateOutcome {
+        maintenance: net.finish(&done),
+        doc: done,
+        edits,
+        mate,
+    })
 }
 
 /// The `SetGauge` edits [`regauge_then_mate`] applies before its

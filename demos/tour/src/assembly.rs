@@ -632,13 +632,10 @@ fn mate_onto(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
-    let applied = regauge_then_mate(doc, mate, tol, reach)
+    let out = regauge_then_mate(doc, mate, tol, reach)
         .unwrap_or_else(|err| panic!("the compound mate door admits the mate: {err:?}"));
-    *doc = applied.doc;
-    applied
-        .record
-        .minted
-        .expect("the mate's insert mints an id")
+    *doc = out.doc;
+    out.mate
 }
 
 fn stand_doc(

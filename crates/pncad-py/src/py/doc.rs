@@ -845,7 +845,7 @@ pub(crate) struct Doc {
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
     /// is held here for the same span the document it describes is —
-    /// an invariant [`Doc::accept`] holds by being the only place
+    /// an invariant [`Doc::take_up`] holds by being the only place
     /// either of the two is written.
     pub(crate) maintenance: Vec<d::Maintenance>,
 }
@@ -880,9 +880,17 @@ impl Doc {
     /// maintenance were already paired below this wrapper, and they
     /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
-        self.inner = applied.doc;
-        self.maintenance = applied.maintenance;
+        self.take_up(applied.doc, applied.maintenance);
         applied.record
+    }
+
+    /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
+    /// action and answers its document and maintenance already paired
+    /// (`regauge_then_mate`'s outcome) rather than one edit's
+    /// [`d::Applied`].
+    fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
+        self.inner = doc;
+        self.maintenance = maintenance;
     }
 
     /// Insert a node, label it when `label` is given, and take the
@@ -1068,12 +1076,10 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let applied = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
+        let out = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
             .map_err(|err| edit_err(py, &err))?;
-        let Some(id) = self.accept(applied).minted else {
-            unreachable!("the compound door answers its mate's insert, which mints")
-        };
-        Ok(NodeId(id))
+        self.take_up(out.doc, out.maintenance);
+        Ok(NodeId(out.mate))
     }
 
     /// The maintenance the LAST accepted edit performed, in the order

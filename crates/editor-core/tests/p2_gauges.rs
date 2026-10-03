@@ -27,7 +27,7 @@ use crate::wire::doctored;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault, MateFrame,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault, MateFrame,
     MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, ParamName,
     PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace,
     SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate, groups,
@@ -391,17 +391,39 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
     );
     assert_eq!(groups(&plain).len(), 2, "a declaring mate joins nothing");
 
-    // The compound door: one document, the whole action applied.
-    let applied = regauge_then_mate(&doc, mate, Tol::witness(), &RefusingReach)
+    // The compound door: the whole action applied, with its record.
+    let out = regauge_then_mate(&doc, mate.clone(), Tol::witness(), &RefusingReach)
         .expect("no other mate starts placing");
-    let done = applied.doc;
-    let mate = applied.record.minted.expect("the mate mints");
+    assert_eq!(
+        out.edits,
+        vec![
+            DocEdit::SetGauge {
+                node: top,
+                gauge: Some(g),
+            },
+            DocEdit::SetGauge {
+                node: upper,
+                gauge: Some(g),
+            },
+            DocEdit::InsertNode {
+                node: Box::new(mate),
+            },
+        ],
+        "the record is the group's re-gauges in document order, then the insert"
+    );
     assert!(
-        applied.record.structural,
-        "the action inserts a node, so it is structural"
+        replay(&doc, &out.edits).bit_eq(&out.doc),
+        "the record replays from the input to the outcome's document"
     );
     assert_eq!(
-        applied
+        out.doc.order().last(),
+        Some(&out.mate),
+        "the outcome names the mate its insert minted"
+    );
+    let done = out.doc;
+    let mate = out.mate;
+    assert_eq!(
+        out
             .maintenance
             .iter()
             .filter_map(|row| match row {
@@ -411,7 +433,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
             .collect::<Vec<_>>(),
         vec![top],
         "the action reports the insert's offset clear: {:?}",
-        applied.maintenance
+        out.maintenance
     );
     assert_eq!(groups(&done), vec![vec![base, top, upper]]);
     for id in [top, upper] {
@@ -433,6 +455,40 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
         poses.placement(&done, top).expect("placed").translation,
         [11.0, 1.0, BASE_HEIGHT],
         "the top seats on the base, on the base's gauge",
+    );
+}
+
+/// **A refusal after a re-gauge applied leaves no partial outcome.**
+/// The same group, mated onto the base by a mate the insert door
+/// refuses on its own datum (a standalone clocking, `TableLacks`): the
+/// two re-gauges apply, then the insert refuses, and the door answers
+/// that refusal, not a document with the group re-gauged and no mate.
+#[test]
+fn a_refusal_at_the_insert_after_the_regauge_refuses_the_whole_action() {
+    let p = parts("p2-regauge-refused");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-regauge-refused"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, literal([10.0, 0.0, 0.0])));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, base, Some(g));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let mut mate = seat(head(p.top_cap(top)), head(p.base_cap(base)));
+    let Node::Mate { alignment, .. } = &mut mate else {
+        unreachable!("seat builds a mate")
+    };
+    alignment.primitive = MatePrimitive::Clocking;
+    let before = doc.clone();
+    match regauge_then_mate(&doc, mate, Tol::witness(), &RefusingReach) {
+        Err(EditError::MateRefused { fault, .. }) => assert!(
+            matches!(*fault, MateFault::TableLacks { .. }),
+            "the insert refuses on the table's gap: {fault:?}"
+        ),
+        other => panic!("the insert step refuses the whole action: {other:?}"),
+    }
+    assert!(doc.bit_eq(&before), "the input document is untouched");
+    assert_eq!(
+        doc.node(top).and_then(Node::gauge_ref),
+        None,
+        "and the top was never re-gauged in it"
     );
 }
 
