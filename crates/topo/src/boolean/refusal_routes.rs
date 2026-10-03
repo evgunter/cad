@@ -482,16 +482,17 @@ pub enum Coincide {
     TangentSide,
     /// How two corners of the two solids overlap where they meet: a
     /// direction within a sector, two sectors' faces parallel, their
-    /// bounds in line, the order of a strut's germs. Every verdict
-    /// passes.
+    /// bounds in line, the order of a strut's germs, whether a dihedral
+    /// wedge about a shared edge is reflex. Every verdict passes.
     ///
     /// One question over sites a declaration settles and sites it does
     /// not: only `vtxfac`'s coplanar lump reads the pair ahead of it, with
     /// the classes its door admits for the pierced face; every other site
     /// (`within`, the strut order, `pair_search`, the directions' overlap,
-    /// the pierce germ line) passes `Moot` or a read minted with no class
-    /// admitted, which the lookup never mints `Settles` from. The read,
-    /// not the variant, carries the difference.
+    /// the pierce germ line, the edge-edge wedge's extent) passes `Moot`
+    /// or a read minted with no class admitted, which the lookup never
+    /// mints `Settles` from. The read, not the variant, carries the
+    /// difference.
     Sectors,
     /// Whether an edge of one solid runs along an edge of the other
     /// (`bool_ee_collinear`, a norm): along it passes, and so does a

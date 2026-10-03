@@ -1,7 +1,7 @@
 //! M3 PR 4 adversarial review suite — INDEPENDENT derivations (censuses
 //! hand-derived from geometry before reading the shipped tests; see the
 //! review report). Falsification targets: Table III / edge-edge tie
-//! engine (wedge-touch, notch double-tie, reflex residue), the 15.7
+//! engine (wedge-touch, notch double-tie, reflex edge), the 15.7
 //! sign chain (mirrored resting fixtures), BOB-routing (pinch contexts
 //! produce no join input), contact completeness, operands untouched
 //! (byte-compare), pierce-ring structure, plane_eq NaN door.
@@ -242,13 +242,10 @@ fn stacked_double_tie_exact() {
     }
 }
 
-/// Reflex-dihedral residue, benign side: a triangular prism nestled in
-/// the notch of an L-prism, sharing only the reflex vertical edge.
-/// Touch, no crossing — expect clean success with v-v contacts only OR
-/// the documented loud refusal; NEVER a silent seam.
-#[test]
-fn reflex_edge_touch_benign() {
-    let a = prism_z::<f64>(
+/// The L-prism of the two reflex-edge rows: unit height, area 3, its
+/// 270° wedge on the vertical edge over (1, 1).
+fn l_prism_unit() -> Body<f64> {
+    prism_z::<f64>(
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -261,55 +258,94 @@ fn reflex_edge_touch_benign() {
         1.0,
         Tol::witness(),
     )
-    .body;
-    let b = prism_z::<f64>(
-        &[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)],
-        0.0,
-        1.0,
-        Tol::witness(),
-    )
-    .body;
-    for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b, Tol::witness()) {
-            Ok(red) => {
-                validate(&red.a).unwrap();
-                validate(&red.b).unwrap();
-                assert!(
-                    red.null_pairs.is_empty() && red.null_edges.is_empty(),
-                    "op {op:?}: seam minted at a touch-only reflex edge"
-                );
-            }
-            Err(
-                e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
-            ) => {
-                eprintln!("reflex touch refused (documented residue): {e}");
-            }
-            Err(e) => panic!("unexpected error class: {e}"),
-        }
+    .body
+}
+
+/// `op` on `a` and `b` under `decls` builds a body that passes tiers 2
+/// and 3′ and the at-rest certificate at the closed-form `volume`, or
+/// the empty result when `volume` is zero.
+fn assert_sound(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &topo::BooleanDeclarations,
+    volume: f64,
+) {
+    let tol = Tol::witness();
+    let res = match op {
+        BooleanOp::Union => topo::union_with(a, b, decls, tol),
+        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
+        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+    };
+    let bb = match res {
+        Ok(topo::BooleanResult::Empty) if volume == 0.0 => return,
+        Ok(topo::BooleanResult::Body(bb)) if volume > 0.0 => bb,
+        other => panic!("op {op:?}: {other:?}"),
+    };
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "op {op:?}: tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        Ok(()),
+        "op {op:?}: tier 3′"
+    );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
+        "op {op:?}: the at-rest certificate"
+    );
+    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    assert!(
+        (v - volume).abs() < 1e-9,
+        "op {op:?}: volume {v}, want {volume}"
+    );
+}
+
+/// Reflex edge, touch: a triangular prism nestled in the notch of an
+/// L-prism, its corner on the reflex vertical edge, adding its area to
+/// the L's 3 with nothing in common.
+/// - Sharing only that edge (area 0.42), no declaration is needed: the
+///   reduction finds the two v-v contacts and no seam. Both of the
+///   triangle's flankers lie outside both of the L's flanking planes, so
+///   no verdict splits and the wedge's extent is never asked.
+/// - Flush along the +x arm's wall (area 0.4, declared): the wall's
+///   anti-parallel tie reads the On ladder, which splits the verdicts,
+///   and the union is right only if the 270° wedge reads reflex.
+#[test]
+fn reflex_edge_touch_benign() {
+    let tol = Tol::witness();
+    let a = l_prism_unit();
+    let edge = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)], 0.0, 1.0, tol).body;
+    for (op, volume) in [
+        (BooleanOp::Union, 3.42),
+        (BooleanOp::Intersect, 0.0),
+        (BooleanOp::Subtract, 3.0),
+    ] {
+        let red = boolean_reduce(op, &a, &edge, tol).unwrap();
+        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
+        assert!(
+            red.null_pairs.is_empty() && red.null_edges.is_empty(),
+            "op {op:?}: seam minted at a touch-only reflex edge"
+        );
+        assert_sound(op, &a, &edge, &topo::BooleanDeclarations::default(), volume);
+    }
+    let flush = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.0), (1.5, 1.8)], 0.0, 1.0, tol).body;
+    let decls = flush_declarations(&a, &flush, tol);
+    for (op, volume) in [
+        (BooleanOp::Union, 3.4),
+        (BooleanOp::Intersect, 0.0),
+        (BooleanOp::Subtract, 3.0),
+    ] {
+        assert_sound(op, &a, &flush, &decls, volume);
     }
 }
 
-/// Reflex-dihedral residue, crossing side: the triangle straddles the
-/// +x arm of the L (genuine material overlap; a correct engine must
-/// germ here). The convex-wedge membership limitation makes the two
-/// solids disagree — the PR claims a LOUD typed refusal. A silent
-/// Ok with no seam would be a wrong answer (BLOCKER-grade).
+/// Reflex edge, crossing: the triangle straddles the +x arm of the L
+/// from the reflex edge, so the edge-edge site reads the L's 270° wedge
+/// and must germ there. Undeclared, the coplanar caps refuse at the
+/// coincidence door; declared flush, each op builds the closed form:
+/// the L's 3 and the triangle's 0.4 share its lower half, 0.2.
 #[test]
-fn reflex_edge_crossing_refuses_loudly() {
-    let a = prism_z::<f64>(
-        &[
-            (0.0, 0.0),
-            (2.0, 0.0),
-            (2.0, 1.0),
-            (1.0, 1.0),
-            (1.0, 2.0),
-            (0.0, 2.0),
-        ],
-        0.0,
-        1.0,
-        Tol::witness(),
-    )
-    .body;
+fn reflex_edge_crossing_builds_sound() {
+    let a = l_prism_unit();
     let b = prism_z::<f64>(
         &[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)],
         0.0,
@@ -317,20 +353,18 @@ fn reflex_edge_crossing_refuses_loudly() {
         Tol::witness(),
     )
     .body;
-    for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b, Tol::witness()) {
-            Ok(red) => {
-                assert!(
-                    !red.null_pairs.is_empty(),
-                    "op {op:?}: SILENT wrong answer — material overlap with no seam"
-                );
-            }
-            Err(BooleanError::ClassificationInvariant { what }) => {
-                eprintln!("op {op:?}: loud refusal: {what}");
-            }
-            Err(BooleanError::Escalated { .. } | BooleanError::UndeclaredCoincidence { .. }) => {}
-            Err(e) => panic!("unexpected error class: {e}"),
-        }
+    let decls = flush_declarations(&a, &b, Tol::witness());
+    for (op, volume) in [
+        (BooleanOp::Union, 3.2),
+        (BooleanOp::Intersect, 0.2),
+        (BooleanOp::Subtract, 2.8),
+    ] {
+        let err = boolean_reduce(op, &a, &b, Tol::witness()).unwrap_err();
+        assert!(
+            matches!(err, BooleanError::UndeclaredCoincidence { .. }),
+            "op {op:?}: undeclared caps, got {err:?}"
+        );
+        assert_sound(op, &a, &b, &decls, volume);
     }
 }
 

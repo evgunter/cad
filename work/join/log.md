@@ -310,6 +310,27 @@ the above — land it as planned. Park each row the hold covers
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
 
+## 2026-10-03 — PR 3962 lands: edge-edge membership reads a dihedral wedge by its extent
+
+`edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex` closed.
+`recl::resolve_edge_edge` reads one half-space verdict per flanking
+plane; two alike settle it, split verdicts are inside iff the wedge is
+reflex (`wedge_is_reflex`, `bool_wedge_reflex`, PR 3900's levered-sine
+shape; a decided half-turn refuses `Coincide::Sectors`). 2 250 + 1 194
+reflex-wedge runs that refused `ClassificationInvariant` on main build
+sound; JOIN-1's batteries and `rc_wide` byte-identical.
+
+Review tier: single FULL, cloud session (the first dispatch was lost
+to a short SHA the session could not resolve; re-dispatched).
+APPROVE-WITH-FIXES, 0/1/4. The reviewer derived n̂₀·r̂₁ = −sin α by hand
+and ran 22 194 lines under identity, rigid and projective maps: 2 508
+`ClassificationInvariant` → SOUND, 0 SOUND→refusal, 0 BAD. The MINOR:
+two `review_m3_pr4` rows kept the old limitation's premise and could
+not go red; the fix pass pinned them to sound bodies and showed both
+mutants (the convex AND, the sign flip) and a pairing mutant redden
+rows. Filed: `levered-sign-as-bool-has-no-shared-home`,
+`undeclared-anti-parallel-touch-builds-a-scaffold-at-rest-in-one-op`
+(24 runs reach `ResultInvalid{ScaffoldAtRest}`: loud, not wrong).
 ## 2026-10-03 — PR 3967 lands: the reflex corner a hair off flush passes its own census
 
 `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
