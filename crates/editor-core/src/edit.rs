@@ -3379,6 +3379,128 @@ impl MaintenanceNet {
     }
 }
 
+/// **An action of several edits, under way.** Each edit is applied to
+/// the document the one before it produced, starting from a document
+/// the recording borrows, and its [`Applied`] is taken up whole: the
+/// edit joins the list, the id it minted joins the minted list, and
+/// its maintenance is folded into a [`MaintenanceNet`].
+/// [`Self::finish`] answers the action as a [`Recorded`].
+///
+/// A refused edit records nothing and the recording stays usable, so
+/// an action may go on past a refusal. Nothing is written anywhere
+/// until a caller takes the [`Recorded`] up, so a caller that drops the
+/// recording still holds the document it started from: whether an
+/// action is all or nothing is the caller's, by dropping it on the
+/// first refusal.
+pub struct Recording<'a, P> {
+    start: &'a Doc<P>,
+    produced: Option<Doc<P>>,
+    edits: Vec<DocEdit<P>>,
+    minted: Vec<Option<RecipeNodeId>>,
+    maintenance: MaintenanceNet,
+    tol: Tol,
+    reach: &'a dyn MateReach,
+}
+
+impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
+    /// An action starting from `doc`, each edit applied at `tol`
+    /// through `reach` ([`apply`]).
+    pub fn start(doc: &'a Doc<P>, tol: Tol, reach: &'a dyn MateReach) -> Self {
+        Self {
+            start: doc,
+            produced: None,
+            edits: Vec::new(),
+            minted: Vec::new(),
+            maintenance: MaintenanceNet::new(),
+            tol,
+            reach,
+        }
+    }
+
+    /// The document so far: the last edit's, or the start before any.
+    pub fn doc(&self) -> &Doc<P> {
+        self.produced.as_ref().unwrap_or(self.start)
+    }
+
+    /// What each edit so far minted, in the order the edits applied: an
+    /// `InsertNode`'s new id, `None` for every other edit.
+    pub fn minted(&self) -> &[Option<RecipeNodeId>] {
+        &self.minted
+    }
+
+    /// Whether the action has recorded no edit yet.
+    pub fn is_empty(&self) -> bool {
+        self.edits.is_empty()
+    }
+
+    /// Apply `edit` to the document so far and record it. Returns the
+    /// id it minted, if any.
+    ///
+    /// # Errors
+    ///
+    /// The edit's own refusal ([`apply`]'s); nothing is recorded on
+    /// that arm.
+    pub fn apply(&mut self, edit: DocEdit<P>) -> Result<Option<RecipeNodeId>, EditError> {
+        let applied = apply(self.doc(), &edit, self.tol, self.reach)?;
+        Ok(self.take(edit, applied))
+    }
+
+    /// Insert `node` and record the insert — [`Self::apply`] of its
+    /// [`DocEdit::InsertNode`] — answering the id it minted.
+    ///
+    /// # Errors
+    ///
+    /// The insert's own refusal; nothing is recorded on that arm.
+    pub fn insert(&mut self, node: Node<P>) -> Result<RecipeNodeId, EditError> {
+        let (applied, id) = apply_insert(self.doc(), &node, self.tol, self.reach)?;
+        self.take(
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            applied,
+        );
+        Ok(id)
+    }
+
+    fn take(&mut self, edit: DocEdit<P>, applied: Applied<P>) -> Option<RecipeNodeId> {
+        self.maintenance.push(&applied);
+        self.edits.push(edit);
+        self.minted.push(applied.record.minted);
+        self.produced = Some(applied.doc);
+        applied.record.minted
+    }
+
+    /// The action, its maintenance netted against the document its
+    /// last edit produced.
+    pub fn finish(self) -> Recorded<P> {
+        let doc = self.produced.unwrap_or_else(|| self.start.clone());
+        Recorded {
+            maintenance: self.maintenance.finish(&doc),
+            doc,
+            edits: self.edits,
+            minted: self.minted,
+        }
+    }
+}
+
+/// **An action of several edits, applied** ([`Recording::finish`]): the
+/// document it produced and the record of how. Undo is the caller
+/// keeping the document the recording started from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Recorded<P> {
+    /// The document the last edit produced; the start's, unchanged,
+    /// when the action recorded no edit.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the start, in the order they
+    /// applied.
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order.
+    pub maintenance: Vec<Maintenance>,
+    /// What each edit minted, in the order the edits applied.
+    pub minted: Vec<Option<RecipeNodeId>>,
+}
+
 /// A name written into the document spells only steps the document
 /// minted ([`EditError::NameStepNeverMinted`]) — the edit door's half
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
@@ -3436,8 +3558,8 @@ fn check_param_refs<P>(
 ///
 /// **Which document an edit refusal speaks from.** A node the door was
 /// handed is spoken from that document, as it stood before the edit
-/// (`doc` in [`apply_maintaining`], `before` in the helpers it hands
-/// the working copy to), never from the working copy the edit is
+/// (`doc` in [`door`] and the writers it hands the working copy to,
+/// `before` in their helpers), never from the working copy the edit is
 /// writing. A node the edit is minting is spoken by
 /// [`SpokenNode::entering`]. An id neither holds is
 /// [`SpokenNode::absent`]. The one exception is a cluster gauge, which
@@ -3900,26 +4022,21 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<RegaugeThenMateOutcome<P>, EditError> {
-    let mut edits = regauges_for(doc, &mate)?;
-    edits.push(DocEdit::InsertNode {
-        node: Box::new(mate),
-    });
-    let mut done = doc.clone();
-    let mut net = MaintenanceNet::new();
-    let mut minted = None;
-    for edit in &edits {
-        let applied = apply(&done, edit, tol, reach)?;
-        net.push(&applied);
-        minted = applied.record.minted;
-        done = applied.doc;
+    let mut action = Recording::start(doc, tol, reach);
+    for regauge in regauges_for(doc, &mate)? {
+        action.apply(regauge)?;
     }
-    let Some(mate) = minted else {
-        unreachable!("an accepted InsertNode mints its node's id")
-    };
-    Ok(RegaugeThenMateOutcome {
-        maintenance: net.finish(&done),
-        doc: done,
+    let mate = action.insert(mate)?;
+    let Recorded {
+        doc,
         edits,
+        maintenance,
+        ..
+    } = action.finish();
+    Ok(RegaugeThenMateOutcome {
+        doc,
+        edits,
+        maintenance,
         mate,
     })
 }
@@ -4049,13 +4166,50 @@ pub fn apply_replayed<P: Clone + crate::ProfilePayload>(
 
 /// [`apply`] with the reach the door holds: the live door's, or none
 /// on replay ([`apply_replayed`]).
-#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
 fn apply_with<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
+    let (doc, record, maintenance) = door(doc, tol, |new, reported| {
+        write_edit(doc, new, reported, edit, tol, reach)
+    })?;
+    Ok(Applied {
+        doc,
+        record,
+        maintenance,
+    })
+}
+
+/// [`apply`] of the [`DocEdit::InsertNode`] of `node`, answering the
+/// id it minted beside the [`Applied`]: the same door, with the id
+/// in the type rather than in [`EditRecord::minted`]'s `Option`.
+pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: &Node<P>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<(Applied<P>, RecipeNodeId), EditError> {
+    let (doc, id, maintenance) = door(doc, tol, |new, reported| {
+        insert_into(doc, new, reported, node, tol, Some(reach))
+    })?;
+    let applied = Applied {
+        doc,
+        record: inserted(id),
+        maintenance,
+    };
+    Ok((applied, id))
+}
+
+/// **Every edit door's frame**: `write` the edit into a copy of `doc`,
+/// then hold the result to the backstops every edit answers to. The
+/// input is untouched (spec D2).
+fn door<P: Clone + crate::ProfilePayload, T>(
+    doc: &Doc<P>,
+    tol: Tol,
+    write: impl FnOnce(&mut Doc<P>, &mut Vec<Maintenance>) -> Result<T, EditError>,
+) -> Result<(Doc<P>, T, Vec<Maintenance>), EditError> {
     let mut new = doc.clone();
     // The report read at the door that made it: DM7's strands a delete
     // made, or the strands a reshaped program made. `DeleteNode` fills it, the only edit that removes
@@ -4063,110 +4217,207 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     // step. `Rebind` moves references onto a live name at the author's
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
-    let record = match edit {
-        DocEdit::InsertNode { node } => {
-            // Liveness, and it stays spelled here rather than moving to
-            // a shared home: the rule IS the node map's own lookup, so
-            // the load door's `DanglingInput` walk and this loop share
-            // `contains_key` already and have no predicate between them
-            // to extract. What differs is the subject — one incoming
-            // reference here, every edge a file claims there.
-            for input in node.inputs() {
-                if !new.nodes.contains_key(&input) {
-                    return Err(EditError::UnresolvedInput {
-                        input: SpokenNode::absent(input),
-                    });
-                }
-            }
-            check_payload_refs(doc, &new, node)?;
-            // N1: the node's id is minted from the document's mint
-            // chain, extended by the node as the edit states it, and
-            // then every authored step's, from the same chain. Minting
-            // extends a mint held aside, so a refusal further down
-            // leaves the document's untouched.
-            let mut mint = new.mint.clone();
-            let id = mint.insert(node).map_err(|crate::NodeIdCollides { id }| {
-                EditError::NodeIdCollides {
-                    id: SpokenNode::entering(id, node),
-                }
-            })?;
-            check_node_inputs(doc, id, node)?;
-            check_declared_sides(
-                doc,
-                &new,
-                node,
-                node.declared_pairs(),
-                || SpokenNode::entering(id, node),
-                None,
-            )?;
-            // A gauge reference is a reading edge, as a mate's operand
-            // is: a never-live or wrong-kind one is a typo, refused here.
-            check_gauge_ref(&new, id, node.gauge_ref(), || {
-                SpokenNode::entering(id, node)
-            })?;
-            // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
-            // the one place a node is asked whether its alignment datum
-            // is decidable, which the load door's walk asks too.
-            if node.has_non_finite_alignment() {
-                return Err(EditError::NonFiniteAlignment {
-                    node: SpokenNode::entering(id, node),
+    let wrote = write(&mut new, &mut reported)?;
+    // The D-2 backstop, on EVERY arm: the maintenance rules make the
+    // invariant-violating states unreachable, and this is what says so
+    // rather than assuming it.
+    crate::roots::check(&new, |id| spoken_before_else_after(doc, &new, id))
+        .map_err(EditError::Roots)?;
+    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
+    // "how many placements" has exactly ONE spelling, an explicit rule
+    // lists at least one placement, and its frames meet the SAME bar
+    // every placement's literal steps are held to
+    // (`Frame::admission_fault`).
+    // A rule's shape and its listed frames are written only by the
+    // insert that authors its node, but a listed frame is admitted at
+    // the `tol` this edit is applied at, which need not be the one its
+    // insert was; so the whole document is checked, in document order,
+    // and where one edit breaks two nodes the refusal names the one
+    // placed first.
+    for (&node, n) in new
+        .order
+        .iter()
+        .filter_map(|id| Some((id, new.nodes.get(id)?)))
+    {
+        let listed = |index| FrameSite::Listed { index };
+        match n.placement_rule_fault(tol) {
+            None => {}
+            Some(PlacementRuleFault::CountSpelling { shape }) => {
+                return Err(EditError::PlacementRuleMismatch {
+                    node: written(doc, node, n),
+                    shape,
                 });
             }
-            check_node_slots(&new, doc, id, node)?;
-            // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
-            // program entering the document resolves + replays +
-            // validates under the CURRENT param env, refusing typed
-            // here rather than at first evaluation.
-            if let Node::Profile(p) = &**node {
-                p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
-                    EditError::ProfileProgramRefused {
-                        node: SpokenNode::entering(id, node),
-                        refusal: Box::new(refusal),
-                    }
-                })?;
+            Some(PlacementRuleFault::NoPlacements) => {
+                return Err(EditError::EmptyPlacementList {
+                    node: written(doc, node, n),
+                });
             }
-            let entering = SpokenNode::entering(id, node);
-            let mut node = (**node).clone();
-            if let Node::Profile(p) = &mut node {
-                p.mint_step_ids(&mut mint)
-                    .map_err(|fault| EditError::StepIdsRefused {
-                        node: entering,
-                        fault,
-                    })?;
+            Some(PlacementRuleFault::NonFiniteFrame { index }) => {
+                return Err(EditError::NonFinitePlacement {
+                    node: written(doc, node, n),
+                    at: listed(index),
+                });
             }
-            new.mint = mint;
-            new.nodes.insert(id, node.clone());
-            new.order.push(id);
-            check_acyclic(&new)?;
-            crate::roots::on_insert(&mut new, id, &node.inputs());
-            // The solve's own per-mate admission (A11 rule 1), asked
-            // of the document the mate now stands in — its walks read
-            // the operands there — through the reach this door holds:
-            // a mate the coset table refuses on its own datum is
-            // refused at this door. The verdicts about a PAIR stay the
-            // solve's (`admit_mate`), and so does every STATE a mate
-            // comes to hold after insert — this is the one door that
-            // writes a mate's datum (`DocEdit::writes_a_mates_datum`),
-            // and a reference a later edit strands is N5's. The
-            // environment is the document's own nominal, built here
-            // once for this door's reading, the way the evaluation
-            // builds its own and hands it to the solve.
-            debug_assert!(edit.writes_a_mates_datum() == matches!(node, Node::Mate { .. }));
-            if matches!(node, Node::Mate { .. }) {
-                let env = new.param_env::<f64>();
-                crate::mate::solve::admit_mate(&new, id, &node, &env, reach, tol).map_err(
-                    |fault| EditError::MateRefused {
-                        node: SpokenNode::entering(id, &node),
-                        held: crate::spoken::held_by(&*fault, &new),
-                        fault,
-                    },
-                )?;
-                reported.extend(clear_joined_offsets(doc, &mut new, &node));
+            Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
+                return Err(EditError::ImproperPlacement {
+                    node: written(doc, node, n),
+                    at: listed(index),
+                    determinant,
+                });
             }
-            EditRecord {
-                minted: Some(id),
-                structural: true,
+            Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
+                return Err(EditError::NonRigidPlacement {
+                    node: written(doc, node, n),
+                    at: listed(index),
+                    check,
+                });
             }
+        }
+        // A placement's literal steps — a transform's, a gauge's, an
+        // instance's offset — meet the same bar, by the same predicate.
+        if let Some((index, fault)) = n.placement_frame_fault(tol) {
+            return Err(EditError::placement_frame(
+                written(doc, node, n),
+                FrameSite::Step { index },
+                fault,
+            ));
+        }
+    }
+    Ok((new, wrote, reported))
+}
+
+/// The record of an accepted insert that minted `id`.
+fn inserted(id: RecipeNodeId) -> EditRecord {
+    EditRecord {
+        minted: Some(id),
+        structural: true,
+    }
+}
+
+/// [`DocEdit::InsertNode`] of `node`, written into `new` (a copy of
+/// `doc`): the id it mints, or the door's refusal.
+fn insert_into<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    node: &Node<P>,
+    tol: Tol,
+    reach: Option<&dyn MateReach>,
+) -> Result<RecipeNodeId, EditError> {
+    // Liveness, and it stays spelled here rather than moving to
+    // a shared home: the rule IS the node map's own lookup, so
+    // the load door's `DanglingInput` walk and this loop share
+    // `contains_key` already and have no predicate between them
+    // to extract. What differs is the subject — one incoming
+    // reference here, every edge a file claims there.
+    for input in node.inputs() {
+        if !new.nodes.contains_key(&input) {
+            return Err(EditError::UnresolvedInput {
+                input: SpokenNode::absent(input),
+            });
+        }
+    }
+    check_payload_refs(doc, new, node)?;
+    // N1: the node's id is minted from the document's mint
+    // chain, extended by the node as the edit states it, and
+    // then every authored step's, from the same chain. Minting
+    // extends a mint held aside, so a refusal further down
+    // leaves the document's untouched.
+    let mut mint = new.mint.clone();
+    let id =
+        mint.insert(node)
+            .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
+                id: SpokenNode::entering(id, node),
+            })?;
+    check_node_inputs(doc, id, node)?;
+    check_declared_sides(
+        doc,
+        new,
+        node,
+        node.declared_pairs(),
+        || SpokenNode::entering(id, node),
+        None,
+    )?;
+    // A gauge reference is a reading edge, as a mate's operand
+    // is: a never-live or wrong-kind one is a typo, refused here.
+    check_gauge_ref(new, id, node.gauge_ref(), || SpokenNode::entering(id, node))?;
+    // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
+    // the one place a node is asked whether its alignment datum
+    // is decidable, which the load door's walk asks too.
+    if node.has_non_finite_alignment() {
+        return Err(EditError::NonFiniteAlignment {
+            node: SpokenNode::entering(id, node),
+        });
+    }
+    check_node_slots(new, doc, id, node)?;
+    // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
+    // program entering the document resolves + replays +
+    // validates under the CURRENT param env, refusing typed
+    // here rather than at first evaluation.
+    if let Node::Profile(p) = node {
+        p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
+            EditError::ProfileProgramRefused {
+                node: SpokenNode::entering(id, node),
+                refusal: Box::new(refusal),
+            }
+        })?;
+    }
+    let entering = SpokenNode::entering(id, node);
+    let mut node = node.clone();
+    if let Node::Profile(p) = &mut node {
+        p.mint_step_ids(&mut mint)
+            .map_err(|fault| EditError::StepIdsRefused {
+                node: entering,
+                fault,
+            })?;
+    }
+    new.mint = mint;
+    new.nodes.insert(id, node.clone());
+    new.order.push(id);
+    check_acyclic(new)?;
+    crate::roots::on_insert(new, id, &node.inputs());
+    // The solve's own per-mate admission (A11 rule 1), asked
+    // of the document the mate now stands in — its walks read
+    // the operands there — through the reach this door holds:
+    // a mate the coset table refuses on its own datum is
+    // refused at this door. The verdicts about a PAIR stay the
+    // solve's (`admit_mate`), and so does every STATE a mate
+    // comes to hold after insert — this is the one door that
+    // writes a mate's datum (`DocEdit::writes_a_mates_datum`),
+    // and a reference a later edit strands is N5's. The
+    // environment is the document's own nominal, built here
+    // once for this door's reading, the way the evaluation
+    // builds its own and hands it to the solve.
+    if matches!(node, Node::Mate { .. }) {
+        let env = new.param_env::<f64>();
+        crate::mate::solve::admit_mate(new, id, &node, &env, reach, tol).map_err(|fault| {
+            EditError::MateRefused {
+                node: SpokenNode::entering(id, &node),
+                held: crate::spoken::held_by(&*fault, new),
+                fault,
+            }
+        })?;
+        reported.extend(clear_joined_offsets(doc, new, &node));
+    }
+    Ok(id)
+}
+
+/// One edit written into `new` (a copy of `doc`), its maintenance
+/// into `reported`: the record, or the door's refusal.
+#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
+fn write_edit<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    edit: &DocEdit<P>,
+    tol: Tol,
+    reach: Option<&dyn MateReach>,
+) -> Result<EditRecord, EditError> {
+    Ok(match edit {
+        DocEdit::InsertNode { node } => {
+            debug_assert!(edit.writes_a_mates_datum() == matches!(**node, Node::Mate { .. }));
+            inserted(insert_into(doc, new, reported, node, tol, reach)?)
         }
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
@@ -4174,7 +4425,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*id),
                 });
             }
-            reported = remove_unread(doc, &mut new, *id).map_err(|referenced_by| {
+            *reported = remove_unread(doc, new, *id).map_err(|referenced_by| {
                 EditError::DeleteWouldDangle {
                     id: doc.spoken(*id),
                     referenced_by: doc.spoken(referenced_by),
@@ -4227,8 +4478,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // the one refusal `InsertNode` gets for free and this edit
             // does not), and the product-root set, which is a function
             // of the edges.
-            check_acyclic(&new)?;
-            crate::roots::on_set_members(&mut new);
+            check_acyclic(new)?;
+            crate::roots::on_set_members(new);
             EditRecord {
                 minted: None,
                 structural: true,
@@ -4253,10 +4504,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // The pairs are payload names and read sites, checked by the
             // insert door's own functions; no edge moved, so neither
             // acyclicity nor the root set is asked again.
-            check_payload_refs(doc, &new, &rewritten)?;
+            check_payload_refs(doc, new, &rewritten)?;
             check_declared_sides(
                 doc,
-                &new,
+                new,
                 &rewritten,
                 pairs,
                 || doc.spoken(*node),
@@ -4304,7 +4555,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // checks — the same function, not a mirror: dimensions and
             // parameter references over every argument of every loop.
             let probe = Node::Profile(rewritten);
-            check_node_slots(&new, doc, *node, &probe)?;
+            check_node_slots(new, doc, *node, &probe)?;
             let Node::Profile(rewritten) = &probe else {
                 unreachable!("the probe was built as a profile node two lines above")
             };
@@ -4318,7 +4569,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
-            reported = stranded_steps(doc, &new, &dropped, &undrawn);
+            *reported = stranded_steps(doc, new, &dropped, &undrawn);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -4334,8 +4585,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            set_slot(&mut new, doc, *node, *slot, expr)?;
-            check_profile_after_slot_edit(&new, doc, *node, *slot, tol)?;
+            set_slot(new, doc, *node, *slot, expr)?;
+            check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
             EditRecord {
                 minted: None,
                 structural: false,
@@ -4345,7 +4596,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             if !slot.is_structural() {
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
-            set_slot(&mut new, doc, *node, *slot, expr)?;
+            set_slot(new, doc, *node, *slot, expr)?;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -4372,16 +4623,14 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
-            set_slot(&mut new, doc, path.node, path.slot, &rebuilt)?;
-            check_profile_after_slot_edit(&new, doc, path.node, path.slot, tol)?;
+            set_slot(new, doc, path.node, path.slot, &rebuilt)?;
+            check_profile_after_slot_edit(new, doc, path.node, path.slot, tol)?;
             EditRecord {
                 minted: None,
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => {
-            write_doc_param(&mut new, doc, name, value.clone())?
-        }
+        DocEdit::SetDocParam { name, value } => write_doc_param(new, doc, name, value.clone())?,
         DocEdit::SetDocParamValue { name, value } => {
             let Some(declared) = new.params.get(name) else {
                 return Err(EditError::DocParamNotDeclared {
@@ -4399,7 +4648,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     offered: *value,
                 });
             };
-            write_doc_param(&mut new, doc, name, written)?
+            write_doc_param(new, doc, name, written)?
         }
         DocEdit::SetDocParamUnit { name, unit } => {
             let Some(declared) = new.params.get(name) else {
@@ -4425,7 +4674,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     }
                 }
             })?;
-            write_doc_param(&mut new, doc, name, written)?
+            write_doc_param(new, doc, name, written)?
         }
         DocEdit::SetDocParamDistribution { name, distribution } => {
             let Some(declared) = new.params.get(name) else {
@@ -4447,7 +4696,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     }
                     DistributionRefusal::Invalid { fault } => distribution_fault_error(name, fault),
                 })?;
-            write_doc_param(&mut new, doc, name, written)?
+            write_doc_param(new, doc, name, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
@@ -4469,7 +4718,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(to),
                 });
             }
-            check_name_steps(doc, &new, to)?;
+            check_name_steps(doc, new, to)?;
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
@@ -4508,7 +4757,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     .filter(|pair| !before.contains(pair));
                 check_declared_sides(
                     doc,
-                    &new,
+                    new,
                     node,
                     moved,
                     || doc.spoken(id),
@@ -4565,7 +4814,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(name),
                 });
             }
-            check_name_steps(doc, &new, name)?;
+            check_name_steps(doc, new, name)?;
             new.appearance
                 .entry(name.clone())
                 .or_default()
@@ -4651,7 +4900,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(name),
                 });
             }
-            check_name_steps(doc, &new, name)?;
+            check_name_steps(doc, new, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load
             // validator also calls. Only the WALK differs between the
@@ -4726,9 +4975,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // The offset's rigid steps are the instance's slots, held
             // to the insert door's own checks: dimensions and parameter
             // references. Its literal steps meet the frame rule in the
-            // backstop below, with every other placement's.
+            // backstop `door` holds every edit to, with every other
+            // placement's.
             let probe = new.nodes[instance].clone();
-            check_node_slots(&new, doc, *instance, &probe)?;
+            check_node_slots(new, doc, *instance, &probe)?;
             // Structural: where an instance sits is recipe shape, and it
             // moves the document's content pin.
             EditRecord {
@@ -4750,7 +5000,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     });
                 }
             }
-            check_gauge_ref(&new, *node, *gauge, || doc.spoken(*node))?;
+            check_gauge_ref(new, *node, *gauge, || doc.spoken(*node))?;
             match new.nodes.get_mut(node) {
                 Some(
                     Node::InstantiatePart { gauge: held, .. } | Node::Gauge { parent: held, .. },
@@ -4779,7 +5029,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 })?;
             // The gauge's parent is the instance's gauge, which a live
             // group's root may name dangling: the insert door's check.
-            check_gauge_ref(&new, id, parent, || SpokenNode::entering(id, &promoted))?;
+            check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
             new.order.push(id);
@@ -4862,14 +5112,12 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     }),
                 }
             }
-            reported.extend(
-                remove_unread(doc, &mut new, *gauge).map_err(|referenced_by| {
-                    EditError::FoldWouldDangle {
-                        node: doc.spoken(*gauge),
-                        referenced_by: doc.spoken(referenced_by),
-                    }
-                })?,
-            );
+            reported.extend(remove_unread(doc, new, *gauge).map_err(|referenced_by| {
+                EditError::FoldWouldDangle {
+                    node: doc.spoken(*gauge),
+                    referenced_by: doc.spoken(referenced_by),
+                }
+            })?);
             EditRecord {
                 minted: None,
                 structural: true,
@@ -4926,77 +5174,6 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 structural: true,
             }
         }
-    };
-    // The D-2 backstop, on EVERY arm: the maintenance rules make the
-    // invariant-violating states unreachable, and this is what says so
-    // rather than assuming it.
-    crate::roots::check(&new, |id| spoken_before_else_after(doc, &new, id))
-        .map_err(EditError::Roots)?;
-    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
-    // "how many placements" has exactly ONE spelling, an explicit rule
-    // lists at least one placement, and its frames meet the SAME bar
-    // every placement's literal steps are held to
-    // (`Frame::admission_fault`).
-    // A rule's shape and its listed frames are written only by the
-    // insert that authors its node, but a listed frame is admitted at
-    // the `tol` this edit is applied at, which need not be the one its
-    // insert was; so the whole document is checked, in document order,
-    // and where one edit breaks two nodes the refusal names the one
-    // placed first.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
-        let listed = |index| FrameSite::Listed { index };
-        match n.placement_rule_fault(tol) {
-            None => {}
-            Some(PlacementRuleFault::CountSpelling { shape }) => {
-                return Err(EditError::PlacementRuleMismatch {
-                    node: written(doc, node, n),
-                    shape,
-                });
-            }
-            Some(PlacementRuleFault::NoPlacements) => {
-                return Err(EditError::EmptyPlacementList {
-                    node: written(doc, node, n),
-                });
-            }
-            Some(PlacementRuleFault::NonFiniteFrame { index }) => {
-                return Err(EditError::NonFinitePlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                });
-            }
-            Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
-                return Err(EditError::ImproperPlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                    determinant,
-                });
-            }
-            Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
-                return Err(EditError::NonRigidPlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                    check,
-                });
-            }
-        }
-        // A placement's literal steps — a transform's, a gauge's, an
-        // instance's offset — meet the same bar, by the same predicate.
-        if let Some((index, fault)) = n.placement_frame_fault(tol) {
-            return Err(EditError::placement_frame(
-                written(doc, node, n),
-                FrameSite::Step { index },
-                fault,
-            ));
-        }
-    }
-    Ok(Applied {
-        doc: new,
-        record,
-        maintenance: reported,
     })
 }
 

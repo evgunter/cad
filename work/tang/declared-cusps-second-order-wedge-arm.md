@@ -80,3 +80,7 @@ nobody declared, so the refusal has to be the op's.
   (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`).
   That row names the frontier's refusal kinds, so it will go red when
   this item lands and has to move to the undeclared-tangency refusal.
+
+## Note from CLEAVE (2026-10-03): the interior-locus case is this arm's, and is live
+
+CLEAVE's designer pair on `work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md` converged that a declared `Tangent` union whose locus is interior to a face (a rod resting on a plate along a ruling) is item 4's doubled form — two coincident distinct wedge-2π slit edges, one shell, no record — and that the two-row answer DEV-1 shipped deviates from it. Reachable today through two public unions (declared rest, then a bridge) to a one-shell body with an edgeless contact that every at-rest gate passes. Measured: the zero-area two-edge ring the doubled form puts on a plane face passes every validator today; the owed consumer arm is `sector_shape` (a ~2π sector between two distinct coincident edges) and split's reduce / the boolean's sectors through it. Restore the C7 sentence `585b3422f` dropped. CLEAVE lands the interim typed refusal (`cleave/tangent-interior-refuse`); the arm stays here.

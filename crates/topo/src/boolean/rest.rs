@@ -464,7 +464,10 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
+        .map(|&f| {
+            let ends = |_, u, w| result_ends(u, w);
+            super::discard::discard_row(body, f, operand, &kept_across, &ends, None)
+        })
         .collect()
 }
 
