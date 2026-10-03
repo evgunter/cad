@@ -73,7 +73,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     let mut ordered: Vec<(&PairRecord, &PairRecord)> = records
         .iter()
         .zip(raw)
-        .filter(|(r, _)| r.intersect)
+        .filter(|(r, _)| r.survives())
         .collect();
     ordered.sort_by_key(|(r, _)| (r.a, r.b));
     let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = ordered.into_iter().unzip();

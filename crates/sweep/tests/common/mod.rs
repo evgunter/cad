@@ -70,6 +70,10 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
@@ -237,6 +241,9 @@ pub mod revert_ops;
 /// turn. Body authoring, so it routes here.
 pub mod bead;
 
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
 /// The differential batteries' polygon oracles, per-pose outcome line
 /// and reflex-corner pose.
 pub mod differential;
