@@ -354,12 +354,6 @@ pub enum ContactRefusal {
         /// The escalating predicate's diagnostics.
         diag: Indeterminate,
     },
-    /// Geometry that touches with no backing declaration at all:
-    /// near-coincidence NEVER silently becomes contact (F6).
-    Undeclared {
-        /// The site's diagnostics.
-        diag: Indeterminate,
-    },
     /// The configuration is outside the class's certifiable set — the
     /// demanded set IS the certifiable set (C3's order-k boundary),
     /// so this refuses typed rather than sampling. Carries what was
@@ -403,13 +397,6 @@ impl core::fmt::Display for ContactRefusal {
                 f,
                 "whether the declared faces touch escalated ({}), and no declaration can \
                  bridge it; {CONTACT_RECOURSE}",
-                diag.payload()
-            ),
-            Self::Undeclared { diag } => write!(
-                f,
-                "the faces touch on the geometry's own evidence ({}) with no declaration \
-                 behind them — near-coincidence never silently becomes contact; \
-                 {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::NotCertifiable { what } => write!(

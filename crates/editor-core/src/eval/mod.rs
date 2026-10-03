@@ -1755,8 +1755,8 @@ pub enum NodeErrorKind {
         /// and a union's contact against an unmerged member face is
         /// that member's.
         merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
+        /// How the coincidence read, unaltered: decided zero, or in band.
+        coincidence: topo::Coincidence,
     },
     /// **A union's undeclared contact against a row its own FOLD
     /// minted** — a fragment of a member's face, the union's body,
@@ -1779,8 +1779,8 @@ pub enum NodeErrorKind {
         /// The fold-minted row, in the union's PUBLISHED name space —
         /// the space its other refusals name.
         row: Box<crate::names::StableName>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
+        /// How the coincidence read, unaltered: decided zero, or in band.
+        coincidence: topo::Coincidence,
     },
     /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
@@ -2135,8 +2135,8 @@ struct UndeclaredCoincidenceFinding<'a> {
     /// Each side's merged constituent set, empty where the side is a
     /// row of one node.
     merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
+    /// How the coincidence read.
+    coincidence: &'a topo::Coincidence,
 }
 
 impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
@@ -2169,7 +2169,7 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
             // — each declares the same contact — so the prose says
             // that rather than leaving the pick unexplained.
             MergedSides(self.merged),
-            self.diag.payload()
+            self.coincidence.payload()
         )
     }
 
@@ -2208,8 +2208,8 @@ impl core::fmt::Display for MergedSides<'_> {
 struct UndeclarableContactFinding<'a> {
     /// The fold-minted row, in the union's published space.
     row: &'a crate::names::StableName,
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
+    /// How the coincidence read.
+    coincidence: &'a topo::Coincidence,
     /// Who says the row's minting node.
     by: crate::spoken::Speaker<'a>,
 }
@@ -2224,7 +2224,7 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
             f,
             "a member's face rests on the {}, which no member carries ({})",
             self.by.name(self.row),
-            self.diag.payload()
+            self.coincidence.payload()
         )
     }
 
@@ -2602,18 +2602,23 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UndeclaredCoincidence {
                 finding,
                 merged,
-                diag,
+                coincidence,
             } => crate::finding::compose(
                 f,
                 &UndeclaredCoincidenceFinding {
                     finding,
                     merged,
-                    diag,
+                    coincidence,
                 },
             ),
-            Self::UndeclarableContact { row, diag } => {
-                crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
-            }
+            Self::UndeclarableContact { row, coincidence } => crate::finding::compose(
+                f,
+                &UndeclarableContactFinding {
+                    row,
+                    coincidence,
+                    by,
+                },
+            ),
             Self::BlendSelectionResolve { verb, error } => {
                 write!(
                     f,

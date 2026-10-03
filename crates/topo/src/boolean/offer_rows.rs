@@ -1771,7 +1771,7 @@ fn design_band() -> Band {
 /// margin: an exhaustive match, so a new kind is a compile error here
 /// until it is placed.
 fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
-    use geom_brep::recourse::Refused;
+    use geom_brep::recourse::{Classified, Refused};
     let zero = || Classified {
         margin: diag.margin,
         band: diag.band,
@@ -1791,8 +1791,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
         BooleanErrorKind::CoplanarNeighbours => [
-            super::NeighbourOffset::Zero(zero()),
-            super::NeighbourOffset::Undecided(diag),
+            super::Coincidence::Decided {
+                predicate: "bool_plane_offset",
+                margin: zero(),
+            },
+            super::Coincidence::InBand(diag),
         ]
         .into_iter()
         .map(|offset| BooleanError::CoplanarNeighbours {

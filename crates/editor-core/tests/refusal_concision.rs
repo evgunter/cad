@@ -299,7 +299,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::B,
                 faces: [face, face],
-                offset: topo::NeighbourOffset::Undecided(diag),
+                offset: topo::Coincidence::InBand(diag),
             },
         ),
         (
@@ -469,7 +469,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "UndeclaredCoincidence",
             BooleanError::UndeclaredCoincidence {
-                diag,
+                coincidence: topo::Coincidence::InBand(diag),
                 pair: [(Operand::A, face), (Operand::B, face)],
                 relation: PlaneRelation::SameOpposite,
             },

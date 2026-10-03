@@ -3024,10 +3024,6 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             "whether the declared faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
-        ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no declared contact behind them",
-            crate::contact::CONTACT_RECOURSE_MARKED,
-        ),
         ContactRefusal::NotCertifiable { .. } => (
             "the kernel cannot yet check a contact between faces of these kinds",
             NOT_YET,

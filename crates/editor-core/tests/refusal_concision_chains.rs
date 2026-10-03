@@ -3176,7 +3176,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
                 merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
+                coincidence: topo::Coincidence::InBand(diag()),
             },
         ),
         row(
@@ -3184,14 +3184,14 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
                 merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
-                diag: diag(),
+                coincidence: topo::Coincidence::InBand(diag()),
             },
         ),
         row(
             "UndeclarableContact",
             NodeErrorKind::UndeclarableContact {
                 row: Box::new(face()),
-                diag: diag(),
+                coincidence: topo::Coincidence::InBand(diag()),
             },
         ),
         row(

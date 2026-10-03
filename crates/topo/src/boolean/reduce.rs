@@ -65,8 +65,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use super::boxes;
 use super::circle_roots::CircleRoots;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
-use super::plane_eq::{LadderRefusal, PlaneDesc};
-use super::refusal_routes::NeighbourOffset;
+use super::plane_eq::PlaneDesc;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
@@ -670,7 +669,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             geom_core::Point3::origin(),
             arm,
         ));
-        match super::plane_eq::plane_eq_typed(&p1, &p2, id, &extent, band) {
+        match super::plane_eq::oriented_plane_eq(&p1, &p2, id, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -678,26 +677,23 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     edge: edge_key,
                 });
             }
-            Err(LadderRefusal::Coplanar { offset, .. }) => {
-                return Err(coplanar(NeighbourOffset::Zero(offset)));
-            }
-            Err(LadderRefusal::Refused(super::PlaneEqError::Escalated { rung, diag })) => {
+            Err(super::PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
                     super::PlaneDoor::Neighbours,
                     diag,
                 ));
             }
-            Err(LadderRefusal::Refused(super::PlaneEqError::Undeclared { diag, .. })) => {
-                return Err(coplanar(NeighbourOffset::Undecided(diag)));
+            Err(super::PlaneEqError::Undeclared { coincidence, .. }) => {
+                return Err(coplanar(coincidence));
             }
             // Unreachable with `declared: false`; kept typed.
-            Err(LadderRefusal::Refused(super::PlaneEqError::Contradicted { fact, .. })) => {
+            Err(super::PlaneEqError::Contradicted { fact, .. }) => {
                 return Err(BooleanError::DeclarationContradicted { fact });
             }
             // Unreachable with `declared: false` (only a declared
             // reading is unsettled); kept typed as the gate's in-band.
-            Err(LadderRefusal::Refused(super::PlaneEqError::Unsettled { diag })) => {
+            Err(super::PlaneEqError::Unsettled { diag }) => {
                 return Err(BooleanError::plane_identity(
                     super::PlaneRung::Parallel,
                     super::PlaneDoor::Neighbours,
@@ -802,7 +798,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                     });
                 }
             };
-            let (diag, relation) = match relation {
+            let (coincidence, relation) = match relation {
                 Ok(
                     relation @ (super::CarrierRelation::SameOriented
                     | super::CarrierRelation::SameOpposite),
@@ -815,9 +811,9 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                     continue;
                 }
                 Err(super::CarrierEqError::Undeclared {
-                    diag,
+                    coincidence,
                     relation: relation @ super::CarrierRelation::SameOriented,
-                }) => (diag, relation),
+                }) => (coincidence, relation),
                 _ => continue,
             };
             if edge_boxes.is_none() {
@@ -839,7 +835,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             }
             if meets {
                 return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
+                    coincidence,
                     pair: [(Operand::A, fa), (Operand::B, fb)],
                     relation,
                 });

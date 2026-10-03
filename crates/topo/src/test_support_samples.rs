@@ -172,7 +172,6 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             steer: Some(FIT_DEFERRAL),
         },
         ContactRefusal::Escalated { diag: diag() },
-        ContactRefusal::Undeclared { diag: diag() },
     ];
     // The longest `what`s the raise sites write.
     v.extend(

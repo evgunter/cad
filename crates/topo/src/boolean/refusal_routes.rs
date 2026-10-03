@@ -37,11 +37,10 @@
 //! declaration only where one read ahead would settle the question.
 
 use geom_brep::LeverRung;
-use geom_brep::recourse::{
-    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
-};
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{Indeterminate, UNREADABLE_MARGIN_NOTE};
 
+use super::carrier_eq::Coincidence;
 use crate::contact::{BooleanCoincidence, ContactClass};
 
 pub use super::plane_eq::PlaneRung;
@@ -1095,7 +1094,7 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
 /// the maximal-faces gate reads the offset between their planes (F7):
 /// either definite sign passes, and a zero offset with no shared source
 /// refuses (`BooleanError::CoplanarNeighbours`, whose
-/// [`NeighbourOffset`] is the refused arm). Declarations name pairs
+/// [`Coincidence`] is the refused arm). Declarations name pairs
 /// across the operands, so none settles it.
 pub(crate) const NEIGHBOUR_OFFSET: SizedDecision = SizedDecision {
     lever: NEIGHBOUR_LEVER,
@@ -1105,47 +1104,11 @@ pub(crate) const NEIGHBOUR_OFFSET: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The offset the maximal-faces gate refused two neighbouring faces of
-/// one operand on ([`NEIGHBOUR_OFFSET`]), as the plane ladder's offset
-/// rung decided it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum NeighbourOffset {
-    /// The offset decided zero, with the margin its band decided: a
-    /// nonzero one in the zero band is a size a smaller tolerance
-    /// decides apart.
-    Zero(Classified),
-    /// The offset landed in the ambiguity band, or was poisoned.
-    Undecided(Indeterminate),
-}
-
-impl NeighbourOffset {
-    /// The refused arm of [`NEIGHBOUR_OFFSET`] this offset is.
-    pub(crate) fn arm(&self) -> RefusedArm<'_> {
-        match self {
-            Self::Zero(classified) => RefusedArm::Zero(*classified),
-            Self::Undecided(diag) => RefusedArm::Undecided(diag),
-        }
-    }
-
-    /// The margin the rung classified or could not, with its band, as
-    /// the payload a refusal quotes.
-    pub(crate) const fn reported(self) -> Indeterminate {
-        match self {
-            Self::Zero(Classified { margin, band }) => Indeterminate {
-                margin,
-                band,
-                predicate: Some("bool_plane_offset"),
-                terminal_sliver: false,
-            },
-            Self::Undecided(diag) => diag,
-        }
-    }
-
-    /// The maximal-faces gate's ending for this offset: the lever, and
-    /// the tolerance a nonzero margin gives.
-    pub(crate) fn ending(&self) -> String {
-        NEIGHBOUR_OFFSET.recourse(self.arm(), Reading::Build)
-    }
+/// The maximal-faces gate's ending for the offset it refused two
+/// neighbouring faces of one operand on ([`NEIGHBOUR_OFFSET`]): the
+/// lever, and the tolerance a nonzero margin gives.
+pub(crate) fn neighbour_ending(offset: &Coincidence) -> String {
+    NEIGHBOUR_OFFSET.recourse(offset.arm(), Reading::Build)
 }
 
 /// **Which sub-frontier the declared rest contact's zip met**
@@ -3512,24 +3475,28 @@ mod tests {
             };
             assert_eq!(operand, Operand::A);
             assert_eq!(
-                matches!(refused, NeighbourOffset::Zero(_)),
+                matches!(refused, Coincidence::Decided { .. }),
                 decided,
                 "offset {offset:e}: {refused:?}"
             );
-            let reported = refused.reported();
+            assert_eq!(refused.predicate(), Some("bool_plane_offset"));
             let text = err.to_string();
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
             assert!(
                 text.starts_with(&format!(
                     "two neighbouring faces of the first operand lie on one plane, or nearly ({}). ",
-                    reported.payload()
+                    refused.payload()
                 )) && text.contains(NEIGHBOUR_ENDING)
                     && !text.contains("declare")
                     && !text.contains("exactly"),
                 "offset {offset:e}: {text}"
             );
-            let m = point_margin(&reported);
+            let m = refused
+                .margin()
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin");
             let offer = (m != 0.0).then(|| m.abs() / k());
             assert_eq!(
                 offered_below(&text),
@@ -3573,7 +3540,7 @@ mod tests {
             (
                 "pierce curvature at zero",
                 BooleanError::CurvedSectorSideUnsupported {
-                    verdict: Refused::Zero(Classified {
+                    verdict: Refused::Zero(geom_brep::recourse::Classified {
                         margin: MarginDiag::value(zero_margin),
                         band: b,
                     }),
@@ -3604,7 +3571,7 @@ mod tests {
                 BooleanError::CoplanarNeighbours {
                     operand: Operand::B,
                     faces: [face, face],
-                    offset: NeighbourOffset::Undecided(diag),
+                    offset: Coincidence::InBand(diag),
                 },
                 false,
                 Some(point_margin(&diag) / k()),
@@ -3612,7 +3579,7 @@ mod tests {
             (
                 "undeclared coincidence",
                 BooleanError::UndeclaredCoincidence {
-                    diag,
+                    coincidence: Coincidence::InBand(diag),
                     pair: [(Operand::A, face), (Operand::B, face)],
                     relation: PlaneRelation::SameOriented,
                 },
@@ -3642,7 +3609,7 @@ mod tests {
              tolerance: {pierce}"
         );
         for verdict in [
-            Refused::Zero(Classified {
+            Refused::Zero(geom_brep::recourse::Classified {
                 margin: MarginDiag::value(zero_margin),
                 band: b,
             }),

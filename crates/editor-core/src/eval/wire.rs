@@ -3600,7 +3600,7 @@ fn union_refusal<T: geom_core::Bounds>(
     let NodeErrorKind::UndeclaredCoincidence {
         finding,
         merged: _,
-        diag,
+        coincidence,
     } = refused
     else {
         return refused;
@@ -3629,7 +3629,7 @@ fn union_refusal<T: geom_core::Bounds>(
             }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
-                diag,
+                coincidence,
             };
         }
     }
@@ -3648,7 +3648,7 @@ fn union_refusal<T: geom_core::Bounds>(
             evidence,
         }),
         merged: Box::new((ca, cb)),
-        diag,
+        coincidence,
     }
 }
 
@@ -3766,7 +3766,7 @@ fn refusal_menu<T: geom_core::Bounds>(
     err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
-        diag,
+        coincidence,
         pair,
         relation,
     }) = err
@@ -3791,7 +3791,7 @@ fn refusal_menu<T: geom_core::Bounds>(
     };
     let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
-            diag,
+            coincidence,
             pair,
             relation,
         });
@@ -3812,7 +3812,7 @@ fn refusal_menu<T: geom_core::Bounds>(
         },
     ) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
-            diag,
+            coincidence,
             pair,
             relation,
         });
@@ -3821,7 +3821,7 @@ fn refusal_menu<T: geom_core::Bounds>(
         // Filled only by [`union_refusal`].
         merged: Box::new((Vec::new(), Vec::new())),
         finding: Box::new(finding),
-        diag,
+        coincidence,
     }
 }
 

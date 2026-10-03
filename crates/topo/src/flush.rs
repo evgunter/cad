@@ -129,8 +129,8 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
-    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration, PairUnread,
-    carrier_pair_relation,
+    BooleanDeclarations, CarrierEqError, CarrierRelation, Coincidence, FacePairDeclaration,
+    PairUnread, carrier_pair_relation,
 };
 use crate::contact::BooleanCoincidence;
 use crate::entity::FaceKey;
@@ -298,32 +298,26 @@ pub fn pair_finding<T: Decide>(
             relation,
             rung: FlushRung::SharedSource,
         })),
-        Err(CarrierEqError::Undeclared { diag, relation }) => {
-            if diag.margin.is_invalid() {
-                // The verifier's definite-zero-offset encoding: the
-                // pair would verify if declared, with the orientation
-                // the refusal itself carries. A NaN-poisoned margin
-                // shares that encoding, and the detector takes the
-                // verifier's encoding as-is (anti-twin: it interprets
-                // nothing the verifier doesn't) — C4's verify-at-use
-                // is the backstop for geometry broken this early.
-                match relation {
-                    CarrierRelation::SameOriented | CarrierRelation::SameOpposite => {
-                        Ok(Some(FlushEvidence {
-                            relation,
-                            rung: FlushRung::DecidedCoincident,
-                        }))
-                    }
-                    // Unreachable by the variant's contract (an
-                    // Undeclared refusal never carries `Distinct`);
-                    // typed, never silent.
-                    CarrierRelation::Distinct => Err(diag),
-                }
-            } else {
-                // In-band coincidence: not definite, not droppable.
-                Err(diag)
-            }
-        }
+        // Rung 3 decided the pair coincident: it would verify if
+        // declared, with the orientation the refusal itself carries.
+        Err(CarrierEqError::Undeclared {
+            coincidence: Coincidence::Decided { .. },
+            relation: relation @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite),
+        }) => Ok(Some(FlushEvidence {
+            relation,
+            rung: FlushRung::DecidedCoincident,
+        })),
+        // Unreachable by the variant's contract (an Undeclared refusal
+        // never carries `Distinct`); typed, never silent.
+        Err(CarrierEqError::Undeclared {
+            coincidence: coincidence @ Coincidence::Decided { .. },
+            relation: CarrierRelation::Distinct,
+        }) => Err(coincidence.quoted()),
+        // In band, or unreadable: not definite, not droppable.
+        Err(CarrierEqError::Undeclared {
+            coincidence: Coincidence::InBand(diag),
+            ..
+        }) => Err(diag),
         Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
         Err(CarrierEqError::Contradicted { diag, .. } | CarrierEqError::Unsettled { diag }) => {

@@ -52,6 +52,7 @@
 //! `Undeclared`, exactly as two bit-equal planes do — the declaration
 //! is what makes them one carrier, and nothing else is.
 
+use geom_brep::recourse::{Classified, RefusedArm};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::Contradiction;
@@ -106,10 +107,8 @@ pub enum CarrierEqError {
     /// LIB-PYG5 R3) — without re-running any decide on the error
     /// path.
     Undeclared {
-        /// The coincidence predicate's diagnostics (a decided-zero
-        /// margin encodes as `MarginKind::Invalid`; an in-band margin
-        /// rides as measured).
-        diag: Indeterminate,
+        /// How the coincidence read: decided zero, or in band.
+        coincidence: Coincidence,
         /// The decided orientation: [`CarrierRelation::SameOriented`]
         /// or [`CarrierRelation::SameOpposite`], never `Distinct`.
         relation: CarrierRelation,
@@ -133,6 +132,113 @@ pub enum CarrierEqError {
         /// verdict is definite, and the rung keeps no measure.
         diag: Indeterminate,
     },
+}
+
+/// How the coincidence of two carriers no identity rung glued was read:
+/// the payload of every undeclared-coincidence refusal.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Coincidence {
+    /// Every coincidence measure decided zero at the band: the carriers
+    /// coincide.
+    Decided {
+        /// The measure that decided zero: the offset on a plane pair, the
+        /// kind's first datum on a curved one.
+        predicate: &'static str,
+        /// Its reporting margin, with the band that decided it.
+        margin: Classified,
+    },
+    /// A measure landed in the ambiguity band, or could not be read: the
+    /// carriers may coincide.
+    InBand(Indeterminate),
+}
+
+impl Coincidence {
+    /// The predicate that read the coincidence.
+    #[must_use]
+    pub const fn predicate(&self) -> Option<&'static str> {
+        match self {
+            Self::Decided { predicate, .. } => Some(*predicate),
+            Self::InBand(diag) => diag.predicate,
+        }
+    }
+
+    /// The band the coincidence was read against.
+    #[must_use]
+    pub const fn band(&self) -> Band {
+        match self {
+            Self::Decided { margin, .. } => margin.band,
+            Self::InBand(diag) => diag.band,
+        }
+    }
+
+    /// The reporting margin, decided or not.
+    #[must_use]
+    pub const fn margin(&self) -> geom_core::MarginDiag {
+        match self {
+            Self::Decided { margin, .. } => margin.margin,
+            Self::InBand(diag) => diag.margin,
+        }
+    }
+
+    /// The refused arm of a decision that does not pass at zero.
+    #[must_use]
+    pub const fn arm(&self) -> RefusedArm<'_> {
+        match self {
+            Self::Decided { margin, .. } => RefusedArm::Zero(*margin),
+            Self::InBand(diag) => RefusedArm::Undecided(diag),
+        }
+    }
+
+    /// The reading in the `Indeterminate` slot a contradiction's
+    /// evidence takes: the decided margin under its predicate, or the
+    /// in-band diagnostic as it stands. Never on any frame's log.
+    pub(crate) const fn quoted(&self) -> Indeterminate {
+        match *self {
+            Self::Decided {
+                predicate,
+                margin: Classified { margin, band },
+            } => Indeterminate {
+                margin,
+                band,
+                predicate: Some(predicate),
+                terminal_sliver: false,
+            },
+            Self::InBand(diag) => diag,
+        }
+    }
+
+    /// The margin and band as a refusal quotes them, without the
+    /// predicate's name or any recourse.
+    #[must_use]
+    pub const fn payload(&self) -> CoincidencePayload<'_> {
+        CoincidencePayload(self)
+    }
+}
+
+/// [`Coincidence::payload`]'s view.
+#[derive(Clone, Copy, Debug)]
+pub struct CoincidencePayload<'a>(&'a Coincidence);
+
+impl core::fmt::Display for CoincidencePayload<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.0 {
+            Coincidence::Decided {
+                margin: Classified { margin, band },
+                ..
+            } => {
+                let noun = match margin.kind() {
+                    geom_core::MarginKind::Enclosure => "enclosure",
+                    geom_core::MarginKind::Value | geom_core::MarginKind::Invalid => "margin",
+                };
+                write!(
+                    f,
+                    "decided zero: {noun} {margin:e} lies within the zero band (±{:e})",
+                    band.zero()
+                )
+            }
+            Coincidence::InBand(diag) => write!(f, "{}", diag.payload()),
+        }
+    }
 }
 
 /// One carrier's conventional oriented description.
@@ -312,10 +418,20 @@ pub(super) fn pair_door_verdict<T: Decide>(
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
     match carrier_eq_verdict(c1, c2, id, extent, band) {
-        Err(CarrierEqError::Undeclared { diag, relation }) if diag.margin.is_invalid() => {
-            coincident_as_declared(c1, c2, extent, relation, band)
-                .map_err(|diag| CarrierEqError::Undeclared { diag, relation })?;
-            Err(CarrierEqError::Undeclared { diag, relation })
+        Err(CarrierEqError::Undeclared {
+            coincidence: decided @ Coincidence::Decided { .. },
+            relation,
+        }) => {
+            coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
+                CarrierEqError::Undeclared {
+                    coincidence: Coincidence::InBand(diag),
+                    relation,
+                }
+            })?;
+            Err(CarrierEqError::Undeclared {
+                coincidence: decided,
+                relation,
+            })
         }
         verdict => verdict,
     }
@@ -1053,12 +1169,24 @@ fn data_rungs<T: Decide>(
         CarrierRelation::SameOpposite
     };
     let mut any_in_band: Option<Indeterminate> = None;
+    let mut first_zero: Option<Coincidence> = None;
     for &(name, _, margin) in margins {
-        match decide(name, margin, band) {
-            Ok(Sign::Positive | Sign::Negative) => {
+        match decide_reported(name, margin, band) {
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            }) => {
                 return Ok((CarrierRelation::Distinct, ContactVerdict::Definite));
             }
-            Ok(Sign::Zero) => {}
+            Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => {
+                first_zero = first_zero.or(Some(Coincidence::Decided {
+                    predicate: name,
+                    margin: Classified { margin, band },
+                }));
+            }
             Err(diag) => any_in_band = any_in_band.or(Some(diag)),
         }
     }
@@ -1066,14 +1194,15 @@ fn data_rungs<T: Decide>(
     // coincidence NEVER silently becomes contact, and bit-equal data
     // without a shared source stays unglued.
     //
-    // The predicate named is the first IN-BAND margin when there is
-    // one (that is the margin the reader wants). When every datum
-    // decided definitely zero there is no such margin, and the
-    // fallback names the kind's FIRST datum rather than inventing a
-    // predicate name no `decide` call ever used — an invented name
-    // would read as a measurement that never happened.
+    // The first IN-BAND margin when there is one; otherwise every datum
+    // decided zero, and the kind's first datum carries the decision.
+    let coincidence = match (any_in_band, first_zero) {
+        (Some(diag), _) => Coincidence::InBand(diag),
+        (None, Some(decided)) => decided,
+        (None, None) => unreachable!("a kind's datum list is never empty"),
+    };
     Err(CarrierEqError::Undeclared {
-        diag: any_in_band.unwrap_or_else(|| definite(margins[0].0, band)),
+        coincidence,
         // The alignment this traversal was run under: the relation a
         // declaration of this pair would verify with (R3).
         relation: same,
@@ -1197,13 +1326,23 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
         match carrier_eq_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared { diag, .. }) => {
-                assert!(diag.margin.is_invalid(), "every datum zero: {diag:?}");
+            Err(CarrierEqError::Undeclared {
+                coincidence: Coincidence::Decided { predicate, margin },
+                ..
+            }) => {
+                assert_eq!(predicate, "carrier_sphere_center", "every datum zero");
+                assert!(
+                    !margin.margin.is_invalid(),
+                    "the decided margin rides: {margin:?}"
+                );
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
         match pair_door_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared { diag, .. }) => {
+            Err(CarrierEqError::Undeclared {
+                coincidence: Coincidence::InBand(diag),
+                ..
+            }) => {
                 assert!(
                     !diag.margin.is_invalid() && diag.predicate == Some("carrier_sphere_reach"),
                     "the sum in band: {diag:?}"

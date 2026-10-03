@@ -909,11 +909,11 @@ mod tests {
                     },
                 }),
                 merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
+                coincidence: topo::Coincidence::InBand(diag()),
             },
             C::UndeclarableContact => K::UndeclarableContact {
                 row: Box::new(name()),
-                diag: diag(),
+                coincidence: topo::Coincidence::InBand(diag()),
             },
             C::FilletSelectionResolve => K::BlendSelectionResolve {
                 verb: BlendKind::Fillet,

@@ -917,7 +917,7 @@ impl RefusedBoolean {
         let NodeErrorKind::UndeclaredCoincidence {
             finding,
             merged,
-            diag,
+            coincidence,
         } = refused
         else {
             return None;
@@ -934,7 +934,7 @@ impl RefusedBoolean {
             refused: NodeErrorKind::UndeclaredCoincidence {
                 finding: finding.clone(),
                 merged: merged.clone(),
-                diag: *diag,
+                coincidence: *coincidence,
             },
             held: held_by(refused, doc),
         })
@@ -1481,7 +1481,7 @@ mod refused_boolean {
             let NodeErrorKind::UndeclaredCoincidence {
                 finding,
                 merged,
-                diag,
+                coincidence,
             } = kind
             else {
                 panic!("the premise: an undeclared contact, got {kind:?}");
@@ -1491,7 +1491,7 @@ mod refused_boolean {
             let one_operand = NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(same),
                 merged: merged.clone(),
-                diag: *diag,
+                coincidence: *coincidence,
             };
             assert!(
                 RefusedBoolean::of(

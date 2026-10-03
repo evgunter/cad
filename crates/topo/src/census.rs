@@ -5609,8 +5609,7 @@ fn confirm_curve_and_patch_records<T: Decide>(
                     steer,
                 });
             }
-            Err(crate::contact::ContactRefusal::Escalated { diag })
-            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
+            Err(crate::contact::ContactRefusal::Escalated { diag }) => {
                 errors.push(ValidationError::CensusEscalated { cause: diag });
             }
             // The refusal is carried whole, `what` and all. It was
@@ -5676,8 +5675,7 @@ fn confirm_curve_and_patch_records<T: Decide>(
                 });
                 continue;
             }
-            Err(crate::contact::ContactRefusal::Escalated { diag })
-            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
+            Err(crate::contact::ContactRefusal::Escalated { diag }) => {
                 errors.push(ValidationError::CensusEscalated { cause: diag });
                 continue;
             }

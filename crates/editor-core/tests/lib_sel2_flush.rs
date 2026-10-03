@@ -203,11 +203,18 @@ fn detect_declare_boolean_round_trip() {
             // candidate declaration in the detector's own value shape,
             // built from what the raise site held (no re-detection on
             // the error path).
-            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
-                // Exactly-on contact: the verifier's decided-zero
-                // encoding, on the verify door's own site.
-                assert!(diag.margin.is_invalid(), "{diag:?}");
-                assert_eq!(diag.predicate, Some("bool_plane_offset"));
+            NodeErrorKind::UndeclaredCoincidence {
+                finding,
+                coincidence,
+                ..
+            } => {
+                // Exactly-on contact: the offset decided zero, with the
+                // margin its band decided.
+                let topo::Coincidence::Decided { predicate, margin } = coincidence else {
+                    panic!("an exactly-on contact decides zero: {coincidence:?}");
+                };
+                assert_eq!(*predicate, "bool_plane_offset");
+                assert!(!margin.margin.is_invalid(), "{margin:?}");
                 (**finding).clone()
             }
             other => panic!("undeclared union must refuse with the menu, got {other:?}"),
