@@ -736,7 +736,7 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// scaffold edges tier 3 refuses, and a pinch side's touching pieces
 /// carry contacts split declares nowhere
 /// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
-pub fn split<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -756,7 +756,7 @@ pub fn split<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPoli
         .map_err(|e| SplitError::Finish(finish::SplitFinishError::Band(e)))?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
-            crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane())
+            crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
         }
     }

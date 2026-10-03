@@ -520,7 +520,9 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let (a, b) = (one_solid(a)?, one_solid(b)?);
     let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
     if let BooleanResult::Body(r) = &mut result {
-        crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane())
+        let pad = super::boxes::sweep_pad(band);
+        let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+        crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane(), Some(&face_box))
             .map_err(BooleanError::Pieces)?;
     }
     Ok(result)

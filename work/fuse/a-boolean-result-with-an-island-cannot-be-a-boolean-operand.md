@@ -2,8 +2,7 @@
 id: a-boolean-result-with-an-island-cannot-be-a-boolean-operand
 kind: issue
 title: A boolean result with an island is two solids, and a boolean refuses a multi-solid operand as JoinDesync rather than typed
-status: closed
-closed: 2026-10-03
+status: open
 opened: 2026-10-02
 priority: P0
 cost: H
@@ -48,7 +47,7 @@ multi-solid operand, solid by solid, or a typed refusal that names the
 missing door. Which of the two the next cut takes is the design
 question (`design: true`).
 
-## Closed (PR 3891)
+## Answered by PR 3891 (the orchestrator closes it on merge)
 
 Ev ruled (PR 3901) that booleans, `shell` and `split` take bodies. A
 multi-solid operand now enters each pipeline as one multi-shell solid

@@ -2,8 +2,7 @@
 id: island-filing-is-silent-where-every-vertex-touches
 kind: issue
 title: Island filing leaves a solid as the graft filed it when some shell has no vertex clear of the solid's other shells
-status: closed
-closed: 2026-10-03
+status: open
 opened: 2026-10-02
 priority: P3
 cost: E
@@ -24,7 +23,7 @@ planar faces, `face_interior_point`), tried after the vertices run
 out. Until then the silence is the false-refusal direction, documented
 in the module docs.
 
-## Closed (PR 3891)
+## Answered by PR 3891 (the orchestrator closes it on merge)
 
 The island filing this row described is gone: the result sort
 (`crates/topo/src/pieces.rs`) REFUSES a shell every vertex of which

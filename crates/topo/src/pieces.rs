@@ -50,11 +50,11 @@
 //!
 //! [`shell_role`]: crate::validate::shell_role
 
-use geom_core::{Band, Bounds, Decide, Tol};
+use geom_core::{Band, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::PointInSolidError;
-use crate::entity::{ShellKey, SolidKey};
+use crate::entity::{FaceKey, ShellKey, SolidKey};
 use crate::props::{QuadLane, ShellRole};
 use crate::validate::{Insides, ShellRead, witness_insides};
 
@@ -164,20 +164,25 @@ impl std::error::Error for PieceSortError {}
 
 /// Sorts every solid of `body` into pieces (module docs). `quad` is the
 /// lane the shells' roles are read through, as check 10 reads them.
+/// `face_box`, when given, is a certified padded box of a face: two
+/// shells whose faces' boxes hull apart are never probed against each
+/// other ([`Screen`]). The boolean passes its sweep's boxes; a caller
+/// without them passes `None` and every pair is probed.
 ///
 /// # Errors
 ///
 /// [`PieceSortError`], before any shell of the body moves.
-pub(crate) fn sort_into_pieces<T: Decide + Bounds>(
+pub(crate) fn sort_into_pieces<T: Decide>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
+    face_box: Option<FaceBox<'_, T>>,
 ) -> Result<(), PieceSortError> {
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     let mut moves = Vec::new();
     for solid in solids {
-        moves.extend(pieces_of(body, solid, band, tol, quad)?);
+        moves.extend(pieces_of(body, solid, band, tol, quad, face_box)?);
     }
     for piece in moves {
         body.move_shells_to_new_solid(&piece)
@@ -188,12 +193,13 @@ pub(crate) fn sort_into_pieces<T: Decide + Bounds>(
 
 /// The pieces of `solid` that leave it, each as the shell list its new
 /// solid takes (outer shell first, then its voids in the solid's order).
-fn pieces_of<T: Decide + Bounds>(
+fn pieces_of<T: Decide>(
     body: &Body<T>,
     solid: SolidKey,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
+    face_box: Option<FaceBox<'_, T>>,
 ) -> Result<Vec<Vec<ShellKey>>, PieceSortError> {
     let Some(shells) = body.shells_of_solid(solid) else {
         return Ok(Vec::new());
@@ -219,7 +225,7 @@ fn pieces_of<T: Decide + Bounds>(
         .map(|(r, &shell)| r.ok_or(PieceSortError::RoleUnread { shell }))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let screen = Screen::of(body, &reads, band);
+    let screen = Screen::of(body, &reads, face_box);
     let mut enclosers: Vec<Option<Vec<usize>>> = vec![None; reads.len()];
     let mut owner: Vec<Option<usize>> = vec![None; reads.len()];
     for i in 0..reads.len() {
@@ -299,40 +305,50 @@ fn read_enclosers<T: Decide>(
         return Ok(known.clone());
     }
     let shell = reads[i].shell;
-    let around: Vec<usize> = match witness_insides(body, i, reads, &|t| screen.may_meet(i, t), band, tol) {
-        Insides::Read(inside) => (0..reads.len()).filter(|&t| inside[t]).collect(),
-        Insides::Touching => return Err(PieceSortError::WitnessTouching { shell }),
-        Insides::Refused(source) => return Err(PieceSortError::Probe { shell, source }),
-    };
+    let around: Vec<usize> =
+        match witness_insides(body, i, reads, &|t| screen.may_meet(i, t), band, tol) {
+            Insides::Read(inside) => (0..reads.len()).filter(|&t| inside[t]).collect(),
+            Insides::Touching => return Err(PieceSortError::WitnessTouching { shell }),
+            Insides::Refused(source) => return Err(PieceSortError::Probe { shell, source }),
+        };
     memo[i] = Some(around.clone());
     Ok(around)
 }
 
-/// Each shell's padded box — the hull of its faces' boxes, the boxes
-/// the boolean's sweep certifies with ([`crate::boolean::boxes`]) — so
-/// two shells whose boxes are certified apart are never probed against
-/// each other: one cannot lie inside the other. A shell whose box does
-/// not build is screened out of nothing.
+/// A certified padded box of a face, `None` where it does not build:
+/// the boolean's sweep boxes ([`crate::boolean::boxes::face_box`]).
+pub(crate) type FaceBox<'a, T> = &'a dyn Fn(&Body<T>, FaceKey) -> Option<bvh::Aabb>;
+
+/// Each shell's box — the hull of its faces' [`FaceBox`]es — so two
+/// shells whose boxes are certified apart are never probed against each
+/// other: one cannot lie inside the other. A shell whose box does not
+/// build, or every shell when no `FaceBox` is given, is screened out of
+/// nothing.
 struct Screen(Vec<Option<bvh::Aabb>>);
 
 impl Screen {
-    fn of<T: Decide + Bounds>(body: &Body<T>, reads: &[ShellRead], band: Band) -> Self {
-        let pad = crate::boolean::boxes::sweep_pad(band);
+    fn of<T: Decide>(
+        body: &Body<T>,
+        reads: &[ShellRead],
+        face_box: Option<FaceBox<'_, T>>,
+    ) -> Self {
         Self(
             reads
                 .iter()
                 .map(|r| {
-                    r.sel.faces().iter().try_fold(None, |hull: Option<bvh::Aabb>, &f| {
-                        let b = crate::boolean::boxes::face_box(body, f, pad, band).ok()?;
-                        Some(Some(hull.map_or(b, |h| h.hull(&b))))
-                    })?
+                    let face_box = face_box?;
+                    r.sel
+                        .faces()
+                        .iter()
+                        .try_fold(None, |hull: Option<bvh::Aabb>, &f| {
+                            let b = face_box(body, f)?;
+                            Some(Some(hull.map_or(b, |h| h.hull(&b))))
+                        })?
                 })
                 .collect(),
         )
     }
 
-    /// Whether shells `i` and `t` may meet: `false` only for two boxes
-    /// certified apart.
     fn may_meet(&self, i: usize, t: usize) -> bool {
         match (&self.0[i], &self.0[t]) {
             (Some(a), Some(b)) => a.overlaps(b),
@@ -368,7 +384,7 @@ mod tests {
 
     fn sort(body: &mut Body<f64>) -> Result<(), PieceSortError> {
         let tol = Tol::witness();
-        sort_into_pieces(body, Band::linear(tol).unwrap(), tol, None)
+        sort_into_pieces(body, Band::linear(tol).unwrap(), tol, None, None)
     }
 
     /// **A cavity no piece surrounds refuses**: two side-by-side cubes

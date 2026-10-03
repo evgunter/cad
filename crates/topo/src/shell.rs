@@ -972,7 +972,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     let sorted;
     let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
         let mut clone = body.clone();
-        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane())
+        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane(), None)
             .map_err(|error| ShellError::Pieces { error })?;
         sorted = clone;
         &sorted
