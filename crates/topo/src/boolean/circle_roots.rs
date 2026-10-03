@@ -258,8 +258,13 @@ pub(super) struct SubdivisionFrame<T> {
 /// A root located on its monotone piece is off the true one by at most
 /// `|residual(θ)| + error` metres of residual — the reading's own
 /// magnitude plus the bound on its rounding — over the residual's least
-/// slope there, which is at least `F`'s least slope on the piece over
-/// `f_per_metre_hi`. At the carrier's top speed that is an arc length,
+/// slope where the true root can be, which is at least `F`'s least slope
+/// there over `f_per_metre_hi`. That slope is read on a window about the
+/// root twice the slack it gives (Taylor about the root; the window is
+/// used only when that slack fits inside it), else on the whole piece,
+/// which holds the true root: a piece can pass the monotone test with a
+/// least slope barely above zero. At the carrier's top speed that is an
+/// arc length,
 /// and it must be definitely inside the band under `row`, or the span
 /// and trim decisions the caller makes on the root are made on the wrong
 /// point; an unreadable reading refuses too. A first-order bound, as the

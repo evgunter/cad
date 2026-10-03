@@ -16,7 +16,7 @@
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn. The
-//! harmonics are read from the conic's one home
+//! harmonics are read from the torus's one home along a conic
 //! ([`geom_brep::ConicTorusHarmonics`], of degree four on an ellipse);
 //! on a circle its third and fourth harmonics are rounding, charged to
 //! the noise.
@@ -255,7 +255,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
         };
     }
 
-    // `F` along the carrier from its one home
+    // `F` along the carrier from the torus's one home along a conic
     // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding, which
     // the noise carries.

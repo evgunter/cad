@@ -68,11 +68,17 @@
 //! bound** (`bool_ellipse_torus_root_slack`): the residual at the root,
 //! evaluated with a first-order bound on its rounding
 //! ([`geom_brep::conic_torus_residual`]), plus its own magnitude, over
-//! the residual's least slope on the root's monotone piece — `F`'s least
-//! slope over the ceiling on `|F|` per metre of residual — at the
-//! carrier's top speed, must be definitely inside the band. A shallow
+//! the residual's least slope near the root — `F`'s least slope over the
+//! smaller of the carrier's and the surface's ceilings on `|F|` per
+//! metre of residual — at the carrier's top speed, must be definitely
+//! inside the band ([`super::circle_roots::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses as
 //! `Uncertain` there.
+//!
+//! A piece is read CLEAR in residual metres through the surface's
+//! ceiling `2r((2R + 2r)² + 3r²)`, capped at `r/2` — the bound
+//! `|res| ≥ min(r/2, |F| / f_surface)` holds everywhere — so a carrier
+//! within the band of the torus never reads clear.
 
 use geom_core::{Band, Decide, Margin, Sign};
 

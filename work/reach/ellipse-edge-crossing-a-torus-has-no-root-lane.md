@@ -50,17 +50,34 @@ known: the tilted cut of a torus-walled body would.
 The torus implicit along a conic has one home,
 `geom_brep::ConicTorusHarmonics` (degree four; the circle × torus door
 reads it too). `circle_roots::certified_subdivision` takes degree up to
-four, and the ellipse door's torus arm answers on it alone, its roots'
-slack charged from the residual's running bound
-(`geom_brep::conic_torus_residual`, `circle_roots::RootSlack`). Against
-an mpmath oracle, two seeds of 3000 poses (crossings, ±40-band grazes,
-1 km out, millimetre scale; ε 1e-6, 1e-9, 1e-12): no failure, worst
-root 0.07 zero bands off. Without the slack meter, 145 of 426 poses it
-changes certify roots up to 66 bands off at ε 1e-12.
+four, and the ellipse door's torus arm answers on it alone. Each root's
+slack is charged from the residual's running bound
+(`geom_brep::conic_torus_residual`, bit-identical to
+`implicit_residual`; `circle_roots::RootSlack`), each of its terms
+pinned by a pose (`torus_rows::the_slack_meter_charges_every_term`). A
+clear piece is read in metres through the torus's near-surface ceiling,
+capped at `r/2`.
 
-The drum's tilted cut against a torus near its rim now passes the
-crossing layer and stops one door on, at the extent scan or the join's
-germ frame (`a-torus-near-a-tilted-cut-stops-at-the-extent-scan`); no
-body reaches a build. Residue filed:
-`an-edge-crossing-a-cone-face-has-no-root-lane`,
-`work/hone/degree-2-subdivision-doors-carry-no-root-slack-meter.md`.
+**Measured, not run by CI:** the mpmath oracle
+(`scripts/oracles/ellipse_torus_mpmath.py` over the `#[ignore]`
+`torus_rows::dump_for_the_mpmath_oracle`) found no failure on four seeds
+of 3000 poses, run by the lane; the dual reviewers' own oracles found
+none either (7,560 and 3,840 poses). CI runs the f64 fuzz
+(`certified_torus_answers_hold_against_the_true_distance`: exact count,
+arc place where the f64 oracle resolves it) and the pinned rows.
+
+**No body reaches a build.** A torus near a tilted cut's rim meets the
+cut plane and the wall obliquely, which no section arm answers; the
+reviewers' end-to-end runs (2,538 in all) built none, and every op stops
+at the extent scan or the join's germ frame
+(`a-torus-near-a-tilted-cut-stops-at-the-extent-scan`).
+
+**One circle × torus verdict moved** on reviewer r1's 3600-pose
+differential: ε 1e-12, ×1e3, inner graze, `Certified` → `Uncertain`
+(main's roots 157,518 bands off). The circle door keeps main's clear
+reading through the floor, filed:
+`work/hone/circle-torus-clear-margin-reads-the-floor.md`.
+
+Residue filed: `an-edge-crossing-a-cone-face-has-no-root-lane`,
+`work/hone/degree-2-subdivision-doors-carry-no-root-slack-meter.md`,
+`work/hone/circle-torus-clear-margin-reads-the-floor.md`.
