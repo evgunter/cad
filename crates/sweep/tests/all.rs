@@ -614,6 +614,10 @@ mod join1_mechanisms;
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
+#[path = "join2_r1_probes.rs"]
+mod join2_r1_probes;
+#[path = "join2_r2_probes.rs"]
+mod join2_r2_probes;
 #[path = "join3_r2_probes.rs"]
 mod join3_r2_probes;
 #[path = "join3_r2_r1copy.rs"]
