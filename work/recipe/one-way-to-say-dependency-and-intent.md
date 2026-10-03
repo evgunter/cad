@@ -5,8 +5,6 @@ title: One way to say dependency and intent: variables, spaces, placements, cons
 status: open
 opened: 2026-10-03
 priority: P0
-needs_ev: true
-pr: 3990
 ---
 
 
