@@ -521,6 +521,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "TangentSlitArmUnbuilt",
+            BooleanError::TangentSlitArmUnbuilt {
+                declaration,
+                interior: Operand::A,
+            },
+        ),
+        (
             "SharedVertexCrossings",
             BooleanError::SharedVertexCrossings {
                 operand: Operand::B,
