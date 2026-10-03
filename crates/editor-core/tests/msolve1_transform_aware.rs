@@ -76,7 +76,13 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// The `a` frame: a point ON the base's top cap, axis along that
 /// cap's OUTWARD normal.
 fn a_frame() -> MateFrame {
-    MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        [1.0, 1.0, BASE_HEIGHT],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// The `b` frame: the top block's bottom-cap corner, axis along THAT
@@ -90,7 +96,13 @@ fn a_frame() -> MateFrame {
 /// every document, transform or none, which is a fixture that cannot
 /// tell a correct seat from a wrong one.
 fn b_frame() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A `Rest` mate seating `b`'s bottom cap onto `a`'s top cap, both
@@ -696,7 +708,13 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         b: crate::fixture::head_at(x2, b),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([3.0, 3.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [3.0, 3.0, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             b: b_frame(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,

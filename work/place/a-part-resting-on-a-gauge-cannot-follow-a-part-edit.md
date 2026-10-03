@@ -2,10 +2,13 @@
 id: a-part-resting-on-a-gauge-cannot-follow-a-part-edit
 kind: issue
 title: a part set on another part's gauge cannot follow that part's edit: a mate across gauges only declares, and a nested gauge restates the solved face by hand
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: H
+branch: place/mate-frame-offset
+pr: 3961
+closed: 2026-10-03
 ---
 
 
@@ -93,3 +96,20 @@ rewrites a committed mate's side offset, if PLACE wants to own it. If
 PLACE has already started on the frame shape, say so on MSOLVE's
 tracker and MSOLVE will build on it instead.
 
+## Closed
+
+Built on `place/mate-frame-offset` (PR 3961). A mate frame is a base
+composed with an offset (`MateFrame { base, offset }`,
+`crates/editor-core/src/mate.rs`). The tour's crate goes on the stand's
+turntable through `regauge_then_mate`, its shelf side being the shelf's
+top face with an in-face offset (`demos/tour/src/assembly.rs`, `bench`).
+Walls 1 and 2 are now positive asserts: a thicker shelf lifts the crate
+and shorter posts lower it, and the gate certifies both (`update_door`).
+The residue is filed: the face base's local-+Y convention is
+`work/msolve/a-face-base-puts-its-reference-on-local-y.md`, and the
+`PlanarRest` standoff's retirement is the build Ev ruled on `[ev]` PR
+3681, tracked in `work/msolve/a-face-frame-cannot-turn-its-roll.md`.
+The edit that rewrites a committed mate's side offset is the
+slot edit (`SetParam`/`SetExpression` at a `SlotId::MateFrameStep`),
+admitted as the insert is. MSOLVE builds its ruling on this shape
+(said on `work/msolve/a-face-frame-cannot-turn-its-roll.md`).

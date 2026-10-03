@@ -193,7 +193,7 @@ impl Walk<'_> {
     /// one `InPart` the member's instance puts round its part's names,
     /// taken off the name the walk reached there
     /// ([`crate::FaceName::part_local`]). What a
-    /// [`super::MateFrame::FromFace`] side reads its frame off, in the
+    /// face-based side ([`super::FrameBase::Face`]) reads its frame off, in the
     /// part's own coordinates; a copy reads its master's face, since
     /// the copy map between them is the walk's static offset, applied
     /// by the solve.
@@ -384,7 +384,7 @@ pub fn member_reading<'r, P>(
 /// **The face of the member's PART a head names** — the head walked
 /// to its member, then the instance's `InPart` taken off the name the
 /// walk reached there ([`crate::FaceName::part_local`]). What a
-/// [`super::MateFrame::FromFace`] side reads its frame off, in the
+/// face-based side ([`super::FrameBase::Face`]) reads its frame off, in the
 /// part's own coordinates; a copy reads its MASTER's face.
 ///
 /// `None` when the head is outside A11's member vocabulary
