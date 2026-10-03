@@ -42,3 +42,12 @@ The refusal is a `JoinDesync` (the kernel-defect class) on a legal
 declared input. Before #3795 the same pose built both ops at the old
 `5.5ε` tilt, which the door now contradicts. The `2ε` tilt was not
 measured before #3795.
+
+## Re-measured on JOIN-1's merge with main (reflex-corner lane, 2026-10-02)
+
+With JOIN-1 (PR 3790) merged in, `loop_roles` refuses this configuration
+typed: `A ∩ B` and `A ∖ B` refuse `Join(SectionLoopUndecided { face })`
+at both tilt signs and at ε 1e-9, 1e-6 and 1e-12. The text ends
+`NOT_YET_ENDING` and names CLEAVE's curved-face frontier. The pose is
+planar, so the frontier's wording does not fit it, and the build this
+row asks for is still owed. The row's `Join` arm pins the typed refusal.

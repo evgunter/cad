@@ -85,16 +85,17 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
-//!   vertex of the other operand coincides with a 315° reflex corner
-//!   and the caps meet at a tilt, the op can refuse
-//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
-//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
-//!   The cause is unmeasured. The angular strut spike order
-//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
-//!   unforced window, but no refusal has been traced to it. The
-//!   vertex-on-face form of the same corner (the corner piercing a
+//! - **Four-germ vertex–vertex sites**: where a vertex of the other
+//!   operand coincides with a 315° reflex corner and its wall lies
+//!   flush on the corner's notch wall under a tilted cap, the vertex
+//!   pair keeps four crossing germs, and `insert` runs each pair's null
+//!   edge in B in A's germ order rather than B's: the B runs overlap and
+//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
+//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
+//!   unions are not refused: the declared-REST zip answers them after
+//!   the join's refusal, with a wrong volume
+//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
+//!   The vertex-on-face form of the same corner (the corner piercing a
 //!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
@@ -105,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
-use super::combine::{GraftMap, graft_solid};
+use super::combine::{Bridge, GraftMap, graft_solids_with};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::setopfinish;
 use super::join::bool_connect;
@@ -2360,6 +2361,19 @@ impl Descendants {
 /// first (graft lineage), then the D5 descendant chase — dropping
 /// records only when the entity is genuinely consumed (module docs).
 ///
+/// **v-v rows are remapped as groups.** Rows that name a common key
+/// on the same side (an A vertex or a B vertex in two rows) are one
+/// group, closed transitively, and every two distinct live vertices
+/// the group's ends map to are recorded, though no single row named
+/// that pair, two A vertices included. Whatever the pair, both its
+/// vertices sit at the point the reduction coincided the shared key
+/// with each of them. The inference reads keys and never positions:
+/// it records what the reduction's own coincidences imply, and no
+/// pair the census sees at one point is blessed for being there. A
+/// group whose ends map to one live vertex records nothing, since a
+/// pair fused into one vertex is structure now. A lone row maps as
+/// its two ends.
+///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on cycling absorption rows
@@ -2371,9 +2385,9 @@ pub(super) fn remap_contacts<T: Real>(
     b_view: KeyView<'_>,
     desc: &Descendants,
 ) -> Result<ContactRecords, BooleanError> {
-    // v-v pairs chase through zip fusions (a fused vertex's partner
-    // may still coincide with the survivor); a pair fused into ONE
-    // vertex is consumed (structural now) and drops.
+    // v-v ends chase through zip fusions (a fused vertex's partner
+    // may still coincide with the survivor); the group rule is in the
+    // doc above.
     let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     // v-on-f VERTICES deliberately do NOT chase, and any vertex that
     // took part in a zip fusion (either side of a kev) drops its
@@ -2393,18 +2407,43 @@ pub(super) fn remap_contacts<T: Real>(
     let face =
         |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let mut out = ContactRecords::default();
-    for c in &contacts.vv {
-        // Two records whose ends fused into one pair are one record.
-        if let (Some(a), Some(b)) = (
+    // The groups (doc above): a vertex coincident with two of the
+    // other operand's fuses into one and keeps touching the other,
+    // whose row names the end that fused away.
+    let mut group: Vec<usize> = (0..contacts.vv.len()).collect();
+    for i in 0..group.len() {
+        for j in 0..i {
+            let (ci, cj) = (contacts.vv[i], contacts.vv[j]);
+            let (gi, gj) = (group[i], group[j]);
+            if (ci.a == cj.a || ci.b == cj.b) && gi != gj {
+                group.iter_mut().filter(|g| **g == gi).for_each(|g| *g = gj);
+            }
+        }
+    }
+    let mut live: Vec<(usize, VertexKey)> = Vec::new();
+    for (c, &g) in contacts.vv.iter().zip(&group) {
+        for v in [
             vert((Operand::A, &a_view), c.a)?,
             vert((Operand::B, &b_view), c.b)?,
-        ) && a != b
-            && !out
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !live.contains(&(g, v)) {
+                live.push((g, v));
+            }
+        }
+    }
+    for (i, &(g, a)) in live.iter().enumerate() {
+        for &(_, b) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
+            // Two rows whose ends fused into one pair are one record.
+            if !out
                 .vv
                 .iter()
                 .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
-        {
-            out.vv.push(VvContact { a, b });
+            {
+                out.vv.push(VvContact { a, b });
+            }
         }
     }
     for c in &contacts.a_on_b {
@@ -3196,7 +3235,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solid(base, base_solid, &turned, tol)?;
+                    graft_solids_with(base, &[base_solid], &turned, Bridge::RemapKeys)?;
                 }
             }
         }
@@ -3319,7 +3358,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                     })?
                     .graft
             } else {
-                graft_solid(&mut body, solid, &b_body, tol)?
+                // The kept B shells cross whole, as the reduction left
+                // them: any edge it split at a contact was certified
+                // there through the policy's lane, and nothing touches
+                // them since, so they keep their certificates, as at the
+                // void door above.
+                graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
             };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
