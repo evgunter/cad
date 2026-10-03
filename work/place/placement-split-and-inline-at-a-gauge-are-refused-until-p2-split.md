@@ -2,12 +2,12 @@
 id: placement-split-and-inline-at-a-gauge-are-refused-until-p2-split
 kind: issue
 title: edit: split and inline refuse the shapes A4 builds with a minted gauge — the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance
-status: spec
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: H
 parent: placement-is-spelled-three-ways-node-registry-and-rule
-branch: place/p2-split
+branch: place/p2-retire-hoist
 pr: 3908
 ---
 
