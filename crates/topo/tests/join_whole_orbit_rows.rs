@@ -105,8 +105,8 @@ fn a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op() {
 
 /// The 315° reflex corner (0, 0, 1) of `a` under the tilted bottom cap
 /// of `b`: the corner's three edges read Out and the reflex sector's
-/// bisector In, so the run holds the whole orbit. `b` is described
-/// (unlike `review_m3_pr55`'s `tprism`) so tier 3 is meaningful.
+/// bisector In, so the run holds the whole orbit. `b` is described, so
+/// tier 3 is meaningful.
 #[test]
 fn the_reflex_315_corner_under_a_tilted_cap_answers_exactly() {
     let tol = Tol::witness();

@@ -118,6 +118,7 @@ from bench_scene import (
 from pncad import (
     Alignment,
     AxisSense,
+    BooleanOp,
     CapEnd,
     ContactClass,
     Doc,
@@ -527,6 +528,7 @@ class TestBenchStand(BenchWorkspace):
         # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate records no frame, so it reports
         # nothing. Put post_b back at an offset and re-mate it through
@@ -558,11 +560,11 @@ class TestBenchStand(BenchWorkspace):
         # belonged to the edit before it.
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        doc.declare(findings[0])
+        doc.declare(glued, findings[0])
         self.assertEqual(doc.last_maintenance, [])
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(doc.last_maintenance, [], "one group already: nothing joins")
-        doc.declare_all(findings)
+        doc.declare_all(glued, findings)
         self.assertEqual(doc.last_maintenance, [])
 
     def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(
@@ -1679,6 +1681,31 @@ class TestRefactorings(BenchWorkspace):
 
     def volume(self, doc):
         return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
+
+    def test_split_and_inline_list_their_node_maps_in_document_order(self):
+        # A NodeId has no order a caller can read, so the list's own
+        # order is the only one it gets: the document's. Six instances
+        # make an id order that happens to match it a 1-in-720 accident.
+        doc = Doc("refactor-order")
+        cut = []
+        for i in range(6):
+            node = doc.insert(Node.instantiate_part(self.post_ref))
+            doc.apply(
+                DocEdit.set_offset(node, Placement.literal(Frame.translation((i * m, 0 * m, 0 * m))))
+            )
+            cut.append(node)
+        outcome = pncad.split(doc, cut, random_document_id())
+        self.assertEqual([a for a, _ in outcome.node_map], cut)
+        self.assertEqual([b for _, b in outcome.node_map], outcome.part.order())
+
+        self.ws.create(outcome.part)
+        spliced = pncad.inline(outcome.remainder, outcome.instance, self.ws)
+        self.assertEqual([a for a, _ in spliced.node_map], outcome.part.order())
+        landed = {b for _, b in spliced.node_map}
+        self.assertEqual(
+            [b for _, b in spliced.node_map],
+            [n for n in spliced.doc.order() if n in landed],
+        )
 
     def test_split_then_inline_preserves_the_products_material_exactly(self):
         doc, _, shelf_i = self.layout()

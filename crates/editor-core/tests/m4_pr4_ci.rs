@@ -41,7 +41,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
 /// pieces) as well as with a row's diagnosis; a move that keeps every
 /// row's shape is a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x1600_d46a_71bc_43b5;
+const DIAGNOSIS_DIGEST: u64 = 0xd16b_e6aa_1e28_e894;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

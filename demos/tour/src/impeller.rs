@@ -29,18 +29,18 @@
 //!
 //! # Why the hub is a prism
 //!
-//! A real impeller's hub is round, and this one is a 24-gon. That is
-//! not a stylistic choice: a box leaving a cylinder through its wall
-//! refuses to union, so a round hub cannot have a blade unioned into
-//! it at all. The kernel's own row for that pose
+//! A real impeller's hub is round, and this one is a 24-gon. When the
+//! scene was written a box leaving a cylinder through its wall refused
+//! to union, so a round hub could not have a blade unioned into it at
+//! all. The kernel's own row for that pose
 //! (`sweep/tests/verbs_germarms.rs`,
-//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_join`) gets
-//! past the pierce door now and refuses at the join,
-//! `SectionArcWindow { NoChartedRun }`: the frontier is
-//! `work/tang/pierce-ring-has-no-join-arm`, beside
-//! `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
-//! is the modelling the kernel currently permits, said out loud rather
-//! than passed off as the part.
+//! `a_bar_leaving_through_one_side_of_a_wall_builds`) builds now, at
+//! its closed form under every op (`work/tang/pierce-ring-has-no-join-arm`,
+//! closed); a round hub is no longer refused for that reason, and
+//! this scene's faceted hub is what it was authored as, not what the
+//! kernel still requires. Remodelling it is the scene's call
+//! (`work/tang/boolean-refuses-on-arc-carrier-not-arc` is the other
+//! frontier its note named).
 //!
 //! # The overlap, and why it is here
 //!
@@ -147,6 +147,12 @@ fn blade_polygon() -> LoopProgram {
     .expect("the blade's corners are finite")
 }
 
+/// This scene's recipe at its first count, as a document the GUI can
+/// open: one `SetDocParamValue` on `blades` is the scene's whole edit.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    build_doc(tol).doc
+}
+
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("impeller", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
@@ -247,7 +253,7 @@ fn build_doc(tol: Tol) -> Recipe {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     Recipe { doc, group, solid }

@@ -17,7 +17,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p3, v3};
-use pncad::geom_core::{Affine3, Point2, Vec3};
+use pncad::geom_core::{Affine3, Vec3};
 use pncad::topo::splitting::{PlaneSide, SplitPart, SplitPlane, plane_section, split};
 
 use crate::SceneBody;
@@ -87,7 +87,13 @@ pub(crate) struct SectionNumbers {
     /// The half-width of `area`'s certified bracket: the bores' walls
     /// are measured by quadrature.
     pub area_pad: f64,
+    /// The translation the below half took off the section plane.
+    pub below_pull: Vec3<f64>,
 }
+
+/// How far each half is pulled off the section plane, along its
+/// normal (m).
+const PULL: f64 = 0.75;
 
 /// The section plane.
 fn section_plane<S: Scalar>(tol: Tol) -> SplitPlane<S> {
@@ -183,9 +189,9 @@ pub(crate) fn build<S: Scalar>(
         "the area brackets (± {area_pad:.1e}) are too wide to see a bore hole ({hole:.3e})"
     );
 
-    // Pull the halves apart 0.75 along the section normal: rigid
+    // Pull the halves apart along the section normal: rigid
     // transforms re-mint every moved witness (#84).
-    let n = plane.normal.get() * S::from_f64(0.75);
+    let n = plane.normal.get() * S::from_f64(PULL);
     let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
         .expect("translate above half");
     let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)
@@ -199,39 +205,26 @@ pub(crate) fn build<S: Scalar>(
             gap,
             area,
             area_pad,
+            below_pull: (-n).map(Scalar::f),
         },
     )
-}
-
-/// Twice the signed area of a polygon given by its corners.
-fn twice_area(uv: &[Point2<f64>]) -> f64 {
-    (0..uv.len())
-        .map(|i| {
-            let (a, b) = (uv[i], uv[(i + 1) % uv.len()]);
-            a.x * b.y - b.x * a.y
-        })
-        .sum()
 }
 
 /// What [`read_section`] measured, for the narration.
 struct SectionReading {
     regions: usize,
     holes: usize,
-    /// The regions' area: the wall regions' polygon areas plus the
-    /// bored bosses' closed-form annuli.
+    /// The regions' area, as `plane_section` reads it on their edges.
     area: f64,
 }
 
 /// `plane_section` of the box, checked against the closed forms and
 /// against the area the split's halves enclose (`split_area`).
 ///
-/// A wall or floor region is a polygon, so its area is its corners'.
-/// A bored boss's region is the boss's ellipse around the bore's, and
-/// `plane_section` reports each as its two corners, whose shoelace is
-/// 0: the arcs between them are dropped
-/// (`work/cleave/plane-section-polygons-drop-their-arcs.md`). So the
-/// scene checks those corners against the two circles and supplies
-/// the area in closed form, `π (R² − r²) / cos φ`.
+/// A wall or floor region is a polygon; a bored boss's region is the
+/// boss's ellipse around the bore's, each two corners joined by two
+/// arcs, and its area is checked against the closed form
+/// `π (R² − r²) / cos φ`.
 fn read_section(
     boxbody: &pncad::topo::Body<f64>,
     (split_area, split_pad): (f64, f64),
@@ -251,24 +244,27 @@ fn read_section(
     let mut area = 0.0;
     let mut holes = 0;
     for region in &section.regions {
-        let corners = &region.outline.points;
+        let corners = &region.outline.points();
+        let enclosed = region.area();
         if region.holes.is_empty() {
-            let outline = twice_area(&region.outline.uv) / 2.0;
-            assert!(outline > 0.0, "a wall region winds counter-clockwise");
+            assert!(enclosed > 0.0, "a wall region winds counter-clockwise");
             assert!(
                 !corners.iter().any(on_circle(BOSS_R)),
                 "a wall region's corners lie off the bosses: {corners:?}"
             );
-            area += outline;
         } else {
             assert_eq!(region.holes.len(), 1, "a boss's region holds its one bore");
-            let hole = &region.holes[0].points;
+            let hole = &region.holes[0].points();
             assert!(
                 corners.iter().all(on_circle(BOSS_R)) && hole.iter().all(on_circle(BORE_R)),
                 "a bored boss's region is its boss around its bore: {corners:?}, {hole:?}"
             );
-            area += annulus;
+            assert!(
+                (enclosed - annulus).abs() <= 1e-12,
+                "a bored boss's region encloses {enclosed}, its annulus {annulus}"
+            );
         }
+        area += enclosed;
         holes += region.holes.len();
     }
     assert_eq!(
@@ -300,19 +296,32 @@ pub(crate) const SECTION_GAP: f64 = 5.0;
 /// pulled them apart along the section normal — so placing them beside
 /// the whole box is the same act again, where moving the box would put
 /// the part somewhere its own narration does not say it is.
+///
+/// `spring` is the part standing in the box. The section splits it by
+/// the same plane, which passes over it, so it is all on the below
+/// side and travels with the below half.
 pub(crate) fn sectioned_beside(
     boxbody: &pncad::topo::Body<f64>,
+    spring: &pncad::topo::Body<f64>,
     tol: Tol,
 ) -> (Vec<SceneBody>, String) {
     let ((moved_above, moved_below), n) = build(boxbody, tol);
+    let spring_cut = split(spring, &section_plane(tol), tol).expect("split of the spring");
+    let (SplitPart::Empty, SplitPart::Body(spring_below)) = (&spring_cut.above, &spring_cut.below)
+    else {
+        panic!("the section plane passes over the spring: all of it is below");
+    };
+    let spring_below =
+        pncad::topo::transform_rigid(spring_below, &Affine3::translation(n.below_pull), tol)
+            .expect("pull the spring with the below half");
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
          through {through:?}, normal {normal:?} — tilted, no axis alignment — through \
          two bored bosses; each half keeps {faces} section faces, the two through the \
          bosses annuli ringed by their bores; `plane_section` reads {regions} regions \
-         with {holes} holes, area {area:.9} (wall polygons plus pi (R^2 - r^2) / cos phi \
-         per bored boss, the arcs being dropped from its polygons) against {split:.9} \
+         with {holes} holes, area {area:.9} (read on the regions' segments and arcs, each \
+         bored boss's pi (R^2 - r^2) / cos phi) against {split:.9} \
          ± {pad:.1e} from the halves' surface areas; halves partition the volume \
          within their certified brackets ({v_above:.6} + {v_below:.6} = {v_box:.6}, \
          gap {gap:.1e}); halves then moved apart by rigid transforms (edge witnesses \
@@ -335,6 +344,8 @@ pub(crate) fn sectioned_beside(
         .expect("place the above half beside the box");
     let below = pncad::topo::transform_rigid(&moved_below, &aside, tol)
         .expect("place the below half beside the box");
+    let spring_below = pncad::topo::transform_rigid(&spring_below, &aside, tol)
+        .expect("place the spring beside the box");
     (
         vec![
             // The plane frees the two bored bosses' tops: this half is
@@ -354,6 +365,11 @@ pub(crate) fn sectioned_beside(
                  this half's three shells are all outer, so it exports; drop this pin",
             ),
             SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], below),
+            SceneBody::plain(
+                "cutaway_spring",
+                crate::projectbox::SPRING_COLOR,
+                spring_below,
+            ),
         ],
         note,
     )

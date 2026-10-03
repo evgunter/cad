@@ -478,7 +478,7 @@ pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
-            Node::Gauge { .. } | Node::Mate { .. } | Node::Declare { .. } => continue,
+            Node::Gauge { .. } | Node::Mate { .. } => continue,
             Node::InstantiatePart { .. } => space_of(id),
             _ => {
                 let mut distinct: Vec<Space> = Vec::new();

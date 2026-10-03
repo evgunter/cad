@@ -291,6 +291,27 @@ pub mod test_support {
         prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Which bridge a graft ran ([`take_graft_bridges`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum GraftBridge {
+        /// Re-certified every carrier against the destination.
+        Recertify,
+        /// Carried the source's certificates, handles rewritten.
+        RemapKeys,
+    }
+
+    /// The bridge of every graft this thread ran since the last call,
+    /// in call order, draining the record.
+    pub fn take_graft_bridges() -> Vec<GraftBridge> {
+        crate::boolean::combine::take_bridges()
+            .into_iter()
+            .map(|b| match b {
+                crate::boolean::combine::Bridge::Recertify { .. } => GraftBridge::Recertify,
+                crate::boolean::combine::Bridge::RemapKeys => GraftBridge::RemapKeys,
+            })
+            .collect()
+    }
     pub use crate::test_support_samples::validation_error_samples;
 
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
@@ -585,16 +606,16 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction, Corruption,
     CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
     LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
     PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
     PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
-    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
-    TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
-    VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    fragment_root, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
+    SweepTrace, TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq,
     point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
     tangent_pair_relation, union, union_with,
 };
@@ -690,10 +711,11 @@ pub use source::{
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
-    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError,
-    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
-    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
-    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    LoopContainment, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

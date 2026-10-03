@@ -2,10 +2,11 @@
 id: subtract-of-a-hollow-operand-files-the-island-under-one-solid
 kind: issue
 title: subtract(A, hollow B strictly inside A) files B's cavity as a second Outer shell of A's solid instead of a solid of its own
-status: open
+status: dispatched
 opened: 2026-09-08
 priority: P0
 cost: H
+branch: fuse/hollow-island
 ---
 
 
@@ -46,3 +47,37 @@ everywhere (`crates/topo/tests/shell_winding.rs`,
 asks for is the GROUPING — the island filed as a solid of its own —
 which is the boolean's output convention to pursue, not an at-rest
 invalidity.
+
+## Ruled (Ev, PR 3901, 2026-10-03)
+
+A solid is one piece of material. Its `Outer` shell and the `Void`
+shells of the cavities in its material together bound that material
+and nothing else. A cavity belongs to the piece whose material
+surrounds it. Pieces that only touch, at a corner, along an edge, or
+across a face that contact records hold apart, are distinct solids. A
+body is any number of solids. Booleans, `shell` and `split` take
+bodies, return bodies, and sort their results into solids, so every
+output is an operand.
+
+A product operand refuses in the editor, naming the explicit
+cross-instance union. Ev's words: "if an explicit fuse could be added
+to make the boolean op work then refuse". Ev also asked that "nearest
+enclosing" be replaced ("nearest how?"); the text above defines a
+cavity's owner by the material around it instead.
+
+**What this changes for PR 3891.** Its rule, that a piece inside a
+cavity is its own solid while pieces side by side stay together, does
+not land. The rework sorts every `Outer` into its own solid:
+- **The reader:** #3891's nesting reader becomes the shared sort,
+  reusing check 10's witness loop and quad-lane roles.
+- **Refusals:** a piece whose owner cannot be read refuses typed.
+- **The rest of the build:**
+  - check 10 tightens to one `Outer` per solid;
+  - the single-solid gates on boolean, `shell` and `split` go;
+  - `graft_disjoint_all_onto_keyed` goes;
+  - `Connectedness` counts solids;
+  - `wire_boolean` refuses a product operand.
+- **The review's fix list** (m1–m3, N1, Q1, Q4, Q5, Q7) carries over.
+- **Owed with the change:** `rows-do-not-cross-a-boolean-remap` stays
+  fenced, because products refuse.
+

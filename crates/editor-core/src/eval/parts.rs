@@ -111,8 +111,9 @@ pub(crate) struct PartValue<T: Decide> {
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
     /// The referenced document's own UNPLACED GROUPS, by root, with
-    /// their causes: material its world product leaves out (A9), which
-    /// the instantiating document must still be able to name.
+    /// their causes, in that document's order: material its world
+    /// product leaves out (A9), which the instantiating document must
+    /// still be able to name.
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
@@ -277,10 +278,7 @@ impl crate::spoken::Say for PartFault {
             ),
             // The resolver knows what went wrong in its store, so its
             // message states the recourse of a pin or a lookup. The ε
-            // seam's is the same whatever the store: a document keeps
-            // the ε it was written at, a process holds one, and the
-            // recorded-ε edit moves a part onto another while it keeps
-            // its id, whether that was minted or derived.
+            // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -289,11 +287,7 @@ impl crate::spoken::Say for PartFault {
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
                      {message}. {}",
-                    Recourse(
-                        "open the part in a process at its own tolerance, record the edit that \
-                         sets this process's tolerance, save it over its file, then accept its \
-                         updated version here"
-                    )
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
@@ -673,15 +667,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(
-            evaluation
-                .unplaced
-                .values()
-                .copied()
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .collect(),
-        );
+        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
         let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and

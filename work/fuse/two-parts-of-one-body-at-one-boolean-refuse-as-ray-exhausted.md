@@ -1,12 +1,14 @@
 ---
 id: two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted
 kind: issue
-title: Two Parts selecting one body at one boolean are DM5-distinct inputs carrying one Arc; the boolean refuses as Containment(RayExhausted), not as the same body twice
-status: open
+title: A shell lying wholly on the other operand's boundary (two Parts of one body at one boolean, and three shapes sharing no Arc) refuses ShellWitnessExhausted, naming no coincidence
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: M
-design: true
+closed: 2026-10-03
+pr: 3897
+branch: fuse/on-verdict
 ---
 
 ## What
@@ -23,14 +25,27 @@ every description.
 
 ## Measured
 
-`docm/2-review-r2` @02d23644,
-`tests/docm2_r2_probes.rs::r2p9_two_parts_of_one_half_at_one_boolean`:
-`Boolean(Union)` of two `Part(Above)` of one split, and
-`Boolean(Subtract)` of `Part(Instance(0))` from its master. Both refuse
-TYPED — no panic, no assertion — but as
-`NodeErrorKind::Boolean(Containment(RayExhausted))`: the diagnosis a
-point-in-solid ray gives up with when every candidate face is its own
-twin. Nothing says "the same body twice", which is what happened.
+Main @bdfdda30c, re-measured through the public API (the rows of
+`crates/editor-core/tests/on_verdict_rows.rs`, run on main with each
+refusal printed). The row's earlier `Containment(RayExhausted)` no
+longer reproduces: the witness ladder
+(`crates/topo/src/boolean/shell_witness.rs`) reads past rays to edge
+midpoints and face interiors, and every one lies ON the other
+operand's boundary. Each shape refuses
+`Boolean(ShellWitnessExhausted { operand: A, on_boundary: 26, in_band: 0 })`
+under ∪, ∩ and − (24 nodes, every one):
+
+- two `Part(Above)` of one split (one `Arc` at both seats);
+- `master` with `Part(Instance(0))`, both orders (one `Arc`);
+- `(X ∪ Z) op X` and `X op (X ∪ Z)`, Z disjoint from X;
+- `(X ∪ Y) op X` and `X − (X ∪ Y)`, Y strictly inside X (the union
+  carries exactly X's sources);
+- two placements of one block, all six face pairs declared.
+
+The last three share no `Arc`: the defect is the boolean's, not the
+`Part`'s. The undeclared twins — `Transform(X, 0)` beside X, two
+placements, two independent identical extrudes — refuse
+`UndeclaredCoincidence`.
 
 ## What it is not
 
@@ -59,3 +74,23 @@ this line and is kept as the record of why the file was where it was.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (FUSE, PR 3897 and Ev's ruling on PR 3883, 2026-10-03)
+
+The whole-shell `On` verdict from PR 3897 answers every shell lying
+on the other operand through settled coincidence. That covers two
+`Part`s of one half, a master beside `Part(Instance(0))`,
+`(X ∪ Z) op X`, `(X ∪ Y_inside) op X` and the declared twin. Each
+answers by the coincidence keep table: `A ∪ A` and `A ∩ A` are `A`,
+and `A − A` is the typed empty result. An uncovered surface refuses
+`CoincidentShell` with a diagnosis. Every row is in
+`crates/editor-core/tests/on_verdict_rows.rs` and
+`crates/topo/tests/on_verdict.rs`.
+
+Ev ruled on PR 3883 (2026-10-03, "the recommendation sounds good!"):
+there is no slip check. Two distinct nodes evaluating to one body meet
+DM5, because distinctness is over node ids only, and the boolean
+answers them; DM5's sentence in `crates/editor-core/REFERENCES.md`
+says so. The designer pair crossed twice, a third designer broke the
+crossover, and all three converged on N. That is fork-log row 47.
+

@@ -173,11 +173,11 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
     )
 }
 
-/// Raise `EditError` for a refusal the BOUNDARY built — a name that
-/// would not serialize, an insert that minted no id, a placement rule
-/// spelled through the wrong constructor.
+/// Raise `EditError` for a refusal the BOUNDARY built — a
+/// [`BoundaryEdit`].
 ///
-/// It has a `variant` and nothing else to carry, and the attributes
+/// It has a `variant`, the `inner_variant` the same kernel arm
+/// publishes at its own door, and nothing else to carry; the attributes
 /// the document layer's arms fill are present and `None`: the class's
 /// shape is one shape at every raise site, whichever side of the
 /// boundary decided it.
@@ -185,16 +185,17 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// **Where the `variant` comes from**, and it is not "always
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
-/// VALUE and the word is that enum's own map's, even though the raise
-/// site is here — `Doc.insert`'s `no_minted_id` and
-/// `Node.placed_union`'s count-spelling refusal are the two live
-/// cases, and forwarding the value is what keeps each ONE word with
-/// the kernel door that publishes the same one. Where none does — a
-/// `serde_json` failure has no arm anywhere — the word is minted in
+/// VALUE and the words are that enum's own maps', even though the raise
+/// site is here — `Node.placed_union`'s count-spelling refusal
+/// (`variant` and `inner_variant` both) and a `label=` text that is not
+/// a label (`label_fault_tag`) are the two cases, and forwarding the
+/// value is what keeps one map the only speller of its words. Where
+/// none does — a `serde_json` failure, a mate head or parameter name
+/// whose constructor refuses with one struct — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
 ///
 /// **This door's set of refusals is closed** because it takes a
-/// [`BoundaryEdit`] rather than a word: a fourth boundary refusal is a
+/// [`BoundaryEdit`] rather than a word: another boundary refusal is a
 /// variant of that enum and an arm of
 /// [`crate::tags::boundary_edit_tag`] before it can be raised. It is
 /// the door that is closed, not the class — `EditError.variant`'s
@@ -208,7 +209,7 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
         &edit_fields(
             py,
             crate::tags::boundary_edit_tag(refusal),
-            None,
+            crate::tags::boundary_edit_inner_tag(refusal),
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
@@ -224,16 +225,14 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
 /// fields.
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     // The `Edit` arm carries the document layer's refusal whole, so
-    // its inner arm and its payload cross too; the sugar's own two
-    // arms have neither.
+    // its inner arm and its payload cross too; `NoFindings` has
+    // neither.
     let (inner, payload) = match err {
         pncad::select::DeclareError::Edit(inner) => (
             edit_inner_variant_tag(inner),
             crate::edit_payload::edit_payload(inner),
         ),
-        pncad::select::DeclareError::NoFindings | pncad::select::DeclareError::NoMintedId => {
-            (None, crate::edit_payload::EditPayload::NONE)
-        }
+        pncad::select::DeclareError::NoFindings => (None, crate::edit_payload::EditPayload::NONE),
     };
     typed_err(
         py,
@@ -241,6 +240,14 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
         err.to_string(),
         &edit_fields(py, crate::tags::declare_error_tag(err), inner, &payload),
     )
+}
+
+/// The kernel's declared-pair list for a boolean's or union's
+/// `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
+/// and class. An empty list is the undeclared node.
+fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
+    let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
+    pncad::select::declared_pairs(&kernel)
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag and the
@@ -843,17 +850,18 @@ pub(crate) struct Doc {
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
     /// is held here for the same span the document it describes is —
-    /// an invariant [`Doc::accept`] holds by being the only place
+    /// an invariant [`Doc::take_up`] holds by being the only place
     /// either of the two is written.
     pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
-/// The wrapper's own plumbing: the ONE place an accepted edit is taken
-/// up, and the two shared door bodies that land there. None of it is a
+/// The wrapper's own plumbing: the ONE place an accepted document is
+/// taken up ([`Doc::take_up`]), the single-edit door onto it, and the
+/// shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
-    /// **The swap point.** Every accepting door lands here, and it
-    /// replaces the held document and the maintenance record TOGETHER
+    /// A single edit's door onto **the swap point**, [`Doc::take_up`],
+    /// which replaces the held document and the maintenance record TOGETHER
     /// — which is what makes `last_maintenance` a fact about the
     /// document now held rather than about some earlier one. Returns
     /// the edit's record so each door can read the id it minted.
@@ -868,89 +876,75 @@ impl Doc {
     /// not by the type system**: `inner` and `maintenance` are
     /// `pub(crate)` because the rest of the crate reads the document,
     /// so nothing stops a new door assigning either field directly.
-    /// [`Doc::insert_node`] closes that hole for `insert` by accepting
-    /// internally, and [`Doc::declare_findings`] closes it for the
+    /// [`Doc::insert_node`] closes that hole for `insert` by taking its
+    /// action up internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
-    /// here; a door reaching `d::apply` for any OTHER edit lands here
-    /// or is a bug the test names. The refactoring wrappers are the
+    /// here; a door reaching `d::apply` for any OTHER edit lands here,
+    /// and a kernel door answering a whole action's paired document and
+    /// maintenance lands in [`Doc::take_up`] directly; anything else is a
+    /// bug the test names. The refactoring wrappers are the
     /// one family that does not pass through: they never `apply` a
     /// single edit, they project a kernel outcome whose document and
     /// maintenance were already paired below this wrapper, and they
     /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
-        self.inner = applied.doc;
-        self.maintenance = applied.maintenance;
+        self.take_up(applied.doc, applied.maintenance);
         applied.record
     }
 
+    /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
+    /// action and answers its document and maintenance already paired
+    /// (`regauge_then_mate`'s outcome, a [`d::Recorded`]) rather than
+    /// one edit's [`d::Applied`].
+    fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
+        self.inner = doc;
+        self.maintenance = maintenance;
+    }
+
     /// Insert a node, label it when `label` is given, and take the
-    /// acceptance up: `insert`'s body, which accepts internally rather
-    /// than handing an un-accepted `Applied` back for a caller to
+    /// action up: `insert`'s body, which takes it up internally rather
+    /// than handing an un-accepted result back for a caller to
     /// remember to swap.
     ///
     /// A labelled insert is the kernel's two edits — the insert, which
-    /// carries no label, then `SetLabel` on the id it minted — taken up
-    /// as one acceptance: both land or neither does, and the record and
-    /// maintenance are the insert's (a label edit performs none).
-    ///
-    /// `Ok(None)` is the contract violation "an accepted `InsertNode`
-    /// minted no id", and the document is **not** swapped on that arm:
-    /// each door raises its own refusal for it, and a refusal leaves
-    /// the document untouched exactly as the immutable API guarantees.
+    /// carries no label, then `SetLabel` on the id it minted — recorded
+    /// as one action ([`d::Recording`]): both land or neither does, and
+    /// the maintenance is the action's.
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
-    ) -> Result<Option<NodeId>, d::EditError> {
+    ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let applied = d::apply(
-            &self.inner,
-            &d::DocEdit::InsertNode {
-                node: Box::new(node),
-            },
-            tol,
-            &reach,
-        )?;
-        let Some(id) = applied.record.minted else {
-            return Ok(None);
-        };
-        let applied = match label {
-            None => applied,
-            Some(label) => {
-                let edit = d::DocEdit::SetLabel {
-                    node: id,
-                    label: Some(label),
-                };
-                d::Applied {
-                    doc: d::apply(&applied.doc, &edit, tol, &reach)?.doc,
-                    ..applied
-                }
-            }
-        };
-        Ok(self.accept(applied).minted.map(NodeId))
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let id = action.insert(node)?;
+        if let Some(label) = label {
+            action.apply(d::DocEdit::SetLabel {
+                node: id,
+                label: Some(label),
+            })?;
+        }
+        let done = action.finish();
+        self.take_up(done.doc, done.maintenance);
+        Ok(NodeId(id))
     }
 
-    /// The declare doors' shared body: the kernel's own declare sugar
-    /// (`pncad::select::declare_all`), whose acceptance — the new
-    /// document, its record and the maintenance the insert performed
-    /// (a declaration's insert strands nothing and joins no groups, so
-    /// it is empty) — is
-    /// taken up whole through the swap point. The id comes back
-    /// beside it already checked, so the `NoMintedId` arm is the
-    /// sugar's to raise; every `DeclareError` arm reaches Python
-    /// through the same `declare_err`.
-    fn declare_findings(
+    /// The declare doors' shared tail: the kernel declare sugar's
+    /// acceptance — the new document, its record and its (empty)
+    /// maintenance — is taken up whole through the swap point, and
+    /// every `DeclareError` arm reaches Python through the same
+    /// `declare_err`.
+    fn accept_declared(
         &mut self,
         py: Python<'_>,
-        findings: &[pncad::select::FlushFinding],
-    ) -> PyResult<NodeId> {
-        let (applied, id) = pncad::select::declare_all(&self.inner, findings, Tol::witness())
-            .map_err(|err| declare_err(py, &err))?;
+        applied: Result<d::Applied<d::ProfileProgram>, pncad::select::DeclareError>,
+    ) -> PyResult<()> {
+        let applied = applied.map_err(|err| declare_err(py, &err))?;
         self.accept(applied);
-        Ok(NodeId(id))
+        Ok(())
     }
 }
 
@@ -1066,27 +1060,10 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        // Applied in order on values, and taken up once, whole: the
-        // action's record is every edit's, and the funnel (`accept`)
-        // swaps the document and that record together.
-        let mut maintenance = Vec::new();
-        let mut last: Option<d::Applied<d::ProfileProgram>> = None;
-        let edits = d::regauge_then_mate(&self.inner, mate.inner.clone())
+        let out = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
             .map_err(|err| edit_err(py, &err))?;
-        for edit in edits {
-            let base = last.as_ref().map_or(&self.inner, |applied| &applied.doc);
-            let applied = d::apply(base, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
-            maintenance.extend(applied.maintenance.iter().cloned());
-            last = Some(applied);
-        }
-        let Some(mut applied) = last else {
-            unreachable!("the compound door's list ends in the mate's insert")
-        };
-        applied.maintenance = maintenance;
-        let Some(id) = self.accept(applied).minted else {
-            unreachable!("the compound door's last edit is an insert, which mints")
-        };
-        Ok(NodeId(id))
+        self.take_up(out.doc, out.maintenance);
+        Ok(NodeId(out.mate))
     }
 
     /// The maintenance the LAST accepted edit performed, in the order
@@ -1103,9 +1080,12 @@ impl Doc {
     /// **A document a refactoring minted reads that refactoring's own
     /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
     /// `InlineOutcome.doc` are values produced by applying a whole
-    /// edit LIST, so each reports what ITS list did — the offset a
-    /// re-anchored mate cleared, the names a reshaping stranded. The
-    /// document and that record cross
+    /// edit LIST, so each reports what ITS list did, net of what a
+    /// later edit in the same list took back: the names a departing
+    /// node stranded and the remainder still carries. An offset a
+    /// carried mate's insert cleared is re-stated by a later edit in
+    /// the list, so it is not reported. The document and that record
+    /// cross
     /// together, so a caller reading here after either door reads the
     /// record the kernel has rather than an empty list.
     ///
@@ -1368,29 +1348,7 @@ impl Doc {
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         self.insert_node(node.inner.clone(), label, resolver)
-            .map_err(|err| edit_err(py, &err))?
-            .ok_or_else(|| {
-                // The SAME contract violation `declare` refuses —
-                // an insert applied and minted nothing — reached
-                // through a second door, so it is the same word to a
-                // caller and takes it from the same place rather
-                // than restating it.
-                //
-                // The two are also interchangeable on the wire, and
-                // that holds by the arm's shape rather than by
-                // coincidence: `DeclareError::NoMintedId` is
-                // FIELDLESS, so there is nothing for an inner
-                // variant or a payload to project, and `declare_err`
-                // passes the same `EditPayload::NONE` this door
-                // does. Giving the two refusals different payloads
-                // therefore means giving that arm a field, which is
-                // a kernel change a reader meets at the enum.
-                boundary_edit_err(
-                    py,
-                    BoundaryEdit::Declare(&pncad::select::DeclareError::NoMintedId),
-                    "an insert minted no node id".to_owned(),
-                )
-            })
+            .map_err(|err| edit_err(py, &err))
     }
 
     /// **Insert a sketch frame and return its id** — the one line a
@@ -1449,32 +1407,49 @@ impl Doc {
             .map(|label| label.as_str().to_owned()))
     }
 
-    /// Declare ONE inspected finding: insert a `Declare` node with
-    /// its pair and return the node's id, for `Node.boolean`'s
-    /// `declare=` input — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3). Sugar over the same vocabulary
-    /// `Node.declare` constructs; nothing here detects — findings
-    /// reach this door as VALUES the caller already inspected (the
-    /// ruled no-fusion boundary).
+    /// ADD one inspected finding's pair to the declared pairs of the
+    /// live boolean or union `node`, keeping every pair it declares
+    /// already — the detect/declare protocol's declare arm
+    /// (SELECT-DESIGN §3), and the door an `undeclared_coincidence`
+    /// refusal's recourse names: following each refusal with its
+    /// `finding` converges on a node that declares every contact it
+    /// meets. A pair on the same two sides as one already declared
+    /// replaces it rather than repeating it. Nothing here detects;
+    /// findings reach this door as VALUES the caller already inspected
+    /// (the ruled no-fusion boundary).
+    ///
+    /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
+    /// is neither a boolean nor a union, `unknown_node` for a node the
+    /// document does not hold, `declared_site_not_an_operand` for a
+    /// finding inspected between other operands than `node`'s, and the
+    /// name checks an insert runs on a pair naming a node or step the
+    /// document does not hold.
     fn declare(
         &mut self,
         py: Python<'_>,
+        node: &NodeId,
         finding: &super::flush::FlushFinding,
-    ) -> PyResult<NodeId> {
-        self.declare_findings(py, core::slice::from_ref(&finding.0))
+    ) -> PyResult<()> {
+        let applied = pncad::select::declare(&self.inner, node.0, &finding.0, Tol::witness());
+        self.accept_declared(py, applied)
     }
 
-    /// Declare a SET of inspected findings in one `Declare` node —
-    /// the many-pair case (the boundary is fusion, not arity). Same
-    /// contract as `declare`; an EMPTY list refuses (`no_findings`)
-    /// rather than inserting a pretend-declaration.
+    /// Declare a SET of inspected findings on the live boolean or union
+    /// `node`, replacing its whole declared-pair list —
+    /// `DocEdit.set_declare`'s replace, where `declare` adds (the
+    /// boundary is fusion, not arity). Same refusals as `declare`; an
+    /// EMPTY list refuses (`no_findings`) rather than
+    /// clearing silently — `DocEdit.set_declare(node, [])` is the
+    /// spelling that clears.
     fn declare_all(
         &mut self,
         py: Python<'_>,
+        node: &NodeId,
         findings: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<NodeId> {
+    ) -> PyResult<()> {
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        self.declare_findings(py, &kernel)
+        let applied = pncad::select::declare_all(&self.inner, node.0, &kernel, Tol::witness());
+        self.accept_declared(py, applied)
     }
 
     /// How many nodes the document holds.
@@ -2722,28 +2697,32 @@ impl Node {
 
     /// A Boolean of two upstream solids.
     ///
-    /// `declare` names a `Declare` node whose coincidence pairs this
-    /// boolean consumes — the DATA door for a declared contact.
-    /// Without it the kernel never infers that two faces are the same
-    /// face, so operands that merely touch refuse, and that refusal is
-    /// the typed MENU: an
-    /// `EvaluationError` with `kind == "undeclared_coincidence"` whose
-    /// `finding` attribute carries the candidate declaration. The
-    /// protocol that fills this argument is
-    /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
-    /// (or the `Doc.declare`/`Doc.declare_all` sugar) → this
-    /// `declare=`.
+    /// `declare` is the boolean's declared contact pairs, given as the
+    /// `FlushFinding`s the caller INSPECTED — each carries its pair and
+    /// its class — and held as the node's own payload; an empty list
+    /// declares nothing. The kernel never infers that two faces are
+    /// the same face, so operands that merely touch refuse, and that
+    /// refusal is the typed MENU: an `EvaluationError` with
+    /// `kind == "undeclared_coincidence"` whose `finding` attribute
+    /// carries the candidate declaration. The protocol that fills this
+    /// argument is `Evaluation.find_flush_candidates` → inspect → this
+    /// `declare=`, or `Doc.declare`/`Doc.declare_all` on the live node.
     #[staticmethod]
-    #[pyo3(signature = (op, a, b, declare=None))]
-    fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
-        Self {
+    #[pyo3(signature = (op, a, b, declare=Vec::new()))]
+    fn boolean(
+        op: BooleanOp,
+        a: &NodeId,
+        b: &NodeId,
+        declare: Vec<super::flush::FlushFinding>,
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Boolean {
                 op: op.to_document(),
                 a: a.0,
                 b: b.0,
-                declare: declare.map(|d| d.0),
+                declare: declared_pairs(declare),
             },
-        }
+        })
     }
 
     /// **The n-ary union**: two or more member bodies folded into ONE
@@ -2758,46 +2737,28 @@ impl Node {
     /// is the whole reason this node exists rather than a chain of
     /// booleans, whose shape can only be re-authored.
     ///
-    /// `declare` is the same optional coincidence-intent input
-    /// `Node.boolean` carries, consumed the same way one step further
-    /// in: the fold's steps are pairs, and a declared pair is fed at
-    /// the step its two members meet at. Without one, members that
-    /// merely TOUCH refuse (`EvaluationError`,
-    /// `kind == "undeclared_coincidence"`), exactly as a binary boolean's
-    /// operands do.
+    /// `declare` is the same declared-pair list `Node.boolean`
+    /// carries, consumed the same way one step further in: the fold's
+    /// steps are pairs, and a declared pair is fed at the step its two
+    /// members meet at. Without one, members that merely TOUCH refuse
+    /// (`EvaluationError`, `kind == "undeclared_coincidence"`), exactly
+    /// as a binary boolean's operands do.
     ///
     /// Refuses at `Doc.insert`, of the list as stated: fewer than two
     /// members (`too_few_members`, carrying the `count` it found), a
     /// member repeated (`duplicate_input`, naming it), a member id the
-    /// document does not hold (`unresolved_input`), a `declare` input
-    /// that is not a `Node.declare` (`declare_input_not_declare`).
-    /// Whether a member is a BODY is not asked here — that is the
-    /// kernel's question at `evaluate`, as it is at every other
-    /// operand seat.
+    /// document does not hold (`unresolved_input`). Whether a member is
+    /// a BODY is not asked here — that is the kernel's question at
+    /// `evaluate`, as it is at every other operand seat.
     #[staticmethod]
-    #[pyo3(signature = (members, declare=None))]
-    fn union(members: Vec<NodeId>, declare: Option<NodeId>) -> Self {
-        Self {
+    #[pyo3(signature = (members, declare=Vec::new()))]
+    fn union(members: Vec<NodeId>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Union {
                 members: members.iter().map(|m| m.0).collect(),
-                declare: declare.map(|d| d.0),
+                declare: declared_pairs(declare),
             },
-        }
-    }
-
-    /// The `Declare` node built from INSPECTED findings — the
-    /// detect/declare protocol's declare arm as a node constructor;
-    /// its inserted id feeds `Node.boolean`'s `declare=` input.
-    /// `Doc.declare`/`Doc.declare_all` are the insert-and-return-id
-    /// sugar over this same vocabulary. Nothing here detects
-    /// (SELECT-DESIGN §3's ruled no-fusion boundary: findings pass
-    /// through your hands as values), and an EMPTY list refuses
-    /// (`no_findings`) — an empty Declare records no intent.
-    #[staticmethod]
-    fn declare(py: Python<'_>, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
-        let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let node = pncad::select::declare_node(&kernel).map_err(|err| declare_err(py, &err))?;
-        Ok(Self { inner: node })
+        })
     }
 
     /// **The pattern**: one prototype, `count` placements stepped by
@@ -2901,8 +2862,8 @@ impl Node {
     ///
     /// An `explicit` rule brings its OWN placements, so pairing it
     /// with a count is the two-sources-of-truth state: it refuses here
-    /// (`EditError`, `placement_rule_mismatch`) and
-    /// `Node.placed_union_at` is its door.
+    /// (`EditError`, `placement_rule_mismatch`, `inner_variant`
+    /// `listed_with_count`) and `Node.placed_union_at` is its door.
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
@@ -2914,7 +2875,9 @@ impl Node {
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
-                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling),
+                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
+                    shape: d::CountMismatch::ListedWithCount,
+                }),
                 "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
                     .to_owned(),
@@ -3087,8 +3050,8 @@ impl Node {
     /// gives the placed number; naming the minting node gives the
     /// authored one. Both are legal, and they are different questions.
     ///
-    /// **The references ARE dag edges**, unlike a `Node.declare`'s or
-    /// a `Node.mate`'s names: a measure resolves its own against
+    /// **The references ARE dag edges**, unlike a boolean's declared
+    /// pairs or a `Node.mate`'s names: a measure resolves its own against
     /// values that must already exist, so the referenced nodes are its
     /// data dependencies and deleting one is refused at the delete
     /// door (`delete_would_dangle`) like any other consumer's input.
@@ -3655,7 +3618,7 @@ impl DocEdit {
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
     /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's `declare` input is left as it was, so a pair whose two
+    /// union's declared pairs are left as they were, so a pair whose two
     /// members are both still in the list re-routes to the step they
     /// now meet at; a pair whose member was DROPPED has lost its site
     /// and refuses at the next evaluation as a vanished name, rather
@@ -3678,6 +3641,31 @@ impl DocEdit {
                 members: members.iter().map(|m| m.0).collect(),
             },
         }
+    }
+
+    /// **Replace a live boolean's or union's whole declared-pair
+    /// list** with the pairs and classes of `findings` — the inspected
+    /// `FlushFinding`s, as `Node.boolean`'s `declare=` takes them. An
+    /// empty list clears the declaration. Nothing is inferred about
+    /// the old list: it is replaced whole.
+    ///
+    /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
+    /// for a node that is neither a boolean nor a union,
+    /// `unknown_node` for a node the document does not hold, the name
+    /// checks an insert runs (`declare_names_missing_node`,
+    /// `name_step_never_minted`, `read_site_missing_node`) on a pair
+    /// naming what the document does not hold, and the pair rule an
+    /// insert asks: `declared_site_not_an_operand` for a pair read at a
+    /// node that is not one of `node`'s operands,
+    /// `declared_name_not_upstream` for a name not minted before `node`.
+    #[staticmethod]
+    fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::DocEdit::SetDeclare {
+                node: node.0,
+                pairs: declared_pairs(findings),
+            },
+        })
     }
 
     /// **Replace a CONTINUOUS slot's expression on a live node** — an
@@ -4126,12 +4114,15 @@ impl DocEdit {
     /// inserted, so the door is told rather than guessing.
     ///
     /// A name on a profile piece spells its step's id, so a name on a
-    /// kept step keeps denoting its piece and is not touched. A step
-    /// the new program does not keep takes its id with it: every name
-    /// on it — a fillet's selection, a shell's mouth, a derived
-    /// frame's face, a paint — keeps its spelling, resolves to nothing,
-    /// and is reported as a `strand` or a `stranded_appearance` until
-    /// `DocEdit.rebind` repairs it.
+    /// kept step keeps denoting its piece wherever the new program
+    /// draws it and is not touched. A step the new program does not
+    /// keep takes its id with it: every name on it — a fillet's
+    /// selection, a shell's mouth, a derived frame's face, a paint —
+    /// keeps its spelling, resolves to nothing, and is reported as a
+    /// `strand` or a `stranded_appearance` until `DocEdit.rebind`
+    /// repairs it. So is a name on a kept step's piece the new program
+    /// stops drawing, as a fillet inserted before a leg takes the
+    /// leg's segment.
     ///
     /// Raises `StepHandleError` `handle_off_program` for a handle that
     /// is not a step of its loop's new program. Refuses

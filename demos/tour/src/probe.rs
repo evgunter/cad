@@ -41,8 +41,8 @@ use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
 use pncad::topo::{Body, ContactRecords};
 
 use crate::{
-    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms, lily,
-    projectbox, rocker,
+    az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
+    letterforms, lily, projectbox, rocker,
 };
 use pncad::geom_core::Tol;
 
@@ -129,7 +129,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         t,
         u,
         "bracket",
-        || vec![plain("bracket", bodies::bracket(tol))],
+        || vec![plain("bracket", bracket::probe_body(tol))],
         tol,
     );
     // The chamfer verb's own K row. What this scene actually meters is
@@ -333,7 +333,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         || {
             lily::plant::<Probe>(tol)
                 .into_iter()
-                .map(|piece| plain(piece.name, piece.body))
+                .map(|piece| (piece.name.to_string(), piece.body, piece.contacts))
                 .collect()
         },
         tol,

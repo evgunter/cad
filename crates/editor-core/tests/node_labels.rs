@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError, SplitError,
+    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, SplitError,
     content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
@@ -368,7 +368,7 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );
@@ -401,7 +401,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
         doc,
         Node::Union {
             members: vec![left, right],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let doc = set_label(doc, union, Some("pair"));
@@ -440,8 +440,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
 /// The stranded name's minting node is the one the delete removed, so
 /// only the document before the edit still holds its label: a row
 /// spoken from the document the edit leaves would say `node <tag>`.
-/// The surviving carrier and an orphaned declaration are spoken the
-/// same way, label and all.
+/// The surviving carrier is spoken the same way, label and all.
 #[test]
 fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());
@@ -631,11 +630,12 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
-             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
-             must be closed under inputs and consumers",
-            tag(extrude.0),
-            tag(profile.0)
+            "split: the cut severs the edge from Extrude \"base plate\" ({e}) to its input \
+             Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
+             ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
+            e = tag(extrude.0),
+            p = tag(profile.0)
         )
     );
     for id in [extrude, profile] {
@@ -711,21 +711,23 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a Declare whose `b` side was rebound onto the
-/// wall of a block inserted after it, labelled `late block`: the
-/// rebound name and that block's extrude.
+/// A document holding a fillet whose selection was rebound onto the
+/// wall of a block inserted after the fillet, labelled `late block`:
+/// the rebound name and that block's extrude. A selection is a frozen
+/// name with no document-order rule, so the rebind is admitted and the
+/// reference points forward.
 fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
-    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
-    let early = fixture::fname(b, wb);
-    let (doc, _) = insert(
+    let early = fixture::fname(b, fixture::wall(&doc, b, 0));
+    let (doc, _fillet) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fixture::fname(a, wa)),
-            SitedRef::new(b, early.clone()),
-        )]),
+        Node::Fillet {
+            target: a,
+            radius: len(0.1),
+            selection: vec![early.clone()],
+        },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
@@ -796,10 +798,12 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert_eq!(
         refused.to_string(),
         format!(
-            "inline: InstantiatePart \"left bracket\" ({}) is consumed by Transform \"offset\" \
-             ({}) — the recipe cannot rewire a consumer onto a spliced product",
-            tag(inst.0),
-            tag(by.0)
+            "inline: InstantiatePart \"left bracket\" ({i}) is consumed by Transform \"offset\" \
+             ({b}), and the recipe cannot rewire a consumer onto a spliced product. Recourse: \
+             delete Transform \"offset\" ({b}), or re-author it without InstantiatePart \
+             \"left bracket\" ({i}), then inline",
+            i = tag(inst.0),
+            b = tag(by.0)
         )
     );
 }
@@ -1347,7 +1351,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );

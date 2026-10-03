@@ -315,8 +315,8 @@ pub struct Assembly<T: Decide> {
 /// root list decide.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
-/// lookup refuses with (`ResolveError` spells them for a `Declare`
-/// node's names). The subject here is the assembly's product table
+/// lookup refuses with (`ResolveError` spells them for a boolean's
+/// declared names). The subject here is the assembly's product table
 /// and the operand's, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
@@ -1812,9 +1812,13 @@ mod attribution {
                 // `Unattributed`, which is why the re-routing moves no
                 // `AtRest`/`Uncertified` verdict; the row is here so
                 // that stays true rather than stays believed.
-                topo::CensusUnsupportedCause::Containment(topo::ContainError::ArcLoopUnsupported {
-                    r#loop: Default::default(),
-                }),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::Uncrossable(
+                    topo::Uncrossable {
+                        r#loop: Default::default(),
+                        edge: Default::default(),
+                        carrier: topo::UncrossableCarrier::Spiric,
+                    },
+                )),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
             ]

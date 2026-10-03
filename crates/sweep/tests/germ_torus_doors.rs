@@ -1,4 +1,4 @@
-//! **The torus doors of a union, up to the join** — the dumbbell with a
+//! **The torus doors of a union, through the join** — the dumbbell with a
 //! torus waist, walked door by door.
 //!
 //! The fixture is two halves of a dumbbell, each a FULL revolve about
@@ -37,10 +37,10 @@
 //! torus × plane arm; the sweep traces, which stop before that, are
 //! what those rows read.
 //!
-//! Past every torus door the chord join refuses, as it does for the
-//! same dumbbell with a CYLINDER handle, and the declared-REST zip that
-//! takes over builds both: its seam runs along the joint circle's two
-//! semicircles, which it matches as arcs. The control row says so.
+//! Past every torus door the union builds, as the same dumbbell with a
+//! CYLINDER handle does — the control row says so: the joint's seam
+//! semicircles are edges of both halves, and the chord join copies them
+//! (JOIN-1).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -236,7 +236,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("no torus union builds a body yet");
+        .expect_err("an undeclared coincident torus pair refuses");
     assert!(
         !matches!(err, BooleanError::NonMaximalFaces { .. }),
         "F7 does not answer on the halves as built: {err:?}"
@@ -256,11 +256,21 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 /// What admission must NOT do is turn a torus pair nobody vouched for
 /// into a body: undeclared, the coincident waists still refuse typed —
 /// as the undeclared continuation they are, at the reduction, naming
-/// the waist pair and its aligned relation. Declared, the union builds
-/// (the control row below).
+/// the waist pair and its aligned relation. Declared a continuation,
+/// the union builds (`the_torus_waisted_union_builds_like_the_cylinder_control`).
 #[test]
 fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
+    let built = topo::union_with(
+        &a,
+        &b,
+        &declarations(&a, &b, Some(BooleanCoincidence::Continuation)),
+        Tol::witness(),
+    );
+    assert!(
+        !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
+        "the gate must admit the torus: {built:?}"
+    );
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
         .expect_err("an undeclared coincident torus pair must refuse");
     let BooleanError::UndeclaredCoincidence {
@@ -669,40 +679,58 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
     );
 }
 
-/// **The relaxation opens no cylinder body.** The same rod through the
-/// three-face wall, under every op: the chord is no event on the third
-/// face now, and what each op meets next is a typed door, never a body.
-/// Measured: every op stops at the join, where the rod's pierces mint
-/// rings in the wall and a ring has no join arm yet
-/// (`work/tang/pierce-ring-has-no-join-arm`). The rod is asymmetric
-/// about the axis, and the arc-window door it lands on is
-/// `NeitherContained`, the sub-case that unit holds the pairing
-/// question for.
+/// **The relaxation opens the cylinder body it should.** The same rod
+/// through the three-face wall, under every op: the chord is no event on
+/// the third face, the rod's pierces mint rings in the two walls it
+/// meets, the rings join, and every op builds to its closed form. The
+/// rod is a horizontal square bar of half-width `h` whose axis runs
+/// `c = ½` from the cylinder's, so each horizontal offset `w` across it
+/// holds a chord of length `2√(1 − (c + w)²)` at every height.
 #[test]
-fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
+fn a_three_face_cylinder_rod_builds_under_every_op() {
     let cyl = three_face_cylinder();
     let at = |deg: f64| {
         let t = deg.to_radians();
         Point3::new(t.cos(), t.sin(), 1.0)
     };
     let (p60, p180) = (at(60.0), at(180.0));
-    let rod = framed_bar(p60, p180 - p60, -0.5, 2.2, 0.02);
-    for (what, r) in [
-        ("∪", topo::union(&cyl, &rod, Tol::witness())),
-        ("∩", topo::intersect(&cyl, &rod, Tol::witness())),
-        ("cyl ∖ rod", topo::subtract(&cyl, &rod, Tol::witness())),
-        ("rod ∖ cyl", topo::subtract(&rod, &cyl, Tol::witness())),
+    let (t0, t1, width) = (-0.5, 2.2, 0.02);
+    let rod = framed_bar(p60, p180 - p60, t0, t1, width);
+    let (h, c) = (width / 2.0, 0.5);
+    let chord_integral = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let shared = 2.0 * h * (chord_integral(c + h) - chord_integral(c - h));
+    let (v_cyl, v_rod) = (2.0 * core::f64::consts::PI, width * width * (t1 - t0));
+    for (what, r, truth) in [
+        (
+            "∪",
+            topo::union(&cyl, &rod, Tol::witness()),
+            v_cyl + v_rod - shared,
+        ),
+        ("∩", topo::intersect(&cyl, &rod, Tol::witness()), shared),
+        (
+            "cyl ∖ rod",
+            topo::subtract(&cyl, &rod, Tol::witness()),
+            v_cyl - shared,
+        ),
+        (
+            "rod ∖ cyl",
+            topo::subtract(&rod, &cyl, Tol::witness()),
+            v_rod - shared,
+        ),
     ] {
-        let err = r.expect_err(what);
+        let out = r.unwrap_or_else(|e| panic!("{what}: refused {e:?}"));
+        let body = &out.body().unwrap_or_else(|| panic!("{what}: empty")).body;
+        assert_eq!(
+            topo::validate_geometric(body, Tol::witness()),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let v = topo::mass_properties(body, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: mass properties {e:?}"))
+            .volume;
         assert!(
-            matches!(
-                err,
-                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NeitherContained,
-                    ..
-                })
-            ),
-            "{what}: {err:?}"
+            (v - truth).abs() <= 1e-12 * truth.max(1.0),
+            "{what}: volume {v} against the closed form {truth}"
         );
     }
 }
@@ -734,53 +762,60 @@ fn three_face_cylinder() -> Body<f64> {
 // Door 4, the sector walk, and where the union stops.
 // -------------------------------------------------------------------
 
-/// **Past every torus door, the union builds as the cylinder-handled
+/// **Past every torus door, the union builds, as the cylinder-handled
 /// dumbbell does.** The torus-waisted union used to refuse
 /// `CurvedBooleanUnsupported { kind: Torus }` at the sector walk; with
-/// the torus arm it reaches the chord join, which refuses as it does
-/// for the SAME dumbbell with a straight cylinder handle, and the
-/// declared-REST zip that takes over a refused declared union builds
-/// both: the joint circle is two semicircles between one vertex pair,
-/// which the zip matches as arcs. The halves share no interior, so the
-/// body holds exactly their two volumes. That volume is the REST lane's
-/// by construction, so the census pins the pairing: each half's end
-/// disc, two bell faces, shoulder annulus and two waist faces, the
-/// joint discs consumed and the curved continuations left unmerged.
+/// the torus arm it reaches the chord join. The joint's seam
+/// semicircles are edges of both halves, and each section segment along
+/// one names that edge on both operands at both of its ends, so the
+/// join matches them; at their edge-edge sites each half folds the seam
+/// by its own membership (the one fold rule), and each half's chord is
+/// a copy of its own semicircle, so neither the torus×plane section
+/// frame nor the face pair the germ was recorded against is read. The
+/// union is the two halves, which only touch: `vol(a) + vol(b)`, sound
+/// at every tier (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
 fn the_torus_waisted_union_builds_like_the_cylinder_control() {
-    let tol = Tol::witness();
-    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
     for handle in [Handle::Torus, Handle::Cylinder] {
-        let bb = match t2(handle) {
-            Ok(topo::BooleanResult::Body(b)) => b,
-            other => panic!("{handle:?}: the dumbbell's joint zips: {other:?}"),
-        };
-        let body = &bb.body;
+        let (a, b) = (half(1.0, handle), half(-1.0, handle));
+        let want = [&a, &b]
+            .map(|h| topo::mass_properties(h, Tol::witness()).unwrap().volume)
+            .iter()
+            .sum::<f64>();
+        let r = t2(handle).unwrap_or_else(|e| panic!("{handle:?}: the dumbbell builds: {e:?}"));
+        let bb = r.body().unwrap_or_else(|| panic!("{handle:?}: a body"));
         assert_eq!(
-            topo::validate_geometric(body, tol),
+            topo::validate_closed(&bb.body),
+            Ok(()),
+            "{handle:?}: tier 2"
+        );
+        assert_eq!(
+            topo::validate_geometric(&bb.body, Tol::witness()),
             Ok(()),
             "{handle:?}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(body, &bb.contacts, tol),
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
             Ok(()),
             "{handle:?}: tier 3′"
         );
-        let want = volume(&half(1.0, handle)) + volume(&half(-1.0, handle));
         assert!(
-            (volume(body) - want).abs() <= 1e-12 * want,
-            "{handle:?}: the two halves: {} vs {want}",
-            volume(body)
+            topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+            "{handle:?}: the at-rest certificate"
         );
-        assert_eq!(
-            (
-                body.faces().count(),
-                body.edges().count(),
-                body.vertices().count(),
-                body.shells().count()
-            ),
-            (12, 22, 14, 1),
-            "{handle:?}: F, E, V, shells"
+        let v = topo::mass_properties(&bb.body, Tol::witness())
+            .unwrap()
+            .volume;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{handle:?}: the halves only touch, so the union is their sum: {v} against {want}"
+        );
+        // The waists' seam is a recorded curved skip, the planar
+        // continuation none (both halves' discs are consumed).
+        sweep::test_support::assert_legal_operand(
+            &format!("{handle:?} dumbbell"),
+            &bb.body,
+            Tol::witness(),
         );
     }
 }

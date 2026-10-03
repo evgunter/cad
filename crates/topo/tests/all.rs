@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "at_rest_pcurve_rows.rs"]
+mod at_rest_pcurve_rows;
 #[path = "axis_source_rows.rs"]
 mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
@@ -77,6 +79,8 @@ mod bool4r2_probes;
 mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
+#[path = "boolean_pinch_copies.rs"]
+mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -121,6 +125,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "join1_r2_topo_probes.rs"]
+mod join1_r2_topo_probes;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
@@ -181,6 +187,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "on_verdict.rs"]
+mod on_verdict;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -199,6 +207,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "review_cleave_farplane.rs"]
+mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
 mod review_cleave_nurbs_lane;
 #[path = "review_m1_pr5.rs"]
@@ -271,6 +281,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "sphere_twin_rows_interval.rs"]
+mod sphere_twin_rows_interval;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
 #[path = "split_gate_per_face.rs"]
@@ -279,6 +291,8 @@ mod split_gate_per_face;
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
+#[path = "union_flush_onto_edge_contact.rs"]
+mod union_flush_onto_edge_contact;
 #[path = "void_door.rs"]
 mod void_door;
 

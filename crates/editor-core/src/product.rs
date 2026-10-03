@@ -202,7 +202,7 @@ pub enum ProductError {
     /// material, which placing it repairs.
     Unplaced {
         /// Every unplaced group, by its root, with why nothing places
-        /// it, in root order.
+        /// it, in document order.
         groups: Vec<(RecipeNodeId, crate::mate::Unplaced)>,
     },
     /// The kernel's disjoint-graft door refused a source body.
@@ -768,7 +768,6 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // had without one.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
@@ -904,7 +903,7 @@ pub struct Product<T: Decide> {
     /// is where it arrives.
     pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
     /// **Each unplaced group's own space, gathered by itself** (A9,
-    /// A11 (2)), in root order: what the world leaves out, kept beside
+    /// A11 (2)), in document order: what the world leaves out, kept beside
     /// it so the at-rest gate checks every space of the document from
     /// the one product it is handed ([`crate::assemble_gathered`]).
     /// Empty on a space's own gather, and on a document every group of
@@ -930,14 +929,15 @@ pub struct OwnSpace<T: Decide> {
 }
 
 /// **Every unplaced group's own space** in `evaluation`, each gathered
-/// by itself ([`OwnSpace`]), in root order: what [`product_recorded`]
+/// by itself ([`OwnSpace`]), in document order: what [`product_recorded`]
 /// carries beside the world ([`Product::spaces`]).
 pub fn own_spaces<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Vec<OwnSpace<T>> {
-    unplaced_groups(evaluation)
+    evaluation
+        .unplaced_groups(doc)
         .into_iter()
         .map(|(group, cause)| OwnSpace {
             group,
@@ -950,20 +950,6 @@ pub fn own_spaces<P, T: Decide + AtRestPolicy>(
             )
             .map(Box::new),
         })
-        .collect()
-}
-
-/// Every unplaced group in `evaluation`, by its root, with its cause,
-/// in root order.
-fn unplaced_groups<T: Decide>(
-    evaluation: &Evaluation<T>,
-) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
-    evaluation
-        .unplaced
-        .values()
-        .copied()
-        .collect::<std::collections::BTreeMap<_, _>>()
-        .into_iter()
         .collect()
 }
 
@@ -1098,7 +1084,7 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
         }));
     }
     if !any_body_denoting {
-        let groups = unplaced_groups(evaluation);
+        let groups = evaluation.unplaced_groups(doc);
         return Err(
             if space == crate::mate::Space::World && !groups.is_empty() {
                 ProductError::Unplaced { groups }

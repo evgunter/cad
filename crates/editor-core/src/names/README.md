@@ -163,6 +163,12 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   - A step that `SetProgram` drops takes its id with it. A name on that step
     keeps its spelling and resolves `Vanished`, and DM7's report names it.
     Because the id is never minted again, no later program can draw it.
+  - A `SetProgram` that keeps a step can still leave one of its pieces
+    undrawn, when a piece it adds or moves earlier on the same carrier
+    takes the segment: a fillet inserted before a leg takes the leg's.
+    A name on that piece keeps its spelling and resolves `Vanished`, and
+    DM7's report names it, as it does for a dropped step. It comes back
+    only when a later program draws it again.
 - **The canonical numbering is not a name.** It is still the order in which
   the emitters, the loft's correspondence and the viewer's per-segment marks
   iterate (V3, DM8). When a profile's value is built, the naming anchor
@@ -183,8 +189,9 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   the run: its piece locators in authored order, a one-piece run spelled as
   one locator; a run that wraps through the loop's start begins at its first
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
-  where an entity exists, so a station inside a run has none; rims and cap
-  vertices stay per piece. A run wall is not a merge and never `Merged`.
+  where an entity exists, so a station inside a run has none; a cap's rim
+  is one edge per run too, and holds the run as the wall does. A run wall
+  is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
   `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`

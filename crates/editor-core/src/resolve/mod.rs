@@ -2095,6 +2095,9 @@ pub fn apply_with_names<T: Decide>(
     match edit {
         DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
+        DocEdit::SetDeclare { pairs, .. } => {
+            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2109,9 +2112,8 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
-        // A program and its provenance carry no name; the names a
-        // reshaping moves are the document's own, rewritten at the
-        // door.
+        // A program and its step ids carry no name, and the door
+        // rewrites none of the document's.
         | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }

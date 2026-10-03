@@ -113,3 +113,22 @@ returned (an escalation still short-circuits, as everywhere else in
 the module). And the material-sign gate now reads the sense-free
 residue of the same question — every rim's encoded side agreeing —
 which removed an anchor-relative definite ANSWER from that arm.
+
+## 2026-10-02 — the cylinder leaves this rule's scope (TANG, PR 3851)
+
+A cylinder face's flux and its material-side gate are now the chart
+Green form over every loop (`geom_brep::props::curved_face_loops`,
+`boundary_material_sign_loops`, the `props_chart_area_side` decision),
+so `linear_rim_side` — and `props_rim_side` with it — no longer runs on
+a cylinder. Two of the citations above move:
+
+- `voided_rod`'s walls are cylinders, so its recorded population no
+  longer holds `props_rim_side` at all; the counts this row quotes off
+  `voided_rods_verdicts_as_a_sorted_multiset` were deleted from that
+  row by PR 3851. `props_sphere_pole_side.rs`'s two-rim sphere zone is
+  now this row's only executed witness.
+- The closing shape's re-baseline is the CONE's and the SPHERE's
+  recorded populations, not the cylinder's.
+
+The subject is unchanged on the three kinds that still read
+`linear_rim_side`.

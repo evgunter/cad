@@ -20,8 +20,9 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
-    PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
+    BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
+    PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
+    apply,
 };
 use fixture::{ang, len, scl};
 
@@ -141,7 +142,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
+                            declare: Vec::new(),
                         }),
                     },
                     Tol::witness(),
@@ -478,6 +479,112 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     );
 }
 
+/// **Each placement-rule refusal's recourse gets through.** A rule's
+/// shape is written only by the insert that authors its node, so the
+/// recourse is that insert's: each refused shape below is refused with
+/// its own recourse, and the node it names, changed exactly as that
+/// recourse says, applies.
+#[test]
+fn a_placement_rule_refusals_recourse_gets_through() {
+    let (doc, fin) = fin_only();
+    let insert = |node: Node<editor_core::ProfileProgram>| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let linear = || PatternKind::Linear {
+        direction: [scl(1.0), scl(0.0), scl(0.0)],
+        spacing: len(2.0),
+    };
+    let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
+    let rows = [
+        (
+            "a placed union's list, with a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(1)),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedWithCount),
+            "insert it without a count, since the list is the count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: listed(),
+            }],
+        ),
+        (
+            "a placed union's stepped rule, without a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: linear(),
+            },
+            Some(CountMismatch::SteppedWithoutCount),
+            "insert it with a count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(2)),
+                kind: linear(),
+            }],
+        ),
+        (
+            "a pattern given a list",
+            Node::Pattern {
+                input: fin,
+                count: Expr::count(1),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedOnPattern),
+            "keep a pattern of separate copies by giving it a stepped rule, or insert a placed union to list the placements, fusing the copies into one body",
+            // Both routes: the pattern kept, and the union that fuses.
+            vec![
+                Node::Pattern {
+                    input: fin,
+                    count: Expr::count(1),
+                    kind: linear(),
+                },
+                Node::PlacedUnion {
+                    input: fin,
+                    count: None,
+                    kind: listed(),
+                },
+            ],
+        ),
+        (
+            "a placed union's empty list",
+            Node::placed_union_at(fin, Vec::new()),
+            None,
+            "list at least one placement",
+            vec![Node::placed_union_at(fin, vec![Frame::IDENTITY])],
+        ),
+    ];
+    // Each row's shape: the count mismatch it is, or `None` for an
+    // empty list.
+    for (label, refused, shape, recourse, routes) in rows {
+        let error = insert(refused).expect_err(label);
+        let refused_as = match &error {
+            EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
+            EditError::EmptyPlacementList { .. } => None,
+            other => panic!("{label} refuses as a placement rule: {other:?}"),
+        };
+        assert_eq!(refused_as, shape, "{label} refuses as its shape");
+        let line = error.to_string();
+        assert!(
+            line.ends_with(&format!("Recourse: {recourse}")),
+            "{label} states its own recourse, {recourse:?}: {line}"
+        );
+        for followed in routes {
+            assert!(insert(followed).is_ok(), "{label}, followed, applies");
+        }
+    }
+}
+
 /// **An explicit rule has no expression slots**, and a stepped one has
 /// exactly the pattern node's — the slot API is the one place the two
 /// nodes could have drifted, so it is pinned directly.
@@ -796,7 +903,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
+                            declare: Vec::new(),
                         }),
                     },
                     Tol::witness(),
@@ -829,4 +936,73 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     );
     assert_eq!(g.solids().count(), c.solids().count(), "same solid count");
     assert_eq!(g.shells().count(), c.shells().count(), "same shell count");
+}
+
+/// **The typed insert answers to the same backstops as `apply`**: in
+/// the middle of an action, [`editor_core::Recording::insert`] refuses an
+/// empty placement list, a non-finite frame, a mirror and a stretched
+/// frame with exactly the error `apply` gives the same insert against
+/// the same document, records nothing for it, and the action goes on.
+/// The placement rule is checked by the whole-document backstop every
+/// edit passes through after it is written, not by the insert's own
+/// arm, so an insert that skipped that backstop would land here.
+#[test]
+fn the_typed_insert_answers_to_the_placement_backstops() {
+    let (doc, fin) = fin_only();
+    let with =
+        |frames: Vec<Frame>| Node::<editor_core::ProfileProgram>::placed_union_at(fin, frames);
+    let mut mirror = Frame::IDENTITY;
+    mirror.columns[0] = [-1.0, 0.0, 0.0];
+    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+
+    let mut action =
+        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+    let first = action
+        .insert(with(vec![Frame::IDENTITY]))
+        .expect("one placement is legal");
+    for (what, node) in [
+        ("an empty placement list", with(Vec::new())),
+        (
+            "a non-finite frame",
+            with(vec![Frame::translation([f64::NAN, 0.0, 0.0])]),
+        ),
+        ("a mirror", with(vec![mirror])),
+        ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
+    ] {
+        let before = action.doc().clone();
+        let want = apply(
+            &before,
+            &DocEdit::InsertNode {
+                node: Box::new(node.clone()),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err(what);
+        assert!(
+            matches!(
+                want,
+                EditError::EmptyPlacementList { .. }
+                    | EditError::NonFinitePlacement { .. }
+                    | EditError::ImproperPlacement { .. }
+                    | EditError::NonRigidPlacement { .. }
+            ),
+            "the premise: `apply` refuses {what} at the placement backstop: {want:?}"
+        );
+        assert_eq!(
+            action.insert(node),
+            Err(want),
+            "the typed insert refuses {what} as `apply` does"
+        );
+        assert!(
+            action.doc().bit_eq(&before),
+            "a refused insert of {what} leaves the action where it stood"
+        );
+        assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
+    }
+    let last = action
+        .insert(with(vec![Frame::translation([4.0, 0.0, 0.0])]))
+        .expect("the action goes on after the refusals");
+    assert_eq!(action.finish().minted, vec![Some(first), Some(last)]);
 }

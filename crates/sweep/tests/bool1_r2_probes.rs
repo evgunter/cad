@@ -45,7 +45,7 @@ fn tier3(body: &Body<f64>, ctx: &str) {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.description(), EdgeDescription::Scaffold(_)))
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect();

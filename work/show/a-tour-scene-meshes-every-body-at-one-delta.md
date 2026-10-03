@@ -2,10 +2,12 @@
 id: a-tour-scene-meshes-every-body-at-one-delta
 kind: issue
 title: A tour scene meshes every body at one chordal delta, so a small arc in one body re-meshes the whole scene
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+closed: 2026-10-03
+pr: 3905
 ---
 
 
@@ -32,3 +34,14 @@ Two scenes pay for it:
 A per-body delta on `SceneBody` (defaulting to the scene's), or a
 delta relative to each face's curvature radius in `mesh`'s budget.
 The first is the tour's alone; the second is TESS's door.
+
+## Closed
+
+By #3905. `SceneBody::finer(d)` lets a body mesh finer than its scene; a
+coarser or equal delta panics (`scene_body_delta` tests). The lily runs
+at 5e-3 with every curved-section body at 2e-3 and only the lofted,
+straight-sectioned blades at the scene's δ (72k → 45k triangles).
+tiltedcut stays at one 2e-3: two halves of one cylinder at different δ
+read as a defect. What a per-body δ cannot fix, a body whose small
+feature drags its plain faces fine, is
+`work/tess/a-body-meshes-every-face-at-its-smallest-features-delta.md`.

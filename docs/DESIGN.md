@@ -243,9 +243,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
    empty loops, no valence-1 vertices, and c = 1 per shell (the third
    ban is independent: a promoted detached cycle ring disconnects a
-   shell with neither an empty loop nor a strut). Finished bodies must
-   pass tier 2; tier-1-only states are visible solely inside operation
-   sequences, never across an API boundary at rest.
+   shell with neither an empty loop nor a strut).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
@@ -285,6 +283,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
+
+   A **finished body** (`AtRestBody`) passes tier 3′ against its own
+   declared contacts: none, for a body that touches nothing, where the
+   census must find no coincidence at all. Every door that returns or
+   consumes one pays that gate once, at the door that built it.
+   Construction state (tier 1, or tier 2 without geometric
+   certification) is what Euler operators hand back, and becomes a
+   finished body only through the at-rest gate.
 4. **Tier 3′ "pseudomanifold"** (`validate_pseudomanifold`) — the
    honest at-rest tier for boolean results that *touch*: contacts
    limited to entirely-coincident-but-distinct edges, edge-on-face,
@@ -339,9 +345,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
    **Validity class rides the result wrapper, never a mutable `Body`
    field**: a boolean result is `BooleanBody` — body + contacts — whose
-   non-empty contact list is the 3′-grade currency and whose at-rest
-   gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
-   results remain plain tier-3 currency, and the two gates agree there.
+   at-rest gate is `validate_pseudomanifold(&body, &contacts)` over its
+   own contact list, empty or not; with the list empty, the census must
+   find nothing.
 
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
@@ -368,8 +374,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
-  value (`BooleanResult::Empty`), not an error; disjoint unions and
-  voids are tier-2-legal multi-shell bodies. The extrude/full-revolve
+  value (`BooleanResult::Empty`), not an error. **A solid is one piece
+  of material**: the `Outer` shell around it and the `Void` shells of
+  the cavities in its material, which together bound that material and
+  nothing else. A cavity belongs to the piece whose material surrounds
+  it, so an island inside a cavity is a solid of its own, and a cavity
+  inside that island is the island's. Pieces that only touch (at a
+  corner, along an edge, or across a face that contact records hold
+  apart) are distinct solids, because touching is between distinct
+  entities (tier 3′). A piece that touches itself stays one solid. A
+  body is any number of solids, so a disjoint union is a body of
+  several solids. Booleans, `shell` and `split` take bodies and return
+  bodies, and each sorts its result into solids, so every output is an
+  operand. A product (gathered, possibly mated parts) is not a boolean
+  operand: the editor refuses it, naming the explicit cross-instance
+  union that makes its members one body
+  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
+  The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes are cavities (a second shell,
   through the door); partial revolve is extrude-shaped and carries
@@ -467,17 +489,31 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   stage cannot glue a planar group it was licensed to merge refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
-  and shipped. Load-bearing dependency: `merge_coplanar_faces`
-  **never fuses two vertices into one and never removes a vertex from
-  a face's boundary**. The one vertex it deletes is the free end of a
-  seam edge the glue left dangling inside the merged face: that edge
-  encloses no area, so it and its free end go together, at any angle
-  and repeatedly along a seam chain, and the deletion is recorded in
-  `killed_vertices`. Tier 3′'s strict record-drop rule (a contact
-  record whose vertex pair fused into one vertex is consumed and
-  drops) is correct *because* nothing is fused; a record citing a
-  deleted free end drops as consumed. Any future fusing or
-  boundary-vertex elision re-opens the record-carriage class.
+  and shipped. Every op's output also has **maximal edges**: no
+  *joinable* vertex, meaning valence 2 with two distinct edges on one
+  structural carrier between the same two faces. A sweep builds one rim
+  edge per run, as it builds one wall, and a boolean's output stage joins
+  every joinable vertex after the merge, whatever drew it. A body is then
+  the unique complex with maximal faces and maximal edges over its face
+  partition, so a union's body does not depend on its member order, and
+  the form is checked at tier 2 on the result alone, with no history.
+  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
+  vertices into one**. A contact record is a pair of cells, one from each
+  touching shell (vertex, edge or face), whose interiors meet, plus its
+  backing. A vertex resting on an edge's interior is the record
+  (vertex, edge). The output stage deletes a vertex in two shapes, both
+  recorded in `killed_vertices`:
+  - the free end of a seam edge the glue left dangling inside the
+    merged face, which goes together with its edge;
+  - a joinable vertex, whose two edges become one.
+
+  The join carries every record citing the three cells it replaces to
+  the edge it makes, by substitution with its backing unchanged, so
+  records are written by the op that changes their entities and never
+  re-derived at the gate (F1). Tier 3′'s strict record-drop rule (a
+  contact record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused. Any future fusing
+  re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
@@ -493,7 +529,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no

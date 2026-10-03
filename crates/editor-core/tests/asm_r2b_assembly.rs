@@ -94,7 +94,7 @@ fn kiss_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc
