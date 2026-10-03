@@ -791,9 +791,10 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
 /// The same members, once under a bare union and once under a declared
 /// one: every node the two documents share hits the memo, and a
 /// member's key does not move. The declared union is another node,
-/// with another id, so it recomputes by the id alone; its declared
-/// pairs' feed into its key is D8 key hygiene, which no row can reach:
-/// a memo is looked up by node id before its key is compared.
+/// with another id, so it recomputes by the id alone here. On ONE id —
+/// a `SetDeclare` on a live union — the declared pairs' feed into the
+/// union's content key is what recomputes it, and
+/// `declared_pairs_payload`'s two key rows pin that.
 #[test]
 fn a_declaration_recomputes_the_union_alone() {
     let base = ProfileDoc::empty_derived("docm7_memo", Tol::witness());

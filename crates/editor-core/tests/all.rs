@@ -108,6 +108,8 @@ mod boolean_op_wire;
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "declared_pairs_payload.rs"]
+mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm7_delete_strands.rs"]
