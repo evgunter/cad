@@ -5979,3 +5979,23 @@ merge-door lane's last commits re-baselined editor-core's
 `crossing_slots` and `corner_table` for a "new curve-slot order",
 against the brief's identity requirement. It is asked to account for
 that.
+
+## PR 3673 merged; the kef/kfmrh question is with Ev (2026-10-03)
+
+- **PR 3673 merged** as `fb9645a6ca` from head `8ca18814c1`, after CI
+  run 37133137602 passed. Main's conflicts (in `attach.rs`, `euler.rs`,
+  `refusal_routes.rs` and `m5_pr10_frontier.rs`) were resolved keeping
+  both sides. A new row on main that mints half a top onto its own key
+  is wrapped in the test lift. The row closed on the branch.
+- **The kef/kfmrh question is open as PR 3970.**
+  - The row states the question, with `design: true` and
+    `needs_ev: true`.
+  - `docs/DESIGN-FORK-LOG.md` has row 60, the recommendation half.
+  - The body carries both `For Ev` sections verbatim, labelled A and B.
+  - I am subscribed to the PR for Ev's comments.
+- **Disk:** Ev approved clearing idle build targets, and the loopanchor
+  target was cleared (9.7 GB free). Clearing the rebase target and the
+  finished worktree was then denied by the session's classifier, so they
+  are left for Ev.
+- **New lanes:** Ev suggested running them as cloud sessions, which have
+  their own disk and CPU.
