@@ -435,9 +435,9 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             sup: composite.sup_bound() * to_meters,
             breaks: composite.num.breaks().to_vec(),
             spans: composite
-                .span_bounds()
+                .span_sup_bounds()
                 .into_iter()
-                .map(|b| Real::max(b.lo().abs(), b.hi().abs()) * to_meters)
+                .map(|b| b * to_meters)
                 .collect(),
         })
     };
