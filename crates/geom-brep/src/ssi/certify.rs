@@ -2274,3 +2274,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "probe_r2_unit.rs"]
+mod probe_r2_unit;
