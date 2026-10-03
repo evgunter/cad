@@ -91,17 +91,16 @@
 //!   declare the zero-turn joints they mint, both by construction.
 //!   [`ProfileLoop::tangent_joints`] is the field that carries the
 //!   result, and a fixture's way of writing one by hand.
-//! - **The sketch plane is a placement, and validation never reads
-//!   it.** [`SketchPlane`] is profile (x, y) ↦ plane origin + x·u +
-//!   y·v, with u/v/normal the columns of the placement's linear part,
-//!   and validation is purely 2-D (the plane is passed through
-//!   untouched). Rigidity — u, v, normal orthonormal and right-handed
-//!   — is the frame witness's: [`SketchPlane::from_frame`] takes an
-//!   [`geom_core::OrthoFrame`], which was decided at its mint.
-//!   [`SketchPlane::new`] is the read-back door and holds whatever
-//!   [`geom_core::Affine3`] it is handed, so a placement that came
-//!   from somewhere other than a frame carries only what its own
-//!   source decided.
+//! - **The sketch plane is a frame, and validation never reads it.**
+//!   [`SketchPlane`] holds one [`geom_core::OrthoFrame`] and nothing
+//!   else: profile (x, y) ↦ origin + x·u + y·v, its placement map
+//!   derived from the frame, never stored. Rigidity — u, v, normal
+//!   orthonormal and right-handed — is the frame's type, so every
+//!   sweep door that takes the plane reads a witnessed normal. No door
+//!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
+//!   through the frame's exact crossings (geom-core's
+//!   `linalg::ortho_frame`, "Crossing scalars"). Validation is purely
+//!   2-D (the plane is passed through untouched).
 //!
 //! # Validation and canonical form
 //!
@@ -154,7 +153,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Arc2, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -906,25 +905,15 @@ impl SketchPlane<f64> {
     /// place every sketch point identically, by construction.
     pub fn bit_eq(&self, other: &Self) -> bool {
         let bits = |p: &Self| {
-            // **What holds the twelve complete is the four patterns,
-            // not this function's own arithmetic.** A field added to
-            // `SketchPlane`, to the `Affine3` it stores, to that map's
-            // `Mat3` or to a `Vec3` column is an E0027 here, so a new
-            // stored component cannot land outside the comparison
-            // quietly. Read straight off `translation` rather than
-            // through `Self::origin`, which transcribes exactly those
-            // three components and nothing else: same bits, and a
-            // pattern where there was a call.
+            // **What holds the twelve complete is patterns, not this
+            // function's own arithmetic.** A field added to
+            // `SketchPlane` is an E0027 here; one added to the `Affine3`
+            // it stores, to that map's `Mat3` or to a `Vec3` column is
+            // an E0027 inside `Affine3::components`, which binds all
+            // three levels by pattern. A new stored component cannot
+            // land outside the comparison quietly.
             let Self { placement } = p;
-            let Affine3 {
-                linear,
-                translation,
-            } = placement;
-            let Mat3 { c0, c1, c2 } = linear;
-            [translation, c0, c1, c2].map(|v| {
-                let Vec3 { x, y, z } = v;
-                [x.to_bits(), y.to_bits(), z.to_bits()]
-            })
+            placement.components().map(f64::to_bits)
         };
         bits(self) == bits(other)
     }

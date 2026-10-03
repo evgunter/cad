@@ -1,5 +1,5 @@
 //! M5 S1, recipe layer: the declared-REST union zip driven by recipe
-//! intent (`Declare` → `Boolean{declare}`) — persistence round-trip of
+//! intent (the declared pairs on `Boolean{declare}`) — persistence round-trip of
 //! a glued body and the naming-key stability row.
 //!
 //! The document: two stacked plates (full-face REST contact at z = 1)
@@ -43,20 +43,20 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The stacked-plates REST document: plates + Declare + union.
+/// The stacked-plates REST document: plates + declared union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
     // The author's intent, stated: the contact pair (A's end cap on
-    // B's start cap) plus the four flush wall pairs (the same-plane
-    // sides the output stage merges).
-    let pairs = vec![
-        (
-            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
-        ),
+    // B's start cap, a `Rest`) plus the four flush wall pairs (the
+    // same-plane sides the output stage merges — continuations).
+    let rest = (
+        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
+    );
+    let walls = vec![
         (
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
             SitedRef::new(b, fname(b, wall(&doc, b, 0))),
@@ -74,14 +74,19 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
             SitedRef::new(b, fname(b, wall(&doc, b, 3))),
         ),
     ];
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let mut pairs = vec![(rest, editor_core::BooleanCoincidence::REST)];
+    pairs.extend(
+        walls
+            .into_iter()
+            .map(|w| (w, editor_core::BooleanCoincidence::Continuation)),
+    );
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: pairs,
         },
     );
     (doc, u)

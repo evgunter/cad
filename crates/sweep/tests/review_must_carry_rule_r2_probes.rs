@@ -9,8 +9,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{MustCarryVerdict, SurfaceKind, must_carry_over_edge, tangent_certificate_lane};
+use geom_brep::{
+    MustCarryEscalation, MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane,
+};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -257,21 +260,21 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     ];
     for a in &reps {
         for b in &reps {
-            let (a_line, a_circle) = expected(SurfaceKind::of(a));
-            let (b_line, b_circle) = expected(SurfaceKind::of(b));
+            let (a_line, a_circle) = expected(a.kind());
+            let (b_line, b_circle) = expected(b.kind());
             assert_eq!(
                 tangent_certificate_lane(&line, a, b),
                 a_line && b_line,
                 "the Line lane on {:?}/{:?}",
-                SurfaceKind::of(a),
-                SurfaceKind::of(b)
+                a.kind(),
+                b.kind()
             );
             assert_eq!(
                 tangent_certificate_lane(&circle, a, b),
                 a_circle && b_circle,
                 "the Circle lane on {:?}/{:?}",
-                SurfaceKind::of(a),
-                SurfaceKind::of(b)
+                a.kind(),
+                b.kind()
             );
         }
     }
@@ -334,8 +337,12 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     // caller reporting it as the cause would report a margin that
     // passed: {kappas:?} is the spread that makes that concrete.
     if let MustCarryVerdict::InBand(source) = answer {
+        assert!(
+            matches!(source, MustCarryEscalation::SecondOrder(_)),
+            "the deciding station's escalation is the second-order reading's: {source:?}"
+        );
         assert_eq!(
-            source.predicate,
+            source.diag().predicate,
             Some("tangent_second_order"),
             "the payload names the deciding station's predicate"
         );

@@ -8,14 +8,16 @@
 
 use crate::corpus;
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
+use crate::docm7_union_declare::{
+    block, declared_union, declared_union_classed, failure, flush_pairs, member_face, run,
+};
 use crate::fixture;
 use crate::fixture::{Recorder, flush_segs, fname, insert, len, table, wall};
 
 use editor_core::{
-    BooleanOp, CapEnd, Diagnosis, EntityKind, Entry, Evaluation, FoldConsumption, NameTable,
-    NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg,
-    RunCtx, SitedRef, StableName, resolve,
+    BooleanCoincidence, BooleanOp, CapEnd, Diagnosis, EntityKind, Entry, Evaluation,
+    FoldConsumption, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve,
 };
 use geom_core::Tol;
 
@@ -122,7 +124,7 @@ fn member_space_declarations_survive_every_order() {
     let chain = [a, c, d];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -151,7 +153,7 @@ fn a_four_member_chain_fuses_in_every_order() {
     let chain = [a, c, d, e];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -180,7 +182,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
     let chain = [a, c, d];
     for order in permutations(&[a, c, d, far]) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -266,7 +268,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let mut rec = Recorder::new();
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
-    let decl_ab = rec.insert(Node::declare_rest(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -275,12 +277,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
                 )
             })
             .collect(),
-    ));
+    );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,
-        declare: Some(decl_ab),
+        declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
     // The inner's merged rows, declared against `c`'s faces by name.
@@ -294,7 +296,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
             ],
         )
     };
-    let decl_ic = rec.insert(Node::declare_rest(
+    let decl_ic = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -303,12 +305,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
                 )
             })
             .collect(),
-    ));
+    );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: inner,
         b: c,
-        declare: Some(decl_ic),
+        declare: decl_ic,
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -390,11 +392,14 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let against = |m: RecipeNodeId| {
         vec![(
-            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
-            SitedRef::new(m, fname(m, wall(&doc, m, 3))),
+            (
+                SitedRef::new(a, fname(a, wall(&doc, a, 1))),
+                SitedRef::new(m, fname(m, wall(&doc, m, 3))),
+            ),
+            BooleanCoincidence::REST,
         )]
     };
-    let (docx, union, _) = declared_union(doc.clone(), &[a, big, touch], against(touch));
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, big, touch], against(touch));
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     for order in [
@@ -405,7 +410,7 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
         [far, a, big],
         [far, big, a],
     ] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, against(far));
+        let (docx, union) = declared_union_classed(doc.clone(), &order, against(far));
         let ev = run(&docx);
         assert!(
             matches!(
@@ -435,7 +440,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let mut rec = Recorder::new();
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
-    let decl_ab = rec.insert(Node::declare_rest(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -444,12 +449,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
                 )
             })
             .collect(),
-    ));
+    );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,
-        declare: Some(decl_ab),
+        declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
     let at = rec.doc.clone();
@@ -462,7 +467,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
             ],
         )
     };
-    let decl_ic = rec.insert(Node::declare_rest(
+    let decl_ic = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -471,12 +476,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
                 )
             })
             .collect(),
-    ));
+    );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: inner,
         b: c,
-        declare: Some(decl_ic),
+        declare: decl_ic,
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -523,7 +528,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let node = Node::declare_rest(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -533,14 +538,13 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             })
             .collect(),
     );
-    let (doc, decl_ab) = insert(doc, node);
     let (doc, inner) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl_ab),
+            declare: decl_ab,
         },
     );
     // A far block, unioned with the merge as operand B, so the merged
@@ -552,7 +556,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             op: BooleanOp::Union,
             a: far,
             b: inner,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
@@ -568,7 +572,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             ),
         )
     };
-    let node1 = Node::declare_rest(
+    let decl_mc = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -578,14 +582,13 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             })
             .collect(),
     );
-    let (doc, decl_mc) = insert(doc, node1);
     let (doc, outer) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: mid,
             b: c,
-            declare: Some(decl_mc),
+            declare: decl_mc,
         },
     );
     let ev = run(&doc);
@@ -698,7 +701,7 @@ fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
         (vec![c, s, a], Want::MergedChordNoRule),
         (vec![s, c, a], Want::MergedChordNoRule),
     ] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let want = match want {
             Want::Fused => Outcome::Fused,
@@ -733,20 +736,28 @@ fn a_split_face_contained_in_every_piece_is_satisfied_and_one_with_a_piece_left_
     let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
     let (doc, half) = block(doc, (-1.0, 0.3), (-1.0, 2.0), 0.8, 1.4);
     let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    // The y-walls `a` and `s` share are continuations; `p` rests on
+    // `a`'s top cap.
     let mut pairs = Vec::new();
     for k in [0, 2] {
         pairs.push((
-            SitedRef::new(a, fname(a, wall(&doc, a, k))),
-            SitedRef::new(s, fname(s, wall(&doc, s, k))),
+            (
+                SitedRef::new(a, fname(a, wall(&doc, a, k))),
+                SitedRef::new(s, fname(s, wall(&doc, s, k))),
+            ),
+            BooleanCoincidence::Continuation,
         ));
     }
     pairs.push((
-        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        ),
+        BooleanCoincidence::REST,
     ));
-    let (docx, union, _) = declared_union(doc.clone(), &[a, s, big, p], pairs.clone());
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, s, big, p], pairs.clone());
     assert_eq!(outcome(&run(&docx), union), Outcome::Fused);
-    let (docx, union, _) = declared_union(doc, &[a, s, half, p], pairs);
+    let (docx, union) = declared_union_classed(doc, &[a, s, half, p], pairs);
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(
@@ -808,7 +819,7 @@ fn every_cap_order(
 ) -> [usize; 4] {
     let mut tally = [0; 4];
     for order in permutations(&members) {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.to_vec());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.to_vec());
         let ev = run(&docx);
         let cap = member_face(union, capped, fname(capped, RoleSeg::Cap(CapEnd::End)));
         let got = outcome(&ev, union);
@@ -908,19 +919,22 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     let (doc, d) = block(doc, (0.5, 0.9), (0.2, 0.8), 1.0, 0.4);
-    // `a` and `s` share both y-walls; declare them so the fold reaches
-    // the step that matters.
+    // `a` and `s` share both y-walls, continuations; declare them so
+    // the fold reaches the step that matters.
     let mut pairs = Vec::new();
     for k in [0, 2] {
         pairs.push((
-            SitedRef::new(a, fname(a, wall(&doc, a, k))),
-            SitedRef::new(s, fname(s, wall(&doc, s, k))),
+            (
+                SitedRef::new(a, fname(a, wall(&doc, a, k))),
+                SitedRef::new(s, fname(s, wall(&doc, s, k))),
+            ),
+            BooleanCoincidence::Continuation,
         ));
     }
-    let (docx, union, _) = declared_union(doc.clone(), &[a, s, d], pairs.clone());
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, s, d], pairs.clone());
     let ev = run(&docx);
     let what = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclaredContact {
+    let Some(NodeErrorKind::UndeclaredCoincidence {
         finding, merged, ..
     }) = what
     else {
@@ -936,8 +950,13 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
         if a < d { (cap, bottom) } else { (bottom, cap) }
     );
     assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
-    pairs.push(finding.pair.clone());
-    let (docx, union, _) = declared_union(doc, &[a, s, d], pairs);
+    assert_eq!(
+        finding.class,
+        BooleanCoincidence::REST,
+        "d rests on a's top cap"
+    );
+    pairs.push((finding.pair.clone(), finding.class));
+    let (docx, union) = declared_union_classed(doc, &[a, s, d], pairs);
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(

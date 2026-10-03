@@ -16,16 +16,25 @@ use geom_core::Tol;
 // transparent local newtype carries the same test payloads.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
-impl editor_core::ProfilePayload for Fake {}
+impl editor_core::ProfilePayload for Fake {
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::ParamEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
 
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
 fn point_edit(x: Expr) -> Edit {
     DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [x, len(0.0), len(0.0)],
-        }),
+        })),
     }
 }
 
@@ -109,12 +118,7 @@ fn r1_replay_bit_identity_adversarial() {
         .unwrap()
         .doc;
     log.push(e);
-    let replayed = Doc::replay(
-        doc.id(),
-        &editor_core::LoggedEdit::bare_all(&log),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = Doc::replay(doc.id(), &log.to_vec(), Tol::witness()).unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
@@ -334,9 +338,9 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
     // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
     let e0 = Expr::add(len(1.0), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
-        }),
+        })),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -398,9 +402,9 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
     let e0 = Expr::add(len(marker), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
-        }),
+        })),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -453,80 +457,104 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 }
 
 /// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
-/// not a DAG edge (`Declare::inputs()` stays empty), so:
-/// (1) DeleteNode of a node referenced ONLY by a Declare's pairs is
-///     ACCEPTED → the Declare strands (N5 dangling semantics: loud
-///     `NodeGone` at resolution, `Rebind` repairs — documented on
-///     `Node::Declare`);
-/// (2) InsertNode of a Declare naming a node that does not EXIST at
-///     edit time is a TYPED REFUSAL (a never-existed id is a typo,
-///     caught at the best-diagnostics door).
+/// not a DAG edge (a boolean's `inputs()` are its operands, never what
+/// its declared pairs name), so:
+/// (1) DeleteNode of a node referenced ONLY by a boolean's declared
+///     pairs is ACCEPTED → the pairs strand (N5 dangling semantics:
+///     loud `NodeGone` at resolution, `Rebind` repairs);
+/// (2) declared pairs naming a node that does not EXIST at edit time
+///     are a TYPED REFUSAL (a never-existed id is a typo, caught at the
+///     best-diagnostics door).
 #[test]
 fn r4_stablename_node_refs_escape_ref_validation() {
-    use editor_core::{EntityKind, Node, StableName};
+    use editor_core::{BooleanOp, EntityKind, Node, StableName};
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(1.0))], // the node the name will denote
+        &[
+            point_edit(len(1.0)), // the node the name will denote
+            point_edit(len(2.0)),
+            point_edit(len(3.0)),
+        ],
     );
-    let target = ids[0];
-    let declare = |node| Edit::InsertNode {
-        node: Node::declare_rest(vec![(
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
-        )]),
+    let (target, a, b) = (ids[0], ids[1], ids[2]);
+    // Each side is read at an operand; the name is `node`'s.
+    let pairs = |node| {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![],
+        };
+        editor_core::declare_rest(vec![(
+            SitedRef::new(a, name.clone()),
+            SitedRef::new(b, name),
+        )])
     };
-    let a = doc
+    let boolean = |node| Edit::InsertNode {
+        node: Box::new(Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: pairs(node),
+        }),
+    };
+    let inserted = doc
         .apply(
-            &declare(target),
+            &boolean(target),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    let declare_id = a.record.minted.unwrap();
-    // (1) Delete the named node — ACCEPTED despite the live Declare.
-    let after = a.doc.apply(
+    let boolean_id = inserted.record.minted.unwrap();
+    // (1) Delete the named node — ACCEPTED despite the live boolean.
+    let after = inserted.doc.apply(
         &Edit::DeleteNode { id: target },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     let after = after.expect("WITNESS: delete of name-referenced node accepted");
     assert!(after.doc.node(target).is_none());
-    // The Declare survives, holding a stale id.
-    match after.doc.node(declare_id).unwrap() {
-        Node::Declare { pairs } => {
-            assert_eq!(pairs[0].0.0.name.node, target, "stale RecipeNodeId held");
+    // The boolean survives, holding a stale id.
+    match after.doc.node(boolean_id).unwrap() {
+        Node::Boolean { declare, .. } => {
+            assert_eq!(declare[0].0.0.name.node, target, "stale RecipeNodeId held");
         }
-        n => panic!("expected Declare, got {n:?}"),
+        n => panic!("expected Boolean, got {n:?}"),
     }
-    // (2) Insert a Declare naming an id that never existed: REFUSED
-    // (fix pass, ruled carve-out).
+    // (2) Declared pairs naming an id that never existed: REFUSED, at
+    // the insert and at `SetDeclare` alike.
     let phantom = RecipeNodeId(9999);
-    let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-        &declare(phantom),
+    let inserting = doc.apply(
+        &boolean(phantom),
         Tol::witness(),
         &editor_core::RefusingReach,
     );
-    match res {
-        Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, phantom, "refusal names the typo'd id");
+    let setting = inserted.doc.apply(
+        &Edit::SetDeclare {
+            node: boolean_id,
+            pairs: pairs(phantom),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    for (door, res) in [("insert", inserting), ("SetDeclare", setting)] {
+        match res {
+            Err(EditError::DeclareNamesMissingNode { name }) => {
+                assert_eq!(
+                    name.name().node,
+                    phantom,
+                    "{door}: refusal names the typo'd id"
+                );
+            }
+            other => panic!("{door}: phantom StableName.node must be refused, got {other:?}"),
         }
-        other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }
     // Contrast: a DAG-edge ref to the same phantom is refused.
     let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
         &Edit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: phantom,
                 distance: len(1.0),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -546,16 +574,16 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[Edit::InsertNode {
-            node: Node::Profile(Fake("p")),
+            node: Box::new(Node::Profile(Fake("p"))),
         }],
     );
     let a = doc
         .apply(
             &Edit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: ids[0],
                     distance: len(1.0),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -578,12 +606,12 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: editor_core::BooleanOp::Union,
                 a: extrude,
                 b: next_would_be,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -839,7 +867,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 }
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
-/// (Declare insert — pure intent metadata — flags structural) but no
+/// (`SetDeclare` — pure intent metadata — flags structural) but no
 /// FALSE NEGATIVE is constructible: a Count slot expression CANNOT
 /// reference a continuous doc param (refused), so no continuous-
 /// flagged edit can ever move a structural value. Pinned here; the
@@ -861,14 +889,14 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .doc;
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
     let pattern = |count: Expr| Edit::InsertNode {
-        node: Node::Pattern {
+        node: Box::new(Node::Pattern {
             input: ids[0],
             count,
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.005),
             },
-        },
+        }),
     };
     // Count slot referencing the Count doc param: accepted.
     let a = doc
@@ -923,19 +951,31 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     )
     .unwrap();
     assert_eq!(n_before, n_after);
-    // FALSE POSITIVE witness: inserting a Declare (no geometry, no
-    // slots, no inputs) is flagged structural under the wide reading.
-    let a3 = a2
-        .doc
+    // FALSE POSITIVE witness: `SetDeclare` re-setting a boolean's empty
+    // declared-pair list (no geometry, no slots, no inputs move) is
+    // flagged structural under the wide reading.
+    let (doc, boolean) = apply_all(
+        a2.doc,
+        &[Edit::InsertNode {
+            node: Box::new(Node::Boolean {
+                op: editor_core::BooleanOp::Union,
+                a: ids[0],
+                b: pat_id,
+                declare: Vec::new(),
+            }),
+        }],
+    );
+    let a3 = doc
         .apply(
-            &Edit::InsertNode {
-                node: Node::declare_rest(vec![]),
+            &Edit::SetDeclare {
+                node: boolean[0],
+                pairs: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(a3.record.structural, "Declare insert flags structural");
+    assert!(a3.record.structural, "SetDeclare flags structural");
 }
 
 /// BIT-compare two docs: structure via PartialEq fields, floats via

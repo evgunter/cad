@@ -149,3 +149,7 @@ Appended from outside CHROME's fence, as the earlier sections were,
 only to keep the definition true of the kernel the affordance reads.
 Nothing here asks CHROME for more than the count and the list it
 already owed.
+
+## Narrowed (2026-10-02, RECIPE `declared-pairs-are-a-booleans-own-payload`)
+
+The `Declare` node is gone: declared pairs are a boolean's or union's own payload, so no delete can orphan a declaration, and `Maintenance::OrphanedDeclare` (`orphaned_declare`) no longer exists. What this row says of the orphan arm no longer applies; the rest stands.

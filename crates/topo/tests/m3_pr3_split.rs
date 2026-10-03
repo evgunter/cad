@@ -2,7 +2,7 @@
 //! vertex-grazing / face-coplanar planes on asymmetric solids, the
 //! Fig. 14.2 notched block (Above disconnected, coplanar artifacts),
 //! the PR 2 carry-forwards (tangent tip + BOB mirror through full
-//! split; one-sided tangency refused typed), ring re-homing through a
+//! split; one-sided tangency classified with its material), ring re-homing through a
 //! genus-1 fixture, slicing (`plane_section`), mirror-check pins
 //! (section-face normals; heads-join-heads), D9 byte-identical
 //! replay, and the interval lane.
@@ -22,10 +22,11 @@ use topo::{
 
 /// The split plane y = c, Above = +y.
 fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Fig. 14.2 analogue (PR 2's fixture, restated): flat notch floor ON
@@ -346,29 +347,123 @@ fn notched_block_end_to_end() {
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
 
-/// One-sided pure tangency (PR 2 carry-forward 2): the apex prism
-/// touching the plane from above along its apex edge only — the
-/// degenerate side is REFUSED typed (zero-area section polygon), no
-/// degenerate body is ever emitted; `plane_section` refuses the same
-/// way.
+/// The pseudomanifold door at rest (tiers 1–3, then the tier-3′
+/// census) over `body`, with NO declared contacts.
+fn pseudomanifold_door(body: &Body<f64>) -> Result<(), Vec<topo::ValidationError>> {
+    topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness())
+}
+
+/// **A pinch half passes the pseudomanifold door with no records**
+/// (D1 tier 3′: an op's copies of one vertex share its point). Above's
+/// two tip copies at each end of the tip line are distinct vertices on
+/// ONE point, so the census clears their touch as structural sharing —
+/// the vertex pair and the collinear tip edges both bounded by such
+/// pairs.
 #[test]
-fn one_sided_tangency_refused_typed() {
-    let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // apex down, ON y=1
-    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let err = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Join(SplitJoinError::DegenerateSection { .. })
-                | SplitError::Finish(SplitFinishError::DegenerateSide { .. })
-        ),
-        "got {err:?}"
+fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let (above, below) = (body_of(&result.above), body_of(&result.below));
+    for z in [0.0, 1.0] {
+        let tips = vertices_at(above, 4.0, 1.0, z);
+        assert_eq!(tips.len(), 2, "two copies at the tip, z = {z}");
+        assert_eq!(
+            above.get_vertex(tips[0]).unwrap().point,
+            above.get_vertex(tips[1]).unwrap().point,
+            "the copies share the cut vertex's point, z = {z}"
+        );
+    }
+    assert_eq!(pseudomanifold_door(above), Ok(()), "above (the pinch half)");
+    assert_eq!(pseudomanifold_door(below), Ok(()), "below");
+}
+
+/// **Moving one copy parts it from its twin**: offsetting the middle
+/// wedge's tip-side flank inward moves that wedge's tip copies through
+/// the door that mints a fresh point for every moved vertex, so the
+/// twins no longer share a point, the wedges no longer touch, and the
+/// half still passes with no records.
+#[test]
+fn moving_one_tip_copy_parts_it_from_its_twin() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    let tip_points: Vec<topo::PointKey> = [0.0, 1.0]
+        .map(|z| {
+            above
+                .get_vertex(vertices_at(&above, 4.0, 1.0, z)[0])
+                .unwrap()
+                .point
+        })
+        .to_vec();
+    // The middle wedge's flank from (4, 1) to (5, 2): outward normal
+    // (-1, 1)/√2, its plane through the tip.
+    offset_one_plane(
+        &mut above,
+        |o, n| n.x < 0.0 && n.y > 0.0 && n.dot(Point3::new(4.0, 1.0, 0.0) - o).abs() < 1e-12,
+        -0.1,
     );
-    let err = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(
-        err,
-        topo::SectionError::Split(SplitError::Join(SplitJoinError::DegenerateSection { .. }))
-    ));
+    for (z, point) in [0.0, 1.0].into_iter().zip(tip_points) {
+        let stayed = vertices_at(&above, 4.0, 1.0, z);
+        assert_eq!(stayed.len(), 1, "one copy stays at the tip, z = {z}");
+        assert_eq!(
+            above.get_vertex(stayed[0]).unwrap().point,
+            point,
+            "the copy the offset does not move keeps the original point, z = {z}"
+        );
+    }
+    let points: std::collections::BTreeSet<_> = above.vertices().map(|(_, v)| v.point).collect();
+    assert_eq!(
+        points.len(),
+        above.vertices().count(),
+        "no two vertices share a point once the copies part"
+    );
+    assert_eq!(pseudomanifold_door(&above), Ok(()));
+}
+
+/// One-sided pure tangency: a wedge touching the plane along its apex
+/// edge only, from above, from below and leaning, in both plane
+/// orientations.
+/// The apex is a convex edge whose material is all on one side, so the
+/// whole wedge lands there, the other side is `Empty`, the apex stays
+/// an ordinary edge, and the section has no polygon.
+#[test]
+fn one_sided_tangency_classifies_with_its_material() {
+    let from_above = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)];
+    let from_below = [(3.0, -2.0), (9.0, -2.0), (6.0, 1.0)];
+    // Its flanking faces' outward normals point one up and one down.
+    let leaning = [(6.0, 1.0), (8.0, 4.0), (7.0, 4.0)];
+    for (label, profile, material_above) in [
+        ("from above", &from_above, true),
+        ("from below", &from_below, false),
+        ("leaning, from above", &leaning, true),
+    ] {
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
+        for s in [1.0, -1.0] {
+            let plane = topo::test_support::split_plane(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, s, 0.0),
+                Tol::witness(),
+            );
+            let r = split(&fx.body, &plane, Tol::witness()).unwrap();
+            let (full, empty) = if material_above == (s > 0.0) {
+                (&r.above, &r.below)
+            } else {
+                (&r.below, &r.above)
+            };
+            assert!(matches!(empty, SplitPart::Empty), "{label}, s = {s}");
+            let body = body_of(full);
+            assert_eq!(validate_closed(body), Ok(()), "{label}, s = {s}");
+            assert_eq!(census(body), census(&fx.body), "{label}, s = {s}");
+            let v = mass_properties(body, Tol::witness()).unwrap().volume;
+            assert!(
+                (v - v0).abs() <= 1e-12 * v0,
+                "{label}, s = {s}: {v} vs {v0}"
+            );
+            let section = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
+            assert!(section.regions.is_empty(), "{label}, s = {s}");
+        }
+    }
 }
 
 /// The BOB mirror (PR 2 carry-forward 1b), CLOSED by M3 PR 6a's D7:
@@ -408,10 +503,11 @@ fn bob_mirror_pinch_refuses_typed() {
 
     // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let flipped = SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let flipped = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let r = split(&fx.body, &flipped, Tol::witness()).unwrap();
     // Below the flipped normal = the y > 1 pinched prisms.
     let (pieces, slab) = (body_of(&r.below), body_of(&r.above));
@@ -441,12 +537,12 @@ fn plane_section_slicing() {
     assert!(section.regions.iter().all(|r| r.holes.is_empty()));
     let (u, v) = (section.u_ref.unwrap(), section.v_ref.unwrap());
     // The frame is in-plane and orthonormal (exact for these axes).
-    assert_eq!(u.dot(section.plane.normal), 0.0);
-    assert_eq!(v.dot(section.plane.normal), 0.0);
+    assert_eq!(u.dot(section.plane.normal.get()), 0.0);
+    assert_eq!(v.dot(section.plane.normal.get()), 0.0);
     for poly in section.regions.iter().map(|r| &r.outline) {
-        assert_eq!(poly.points.len(), poly.uv.len());
-        assert!(poly.points.len() >= 4);
-        for (p, q) in poly.points.iter().zip(&poly.uv) {
+        assert_eq!(poly.points().len(), poly.uv().len());
+        assert!(poly.points().len() >= 4);
+        for (p, q) in poly.points().iter().zip(poly.uv()) {
             // Every corner lies ON the plane, and uv reproduces it.
             assert_eq!(p.y, 1.0);
             let back = section.plane.origin + u * q.x + v * q.y;
@@ -459,9 +555,9 @@ fn plane_section_slicing() {
     let mut total = 0.0;
     for poly in section.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
-        for i in 0..poly.uv.len() {
-            let a = poly.uv[i];
-            let b = poly.uv[(i + 1) % poly.uv.len()];
+        for i in 0..poly.uv().len() {
+            let a = poly.uv()[i];
+            let b = poly.uv()[(i + 1) % poly.uv().len()];
             twice += a.x * b.y - b.x * a.y;
         }
         total += twice / 2.0;
@@ -484,10 +580,11 @@ fn ring_rehoming_genus_one() {
     let body = holed_box_geometric();
     assert_eq!(validate_closed(&body), Ok(()));
     // Split at x = 3: the hole (x ∈ [0.5, 1.5]) is entirely below.
-    let plane = SplitPlane {
-        origin: Point3::new(3.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(3.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -601,17 +698,15 @@ fn interval_lane_acceptance() {
     let s = plane_section(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 3);
 
-    // One-sided tangency refuses typed on this lane too.
+    // One-sided tangency classifies with its material on this lane too.
     let fx = prism::<Interval>(
         &[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)],
         1.0,
         geom_core::Tol::witness(),
     );
-    let err = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(
-        err,
-        SplitError::Join(SplitJoinError::DegenerateSection { .. })
-    ));
+    let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
+    assert!(matches!(r.below, SplitPart::Empty));
+    assert_eq!(census(body_of(&r.above)), census(&fx.body));
 }
 
 /// ∅ sides are typed variants: a plane missing the body entirely, and
@@ -661,4 +756,170 @@ fn no_split_refusal_names_a_stage() {
         );
         assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
     }
+}
+
+/// The below side's tier-2 findings, where `split` refuses it as
+/// [`SplitFinishError::ResultInvalid`].
+fn below_refused_at_tier_2(
+    what: &str,
+    body: &Body<f64>,
+    plane: &SplitPlane<f64>,
+) -> Vec<topo::ValidationError> {
+    match split(body, plane, Tol::witness()) {
+        Err(SplitError::Finish(SplitFinishError::ResultInvalid {
+            side: topo::PlaneSide::Below,
+            errors,
+        })) => errors,
+        other => panic!("{what}: expected the below side refused at tier 2, got {other:?}"),
+    }
+}
+
+/// **No side leaves `split` unless it is a closed solid — whole.** An
+/// `mvfs` seed given a plane through the public door is tier-1 sound and
+/// passes split's operand gate (no edge, a plane face), but its empty
+/// loop is tier-2 scaffolding. It lies wholly below `y = 1`, so the
+/// un-cut lane hands it back as the below side, and the gate refuses it.
+#[test]
+fn an_uncut_side_that_is_not_a_closed_solid_refuses() {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the seed");
+    assert_eq!(
+        below_refused_at_tier_2("the seed", &body, &plane_y(1.0)),
+        vec![topo::ValidationError::ScaffoldingEmptyLoop { loop_: seed.r#loop }],
+    );
+}
+
+/// **— and cut.** The unit brick with a strut from its top corner
+/// `(0, 0, 1)` into the top face, ending at `(0.2, 0.2, 1)`: tier-1
+/// sound, every edge a certified line. Cut at `y = 0.5`, the strut
+/// rides into the below half, where its tip is a valence-1 vertex.
+#[test]
+fn a_cut_side_carrying_a_strut_refuses() {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let at = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let on_top = |he: topo::HalfEdgeKey| at(body.get_half_edge(he).unwrap().start).z == 1.0;
+    let he = body
+        .half_edges()
+        .find(|&(_, h)| {
+            let p = at(h.start);
+            (p.x, p.y, p.z) == (0.0, 0.0, 1.0) && on_top(h.next) && on_top(h.prev)
+        })
+        .map(|(k, _)| k)
+        .expect("the top face's half-edge leaving the corner");
+    body.mev_line(
+        topo::MevSite::Fan { he1: he, he2: he },
+        Point3::new(0.2, 0.2, 1.0),
+        tol,
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the strut");
+    let errors = below_refused_at_tier_2("the strutted brick", &body, &plane_y(0.5));
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::ScaffoldingStrutVertex { .. }]
+        ),
+        "the strut tip is the one finding: {errors:?}"
+    );
+}
+
+/// `above` with every chart offset by zero save the one plane `pick`
+/// names, offset by `distance` (`offset_planes_together`).
+fn offset_one_plane(
+    above: &mut Body<f64>,
+    pick: impl Fn(Point3<f64>, Vec3<f64>) -> bool,
+    distance: f64,
+) {
+    let mut by_surface: std::collections::BTreeMap<_, Vec<topo::FaceKey>> = Default::default();
+    for (k, f) in above.faces() {
+        by_surface.entry(f.surface).or_default().push(k);
+    }
+    let moves: Vec<topo::ChartMove<f64>> = by_surface
+        .into_values()
+        .map(|faces| {
+            let f = above.get_face(faces[0]).unwrap();
+            let hit = match above.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => pick(*origin, *normal),
+                _ => false,
+            };
+            topo::ChartMove {
+                faces,
+                distance: if hit { distance } else { 0.0 },
+            }
+        })
+        .collect();
+    assert_eq!(moves.iter().filter(|m| m.distance != 0.0).count(), 1);
+    topo::offset_planes_together(
+        above,
+        &moves,
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+        Tol::witness(),
+    )
+    .expect("the offset runs");
+}
+
+/// **An offset that moves neither tip copy keeps them on one point.**
+/// Offsetting the x = 0 end face, far from the pinch, leaves both tip
+/// copies where they were: a vertex the offset does not move keeps its
+/// point, so the half still passes the pseudomanifold door with no
+/// records.
+#[test]
+fn an_offset_that_moves_neither_tip_copy_keeps_them_on_one_point() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "before the offset");
+    offset_one_plane(&mut above, |o, n| n.x < -0.5 && o.x == 0.0, 0.1);
+    for z in [0.0, 1.0] {
+        let tips = vertices_at(&above, 4.0, 1.0, z);
+        assert_eq!(tips.len(), 2, "both copies stay at the tip, z = {z}");
+        assert_eq!(
+            above.get_vertex(tips[0]).unwrap().point,
+            above.get_vertex(tips[1]).unwrap().point,
+            "the unmoved copies still share a point, z = {z}"
+        );
+    }
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "after the offset");
+}
+
+/// **An offset that moves both tip copies together keeps them
+/// touching.** Offsetting the z = 0 cap moves both copies at z = 0:
+/// the copies on one point are solved once, over both prongs' planes,
+/// and land on one new point. Solved per copy, each from its own
+/// prong's planes, they land one ulp apart in x on two points.
+#[test]
+fn an_offset_that_moves_both_tip_copies_together_keeps_them_touching() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    offset_one_plane(&mut above, |o, n| n.z < -0.5 && o.z == 0.0, 0.1);
+    let tips: Vec<topo::VertexKey> = above
+        .vertices()
+        .filter(|(_, v)| {
+            let p = *above.get_point(v.point).unwrap();
+            (p.x - 4.0).abs() < 1e-9 && p.y == 1.0 && p.z == -0.1
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(tips.len(), 2, "both copies moved to the new cap");
+    assert_eq!(
+        above.get_vertex(tips[0]).unwrap().point,
+        above.get_vertex(tips[1]).unwrap().point,
+        "the copies moved together share one new point"
+    );
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "after the cap offset");
 }

@@ -338,6 +338,44 @@ fn digest() -> String {
 /// 656 → 654 / 570 → 568 / 641 → 638 and `sym_thin_strip`
 /// 757 → 754 / 722 → 719 / 755 → 752 at ε = 1e-6 / 1e-9 / 1e-12.
 /// Decisions, discharges, shapes and verdicts are unchanged.
+///
+/// **Re-cut at all three ε when the quadrature lane's square roots
+/// became the backend's** (`geom_core::interval::Certification::sqrt`,
+/// #3727) in place of a local root that stepped one ulp outward at
+/// both ends even where the root was exact. Only the two NURBS lofts'
+/// area readings move: `loft_prism`'s `a` rises 149 ulps and its
+/// `apad` falls 0.18961175980001 → 0.18961175979655 at every ε, and
+/// `arc_loft_1e9eps`'s `apad` falls by 4.2e-11 of itself at ε = 1e-6
+/// and 1e-9. Both enclosures still hold the true area: `loft_prism`'s
+/// 25.31243834738 m² (its two flared walls integrated independently)
+/// and the arc loft's `s²·(18 + π(1+√2))`.
+/// Volumes, volume pads, refusals, verdict hashes and the sym-session
+/// counts are unchanged.
+///
+/// **Re-cut at all three ε when check 4 of the pcurve certificate became
+/// incidence plus fidelity** (`geom_brep::pcurve_cache`, C4). The
+/// quadrature's map-residual honesty pad reads each edge's certificate
+/// envelope, and on `tilted_cut_upper`'s cylinder wall the restated
+/// envelope is smaller. Only that row moves, and only down: `vpad` and
+/// `apad` fall by 2.5e-9 of themselves at ε = 1e-9, by ~5e-12 at
+/// 1e-6, and by 1.3e-6 at 1e-12. The volume's midpoint moves two ulps
+/// with its pad at 1e-6 and 1e-12. Areas, refusals, verdict hashes and
+/// the sym-session counts are unchanged.
+///
+/// **Re-cut at all three ε when a cylinder face's flux became its chart
+/// Green form** (`geom_brep::props::curved_face_loops`, `−∮ v du` over
+/// every loop). Only `bulged_extrusion`'s verdict row moves: its walls
+/// no longer run the iso-rectangle premises and the rim-side reading
+/// (`props_rim_level`, `props_rim_level_group`, `props_du_consistent`,
+/// `props_rim_side`), so 18 verdicts fall to 13 and the hash with them.
+/// Its volume and area bits, and every other row, are unchanged.
+///
+/// **Re-cut at all three ε when that Green form checked its closure**
+/// (`props_loop_closed` at every loop junction,
+/// `props_chart_loops_closed` per face — the premise that makes the sum
+/// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
+/// 13 → 18, and its hash; its volume and area bits, and every other
+/// row, are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

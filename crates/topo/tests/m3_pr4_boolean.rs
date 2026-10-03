@@ -16,7 +16,7 @@ use topo::{
     validate,
 };
 
-fn reduce_ok<T: Decide + geom_core::Bounds>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -47,7 +47,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 /// null edge + one ring strut in the pierced face (the vtxfacclassify
 /// ring sequence), all correspondence-keyed. Op-independent here (no
 /// Eq. 15.3 row is hit).
-fn two_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp) {
+fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(op: BooleanOp) {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
@@ -84,7 +84,10 @@ fn two_bricks_all_ops() {
 /// B-bottom edge (Tables II/III rows live), Eq. 15.3's ⁻ row decides
 /// (opposite orientation). Union sees crossings (the stacked bodies
 /// merge through the shared plane); the census is pinned per op.
-fn stacked_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp, expect_pairs_nonzero: bool) {
+fn stacked_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+    expect_pairs_nonzero: bool,
+) {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
@@ -114,7 +117,7 @@ fn stacked_bricks_full_coplanar_face() {
 /// search finds NO crossing (the cones touch at one point); the
 /// declared v-v contact is the entire result. Near-miss variants: a gap
 /// inside the sliver band escalates typed; a definite gap is clean.
-fn corner_kiss<T: Decide + geom_core::Bounds>() {
+fn corner_kiss<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() {
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
@@ -155,7 +158,9 @@ fn corner_kiss_touch_and_near_miss() {
 /// an interior point of both (the OnEdge lane splits BOTH edges into a
 /// declared v-v pair). Census hand-traced: two such crossings, plus one
 /// vertex-on-face contact per side in the shared tangent plane z = 2.
-fn skew_edge_cross<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
+fn skew_edge_cross<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+) -> BooleanReduction<T> {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
@@ -217,7 +222,9 @@ fn vertex_on_face_tangential_rest() {
 /// coplanar edge-face pair itself is skipped — the documented catch),
 /// and the shared plane's collinear edge segments put the Tables II/III
 /// edge-edge machinery live at every minted v-v pair.
-fn collinear_overlap<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
+fn collinear_overlap<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+) -> BooleanReduction<T> {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
     reduce_ok(op, &a, &b)
@@ -242,15 +249,12 @@ fn collinear_edge_overlap() {
     }
 }
 
-/// F5 gate: a curved operand refuses typed.
+/// The operand gate: an operand carrying a null edge (`mev_null`, a
+/// body left mid-surgery) refuses typed, by tier 2's finding.
 #[test]
-fn curved_operand_refuses() {
+fn null_edge_operand_refuses() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let cube = common::geometric_cube::<f64>(Tol::witness());
-    // A genuinely curved body is not in the prismatic corpus; instead
-    // gate on scaffolding: a mid-surgery operand refuses.
-    let _ = cube;
     let he = b.vertices().next().and_then(|(_, v)| v.emanating).unwrap();
     b.mev_null(
         topo::MevSite::Fan { he1: he, he2: he },
@@ -259,8 +263,12 @@ fn curved_operand_refuses() {
     .unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
-        matches!(err, BooleanError::ScaffoldingOperand { .. }),
-        "{err:?}"
+        matches!(
+            &err,
+            BooleanError::ScaffoldingOperand { operand: topo::Operand::B, errors }
+                if errors.iter().any(|e| matches!(e, topo::ValidationError::NullEdgeAtRest { .. }))
+        ),
+        "the null edge refuses on B, by tier 2's finding: {err:?}"
     );
 }
 

@@ -702,7 +702,7 @@ class TestTheRefusals(unittest.TestCase):
     def test_deleting_a_referenced_node_is_refused(self):
         """A measure CONSUMES the values it names, so its references
         are recipe edges — the one place this node kind departs from
-        the `Declare`/`Mate` name carve-out."""
+        the declared-pair/`Mate` name carve-out."""
         doc = Doc()
         node = slab(doc, 0.0)
         ev = evaluate(doc)

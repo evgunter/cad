@@ -70,9 +70,17 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`differential`] — the differential batteries' polygon oracles,
+//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   truth derived without the kernel plus the check every battery
+//!   prints, so beside [`oracles`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -232,6 +240,13 @@ pub mod revert_ops;
 /// The drilled bead: a bore cylinder and a sphere zone, each a whole
 /// turn. Body authoring, so it routes here.
 pub mod bead;
+
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
+/// The differential batteries' polygon oracles, per-pose outcome line
+/// and reflex-corner pose.
+pub mod differential;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
@@ -450,10 +465,11 @@ pub fn tilted_cut_upper() -> Body<f64> {
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
-        &topo::splitting::SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the tilted cut splits");
@@ -494,10 +510,11 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: tilted_cut_normal(),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        tilted_cut_normal(),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
     let part = if above { result.above } else { result.below };
     let topo::splitting::SplitPart::Body(half) = part else {
@@ -537,10 +554,7 @@ pub fn bulged_extrusion() -> Body<f64> {
 /// exactness row in this tree wants, and a fourth hand-rolled copy is
 /// how a suite ends up with a subtly different one.
 pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// **A margin strictly inside the run's ambiguity band** — the

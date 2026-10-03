@@ -28,11 +28,11 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, CancelToken, ContactClass, EvalOptions, Evaluation, FlushRung, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
-    ValuePayload, declare_all, evaluate, find_flush_candidates,
+    BooleanCoincidence, BooleanOp, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram,
+    Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal, ValuePayload,
+    declared_pairs, evaluate, find_flush_candidates,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use topo::{Body, PlaneRelation, query};
 
@@ -148,7 +148,7 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         "every wall-against-wall pair sits on the shared cylinder: {keys:?}"
     );
     for f in &keys {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::REST);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
         assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident, "{f:?}");
     }
@@ -161,7 +161,7 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         "one verifier under both seats: keys {keys:?} vs names {names:?}"
     );
     for f in &names {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::REST);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
         assert_eq!(f.pair.0.name.node, peg);
         assert_eq!(f.pair.1.name.node, block);
@@ -200,55 +200,60 @@ fn a_bore_on_another_carrier_is_no_finding_at_either_seat() {
 /// The declared round trip on a PURELY cylindrical mate: the findings
 /// declare, the declared rung VERIFIES them — no undeclared-contact
 /// refusal, no contradiction, because the detector and the verifier
-/// are one door — and the boolean then meets a LANE frontier further
-/// in, at the seam join, which this fixture names.
+/// are one door — and the union builds: the peg's rim arcs are edges of
+/// both solids, which the chord join copies. Sound at tiers 2 and 3,
+/// the block and the peg's volumes (they only touch), and a legal
+/// operand.
 ///
-/// The row is here so that the detector's claim stays the narrow one
-/// it is: "declared, this pair verifies" — never "the op will build".
-/// WHICH frontier is a measurement, not the claim: a curved mate
-/// reaches a different one per configuration (the plant's purely
-/// cylindrical mate stops earlier, in the reduction's curved-pierce
-/// arm — issue #1032), and a lane that opens moves this row's payload
-/// without touching what it is about.
+/// The detector's claim stays the narrow one it is — "declared, this
+/// pair verifies" — never "the op will build": that this mate builds is
+/// the join's, and this row pins it.
 #[test]
-fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
+fn a_declared_curved_finding_verifies_and_the_mate_builds() {
     let (doc, peg, block) = peg_in_bore(PEG_R);
     let ev = eval(&doc);
     let findings =
         find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
     assert!(!findings.is_empty());
-    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
-    let doc = applied.doc;
+    let want = [peg, block]
+        .map(|n| {
+            topo::mass_properties(body_of(&ev, n), Tol::witness())
+                .unwrap()
+                .volume
+        })
+        .iter()
+        .sum::<f64>();
     let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: peg,
             b: block,
-            declare: Some(decl),
+            declare: declared_pairs(&findings),
         },
     );
     let ev = eval(&doc);
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) else {
-        panic!("a purely cylindrical mate does not reach the zip today (issue #1032)");
+    let value = match ev.nodes.get(&union) {
+        Some(NodeResult::Ok(value)) => value,
+        other => panic!("the declared peg-in-bore union builds: {other:?}"),
     };
-    let NodeErrorKind::Boolean(err) = &e.kind else {
-        panic!("the boolean is what refuses: {e:?}");
+    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
+        &value.payload
+    else {
+        panic!("a union's value is a body");
     };
-    assert!(
-        !matches!(
-            err,
-            topo::BooleanError::UndeclaredCoincidence { .. }
-                | topo::BooleanError::DeclarationContradicted { .. }
-                | topo::BooleanError::ContactContradicted { .. }
-        ),
-        "the declared curved pairs are ADMITTED and verified — the detector cannot \
-         propose a pair the declared rung then rejects: {err:?}"
+    assert_eq!(topo::validate_closed(body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
     );
+    let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     assert!(
-        matches!(err, topo::BooleanError::Join(_)),
-        "what stops this mate is a lane frontier past verification, at the join: {err:?}"
+        (v - want).abs() <= 1e-9 * want,
+        "the peg and the block only touch: {v} against {want}"
     );
+    sweep::test_support::assert_legal_operand("peg ∪ block", body, Tol::witness());
 }
 
 // ------------------------------------------------------------------

@@ -459,7 +459,7 @@ pub enum ShellError<T: Real> {
         /// The designated face.
         face: FaceKey,
         /// Its surface kind.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// A designated face shares its chart with faces of its own solid
     /// that were NOT designated. The rim surgery lifts a solid's wearers
@@ -1856,9 +1856,10 @@ fn canonicalize_chart<T: Decide>(
         let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
         let mut acted = false;
         for edge in edges {
-            let Some((fp, fm)) = crate::replace_face::edge_faces(body, edge) else {
+            let Ok(sides) = crate::readback::edge_sides(body, edge) else {
                 continue;
             };
+            let (fp, fm) = sides.faces();
             if fp == fm || !alive.contains(&fp) || !alive.contains(&fm) {
                 continue;
             }
@@ -2276,7 +2277,7 @@ fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> Result<T, S
 /// Re-points every description on `r#loop` that names `dead` at
 /// `live`, re-certifying each through the attach layer. `rim` names
 /// the designated face in any refusal and is otherwise unread.
-fn rename_loop_surface<T: Decide>(
+fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     r#loop: crate::entity::LoopKey,
     dead: crate::geometry::SurfaceKey,
@@ -2612,7 +2613,7 @@ fn check_designation<T: Real>(
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(ShellError::OpenFaceRingUnsupported {
                 face: *face,
-                kind: geom_brep::SurfaceKind::of(surface),
+                kind: surface.kind(),
             });
         }
     }

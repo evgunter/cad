@@ -16,7 +16,7 @@
 use geom_core::{Decide, Indeterminate, Point3, Real, Vec3};
 
 use super::PlaneSide;
-use super::containment::{LoopContainment, point_in_carrier_loop};
+use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
@@ -51,8 +51,8 @@ pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
 pub(super) enum SenseFault {
     /// [`Torn`].
     Torn,
-    /// The winding has no sign: in the band (`Some`), zero, or (`None`)
-    /// a loop with an edge that states no certified curve.
+    /// The winding has no sign: in the band (`Some`), or (`None`) zero,
+    /// or unread because the loop carries a NURBS or spiric edge.
     Undecided(Option<Indeterminate>),
 }
 
@@ -117,7 +117,7 @@ impl<H> From<Torn> for NestFault<H> {
 /// An outline encloses the hole when the two are decided disjoint
 /// ([`outlines_disjoint`]) and the hole's anchor vertex is certified
 /// inside the outline on the loops' own carriers
-/// ([`point_in_carrier_loop`]). Disjoint outlines nest or are apart
+/// ([`point_in_loop`]). Disjoint outlines nest or are apart
 /// (Jordan), so among several enclosing outlines — an island in a hole
 /// in a face — exactly one is enclosed by all the others, and the hole
 /// goes to it; two such would be two outlines each enclosing the other,
@@ -125,10 +125,13 @@ impl<H> From<Torn> for NestFault<H> {
 ///
 /// **What decides nothing**, leaving a hole [`Nesting::unplaced`]: an
 /// outline edge on a spiric or NURBS carrier, whose contacts nothing
-/// here decides; a containment or contact reading in the band; and the
-/// clockwise polygons the join mints when it chords a curved face
-/// across the wrong arc, which touch the outline around them
-/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+/// here decides, and a containment or contact reading in the band. A
+/// clockwise polygon touching the outline around it would land here
+/// too: that is what a chord run outside the face it divides makes, and
+/// the join pairs a face's crossings along the face's own section line
+/// or conic so that none does. A face the join leaves to the sweep's
+/// order — a curved face whose section is straight, a planar face whose
+/// line the band cannot certify — is not covered by that pairing.
 ///
 /// # Errors
 ///
@@ -146,8 +149,8 @@ pub(super) fn nest<T: Decide, O, H>(
         }
         let q = ring_representative(body, inner).map_err(|_| Torn)?;
         Ok(matches!(
-            point_in_carrier_loop(body, outer, normal, q, band),
-            Ok(Some(LoopContainment::In))
+            point_in_loop(body, outer, normal, q, band),
+            Ok(LoopContainment::In)
         ))
     };
     let loops: Vec<LoopKey> = outlines.iter().map(|&(_, l)| l).collect();

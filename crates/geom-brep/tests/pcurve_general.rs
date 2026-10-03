@@ -131,7 +131,13 @@ fn the_closed_form_door_refuses_a_general_image() {
         band(),
     );
     assert!(
-        matches!(got, Err(PcurveCertifyError::UnsupportedCarrier)),
+        matches!(
+            got,
+            Err(PcurveCertifyError::ImageMismatch {
+                image: geom_brep::PcurveKind::General,
+                ..
+            })
+        ),
         "the closed-form door has no general arm: {got:?}"
     );
 }
@@ -171,32 +177,35 @@ fn general_circle() -> Curve3<f64> {
 /// The traversed arc: a quarter turn away from the azimuth seam.
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
-/// The chart image, fitted at `f64` structure on the carrier's own
-/// angle parameter — the parameter contract restored by an exact
-/// affine knot rescale (a B-spline is invariant under one).
-fn fit_image() -> Arc<NurbsCurve2<f64>> {
+/// The chart image the fitted lane derives
+/// (`FittedLane::sphere_circle_image`): a piecewise quintic Hermite
+/// interpolant on the carrier's own angle parameter, the form whose
+/// distance from the circle the certificate bounds.
+fn lane_image() -> Arc<NurbsCurve2<f64>> {
+    let (t0, t1) = ARC;
+    Arc::new(
+        FittedLane::<f64>::certified()
+            .sphere_circle_image(&general_circle(), t0, t1, &sphere(), band())
+            .expect("the lane images the general circle"),
+    )
+}
+
+/// A spline image of the same circle that is NOT in the lane's Hermite
+/// form: a global cubic interpolant on the carrier's own angle
+/// parameter, the parameter contract restored by an exact affine knot
+/// rescale (a B-spline is invariant under one).
+fn global_fit_image() -> Arc<NurbsCurve2<f64>> {
     let carrier = general_circle();
     let (t0, t1) = ARC;
     let n = 33usize;
     let mut params = Vec::with_capacity(n);
     let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
     for i in 0..n {
         #[allow(clippy::cast_precision_loss)]
         let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
         let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
         params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, p.z.asin()));
+        pts.push(Point2::new(p.y.atan2(p.x), p.z.asin()));
     }
     let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the image fits");
     let knots: Vec<f64> = fit
@@ -212,6 +221,34 @@ fn fit_image() -> Arc<NurbsCurve2<f64>> {
     )
 }
 
+/// **ε-row, outcome REFUSE**: an image of the circle in any other spline
+/// form has no bound on its distance from the circle between samples,
+/// so the general door refuses it typed rather than certify the
+/// sampled residual alone — a corruption between the samples would
+/// otherwise go unseen.
+#[test]
+fn a_general_circle_image_outside_the_hermite_form_refuses() {
+    let (t0, t1) = ARC;
+    let img = global_fit_image();
+    let w = Pcurve::General(Arc::clone(&img)).chart_box(t0, t1);
+    let err = PcurveCache::certify_general(
+        img,
+        t0,
+        t1,
+        &general_circle(),
+        &sphere(),
+        Some(&tilted_plane()),
+        w,
+        band(),
+        Some(FittedLane::certified()),
+    )
+    .expect_err("an image outside the Hermite form has no between-samples bound");
+    assert!(
+        matches!(err, PcurveCertifyError::FittedCertificate { what, .. } if what.contains("Hermite form")),
+        "the refusal names the form: {err:?}"
+    );
+}
+
 /// **ε-row, outcome CERTIFY**: the general circle's chart image on the
 /// sphere, against the tilted plane it is the section of. Nothing
 /// about the curve's provenance is asserted — the grade is what was
@@ -219,7 +256,7 @@ fn fit_image() -> Arc<NurbsCurve2<f64>> {
 #[test]
 fn a_general_circle_image_certifies_at_the_fitted_grade() {
     let (t0, t1) = ARC;
-    let img = fit_image();
+    let img = lane_image();
     let carrier = general_circle();
     let w = Pcurve::General(Arc::clone(&img)).chart_box(t0, t1);
     let plane = tilted_plane();

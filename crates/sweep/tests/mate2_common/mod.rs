@@ -86,9 +86,11 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
 }
 
 /// Every (bore wall × peg wall) pair declared `Rest` — the mate's only
-/// contact unless a caller adds one.
+/// contact unless a caller adds one — plus every continuation the two
+/// parts have (a peg end flush with the collar's face), which a union
+/// refuses undeclared.
 pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = continuations(a, b);
     for &fa in &walls_at(a, 0.5) {
         for &fb in &walls_at(b, 0.5) {
             decls
@@ -97,6 +99,18 @@ pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
         }
     }
     decls
+}
+
+/// Every continuation the flush detector finds between `a` and `b`
+/// (one carrier, aligned senses), declared.
+pub fn continuations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
+    let found = topo::flush::find_flush_candidates(a, b, Tol::witness())
+        .expect("a fixture's flush pairs decide definitely");
+    let picked: Vec<_> = found
+        .into_iter()
+        .filter(|f| f.class == topo::BooleanCoincidence::Continuation)
+        .collect();
+    topo::flush::declare_all(&picked)
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {

@@ -262,9 +262,9 @@ class TestRefusals(unittest.TestCase):
                 NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(CapEnd.Start))
             ),
         )[0]
-        forward = Doc(label="shell-order")
-        backward = Doc(label="shell-order")
-        doubled = Doc(label="shell-order")
+        forward = Doc(seed="shell-order")
+        backward = Doc(seed="shell-order")
+        doubled = Doc(seed="shell-order")
         for target, order in (
             (forward, [top, bottom]),
             (backward, [bottom, top]),

@@ -90,7 +90,7 @@ fn resolved_patch<'a>(
 fn patch_on_plane(mesh: &Mesh, patch: &FacePatch, axis: usize, plane: f64) -> bool {
     patch.triangles.iter().flatten().all(|&i| {
         let p = mesh.positions[i as usize];
-        let c = [p.x, p.y, p.z][axis];
+        let c = p.to_array()[axis];
         c == plane
     })
 }
@@ -125,7 +125,7 @@ fn picks_every_face_of_a_box() {
         assert_eq!(hit.node, ext);
         assert_eq!(hit.body, 0);
         assert_eq!(hit.t, 2.0, "dyadic face-center hit is exact");
-        let c = [hit.point.x, hit.point.y, hit.point.z][axis];
+        let c = hit.point.to_array()[axis];
         assert_eq!(c, plane, "hit point lies on the face plane");
         let patch = resolved_patch(&doc, &ev, &mesh, &hit.name);
         assert!(
@@ -249,7 +249,7 @@ fn unusable_nodes_surface_typed_errors() {
             op: editor_core::BooleanOp::Union,
             a: bad,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

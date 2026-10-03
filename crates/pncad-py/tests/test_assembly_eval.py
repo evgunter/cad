@@ -53,12 +53,13 @@ Four things the guard does NOT see, named rather than summarised:
    the_material_the_tour_asserts` and the placement row below pin the
    consequences a body can show; a change that moves neither is not
    caught here.
-2. The ONE DELIBERATE difference between this scene and the tour's,
-   which is `bench_scene`'s own subject: the tour's prisms are
-   parametric where Python's are drawn from literals. The guard would
-   red if it compared recipes, and it does not compare recipes. (The
-   flat-pack's placed family used to be a second such difference; it
-   is `Node.pattern` on both sides now.)
+2. The two differences between this scene and the tour's, which are
+   `bench_scene`'s own subject: the tour's prisms are parametric where
+   Python's are drawn from literals, and the tour stands its stand on
+   a turntable gauge and sets a crate on the shelf where Python stands
+   it on the world. The guard would red if it compared recipes, and it
+   does not compare recipes. (The flat-pack's placed family used to be
+   a third such difference; it is `Node.pattern` on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -699,7 +700,7 @@ class TestNestingPastTheBound(unittest.TestCase):
         )
         self.assertRegex(
             child.stderr.rstrip().splitlines()[-1],
-            r"^pncad\.EvaluationError: node [0-9a-f]{12} failed",
+            r"^pncad\.EvaluationError: InstantiatePart [0-9a-f]{12} failed",
             "the traceback ends at the refusal that was raised",
         )
 

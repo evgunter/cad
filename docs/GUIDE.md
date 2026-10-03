@@ -602,7 +602,7 @@ use pncad::prelude::*;
 let body = &result.body;
 
 validate(body).expect("tier 1: structural integrity");
-validate_closed(body).expect("tier 2: a closed, connected solid");
+validate_closed(body).expect("tier 2: closed, each shell connected");
 validate_pseudomanifold(body, &result.contacts, tol)
     .expect("tier 3′: geometry, with this operation's declared contacts");
 # Ok::<(), E>(())
@@ -1495,9 +1495,10 @@ merge onto it and the rim's name is that face's), so name first the
 face you want to carry the rim's identity. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: a full revolve's cap is two half-faces on
-one plane, and naming one of them refuses (`shell`, the kernel's
-partial-chart gate) rather than silently opening both.
+every face on its chart: where two faces share one plane, naming one
+of them refuses (`shell`, the kernel's partial-chart gate) rather than
+silently opening both. (A full revolve's planar cap is ONE face — it
+sweeps a planar wall whole.)
 
 ```python
 from pncad import (
@@ -1569,8 +1570,10 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, piece)` and `band_pi(node, piece)` are the two
-halves of the face swept from a meridian piece, `band_rim(node, piece)`
+gives Rust: `band(node, piece)` is the face swept from a meridian
+piece and `band_pi(node, piece)` its `[pi, 2pi)` half where a full
+revolve splits a CURVED wall in two (a planar wall is one face, its
+`band`), `band_rim(node, piece)`
 is the latitude rim standing at the vertex the piece starts at,
 `meridian_vertex(end, node, piece)` is that vertex itself, and
 `carried(node, inner)` is the name a survivor of `node` wears one op
@@ -1696,7 +1699,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1754,7 +1757,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1857,7 +1860,7 @@ doc = apply(&doc, &DocEdit::SetDocParam {
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1906,7 +1909,7 @@ let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
     a: plate,
     b: tab,
-    declare: None,
+    declare: Vec::new(),
 });
 doc = next;
 

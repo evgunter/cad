@@ -8,11 +8,12 @@
 //!    against the OUTWARD normal — `side_code`; 15.7's printed
 //!    `IN = +1` is never consulted).
 //!
-//!    The datum is a DIRECTION and a lever arm, never an origin:
-//!    `side_code` (`sectors.rs`) takes `(dir, OutwardNormal, arm,
-//!    band)` and the germ direction takes a cross product, so both are
-//!    purely first-order primitives and generalize to a curved pierced
-//!    face by substituting the per-point outward normal
+//!    The datum is a DIRECTION, never an origin: `side_code`
+//!    (`sectors.rs`) takes `(dir, reach, OutwardNormal, lever, band)`
+//!    and the germ direction takes a cross product, so both are
+//!    first-order primitives (charged for the face's curvature through
+//!    `lever`) and generalize to a curved pierced face by substituting
+//!    the per-point outward normal
 //!    ([`crate::face_normal::face_outward_normal_at`]). On a plane that
 //!    normal is the plane's own, so the planar lane's arithmetic is
 //!    bit-identical. What does NOT generalize is Delta 2's carrier
@@ -39,28 +40,31 @@
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
-//! `(Out,·,Out) → Out`, mixed → `In`. This deliberately DIVERGES from
-//! the split lane's F4 table (`BOB → ABOVE`): the split must mint
-//! copies to keep the two pieces' fans representable, but a boolean
-//! tangential contact is a *legal 3′ touching* (edge-on-face, both
-//! flanking faces the same side) already carried by the declared
-//! contact records — TOG Table II rows 5/9 (`(In,In)`/`(Out,Out)` ⇒
-//! no intersection) confirm no crossing is recorded. Mixed keeps the
-//! In side (both witnesses' choice for the split analogue). Flagged in
-//! the PR report for ratification.
+//! `(Out,·,Out) → Out`, mixed → `In`, the one fold rule
+//! ([`super::sectors::fold_on_bound`]) the vertex-vertex attribution
+//! shares. The split lane's F4 table agrees for a convex edge and
+//! deliberately DIVERGES for a reflex one
+//! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
+//! fans representable, but a boolean tangential contact is a *legal 3′
+//! touching* (edge-on-face, both flanking faces the same side) already
+//! carried by the declared contact records — TOG Table II rows 5/9
+//! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
+//! recorded. Mixed keeps the In side (both witnesses' choice for the
+//! split analogue).
 
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
-use super::tables::eq15_3_lump;
+use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::Body;
+use crate::contact::BooleanCoincidence;
 use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
@@ -76,6 +80,9 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     pub pairs: Vec<NullEdgePairRecord>,
     /// The ring insertion, if surgery happened.
     pub ring: Option<PierceRingRecord>,
+    /// `(A face, B face)` for each coincident sector whose lump keeps
+    /// one copy of the region (`BooleanReduction::covered`).
+    pub covered: Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -91,13 +98,13 @@ struct Entry {
 /// `contact.face` (in the pierced body) and performs the paired
 /// insertion (module docs).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn classify_vertex_on_face<T: Decide>(
+pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &mut Body<T>,
     piercing: Operand,
     contact: VfContact,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
@@ -110,16 +117,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         .get_point(
             piercing_body
                 .get_vertex(vertex)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?
+                .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        })?;
+        .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -177,7 +178,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
+            class: side_code(s.end, s.end_reach, n_pierced, pierced_lever, band)?,
             lumped: false,
         });
     }
@@ -198,6 +199,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // bounds' own: a smaller tolerance reads the steeper bound off the
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
+    let mut covered = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
             continue;
@@ -225,17 +227,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     super::rest::face_carrier(piercing_body, s.face),
                     Some(super::carrier_eq::CarrierDesc::Plane { .. })
                 );
-            let fact = (planar && class == crate::contact::ContactClass::Rest)
-                .then_some(Contradiction::PlanesNotParallel);
-            return Err(BooleanError::ContactContradicted {
-                declaration: crate::contact::DeclaredContact { a, b, class },
-                steer: fact.and_then(super::contact_verify::fit_steer),
-                fact,
-                margin: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("bool_sector_coplanar"),
-                    terminal_sliver: false,
+            let fact =
+                (planar && class.is_one_carrier()).then_some(Contradiction::PlanesNotParallel);
+            let margin = geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some("bool_sector_coplanar"),
+                terminal_sliver: false,
+            };
+            return Err(match class {
+                BooleanCoincidence::Continuation => {
+                    BooleanError::ContinuationContradicted { a, b, fact, margin }
+                }
+                BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact { a, b, class },
+                    steer: fact.and_then(super::contact_verify::fit_steer),
+                    fact,
+                    margin,
                 },
             });
         }
@@ -244,10 +252,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             (Ok(Sign::Positive | Sign::Negative), _) | (Err(_), None) => true,
         };
         if refused {
-            // `Rest` bridges the residue only against a planar pierced
-            // face (a curved one refuses below whatever is declared);
-            // `Tangent` only where the door's witness lane derives the
-            // pair's tangency, which it checks before it admits one.
+            // A one-carrier declaration bridges the residue only against
+            // a planar pierced face (a curved one refuses below whatever
+            // is declared), and the door admits the one the pair's senses
+            // make it, or none where it cannot read them; `Tangent` only
+            // where the door's witness lane derives the pair's tangency,
+            // which it checks before it admits one.
             fn surface<T: Decide>(
                 body: &Body<T>,
                 f: crate::entity::FaceKey,
@@ -258,25 +268,46 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let tangent = match (
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
+                match class {
+                    Some(_) => {
+                        Some(declared.reach_of(piercing, s.face, pierced_op, contact.face)?)
+                    }
+                    // An undeclared pair's extent, read mid-operation:
+                    // a face whose box no longer reads offers no
+                    // `Tangent` (`work/tang/the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`).
+                    None => super::rest::pair_extent(
+                        piercing_body,
+                        s.face,
+                        pierced_body,
+                        contact.face,
+                        band,
+                    )
+                    .ok()
+                    .map(|extent| extent.reach),
+                },
             ) {
-                (Some(a), Some(b)) => super::rest::tangent_locus(a, b, band).is_ok(),
+                (Some(a), Some(b), Some(reach)) => {
+                    geom_brep::tangent_locus(a, b, reach, band).is_ok()
+                }
                 _ => false,
             };
-            let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
-                (true, true) => &[
-                    crate::contact::ContactClass::Rest,
-                    crate::contact::ContactClass::Tangent,
-                ],
-                (true, false) => &[crate::contact::ContactClass::Rest],
-                (false, true) => &[crate::contact::ContactClass::Tangent],
-                (false, false) => &[],
-            };
-            // A decided tilt admits no class: no declaration settles it.
-            let admitted = if decided_tilt { &[] } else { admitted };
+            let one_carrier = plane
+                .is_some()
+                .then(|| {
+                    super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
+                        .and_then(BooleanCoincidence::of_senses)
+                })
+                .flatten();
+            let admitted: Vec<BooleanCoincidence> = one_carrier
+                .into_iter()
+                .chain(tangent.then_some(BooleanCoincidence::TANGENT))
+                // A decided tilt admits no class: no declaration settles it.
+                .filter(|_| !decided_tilt)
+                .collect();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::Sectors,
-                admitted,
+                &admitted,
             );
             let nv = n_pierced.vec();
             let steeper = s
@@ -298,8 +329,15 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]).
-        if class == Some(crate::contact::ContactClass::Tangent) {
+        // material ([`super::sectors::tangent_lump`]), read for the WHOLE
+        // sector. Per bound, the bound riding the locus reads `On`, which
+        // the on-entry resolution below settles from its neighbours; but
+        // an arc tangent at this vertex is split at the band's edge, and
+        // the sliver's arm puts the arc's second-order margin in the zero
+        // band too, so the two `On`s are the consecutive-`On` refusal
+        // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
+        // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
+        if class == Some(BooleanCoincidence::TANGENT) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -315,8 +353,9 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Coincide::TangentSide,
                 &[],
             );
+            let reach = declared.reach_of(piercing, s.face, pierced_op, contact.face)?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, read, band,
+                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read, band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;
@@ -333,61 +372,64 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
                 kind,
             });
         };
-        let declared_rest = class == Some(crate::contact::ContactClass::Rest);
+        let declared_one_carrier =
+            declared.declares_one_carrier(piercing, s.face, pierced_op, contact.face);
         // C8: a CURVED on-carrier sector is opened by a VERIFIED
         // declaration and by nothing else — undeclared touching keeps
         // this typed frontier refusal. The recourse is a declared
-        // Tangent/Rest contact (vocabulary CONTACT-DESIGN C4), under
-        // which classification descends to the carrier ladder or the
-        // C7 sector trilean instead of refusing.
-        if !declared_rest && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
+        // coincidence (C4: a `Rest` or `Tangent` contact, or a
+        // continuation), under which classification descends to the
+        // carrier ladder or the C7 sector trilean instead of refusing.
+        if !declared_one_carrier
+            && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
                 kind,
             });
         }
-        // **UNTESTED, and that is a statement rather than an
-        // omission.** No authorable body reaches this arm today: it
-        // needs a sector face geometrically TANGENT to a CURVED pierced
-        // face at the pierce point, and every curved pierce still dies
-        // at the join before a second operand pose can be built around
-        // one. The arm is written because the alternative is a plane
-        // built from a face that has none — see the argument below —
-        // and it is named here so a later unit that opens the ring's
-        // join knows this is the first row it owes a fixture.
-        //
-        // **Delta 2 stays SHUT on a curved pierced face.** The rung
-        // below descends to `carrier_eq` against a plane built from the
-        // pierced face, and there is no plane to build: a sector face
-        // TANGENT to a curved pierced face at `p` is a
-        // cosurface/tangency question, and CONTACT-DESIGN C2/C4 forbid
-        // inferring either gluing at any ε. The recourse is the same
-        // one the undeclared crossing-layer rung names — a verified
-        // declaration, under which the `Tangent` branch above already
-        // owns the case.
-        let Some(plane) = plane else {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand: pierced_op,
-                face: contact.face,
-                kind: pierced_kind(pierced_body, contact.face),
-            });
-        };
-        let pierced_carrier = super::carrier_eq::CarrierDesc::Plane {
-            origin: plane.origin,
-            normal: plane.normal,
+        // The pierced face's carrier: its plane, or — on a curved
+        // pierced face — its curved carrier, which only a verified
+        // one-carrier declaration may compare against the sector's. A
+        // sector face on a curved pierced face at `p` is a cosurface
+        // question, and CONTACT-DESIGN C2/C4 forbid inferring that gluing
+        // at any ε: the declaration is the recourse, and with it the
+        // carrier ladder's declared rung decides the relation exactly as
+        // on a plane. An undeclared curved sector refused just above. An
+        // undeclared PLANAR sector lumped here would be a plane tangent
+        // to the curved face with a bound leaving along it, and no
+        // public operand reaches that: the crossing layer refuses the
+        // bound's tangent touch first (a prism tangent to a cylinder
+        // along a ruling refuses `CurvedPierceUnsupported` there, in both
+        // operand orders), and a declared `Tangent` lumps above. The
+        // guard keeps this door for that state all the same.
+        let pierced_carrier = match plane {
+            Some(plane) => super::carrier_eq::CarrierDesc::Plane {
+                origin: plane.origin,
+                normal: plane.normal,
+            },
+            None => match super::rest::face_carrier(pierced_body, contact.face) {
+                Some(carrier) if declared_one_carrier => carrier,
+                _ => {
+                    return Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: pierced_op,
+                        face: contact.face,
+                        kind: pierced_kind(pierced_body, contact.face),
+                    });
+                }
+            },
         };
         // Oriented sources (S10): both descriptions carry OUTWARD
         // material sides, so rung 1's syntactic Same± verdict has to
@@ -399,40 +441,72 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
             s2: g2.as_ref(),
-            declared: declared_rest,
+            declared: declared_one_carrier,
         };
-        let rel =
-            match super::carrier_eq::carrier_eq(&sector_carrier, &pierced_carrier, id, s.arm, band)
-            {
-                Ok(super::PlaneRelation::Distinct) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "geometrically coplanar sector with definitely-distinct plane",
-                    });
-                }
-                Ok(rel) => rel,
-                // In band, unreachable here: `bool_sector_coplanar` read
-                // this same margin (the two normals' cross, at `s.arm`)
-                // zero above for an undeclared pair, and a declared `Rest`
-                // pair's rung bridges it. The door is `recl`'s, which
-                // reaches it at another arm.
-                Err(PlaneEqError::Escalated { rung, diag }) => {
-                    return Err(BooleanError::plane_identity(
-                        rung,
-                        declared.on_pair_door((piercing, s.face, pierced_op, contact.face)),
-                        diag,
-                    ));
-                }
-                Err(PlaneEqError::Undeclared { diag, relation }) => {
-                    return Err(BooleanError::UndeclaredCoincidence {
-                        diag,
-                        pair: [(piercing, s.face), (pierced_op, contact.face)],
-                        relation,
-                    });
-                }
-                Err(PlaneEqError::Contradicted { fact, .. }) => {
-                    return Err(BooleanError::DeclarationContradicted { fact });
-                }
-            };
+        // A declared pair reads as the door read it at rest, over both
+        // faces; an undeclared one at the sector's arm.
+        let extent = if declared_one_carrier {
+            declared.consumed(piercing, s.face, pierced_op, contact.face)?
+        } else {
+            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+                geom_core::Point3::origin(),
+                s.arm,
+            ))
+        };
+        let rel = match super::carrier_eq::carrier_eq(
+            &sector_carrier,
+            &pierced_carrier,
+            id,
+            &extent,
+            band,
+        ) {
+            Ok(super::PlaneRelation::Distinct) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "geometrically coplanar sector with definitely-distinct plane",
+                });
+            }
+            Ok(rel) => rel,
+            // In band, unreachable here: `bool_sector_coplanar` read
+            // this same margin (the two normals' cross, at `s.arm`)
+            // zero above for an undeclared pair, and a declared `Rest`
+            // pair's rung bridges it. The door is `recl`'s, which
+            // reaches it at another arm.
+            Err(PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    declared.on_pair_door(
+                        (piercing, s.face, pierced_op, contact.face),
+                        super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
+                    ),
+                    diag,
+                ));
+            }
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(piercing, s.face), (pierced_op, contact.face)],
+                    relation,
+                });
+            }
+            Err(PlaneEqError::Contradicted { fact, .. }) => {
+                return Err(BooleanError::DeclarationContradicted { fact });
+            }
+            // Only a declared reading is unsettled.
+            Err(PlaneEqError::Unsettled { diag }) => {
+                return Err(super::unsettled_rest(
+                    class.ok_or(BooleanError::ClassificationInvariant {
+                        what: "an undeclared coplanar sector's carrier reading was unsettled",
+                    })?,
+                    diag,
+                ));
+            }
+        };
+        if lump_keeps_one(op, rel) {
+            covered.push(match piercing {
+                Operand::A => (s.face, contact.face),
+                Operand::B => (contact.face, s.face),
+            });
+        }
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
         entries[(k + 1) % n].class = lump;
@@ -456,6 +530,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         edges: Vec::new(),
         pairs: Vec::new(),
         ring: None,
+        covered,
     };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
@@ -465,44 +540,53 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // Germ facings (F9 data): the run's two boundary transitions are
     // its germs; both lie in the pierced face's TANGENT plane at `p`,
     // so the germ's face pair = (transition sector's face, pierced
-    // face) in operand order. Parity: the class after crossing forward
+    // face) in operand order, and its loci are the transition sector's
+    // cell and the pierced face. Parity: the class after crossing forward
     // — Out at the run's start germ, In at its end germ (site-shared
     // with the ring strut below).
-    let germ_pair = |own: crate::entity::FaceKey| match piercing {
-        Operand::A => (own, contact.face),
-        Operand::B => (contact.face, own),
+    // Every run's germs are read before any run is minted: a mint moves
+    // the orbit the germ loci are read from.
+    let germ_of = |t: usize| -> Result<Germ<T>, BooleanError> {
+        let s = &sectors[t];
+        let own = super::sectors::germ_locus(piercing_body, s, (read[(t + 1) % n], read[t]))?;
+        let pierced = super::Locus::InFace(contact.face);
+        let cells = match piercing {
+            Operand::A => ((s.face, contact.face), (own, pierced)),
+            Operand::B => ((contact.face, s.face), (pierced, own)),
+        };
+        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), band)?))
     };
-    let mut run_germs = Vec::new();
+    let run_germs = runs
+        .iter()
+        .map(|run| {
+            Ok((
+                germ_of((run.0 + n - 1) % n)?,
+                germ_of((run.0 + run.1 - 1) % n)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut run_edges = Vec::new();
-    for run in &runs {
-        let s_start = &sectors[(run.0 + n - 1) % n];
-        let s_end = &sectors[(run.0 + run.1 - 1) % n];
-        let dir_start = pierce_germ_dir(s_start, n_pierced.vec(), band)?;
-        let dir_end = pierce_germ_dir(s_end, n_pierced.vec(), band)?;
-        run_germs.push((
-            (germ_pair(s_start.face), dir_start),
-            (germ_pair(s_end.face), dir_end),
-        ));
+    for (run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
         let last = real.next_back().or(first);
-        let (site, dangling) = match (first, last) {
+        // `strut`: the site is an empty fan, so `mev_null` splices the
+        // null edge as a spike [he_plus, he_minus] into one corner.
+        let (site, strut) = match (first, last) {
             (Some(first), Some(last)) => {
                 let mate = piercing_body
                     .mate(last.he)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?;
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
                 let he2 = piercing_body
                     .get_half_edge(mate)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                     .next;
-                (MevSite::Fan { he1: first.he, he2 }, false)
+                // A run holding every real edge of the orbit leaves the
+                // In side strictly inside one physical sector, the one
+                // before `first`: `he2` comes back round to `first.he`,
+                // and the empty fan is a strut spliced before it.
+                (MevSite::Fan { he1: first.he, he2 }, he2 == first.he)
             }
             _ => {
                 let after = entries[(run.0 + run.1) % n];
@@ -516,22 +600,61 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
         };
         // Sense theorem (join module docs): the half facing the run's
-        // START germ (forward code Out) must be the UP half — for the
-        // dangling splice that half is he_minus (starts at the copy),
-        // so the SIDE swaps with the facing (mint side flipped to keep
-        // the body scaffold attribute and the record one datum).
-        let side = if dangling {
+        // START germ (forward code Out) is the UP half, starting at
+        // `below_end`. A fan puts he_plus (old → copy) at the start
+        // germ's cut, so the copy is the above end. A strut's spike
+        // faces its start germ with he_minus (copy → old), so the copy
+        // is the below end — the mint side follows, keeping the body's
+        // scaffold attribute and the record one datum.
+        //
+        // Where a germ runs along an edge of the piercing solid, the
+        // half beside that edge faces it (`insert::strut_facing`, the
+        // one rule both strut minters read): a strut whose halves face
+        // that way round, he_plus toward its START germ, takes the fan's
+        // side. The side follows the facing, exactly as for a fan. With
+        // both germs inside faces the strut keeps the default above.
+        // At a closed edge's lone vertex with a germ along that edge,
+        // the edge cannot say which half faces it and this minter has
+        // no geometric reading of its own: refused typed. No row
+        // reaches it — a pierce whose section runs along a closed
+        // piercing edge puts that whole edge on the pierced face.
+        let MevSite::Fan { he2: corner, .. } = site else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a pierce run's site is not a fan",
+            });
+        };
+        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
+        let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
+        let departure = corner_half.edge;
+        let arrival = piercing_body
+            .get_half_edge(corner_half.prev)
+            .ok_or_else(corrupt)?
+            .edge;
+        let facing = if strut {
+            super::insert::strut_facing(
+                arrival,
+                departure,
+                super::insert::own_locus_edge(piercing, start_germ.0),
+                super::insert::own_locus_edge(piercing, end_germ.0),
+            )?
+        } else {
+            super::insert::StrutFacing::Unnamed
+        };
+        if facing == super::insert::StrutFacing::ClosedEdge {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind(pierced_body, contact.face),
+            });
+        }
+        let start_on_arrival = facing == super::insert::StrutFacing::PlusFirst;
+        let side = if strut && !start_on_arrival {
             NewVertexSide::Below
         } else {
             NewVertexSide::Above
         };
         let created = piercing_body.mev_null(site, side)?;
-        let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "run germ bookkeeping desynchronized",
-            });
-        };
-        let (start_he, end_he) = if dangling {
+        let (start_he, end_he) = if strut && !start_on_arrival {
             (created.he_minus, created.he_plus)
         } else {
             (created.he_plus, created.he_minus)
@@ -551,21 +674,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             at_vertex: vertex,
             edge: created.edge,
             attr,
-            dangling,
-            germs: [
-                super::HalfGerm {
-                    he: start_he,
-                    a_face: gs.0,
-                    b_face: gs.1,
-                    dir: ds,
-                },
-                super::HalfGerm {
-                    he: end_he,
-                    a_face: ge.0,
-                    b_face: ge.1,
-                    dir: de,
-                },
-            ],
+            dangling: strut,
+            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         run_edges.push(rec);
         out.edges.push(rec);
@@ -600,16 +710,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         .get_point(
             pierced_body
                 .get_vertex(u)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: pierced,
-                    vertex: u,
-                })?
+                .ok_or(BooleanError::corrupt_at(pierced, u))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: pierced,
-            vertex: u,
-        })?;
+        .ok_or(BooleanError::corrupt_at(pierced, u))?;
     // (1) chord strut u → pierce point (certified line, transient).
     let chord = pierced_body.mev(
         MevSite::Fan {
@@ -635,7 +739,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // facing the run's start germ (piercing UP) is the pierced DOWN
     // half — he_minus, starting at the created copy = `above_end`.
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for (run_edge, ((gs, ds), (ge, de))) in run_edges.iter().zip(&run_germs) {
+    for (run_edge, &(start_germ, end_germ)) in run_edges.iter().zip(&run_germs) {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
@@ -652,18 +756,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             },
             dangling: true,
             germs: [
-                super::HalfGerm {
-                    he: created.he_minus,
-                    a_face: gs.0,
-                    b_face: gs.1,
-                    dir: *ds,
-                },
-                super::HalfGerm {
-                    he: created.he_plus,
-                    a_face: ge.0,
-                    b_face: ge.1,
-                    dir: *de,
-                },
+                half_germ(created.he_minus, start_germ),
+                half_germ(created.he_plus, end_germ),
             ],
         };
         out.edges.push(rec);
@@ -730,10 +824,7 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
             return Err(super::sectors::bisector_zero_refusal(band));
         }
-        entries[k].class = match (prev, next) {
-            (SideCode::Out, SideCode::Out) => SideCode::Out,
-            _ => SideCode::In,
-        };
+        entries[k].class = super::sectors::fold_on_bound(prev, next);
     }
     Ok(())
 }
@@ -812,10 +903,34 @@ pub(super) fn pierce_germ_dir<T: Decide>(
 /// The surface kind a refusal about `face` cites. A face whose surface
 /// cannot be read at all is reported as the kind with no arm anywhere,
 /// which is what the sibling refusal sites in this module do.
-fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom_brep::SurfaceKind {
+fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom::SurfaceKind {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of)
+        .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind)
+}
+
+/// A pierce germ as a run reads it: `(A face, B face)` and
+/// `(A locus, B locus)`, then its direction.
+type Germ<T> = (
+    (
+        (crate::entity::FaceKey, crate::entity::FaceKey),
+        (super::Locus, super::Locus),
+    ),
+    geom_core::Vec3<T>,
+);
+
+fn half_germ<T: geom_core::Real>(
+    he: HalfEdgeKey,
+    ((faces, loci), dir): Germ<T>,
+) -> super::HalfGerm<T> {
+    super::HalfGerm {
+        he,
+        a_face: faces.0,
+        b_face: faces.1,
+        a_locus: loci.0,
+        b_locus: loci.1,
+        dir,
+    }
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on

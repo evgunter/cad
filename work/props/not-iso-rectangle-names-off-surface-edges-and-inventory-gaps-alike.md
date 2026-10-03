@@ -62,6 +62,18 @@ inventory premise, which it can. Mint a distinct variant for the first
 reads defect from the variant, and both tier 3 and the backstop follow
 it with no list to keep. Decide `mixed_levels` under the same rule.
 
+## 2026-10-02 — the cylinder flux no longer raises `props_rim_level` (TANG, PR 3851)
+
+A cylinder face's flux is now its chart Green form over every loop
+(`geom_brep::props::curved_face_loops`), so the notched-wall inventory
+gap this row cites no longer arrives as `NotIsoRectangle` from a
+cylinder's flux lane; that row is closed. What this row is about does
+not move: the cylinder's per-edge `require_zero` incidence checks
+(`props_meridian_axial`, `props_meridian_on_surface`, `props_rim_fit`)
+still raise the shared variant, and `props_rim_level` (with
+`mixed_levels`' reading) still comes from the shape door, the
+material-side gate and the cone, sphere and torus flux arms.
+
 ## Resolved (props/recourse-grammar) — decided as a typing question
 
 **Two arms, not better prose.** `PropsError::OffSurface { what }` is

@@ -1,4 +1,5 @@
-//! M4 PR 5 acceptance (spec D4–D6): Declare threading end-to-end.
+//! M4 PR 5 acceptance (spec D4–D6): declared contact pairs threaded
+//! end-to-end.
 //!
 //! - **D6.1, the M3 closure gap CLOSED by recipe intent**: a 3′ body
 //!   (corner-kiss union) reused as an operand certifies at the 3′
@@ -6,12 +7,12 @@
 //!   by name — and stays a loud `UndeclaredContact` refusal without
 //!   it (the envelope entry's fix direction, landed).
 //! - **D6.3, the #91 flush-plane narrative**: a coincident-plane pair
-//!   glues when authored WITH a Declare (N3 `Merged` row minted);
+//!   glues when the union declares it (N3 `Merged` row minted);
 //!   undeclared it refuses typed; the decoupled variant is untouched.
 //! - **D6.4 / PR 3 R13**: the #90 crossing-slots double subtract
 //!   promoted to a recipe document — the first boolean-of-boolean
 //!   naming/resolution corpus entry.
-//! - **N5 doors**: Declare resolution failures are the typed
+//! - **N5 doors**: declared-pair resolution failures are the typed
 //!   ResolveError verbatim; out-of-vocabulary pairs refuse typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -86,7 +87,7 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, a, b, u)
@@ -121,7 +122,7 @@ fn kiss_vertex_names(
 /// a loud refusal otherwise.
 #[test]
 fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
-    // WITHOUT a Declare: the new result re-discovers the surviving
+    // UNDECLARED: the new result re-discovers the surviving
     // operand-internal kiss as UNDECLARED (the documented M3 gap).
     let (doc, a, b, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
     let (doc_undeclared, mover) = block(doc.clone(), (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
@@ -131,7 +132,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
             op: BooleanOp::Union,
             a: base,
             b: mover,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -146,22 +147,19 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         "undeclared reuse must 3'-refuse UndeclaredContact only: {errors:?}"
     );
 
-    // WITH the Declare naming the surviving v-v intent BY NAME (the
+    // DECLARING the surviving v-v intent BY NAME (the
     // reused body's declaration re-enters by name, never arena key):
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (va, vb) = kiss_vertex_names(&doc_declared, a, b, base);
-    let (doc_declared, decl) = insert(
-        doc_declared,
-        Node::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]),
-    );
+    let decl = editor_core::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]);
     let (doc_declared, u2) = insert(
         doc_declared,
         Node::Boolean {
             op: BooleanOp::Union,
             a: base,
             b: mover,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc_declared);
@@ -179,8 +177,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
 }
 
 /// D6.3, the #91 flush-plane narrative: the coincident-plane pair
-/// GLUES when authored WITH a Declare (N3 `Merged` row), refuses
-/// typed without one, and the decoupled variant is untouched.
+/// GLUES when the union declares it (N3 `Merged` row), refuses
+/// typed undeclared, and the decoupled variant is untouched.
 #[test]
 fn flush_plane_pair_glues_with_declare_refuses_without() {
     // Coincident-plane pair, UNDECLARED: typed refusal at the
@@ -194,7 +192,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -202,22 +200,22 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
         // surfaces as the typed refusal-menu variant, finding attached.
         Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::UndeclaredContact { .. }),
+            matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. }),
             "expected the UndeclaredContact menu, got {:?}",
             e.kind
         ),
         other => panic!("undeclared flush union must fail, got {other:?}"),
     }
 
-    // WITH the Declare: glues — Merged rows minted, tiers green.
-    let (doc_declared, decl) = declare_x_offset_flush(doc, a, b);
+    // DECLARED: glues — Merged rows minted, tiers green.
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc_declared, u) = insert(
-        doc_declared,
+        doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc_declared);
@@ -241,8 +239,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         .count();
     assert_eq!(merged_rows, 4, "caps + flush y-walls glue");
 
-    // Decoupled variant (no coincident planes): untouched — no
-    // Declare needed, transversal union works as before.
+    // Decoupled variant (no coincident planes): untouched — nothing
+    // to declare, transversal union works as before.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
@@ -252,7 +250,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -283,7 +281,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             op: BooleanOp::Subtract,
             a: slab,
             b: b1,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Slot floor of s1 = FromB(b1's Cap(Start)); the second tool's
@@ -293,20 +291,17 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         RoleSeg::FromB(fname(b1, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(s1, floor1.clone()),
-            SitedRef::new(b2, fname(b2, RoleSeg::Cap(CapEnd::Start))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(s1, floor1.clone()),
+        SitedRef::new(b2, fname(b2, RoleSeg::Cap(CapEnd::Start))),
+    )]);
     let (doc, s2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: s1,
             b: b2,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -354,11 +349,11 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     }
 }
 
-/// N5 doors: a Declare naming a VANISHED or out-of-vocabulary
+/// N5 doors: a declared pair naming a VANISHED or out-of-vocabulary
 /// reference refuses with the typed error — no silent drop, no
 /// best-effort gluing. (The FOREIGN arm — a name whose node id was
 /// never minted — is defense-in-depth only: `apply` validates
-/// Declare-named node EXISTENCE at edit time, so no apply-built
+/// declared-pair node EXISTENCE at edit time, so no apply-built
 /// document can carry one; NodeGone-by-DELETE is the reachable case,
 /// covered below.)
 #[test]
@@ -373,7 +368,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
                 op: BooleanOp::Union,
                 a,
                 b,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };
@@ -386,14 +381,11 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ghost = fname(a, wall(&base, a, 1)); // exists…
     let mut ghost = ghost;
     ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
-    let (doc, decl) = insert(
-        base.clone(),
-        Node::declare_rest(vec![(
-            SitedRef::new(a, ghost.clone()),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
-    let (doc, u) = boolean_with(doc, decl);
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(a, ghost.clone()),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+    )]);
+    let (doc, u) = boolean_with(base.clone(), decl);
     let ev = run(&doc);
     match ev.nodes.get(&u) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -436,11 +428,8 @@ fn declare_resolution_failures_are_typed_n5_errors() {
         b,
         RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, b, 0, 0)),
     );
-    let (doc, decl) = insert(
-        base.clone(),
-        Node::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
-    );
-    let (doc, u) = boolean_with(doc, decl);
+    let decl = editor_core::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]);
+    let (doc, u) = boolean_with(base.clone(), decl);
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert_eq!(
@@ -461,26 +450,23 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![
-            (
-                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-            ),
-            (
-                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Start))),
-                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
-            ),
-        ]),
-    );
+    let decl = editor_core::declare_continuation(vec![
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        ),
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
+        ),
+    ]);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -531,7 +517,7 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     );
 }
 
-/// Review F4: the remaining Declare eval doors, each typed.
+/// Review F4: the remaining declared-pair eval doors, each typed.
 ///
 /// `DeclareBothOperands` used to be the third: a name carried by BOTH
 /// operands — two placements of one prototype, whose tables are
@@ -551,30 +537,27 @@ fn declare_doors_node_gone_and_ambiguous() {
     };
 
     // --- NodeGone by DELETE (the reachable N5 dangling case): the
-    // Declare names a third body's face; deleting that node AFTER the
-    // Declare strands the name; resolution refuses NodeGone with the
+    // union declares a third body's face; deleting that node AFTER the
+    // union strands the name; resolution refuses NodeGone with the
     // derived NodeDeleted edit.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        // Sited at the operands, as every declaration is; the NAME
-        // is the third body's, and rung 1 outranks the site's own
-        // table having no such row.
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
+    // Sited at the operands, as every declaration is; the NAME is
+    // the third body's, and rung 1 outranks the site's own table
+    // having no such row.
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+    )]);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let doc = doc
@@ -594,7 +577,7 @@ fn declare_doors_node_gone_and_ambiguous() {
         "{k}"
     );
 
-    // --- Ambiguous: the Declare names a TIED row (the symmetric U
+    // --- Ambiguous: the union declares a TIED row (the symmetric U
     // cutter's N2 tie) — refused with the tie carried honestly:
     // candidates name the tied row itself, width = the recorded tie.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
@@ -628,7 +611,7 @@ fn declare_doors_node_gone_and_ambiguous() {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc);
@@ -640,20 +623,17 @@ fn declare_doors_node_gone_and_ambiguous() {
         .find_map(|(n, e)| matches!(e, editor_core::Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(us, tied.clone()),
-            SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(us, tied.clone()),
+        SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
+    )]);
     let (doc, u2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: us,
             b: mate,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -701,7 +681,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
             op: BooleanOp::Subtract,
             a: slab,
             b: b2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let floor2 = fname(
@@ -709,20 +689,17 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         RoleSeg::FromB(fname(b2, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(s1, floor2),
-            SitedRef::new(b1, fname(b1, RoleSeg::Cap(CapEnd::Start))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(s1, floor2),
+        SitedRef::new(b1, fname(b1, RoleSeg::Cap(CapEnd::Start))),
+    )]);
     let (doc, s2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: s1,
             b: b1,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -808,14 +785,14 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let mut doc = doc;
     let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
-        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        let decl = editor_core::declare_rest(vec![pair]);
         insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a: us,
                 b: mate,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };
@@ -911,21 +888,21 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
     // A face name at a LIVE node that names no row there: rung 3.
-    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece_of(&doc)));
+    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece_of(&doc).into()));
     assert!(
         table.lookup(&absent).is_none(),
         "the vanished probe must name no row, or it pins nothing"
     );
 
     let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
-        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        let decl = editor_core::declare_rest(vec![pair]);
         insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a: us,
                 b: mate,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };

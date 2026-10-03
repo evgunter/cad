@@ -35,7 +35,9 @@ impl Rec {
         }
     }
     fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
-        let edit = DocEdit::InsertNode { node };
+        let edit = DocEdit::InsertNode {
+            node: Box::new(node),
+        };
         let applied = apply(
             &self.doc,
             &edit,
@@ -85,7 +87,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
         op: BooleanOp::Union,
         a: plate,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     (r.doc, r.edits, union)
 }

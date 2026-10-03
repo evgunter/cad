@@ -425,7 +425,7 @@ fn bracket_with(
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -500,7 +500,7 @@ fn r1_e2e_bracket_study() {
                 }
             }
             match stackup(&doc, measure, &analyzed, &v, None, true, tol) {
-                Ok(report) => println!("{}", report.render(&analyzed)),
+                Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }
             let mut holds = (0, 0, 0);

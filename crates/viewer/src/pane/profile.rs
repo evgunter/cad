@@ -93,8 +93,9 @@ impl ViewerBehavior<'_> {
 /// its arcs, targets and split counts changed, exactly as a new one's
 /// are, and Apply commits the whole program as ONE
 /// [`SessionOp::EditProfile`] saying which committed step each held
-/// step is ([`ProfileEdit::ids`]). A name on a step the program drops
-/// is stranded; Apply says how many before it is clicked
+/// step is ([`ProfileEdit::ids`]). A name on a step the program drops,
+/// or on a kept step's piece it stops drawing, is stranded; Apply says
+/// how many before it is clicked
 /// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
 /// and the op's outcome reports each after.
 ///
@@ -1137,10 +1138,13 @@ mod tests {
         let wall = StableName {
             kind: EntityKind::Face,
             node: extrude,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: program.ids[0][named],
-                role: PieceRole::Leg,
-            })],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: program.ids[0][named],
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
         let (doc, carrier) = inserted(
             &doc,
@@ -1225,8 +1229,11 @@ mod tests {
             panic!("a profile")
         };
         assert_eq!(program.ids[0].len(), 6);
-        let RoleSeg::Lateral(piece) = wall.path[0].clone() else {
+        let RoleSeg::Lateral(run) = wall.path[0].clone() else {
             unreachable!("built as a lateral wall")
+        };
+        let Some(piece) = run.single() else {
+            unreachable!("built as a one-piece wall")
         };
         let ProfileEdgeRef::Piece { step, role } = piece else {
             unreachable!("built as a piece")
@@ -1292,16 +1299,18 @@ mod tests {
                 None,
             );
         });
+        let committed = session.committed_doc();
         assert!(
             hovered.contains(&format!(
-                "node {} carries a {wall}",
-                test_utils::refusal::tag(carrier.0)
+                "{} carries a {}",
+                committed.spoken(carrier),
+                committed.spoken_name(&wall)
             )),
-            "the hover names the carrier and the name: {hovered}"
+            "the hover speaks the carrier and the name's minting node: {hovered}"
         );
-        // Another step dropped instead strands nothing — what Apply
-        // says is asked again of every held state, not kept from the
-        // last one ...
+        // Dropping another step instead leaves the named leg drawn and
+        // strands nothing — what Apply says is asked again of every
+        // held state, not kept from the last one ...
         let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
         assert!(formed.is_none());
         let (painted, _) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 3);
@@ -1335,11 +1344,12 @@ mod tests {
         assert!(painted.contains(label), "{painted}");
         let (_, formed) = click_door(&session, &mut drafts, profile, label, 0);
         let op = formed.expect("Apply formed the op");
+        let before = session.committed_doc().clone();
         let out = session.perform(op.clone());
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         let expected = vec![Maintenance::Strand {
-            node: carrier,
-            name: wall,
+            node: before.spoken(carrier),
+            name: before.spoken_name(&wall),
         }];
         assert_eq!(out.maintenance, expected, "the door reports the strand");
         let line: Vec<String> = crate::frame::outcome_notices(&out)

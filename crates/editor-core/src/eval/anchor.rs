@@ -11,12 +11,17 @@
 //! segment and per canonical vertex, which the sweep emitters read in
 //! place of the position they iterate.
 //!
-//! So a value edit moves no name. Which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, and each can move a canonical position; none of them
-//! moves a step's id or a piece's role. A piece the current values do
-//! not draw has no canonical segment and its name resolves `Vanished`
-//! until they draw it again.
+//! So a value edit moves no PIECE's locator. Which loop is outer,
+//! which way a loop runs and how many segments a step draws are
+//! decisions about geometry, and each can move a canonical position;
+//! none of them moves a step's id or a piece's role. A piece the
+//! current values do not draw has no canonical segment and its name
+//! resolves `Vanished` until they draw it again. What a value edit CAN
+//! change is which pieces one swept wall holds: runs are decided on the
+//! values (N1, "Swept walls over a run"), so an edit that makes two
+//! pieces collinear joins their walls into one run wall, and one that
+//! bends them apart splits it — the old wall's name vanishes and N3
+//! offers the wall that covers it, or the walls that cover its pieces.
 //!
 //! # Mechanism
 //!
@@ -37,7 +42,7 @@
 use profile::{ConstructedLoop, ConstructedProfile, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
-    NamingError, PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
+    NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
 };
 use crate::node::StepId;
 
@@ -129,6 +134,9 @@ pub struct ProfilePieces {
     pub edges: Vec<Vec<ProfileEdgeRef>>,
     /// Per canonical loop, per canonical vertex.
     pub vertices: Vec<Vec<ProfileVertexRef>>,
+    /// Per canonical loop: whether its canonical traversal runs
+    /// opposite to authored order ([`LoopAnchor::reversed`]).
+    pub reversed: Vec<bool>,
 }
 
 /// **Why a profile's pieces could not be published**: the naming
@@ -223,6 +231,7 @@ impl ProfilePieces {
     ) -> Result<Self, PiecesFault> {
         let mut edges = Vec::with_capacity(naming.loops.len());
         let mut vertices = Vec::with_capacity(naming.loops.len());
+        let reversed = naming.loops.iter().map(|a| a.reversed).collect();
         for anchor in &naming.loops {
             let loop_ = anchor.program_loop;
             let pl = loop_ as usize;
@@ -265,7 +274,11 @@ impl ProfilePieces {
                     .collect::<Result<Vec<_>, _>>()?,
             );
         }
-        Ok(Self { edges, vertices })
+        Ok(Self {
+            edges,
+            vertices,
+            reversed,
+        })
     }
 
     /// **A kernel-built section's pieces** — a tube's: loop 0 the outer
@@ -306,7 +319,11 @@ impl ProfilePieces {
                     .collect(),
             );
         }
-        Ok(Self { edges, vertices })
+        Ok(Self {
+            reversed: vec![false; edges.len()],
+            edges,
+            vertices,
+        })
     }
 
     /// **Distinct stand-in pieces for a profile no document holds** —
@@ -341,6 +358,7 @@ impl ProfilePieces {
                         .collect()
                 })
                 .collect(),
+            reversed: vec![false; counts.len()],
         }
     }
 
@@ -348,6 +366,25 @@ impl ProfilePieces {
     #[must_use]
     pub fn edge(&self, l: usize, k: usize) -> Option<ProfileEdgeRef> {
         self.edges.get(l)?.get(k).copied()
+    }
+
+    /// **The run of canonical segments `run` of loop `l` as a wall's
+    /// pieces**, in authored order (`names/README.md`, N1 "Swept walls
+    /// over a run"): by program segment, so a run wrapping through the
+    /// loop's start begins at its first piece after the start vertex.
+    /// `None` when a segment has no piece or the run is empty.
+    #[must_use]
+    pub fn run(&self, l: usize, run: &[usize]) -> Option<PieceRun> {
+        let n = self.edges.get(l)?.len();
+        let reversed = *self.reversed.get(l)?;
+        let mut order: Vec<usize> = run.to_vec();
+        order.sort_by_key(|&k| if reversed { n - 1 - k } else { k });
+        PieceRun::new(
+            order
+                .iter()
+                .map(|&k| self.edge(l, k))
+                .collect::<Option<Vec<_>>>()?,
+        )
     }
 
     /// The locator of canonical vertex `v` of canonical loop `l`.

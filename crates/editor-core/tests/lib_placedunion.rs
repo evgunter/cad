@@ -20,8 +20,9 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
-    PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
+    BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
+    PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
+    apply,
 };
 use fixture::{ang, len, scl};
 
@@ -116,14 +117,14 @@ fn the_fin_group_equals_the_transform_union_chain() {
         let tr = apply(
             &chain,
             &DocEdit::InsertNode {
-                node: Node::transform(
+                node: Box::new(Node::transform(
                     fin,
                     editor_core::Step::Rigid {
                         translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
                         angle: ang(0.0),
                     },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -137,12 +138,12 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &chain,
                     &DocEdit::InsertNode {
-                        node: Node::Boolean {
+                        node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
-                        },
+                            declare: Vec::new(),
+                        }),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -159,15 +160,17 @@ fn the_fin_group_equals_the_transform_union_chain() {
     let grouped = apply(
         &base_doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union(
-                fin,
-                Expr::count(5),
-                PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(PITCH),
-                },
-            )
-            .expect("a stepped rule takes a count"),
+            node: Box::new(
+                Node::placed_union(
+                    fin,
+                    Expr::count(5),
+                    PatternKind::Linear {
+                        direction: [scl(1.0), scl(0.0), scl(0.0)],
+                        spacing: len(PITCH),
+                    },
+                )
+                .expect("a stepped rule takes a count"),
+            ),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -441,7 +444,9 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with_count },
+            &DocEdit::InsertNode {
+                node: Box::new(with_count)
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -456,7 +461,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: pattern_explicit
+                node: Box::new(pattern_explicit)
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -472,6 +477,112 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         )
         .is_none()
     );
+}
+
+/// **Each placement-rule refusal's recourse gets through.** A rule's
+/// shape is written only by the insert that authors its node, so the
+/// recourse is that insert's: each refused shape below is refused with
+/// its own recourse, and the node it names, changed exactly as that
+/// recourse says, applies.
+#[test]
+fn a_placement_rule_refusals_recourse_gets_through() {
+    let (doc, fin) = fin_only();
+    let insert = |node: Node<editor_core::ProfileProgram>| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let linear = || PatternKind::Linear {
+        direction: [scl(1.0), scl(0.0), scl(0.0)],
+        spacing: len(2.0),
+    };
+    let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
+    let rows = [
+        (
+            "a placed union's list, with a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(1)),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedWithCount),
+            "insert it without a count, since the list is the count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: listed(),
+            }],
+        ),
+        (
+            "a placed union's stepped rule, without a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: linear(),
+            },
+            Some(CountMismatch::SteppedWithoutCount),
+            "insert it with a count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(2)),
+                kind: linear(),
+            }],
+        ),
+        (
+            "a pattern given a list",
+            Node::Pattern {
+                input: fin,
+                count: Expr::count(1),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedOnPattern),
+            "keep a pattern of separate copies by giving it a stepped rule, or insert a placed union to list the placements, fusing the copies into one body",
+            // Both routes: the pattern kept, and the union that fuses.
+            vec![
+                Node::Pattern {
+                    input: fin,
+                    count: Expr::count(1),
+                    kind: linear(),
+                },
+                Node::PlacedUnion {
+                    input: fin,
+                    count: None,
+                    kind: listed(),
+                },
+            ],
+        ),
+        (
+            "a placed union's empty list",
+            Node::placed_union_at(fin, Vec::new()),
+            None,
+            "list at least one placement",
+            vec![Node::placed_union_at(fin, vec![Frame::IDENTITY])],
+        ),
+    ];
+    // Each row's shape: the count mismatch it is, or `None` for an
+    // empty list.
+    for (label, refused, shape, recourse, routes) in rows {
+        let error = insert(refused).expect_err(label);
+        let refused_as = match &error {
+            EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
+            EditError::EmptyPlacementList { .. } => None,
+            other => panic!("{label} refuses as a placement rule: {other:?}"),
+        };
+        assert_eq!(refused_as, shape, "{label} refuses as its shape");
+        let line = error.to_string();
+        assert!(
+            line.ends_with(&format!("Recourse: {recourse}")),
+            "{label} states its own recourse, {recourse:?}: {line}"
+        );
+        for followed in routes {
+            assert!(insert(followed).is_ok(), "{label}, followed, applies");
+        }
+    }
 }
 
 /// **An explicit rule has no expression slots**, and a stepped one has
@@ -525,7 +636,9 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: empty },
+            &DocEdit::InsertNode {
+                node: Box::new(empty)
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -536,15 +649,17 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     let zero = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union(
-                fin,
-                Expr::count(0),
-                PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(2.0),
-                },
-            )
-            .expect("a stepped rule takes a count"),
+            node: Box::new(
+                Node::placed_union(
+                    fin,
+                    Expr::count(0),
+                    PatternKind::Linear {
+                        direction: [scl(1.0), scl(0.0), scl(0.0)],
+                        spacing: len(2.0),
+                    },
+                )
+                .expect("a stepped rule takes a count"),
+            ),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -569,7 +684,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
     let one = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+            node: Box::new(Node::placed_union_at(fin, vec![Frame::IDENTITY])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -608,7 +723,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
 }
 
 /// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test `SetPlacement` applies to a group frame,
+/// finite-and-proper test `SetOffset` applies to an instance offset,
 /// and the same typed refusals (review MINOR-2). A non-finite frame no
 /// longer reads as a separation failure; it says what it is.
 #[test]
@@ -625,7 +740,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with(nan) },
+            &DocEdit::InsertNode {
+                node: Box::new(with(nan))
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -640,7 +757,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness(), &editor_core::RefusingReach),
+        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)) }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -658,7 +775,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: two },
+        &DocEdit::InsertNode {
+            node: Box::new(two),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -666,7 +785,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
             assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
             let text = error.to_string();
             assert!(
-                text.contains("placement 1 of node") && text.contains("Recourse:"),
+                text.contains("placement 1 of PlacedUnion ") && text.contains("Recourse:"),
                 "names the listed placement and its recourse: {text}"
             );
         }
@@ -686,7 +805,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     assert!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with(turned) },
+            &DocEdit::InsertNode {
+                node: Box::new(with(turned))
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         )
@@ -734,7 +855,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     let grouped = apply(
         &gdoc,
         &DocEdit::InsertNode {
-            node: Node::placed_union_at(
+            node: Box::new(Node::placed_union_at(
                 gsolid,
                 places
                     .iter()
@@ -743,7 +864,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             .expect("a literal axis has a definite direction")
                     })
                     .collect(),
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -757,14 +878,14 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let tr = apply(
             &cdoc,
             &DocEdit::InsertNode {
-                node: Node::transform(
+                node: Box::new(Node::transform(
                     csolid,
                     editor_core::Step::Rigid {
                         translation: [len(t[0]), len(t[1]), len(t[2])],
                         axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
                         angle: ang(an),
                     },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -778,12 +899,12 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &cdoc,
                     &DocEdit::InsertNode {
-                        node: Node::Boolean {
+                        node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
-                        },
+                            declare: Vec::new(),
+                        }),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -815,4 +936,73 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     );
     assert_eq!(g.solids().count(), c.solids().count(), "same solid count");
     assert_eq!(g.shells().count(), c.shells().count(), "same shell count");
+}
+
+/// **The typed insert answers to the same backstops as `apply`**: in
+/// the middle of an action, [`editor_core::Recording::insert`] refuses an
+/// empty placement list, a non-finite frame, a mirror and a stretched
+/// frame with exactly the error `apply` gives the same insert against
+/// the same document, records nothing for it, and the action goes on.
+/// The placement rule is checked by the whole-document backstop every
+/// edit passes through after it is written, not by the insert's own
+/// arm, so an insert that skipped that backstop would land here.
+#[test]
+fn the_typed_insert_answers_to_the_placement_backstops() {
+    let (doc, fin) = fin_only();
+    let with =
+        |frames: Vec<Frame>| Node::<editor_core::ProfileProgram>::placed_union_at(fin, frames);
+    let mut mirror = Frame::IDENTITY;
+    mirror.columns[0] = [-1.0, 0.0, 0.0];
+    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+
+    let mut action =
+        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+    let first = action
+        .insert(with(vec![Frame::IDENTITY]))
+        .expect("one placement is legal");
+    for (what, node) in [
+        ("an empty placement list", with(Vec::new())),
+        (
+            "a non-finite frame",
+            with(vec![Frame::translation([f64::NAN, 0.0, 0.0])]),
+        ),
+        ("a mirror", with(vec![mirror])),
+        ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
+    ] {
+        let before = action.doc().clone();
+        let want = apply(
+            &before,
+            &DocEdit::InsertNode {
+                node: Box::new(node.clone()),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err(what);
+        assert!(
+            matches!(
+                want,
+                EditError::EmptyPlacementList { .. }
+                    | EditError::NonFinitePlacement { .. }
+                    | EditError::ImproperPlacement { .. }
+                    | EditError::NonRigidPlacement { .. }
+            ),
+            "the premise: `apply` refuses {what} at the placement backstop: {want:?}"
+        );
+        assert_eq!(
+            action.insert(node),
+            Err(want),
+            "the typed insert refuses {what} as `apply` does"
+        );
+        assert!(
+            action.doc().bit_eq(&before),
+            "a refused insert of {what} leaves the action where it stood"
+        );
+        assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
+    }
+    let last = action
+        .insert(with(vec![Frame::translation([4.0, 0.0, 0.0])]))
+        .expect("the action goes on after the refusals");
+    assert_eq!(action.finish().minted, vec![Some(first), Some(last)]);
 }

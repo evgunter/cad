@@ -109,7 +109,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -130,7 +130,7 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
@@ -393,7 +393,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -582,7 +582,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );
@@ -595,7 +595,11 @@ fn rebind_appearance_collision_is_refused_typed() {
             kind: AttrKind::Color,
         },
     );
-    let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
+    let doc = set(
+        doc,
+        cap.clone(),
+        Attr::Label(editor_core::Label::new("lid").unwrap()),
+    );
     let applied = doc
         .apply(
             &DocEdit::Rebind {
@@ -608,7 +612,10 @@ fn rebind_appearance_collision_is_refused_typed() {
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
-    assert_eq!(merged.attrs[&AttrKind::Label], Attr::Label("lid".into()));
+    assert_eq!(
+        merged.attrs[&AttrKind::Label],
+        Attr::Label(editor_core::Label::new("lid").unwrap())
+    );
 }
 
 #[test]

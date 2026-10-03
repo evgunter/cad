@@ -28,7 +28,7 @@ escalated typed refusal, never a raw comparison.
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
-| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`; marks in `crates/topo/src/validate.rs` (`ContactMark`) |
+| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
@@ -48,14 +48,15 @@ escalated typed refusal, never a raw comparison.
 of an `Intersection` edge (the 3-D curve cached against the intensional
 description `{s1, s2, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
-`Curve3::Ellipse` (tilted plane×cylinder, equal-radius cylinder×cylinder)
+`Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
+equal-radius cylinder×cylinder)
 and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
 section, one oval in the torus's own minor angle — minted by the
 offset-axial door for a hollowed partial revolve's rim, not by the C5
 table), whose residuals are zero by construction; rung 3, a fitted cubic
 `Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
-outside the inventory by decision: a generic-tilt plane×cone routes to
-rung 3 permanently. Conics round-trip to rational-quadratic NURBS only as
+outside the inventory by decision: a plane×cone section of either kind
+refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
 an export/tessellation form, never as the kernel carrier (the axes and
 centre are what dispatch consumes). There is no polyline rung.
 
@@ -83,10 +84,13 @@ chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 The tube says nothing about a disjoint component at other `e`-levels;
-that is C3's exhaustiveness obligation, a separate theorem. A straddling
-enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
-retry. Hull bounds are an entry requirement: no schedule-max-only
+that is C3's exhaustiveness obligation, a separate theorem. Refusal
+is typed, never a retry loop: an enclosure that does not clear the
+band at any rung escalates (`ssi_tube_transversality`,
+`SsiError::TubeStraddles`). Two branches passing within the band of
+each other is a genuine sliver of the operand pair, and escalation is
+correct for it, F6's ladder speaking. The enclosure's own remaining
+slack can straddle too, and escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
 The witness is `carrier(mid)`, minted from the cache the schedule sees.
@@ -124,9 +128,26 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. A trace too short for the
-cubic fit refuses by its length and the extent that set its step
-(`BranchUndersampled`).
+(`StepCollapsed`) refuses naming the speed. The longest step is
+`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
+one place a whole branch is known, marches once more any trace that
+has length but too few samples for the cubic fit: its steps are then
+capped at the trace's own polyline length over the fewest odd count
+that gives the fit its samples (five). The count is odd so that a seed
+near the branch's middle does not walk a state onto each end; that
+lowers the odds of a state landing in band of the boundary and
+guarantees nothing
+(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+A trace with no length to cut, or one the re-march leaves still too
+short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
+surfaces touch at a point, the branch is shorter than the boundary
+search resolves at the step, it runs within the band of the domain's
+boundary (a plane flush with a face's edge, whose states are never
+decided inside), or no crossing settles at either end
+(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+The fit therefore only sees a trace with the samples it needs or a
+non-finite sample, which it refuses by name. The extent keeps its other
+roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
@@ -165,24 +186,60 @@ half-edges on one surface with two chart images (`u = α` and
 `u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
-statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement at the shared
-schedule, plus a between-samples envelope whose own statement the
-certificate names (`EnvelopeStatement`, whose variants carry their own
-derivations): closed-form over the whole span
-for `Pcurve::Harmonic` (both sides in `span{1, cos t, sin t, t}`, so a
-corruption hiding between samples is unrepresentable), hull-bounded for
-fitted images on NURBS charts, and only the carrier's incidence with the
-chart surface (`OnLocusHull`) for a fitted image on a periodic analytic
-chart, where `S ∘ P` is transcendental. No UV-space tolerance appears in
+statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
+edge, bounded by an envelope whose own statement the certificate names
+(`EnvelopeStatement`, whose variants carry their own derivations).
+Where `S ∘ P` has a closed form, the envelope alone is the certified
+statement: it bounds the displacement over the whole span, spelled in
+the carrier's own coefficients so that a minted row's identity is a
+theorem rather than a trig round trip, and a sampled check adds
+nothing it does not already prove. For `Pcurve::Harmonic` (both sides
+in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
+is unrepresentable) that spelling is the carrier's incidence with the
+chart (centre on the axis, radius, orientation, axial line, per chart
+arm, and the chart frame's own unit and orthogonality defects) plus the
+stored image's fidelity to the image `certify` re-derives from the
+carrier, metered through the chart's stretch; the shared schedule is
+then the closed-form tables' cross-check, run on the point lane (the
+f64 witness replay, the `Witness::Inexact` scalars) and as a property
+test of `chart_image_harmonic ∘
+chart_pcurve = carrier_harmonic` over the covered classes, not in a
+certificate over a parameter box. Where no closed form exists, the
+certificate falls back to the displacement at the shared schedule plus
+a between-samples envelope: hull-bounded for fitted images on NURBS
+charts, and only the carrier's incidence with the chart surface
+(`OnLocusHull`) for a fitted image over a rung-3 carrier on a periodic
+analytic chart, where `S ∘ P` is transcendental. A sphere's general
+circle (neither polar nor meridian) has no closed form either, but its
+envelope still bounds the whole span: its image is a piecewise quintic
+Hermite interpolant of the circle's chart image, and the envelope
+(`MapResidualHermite`) bounds `|S(P(t)) − C(t)|` as the circle's
+distance from the sphere, plus per span the image's control distance
+from the Hermite data and the Hermite remainder, through the chart
+map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
+in the certified statement. No UV-space tolerance appears in
 any certified statement; the chart's stretch is the lever arm. Domain
 validity is part of the certificate: one branch pinned at the start (a
 τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
 (`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+demand. On every other chart the row is mandatory at rest: every
+half-edge of the face stores its certified row, and tier 3 reports a
+missing row as a finding, saying why it is missing by re-deriving the
+face (never minted, or the derivation refuses), and re-certifies every
+stored row, a half-minted face's included. A topology door may drop
+rows mid-surgery; every public producer ends with a full mint, so
+validity is judged on what the producer returns. Every class of carrier
+a chart can hold has a route into a certified row, and a face no route
+covers refuses at the producer rather than reaching rest uncached. The
+lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
-closed from the carrier's own parameter), `Fitted`, `General`
+closed from the carrier's own parameter), `ConeSection` (a tilted
+plane×cone ellipse on its cone: the slant harmonic, the azimuth the
+Kepler true anomaly of the ellipse's projection, whose focus is the
+axis; its envelope is the harmonic closed form plus one remainder
+term), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
@@ -211,8 +268,8 @@ own kind, not `Nurbs`: a locus claim against an approximating surface is
 a claim about the fit, and `Approx × anything` refuses because composing
 the fit's precision claim with the SSI limbs is not a ratified rule.
 Implemented: plane×plane, plane×sphere, sphere×sphere, axis-aligned
-plane×torus (rung 1); plane×cylinder, exact-degenerate plane×cone,
-declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
+plane×torus (rung 1); plane×cylinder, plane×cone (all but the parabola
+and hyperbola), declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
 plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
@@ -344,9 +401,14 @@ boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
 are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
 curved-cut faces are certified quadrature (C9, `props/quad.rs`):
-harmonic pcurve boundaries, polynomial and rational patch flux; rational
+harmonic pcurve boundaries, polynomial and rational patch flux; a cone
+face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
+the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and
+`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+boundary circles are tilted against its chart has no conic or spline
+trim and is on the closed-form lane, measured by Gauss–Bonnet over its
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.

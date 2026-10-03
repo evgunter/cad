@@ -441,7 +441,7 @@ impl FloorRefusal {
 
 /// The ℝ³ lane's floor is finer than the slab's coordinates resolve:
 /// the geometry sits too far from the origin for ε.
-const R3_SCALE: SizedDecision = SizedDecision {
+pub(super) const R3_SCALE: SizedDecision = SizedDecision {
     lever: "move the geometry nearer the origin, within the model's size range, where its \
             coordinates resolve the tolerance",
     size: "scale",
@@ -453,10 +453,9 @@ const R3_SCALE: SizedDecision = SizedDecision {
 /// The chart lane's floor is finer than the wall's parameters resolve:
 /// the wall moves more than the floor across the smallest step of its
 /// parameters.
-const CHART_SCALE: SizedDecision = SizedDecision {
-    lever: "bring the spline face within the model's size range, or move its parameter domain \
-            nearer zero, so the face moves less than the tolerance across the finest step of \
-            its parameters",
+pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
+    lever: "bring the spline face within the model's size range, or its parameter domain nearer \
+            zero, so its finest parameter step moves it less than the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -478,9 +477,10 @@ impl core::fmt::Display for FloorRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (meters, width) = (self.meters, self.width);
         write!(f, "the {} ", self.floor.name())?;
-        match self.lane {
-            ExhaustLane::R3 => write!(f, "{meters:e} m")?,
-            ExhaustLane::Chart { speed } => {
+        match (self.lane, self.fault) {
+            // A metre floor that is no length has no chart width to state.
+            (ExhaustLane::R3, _) | (_, FloorFault::NotALength) => write!(f, "{meters:e} m")?,
+            (ExhaustLane::Chart { speed }, _) => {
                 write_chart_length(f, width, speed, RateClause::From { meters })?;
             }
         }
@@ -507,8 +507,7 @@ impl core::fmt::Display for FloorRefusal {
             FloorFault::BelowResolution { resolution, reach } => write!(
                 f,
                 ", which the domain cannot resolve: where it reaches {reach:e} {unit} from \
-                 zero the finest cell bisection can cut is {resolution:e} {unit} wide, so the \
-                 subdivision could never refine to the floor"
+                 zero its finest cell is {resolution:e} {unit} wide"
             ),
         }
     }
@@ -606,6 +605,18 @@ impl<C: SweepCell> SweepFloor<C> {
     fn width(self) -> f64 {
         self.width
     }
+}
+
+/// The spacing of adjacent floats where `root` reaches furthest from
+/// zero, in the lane's units, with that reach: the width of the finest
+/// cell bisection can cut there, which the floors are held to. The gap
+/// is `NaN` where the reach is not finite.
+pub(super) fn coordinate_gap<C: SweepCell>(root: C) -> (f64, f64) {
+    let reach = root.reach();
+    if !reach.is_finite() {
+        return (reach, f64::NAN);
+    }
+    (reach, C::finest_at(reach).width())
 }
 
 /// **Which of the subdivision's two duties the caller is asking for.**
@@ -1026,9 +1037,10 @@ fn sweep_chart_plane(
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
         if !phi.is_certified() {
             // The one measured route here is weight underflow: the
-            // chart-speed mint refuses every net whose homogeneous
-            // arithmetic leaves the finite range before this sweep
-            // runs, so that cause is named nowhere below.
+            // chart-speed mint refuses every net whose quotient-rule
+            // arithmetic (`NurbsBoxes::speed_sup`) leaves the finite
+            // range before this sweep runs, so that cause is named
+            // nowhere below.
             return Err(SsiError::UnsupportedCertificate {
                 what: "the NURBS control-net enclosure refused over a cell — \
                        a weight so small that the rational's own denominator \
@@ -1229,8 +1241,7 @@ mod tests {
             format!(
                 "the accounting floor 1e-9 m is {:e} chart units at a certified chart speed \
                  of 1e150 m per chart unit, which the domain cannot resolve: where it reaches \
-                 1e0 chart units from zero the finest cell bisection can cut is {:e} chart \
-                 units wide, so the subdivision could never refine to the floor",
+                 1e0 chart units from zero its finest cell is {:e} chart units wide",
                 1.0e-9 / 1.0e150,
                 1.0 - 1.0f64.next_down()
             )

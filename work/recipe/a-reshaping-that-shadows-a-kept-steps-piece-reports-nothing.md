@@ -1,0 +1,93 @@
+---
+id: a-reshaping-that-shadows-a-kept-steps-piece-reports-nothing
+kind: issue
+title: A SetProgram that keeps a step but leaves its named role undrawn reports nothing: the name vanishes with no Maintenance row
+status: closed
+opened: 2026-09-29
+priority: P2
+cost: M
+branch: recipe/set-program-undrawn-names
+pr: 3879
+closed: 2026-10-02
+---
+
+## The finding
+
+Found by AUTH-6 (`author/profile-reshape`), which made reshaping a
+committed profile a one-click act in the viewer's profile editor.
+
+`DocEdit::SetProgram` reports a name as stranded only when it spells a
+step the new program DROPS: `stranded_steps`
+(`crates/editor-core/src/edit.rs`) filters the document's name carriers
+by `piece_steps().is_disjoint(dropped)`, and `dropped` is the old ids
+`settle_step_ids` did not see kept. A name on a step the program KEEPS
+is never reported.
+
+But a kept step can stop drawing the role a name spells because of a
+step inserted beside it. N1 (`crates/editor-core/src/names/README.md`,
+"Undrawn pieces vanish rather than alias") states the mechanism: two
+pieces on one carrier are drawn as one segment, which answers to the
+earlier piece in authored order, and the later piece's locator
+resolves `Vanished`. Its own example: in `at, toward(+x), fillet(r),
+toward(+y), to (2, 2), line_to(0, 2), line_to(Start)` the far-end
+step's `Leg` denotes nothing, because the fillet's `RunOut` holds the
+segment. So a `SetProgram` that inserts a `fillet` before a kept
+`line_to` whose `Leg` a blend or a derived frame names leaves that name
+`Vanished`, with `Applied.maintenance` empty.
+
+N1 treats a role that the current VALUES do not draw as transient ("until
+the values draw it again"). This one is undrawn because of the program's
+STRUCTURE, which is DM7's subject ("the edit that removes a name's
+referent"); it does not come back until the structure changes again.
+
+## Why it matters now
+
+The viewer's edit door counts, on its Apply button and before the
+click, the names the door will strand
+(`crates/viewer/src/pane/profile.rs`, `apply_and_revert`, fed by
+`DocSession::edit_profile_report`). It reads the door's own rows, so
+this case reads "Apply" with no count while a named piece goes silent.
+The editor cannot fix this by deriving it again: it would be a second
+authority on which pieces a program draws.
+
+## Unmeasured
+
+No row pins this at the door yet. The first step is a row in
+`crates/editor-core/tests/edit_set_program.rs`: insert a `fillet`
+before a named, kept leg, and assert what `Applied.maintenance` holds.
+Whether the fix is a new report row, a strand, or a ruling that N1's
+vanish covers it is EDIT's call.
+
+A pure reorder is, by reading, another trigger: moving a kept step so
+that a neighbour's piece takes its segment needs no insert. AUTH-6's
+correctness review found no valid instance, because the lattice pins a
+`fillet` between `toward`/`to` neighbours, but did not rule one out.
+
+## Built (2026-10-02, PR 3879)
+
+The fix is a report row. `SetProgram` now strands a name on a kept
+step's piece when the new program does not draw that piece and the
+old one did, both read under the current parameters — or, where the
+old program does not replay under them (a parked parameter), whenever
+the new one does not draw it (`undrawn_kept_pieces`,
+`crates/editor-core/src/edit.rs`). It reads
+which pieces each program draws from `ProfilePayload::drawn_pieces`,
+which is `ProfileProgram::pieces`, the naming anchor's own door. The
+report goes through the same single walk as `stranded_steps`, so the
+order contract holds.
+
+- Pinned by
+  `edit_set_program::a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it`,
+  which measured `[]` before the fix.
+- The parked case pinned by
+  `edit_set_program::a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing`,
+  and the report measured against resolution over 23 reshapings by
+  `edit_set_program::a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes`.
+- Pinned at the viewer's Apply count by
+  `edit_maintenance::a_fillet_inserted_before_a_framed_leg_is_counted_and_reported`.
+- DM7 and N1 re-worded.
+- The pure reorder is covered by construction. No valid instance was
+  found to pin it, because a fillet's arrival takes an absolute anchor.
+- Residue filed:
+  `a-reshapings-values-strand-what-a-value-edit-would-not` (design) and
+  `maintenance-net-keeps-an-undrawn-piece-strand-a-later-edit-redrew`.

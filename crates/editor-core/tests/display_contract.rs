@@ -16,17 +16,16 @@
 use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
-    Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
-    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
-    Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
-    MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
-    StepIdFault, StepSegmentsError, UnnamedEntity,
+    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
+    DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind, EvalError,
+    HitTestError, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide,
+    MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind,
+    NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault, ProgramFault,
+    ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
-use editor_core::{Mispaired, NameLookupError, NodeStanding};
+use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
 
@@ -118,6 +117,12 @@ fn all_signs() -> Vec<geom_core::predicate::Sign> {
 }
 
 /// The `&str` view of a list of derived identifier words.
+/// Node `n` as a refusal raised over a document holding it as a
+/// `kind` with no label speaks it.
+fn held(n: u64, kind: &'static str) -> SpokenNode {
+    editor_core::test_support::spoken(RecipeNodeId(tagged(n)), Some(kind))
+}
+
 fn as_strs(words: &[String]) -> Vec<&str> {
     words.iter().map(String::as_str).collect()
 }
@@ -130,6 +135,12 @@ fn face_name() -> StableName {
         node: RecipeNodeId(tagged(7)),
         path: vec![RoleSeg::Cap(CapEnd::End)],
     }
+}
+
+/// [`face_name`] as a sentence speaks it over a document holding its
+/// minting node as an extrude.
+fn spoken_face_name() -> SpokenName {
+    editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
 }
 
 /// A stable name renders as its kind plus its minting node — the half
@@ -361,7 +372,7 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
-    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit];
 }
 
 #[test]
@@ -375,16 +386,14 @@ fn declare_error_display_names_its_content_not_its_struct() {
         // states its own recourse: the caller passed findings, and the
         // edit door's "name an entity" is about a node nobody wrote.
         (
-            DeclareError::Edit(EditError::DeclareNamesMissingNode { name: face_name() }),
+            DeclareError::Edit(EditError::DeclareNamesMissingNode {
+                name: SpokenName::absent(face_name()),
+            }),
             vec![
                 "the document edit refused",
                 "refers to a node that is not live",
                 "Recourse: declare findings inspected from this document as it now stands",
             ],
-        ),
-        (
-            DeclareError::NoMintedId,
-            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -480,7 +489,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
-        | SelectRefusal::Band(_) => (),
+        | SelectRefusal::Band(_)
+        | SelectRefusal::DistinctFinding(_) => (),
         other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
     }
 }
@@ -507,6 +517,7 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "PairInBand",
             "BadValue",
             "Band",
+            "DistinctFinding",
         ],
     );
 
@@ -624,6 +635,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["ambiguity band", "ambient tolerance", "not below"],
+        ),
+        (
+            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
+            vec!["DISTINCT carriers", "no finding carries"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
@@ -841,7 +856,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::PayloadDocParamDimension {
             name: name.clone(),
-            node: RecipeNodeId(tagged(3)),
+            node: held(3, "Measure"),
             declared: Dimension::Length,
             referenced: Dimension::Count,
         },
@@ -850,18 +865,21 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::AssertionDimension {
-            node: RecipeNodeId(tagged(5)),
-            measure: RecipeNodeId(tagged(4)),
+            node: held(5, "Assertion"),
+            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds a length measure", "with an angle expression"],
+        &[
+            "bounds Measure 000000000004, which measures a length",
+            "with an angle expression",
+        ],
         &dumps,
     );
     assert_f6(
         &EditError::SlotDocParamDimension {
             name: name.clone(),
-            node: RecipeNodeId(tagged(3)),
+            node: held(3, "Extrude"),
             slot: SlotId::Distance,
             declared: Dimension::Scalar,
             referenced: Dimension::Length,
@@ -964,7 +982,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     // out, so only the dimensions are at issue there.
     assert_f6(
         &SnapshotError::SlotDimension {
-            node: RecipeNodeId(tagged(5)),
+            node: held(5, "Extrude"),
             slot: SlotId::Profile {
                 loop_: 0,
                 step: 2,
@@ -978,7 +996,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &SnapshotError::SlotDimension {
-            node: RecipeNodeId(tagged(5)),
+            node: held(5, "Extrude"),
             slot: SlotId::Radius,
             expected: Dimension::Length,
             found: Dimension::Angle,
@@ -988,18 +1006,18 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &SnapshotError::AssertionBound {
-            node: RecipeNodeId(tagged(5)),
-            measure: RecipeNodeId(tagged(4)),
+            node: held(5, "Assertion"),
+            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds a length measure", "with an angle expression"],
+        &["bounds Measure 000000000004, which measures a length, with an angle expression"],
         &dumps,
     );
     assert_f6(
         &SnapshotError::AssertionTarget {
-            node: RecipeNodeId(tagged(5)),
-            measure: RecipeNodeId(tagged(4)),
+            node: held(5, "Assertion"),
+            measure: held(4, "Extrude"),
             bound: Dimension::Count,
         },
         &["carries a count bound", "which is not a measure"],
@@ -1016,9 +1034,9 @@ test_utils::f6_variants! {
         NodeNotMinted,
         DanglingInput,
         ForwardInput,
-        DeclareInput,
         WitnessSite,
         WitnessOnMissingNode,
+        LabelOnMissingNode,
         SlotDimension,
         SlotUnknownDocParam,
         SlotDocParamDimension,
@@ -1026,21 +1044,24 @@ test_utils::f6_variants! {
         PayloadDocParamDimension,
         EpsilonInvalid,
         Roots,
-        PlacementSite,
+        NotAGauge,
+        GaugeCycle,
         PlacementNonFinite,
         PlacementImproper,
         PlacementNonRigid,
-        PlacementNotGauge,
         MateAlignment,
         PlacementRule,
         MeasureRefs,
         InputList,
+        DuplicateInput,
         AssertionTarget,
         AssertionBound,
         MetadataUnversioned,
         StepIds,
         MintLogOrder,
         NameStepNotMinted,
+        DeclaredSiteNotAnOperand,
+        DeclaredNameNotUpstream,
     ];
 }
 
@@ -1085,72 +1106,86 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// forwarding happened.
 #[test]
 fn snapshot_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(tagged(5));
+    // The node a document holds, labelled, and one it does not.
+    let node = || {
+        editor_core::test_support::spoken_labelled(
+            RecipeNodeId(tagged(5)),
+            "Extrude",
+            editor_core::Label::new("base plate").expect("a label"),
+        )
+    };
+    let absent = |n| SpokenNode::absent(RecipeNodeId(tagged(n)));
     let cases = [
         (
             SnapshotError::OrderMismatch,
             vec!["`order` list", "disagree"],
         ),
         (
-            SnapshotError::NodeNotMinted { id: node },
-            vec!["node id 000000000005", "not in the document's mint log"],
+            SnapshotError::NodeNotMinted { id: node() },
+            vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
         ),
         (
             SnapshotError::DanglingInput {
-                node,
-                input: RecipeNodeId(tagged(9)),
+                node: node(),
+                input: absent(9),
             },
-            vec!["node 000000000005", "node 000000000009", "not live"],
+            vec![
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "not live",
+            ],
         ),
         (
             SnapshotError::ForwardInput {
-                node,
-                input: RecipeNodeId(tagged(9)),
+                node: node(),
+                input: absent(9),
             },
-            vec!["node 000000000005", "does not precede it"],
-        ),
-        (
-            SnapshotError::DeclareInput {
-                node,
-                input: RecipeNodeId(tagged(9)),
-            },
-            vec!["declare input", "not a declaration"],
-        ),
-        (
-            SnapshotError::WitnessSite { node },
             vec![
-                "a witness is attached to node 000000000005",
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "does not precede it",
+            ],
+        ),
+        (
+            SnapshotError::WitnessSite { node: node() },
+            vec![
+                "a witness is attached to Extrude \"base plate\" (000000000005)",
                 "bears no sketch",
             ],
         ),
         (
-            SnapshotError::WitnessOnMissingNode { node },
+            SnapshotError::WitnessOnMissingNode { node: absent(5) },
             vec!["a witness is attached to node 000000000005", "not live"],
         ),
         (
+            SnapshotError::LabelOnMissingNode { node: absent(5) },
+            vec!["a label is attached to node 000000000005", "not live"],
+        ),
+        (
             SnapshotError::SlotDimension {
-                node,
+                node: node(),
                 slot: SlotId::Distance,
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
             vec![
-                "node 000000000005",
-                "slot distance",
+                "Extrude \"base plate\" (000000000005): slot distance",
                 "needs a length expression",
             ],
         ),
         (
             SnapshotError::SlotUnknownDocParam {
-                node,
+                node: node(),
                 slot: SlotId::Radius,
                 name: ParamName::from_static("fillet"),
             },
-            vec!["slot radius", "fillet", "does not declare"],
+            vec![
+                "Extrude \"base plate\" (000000000005): slot radius",
+                "fillet",
+                "does not declare",
+            ],
         ),
         (
             SnapshotError::SlotDocParamDimension {
-                node,
+                node: node(),
                 slot: SlotId::Distance,
                 name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
@@ -1160,19 +1195,18 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PayloadUnknownDocParam {
-                node,
+                node: held(5, "Measure"),
                 name: ParamName::from_static("depth"),
             },
             vec![
-                "node 000000000005",
-                "payload expression",
+                "Measure 000000000005: its payload expression",
                 "depth",
                 "does not declare",
             ],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
-                node,
+                node: held(5, "Measure"),
                 name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
@@ -1182,8 +1216,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 // existing beside the slot one: a payload expression
                 // has no slot, so the node is the only address the
                 // refusal can carry.
-                "node 000000000005",
-                "payload expression",
+                "Measure 000000000005: its payload expression",
                 "depth",
                 "as a length",
                 "declared angle",
@@ -1195,129 +1228,155 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::Roots(RootFault::Ancestor {
-                ancestor: RecipeNodeId(tagged(1)),
-                descendant: RecipeNodeId(tagged(2)),
+                ancestor: SpokenNode::absent(RecipeNodeId(tagged(1))),
+                descendant: SpokenNode::absent(RecipeNodeId(tagged(2))),
             }),
-            vec!["product root"],
+            vec![
+                "product root node 000000000001 is an ancestor of product root node \
+                 000000000002",
+            ],
         ),
         (
-            SnapshotError::PlacementSite { node },
-            vec!["keyed by node 000000000005", "does not instantiate a part"],
+            SnapshotError::NotAGauge {
+                node: held(5, "InstantiatePart"),
+                gauge: held(2, "Extrude"),
+            },
+            vec![
+                "InstantiatePart 000000000005's gauge reference names Extrude 000000000002, \
+                 which is not a gauge",
+            ],
+        ),
+        (
+            SnapshotError::GaugeCycle {
+                node: held(5, "Gauge"),
+                gauge: held(2, "Gauge"),
+            },
+            vec!["Gauge 000000000005 sits on Gauge 000000000002, which sits on it"],
         ),
         (
             SnapshotError::PlacementNonFinite {
-                node,
-                at: editor_core::FrameSite::Registry,
+                node: held(5, "InstantiatePart"),
+                at: editor_core::FrameSite::Step { index: 0 },
             },
             vec![
-                "placement frame for node 000000000005",
+                "step 1 of InstantiatePart 000000000005's placement",
                 "non-finite coordinate",
             ],
         ),
         (
             SnapshotError::PlacementImproper {
-                node,
+                node: held(5, "Transform"),
                 at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
             vec![
-                "step 2 of node 000000000005's placement",
+                "step 2 of Transform 000000000005's placement",
                 "improper (mirroring)",
             ],
         ),
         (
             SnapshotError::PlacementNonRigid {
-                node,
-                at: editor_core::FrameSite::Registry,
+                node: held(5, "InstantiatePart"),
+                at: editor_core::FrameSite::Step { index: 0 },
                 check: "transform_rigid_col01_orth",
             },
             vec![
-                "placement frame for node 000000000005",
+                "step 1 of InstantiatePart 000000000005's placement",
                 "not definitely rigid",
                 "may shear",
             ],
         ),
         (
-            SnapshotError::PlacementNotGauge {
-                node,
-                gauge: RecipeNodeId(tagged(2)),
+            SnapshotError::MateAlignment {
+                node: held(5, "Mate"),
             },
-            vec!["cluster's gauge, node 000000000002"],
-        ),
-        (
-            SnapshotError::MateAlignment { node },
             vec![
-                "mate node 000000000005",
-                "alignment datum",
+                "Mate 000000000005's alignment datum",
                 "non-finite coordinate",
             ],
         ),
         (
             SnapshotError::PlacementRule {
-                node,
+                node: held(5, "Pattern"),
                 fault: PlacementRuleFault::NoPlacements,
             },
-            vec![
-                "placement-rule node 000000000005",
-                "placement list is empty",
-            ],
+            vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
             SnapshotError::MeasureRefs {
-                node,
+                node: held(5, "Measure"),
                 fault: MeasureNodeFault::RefIndexOutOfRange {
                     verb: "distance",
                     index: 3,
                     refs: 2,
                 },
             },
-            vec!["measure node 000000000005", "reads reference 3"],
+            vec!["Measure 000000000005: ", "reads reference 3"],
         ),
         (
             SnapshotError::InputList {
-                node,
-                fault: InputFault::TooFew { found: 1 },
+                node: held(5, "Union"),
+                fault: ListFault::TooFew { found: 1 },
             },
-            vec!["node 000000000005"],
+            vec!["Union 000000000005: a list input takes two or more entries"],
+        ),
+        (
+            SnapshotError::DuplicateInput {
+                node: held(5, "Union"),
+                input: held(9, "Revolve"),
+            },
+            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
         ),
         (
             SnapshotError::AssertionTarget {
-                node,
-                measure: RecipeNodeId(tagged(4)),
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
                 bound: Dimension::Count,
             },
-            vec!["carries a count bound", "which is not a measure"],
+            vec![
+                "Assertion 000000000005 carries a count bound against Measure 000000000004",
+                "which is not a measure",
+            ],
         ),
         (
             SnapshotError::AssertionBound {
-                node,
-                measure: RecipeNodeId(tagged(4)),
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec!["bounds a length measure", "with an angle expression"],
+            vec![
+                "Assertion 000000000005 bounds Measure 000000000004, which measures a length,",
+                "with an angle expression",
+            ],
         ),
         (
             SnapshotError::MetadataUnversioned {
-                name: StableName {
-                    kind: EntityKind::Face,
-                    node,
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                },
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::Cap(CapEnd::Start)],
+                    },
+                    node(),
+                ),
                 key: "swatch".to_string(),
                 error: MetaVersionError::MissingVersion,
             },
-            vec!["metadata", "swatch", "\"v\" version field"],
+            vec![
+                "metadata \"swatch\" on the face name minted by Extrude \"base plate\" (000000000005)",
+                "\"v\" version field",
+            ],
         ),
         (
             SnapshotError::StepIds {
-                node,
+                node: held(5, "Profile"),
                 fault: StepIdFault::Repeated {
                     step: StepId(tagged(3)),
                 },
             },
             vec![
-                "profile node 000000000005's step ids",
+                "Profile 000000000005's step ids",
                 "step id 000000000003 stands for two steps",
             ],
         ),
@@ -1333,20 +1392,63 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::NameStepNotMinted {
-                name: Box::new(StableName {
-                    kind: EntityKind::Face,
-                    node,
-                    path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-                        step: StepId(tagged(8)),
-                        role: editor_core::PieceRole::Leg,
-                    })],
-                }),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::Lateral(
+                            editor_core::ProfileEdgeRef::Piece {
+                                step: StepId(tagged(8)),
+                                role: editor_core::PieceRole::Leg,
+                            }
+                            .into(),
+                        )],
+                    },
+                    node(),
+                ),
                 step: StepId(tagged(8)),
             },
             vec![
-                "minted by node 000000000005",
+                "minted by Extrude \"base plate\" (000000000005)",
                 "profile step id 000000000008",
                 "mint log does not hold",
+            ],
+        ),
+        (
+            SnapshotError::DeclaredSiteNotAnOperand {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+                site: held(5, "Extrude"),
+            },
+            vec![
+                "read at Extrude 000000000005, which is not an operand of Boolean 000000000006",
+                "no edit writes such a pair",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::DeclaredNameNotUpstream {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+            },
+            vec![
+                "minted by Extrude \"base plate\" (000000000005)",
+                "is not minted before Boolean 000000000006",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
     ];
@@ -1389,52 +1491,52 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
         (variant, value.to_string())
     }
 
-    let node = RecipeNodeId(tagged(5));
+    let node = || held(5, "Extrude");
     let name = ParamName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             slot: SlotId::Radius,
         }),
         arm(&EditError::SlotDocParamDimension {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             slot: SlotId::Radius,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
         arm(&EditError::PayloadUnknownDocParam {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
         }),
         arm(&EditError::PayloadDocParamDimension {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
     ];
     let load_door: Vec<(String, String)> = vec![
         arm(&SnapshotError::SlotUnknownDocParam {
-            node,
+            node: node(),
             slot: SlotId::Radius,
             name: name.clone(),
         }),
         arm(&SnapshotError::SlotDocParamDimension {
-            node,
+            node: node(),
             slot: SlotId::Radius,
             name: name.clone(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
         arm(&SnapshotError::PayloadUnknownDocParam {
-            node,
+            node: node(),
             name: name.clone(),
         }),
         arm(&SnapshotError::PayloadDocParamDimension {
-            node,
+            node: node(),
             name,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
@@ -1597,10 +1699,13 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     let wall = |step| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(tagged(6)),
-        path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-            step: StepId(tagged(step)),
-            role: editor_core::PieceRole::Leg,
-        })],
+        path: vec![RoleSeg::Lateral(
+            ProfileEdgeRef::Piece {
+                step: StepId(tagged(step)),
+                role: editor_core::PieceRole::Leg,
+            }
+            .into(),
+        )],
     };
     // A union member's wall, as a union's seams spell it.
     let member_wall = StableName {
@@ -1732,7 +1837,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 param: SlotId::Count,
             },
             format!(
-                "a structural parameter changed on the derivation path (node 000000000009, slot {count})"
+                "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
             ),
         ),
         (
@@ -1770,7 +1875,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId(tagged(10)),
                 param: SlotId::Count,
             }),
-            format!("a structural parameter changed at node 00000000000a (slot {count}){tail}"),
+            format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {
@@ -2103,7 +2208,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
 
 /// A mate-solve contradiction states WHO is at fault. Two mates that
 /// cannot both hold are named as a pair; one mate that contradicts
-/// itself is named ONCE, because "mates 6 and 6" reads as an indexing
+/// itself is named ONCE, because "mate 6 and mate 6" reads as an indexing
 /// fault and hides the shape the payload states.
 ///
 /// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
@@ -2120,7 +2225,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &pair,
         &[
-            "mates 000000000003 and 000000000005 cannot both hold",
+            "mate 000000000003 and mate 000000000005 cannot both hold",
             "a clash of 0.01 m",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2152,7 +2257,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert!(
         !itself
             .to_string()
-            .contains("mates 000000000006 and 000000000006"),
+            .contains("mate 000000000006 and mate 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2209,7 +2314,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     };
     let shown = fault.to_string();
     for want in [
-        "mates 000000000003 and 000000000005 cannot both hold",
+        "mate 000000000003 and mate 000000000005 cannot both hold",
         "the relative rotation is not the identity",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",
@@ -2387,79 +2492,6 @@ fn a_lever_refusal_names_the_instance_and_why() {
     assert!(
         !said.contains("inf"),
         "a length that is not finite has no metre figure: {said}"
-    );
-}
-
-/// **The maintenance refusals name the gauge and end on what to do**:
-/// a refused maintenance solve carries the prior solve's own sentence
-/// (or says the solve recorded nothing for the gauge — the typed
-/// report of a state its invariants exclude), and an unrecorded row
-/// says the entry carries none and that an entry records every row its
-/// edit performs.
-#[test]
-fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
-    let gauge = RecipeNodeId(tagged(3));
-    assert_f6(
-        &EditError::MaintenanceRefused {
-            gauge,
-            fault: Some(Box::new(MateFault::Unleverable {
-                mate: RecipeNodeId(tagged(5)),
-                refusal: Box::new(LeverRefusal::Reach {
-                    instance: gauge,
-                    part: DocRef {
-                        id: DocumentId::derive("display-contract-maintenance"),
-                        pin: editor_core::ContentPin([0u8; 32]),
-                    },
-                    refusal: ReachRefusal::PartUnresolved {
-                        fault: PartFault::NoResolver,
-                    },
-                }),
-            })),
-        },
-        &[
-            "could not place gauge 000000000003",
-            "refused: mate 000000000005",
-            "instance 000000000003",
-        ],
-        &["MaintenanceRefused", "Unleverable"],
-    );
-    assert_f6(
-        &EditError::MaintenanceRefused { gauge, fault: None },
-        &["could not place gauge 000000000003", "no pose", "no fault"],
-        &["MaintenanceRefused"],
-    );
-    assert_f6(
-        &EditError::MaintenanceUnrecorded { gauge },
-        &[
-            "gauge 000000000003",
-            "no maintenance rows",
-            "records every cluster row",
-        ],
-        &["MaintenanceUnrecorded"],
-    );
-    assert_f6(
-        &PersistError::MaintenanceFrame {
-            index: 2,
-            row: 0,
-            fault: FrameFault::Improper { determinant: -1.0 },
-        },
-        &[
-            "edit 2",
-            "row 0",
-            "not a placement",
-            "determinant -1",
-            "mirroring",
-        ],
-        &["MaintenanceFrame", "Improper"],
-    );
-    assert_f6(
-        &PersistError::MaintenanceFrame {
-            index: 2,
-            row: 1,
-            fault: FrameFault::NonFinite,
-        },
-        &["edit 2", "row 1", "non-finite coordinate"],
-        &["MaintenanceFrame", "NonFinite"],
     );
 }
 
@@ -2716,18 +2748,17 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         "{".to_string(),
     ];
     let also_banned = as_strs(&banned);
-    let node = RecipeNodeId(tagged(7));
+    let node = || held(7, "Extrude");
 
     assert_f6(
         &SnapshotError::SlotDimension {
-            node,
+            node: node(),
             slot: profile_slot,
             expected: Dimension::Length,
             found: Dimension::Angle,
         },
         &[
-            "node 000000000007",
-            "loop 1 step 3 · centre x",
+            "Extrude 000000000007: slot loop 1 step 3 · centre x",
             "needs a length expression",
             "got an angle",
         ],
@@ -2735,7 +2766,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     );
     assert_f6(
         &SnapshotError::SlotDimension {
-            node,
+            node: node(),
             slot: scalar_slot,
             expected: Dimension::Length,
             found: Dimension::Count,
@@ -2745,7 +2776,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     );
     assert_f6(
         &SnapshotError::SlotDimension {
-            node,
+            node: node(),
             slot: component_slot,
             expected: Dimension::Length,
             found: Dimension::Scalar,
@@ -2758,7 +2789,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     // door adds its recourse after it.
     for slot in [profile_slot, scalar_slot, component_slot] {
         let at_load = SnapshotError::SlotDimension {
-            node,
+            node: node(),
             slot,
             expected: Dimension::Length,
             found: Dimension::Angle,
@@ -2770,7 +2801,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         };
         let at_load = at_load.to_string();
         let clause = at_load
-            .strip_prefix("node 000000000007: ")
+            .strip_prefix("Extrude 000000000007: ")
             .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
         assert_eq!(at_edit.problem().to_string(), clause);
         assert_eq!(
@@ -2811,80 +2842,15 @@ fn a_program_fault_states_its_lattice_coordinate() {
 }
 
 test_utils::f6_variants! {
-    /// `ClusterMaintenance`'s census — see [`NODE_PICK_ERROR`]. The
-    /// four registry acts render beside their own type, so this is the
-    /// list that guards them; `Maintenance` delegates and carries only
-    /// its own two arms.
-    const CLUSTER_MAINTENANCE: ClusterMaintenance = [Join, Split, GaugeRewrite, Drop];
-}
-
-test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
-}
-
-/// **Each registry act says what it did to the placement registry.**
-/// The maintenance column is rendered to a person, so these are prose
-/// and not the `Debug` dump of a frame.
-#[test]
-fn cluster_maintenance_display_names_the_act_not_its_struct() {
-    let gauge = RecipeNodeId(tagged(3));
-    let other = RecipeNodeId(tagged(5));
-    let cases = [
-        (
-            ClusterMaintenance::Join {
-                survived: gauge,
-                absorbed: other,
-                absorbed_frame: None,
-            },
-            vec![
-                "cluster gauged by node 000000000005",
-                "absorbed into",
-                "node 000000000003",
-            ],
-        ),
-        (
-            ClusterMaintenance::Split {
-                from: gauge,
-                to: other,
-                frame: None,
-            },
-            vec![
-                "separated from",
-                "node 000000000003",
-                "now gauged by node 000000000005",
-            ],
-        ),
-        (
-            ClusterMaintenance::GaugeRewrite {
-                from: gauge,
-                to: other,
-                frame: None,
-            },
-            vec![
-                "node 000000000003",
-                "lost that instance",
-                "now gauged by node 000000000005",
-            ],
-        ),
-        (
-            ClusterMaintenance::Drop { gauge, frame: None },
-            vec![
-                "node 000000000003",
-                "lost its last instance",
-                "placement record",
-            ],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
 /// beside the cascade count is rendered from these sentences.
 ///
-/// The cluster arm FORWARDS its carried act's own words (the
-/// `NodePickError::Standing` shape one row up), which is why its case
-/// here asserts the delegated sentence rather than a paraphrase of it.
+/// The offset arm names the instance whose offset the mate door
+/// cleared, and why: the mate placed its group on the one it joined.
 /// The strand sentence's relative clause binds to the NODE: the name
 /// is what survives a strand, so a sentence reading "a name, which
 /// this edit deleted" would name the wrong casualty.
@@ -2893,34 +2859,27 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
 /// carriers, and it offers both repairs: `Rebind` moves the key,
 /// `ClearAppearance` retires it, and only the second works without a
 /// live node to move to.
-/// The orphan arm's subject is the SURVIVOR — the node named is the
-/// declaration that is still there — where both strand sentences name
-/// a carrier and close on the casualty, so it says what the
-/// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
-    let gauge = RecipeNodeId(tagged(3));
-    let other = RecipeNodeId(tagged(5));
     let cases = [
         (
-            Maintenance::Cluster(ClusterMaintenance::Join {
-                survived: gauge,
-                absorbed: other,
-                absorbed_frame: None,
-            }),
+            Maintenance::OffsetCleared {
+                instance: held(3, "InstantiatePart"),
+                offset: editor_core::Placement::IDENTITY,
+            },
             vec![
-                "cluster gauged by node 000000000005",
-                "absorbed into",
-                "node 000000000003",
+                "InstantiatePart 000000000003's group",
+                "InstantiatePart 000000000003's offset was cleared",
             ],
         ),
         (
             Maintenance::Strand {
-                node: other,
-                name: face_name(),
+                node: held(5, "Datum frame (on face)"),
+                name: spoken_face_name(),
             },
             vec![
-                "node 000000000005 carries a face name minted by node 000000000007",
+                "Datum frame (on face) 000000000005 carries a face name minted by Extrude \
+                 000000000007",
                 // The row is made by two edits — a delete and a
                 // reshaping — and the sentence names what either
                 // removed without claiming which.
@@ -2930,23 +2889,14 @@ fn maintenance_display_says_what_the_edit_did() {
             ],
         ),
         (
-            Maintenance::StrandedAppearance { name: face_name() },
+            Maintenance::StrandedAppearance {
+                name: spoken_face_name(),
+            },
             vec![
-                "the appearance store holds an attachment under a face name minted by node 000000000007",
+                "the appearance store holds an attachment under a face name minted by Extrude \
+                 000000000007",
                 "this edit removed what it denoted",
                 "rebound or cleared",
-            ],
-        ),
-        (
-            Maintenance::OrphanedDeclare { declare: other },
-            vec![
-                "node 000000000005 declares contacts",
-                "deleted the last node that consumed it",
-                // What it lost is a CONSUMER. "nothing reads it"
-                // would be false — the same delete re-roots the
-                // declaration into the document's product roots.
-                "so no node consumes the declaration",
-                "until a boolean or union names it again",
             ],
         ),
     ];
@@ -3094,34 +3044,37 @@ fn a_step_id_fault_names_the_id_or_the_count() {
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
     assert_f6(
         &EditError::StepIdsRefused {
-            node: RecipeNodeId(tagged(4)),
+            node: held(4, "Profile"),
             fault: StepIdFault::Repeated {
                 step: StepId(tagged(2)),
             },
         },
         &[
-            "node 000000000004's program cannot take the step ids given",
+            "Profile 000000000004's program cannot take the step ids given",
             "step id 000000000002 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],
     );
     assert_f6(
         &EditError::NameStepNeverMinted {
-            name: StableName {
-                kind: EntityKind::Edge,
-                node: RecipeNodeId(tagged(3)),
-                path: vec![RoleSeg::RimEdge(
-                    CapEnd::End,
-                    editor_core::ProfileEdgeRef::Piece {
-                        step: StepId(tagged(9)),
-                        role: editor_core::PieceRole::Leg,
-                    },
-                )],
-            },
+            name: editor_core::test_support::spoken_name(
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(tagged(3)),
+                    path: vec![RoleSeg::RimEdge(
+                        CapEnd::End,
+                        editor_core::ProfileEdgeRef::Piece {
+                            step: StepId(tagged(9)),
+                            role: editor_core::PieceRole::Leg,
+                        },
+                    )],
+                },
+                held(3, "Extrude"),
+            ),
             step: StepId(tagged(9)),
         },
         &[
-            "edge name minted by node 000000000003",
+            "edge name minted by Extrude 000000000003",
             "profile step id 000000000009",
             "never minted",
             "mint log does not hold it",
@@ -3130,10 +3083,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
     );
     assert_f6(
         &EditError::SetProgramOnNonProfile {
-            node: RecipeNodeId(tagged(4)),
+            node: held(4, "Extrude"),
         },
         &[
-            "node 000000000004 holds no profile program",
+            "Extrude 000000000004 holds no profile program",
             "no program to set",
         ],
         &["SetProgramOnNonProfile"],
@@ -3250,13 +3203,13 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     };
 
     let name = ParamName::from_static("width");
-    let node = RecipeNodeId(tagged(5));
+    let node = || held(5, "Extrude");
     let framed: Vec<(&str, String)> = vec![
         (
             "EditError::SlotUnknownDocParam",
             EditError::SlotUnknownDocParam {
                 name: name.clone(),
-                node,
+                node: held(5, "Extrude"),
                 slot: SlotId::Radius,
             }
             .to_string(),
@@ -3285,7 +3238,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "SnapshotError::SlotUnknownDocParam",
             SnapshotError::SlotUnknownDocParam {
-                node,
+                node: node(),
                 slot: SlotId::Radius,
                 name: name.clone(),
             }
@@ -3299,8 +3252,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             "SplitError::UncutParamReference",
             SplitError::UncutParamReference {
                 param: name.clone(),
-                cut_node: RecipeNodeId(tagged(1)),
-                kept_node: RecipeNodeId(tagged(2)),
+                cut_node: held(1, "Extrude"),
+                kept_node: held(2, "Extrude"),
             }
             .to_string(),
         ),
@@ -3393,4 +3346,196 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
         ),
     ];
     assert_parameter_names_are_bare(&framed, &name);
+}
+
+/// **An edit refusal does not say a noun its spoken node already
+/// says.** A spoken node opens with its kind (`Measure 000000000004`),
+/// so a template that still names the thing before it reads
+/// "a length measure (Measure …)" or "the mate Mate …". Every arm that
+/// names a held node is rendered over a node of the kind it really
+/// names, and the word before each spoken node must not be its kind.
+#[test]
+fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
+    let name = ParamName::from_static("width");
+    let rows: Vec<(EditError, Vec<SpokenNode>)> = vec![
+        (
+            EditError::AssertionDimension {
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec![held(5, "Assertion"), held(4, "Measure")],
+        ),
+        (
+            EditError::AssertionTarget {
+                node: held(5, "Assertion"),
+                measure: held(4, "Extrude"),
+            },
+            vec![held(5, "Assertion"), held(4, "Extrude")],
+        ),
+        (
+            EditError::MeasureMalformed {
+                node: held(4, "Measure"),
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "min_clearance",
+                    index: 2,
+                    refs: 2,
+                },
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::PayloadUnknownDocParam {
+                name: name.clone(),
+                node: held(4, "Measure"),
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::NonFiniteAlignment {
+                node: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::UpdateOnNonInstance {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::OffsetOnNonInstance {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::GaugeOnNonPlaced {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::GaugeNotLive {
+                node: held(3, "InstantiatePart"),
+                gauge: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            },
+            vec![
+                held(3, "InstantiatePart"),
+                SpokenNode::absent(RecipeNodeId(tagged(9))),
+            ],
+        ),
+        (
+            EditError::NotAGauge {
+                node: held(3, "InstantiatePart"),
+                gauge: held(4, "Extrude"),
+            },
+            vec![held(3, "InstantiatePart"), held(4, "Extrude")],
+        ),
+        (
+            EditError::GaugeCycle {
+                node: held(1, "Gauge"),
+                gauge: held(2, "Gauge"),
+            },
+            vec![held(1, "Gauge"), held(2, "Gauge")],
+        ),
+        (
+            EditError::WouldStartPlacing {
+                mate: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::SetDeclareOnNonDeclaring {
+                node: held(4, "Extrude"),
+            },
+            vec![held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredSiteNotAnOperand {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(4)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(4, "Extrude"),
+                ),
+                site: held(4, "Extrude"),
+            },
+            vec![held(6, "Union"), held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredNameNotUpstream {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(7)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(7, "Extrude"),
+                ),
+            },
+            vec![held(6, "Union"), held(7, "Extrude")],
+        ),
+        (
+            EditError::UnresolvedInput {
+                input: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            },
+            vec![SpokenNode::absent(RecipeNodeId(tagged(9)))],
+        ),
+    ];
+    for (error, said) in rows {
+        let text = error.to_string();
+        for node in said {
+            let spoken = node.to_string();
+            let at = text
+                .find(&spoken)
+                .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));
+            let before = text[..at].trim_end_matches([' ', '(']);
+            let word = before
+                .rsplit(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("")
+                .to_lowercase();
+            let noun = spoken
+                .split(' ')
+                .next()
+                .expect("a spoken node opens with a word")
+                .to_lowercase();
+            assert_ne!(word, noun, "the noun is said twice before {spoken}: {text}");
+        }
+    }
+}
+
+/// **The clearance goldening form prints a selection's node in full**: it
+/// is a machine channel, where two ids must never print alike, while the
+/// refusal's words say the node by its tag.
+#[test]
+fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
+    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
+    let node = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+    let refusal = ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody { node, index: 2 });
+    assert_eq!(
+        refusal.payload(),
+        "no_such_body node=3fa9c1d2a0b10042 index=2"
+    );
+    let ClearanceRefusal::Selection(selection) = &refusal else {
+        unreachable!("built above");
+    };
+    assert_eq!(
+        selection.to_string(),
+        "node 3fa9c1d2a0b1's value carries no body at index 2"
+    );
+    let standing = SelectionRefusal::NodeDidNotBuild(editor_core::NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId(7),
+    });
+    assert_eq!(
+        standing.payload(),
+        "node_did_not_build poisoned node=3fa9c1d2a0b10042 through=0000000000000007"
+    );
 }

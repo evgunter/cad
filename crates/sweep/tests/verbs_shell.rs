@@ -122,6 +122,8 @@ const VALIDATOR_SHARED: &[&str] = &[
     "bool_ring_run_winding",
     "bool_point_in_solid_plane",
     "bool_point_in_solid_denom",
+    "bool_point_in_solid_clearance",
+    "bool_point_in_solid_beside",
     "bool_point_in_solid_advance",
     "bool_point_in_solid_order",
     "bool_point_in_solid_infinity",
@@ -852,7 +854,7 @@ fn the_open_face_designation_gates_refuse_typed() {
         matches!(
             e,
             ShellError::OpenFaceRingUnsupported {
-                kind: geom_brep::SurfaceKind::Cylinder,
+                kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),
@@ -1159,21 +1161,21 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 
 /// **The AXIS-TOUCHING cap: one rim annulus, and it meshes.**
 ///
-/// A full revolve of an axis-touching meridian wears its cap on two
-/// half-disc faces that meet at the axis apex, and the cavity
-/// counterpart's boundary is the same shape one wall in. Gluing that
-/// counterpart on as a ring would put it ON the designated boundary —
-/// the #1082 class. The rim is instead built on the chart as ONE
-/// region, so the mouth comes back as a single annulus carrying a
-/// single ring, the cup is genus 0 exactly as `topo::shell`'s docs say,
-/// and the CDT accepts it.
+/// A full revolve of an axis-touching meridian wears its cap on one disc
+/// face whose rim is two half-circles, and the cavity counterpart's
+/// boundary is the same shape one wall in. Gluing that counterpart on
+/// as a ring would put it ON the designated boundary — the #1082
+/// class. The rim is instead built on the chart as ONE region, so the
+/// mouth comes back as a single annulus carrying a single ring, the cup
+/// is genus 0 exactly as `topo::shell`'s docs say, and the CDT accepts
+/// it.
 #[test]
 fn a_revolved_cap_opens_to_one_annular_rim() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     let body = vessel(r, h);
     let chart = plane_chart_at_y(&body, h);
-    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
+    assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
     let cup = topo::shell_open(&body, t, &chart, tol)
         .expect("the drum opens")
         .body;
@@ -1186,7 +1188,7 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
         "one rim annulus with one ring, and a cup is genus 0"
     );
     let mouth: Vec<FaceKey> = plane_chart_at_y(&cup, h);
-    assert_eq!(mouth.len(), 1, "the two half-discs became ONE rim face");
+    assert_eq!(mouth.len(), 1, "the mouth is ONE rim face");
 
     for delta in [1e-2, 1e-3, 2e-4] {
         mesh::tessellate(&cup, delta, tol)
@@ -1295,21 +1297,20 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
 /// old construction exactly, and what it mints is a ring standing on
 /// its own face's outer loop.
 ///
-/// Both contact shapes are covered, one per fixture, because the arms
-/// of the check are independent: the axis-touching cap shares a VERTEX
-/// position (the apex both loops own), while the annular cap shares
-/// none and is caught only through an outer EDGE — the radial seam,
-/// whose counterpart's seam sits strictly inside it.
+/// The annular cap shares no vertex position and is caught only
+/// through an outer EDGE — the radial seam, whose counterpart's seam
+/// sits strictly inside it. An axis-touching cap no longer reaches this
+/// check: the full revolve builds it as one disc with no apex vertex,
+/// so its counterpart's ring stands clear of the outer loop; the
+/// VERTEX arm keeps its rows in `topo`'s own samples.
 #[test]
 fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
     // NOT `common::cert_corpus::f64_only_corpus`'s ring: the same body, built
     // here step by step because this row asserts each step.
     let tol = Tol::witness();
     let t = 0.05;
-    for (what, body, y, want_vertex) in [
-        ("an axis-touching cap", vessel(0.5, 0.4), 0.4, true),
-        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40, false),
-    ] {
+    {
+        let (what, body, y) = ("an annular cap", tube(0.30, 0.50, 0.40), 0.40);
         let mut sealed = topo::shell(&body, t, tol).expect("the sealed shell").body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
@@ -1372,18 +1373,11 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
                 }
             )
         });
-        if want_vertex {
-            assert!(
-                vertex_arm,
-                "{what}: the apex both loops own is a VERTEX contact; got {contacts:?}"
-            );
-        } else {
-            assert!(
-                edge_arm && !vertex_arm,
-                "{what}: no shared vertex position here — the contact must be carried by an \
-                 outer EDGE; got {contacts:?}"
-            );
-        }
+        assert!(
+            edge_arm && !vertex_arm,
+            "{what}: no shared vertex position here — the contact must be carried by an \
+             outer EDGE; got {contacts:?}"
+        );
     }
 }
 
@@ -1850,10 +1844,11 @@ fn r2_probe_other_two_passes_dump() {
 fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
     let tol = Tol::witness();
     let t = 0.05;
-    for (what, body, y) in [
-        ("an axis-touching cap", vessel(0.5, 0.4), 0.4),
-        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40),
-    ] {
+    // The annular cap only: an axis-touching cap's raw glue no longer
+    // reaches check 9 (the full revolve builds that cap whole, so its
+    // counterpart's ring stands clear of the outer loop).
+    {
+        let (what, body, y) = ("an annular cap", tube(0.30, 0.50, 0.40), 0.40);
         let mut sealed = topo::shell(&body, t, tol).expect("the sealed shell").body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
@@ -2437,19 +2432,18 @@ fn the_sealed_boxs_record_names_every_wall_and_its_twin() {
     );
 }
 
-/// **The revolved cup's rim row, read against the surgery.** `dead` is
-/// non-empty on BOTH sides of the glue and in every arena the chart
-/// reduction touches — which is what says the retirements were written
-/// at the Euler calls rather than inferred afterwards from what stopped
-/// resolving. Exactness is the audit row's; this row is about which
-/// arenas are reached at all.
+/// **The revolved cup's rim row, read against the surgery.** The full
+/// revolve builds the mouth disc whole, so the chart reduction has
+/// nothing to merge on either side: what retires is the counterpart
+/// disc the glue consumes and the cavity shell that fuses into the
+/// outer one — written at the Euler calls, and nothing else.
 #[test]
-fn the_revolved_cups_surgery_retires_on_both_sides() {
+fn the_revolved_cups_surgery_retires_the_counterpart_and_the_cavity_shell() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     let source = vessel(r, h);
     let chart = plane_chart_at_y(&source, h);
-    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
+    assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
     let shelled = topo::shell_open(&source, t, &chart, tol).expect("the drum opens");
     let record = &shelled.naming;
 
@@ -2458,12 +2452,15 @@ fn the_revolved_cups_surgery_retires_on_both_sides() {
     assert_eq!(rim.sources, chart, "the row names the designation");
     assert!(rim.holes.is_empty(), "a disc mouth has no hole to promote");
 
-    // Two half-discs merge on each side, and the counterpart dies.
-    assert_eq!(record.dead.faces.len(), 3, "{:?}", record.dead.faces);
-    // A seam edge dies on each side (kef), and the apex spur with it.
-    assert_eq!(record.dead.edges.len(), 4, "{:?}", record.dead.edges);
-    assert_eq!(record.dead.vertices.len(), 2, "{:?}", record.dead.vertices);
-    assert_eq!(record.dead.loops.len(), 2, "{:?}", record.dead.loops);
+    // The counterpart disc dies; no edge, vertex or loop does.
+    assert_eq!(record.dead.faces.len(), 1, "{:?}", record.dead.faces);
+    assert!(record.dead.edges.is_empty(), "{:?}", record.dead.edges);
+    assert!(
+        record.dead.vertices.is_empty(),
+        "{:?}",
+        record.dead.vertices
+    );
+    assert!(record.dead.loops.is_empty(), "{:?}", record.dead.loops);
     assert_eq!(
         record.dead.shells.len(),
         1,

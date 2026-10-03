@@ -59,11 +59,7 @@ fn no_params() -> editor_core::ParamEnv<f64> {
 }
 
 /// Faces of one surface kind on one node's value, canonically ordered.
-fn faces(
-    ev: &Evaluation<f64>,
-    body: RecipeNodeId,
-    kind: geom_brep::SurfaceKind,
-) -> Vec<StableName> {
+fn faces(ev: &Evaluation<f64>, body: RecipeNodeId, kind: geom::SurfaceKind) -> Vec<StableName> {
     let mut f = select_where(
         ev,
         body,
@@ -121,7 +117,7 @@ fn with_measure(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, refs).expect("indices in range"),
+            node: Box::new(Node::measure(expr, refs).expect("indices in range")),
         },
     );
     let id = crate::fixture::newest(&doc);
@@ -165,27 +161,31 @@ fn boxed(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            )),
+            ))),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+            }),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -206,7 +206,11 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, cz], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, cz],
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -216,29 +220,29 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
+            node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
         },
     );
     let axis = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![half],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Revolve {
+            node: Box::new(Node::Revolve {
                 profile: p,
                 axis,
                 angle: ang(std::f64::consts::TAU),
-            },
+            }),
         },
     );
     let s = crate::fixture::newest(&doc);
@@ -258,31 +262,35 @@ fn cylinder(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+            }),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -383,7 +391,7 @@ fn r2_distance_vertex_plane_is_the_normal_projection() {
     let (doc, b) = boxed(&empty("r2-vp"), (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&doc);
     let vs = vertices(&ev, b);
-    let planes = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let planes = faces(&ev, b, geom::SurfaceKind::Plane);
     assert_eq!(planes.len(), 6, "a box has six planar faces");
 
     // Identify the cap at z = 12 by measuring every corner against
@@ -440,8 +448,8 @@ fn r2_distance_plane_plane_is_the_authored_offset() {
     let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
-    let pa = faces(&ev, a, geom_brep::SurfaceKind::Plane);
-    let pb = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let pa = faces(&ev, a, geom::SurfaceKind::Plane);
+    let pb = faces(&ev, b, geom::SurfaceKind::Plane);
 
     // Every A-plane against every B-plane. The four z-cap pairs give
     // the authored offsets {2, 3, 3, 4}; the parallel WALL pairs give
@@ -543,8 +551,8 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         let (d1, outer) = sphere(&d0, 1.0, 0.0);
         let (d2, inner) = sphere(&d1, 0.5, cz);
         let ev = eval(&d2);
-        let fo = faces(&ev, outer, geom_brep::SurfaceKind::Sphere);
-        let fi = faces(&ev, inner, geom_brep::SurfaceKind::Sphere);
+        let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
+        let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
         assert!(
             !fo.is_empty() && !fi.is_empty(),
             "both revolves are spheres"
@@ -596,8 +604,8 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
     let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
-    let pa = faces(&ev, a, geom_brep::SurfaceKind::Plane);
-    let pb = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let pa = faces(&ev, a, geom::SurfaceKind::Plane);
+    let pb = faces(&ev, b, geom::SurfaceKind::Plane);
 
     let mut rows: Vec<(usize, usize, String, String)> = Vec::new();
     for (i, x) in pa.iter().enumerate() {
@@ -674,8 +682,8 @@ fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
         let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
         let (d2, c2) = cylinder(&d1, 0.001, sep, 0.0, 0.0, 0.01);
         let ev = eval(&d2);
-        let f1 = faces(&ev, c1, geom_brep::SurfaceKind::Cylinder);
-        let f2 = faces(&ev, c2, geom_brep::SurfaceKind::Cylinder);
+        let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
+        let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
         assert!(!f1.is_empty() && !f2.is_empty());
         let (d3, id) = with_measure(
             &d2,
@@ -714,41 +722,41 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     let d1 = push(
         &d1,
         &DocEdit::InsertNode {
-            node: fixture::frame(
+            node: Box::new(fixture::frame(
                 [0.01, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
                 [0.0, theta.cos(), -theta.sin()],
-            ),
+            )),
         },
     );
     let plane = crate::fixture::newest(&d1);
     let d2 = push(
         &d1,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(0.01),
-            },
+            }),
         },
     );
     let c2 = crate::fixture::newest(&d3);
     let ev = eval(&d3);
-    let f1 = faces(&ev, c1, geom_brep::SurfaceKind::Cylinder);
-    let f2 = faces(&ev, c2, geom_brep::SurfaceKind::Cylinder);
+    let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
+    let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
     if f1.is_empty() || f2.is_empty() {
         eprintln!("R2/tilt: the tilted extrude produced no cylinder face; row is inconclusive");
         return;
@@ -788,13 +796,13 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = crate::fixture::newest(&d3);
@@ -816,7 +824,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Union,
                     a: victim,
                     b,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (
@@ -825,7 +833,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Subtract,
                     a: b,
                     b: victim,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (
@@ -848,7 +856,12 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
         ];
         for (what, node) in attempts {
-            match try_push(&d3, &DocEdit::InsertNode { node }) {
+            match try_push(
+                &d3,
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
+            ) {
                 // Refused at the edit door: ideal.
                 Err(_) => {}
                 // Admitted: it MUST then fail typed at evaluation, and
@@ -889,11 +902,11 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
     let with_assertion = push(
         &with_measure_doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = crate::fixture::newest(&with_assertion);
@@ -983,8 +996,8 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     let (d1, outer) = sphere(&d0, 1.0, 0.0);
     let (d2, inner) = sphere(&d1, 0.5, 0.75);
     let ev = eval(&d2);
-    let fo = faces(&ev, outer, geom_brep::SurfaceKind::Sphere);
-    let fi = faces(&ev, inner, geom_brep::SurfaceKind::Sphere);
+    let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
+    let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
     let (d3, id) = with_measure(
         &d2,
         MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
@@ -1043,14 +1056,14 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::transform(
+            node: Box::new(Node::transform(
                 b,
                 editor_core::Step::Rigid {
                     translation: [len(100.0), len(0.0), len(0.0)],
                     axis: [scl(0.0), scl(0.0), scl(1.0)],
                     angle: ang(0.0),
                 },
-            ),
+            )),
         },
     );
     let moved = crate::fixture::newest(&d3);
@@ -1128,11 +1141,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let good = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let text = editor_core::save(&good, &[], Tol::witness()).expect("a well-formed document saves");
@@ -1172,11 +1185,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let bad_dim = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     assert!(
@@ -1186,11 +1199,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let bad_target = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: b,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     assert!(
@@ -1232,8 +1245,8 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let (d1, socket) = sphere(&d0, 1.0, 0.0);
         let (d2, ball) = sphere(&d1, 0.9, offset);
         let ev = eval(&d2);
-        let fo = faces(&ev, socket, geom_brep::SurfaceKind::Sphere);
-        let fi = faces(&ev, ball, geom_brep::SurfaceKind::Sphere);
+        let fo = faces(&ev, socket, geom::SurfaceKind::Sphere);
+        let fi = faces(&ev, ball, geom::SurfaceKind::Sphere);
         let (d3, measure) = with_measure(
             &d2,
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
@@ -1242,11 +1255,11 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let d4 = push(
             &d3,
             &DocEdit::InsertNode {
-                node: Node::Assertion {
+                node: Box::new(Node::Assertion {
                     measure,
                     bound: len(0.02),
                     dir: AssertionDir::AtLeast,
-                },
+                }),
             },
         );
         let assertion = crate::fixture::newest(&d4);
@@ -1320,11 +1333,11 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let doc = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = *doc.order().last().expect("the assertion is the last node");
@@ -1372,7 +1385,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             measure,
             bound: Dimension::Length,
             ..
-        })) => assert_eq!(measure, b),
+        })) => assert_eq!(measure.id(), b),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }
@@ -1425,14 +1438,14 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let slotted = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: d1.order()[1],
                 distance: Expr::div(
                     len(13.0),
                     Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
-            },
+            }),
         },
     );
     if let Ok(doc) = slotted {
@@ -1489,11 +1502,11 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     ) else {
         eprintln!("R2/nonfinite-assert: the assertion was refused at the edit door");

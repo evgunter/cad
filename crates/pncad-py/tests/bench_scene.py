@@ -26,6 +26,14 @@ a named gap in the bindings (`pncad.pyi`'s module docstring), so the
 prisms here are drawn from literal quantities and declare no
 parameters. The bodies are the same; the recipes are not.
 
+A second difference is a job rather than a choice: the tour stands
+its stand on a TURNTABLE gauge whose swing is a document parameter,
+mates through `regauge_then_mate`, and sets a crate on the shelf
+through a gauge nested on the turntable. `stand` here stands the
+stand on the world, which is where the turntable puts it at the
+tour's authored swing of zero, and authors no crate
+(`work/lib/the-turntable-bench-has-no-python-row.md`).
+
 The layout's placed family is NOT such a difference: `layout` spells
 the posts with `Node.pattern`, the tour's own node, whose value is the
 plural family. `posts=` switches that one call site to
@@ -35,9 +43,9 @@ assert that they agree. What the switch is for is that comparison
 (`test_assembly_author.TestBenchLayout`); what the scene ships is the
 pattern.
 
-A `Doc`'s identity is derived from its label, so the two part documents
+A `Doc`'s identity is derived from its seed, so the two part documents
 have the same identities whatever authored them, and a document
-re-authored under the same label with different dimensions is the same
+re-authored under the same seed with different dimensions is the same
 id at a different pin — which is how a part legitimately changes on
 disk.
 """
@@ -61,6 +69,7 @@ from pncad import (
     NamePat,
     Node,
     PatternKind,
+    Placement,
     SegPat,
     SegTag,
     Selector,
@@ -104,16 +113,16 @@ FLAT_PACK_SHELF_Y = 0.9
 #: inset in y so the bench top overhangs front and back.
 ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
-POST_LABEL = "pncad-demo-post"
-SHELF_LABEL = "pncad-demo-shelf"
-LAYOUT_LABEL = "pncad-demo-layout"
-STAND_LABEL = "pncad-demo-stand"
+POST_SEED = "pncad-demo-post"
+SHELF_SEED = "pncad-demo-shelf"
+LAYOUT_SEED = "pncad-demo-layout"
+STAND_SEED = "pncad-demo-stand"
 
 
 # ---- The part documents ----
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """A rectangular prism part document, rooted at the origin.
 
     The extrusion runs +z from the sketch plane at z = 0, so the part's
@@ -121,7 +130,7 @@ def prism(label, width, depth, height):
     Three nodes: the sketch frame, the section drawn on it, the
     extrude that consumes both.
     """
-    doc = Doc(label)
+    doc = Doc(seed)
     profile = doc.insert(
         Node.polygon(
             [
@@ -139,14 +148,14 @@ def prism(label, width, depth, height):
 
 def post(height=POST_HEIGHT, section=POST_SECTION):
     """The post: a square-section upright. The dimensions are arguments
-    so a caller can author the SAME part changed — same label, so same
+    so a caller can author the SAME part changed — same seed, so same
     identity, at a different pin."""
-    return prism(POST_LABEL, section, section, height)
+    return prism(POST_SEED, section, section, height)
 
 
 def shelf(thickness=SHELF_THICKNESS, length=SHELF_LENGTH, depth=SHELF_DEPTH):
     """The shelf: the board the posts carry."""
-    return prism(SHELF_LABEL, length, depth, thickness)
+    return prism(SHELF_SEED, length, depth, thickness)
 
 
 # ---- Naming and mates ----
@@ -221,12 +230,13 @@ def seat(a_frame, b_frame, primitive=None, post_cap=None):
 #: the cap it selects from the post document.
 POST_CAP = "the post's top cap face"
 
-#: The stand's two mates, as (a seat, b seat) in document order: the
-#: root post's top to the shelf's underside, then the shelf's
-#: underside to the far post's top. The post sides are the cap face,
-#: the shelf sides authored points (the shelf's own datum, not a face
-#: of it).
-STAND_SEATS = ((POST_CAP, SEAT_A), (SEAT_B, POST_CAP))
+#: The stand's two mates, as (a seat, b seat) in document order, each
+#: naming the part it moves first — a placing mate places its first
+#: operand's group on its second's: the shelf's underside to the root
+#: post's top, then the far post's top to the shelf's underside. The
+#: post sides are the cap face, the shelf sides authored points (the
+#: shelf's own datum, not a face of it).
+STAND_SEATS = ((SEAT_A, POST_CAP), (POST_CAP, SEAT_B))
 
 
 def part_cap(part_doc, side):
@@ -258,17 +268,19 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
 
     Answers the document and its three nodes, in document order.
     """
-    doc = Doc(LAYOUT_LABEL)
+    doc = Doc(LAYOUT_SEED)
     post_i = doc.insert(Node.instantiate_part(post_ref))
     # The post is laid on its SIDE: a rotation, which is why the frame
     # stores a general linear part and not a translation.
     doc.apply(
-        DocEdit.set_placement(
+        DocEdit.set_offset(
             post_i,
-            Frame.rotate_then_translate(
-                (0.0, 1.0, 0.0),
-                -math.pi / 2 * pncad.rad,
-                ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
+            Placement.literal(
+                Frame.rotate_then_translate(
+                    (0.0, 1.0, 0.0),
+                    -math.pi / 2 * pncad.rad,
+                    ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
+                )
             ),
         )
     )
@@ -281,9 +293,11 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
     doc.apply(
-        DocEdit.set_placement(
+        DocEdit.set_offset(
             shelf_i,
-            Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m)),
+            Placement.literal(
+                Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m))
+            ),
         )
     )
     return doc, post_i, family, shelf_i
@@ -293,15 +307,16 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the root post carries an authored frame — placement lives on
-    the group, and the mates place the rest. Answers the document,
+    Only the root post keeps an offset — each mate names the part it
+    moves first, and the mate door clears that part's offset. Answers the document,
     its three instances and its two mates, each in document order.
     """
-    doc = Doc(STAND_LABEL)
+    doc = Doc(STAND_SEED)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
-        DocEdit.set_placement(
-            post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))
+        DocEdit.set_offset(
+            post_a,
+            Placement.literal(Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))),
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
@@ -316,10 +331,10 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     post_cap = part_cap(store.resolve(post_ref), CapEnd.End)
     mate_1 = doc.insert(
         Node.mate(
-            post_a,
-            a_top,
             shelf_i,
             s_bottom,
+            post_a,
+            a_top,
             class_,
             seat(*STAND_SEATS[0], primitive, post_cap=post_cap),
         ),
@@ -327,10 +342,10 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     )
     mate_2 = doc.insert(
         Node.mate(
-            shelf_i,
-            s_bottom,
             post_b,
             b_top,
+            shelf_i,
+            s_bottom,
             class_,
             seat(*STAND_SEATS[1], primitive, post_cap=post_cap),
         ),
@@ -356,7 +371,7 @@ def parts(store):
 
 
 def write(store):
-    """Author the whole scene into `store` and answer label -> `Doc`.
+    """Author the whole scene into `store` and answer seed -> `Doc`.
 
     The four documents are WRITTEN, so a caller that wants the scene as
     the persistence door hands it back resolves each one out of the

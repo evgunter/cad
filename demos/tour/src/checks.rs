@@ -36,8 +36,15 @@ use pncad::geom_core::Tol;
 
 /// Inserts a node and returns its minted id.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -94,7 +101,7 @@ fn boolean_doc(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -138,7 +145,7 @@ pub fn narration(tol: Tol) {
     let cfg = ChecksConfig::default();
     let report = run_checks(&doc, &ev, &cfg, tol).expect("checks run");
     println!("   a two-cube DISJOINT union, checked at the default expectation:");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert_eq!(report.findings.len(), 1);
 
     // The severity knob changes only what is ACCEPTED, and only at
@@ -151,7 +158,10 @@ pub fn narration(tol: Tol) {
     assert!(enforce_checks(&report, &cfg).is_ok());
     match enforce_checks(&report, &strict) {
         Ok(()) => panic!("Error severity refuses at enforce_checks"),
-        Err(refusal) => println!("   at Severity::Error, enforce_checks refuses: {refusal}"),
+        Err(refusal) => println!(
+            "   at Severity::Error, enforce_checks refuses: {}",
+            refusal.spoken(&doc)
+        ),
     }
 
     // (b) The same document with the disjointness stated as data.
@@ -161,7 +171,7 @@ pub fn narration(tol: Tol) {
     };
     let report = run_checks(&doc, &ev, &acknowledged, tol).expect("checks run");
     println!("   the same document, disjointness ACKNOWLEDGED (expected_components = 2):");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());
 
     // (c) The void birth: A ∖ B with B strictly inside. Two shells,
@@ -175,6 +185,6 @@ pub fn narration(tol: Tol) {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("checks run");
     println!("   a subtract with the tool strictly interior (outer shell + void shell):");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());
 }

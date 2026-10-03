@@ -586,7 +586,13 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         .expect("the face's spiric edge");
     let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
     assert!(
-        matches!(got, Err(PointInSolidError::EdgeCarrierUnsupported { face }) if face == spiric_face),
+        matches!(
+            got,
+            Err(PointInSolidError::EdgeCarrierUnsupported { face, cause })
+                if face == spiric_face
+                    && cause.r#loop == data.outer
+                    && cause.carrier == topo::UncrossableCarrier::Spiric
+        ),
         "on the spiric the face refuses typed, got {got:?}"
     );
 }
@@ -893,8 +899,8 @@ impl Cut {
 
     fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
         Cut {
-            point: Point3::new(point[0], point[1], point[2]),
-            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+            point: Point3::from_array(point),
+            normal: Vec3::from_array(normal).normalize(),
         }
     }
 
@@ -921,14 +927,11 @@ fn cut_by(cuts: &[Cut]) -> Body<f64> {
 
 /// `body` cut down to the side of every plane in `cuts` below it.
 fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     for cut in cuts {
         let result = split(
             &body,
-            &SplitPlane {
-                origin: cut.point,
-                normal: cut.normal,
-            },
+            &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
         .expect("the cut splits");
@@ -944,6 +947,8 @@ fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
 struct CutCase {
     name: &'static str,
     body: Body<f64>,
+    /// The planes that cut it.
+    cuts: Vec<Cut>,
     /// `Some(inside)` for a probe clear of the boundary, `None` near it.
     truth: Box<dyn Fn(Point3<f64>) -> Option<bool>>,
 }
@@ -980,6 +985,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         cases.push(CutCase {
             name,
             body: cut_by(&cuts),
+            cuts: cuts.clone(),
             truth: region(cuts),
         });
     };
@@ -1048,6 +1054,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
             cases.push(CutCase {
                 name,
                 body: cut_from(turned, &cuts),
+                cuts: cuts.clone(),
                 truth: region(cuts),
             });
         }
@@ -1060,6 +1067,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         Ok(topo::BooleanResult::Body(b)) => cases.push(CutCase {
             name: "cut 0.3 minus a box (subtract)",
             body: b.body,
+            cuts: vec![cut],
             truth: Box::new(move |p| {
                 let clear =
                     |v: f64, lo: f64, hi: f64| (v - lo).abs() >= 0.05 && (v - hi).abs() >= 0.05;
@@ -1074,6 +1082,42 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         other => panic!("the pocket subtracts: {:?}", other.err()),
     }
     cases
+}
+
+/// **Every tilted-cut fixture's section faces wind counter-clockwise.**
+/// Each face lying in one of a fixture's cutting planes is a section
+/// face the split minted, and its sense is `true`. A clockwise one is
+/// the polygon a chord run outside the wall face it divides makes, kept
+/// as a face cancelling part of the section beside it: the "valley" and
+/// "ridge at tilt 1.1" fixtures carried two per cut while the join
+/// paired a wall face's crossings by the sweep's order.
+#[test]
+fn every_tilted_cut_section_face_is_counter_clockwise() {
+    let mut problems = Vec::new();
+    for case in tilted_cut_cases() {
+        let mut sections = 0;
+        for (key, face) in case.body.faces() {
+            let Some(geom::Surface::Plane { origin, normal, .. }) =
+                case.body.get_surface(face.surface)
+            else {
+                continue;
+            };
+            let in_a_cut = case.cuts.iter().any(|c| {
+                normal.cross(c.normal).norm() < 1e-9
+                    && (*origin - c.point).dot(c.normal).abs() < 1e-9
+            });
+            if in_a_cut {
+                sections += 1;
+                if !face.sense {
+                    problems.push(format!("{}: section face {key:?} is clockwise", case.name));
+                }
+            }
+        }
+        if sections == 0 {
+            problems.push(format!("{}: no section face found", case.name));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 /// **Every tilted-cut wall reads its truth, and its outline is read,
@@ -1117,7 +1161,7 @@ fn answered_floor_and_escalation_cap(name: &str) -> (usize, usize) {
         "lens" => (59, 0),
         "valley at tilt 0.4" => (313, 0),
         "ridge at tilt 0.4" => (300, 0),
-        "valley at tilt 1.1" => (231, 1),
+        "valley at tilt 1.1" => (230, 1),
         "ridge at tilt 1.1" => (212, 0),
         "cut 0.3 minus a box (subtract)" => (196, 0),
         other => panic!("no floor for {other}"),

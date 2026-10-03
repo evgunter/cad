@@ -57,6 +57,7 @@ use crate::eval::{
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
+use crate::spoken::SpokenNode;
 
 /// The shipped sample count — a recorded run dial, not a constant of
 /// nature.
@@ -111,8 +112,8 @@ pub enum McRefusal {
     /// to replay. The node and its rendered error, the driver's own
     /// shape.
     NominalDoesNotBuild {
-        /// The refusing node.
-        node: RecipeNodeId,
+        /// The refusing node, spoken from the run's document.
+        node: SpokenNode,
         /// Its error, rendered.
         cause: String,
     },
@@ -131,9 +132,8 @@ impl core::fmt::Display for McRefusal {
             }
             Self::NominalDoesNotBuild { node, cause } => write!(
                 f,
-                "the document does not build at its nominal (node {}), so there is nothing \
-                 to replay: {cause}",
-                node
+                "the document does not build at its nominal ({node}), so there is nothing \
+                 to replay: {cause}"
             ),
         }
     }
@@ -196,6 +196,9 @@ impl McAssertion {
 /// and the count and seed that produced it ride at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct McReport {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// How many samples were drawn.
     pub samples: usize,
     /// The seed they were drawn from.
@@ -259,13 +262,19 @@ impl McReport {
     }
 
     /// **The human form**, with the advisory label and the dials on
-    /// every line that carries an estimate.
+    /// every line that carries an estimate, each node spoken from `doc`,
+    /// the document the run was drawn from.
     ///
     /// Repeating "advisory (N samples, seed …)" on each line is
     /// deliberate: a reader who copies one line out of a report takes
     /// the label with it, which a single header line does not survive.
-    pub fn render(&self) -> String {
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the run was drawn from.
+    pub fn render<P>(&self, doc: &Doc<P>) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
         let tag = format!(
             "ADVISORY — Monte-Carlo estimate over {} samples, seed {:#018x}",
             self.samples, self.seed
@@ -286,17 +295,21 @@ impl McReport {
             if m.unmeasured == self.samples {
                 let _ = writeln!(
                     s,
-                    "  node {}: UNMEASURED — no sample had an f64 value for this measure, so \
+                    "  {}: UNMEASURED — no sample had an f64 value for this measure, so \
                      this lane has nothing to estimate. Its certified answer is the E6 \
                      driver's per-leaf enclosure (see the leaf histogram).   [{tag}]",
-                    m.node
+                    doc.spoken(m.node)
                 );
                 continue;
             }
             let _ = writeln!(
                 s,
-                "  node {}: mean {} σ {} min {} max {}   [{tag}]",
-                m.node, m.mean, m.sigma, m.min, m.max
+                "  {}: mean {} σ {} min {} max {}   [{tag}]",
+                doc.spoken(m.node),
+                m.mean,
+                m.sigma,
+                m.min,
+                m.max
             );
             if m.unmeasured > 0 {
                 let _ = writeln!(
@@ -309,8 +322,8 @@ impl McReport {
         for a in &self.assertions {
             let _ = writeln!(
                 s,
-                "  node {}: empirical violation fraction {}   [{tag}]",
-                a.node,
+                "  {}: empirical violation fraction {}   [{tag}]",
+                doc.spoken(a.node),
                 match a.violation_fraction() {
                     Some(f) => format!(
                         "{:.4}% ({} of {} decided)",
@@ -368,7 +381,10 @@ pub fn monte_carlo(
         let cause = nominal
             .node_error(node)
             .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
-        return Err(McRefusal::NominalDoesNotBuild { node, cause });
+        return Err(McRefusal::NominalDoesNotBuild {
+            node: doc.spoken(node),
+            cause,
+        });
     }
 
     // Every varying parameter must be sampleable BEFORE any sampling
@@ -517,6 +533,7 @@ pub fn monte_carlo(
     }
     let outside = samples.iter().filter(|s| s.outside).count();
     Ok(McReport {
+        document: doc.id(),
         samples: samples.len(),
         seed: config.seed,
         measures,

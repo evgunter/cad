@@ -144,8 +144,8 @@ pub enum NodeErrorClass {
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredContact`].
-    UndeclaredContact,
+    /// [`NodeErrorKind::UndeclaredCoincidence`].
+    UndeclaredCoincidence,
     /// [`NodeErrorKind::UndeclarableContact`].
     UndeclarableContact,
     /// [`NodeErrorKind::BlendSelectionResolve`] refused by a fillet.
@@ -246,6 +246,14 @@ pub enum NodeErrorClass {
     MateSelf,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::OffsetDisagrees`].
+    MateOffsetDisagrees,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::OffsetUnchecked`].
+    MateOffsetUnchecked,
+    /// [`NodeErrorKind::Unplaced`].
+    Unplaced,
+    /// [`NodeErrorKind::PlacementRefused`].
+    PlacementRefused,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
     MateFaceUnresolved,
     /// [`NodeErrorKind::CrossingUnverified`].
@@ -324,7 +332,7 @@ impl NodeErrorKind {
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredContact { .. } => C::UndeclaredContact,
+            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
             Self::UndeclarableContact { .. } => C::UndeclarableContact,
             Self::BlendSelectionResolve { verb, .. } => {
                 by_verb(*verb, C::FilletSelectionResolve, C::ChamferSelectionResolve)
@@ -372,6 +380,8 @@ impl NodeErrorKind {
                 PartFault::NotEntered => C::PartNotEntered,
             },
             Self::Mate(fault) => C::of_mate(fault),
+            Self::Unplaced { .. } => C::Unplaced,
+            Self::PlacementRefused { .. } => C::PlacementRefused,
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
             Self::MeasureRefResolve { .. } => C::MeasureRefResolve,
             Self::MeasureRefUnreadable { .. } => C::MeasureRefUnreadable,
@@ -403,7 +413,7 @@ impl NodeErrorClass {
     #[must_use]
     pub fn of_placement_rule(fault: &PlacementRuleFault) -> Self {
         match fault {
-            PlacementRuleFault::CountSpelling => Self::PlacementRuleCountSpelling,
+            PlacementRuleFault::CountSpelling { .. } => Self::PlacementRuleCountSpelling,
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
             PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
@@ -430,6 +440,8 @@ impl NodeErrorClass {
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
             MateFault::SelfMate { .. } => Self::MateSelf,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
+            MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
+            MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
             MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
         }
     }
@@ -540,7 +552,7 @@ mod tests {
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
-        UndeclaredContact,
+        UndeclaredCoincidence,
         UndeclarableContact,
         FilletSelectionResolve,
         ChamferSelectionResolve,
@@ -586,6 +598,10 @@ mod tests {
         MatePartSelectsAnotherCopy,
         MateSelf,
         MateUnleverable,
+        MateOffsetDisagrees,
+        MateOffsetUnchecked,
+        Unplaced,
+        PlacementRefused,
         MateFaceUnresolved,
         CrossingUnverified,
         MeasureRefResolve,
@@ -796,7 +812,9 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {
-                K::PlacementRule(crate::PlacementRuleFault::CountSpelling)
+                K::PlacementRule(crate::PlacementRuleFault::CountSpelling {
+                    shape: crate::CountMismatch::ListedOnPattern,
+                })
             }
             C::PlacementRuleNoPlacements => {
                 K::PlacementRule(crate::PlacementRuleFault::NoPlacements)
@@ -829,7 +847,7 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::UndeclaredContact => K::UndeclaredContact {
+            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
                 finding: Box::new(crate::FlushFinding {
                     pair: (
                         crate::SitedRef {
@@ -841,7 +859,7 @@ mod tests {
                             name: name(),
                         },
                     ),
-                    class: topo::ContactClass::Rest,
+                    class: topo::BooleanCoincidence::REST,
                     evidence: crate::FlushEvidence {
                         relation: topo::PlaneRelation::SameOpposite,
                         rung: crate::FlushRung::DecidedCoincident,
@@ -895,7 +913,7 @@ mod tests {
                 found,
             }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
@@ -945,8 +963,7 @@ mod tests {
                 part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
             }
             C::PartProduct => part(crate::PartFault::PartProduct {
-                kind: crate::ProductErrorKind::NoBodyRoots,
-                message: "the document declares no body root".to_owned(),
+                refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],
@@ -1020,6 +1037,33 @@ mod tests {
                     refusal: crate::ReachRefusal::NoExtent,
                 }),
             }),
+            C::MateOffsetDisagrees => mate(crate::MateFault::OffsetDisagrees {
+                instance: n(6),
+                root: n(5),
+                predicate: "mate_member_translation_zero",
+                clash: crate::Clash::Length { metres: 0.5 },
+            }),
+            C::MateOffsetUnchecked => mate(crate::MateFault::OffsetUnchecked {
+                instance: n(6),
+                cause: Box::new(crate::OffsetCheck::Placement {
+                    node: n(5),
+                    error: K::MissingSlot {
+                        slot: crate::SlotId::Count,
+                    }
+                    .into(),
+                }),
+            }),
+            C::Unplaced => K::Unplaced {
+                group: n(6),
+                cause: crate::Unplaced::NoOffset,
+            },
+            C::PlacementRefused => K::PlacementRefused {
+                node: n(5),
+                error: K::MissingSlot {
+                    slot: crate::SlotId::Count,
+                }
+                .into(),
+            },
             C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
                 mate: n(9),
                 side: crate::MateSide::A,

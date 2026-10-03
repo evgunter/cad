@@ -144,7 +144,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
+pub fn cube<T: Decide + topo::AtRestPolicy>(l: f64, tol: Tol) -> Body<T> {
     block(l, l, l, tol)
 }
 
@@ -155,7 +155,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
 /// and both reach the same construction through the same door.
-pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
+pub fn block<T: Decide + topo::AtRestPolicy>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
     brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
 
@@ -207,8 +207,27 @@ pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
 /// module's extrusion primitive; this door exists so that a suite
 /// which already depends on `sweep` does not reach past it for the
 /// plainest body there is.
-pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<T> {
+pub fn brick<T: Decide + topo::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
     topo::test_support::brick(x, y, z, tol)
+}
+
+/// **Every boolean output is a legal boolean operand** (DESIGN,
+/// "Maximal faces"): asserts that `body` passes the next boolean's
+/// operand gates, by uniting it with a unit brick at `[50, 51]³` that it
+/// does not touch, so nothing but those gates runs on it. Panics naming
+/// `what` and the gate's refusal. The suites' bodies lie well inside
+/// `|x| < 50`; a body that reached the brick would be read as an
+/// overlap, not as a gate.
+pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
+    let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol);
+    if let Err(e) = topo::union(body, &far, tol) {
+        panic!("{what}: the result is no legal operand: {e:?}");
+    }
 }
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
@@ -401,10 +420,6 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// its reasons.
 #[must_use]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
-    let surface_of = |he| -> Option<topo::SurfaceKey> {
-        let l = body.get_half_edge(he)?.parent_loop;
-        Some(body.get_face(body.get_loop(l)?.face)?.surface)
-    };
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
         .filter_map(|(k, e)| {
@@ -415,7 +430,8 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
             if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
-            (surface_of(e.he_plus)? != surface_of(e.he_minus)?).then_some(k)
+            let sides = topo::readback::edge_sides(body, k).ok()?;
+            (sides.plus.surface != sides.minus.surface).then_some(k)
         })
         .collect()
 }
@@ -531,11 +547,11 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
 ///
 /// The axis matters: `revolve` puts the ball's poles on the sketch
-/// axis, and a plane×sphere section taken against a chart whose polar
-/// axis is TILTED to the plane is a typed frontier of the split-join
-/// (`SplitJoinError::SectionNotPolar`). A pip
-/// is cut by a face plane, so its ball is charted with the pole along
-/// that face's normal and the section stays polar by construction.
+/// axis, and a plane×sphere section is polar for the ball's chart only
+/// when the plane is normal to that axis. A pip is cut by a face plane,
+/// so its ball is charted with the pole along that face's normal and
+/// the section stays polar by construction, which keeps its faces
+/// inside the iso-rectangle inventory the tessellator walks.
 /// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
 /// most; this door takes any.
 pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
@@ -618,7 +634,7 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
 /// own loops; nothing about it is specific to a shape, a scalar or a
 /// crate, so a shape that is not in this module today needs no
 /// redesign to move here, only a name.
-pub fn extruded<T: Decide>(
+pub fn extruded<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     loops: Vec<ProfileLoop<T>>,
     h: T,
@@ -705,7 +721,7 @@ pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of
 /// `verts`, extruded `h` along that plane's normal.
-pub fn prism_on<T: Decide>(
+pub fn prism_on<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     verts: Vec<(Point2<T>, T)>,
     h: T,
@@ -719,7 +735,11 @@ pub fn prism_on<T: Decide>(
 /// Takes the vertices rather than a shape so the L-prism, the
 /// arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
+pub fn prism<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_at(verts, T::zero(), h, tol)
 }
 
@@ -727,7 +747,12 @@ pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at<T: Decide>(verts: Vec<(Point2<T>, T)>, z0: T, h: T, tol: Tol) -> Body<T> {
+pub fn prism_at<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    z0: T,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_on(sketch_at(z0), verts, h, tol)
 }
 
@@ -1057,6 +1082,7 @@ pub fn assert_naming_totality<T: Real>(
         .blends
         .iter()
         .map(|(f, _)| *f)
+        .chain(rec.joined_blends.iter().map(|(f, _)| *f))
         .chain(rec.corners.iter().map(|(f, _)| *f))
         .chain(rec.bands.iter().map(|(f, _)| *f))
         .collect();
@@ -1177,13 +1203,19 @@ pub fn assert_naming_totality<T: Real>(
             "{what}: a retired vertex does not survive: {v:?}"
         );
     }
-    // The edges a band replaced: a closed chain's arcs (`bands`) or an
-    // open link's edge (`blends`) — together, exactly the request.
+    // The edges a band replaced: a closed chain's arcs (`bands`), an
+    // open link's edge (`blends`) or a joined open chain's edges
+    // (`joined_blends`) — together, exactly the request.
     let mut banded: Vec<EdgeKey> = rec
         .bands
         .iter()
         .flat_map(|(_, edges)| edges.iter().copied())
         .chain(rec.blends.iter().map(|(_, e)| *e))
+        .chain(
+            rec.joined_blends
+                .iter()
+                .flat_map(|(_, edges)| edges.iter().copied()),
+        )
         .collect();
     // (c)
     for (k, _) in source.edges() {
@@ -1343,9 +1375,8 @@ pub fn waist_fill(x_v: f64, r: f64) -> f64 {
 /// then a lip rising to `(1.5, 1.5)` and back down the outside to the
 /// base — `(0,0) (1.5,0) (1.5,1.5) (1,1) (0,1)` revolved fully.
 ///
-/// Pole-touching, so both its discs are minted as half-discs and
-/// `merge_coplanar_faces` fuses each into one face. After that repair
-/// its FLOOR rim `(1, 1)` is the plane-hosted closed rim whose crossings
+/// Pole-touching; a full revolve builds each disc whole, so its FLOOR
+/// rim `(1, 1)` is the plane-hosted closed rim whose crossings
 /// are TRIVALENT — one plane face carrying both arcs in its own outer
 /// cycle — and it is CONCAVE, an inside corner whose band ADDS material.
 /// That is the pairing the closed-rim suites need: every other
@@ -1407,8 +1438,8 @@ pub fn wedge_fill(k: (f64, f64), da: (f64, f64), db: (f64, f64), r: f64) -> f64 
 /// **A pole-touching hemisphere of radius `r` on a flat base disc**: the
 /// base `(0,0)→(r,0)` and the sphere quarter `(r,0)→(0,r)`, revolved
 /// fully. The simplest plane-hosted closed rim there is — one profile
-/// segment per support — and after `merge_coplanar_faces` its equator is
-/// the hostless-crossing shape with a plane×sphere pair.
+/// segment per support — and its equator, the base disc being built
+/// whole, is the hostless-crossing shape with a plane×sphere pair.
 pub fn hemisphere_on_flat_base(r: f64, tol: Tol) -> Body<f64> {
     hemisphere_on_flat_base_at(r, tol)
 }
@@ -1500,14 +1531,13 @@ pub fn plane_sphere_external_cut(big_r: f64, r: f64) -> f64 {
 /// `up` false is its DIMPLE twin, the same hemisphere dug into the top
 /// instead (bulge `−tan(π/8)`, apex `(0, 0.5)`).
 ///
-/// Pole-touching, so every wall is minted as two half-bands; the caller
-/// decides whether to repair. After `merge_coplanar_faces` the flat top
-/// is ONE plane ANNULUS carrying THREE closed rims of three shapes at
+/// Pole-touching: each curved wall is minted as two half-bands, each
+/// plane wall whole, so the flat top is ONE plane ANNULUS carrying THREE
+/// closed rims of three shapes at
 /// once, which is why it is the fixture: its BASE rim `(1, 0)` is a
 /// hostless annulus on a ring-free host, its TOP OUTER rim `(1, 1)` is a
 /// hostless annulus on a host that also carries a RING, and its DOME rim
-/// `(0.5, 1)` is that ring and so a LADDER. Census after the repair:
-/// `V=7 E=10 F=6`.
+/// `(0.5, 1)` is that ring and so a LADDER. Census: `V=7 E=10 F=6`.
 pub fn boss(up: bool, tol: Tol) -> Body<f64> {
     // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
@@ -1529,7 +1559,7 @@ pub fn boss(up: bool, tol: Tol) -> Body<f64> {
 /// circular outer boundary: `(0,0) (rr,0) (rr,1) (0.5,1)[dome] (0,1.5)`
 /// revolved fully. The dome stays at radius 0.5, so the ladder rim's
 /// containment margin against that boundary is `rr − √((0.5 + r)² − r²)`
-/// and `rr` is the dial. Pole-touching; the caller repairs.
+/// and `rr` is the dial.
 pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
@@ -1550,7 +1580,6 @@ pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
 /// excises: `(0,0) (1,0) (1,1) (a,1)[dome] (0,1+a)` revolved fully. The
 /// outer radius stays 1, so the hostless annulus rim's containment margin
 /// at fillet radius `r` is `(1 − r) − a` and `a` is the dial.
-/// Pole-touching; the caller repairs.
 pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
@@ -1597,20 +1626,35 @@ pub fn bored_cylinder(a: f64, d: f64, outer_phi: f64, tol: Tol) -> Body<f64> {
 /// cylinder's two coplanar rims need, since both are circles in one
 /// plane.
 pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> {
-    let seed = body
-        .edges()
-        .find(|(_, e)| {
-            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                return false;
-            };
-            matches!(c.carrier(), geom::Curve3::Circle { radius, center, axis, .. }
-                if (radius - r).abs() < 1e-9 && (center.z - z0).abs() < 1e-9
-                    && axis.z.abs() > 0.9
-                    && (center.x.hypot(center.y) > 0.1) == off_axis)
+    let found = circle_arcs_where(body, |center, radius, axis| {
+        (radius - r).abs() < 1e-9
+            && (center.z - z0).abs() < 1e-9
+            && axis.z.abs() > 0.9
+            && (center.x.hypot(center.y) > 0.1) == off_axis
+    });
+    let seed = *found.first().expect("the rim's seed edge");
+    topo::query::rim_of(body, seed).expect("one rim")
+}
+
+/// Every edge whose stored carrier is a circle that `pick` accepts
+/// (centre, radius, axis), in key order — the seed scan [`z_rim`] and
+/// [`circle_arcs_at_z`] share.
+fn circle_arcs_where(
+    body: &Body<f64>,
+    pick: impl Fn(Point3<f64>, f64, Vec3<f64>) -> bool,
+) -> Vec<EdgeKey> {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Circle { center, radius, axis, .. })
+                    if pick(*center, *radius, *axis)
+            )
         })
         .map(|(k, _)| k)
-        .expect("the rim's seed edge");
-    topo::query::rim_of(body, seed).expect("one rim")
+        .collect()
 }
 
 /// The rod's radius, meters.
@@ -1788,8 +1832,8 @@ pub fn rod_creases<T: Real>(body: &Body<T>) -> Vec<EdgeKey> {
                 && query::edge_adjacent_matches(
                     body,
                     k,
-                    SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                    SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                    SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+                    SurfaceKindSet::just(geom::SurfaceKind::Plane),
                 )
         })
         .collect()
@@ -1981,51 +2025,38 @@ fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
         .collect()
 }
 
-/// **Every arc whose stored carrier is a circle centred at station
-/// `z`**, in key order — the raw scan, seeded through no rim door.
+/// **The rim at station `z`** of the extruded fixtures above: the
+/// first arc (key order) whose stored carrier is a circle centred at
+/// `z` seeds [`topo::query::rim_of`], and the door hands back the rim
+/// whole, in its own order.
 ///
-/// The z-poled twin of [`arcs_at`]'s scan, for the extruded fixtures
-/// above — the fifth z-poled scan in the tree, and the instance
-/// `work/blend/seed-finder-home-reads-only-the-y-station` records
-/// against the day the home reads a station on either axis. It is
-/// station-only where [`arcs_at`] also filters by radius and excludes
-/// co-surface circles, and that is right for THESE fixtures rather
-/// than in general: each builder above mints one circle per station
-/// (the seams it leaves are lines, so no co-surface circle exists),
-/// which the scan checks by requiring every arc it finds to share one
-/// carrier radius — two rims at one station are then a loud fixture
-/// bug rather than a silent union.
-///
-/// Deliberately NOT routed through [`topo::query::rim_of`]: that door
-/// matches arcs by bit-identical carrier circles, and `extrude` stores
-/// each arc of one authored circle on its own centre and radius, so it
-/// refuses every rim these builders mint
-/// (`work/blend/rim-of-refuses-extruded-multi-arc-rims`).
+/// The z-poled twin of [`rim_arcs_at`]'s seed scan, an instance
+/// `work/strut/seed-finder-home-reads-only-the-y-station` records
+/// against the day the home reads a station on either axis. Each
+/// builder above mints one circle per station (the seams it leaves are
+/// lines, so no co-surface circle exists), which this checks by
+/// requiring the rim to be every circle arc at `z` — two rims at one
+/// station are then a loud fixture bug rather than a silent half.
 ///
 /// # Panics
 ///
-/// If the arcs at `z` do not share one radius (within `1e-9`).
+/// If the door refuses the seed, or the rim is not every circle arc
+/// at `z`. A station no arc sits at is an empty answer.
 #[must_use]
 pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
-    let found: Vec<(EdgeKey, f64)> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match c.carrier() {
-                geom::Curve3::Circle { center, radius, .. } if (center.z - z).abs() < 1e-9 => {
-                    Some((k, *radius))
-                }
-                _ => None,
-            }
-        })
-        .collect();
-    if let Some(&(_, r0)) = found.first() {
-        assert!(
-            found.iter().all(|(_, r)| (r - r0).abs() < 1e-9),
-            "one rim at station z = {z}: the arcs there do not share one radius"
-        );
-    }
-    found.into_iter().map(|(k, _)| k).collect()
+    let found = circle_arcs_where(body, |center, _, _| (center.z - z).abs() < 1e-9);
+    let Some(&seed) = found.first() else {
+        return Vec::new();
+    };
+    let rim = topo::query::rim_of(body, seed)
+        .unwrap_or_else(|e| panic!("the rim at station z = {z} is one rim, got {e}"));
+    let mut sorted = rim.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted, found,
+        "one rim at station z = {z}: it is every circle arc there"
+    );
+    rim
 }
 
 /// **A full revolve's rim is the two arcs its one seam splits it

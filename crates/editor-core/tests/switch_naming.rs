@@ -53,11 +53,11 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: xy,
                     loops: vec![loop_],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -66,10 +66,10 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: crate::fixture::newest(&doc),
                 distance: len(1.0),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -186,11 +186,11 @@ fn circle_radius_edit_keeps_names() {
         let doc = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Node::Profile(ProfileProgram {
+                    node: Box::new(Node::Profile(ProfileProgram {
                         plane: xy,
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                         ids: Vec::new(),
-                    }),
+                    })),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -199,10 +199,10 @@ fn circle_radius_edit_keeps_names() {
             .doc;
         doc.apply(
             &DocEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -328,11 +328,11 @@ fn hole_circle_anchor_recovers_reversal() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: xy,
                     loops: vec![outer, hole],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -342,10 +342,10 @@ fn hole_circle_anchor_recovers_reversal() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -421,12 +421,9 @@ fn hole_circle_anchor_recovers_reversal() {
         let name = StableName {
             kind: EntityKind::Face,
             node: doc.order()[2],
-            path: vec![RoleSeg::Lateral(crate::fixture::piece(
-                &doc,
-                doc.order()[2],
-                1,
-                seg as usize,
-            ))],
+            path: vec![RoleSeg::Lateral(
+                crate::fixture::piece(&doc, doc.order()[2], 1, seg as usize).into(),
+            )],
         };
         assert!(
             table.lookup(&name).is_some(),

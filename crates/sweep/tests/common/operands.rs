@@ -44,12 +44,12 @@ use topo::Body;
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
 /// row puts something else against.
-pub fn slab<T: Decide>() -> Body<T> {
+pub fn slab<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// The 6 x 4 plate, `z in [z0, z0 + 1]`.
-pub fn plate6<T: Decide>(z0: f64) -> Body<T> {
+pub fn plate6<T: Decide + topo::AtRestPolicy>(z0: f64) -> Body<T> {
     brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
 }
 
@@ -60,7 +60,7 @@ pub fn plate6<T: Decide>(z0: f64) -> Body<T> {
 /// `m5_s10_face_sense::mixed_turn_arcs`, and every point of it is
 /// genuinely OUTSIDE that body — the notch floor at `x = 1` is
 /// `y ~ 1.0858` — so the two solids are disjoint.
-pub fn pellet<T: Decide>() -> Body<T> {
+pub fn pellet<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
@@ -101,7 +101,12 @@ pub fn three_arc_cylinder(
 /// scalar the extrusion takes. Not [`three_arc_cylinder`] at `n = 3`:
 /// that door places its joints through `to_radians` from degrees, and
 /// the two spellings are different bits.
-pub fn n_arc_boss<T: Decide>(centre: Point2<f64>, n: usize, z0: f64, len: f64) -> Body<T> {
+pub fn n_arc_boss<T: Decide + topo::AtRestPolicy>(
+    centre: Point2<f64>,
+    n: usize,
+    z0: f64,
+    len: f64,
+) -> Body<T> {
     let theta = 2.0 * core::f64::consts::PI / n as f64;
     let bulge = T::from_f64((theta / 4.0).tan());
     let at = |i: usize| {
@@ -122,7 +127,7 @@ pub fn n_arc_boss<T: Decide>(centre: Point2<f64>, n: usize, z0: f64, len: f64) -
 /// [`n_arc_boss`] at `(1.2, 1.7)`: the boss the M5 curved-op suites
 /// (`m5_s12_curved_ops`, its interval twin, and the PR 9 boss review)
 /// cut from and union onto their 3 × 3 plate.
-pub fn m5_boss<T: Decide>(n: usize, z0: f64, len: f64) -> Body<T> {
+pub fn m5_boss<T: Decide + topo::AtRestPolicy>(n: usize, z0: f64, len: f64) -> Body<T> {
     n_arc_boss(Point2::new(1.2, 1.7), n, z0, len)
 }
 

@@ -20,7 +20,8 @@ use common::brick;
 use geom_core::Tol;
 use topo::flush::{FlushRefusal, FlushRung, declare, declare_all, find_flush_candidates};
 use topo::{
-    Body, BooleanResult, ContactClass, FaceKey, PlaneRelation, mass_properties, query, union_with,
+    Body, BooleanCoincidence, BooleanResult, FaceKey, PlaneRelation, mass_properties, query,
+    union_with,
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored
@@ -93,7 +94,7 @@ fn the_stacks_shared_cap_is_one_same_opposite_finding() {
     );
     let finding = &found[0];
     assert_eq!(finding.pair, (cap_at(&a, 1.0), cap_at(&b, 1.0)));
-    assert_eq!(finding.class, ContactClass::Rest);
+    assert_eq!(finding.class, BooleanCoincidence::REST);
     assert_eq!(
         finding.evidence.relation,
         PlaneRelation::SameOpposite,
@@ -167,7 +168,7 @@ fn declare_all_round_trips_into_a_union_that_builds() {
         decls
             .coincident_faces
             .iter()
-            .all(|d| d.class == ContactClass::Rest),
+            .all(|d| d.class == BooleanCoincidence::REST),
         "the finding's class travels into the declaration"
     );
     let BooleanResult::Body(built) =
@@ -198,25 +199,25 @@ fn declare_declares_exactly_one_finding() {
     );
 }
 
-/// **A finding is a report about GEOMETRY, not a promise that the op
-/// will run** — the honest boundary of what detection buys, pinned on
-/// the arm that shows it.
+/// **A report is a SET, and declaring part of it declares part of it.**
 ///
-/// The stepped fixture carries a `SameOriented` flush wall pair (the
-/// merge-stage flavor) beside its resting cap pair. Declare BOTH — no
+/// The stepped fixture carries a `SameOriented` flush wall pair (a
+/// continuation) beside its resting cap pair. Declare BOTH — no
 /// declaration is contradicted, the verifier agrees each pair is one
 /// plane — and the union still refuses, at `RestZipUnsupported`: a
 /// named capability frontier of the declared zip, downstream of every
 /// verification the declarations pass. Detection cannot see that
 /// frontier and does not claim to.
 ///
-/// The subset arm is pinned in the same row because it is the other
-/// half of the same lesson: declaring only the wall leaves the cap
-/// coincidence undeclared, and the op says so
-/// (`UndeclaredCoincidence`) rather than proceeding. A report is a
-/// SET, and declaring part of it declares part of it.
+/// The fully declared union used to meet the declared-REST zip's
+/// `ChordBetweenIsolatedPierces` frontier: the chord join refused, and
+/// the zip that takes over a refused declared union could not chord it.
+/// The join now builds it itself: the bar's bottom edges along `x = 1`
+/// lie on the cube's top edge, each such segment is an edge of both
+/// solids, and the one fold rule folds it the same way at both of its
+/// ends (JOIN-1).
 #[test]
-fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
+fn a_declared_report_is_a_set_and_the_whole_set_builds() {
     let (a, b) = stepped();
     let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the pair decides");
     let wall = found
@@ -231,34 +232,28 @@ fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
         "declaring one finding of a report declares one finding: {partial:?}"
     );
 
-    let err = union_with(&a, &b, &declare_all(&found), Tol::witness())
-        .expect_err("the fully declared union meets the zip's frontier");
-    assert!(
-        matches!(
-            err,
-            topo::BooleanError::RestZipUnsupported {
-                what: topo::RestZipFrontier::ChordBetweenIsolatedPierces
-            }
-        ),
-        "a typed lane frontier, NOT a contact contradiction — the declarations are true \
-         and the op is what cannot proceed: {err:?}"
+    let whole = union_with(&a, &b, &declare_all(&found), Tol::witness())
+        .expect("the fully declared union builds");
+    let BooleanResult::Body(bb) = whole else {
+        panic!("a union of two solids is not empty");
+    };
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "tier 3′"
     );
-    // Every finding is declared, so the frontier offers no declaration;
-    // the contact is planar already, so no move of the parts is named:
-    // the frontier's own ending, stated once, with no stage label.
-    let text = err.to_string();
-    assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+    assert_eq!(
+        topo::validate_geometric_certificate(&bb.body, Tol::witness()).map(|_| ()),
+        Ok(()),
+        "the at-rest certificate"
+    );
+    let volume = mass_properties(&bb.body, Tol::witness())
+        .expect("the union measures")
+        .volume;
     assert!(
-        test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
-            && test_utils::refusal::subjectless_escalations(&text).is_empty()
-            && text.starts_with(
-                "the Boolean cannot yet zip the two solids along their declared resting contact \
-                 (seam chord between two isolated pierce points)"
-            )
-            && text.ends_with(geom_core::NOT_YET_ENDING)
-            && !text.contains("declare the")
-            && !text.contains("tolerance"),
-        "{text}"
+        (volume - 1.25).abs() < 1e-12,
+        "the unit cube and the 0.5 × 0.5 × 1 bar on it: {volume}"
     );
 }
 

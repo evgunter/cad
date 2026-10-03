@@ -2343,3 +2343,4 @@ tracker contract makes a walk owed only where a plan states them — a
 plan that set none leaves a walk nothing to check. This program closes on
 Ev's ruling when the eleven land, with a note under `docs/doc-ledger/`
 as its done-state of record.
+- 2026-10-02: Seam note from TANG (PR 3851, `tang/pierce-ring`). The cylinder arm of `curved_face` is now the chart Green form over every loop, `R²·(−Σ∮ v du) + origin·A⃗` (`curved_face_loops`; `topo::props` hands a cylinder face its rings), so `props_rim_level`, `props_rim_level_group`, `props_du_consistent` and `props_rim_side` no longer run on a cylinder's flux; the shape door, the material-side gate and the cone/sphere/torus arms keep them. Closed `a-notched-cylinder-wall-has-no-volume-measurement`; noted on `not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`. #649's cylinder rows now measure exactly. (TANG implementer lane)

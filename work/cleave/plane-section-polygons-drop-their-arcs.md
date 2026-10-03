@@ -2,10 +2,13 @@
 id: plane-section-polygons-drop-their-arcs
 kind: issue
 title: plane_section reports a section polygon by its corners only, so an arc-edged section (a bore's circle: two corners) has no recoverable shape or area
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+branch: cleave/section-arcs
+pr: 3877
+closed: 2026-10-02
 ---
 
 
@@ -32,3 +35,8 @@ not describe its boundary.
 **Fix shape.** Report each edge of the polygon with its carrier (line,
 circle or ellipse arc in the section plane, in `(u, v)`), or a
 certified sampling of it; keep the corners as the edges' ends.
+
+SHOW `projectbox` (demos/tour/src/cutaway.rs, `read_section`): the
+tour's section read-back of a bored enclosure cannot measure its bore
+holes or its round bosses' outlines from `plane_section` (each is two
+corners, shoelace 0), so the scene supplies πr²/cos φ in closed form.

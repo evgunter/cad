@@ -16,7 +16,7 @@ Filed by CONTACT-2's review fix pass (PR 3250). That PR gave the
 evaluation one home, `geom_brep::EdgeCurve::mid_point`
 (`crates/geom-brep/src/certify.rs`), and used it at its own two sites
 (`boolean/join.rs` `curved_edge_midpoint`, `chord_join.rs`
-`between_edge_in_plane`). The rest were left for this row so the PR
+`between_edge_is_section`). The rest were left for this row so the PR
 did not sweep territory it does not own.
 
 ## The copies (carrier evaluated at the parameter midpoint)

@@ -159,7 +159,7 @@ fn spin(
 struct BothSweeps {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 
@@ -289,11 +289,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xa17d_0f96_7c07_6682),
-        ("corner_table", 0xc961_7e81_1681_ac26),
-        ("cut_cylinder", 0x64c5_2df8_35df_9382),
-        ("boss_union", 0x7f90_663b_adca_236b),
-        ("kitchen_sink", 0x10a1_89b5_25a9_229b),
+        ("die", 0xe35a_3144_bad2_96ca),
+        ("corner_table", 0xac66_617c_0e53_d4f0),
+        ("cut_cylinder", 0x799c_caf4_ccb8_33de),
+        ("boss_union", 0x23a9_86ad_2ab0_dc9a),
+        ("kitchen_sink", 0xf0c8_760c_ff31_b7ba),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -580,9 +580,10 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         bad.join("\n")
     );
     // The fixture's own premise: FOUR segments, and one of them minted
-    // no wall. A full revolution splits each wall at its seam, so the
-    // three that did mint one are six faces; a fourth wall — a
-    // degenerate one from the on-axis edge — would be eight.
+    // no wall. A full revolution splits each CURVED wall at its seam and
+    // builds the plane disc whole, so the three that did mint one are
+    // five faces; a fourth wall — a degenerate one from the on-axis edge
+    // — would be more.
     let editor_core::ValuePayload::Profile(pv) =
         &ev.value(profile).expect("the profile evaluates").payload
     else {
@@ -596,8 +597,8 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let body = body_of(&ev, solid);
     assert_eq!(
         topo::query::all_faces(body).len(),
-        6,
-        "three of the four segments minted a wall, each split at the seam"
+        5,
+        "three of the four segments minted a wall, each curved one split at the seam"
     );
     let mut tori = 0;
     for face in topo::query::all_faces(body) {
@@ -1320,7 +1321,7 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);

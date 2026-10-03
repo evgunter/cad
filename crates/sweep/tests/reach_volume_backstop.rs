@@ -235,37 +235,71 @@ fn a_rod_cut_by_an_oblique_box_keeps_its_volume() {
     );
 }
 
-/// **A wall the property layer has no measurement for.** An extruded
-/// half-disk (the `x = 0` line from `(0, 4)` to the origin, back along
-/// the radius-2 arc about `(0, 2)`, height 1) minus the box
-/// `[1.5, 2.5]² × [0.5, 2.5]`: the box notches the curved wall from
-/// its top rim, along two rulings and an arc, and a notched wall is
-/// neither an iso-rectangle (the closed form) nor conic-trimmed (the
-/// quadrature). The backstop cannot measure the result, so it refuses
-/// naming the result and carrying the face's own refusal
-/// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+/// **A notched wall measures.** An extruded half-disk (the `x = 0`
+/// line from `(0, 4)` to the origin, back along the radius-2 arc about
+/// `(0, 2)`, height 1) minus the box `[1.5, 2.5]² × [0.5, 2.5]`: the box
+/// notches the curved wall from its top rim, along two rulings and an
+/// arc. The wall's chart Green form measures it in closed form, so the
+/// backstop passes and the result is the half-disk less the notch: its
+/// floor, `∫ (√(4 − s²) − 1.5) ds` over `|s| ≤ ½`, times the half metre
+/// it sinks.
 #[test]
-fn a_notched_wall_refuses_as_unmeasured() {
+fn a_notched_wall_measures_in_closed_form() {
     let half = bulge_loop(vec![
         (Point2::new(0.0, 4.0), 0.0),
         (Point2::new(0.0, 0.0), 1.0),
     ]);
     let half_disk: Body<f64> = extruded(SketchPlane::xy(), vec![half], 1.0, tol());
     let notch = brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol());
-    let err = topo::subtract(&half_disk, &notch, tol()).expect_err("the notched wall refuses");
-    assert!(
-        matches!(
-            err,
-            BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-            }
-        ),
-        "{err:?}"
+    let body = body_of(
+        topo::subtract(&half_disk, &notch, tol()),
+        "the notched half-disk",
     );
+    topo::validate_geometric_certificate(&body, tol())
+        .unwrap_or_else(|e| panic!("the notched half-disk does not certify at rest: {e:?}"));
+    let p = topo::mass_properties(&body, tol()).unwrap();
+    let floor = 0.5 * 3.75f64.sqrt() + 4.0 * 0.25f64.asin() - 1.5;
+    let expect = 2.0 * PI - 0.5 * floor;
+    assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
+    assert!(
+        (p.volume - expect).abs() <= 1e-12 * expect,
+        "the notched half-disk: {} against the analytic {expect}",
+        p.volume
+    );
+}
+
+/// **A curved closed-form tie passes on the faces' own enclosures.** One
+/// rod (`r = 0.7`, height 0.9, about `(0.1, 0.2)`) built from three arcs
+/// started at 45° and at 60°: the same solid, whose `f64` sums round
+/// 8.9e-16 m³ apart (1.38544236023309786 against …875). The backstop
+/// re-derives each curved face's closed form at the interval scalar,
+/// and only the faces' own enclosures, not their midpoints with the
+/// fold rounded outward, hold the tie: collapsed to its midpoint, each
+/// face's interval no longer covers the other start's sum and the
+/// intersect refuses.
+#[test]
+fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
+    use crate::common::operands::three_arc_cylinder;
+    let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
+    let (low, high) = (rod(45.0), rod(60.0));
+    let volume = |b: &Body<f64>| topo::mass_properties(b, tol()).unwrap().volume;
+    assert!(
+        volume(&low) < volume(&high),
+        "the two starts' sums round apart: {} vs {}",
+        volume(&low),
+        volume(&high)
+    );
+    for (op, operand, result) in [
+        (BooleanOp::Intersect, &low, &high),
+        (BooleanOp::Subtract, &low, &high),
+        (BooleanOp::Union, &high, &low),
+    ] {
+        assert_eq!(
+            planted(op, operand, operand, result),
+            Ok(AtRestOutcome::Validated),
+            "{op:?}"
+        );
+    }
 }
 
 /// The backstop's verdict on a planted result.
@@ -490,7 +524,7 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
         .points()
         .map(|(_, p)| bits([p.x.value, p.y.value, p.z.value]))
         .collect();
-    let f: Vec<_> = real.points().map(|(_, p)| bits([p.x, p.y, p.z])).collect();
+    let f: Vec<_> = real.points().map(|(_, p)| bits(p.to_array())).collect();
     assert!(!f.is_empty());
     assert_eq!(d, f, "the dual's points are the f64 run's, in arena order");
 }

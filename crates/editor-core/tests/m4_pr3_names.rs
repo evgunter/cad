@@ -86,7 +86,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
             t.lookup(&minted(
                 EntityKind::Face,
                 ext,
-                RoleSeg::Lateral(pe(&doc, ext, 0, s))
+                RoleSeg::Lateral(pe(&doc, ext, 0, s).into())
             ))
             .is_some()
         );
@@ -267,7 +267,7 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
             t.lookup(&minted(
                 EntityKind::Face,
                 rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s))
+                RoleSeg::Band(pe(&doc, rev, 0, s).into())
             ))
             .is_some()
         );
@@ -284,7 +284,7 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(m, pe(&doc, rev, 0, s))
+                    RoleSeg::Meridian(m, pe(&doc, rev, 0, s).into())
                 ))
                 .is_some()
             );
@@ -359,7 +359,7 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
             t.lookup(&minted(
                 EntityKind::Face,
                 rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s))
+                RoleSeg::Band(pe(&doc, rev, 0, s).into())
             ))
             .is_some()
         );
@@ -375,7 +375,7 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
-                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s))
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
             ))
             .is_some()
         );
@@ -435,7 +435,7 @@ fn full_holed_revolve_names_the_cavity_loop() {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s))
+                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s).into())
                 ))
                 .is_some()
             );
@@ -476,12 +476,19 @@ fn full_wire_revolve_names_pi_band_and_poles() {
             .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
         "no BandRimPi role minted"
     );
-    // Two poles: the on-axis profile vertices.
+    // No poles: both on-axis profile vertices are disc centres, and a
+    // plane wall is built whole, so neither is a vertex.
     let poles = t
         .iter()
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Pole(_))))
         .count();
-    assert_eq!(poles, 2);
+    assert_eq!(poles, 0);
+    // The discs are plain `Band` faces: one π twin, the cylinder's.
+    let pi_bands = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_))))
+        .count();
+    assert_eq!(pi_bands, 1, "only the curved wall has a π twin");
 }
 
 /// M9-D1: the natural ball. Every vertex of the meridian is on-axis,
@@ -509,10 +516,10 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
         );
     }
     for seg in [
-        RoleSeg::Band(pe(&doc, rev, 0, 0)),
-        RoleSeg::BandPi(pe(&doc, rev, 0, 0)),
-        RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, 0)),
-        RoleSeg::Meridian(MeridianEnd::Pi, pe(&doc, rev, 0, 0)),
+        RoleSeg::Band(pe(&doc, rev, 0, 0).into()),
+        RoleSeg::BandPi(pe(&doc, rev, 0, 0).into()),
+        RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, 0).into()),
+        RoleSeg::Meridian(MeridianEnd::Pi, pe(&doc, rev, 0, 0).into()),
     ] {
         let kind = match seg {
             RoleSeg::Band(_) | RoleSeg::BandPi(_) => EntityKind::Face,
@@ -528,7 +535,7 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
         t.lookup(&minted(
             EntityKind::Face,
             rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 1))
+            RoleSeg::Band(pe(&doc, rev, 0, 1).into())
         ))
         .is_none()
     );
@@ -569,7 +576,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         t.lookup(&minted(
             EntityKind::Face,
             rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 0))
+            RoleSeg::Band(pe(&doc, rev, 0, 0).into())
         ))
         .is_some()
     );
@@ -637,7 +644,11 @@ fn split_names_sections_fragments_and_crossings() {
     // each cut wall contributes a SectionEdge.
     for side in [SplitHalf::Above, SplitHalf::Below] {
         for s in 0..4 {
-            let lateral = minted(EntityKind::Face, ext, RoleSeg::Lateral(pe(&doc, ext, 0, s)));
+            let lateral = minted(
+                EntityKind::Face,
+                ext,
+                RoleSeg::Lateral(pe(&doc, ext, 0, s).into()),
+            );
             assert!(
                 t.lookup(&minted(
                     EntityKind::Face,
@@ -749,7 +760,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     }
 }
 
-// ---- Declare pairs resolve against the real tables (D6). ----
+// ---- Declared pairs resolve against the real tables (D6). ----
 
 #[test]
 fn declare_pairs_resolve_in_the_named_nodes_tables() {
@@ -763,7 +774,6 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         SitedRef::new(a, minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Start))),
     );
-    let (doc, _decl) = insert(doc, Node::declare_rest(vec![pair.clone()]));
     let ev = run(&doc);
     for r in [&pair.0, &pair.1] {
         let name = &r.name;

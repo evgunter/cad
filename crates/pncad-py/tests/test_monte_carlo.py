@@ -158,14 +158,20 @@ class TestTheDialsAreRecorded(unittest.TestCase):
         self.assertEqual(monte_carlo(doc, box).seed, DEFAULT_SEED)
 
     def test_the_rendering_labels_every_line_it_puts_a_number_on(self):
-        doc, box, _measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc, box, measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc.apply(DocEdit.set_label(measure, "height"))
         config = McConfig(samples=32)
-        text = monte_carlo(doc, box, config).render()
+        report = monte_carlo(doc, box, config)
+        # A rename after the run does not reach the report: it speaks
+        # from the document the run was drawn from.
+        doc.apply(DocEdit.set_label(measure, "renamed"))
+        text = report.render()
         numbered = [line for line in text.splitlines() if "mean" in line]
         self.assertTrue(numbered, "the report rendered no estimate at all")
         for line in numbered:
             self.assertIn("ADVISORY", line)
             self.assertIn("32 samples", line)
+            self.assertIn('Measure "height" (', line)
         self.assertIn("ADVISORY", repr(monte_carlo(doc, box, config)))
 
 
@@ -355,12 +361,16 @@ class TestTheThreeRefusals(unittest.TestCase):
         error."""
         doc = Doc()
         prism = slab(doc, Distribution.normal(SIGMA * m), nominal=0.0)
+        doc.apply(DocEdit.set_label(prism, "plinth"))
         with self.assertRaises(pncad.McRefusal) as caught:
             monte_carlo(doc, analyzed_box(doc), McConfig(samples=4))
         refusal = caught.exception
         self.assert_shape(refusal)
         self.assertEqual(refusal.variant, "nominal_does_not_build")
         self.assertEqual(refusal.node, prism)
+        # The message speaks the node with its label; the payload keeps
+        # the full id.
+        self.assertIn('(Extrude "plinth" ', str(refusal))
         self.assertIsNone(refusal.param)
         self.assertTrue(refusal.cause)
         # The same refusal an ordinary evaluation of that document

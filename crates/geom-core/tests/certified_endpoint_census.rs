@@ -268,14 +268,14 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
-        8,
-        8,
+        7,
+        7,
         "every read is in `cell_bound`, which refuses to `f64::INFINITY`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        12,
-        12,
+        11,
+        11,
         "the mignitude, the norm assemblies and the curvature join all refuse by name",
     ),
     (
@@ -292,8 +292,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad.rs",
-        17,
         12,
+        7,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
@@ -322,10 +322,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        10,
-        10,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4)",
+        16,
+        14,
+        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
+         so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
+         hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
+         reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
+         not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
+         refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
@@ -345,13 +349,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "crates/geom-core/src/interval/certification.rs",
         3,
         3,
-        "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
+        "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
+         `clamped_to` and `meet`), `width` and `mag`",
     ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
-        17,
-        11,
+        13,
+        7,
         "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
          read's halves, 4, and the profiling instrument's denominator, 2), and \
          `enclose_deep` hands back `None` for a refused bracket \
@@ -360,8 +365,6 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/mesh/src/chords.rs", 1, 1, ""),
-    ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
 

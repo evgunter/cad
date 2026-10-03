@@ -24,9 +24,9 @@
 //!   Drawn see-through, because a cavity cannot be read from an opaque
 //!   render at any camera (the hollow ring's founding reason). Its
 //!   remaining wall is STEP, declared at the body.
-//! - **the opened cup** — `shell_open` at the mouth chart, then
-//!   `merge_coplanar_faces`. One shell, one annular rim, genus 0, and
-//!   it leaves as STEP, which the sealed body cannot.
+//! - **the opened cup** — `shell_open` at the mouth chart. One shell,
+//!   one annular rim, genus 0, and it leaves as STEP, which the sealed
+//!   body cannot.
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -63,14 +63,14 @@
 //!    on a pair that has nothing to do with the torus: the two
 //!    shoulder annuli, facing each other across the belly. Bracketed
 //!    below, with the payload.
-//! 3. **The 1031B coda arrives unchanged on a torus-walled body.** The
-//!    opened cup carries the same seam-split coplanar annuli the
-//!    teapot cup does — the revolve's seam cuts every latitude annulus
-//!    in half — and `merge_coplanar_faces` repairs them to the same
-//!    census, 25 → 19 faces. That number is a function of the
-//!    meridian's STEP COUNT, not of what the wall between the steps
-//!    is: this vessel's belly is a torus where the teapot's was a
-//!    stepped cylinder, and the drop is identical.
+//! 3. **The 1031B coda is retired at its source.** The opened cup
+//!    used to carry the seam-split coplanar annuli the teapot cup did —
+//!    the revolve's seam cut every latitude annulus in half — and
+//!    `merge_coplanar_faces` repaired them, 25 → 19 faces. A full
+//!    revolve now sweeps a planar wall whole (BAND, one wall per run),
+//!    so the cup ARRIVES at the census the merge used to produce, and
+//!    the merge, still run, finds no coplanar pair to join: only its
+//!    six period-closure skips, the curved runs it declines by design.
 //! 4. **A SECTIONED vessel still refuses, and it is the klein elbow's
 //!    wall on this scene's own body.** Revolve this same meridian a
 //!    quarter turn — a cutaway, the display model a potter's catalogue
@@ -80,9 +80,10 @@
 //!    inventory, at the cap's loop area (an elliptic integral, no
 //!    closed form; the torus wall behind it routes to the quadrature
 //!    lane, whose chart gate has no torus arm either). Probed live
-//!    below (wall 1). The sphere half of the same rim family stands
-//!    at the same door on a different premise
-//!    (`torax_the_sphere_lune_next_door_is_the_props_inventory`). The
+//!    below (wall 1). The sphere half of the same rim family hollows
+//!    through: its cavity's lens face is bounded by circles tilted
+//!    against the sphere's chart, which the flux arm measures by
+//!    Gauss–Bonnet (`torax_the_sphere_lune_hollows_to_its_closed_form`). The
 //!    props quadrature lane for a spiric-bounded face is the spiric
 //!    unit's next PR, so this wall is measured-red until it lands.
 
@@ -448,7 +449,7 @@ fn wall_probes(tol: Tol) {
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let body = bellied(tol);
-    assert_eq!(census(&body), (14, 26, 14), "the vessel's operand census");
+    assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
     assert_eq!(
         pncad::topo::validate_geometric(&body, tol),
@@ -486,8 +487,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!(sealed.shells().count(), 2, "outer boundary + cavity");
     assert_eq!(
         census(&sealed),
-        (28, 52, 28),
-        "the operand's 14/26/14 twice — the cavity is that same boundary offset inward \
+        (24, 36, 20),
+        "the operand's 12/18/10 twice — the cavity is that same boundary offset inward \
          and inserted whole through the shared void door"
     );
     assert_eq!(
@@ -566,7 +567,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = waisted(tol);
-    assert_eq!(census(&twin), (14, 26, 14), "the twin's operand census");
+    assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
         .body;
@@ -631,15 +632,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Y_SHOULDER - Y_FOOT
     );
 
-    // ---- THE OPENED CUP, then the 1031B coda ----
+    // ---- THE OPENED CUP ----
     let mouth = plane_chart_at(&body, Y_MOUTH);
     assert_eq!(
         mouth.len(),
-        2,
-        "the mouth is ONE plane worn by two half-discs — a full revolve's seam cut — \
-         and the rim lift moves a chart as one"
+        1,
+        "the mouth is ONE plane worn by one disc — a full revolve sweeps a planar \
+         wall whole"
     );
-    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, tol)
+    let cup = pncad::topo::shell_open(&body, WALL, &mouth, tol)
         .expect("the vessel opens at its mouth")
         .body;
     assert_eq!(
@@ -650,16 +651,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let counts = euler_counts(&cup);
     assert_eq!(
         (counts.r, counts.genus(), counts.s),
-        (1, Ok(0), 1),
-        "ONE rim annulus carrying ONE ring, genus 0 as `topo::shell`'s docs promise a \
-         cup is, and the cavity fused into the boundary"
+        (5, Ok(0), 1),
+        "the mouth's ONE rim annulus carrying ONE ring, beside the four latitude \
+         annuli whole with their rings; genus 0 as `topo::shell`'s docs promise a cup \
+         is, and the cavity fused into the boundary"
     );
-    let cup_before = census(&cup);
-    assert_eq!(
-        cup_before,
-        (26, 48, 25),
-        "the cup's census before the merge"
-    );
+    let cup_census = census(&cup);
+    assert_eq!(cup_census, (24, 36, 19), "the cup's census");
     let props_c = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
     // Opening lifts the cavity's mouth cap from its own station up to
     // the mouth plane, so the cup is the WALL less that plug — a
@@ -672,30 +670,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props_c.volume
     );
 
-    // The coda. The revolve's seam cuts every latitude annulus in half,
-    // and `merge_coplanar_faces` puts them back — the teapot cup's own
-    // numbers, on a body whose belly is a torus.
+    // The coda, retired at its source. The revolve's seam used to cut
+    // every latitude annulus in half, and `merge_coplanar_faces` put
+    // them back, 25 -> 19 faces. A full revolve sweeps a planar wall
+    // whole now, so the cup arrives at 19 and the merge, still run,
+    // joins nothing: what it reports is only the six period-closure
+    // skips — a curved run that would close its chart's full period is
+    // a seam the merge declines by design.
     let merged = cup
+        .clone()
         .merge_coplanar_faces(tol)
-        .expect("the cup's coplanar pairs must merge");
-    let cup_after = census(&cup);
-    assert_eq!(
-        (cup_before, cup_after),
-        ((26, 48, 25), (24, 36, 19)),
-        "six faces absorbed, two poles killed, twelve edges eaten — the teapot cup's \
-         census drop exactly, which is what makes it a function of the meridian's STEP \
-         COUNT rather than of the wall between the steps"
-    );
-    let annuli = merged
-        .groups
-        .iter()
-        .filter(|g| !g.rings_made.is_empty())
-        .count();
-    let poles = merged
-        .groups
-        .iter()
-        .filter(|g| !g.killed_vertices.is_empty())
-        .count();
+        .expect("the merge runs on the cup");
     let closures = merged
         .skipped
         .iter()
@@ -707,36 +692,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         })
         .count();
     assert_eq!(
-        (annuli, poles, closures),
-        (4, 2, 6),
-        "four full-valence latitude annuli, two pole-split base caps, six \
-         period-closure skips — a curved run that would close its chart's full period \
-         is a seam the merge declines by design"
-    );
-    assert_eq!(
-        pncad::topo::validate_geometric(&cup, tol),
-        Ok(()),
-        "the merged cup: tier 3"
-    );
-    let counts = euler_counts(&cup);
-    assert_eq!(
-        (counts.r, counts.genus(), counts.s),
-        (5, Ok(0), 1),
-        "the merge mints four annulus rings beside the rim's and moves no locus, so the \
-         genus is where it was"
-    );
-    let props_m = pncad::topo::mass_properties(&cup, tol).expect("the merged cup's props");
-    assert!(
-        ((props_m.volume - v_cup) / v_cup).abs() < 1e-12,
-        "the merge moves no locus, so the volume is the cup's: {} vs {v_cup}",
-        props_m.volume
+        (merged.groups.len(), closures),
+        (0, 6),
+        "no coplanar pair to join, six period-closure skips"
     );
 
     // The scene's one wall, attempted for real.
     wall_probes(tol);
 
     let (sv, se, sf) = census(&sealed);
-    let (cv, ce, cf) = cup_after;
+    let (cv, ce, cf) = cup_census;
 
     vec![
         Stop {
@@ -762,7 +727,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             delta: DELTA,
             note: Some(format!(
                 "{sv} vertices, {se} edges, {sf} faces over TWO shells in one solid — \
-                 the operand's 14/26/14 twice, since the cavity is that same boundary \
+                 the operand's 12/18/10 twice, since the cavity is that same boundary \
                  offset inward and inserted whole through the shared void door. Genus \
                  0, tier 3. THE BAND IS A REAL TORUS: R = {R_BELLIED} m, r = {R_TUBE} \
                  m, its arc the 3-4-5 twice over about ({R_BELLIED}, {H_TUBE}), so both \
@@ -807,11 +772,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  VolumeUncomputable. The klein elbow's wall \
                  (`torax_the_klein_elbow_hollows_to_the_props_door`) mints the same \
                  carrier and stops at the same door. The SPHERE half of the \
-                 same rim family stands at the same door on a different premise: it is \
-                 the CAVITY's lens face — bounded by the moved caps' off-centre \
-                 sections — whose volume the flux arm cannot give tier 3 \
-                 (`props_meridian_great`; \
-                 `torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
+                 same rim family hollows through: the CAVITY's lens face — bounded by \
+                 the moved caps' off-centre sections, circles tilted against the \
+                 sphere's chart — measures by Gauss–Bonnet over its arcs \
+                 (`torax_the_sphere_lune_hollows_to_its_closed_form`). THE \
                  SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
                  has closed forms for planar faces only, so this multi-shell CURVED \
                  solid refuses CurvedShellClassification — declared at the body and \
@@ -864,47 +828,31 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
         Stop {
             name: "torusvesselcup",
-            caption: "THE SAME VESSEL, OPENED AT ITS MOUTH (one annular rim, coplanar \
-                      pairs merged)"
-                .to_string(),
+            caption: "THE SAME VESSEL, OPENED AT ITS MOUTH (one annular rim)".to_string(),
             montage: false,
             story: "`shell_open` on the same meridian, designating the mouth's chart. \
                     The cavity fuses into the boundary and the wall's thickness comes \
                     back as an annular RIM you can look down — one shell, genus 0, no \
-                    transparency needed. Then the 1031B coda: the revolve's seam cuts \
-                    every latitude annulus in half, and `merge_coplanar_faces` puts \
-                    them back",
+                    transparency needed",
             ops: "revolve(meridian, +y, Full) -> shell_open(vessel, t = 7.8125 mm, the \
-                  mouth's chart) -> merge_coplanar_faces(): the seam is retired before \
-                  the glue through the Euler doors alone, and the merge's arc-bounded \
-                  winding arm is what lets a survivor whose outline and ring are both \
-                  CIRCLES take its role",
+                  mouth's chart): the full revolve sweeps every planar wall whole, so \
+                  each latitude annulus arrives as ONE face carrying its ring",
             delta: DELTA,
             note: Some(format!(
-                "{cv} vertices, {ce} edges, {cf} faces in ONE shell, genus 0, tier 3 — \
-                 after the merge; {} / {} / {} before it. The rings go the OTHER way, \
-                 1 -> 5: the mouth's annular rim, plus the four the merge mints as it \
-                 closes each latitude annulus back up. THE CODA, MEASURED: \
-                 25 → 19 faces, 26 → 24 vertices, 48 → 36 edges. Four groups mint a \
-                 RING — the merge's own full-valence class, which on this meridian is \
-                 the two shoulders and their cavity twins — two pole-split base caps \
-                 close beside them, and six pairs \
-                 are declined as PeriodClosure — a curved run that would close its \
-                 chart's full period is a seam the merge refuses by design, and that is \
-                 not a failure. THOSE ARE THE TEAPOT CUP'S OWN NUMBERS, on a body whose \
-                 belly is a TORUS where the teapot's was a stepped cylinder: the drop is \
-                 a function of the meridian's STEP COUNT, not of the wall between the \
-                 steps. The merge moves no locus, and the volume says so — V = {:.9} m³ \
-                 both sides of it, against the sealed wall's closed form less the plug \
-                 the lift opens (a cylinder of the cavity's neck radius, one wall tall). \
+                "{cv} vertices, {ce} edges, {cf} faces in ONE shell, genus 0, tier 3. \
+                 FIVE rings: the mouth's annular rim, plus the four latitude annuli — \
+                 the two shoulders and their cavity twins — each swept whole. THE 1031B \
+                 CODA IS RETIRED AT ITS SOURCE: the revolve's seam used to cut every \
+                 latitude annulus in half and `merge_coplanar_faces` put them back, \
+                 25 → 19 faces; a full revolve now sweeps a planar wall whole, so the cup \
+                 arrives at 19 and the merge, still run, joins nothing — it reports only \
+                 six PeriodClosure skips, the curved runs it declines by design. \
+                 V = {:.9} m³ against the sealed wall's closed form less the plug the \
+                 lift opens (a cylinder of the cavity's neck radius, one wall tall). \
                  A = {:.9} m². THE CUP LEAVES AS STEP, which the sealed panel next door \
                  cannot: the writer's outward/void classifier refuses a multi-shell \
-                 CURVED solid, and a cup is ONE shell. What the merge buys past the \
-                 picture is an OPERAND: the unmerged cup's coplanar pairs are what the \
-                 boolean gate's F7 maximal-faces precondition refuses, and \
-                 `verbs_1031b_arcwind` is where that differential is pinned on the \
-                 teapot's cup",
-                cup_before.0, cup_before.1, cup_before.2, props_m.volume, props_m.surface_area,
+                 CURVED solid, and a cup is ONE shell",
+                props_c.volume, props_c.surface_area,
             )),
             // Ten degrees higher than the sealed panel and swung round
             // to the other quadrant: the subject here is the annular
@@ -936,8 +884,8 @@ mod wall_probes_run_here {
     //!
     //! It has to be an in-bin test: `demo-tour` is bin-only (no
     //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `torusvessel::wall_probes` at all. `lily`, `klein` and
-    //! `teapot` carry theirs for the same reason.
+    //! can name `torusvessel::wall_probes` at all. `teapot` carries its
+    //! own for the same reason.
     //!
     //! There is nothing here to assert that the probe does not already
     //! assert: `crate::walls::wall` panics on BOTH off-nominal

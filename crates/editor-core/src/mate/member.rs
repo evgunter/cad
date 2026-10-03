@@ -729,7 +729,9 @@ fn pattern_map<P: crate::ProfilePayload>(
         // than composing a pose out of a rule it cannot step.
         PatternKind::Explicit(_) => {
             return Err(here(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling,
+                crate::node::PlacementRuleFault::CountSpelling {
+                    shape: crate::node::CountMismatch::ListedOnPattern,
+                },
             )));
         }
     };
@@ -877,18 +879,20 @@ mod tests {
     /// BODY. Hand-pushed: `AXIS`, `FRAME2`, `T1 = xf(t1_in)`,
     /// `T2 = xf(T1)`, and `PATTERN`, circular over the body with
     /// `axis_operand` as its rule's axis.
-    fn build(label: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
+    fn build(seed: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
         let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
             let a = crate::apply(
                 &doc,
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
                 Tol::witness(),
                 &RefusingReach,
             )
             .expect("inserts");
             (a.doc, a.record.minted.unwrap())
         };
-        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
         let (doc, plane) = ins(doc, xy_frame());
         let (doc, profile) = ins(
             doc,

@@ -120,7 +120,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: body,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, body)
@@ -227,7 +227,12 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 
 /// Insert `mate` and answer its id.
 fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node: mate });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(mate),
+        },
+    );
     (doc, id.expect("the mate mints"))
 }
 
@@ -448,7 +453,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
             op: BooleanOp::Intersect,
             a: s.xf,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert!(

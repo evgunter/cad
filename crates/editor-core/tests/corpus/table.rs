@@ -1,20 +1,17 @@
 //! Corpus document **corner_table** — the corner-aligned four-leg
-//! table, the capability M4 PR 5's Declare opened (`#71`; the kernel
-//! pins live in `topo/tests/corner_table.rs`). Here it is a RECIPE:
-//! every flush contact is declared by NAME through a `Declare` node,
-//! never inferred from values.
+//! table (`#71`; the kernel pins live in `topo/tests/corner_table.rs`).
+//! Here it is a RECIPE: every flush contact is declared by NAME on the
+//! union that meets it, never inferred from values.
 //!
 //! **Authored through the LIB-SEL2 detect/declare protocol**
-//! (`docs/SELECT-DESIGN.md` §3): each leg's flush declarations are no
-//! longer a hand-maintained segment table plus hand-tracked
-//! `Merged`/`FromA` name wrapping — the author EVALUATES the document
-//! so far, runs `find_flush_candidates` between the accumulated body
-//! and the new leg, inspects the findings (the counts asserted below
-//! are that inspection), and turns them into the `Declare` node
-//! through `declare_node`. The findings carry exactly the names the
+//! (`docs/SELECT-DESIGN.md` §3): the author EVALUATES the document so
+//! far, runs `find_flush_candidates` between the accumulated body and
+//! the new leg, inspects the findings (the counts asserted below are
+//! that inspection), and turns them into the union's declared pairs
+//! through `declared_pairs`. The findings carry exactly the names the
 //! evaluation's own table speaks — including the `Merged` rows earlier
-//! unions minted — so the N3 name-tracking discipline this file used
-//! to demonstrate by hand is now what the detector DOES. Detection
+//! unions minted — so the N3 name tracking is what the detector DOES.
+//! Detection
 //! decides through the C4 verifier's own doors, so detect-then-declare
 //! cannot disagree with the boolean's verify-at-use.
 //!
@@ -29,12 +26,10 @@
 //!   verified-at-use posture, CONTACT-DESIGN: verification happens
 //!   where declaration meets geometry, and these never meet), so the
 //!   pins below are unchanged;
-//! - the `Declare` nodes therefore carry 2/4/5/7 pairs (the
-//!   inspection comment at the assert derives the inventory) rather
-//!   than the hand-picked 2 the old segment table wrote down. The
-//!   vocabulary exercised is identical.
+//! - the four unions therefore declare 2/4/5/7 pairs (the inspection
+//!   comment at the assert derives the inventory).
 //!
-//! Vocabulary: Profile, Extrude, Declare, Boolean (Union),
+//! Vocabulary: Profile, Extrude, Boolean (Union, declared),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): top `[0,4] × [0,3] × [1,1.25]`; four legs
@@ -61,8 +56,8 @@
 //! extrude plus all four unions, everything else reused).
 
 use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId, declare_node,
-    evaluate, find_flush_candidates,
+    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId,
+    declared_pairs, evaluate, find_flush_candidates,
 };
 use topo::PlaneRelation;
 
@@ -143,8 +138,7 @@ pub fn document() -> CorpusDoc {
                 .all(|f| f.evidence.relation == PlaneRelation::SameOriented),
             "leg {i}: {findings:#?}"
         );
-        // The N3 demonstration the hand-tracking used to carry: once a
-        // wall pair has GLUED (leg 1's union), the accumulated body's
+        // Once a wall pair has GLUED (leg 1's union), the accumulated body's
         // side of the next wall finding is the boolean's `Merged` row
         // — the detector answers with the N3 merge-lane name itself.
         if i > 0 {
@@ -155,12 +149,11 @@ pub fn document() -> CorpusDoc {
                 "leg {i}: no Merged-named wall in {findings:#?}"
             );
         }
-        let decl = r.insert(declare_node(&findings).expect("nonempty findings"));
         let uni = r.insert(Node::Boolean {
             op: BooleanOp::Union,
             a: acc,
             b: ext,
-            declare: Some(decl),
+            declare: declared_pairs(&findings),
         });
         acc = uni;
         prior = Some(ev);

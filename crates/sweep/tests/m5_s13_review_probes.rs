@@ -130,9 +130,10 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// near-boundary arm, because a circle crossing a boundary edge means
 /// that edge passes within `r` of the sphere center (the two conditions
 /// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
-/// the edge first: the line × sphere roots pierce it, and the op stops
-/// at the pierce point's curved sector side
-/// (`work/reach/slab-cut-cylinder-refuses-sector-side.md`), typed. The
+/// the edge first: the line × sphere roots pierce it, the pierce
+/// point's sector side certifies, and the op stops at the join, whose
+/// section plane is tilted against the ball's polar axis
+/// (`SplitJoinError::SectionNotPolar`), typed. The
 /// scan's near-boundary arm remains as certified-enclosure
 /// defense-in-depth behind that door (its residual live width is the
 /// box pad; the shadowing is structural — the reduction runs before
@@ -141,8 +142,10 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 fn probe_edge_escape_refuses_typed_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::CurvedSectorSideUnsupported { .. } = err else {
-        panic!("expected the pierce to land and the sector side to refuse, got {err:?}");
+    let BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = err else {
+        panic!(
+            "expected the pierce to land and the join to refuse the tilted section, got {err:?}"
+        );
     };
 }
 
@@ -253,7 +256,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
 /// At M5 the inner ball's circle edges hit the UNCONDITIONAL
 /// conic-carrier pierce arm, so this pinned a typed refusal and the
 /// scan's nested arm sat shadowed behind it as defense-in-depth. The
-/// M6 rider (`bool_circle_curved_clearance`) proves the inner ball's
+/// M6 rider (`bool_conic_curved_clearance`) proves the inner ball's
 /// circles DEFINITELY inside the outer sphere and the outer ball's
 /// circles definitely outside the inner one — no examined pair
 /// survives — so the pair reaches the containment walk, whose

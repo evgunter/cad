@@ -158,6 +158,7 @@ use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::{PropsCheck, PropsError};
+use crate::offset_meters::mig;
 
 /// The initial piece count of the composite rule (round 0).
 const QUAD_INIT_PIECES: usize = 16;
@@ -1172,23 +1173,6 @@ fn rv_dot(a: RVec3, b: RVec3) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
-/// Sound enclosure of `√x` for a nonnegative-by-construction `x`
-/// (component squares summed): correctly rounded `f64` sqrt widened
-/// one ulp outward; a spurious negative low (impossible here — inputs
-/// go through [`Interval::sqr`]) clamps to zero, the safe
-/// direction for a magnitude.
-fn sqrt_enclosure(x: Interval) -> Interval {
-    // The early-out is what makes the `.max(0.0)` clamps below safe: past
-    // it the endpoints are non-NaN, so no `f64::max` can absorb a refusal
-    // into a plausible magnitude. Callers do pass sums that may be refused.
-    if !x.is_certified() {
-        return x;
-    }
-    let lo = x.lo().max(0.0).sqrt();
-    let hi = x.hi().max(0.0).sqrt();
-    Interval::from_bounds(lo.next_down().max(0.0), hi.next_up())
-}
-
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
 fn widen(x: Interval, pad: f64) -> Interval {
     if !x.is_certified() {
@@ -2116,7 +2100,7 @@ fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    hi_or_refuse(sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()))
+    hi_or_refuse((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2223,7 +2207,7 @@ pub fn boundary_chord_perimeter_lo(
     for i in 0..pts.len() {
         let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
         let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-        p = p + sqrt_enclosure(d[0].sqr() + d[1].sqr() + d[2].sqr());
+        p = p + (d[0].sqr() + d[1].sqr() + d[2].sqr()).sqrt();
     }
     lo_or_refuse(p).max(0.0)
 }
@@ -3309,7 +3293,7 @@ fn rational_patch_face<T: Decide>(
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
             let cm = a.cross_num(&w, m.0, m.1);
             let wm = w.chan(m.0, m.1);
-            let g_mid = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
+            let g_mid = (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt() / wm.powi(3);
             let wh = w.chan(over.0, over.1);
             let wh_lo = lo_or_refuse(wh);
             if wh_lo <= 0.0 || !wh_lo.is_finite() {
@@ -3327,7 +3311,7 @@ fn rational_patch_face<T: Decide>(
                 g_mid,
                 g_u: pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1)),
                 g_v: pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1)),
-                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()) / wh.powi(3),
+                g_hull: (ch[0].sqr() + ch[1].sqr() + ch[2].sqr()).sqrt() / wh.powi(3),
             })
         },
     )?;
@@ -3745,12 +3729,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
             );
             Ok(AreaCell {
-                g_mid: sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()),
+                g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
                 g_u: norm_hi(d_u),
                 g_v: norm_hi(d_v),
                 g_hull: {
                     let c = rv_cross(h_su, h_sv);
-                    sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
+                    (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
                 },
             })
         },
@@ -4138,19 +4122,9 @@ fn block_box(block: &[RPt2]) -> (Interval, Interval) {
 /// direction answers `0`, which is the refusing direction wherever
 /// this is read.
 fn norm_lo(v: RVec3) -> f64 {
-    let comp = |x: Interval| -> f64 {
-        if !x.is_certified() {
-            return 0.0;
-        }
-        if x.lo() > 0.0 {
-            x.lo()
-        } else if x.hi() < 0.0 {
-            -x.hi()
-        } else {
-            0.0
-        }
-    };
-    (comp(v[0]).powi(2) + comp(v[1]).powi(2) + comp(v[2]).powi(2)).sqrt()
+    let comp = |x: Interval| Interval::point(mig(x));
+    let root = (comp(v[0]).sqr() + comp(v[1]).sqr() + comp(v[2]).sqr()).sqrt();
+    if !root.is_certified() { 0.0 } else { root.lo() }
 }
 
 /// One piece of the chord polygon: its chord, and — for a `General`
@@ -4497,7 +4471,7 @@ fn area_at(
     cv: Collapse<'_>,
 ) -> Interval {
     let c = rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv));
-    sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
+    (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
 }
 
 /// The area integrand's CELL reading over one chart rectangle: the
@@ -4534,7 +4508,7 @@ fn area_cell(
         rv_cross(h_su, grid_vec(svv, u, v)),
     );
     (
-        sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr()),
+        (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt(),
         norm_hi(d_u),
         norm_hi(d_v),
     )
@@ -4967,7 +4941,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // fixed-resolution midpoint rule is a pad that does not shrink with
     // the cell, which is how an ordinary curved chart came out
     // `DegenerateFace`.
-    let sup_g = sqrt_enclosure(cross[0].sqr() + cross[1].sqr() + cross[2].sqr());
+    let sup_g = (cross[0].sqr() + cross[1].sqr() + cross[2].sqr()).sqrt();
     // The chart's own metric RATE, bounded above over the trim box:
     // the door crosses each cell's chart variation to metres with it
     // rather than taking a caller's length (`TrimChord`'s docs, and
@@ -5056,7 +5030,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 grid_vec(sv.as_ref(), ov.0, ov.1),
             );
             lune_f += a * rv_dot(hs, hc).mag();
-            lune_g += a * sqrt_enclosure(hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).mag();
+            lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
         let (flux_raw, sliver) =

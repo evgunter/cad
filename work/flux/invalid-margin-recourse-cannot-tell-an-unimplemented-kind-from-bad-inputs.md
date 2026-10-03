@@ -41,6 +41,16 @@ surgery's battery admits planes, cylinders, cones and spheres. Other
 `classify_dihedral` callers were not swept for a Nurbs-reaching path
 here; that sweep is the first step.
 
+Seam from SYM-15 (#3804, 2026-10-02): on the certify path a readable
+gradient product that reaches zero is now told apart
+(`CertCheck::TangentPlanes`, `dihedral::WedgeEscalation::NoTangentPlane`),
+but `classify_dihedral` maps it back to the same `LeverEscalation::reading`,
+so its other callers (`topo::census` (`census.rs:2043`),
+`topo::boolean::ops` (`ops.rs:1886`), `sweep::extrude` (`extrude.rs:1403`)
+and the rest of its ten non-test callers) still render the old
+invalid-margin recourse for that case. A fix here should carry the cause
+through.
+
 ## Shape of a fix
 
 Either the kind gate answers before the predicate (a typed
@@ -80,7 +90,7 @@ there is nowhere on the margin for a cause to ride. What is left is the
 kind gate, as a TYPED refusal, and that is a public-signature change:
 `classify_dihedral`'s error is `geom_brep::LeverEscalation`, a struct of
 `{ rung, diag }` whose `diag` an unsupported kind cannot honestly fill,
-so the gate wants a new error type and every one of the twelve callers
+so the gate wants a new error type and every one of its non-test callers
 above wants a new arm on its own error enum, with that arm's own
 recourse, across `topo` and `sweep`. That is a typing unit on three
 programs' ground, not a change to what a refusal says, which is the

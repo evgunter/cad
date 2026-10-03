@@ -267,11 +267,8 @@ where
                             body_deep(&mut d, b);
                         }
                     }
-                    ValuePayload::Declarations(pairs) => {
-                        d.u64(19);
-                        d.u64(pairs.len() as u64);
-                    }
                     ValuePayload::Mate(_) => d.u64(20),
+                    ValuePayload::Gauge => d.u64(25),
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
@@ -527,7 +524,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         op: editor_core::BooleanOp::Union,
         a: slab,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],
