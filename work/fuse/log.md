@@ -257,3 +257,10 @@ carrier of a four-step build. Step 1 (cell-pair contact records,
 census certification of vertex/edge and edge/edge, substitution
 carriage, edge-split lineage) waits for the shared-vertex-crossings
 lane, because both edit `remap_contacts`.
+- 2026-10-03 — Ev ruled on PR 3883 ("the recommendation sounds good!",
+  after asking whether `On` only exists for one body twice and being
+  shown the shapes it answers with no shared `Arc`): N, no slip check.
+  The DM5 sentence lands; fork-log row 47 records Ev's decision and the
+  A/B mapping (byte 211, A=fable B=opus). The two-Parts row closes:
+  the `On` verdict (PR 3897) already answers it, and the rows live in
+  `on_verdict_rows.rs`.

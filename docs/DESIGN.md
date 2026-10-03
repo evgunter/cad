@@ -243,9 +243,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
    empty loops, no valence-1 vertices, and c = 1 per shell (the third
    ban is independent: a promoted detached cycle ring disconnects a
-   shell with neither an empty loop nor a strut). Finished bodies must
-   pass tier 2; tier-1-only states are visible solely inside operation
-   sequences, never across an API boundary at rest.
+   shell with neither an empty loop nor a strut).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
@@ -285,6 +283,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
+
+   A **finished body** (`AtRestBody`) passes tier 3′ against its own
+   declared contacts: none, for a body that touches nothing, where the
+   census must find no coincidence at all. Every door that returns or
+   consumes one pays that gate once, at the door that built it.
+   Construction state (tier 1, or tier 2 without geometric
+   certification) is what Euler operators hand back, and becomes a
+   finished body only through the at-rest gate.
 4. **Tier 3′ "pseudomanifold"** (`validate_pseudomanifold`) — the
    honest at-rest tier for boolean results that *touch*: contacts
    limited to entirely-coincident-but-distinct edges, edge-on-face,
@@ -339,9 +345,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
    **Validity class rides the result wrapper, never a mutable `Body`
    field**: a boolean result is `BooleanBody` — body + contacts — whose
-   non-empty contact list is the 3′-grade currency and whose at-rest
-   gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
-   results remain plain tier-3 currency, and the two gates agree there.
+   at-rest gate is `validate_pseudomanifold(&body, &contacts)` over its
+   own contact list, empty or not; with the list empty, the census must
+   find nothing.
 
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
