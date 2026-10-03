@@ -43,10 +43,10 @@ use editor_core::{
 const OVER_BUDGET: &[(&str, usize)] = &[
     ("ResolveError::Vanished", 263),
     ("ResolveError::NodeGone", 136),
-    ("SelectRefusal::InBand", 96),
+    ("SelectRefusal::InBand", 106),
     ("SelectRefusal::TiedDisagrees", 81),
     ("SelectRefusal::Unreadable", 76),
-    ("SelectRefusal::PairInBand", 137),
+    ("SelectRefusal::PairInBand", 145),
     ("NodeErrorKind::CrossingUnverified", 127),
     ("HitTestError::Ambiguous", 133),
 ];

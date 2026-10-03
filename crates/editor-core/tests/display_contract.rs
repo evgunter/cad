@@ -645,7 +645,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["distance is a distance", "dimension angle"],
         ),
         // The detector's pair-shaped sibling of `InBand`: it names the
-        // PAIR, and says that detection reports it neither way.
+        // PAIR, and says that detection reports neither.
         (
             SelectRefusal::PairInBand {
                 pair: Box::new((face_name(), face_name())),
@@ -656,7 +656,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 "the end cap",
                 "node 000000000007",
                 "too nearly flush to call",
-                "reports them neither way",
+                "flush detection reports neither",
             ],
         ),
         (

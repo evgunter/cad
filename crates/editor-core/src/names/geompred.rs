@@ -401,8 +401,8 @@ impl crate::spoken::Say for SelectRefusal {
                 write!(
                     f,
                     "select: {} and {} are too nearly flush to call, so flush detection \
-                     reports them neither way — '{predicate}' could not decide whether their \
-                     gap is zero: {source}",
+                     reports neither — '{predicate}' could not decide whether their gap is \
+                     zero: {source}",
                     by.name(&pair.0),
                     by.name(&pair.1)
                 )

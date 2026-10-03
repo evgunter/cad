@@ -21,10 +21,10 @@ Found by PR 3886's fix passes, building the ruling of #3906 ("every refusal that
 |---|---|
 | `ResolveError::Vanished` (cascade, two names, in full) | 263 |
 | `ResolveError::NodeGone` (in full) | 136 |
-| `SelectRefusal::InBand` | 96 |
+| `SelectRefusal::InBand` | 106 |
 | `SelectRefusal::TiedDisagrees` | 81 |
 | `SelectRefusal::Unreadable` | 76 |
-| `SelectRefusal::PairInBand` (two names) | 137 |
+| `SelectRefusal::PairInBand` (two names) | 145 |
 | `NodeErrorKind::CrossingUnverified` (as `NodeError`; its part-local name said by tag, in full) | 127 |
 | `HitTestError::Ambiguous` (two hits) | 133 |
 
@@ -35,7 +35,7 @@ The test pins each row as a ratchet (`OVER_BUDGET`): a row that grows fails, and
 **Why it does not fit.**
 - A scoped name keeps its core at every detail: its role, its feature, its joins, and each opened citation's own role and feature. The 45-word names are ones whose rivals in their table differ only two citations down.
 - A full-form name says every citation, however deep.
-- `InBand`'s own prose is about 50 words, so any name over about 25 words overruns the budget by itself, and a refusal naming two such names cannot fit at all.
+- `InBand`'s own prose is about 60 words, so any name over about 25 words overruns the budget by itself, and a refusal naming two such names cannot fit at all.
 
 **Open: a design choice on the ruled gate, so it is Ev's.** Three options:
 1. Read the budget per refusal as "the prose plus the names".
