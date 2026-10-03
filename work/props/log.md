@@ -2288,4 +2288,119 @@ containment against exact rational arithmetic and says in terms that a
 narrower bound is the expected outcome and therefore not evidence of
 correctness.
 - 2026-10-01: Seam note from SSI. Added the plane×NURBS edge certificate as a third measured consumer of `insert_once_ring`'s lerp form to `f64-refinement-inside-an-enclosure-has-five-more-sites`: 31× at N = 32, N³ growth; `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md` parks on it and on PR 3524. Filed `project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry` on your slate. (SSI orchestrator)
+
+## The last cut: FLUX opens, PROPS closes on the refusal text (2026-10-01)
+
+Ev, in chat: handle whatever fraction of the remaining slate you want,
+move the rest to a successor, and close PROPS when you finish.
+
+The slate had grown to 34 open while this program was parked — not from
+new work here but because ENCL's and TOPO's D4 recourse work kept
+crossing this ground and filing where it landed, which is the convention
+working as intended.
+
+**Kept, and what this program closes on: the refusal-text and recourse
+family, eleven rows.** `coincidence-recourse-says-lower-where-d4-says-tighten`,
+`invalid-margin-display-calls-a-refused-enclosure-poisoned`,
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`,
+`measure-assertion-offers-an-unvalued-tighten-and-drops-its-margin`,
+`measure-refused-reduces-the-typed-refusal-to-its-name`,
+`nappe-spanning-spells-its-kernel-defect-ending-by-hand`,
+`not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`,
+`props-escalation-renders-the-coincidence-menu-unlabelled`,
+`props-refusal-prose-outgrows-the-viewer` (Ev's concision request),
+`quadrature-budget-refusal-names-loosening-beside-a-geometry-lever`,
+`fit-error-delegates-to-two-carriers-that-name-no-recourse`.
+
+They are one family with one shape, they are cheap, and clearing them
+leaves a boundary a reader can see rather than a half-swept grammar.
+
+**Moved to FLUX (`work/flux/`, band 10300-10399): 22 rows** — the four
+hard curved-arm rows this program was opened for and never reached
+(spiric faces with no area lane at all, the coplanar premise leaving the
+lune family outside tier 3, the wedge arm not folding lineage pieces, and
+the cycle-order signs), the arms' smaller gaps, and the `geom-core`
+scalar and spline doors under them. The doors went with the arms rather
+than staying with the text because a flux arm is only as honest as the
+door it reads through.
+
+**One row held back deliberately**:
+`f64-refinement-inside-an-enclosure-has-five-more-sites` stays here until
+PR #3524 merges, because that unit closes its fifth site and moving the
+file mid-flight would collide with the lane. It travels at the close.
+
+FLUX's plan carries forward the four things this program learned the hard
+way, so its specs do not relearn them: a spec that asserts a premise
+hands the unit a defect (one premise failed three times here, the last
+reaching main); a re-baselined golden is not a re-pointed row (twice in
+one unit a row's subject moved while its numbers were movable); a
+narrower bound is the expected outcome of a width fix and therefore not
+evidence it is correct; and `cost` is effort with `design` a separate
+flag, so the five inherited legacy `D` rows get re-priced when touched.
+
+**No exit walk is owed.** `plan.md` sets no `## Exit criteria`, and the
+tracker contract makes a walk owed only where a plan states them — a
+plan that set none leaves a walk nothing to check. This program closes on
+Ev's ruling when the eleven land, with a note under `docs/doc-ledger/`
+as its done-state of record.
 - 2026-10-02: Seam note from TANG (PR 3851, `tang/pierce-ring`). The cylinder arm of `curved_face` is now the chart Green form over every loop, `R²·(−Σ∮ v du) + origin·A⃗` (`curved_face_loops`; `topo::props` hands a cylinder face its rings), so `props_rim_level`, `props_rim_level_group`, `props_du_consistent` and `props_rim_side` no longer run on a cylinder's flux; the shape door, the material-side gate and the cone/sphere/torus arms keep them. Closed `a-notched-cylinder-wall-has-no-volume-measurement`; noted on `not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`. #649's cylinder rows now measure exactly. (TANG implementer lane)
+
+## The recourse-grammar unit, at review (2026-10-03, PR 3942)
+
+The last unit of this program's own slate. **Ten of the eleven rows
+served, one stopped and reported**; green on hosted run 37111489979,
+`gate ok` pass, every `test` step run rather than skipped.
+
+**The shape.** No arm's tolerance offer can be a `&'static str`, because
+D4 ¶1 (i) wants it conditional and valued and the value comes from the
+margin. So `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and
+`SPLIT_PLANE_RECOURSE` are now the LEVERS alone;
+`geom_core::Indeterminate::ending(levers)` is the one home for the whole
+labelled ending, composed through the existing
+`MarginDiag::sized_recourse`; `DEFINITE_COINCIDENCE_RECOURSE` retired
+into `COINCIDENCE_RECOURSE`, the two having become one string. No
+twelfth spelling was minted: every ending composes from a home ENCL or
+TOPO already built, and the two helpers added
+(`geom_brep::recourse::not_yet`, `props::quadrature_budget_recourse`)
+each consolidate two spellings into one.
+
+**Row 3 is the stop-and-report**, moved to `work/flux/` with the reach
+sweep it asked for: two of the five `classify_dihedral` callers that can
+see an arbitrary body face establish its no-spline-kind premise and three
+do not (filed on `work/topo/`), and one of its two candidate fixes is
+closed by ENCL's PR 3418 — `MarginDiag` is opaque, so nothing can ride
+the margin. What remains is a typed refusal on a public predicate's
+error, rippling to its non-test callers across `topo` and `sweep`: a
+typing unit, not a refusal-text one.
+
+**This program does NOT close on these eleven, and that is the fact to
+hand on.** The 2026-10-01 cut left eleven rows here; eleven MORE have
+been filed on this slate since, by lanes crossing this ground
+(`a-cylinder-rims-level-...`, `a-sphere-face-whose-boundary-encodes-no-side-...`,
+`an-ellipse-trimmed-ring-...`, `authored-and-derived-directions-...`,
+`interval-sin-theta-...`, `nurbs-interval-ders-...`,
+`sphere-flux-arm-carries-two-closed-forms-...`,
+`the-convex-boehm-step-...`, `the-projective-applier-...`,
+`the-race-rows-leaves-...`, `trim-walk-chord-lengths-...`), and
+`f64-refinement-inside-an-enclosure-has-five-more-sites` is still at
+review on PR 3524. The refusal-text family is finished; the slate is not.
+Closing PROPS now means cutting those twelve somewhere, which is the
+orchestrator's call and not this lane's.
+
+**Three things worth not relearning**, beyond the four `plan.md` already
+carries:
+
+- **A shorter shared constant can break a test that used it as a
+  discriminator.** `refusal_concision_chains` asked "does the split
+  rendering offer the JOIN's recourse" by `contains(NO_DECLARATION_RECOURSE)`;
+  once that constant became "move the geometry" the question matched any
+  arm with that lever of its own. The repair was to say what the join's
+  recourse IS (an escalated arm's, so its payload is beside it), not to
+  lengthen the constant back.
+- **k-lint's `predicate_roster` reads a mint's margin POSITIONALLY**, as
+  the funnel call's second argument, and reds on a respelling by design.
+  A new funnel argument goes after `(name, margin, band)`.
+- **A new closed type on a curated carrier is a payload rung**, and
+  `scripts/payload-rung-sweep.py --check` fires on it in the `lint` job.
+  Decide it in the same change — carry it, or file it with its argument
+  in `DISPOSITIONS`.

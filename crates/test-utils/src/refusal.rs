@@ -83,9 +83,9 @@ const SENTENCE_WORDS: &[&str] = &[
 /// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
 /// to the constants.
 pub const BARE_RECOURSES: &[&str] = &[
-    "declare the coincidence, move the geometry, or lower the tolerance",
-    "move the split plane or the geometry, or lower the tolerance",
-    "move the geometry, or lower the tolerance",
+    "declare the coincidence, or move the geometry",
+    "move the split plane or the geometry",
+    "move the geometry",
 ];
 
 /// The verbs a wrapper states a refusal with. A clause that opens with

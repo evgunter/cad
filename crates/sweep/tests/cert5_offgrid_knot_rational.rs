@@ -125,7 +125,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
             EpsPosture::Budget
         }
         Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause },
+            source: PropsError::Escalated { cause, .. },
             ..
         }) => {
             assert_eq!(

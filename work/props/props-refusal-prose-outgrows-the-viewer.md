@@ -2,9 +2,11 @@
 id: props-refusal-prose-outgrows-the-viewer
 kind: issue
 title: props: the mass-properties and measure refusals over 50 words (Ev's concision request)
-status: open
+status: review
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 
@@ -87,3 +89,40 @@ variant to a short reason and one recourse in the viewer's terms
 measured by `editor-core/tests/refusal_concision_at_rest.rs` and no
 longer by this row. This row's subject is unchanged: the sentence
 itself, as the callers that hold a `PropsError` (through `MassPropsError::Face`) directly still read it.
+
+## Resolved (props/recourse-grammar) — measured, per site
+
+The census was RE-DERIVED at the merge base before the rewrite, and one
+of its five rows had already moved: `FitError::BudgetExhausted` is 35
+words, not 54 — ENCL's PR 3346 reworded `geom/src/curves/fit.rs`. The
+other four reproduce exactly.
+
+| site | before | after |
+|---|---|---|
+| `PropsError::NotIsoRectangle` | 66 | 31 |
+| `PropsError::QuadratureBudget` | 62 | 41 |
+| `measure.rs` `MeasureUnavailableAt::NeedsEnclosure` | 55 | 38 |
+| `measure.rs` `UnevaluatedReason::WindowSuperset` | 54 | 36 |
+| `fit.rs` `FitError::BudgetExhausted` | 35 (was 54 when filed) | 30 |
+
+Counted as the census counts: the arm's string literals, a `{…}`
+placeholder as one word, named recourse constants NOT expanded.
+
+Drive-bys in the same arms' file, since `PropsError` is one sentence
+family and leaving two arms in the old voice would be incoherent: the
+`integral properties:` stage prefix is gone from every arm, and
+`Unimplemented` (42 → 21), `NappeSpanning` (30 → 32, which GREW because
+it took the shared kernel-defect ending), `NotOneChartBranch` (23 → 22),
+`DegenerateFace` (20 → 23, which grew for the same reason — its lever is
+now valued where there is a value) and `QuadratureUnsupported` (43 → 35)
+moved with them. **No recourse lost its value to the word count**: the
+two arms that grew did so because they gained an ending they did not
+have.
+
+`every_props_error_arm_fits_where_it_is_shown` now enforces the budget
+and the no-stage-prefix shape over every arm, read through
+`test_utils::refusal`.
+
+**The re-derived census found no remaining arm over 50 words on this
+program's ground.** Four remain repo-wide, all elsewhere, and each is
+filed on its owner's slate (see the PR body).
