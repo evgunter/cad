@@ -264,3 +264,9 @@ lane, because both edit `remap_contacts`.
   A/B mapping (byte 211, A=fable B=opus). The two-Parts row closes:
   the `On` verdict (PR 3897) already answers it, and the rows live in
   `on_verdict_rows.rs`.
+
+- 2026-10-03 — PR 3927 (shared-vertex crossings) is open: plan every
+  v-v pair, then mint. The row's witness builds in every op and passes
+  3′. Two pinches crossing on one line still refuse (filed P0), and the
+  row's clockwise wedge was an inside-out operand (filed on cleave).
+  A single FULL review is dispatched.
