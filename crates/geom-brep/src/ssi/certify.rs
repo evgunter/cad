@@ -115,7 +115,6 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{
     GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
@@ -747,6 +746,11 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     Some((worst, chain.len() as u32, single))
 }
 
+/// The point interval at `x`.
+fn pt(x: f64) -> Interval {
+    Interval::from_bounds(x, x)
+}
+
 /// A box's side along axis `i` (0, 1, 2 for x, y, z).
 fn side(b: Box3, i: usize) -> Interval {
     [b.x, b.y, b.z][i]
@@ -794,7 +798,7 @@ fn face_roots<T: CertifiedBounds>(s1: &Surface<T>, s2: &Surface<T>, r: Box3) -> 
     for k in 0..3 {
         let (i, j) = ((k + 1) % 3, (k + 2) % 3);
         for c in [side(r, k).lo(), side(r, k).hi()] {
-            let mut stack = vec![(with_side(r, k, Interval::point(c)), 0u32)];
+            let mut stack = vec![(with_side(r, k, pt(c)), 0u32)];
             while let Some((x, depth)) = stack.pop() {
                 pieces += 1;
                 if pieces > EXIT_PIECES {
@@ -852,7 +856,7 @@ fn krawczyk<T: CertifiedBounds>(
 ) -> Option<Krawczyk> {
     let (xi, xj) = (side(x, i), side(x, j));
     let (mi, mj) = (0.5 * (xi.lo() + xi.hi()), 0.5 * (xj.lo() + xj.hi()));
-    let m = with_side(with_side(x, i, Interval::point(mi)), j, Interval::point(mj));
+    let m = with_side(with_side(x, i, pt(mi)), j, pt(mj));
     let (f1, f2) = (implicit_enclosure(s1, m), implicit_enclosure(s2, m));
     let (g1, g2) = (
         implicit_gradient_enclosure(s1, x),
@@ -870,15 +874,15 @@ fn krawczyk<T: CertifiedBounds>(
     if !det.is_finite() || det == 0.0 {
         return None;
     }
-    let y = [[d / det, -b / det], [-c / det, a / det]].map(|row| row.map(Interval::point));
-    let one = Interval::point(1.0);
-    let zero = Interval::point(0.0);
-    let (di, dj) = (xi - Interval::point(mi), xj - Interval::point(mj));
+    let y = [[d / det, -b / det], [-c / det, a / det]].map(|row| row.map(pt));
+    let one = pt(1.0);
+    let zero = pt(0.0);
+    let (di, dj) = (xi - pt(mi), xj - pt(mj));
     let row = |r: usize, m: f64| {
         let yf = y[r][0] * f1 + y[r][1] * f2;
         let ci = (if r == 0 { one } else { zero }) - (y[r][0] * jac[0][0] + y[r][1] * jac[1][0]);
         let cj = (if r == 1 { one } else { zero }) - (y[r][0] * jac[0][1] + y[r][1] * jac[1][1]);
-        Interval::point(m) - yf + ci * di + cj * dj
+        pt(m) - yf + ci * di + cj * dj
     };
     let (ki, kj) = (row(0, mi), row(1, mj));
     if !(ki.is_certified() && kj.is_certified()) {
