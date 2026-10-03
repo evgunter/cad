@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError, SplitError,
+    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, SplitError,
     content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
@@ -711,23 +711,22 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a union whose declared pair's `b` side was
-/// rebound onto the wall of a block inserted after the union, labelled
-/// `late block`: the rebound name and that block's extrude.
+/// A document holding a fillet whose selection was rebound onto the
+/// wall of a block inserted after the fillet, labelled `late block`:
+/// the rebound name and that block's extrude. A selection is a frozen
+/// name with no document-order rule, so the rebind is admitted and the
+/// reference points forward.
 fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
-    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
-    let early = fixture::fname(b, wb);
-    let (doc, _union) = insert(
+    let early = fixture::fname(b, fixture::wall(&doc, b, 0));
+    let (doc, _fillet) = insert(
         doc,
-        Node::Union {
-            members: vec![a, b],
-            declare: editor_core::declare_rest(vec![(
-                SitedRef::new(a, fixture::fname(a, wa)),
-                SitedRef::new(b, early.clone()),
-            )]),
+        Node::Fillet {
+            target: a,
+            radius: len(0.1),
+            selection: vec![early.clone()],
         },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);

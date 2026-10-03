@@ -733,6 +733,12 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 
 // ---- R6: name-level edit-time validation (banked from PR 3) ----
 
+/// **`apply_with_names` holds a declared name to the evaluation it is
+/// given where it can, and defers where it cannot**: a real pair is
+/// accepted, a typo role on an evaluated node refuses
+/// `NameUnresolvedInEvaluation`, a backward name the evaluation has
+/// not seen passes to evaluation-time resolution, and a forward name
+/// is the door's `DeclaredNameNotUpstream`, not the carve-out's.
 #[test]
 fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
@@ -758,7 +764,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
                 node: u,
                 pairs: editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a.clone()),
-                    SitedRef::at_mint(cap_b.clone()),
+                    SitedRef::at_mint(cap_b),
                 )]),
             },
             &ev,
@@ -793,27 +799,67 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             name: doc.spoken_name(&bogus)
         }
     );
-    // The forward-reference carve-out: a name on a node the supplied
-    // evaluation has NOT seen passes through (resolution happens at
-    // evaluation).
+    // The carve-out: a name on a node the supplied evaluation has NOT
+    // seen passes through, and is resolved at evaluation. Here that
+    // evaluation predates `b`, so a role `b` does not have passes,
+    // where the same typo on the evaluated `a` refused above.
+    let bogus_b = minted(
+        EntityKind::Face,
+        b,
+        RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
+    );
+    let (early, _) = block(
+        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
+    let ev_early = run(&early, None);
+    let deferred = apply_with_names(
+        &doc,
+        &DocEdit::SetDeclare {
+            node: u,
+            pairs: editor_core::declare_rest(vec![(
+                SitedRef::at_mint(cap_a.clone()),
+                SitedRef::at_mint(bogus_b),
+            )]),
+        },
+        &ev_early,
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .map(|_| ());
+    assert!(
+        deferred.is_ok(),
+        "a name the evaluation has not seen defers to evaluation-time resolution: {deferred:?}"
+    );
+    // A FORWARD reference is not the carve-out's: a name minted after
+    // the declaring node is refused at the door whatever the
+    // evaluation has seen, since none of the node's operands can hold
+    // it.
     let (doc2, c) = block(doc.clone(), (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let cap_c = minted(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
-    assert!(
+    assert_eq!(
         apply_with_names(
             &doc2,
             &DocEdit::SetDeclare {
                 node: u,
                 pairs: editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a),
-                    SitedRef::at_mint(cap_c),
+                    SitedRef::new(b, cap_c.clone()),
                 )]),
             },
             &ev,
             Tol::witness(),
             &editor_core::RefusingReach
         )
-        .is_ok(),
-        "forward references defer to evaluation-time resolution"
+        .unwrap_err(),
+        editor_core::EditError::DeclaredNameNotUpstream {
+            node: doc2.spoken(u),
+            name: doc2.spoken_name(&cap_c),
+        },
+        "a forward reference is refused at the door"
     );
 }
 

@@ -62,15 +62,20 @@ fn sited(node: RecipeNodeId) -> SitedRef {
     SitedRef::at_mint(cap(node))
 }
 
-/// Disjoint blocks A, B, C, plus a union `decl` whose declared pair
-/// names A's cap and B's cap. Neither B nor C is one of its members
-/// (the union is of A and a fourth block), so deleting either is
-/// allowed: a declared name is a reference, not a DAG edge.
+/// Disjoint blocks A, B, C, D, plus a union `decl` of A and D whose
+/// declared pair names A's cap read at A and B's cap read at D.
+///
+/// Every side is sited at a member and names a cap minted before the
+/// union — the rule every door that writes a pair asks. Neither B nor
+/// C is a member, so deleting either is allowed: a declared name is a
+/// reference, not a DAG edge. Whether D's table carries B's cap is the
+/// evaluation's question (`Vanished`), not these doors'.
 struct Three {
     doc: ProfileDoc,
     a: RecipeNodeId,
     b: RecipeNodeId,
     c: RecipeNodeId,
+    d: RecipeNodeId,
     decl: RecipeNodeId,
 }
 
@@ -84,10 +89,17 @@ fn three() -> Three {
         doc,
         Node::Union {
             members: vec![a, d],
-            declare: editor_core::declare_rest(vec![(sited(a), sited(b))]),
+            declare: editor_core::declare_rest(vec![(sited(a), SitedRef::new(d, cap(b)))]),
         },
     );
-    Three { doc, a, b, c, decl }
+    Three {
+        doc,
+        a,
+        b,
+        c,
+        d,
+        decl,
+    }
 }
 
 /// The declared-pair list of the union `decl`.
@@ -118,7 +130,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
     assert_eq!(
         declared(&applied.doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.b, cap(t.c))),
+            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
             BooleanCoincidence::REST
         )]
     );
@@ -143,7 +155,10 @@ fn rebind_rewrites_declare_sites_one_shot() {
     // Purity: the input document is untouched.
     assert_eq!(
         declared(&t.doc, t.decl),
-        [((sited(t.a), sited(t.b)), BooleanCoincidence::REST)]
+        [(
+            (sited(t.a), SitedRef::new(t.d, cap(t.b))),
+            BooleanCoincidence::REST
+        )]
     );
 }
 
@@ -170,7 +185,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     assert_eq!(
         declared(&doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.b, cap(t.c))),
+            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
             BooleanCoincidence::REST
         )]
     );
@@ -191,7 +206,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
 #[test]
 fn set_declare_replaces_the_whole_list_and_refuses_typed() {
     let t = three();
-    let pair = |x, y| editor_core::declare_rest(vec![(sited(x), sited(y))]);
+    let pair = |x, y| editor_core::declare_rest(vec![(sited(x), SitedRef::new(t.d, cap(y)))]);
     let set = |doc: &ProfileDoc, node, pairs| {
         doc.apply(
             &DocEdit::SetDeclare { node, pairs },
@@ -208,7 +223,10 @@ fn set_declare_replaces_the_whole_list_and_refuses_typed() {
     );
     assert_eq!(
         declared(&applied.doc, t.decl),
-        [((sited(t.a), sited(t.c)), BooleanCoincidence::REST)],
+        [(
+            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
+            BooleanCoincidence::REST
+        )],
         "the list is REPLACED, not appended to"
     );
     let cleared = set(&applied.doc, t.decl, Vec::new()).expect("an empty list clears");
@@ -315,6 +333,25 @@ fn rebind_refusal_doors_are_typed_and_specific() {
             .unwrap_err(),
         EditError::RebindUnknownName {
             name: t.doc.spoken_name(&foreign)
+        }
+    );
+    // A target minted AFTER the declaring union: the rewritten pair
+    // would name what none of its members can hold, so the rebind
+    // refuses with the union's own rule, and no document results.
+    let (late, _, e) = block(t.doc.clone(), (8.0, 9.0), (0.0, 1.0));
+    assert_eq!(
+        late.apply(
+            &DocEdit::Rebind {
+                from: cap(t.b),
+                to: cap(e),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .unwrap_err(),
+        EditError::DeclaredNameNotUpstream {
+            node: late.spoken(t.decl),
+            name: late.spoken_name(&cap(e)),
         }
     );
     // Zero document sites.

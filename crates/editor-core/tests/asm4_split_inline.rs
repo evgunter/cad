@@ -1159,63 +1159,25 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected NameStraddlesCut, got {other:?}"),
     }
 
-    // PartNameReachesRemainder: a name declared on a CUT union is a
-    // KEPT node's entity — the part document could not express the
+    // PartNameReachesRemainder: a name a CUT fillet selects is a KEPT
+    // node's entity — the part document could not express the
     // reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
     let kept_e = doc.order()[BODY_POSITION];
-    let (doc, cut_f) = insert(doc, xy_frame());
-    let (doc, cut_p) = insert(
-        doc,
-        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
-    );
-    let (doc, cut_e) = insert(
-        doc,
-        Node::Extrude {
-            profile: cut_p,
-            distance: len(1.0),
-        },
-    );
     let reaching = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let cut_local = StableName {
-        kind: EntityKind::Edge,
-        node: cut_e,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let (doc, cut_twin) = insert(
-        doc,
-        Node::Extrude {
-            profile: cut_p,
-            distance: len(1.0),
-        },
-    );
-    let (doc, decl) = insert(
-        doc,
-        Node::Union {
-            members: vec![cut_e, cut_twin],
-            declare: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(cut_local),
-                SitedRef::at_mint(reaching.clone()),
-            )]),
-        },
-    );
-    match split(
-        &doc,
-        &BTreeSet::from([cut_f, cut_p, cut_e, cut_twin, decl]),
-        DocumentId::derive("n"),
-        Tol::witness(),
-        None,
-    ) {
+    let (doc, cut) = selecting_fillet(doc, reaching.clone());
+    let fillet = fillet_of(&doc, &cut);
+    match split(&doc, &cut, DocumentId::derive("n"), Tol::witness(), None) {
         Err(SplitError::PartNameReachesRemainder {
             node,
             name,
             missing,
         }) => {
-            assert_eq!(node, doc.spoken(decl));
+            assert_eq!(node, doc.spoken(fillet));
             assert_eq!(name.name(), &reaching);
             assert_eq!(
                 missing,
@@ -1232,7 +1194,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&doc.spoken(decl).to_string()) && msg.contains("outside the cut"),
+                msg.contains(&doc.spoken(fillet).to_string()) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
