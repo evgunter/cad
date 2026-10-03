@@ -83,9 +83,10 @@ instead of pairing germs by its own facing test. At every wrong-volume
 pose the join's matching itself refuses `JoinDesync` "B senses agree at
 a matched pair", so the zip refuses with it rather than zipping
 `vol a + vol b`. JOIN-1's reflex battery and `rc_wide_battery`, main
-against PR 3880's head: the 11 wrong-volume unions (the battery's
-`sqQ1 (−0.5, 0.25)` and the ten above) refuse typed, and nothing else
-moves. `join_rc_probes`
+at `66bbdaa6b` against PR 3880's head: the 27 wrong-volume unions there
+(3 in the reflex battery, 24 in `rc_wide_battery`) refuse typed, 11
+`RestZipUnsupported` refusals become the join's `JoinDesync`, and
+nothing else moves. `join_rc_probes`
 `flush_declared_reflex_unions_never_ship_the_overlap_twice` pins four of
 them as refusing or sound (red on main). The second cause, the zip
 admitting a union that is not a pure REST contact, is unchanged: it is
