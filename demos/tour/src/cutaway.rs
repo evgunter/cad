@@ -89,6 +89,10 @@ pub(crate) struct SectionNumbers {
     pub area_pad: f64,
 }
 
+/// How far each half is pulled off the section plane, along its
+/// normal (m).
+const PULL: f64 = 0.75;
+
 /// The section plane.
 fn section_plane<S: Scalar>(tol: Tol) -> SplitPlane<S> {
     split_plane(
@@ -183,9 +187,9 @@ pub(crate) fn build<S: Scalar>(
         "the area brackets (± {area_pad:.1e}) are too wide to see a bore hole ({hole:.3e})"
     );
 
-    // Pull the halves apart 0.75 along the section normal: rigid
+    // Pull the halves apart along the section normal: rigid
     // transforms re-mint every moved witness (#84).
-    let n = plane.normal.get() * S::from_f64(0.75);
+    let n = plane.normal.get() * S::from_f64(PULL);
     let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
         .expect("translate above half");
     let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)
@@ -300,11 +304,24 @@ pub(crate) const SECTION_GAP: f64 = 5.0;
 /// pulled them apart along the section normal — so placing them beside
 /// the whole box is the same act again, where moving the box would put
 /// the part somewhere its own narration does not say it is.
+///
+/// `spring` is the part standing in the box. The section splits it by
+/// the same plane, which passes over it, so it is all on the below
+/// side and travels with the below half.
 pub(crate) fn sectioned_beside(
     boxbody: &pncad::topo::Body<f64>,
+    spring: &pncad::topo::Body<f64>,
     tol: Tol,
 ) -> (Vec<SceneBody>, String) {
     let ((moved_above, moved_below), n) = build(boxbody, tol);
+    let spring_cut = split(spring, &section_plane::<f64>(tol), tol).expect("split of the spring");
+    let (SplitPart::Empty, SplitPart::Body(spring_below)) = (&spring_cut.above, &spring_cut.below)
+    else {
+        panic!("the section plane passes over the spring: all of it is below");
+    };
+    let pull = Affine3::translation(section_plane::<f64>(tol).normal.get() * -PULL);
+    let spring_below = pncad::topo::transform_rigid(spring_below, &pull, tol)
+        .expect("pull the spring with the below half");
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
@@ -335,6 +352,8 @@ pub(crate) fn sectioned_beside(
         .expect("place the above half beside the box");
     let below = pncad::topo::transform_rigid(&moved_below, &aside, tol)
         .expect("place the below half beside the box");
+    let spring_below = pncad::topo::transform_rigid(&spring_below, &aside, tol)
+        .expect("place the spring beside the box");
     (
         vec![
             // The plane frees the two bored bosses' tops: this half is
@@ -354,6 +373,11 @@ pub(crate) fn sectioned_beside(
                  this half's three shells are all outer, so it exports; drop this pin",
             ),
             SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], below),
+            SceneBody::plain(
+                "cutaway_spring",
+                crate::projectbox::SPRING_COLOR,
+                spring_below,
+            ),
         ],
         note,
     )
