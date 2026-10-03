@@ -5,24 +5,26 @@
 //! An open branch runs from one crossing to another, so its two ends are
 //! known before any march, at ε, whatever the caller's extent:
 //!
-//! - From a crossing `A`, the march leaves inward with its step capped
-//!   at `|AB|/`[`SHORT_BRANCH_STEPS`], `B` the nearest crossing not yet
-//!   used, so the branch it reaches is cut into at least that many
-//!   steps. It stops at its first state outside the rectangle, and that
-//!   step is matched to the unused crossing on the side it left within
-//!   the step's reach, the one nearest where the step's chord meets the
-//!   side where two are (branches converging on a side). A march that
-//!   leaves where no crossing matches refuses as the march's limit
+//! - From a crossing `A`, the simplest candidate is tried first: the
+//!   Hermite cubic from `A` to `B`, the nearest crossing not yet used,
+//!   through their tangents, in both charts and in space. It is one span
+//!   and exact at both ends; whether `B` is the branch's other end is
+//!   the certificate's to decide.
+//! - Where the certificate refuses it, the march leaves `A` inward with
+//!   its step capped at `|AB|/`[`SHORT_BRANCH_STEPS`], so the branch it
+//!   reaches is cut into at least that many steps. It stops at its first
+//!   state outside the rectangle, and that step is matched to the unused
+//!   crossing on the side it left within the step's reach, the one
+//!   nearest where the step's chord meets the side where two are
+//!   (branches converging on a side). A march that leaves where no
+//!   crossing matches refuses as the march's limit
 //!   ([`SsiError::CrossingUnmatched`]).
-//! - Where the march cannot progress, its step falling in the band
-//!   ([`SsiError::StepCollapsed`], or undecided there), the candidate is
-//!   the Hermite cubic from `A` to `B` through their tangents, in both
-//!   charts and in space; whether `B` is the branch's other end is the
-//!   certificate's to decide. The march and the Hermite are two candidate
-//!   generators, each trusted for nothing; C2's three limbs decide
-//!   either, and a Hermite candidate they refuse on a branch too short
-//!   for a step of it to clear the band is a sized refusal in its length
-//!   ([`SsiError::ShortBranchUncertified`]).
+//!
+//! The Hermite and the march are two candidate generators, each trusted
+//! for nothing; C2's three limbs decide either. Where neither certifies,
+//! the march's refusal stands, except on a branch too short for a step
+//! of it to clear the band, which is a sized refusal in its length
+//! ([`SsiError::ShortBranchUncertified`]).
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
@@ -87,19 +89,6 @@ fn close_at(sys: &ParametricPairR4<'_>, states: &mut Vec<[f64; 4]>, end: [f64; 4
         states.pop();
     }
     states.push(end);
-}
-
-/// Whether a march refused because its step fell in the band: decided
-/// there, or undecided on a valid margin.
-fn step_in_band(e: &SsiError) -> bool {
-    match e {
-        SsiError::StepCollapsed { .. } => true,
-        SsiError::Escalated {
-            decision: super::TraceDecision::StepProgress,
-            cause,
-        } => !cause.margin.is_invalid(),
-        _ => false,
-    }
 }
 
 /// The 3-D distance between two states.
@@ -167,9 +156,9 @@ impl<'a> Ends<'a> {
     ///
     /// [`SsiError::CrossingUnmatched`] for a crossing with no partner,
     /// or a march whose exit matches none; any refusal of the
-    /// march, the fit or the certificate; and
-    /// [`SsiError::ShortBranchUncertified`] for a Hermite candidate the
-    /// certificate refuses.
+    /// march, the fit or the certificate, where the Hermite candidate
+    /// was refused too; and [`SsiError::ShortBranchUncertified`] where
+    /// neither candidate certifies a branch too short for the march.
     pub(crate) fn branches(&self, crossings: &[Crossing]) -> Result<Vec<SsiBranch>, SsiError> {
         let n = crossings.len();
         let mut used = vec![false; n];
@@ -187,30 +176,42 @@ impl<'a> Ends<'a> {
             let Some((j, near)) = nearest else {
                 return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
             };
-            let branch = match self.march_from(a, near, crossings, &used) {
-                Ok((b, states, min_t)) => {
-                    used[b] = true;
-                    let end = BranchEnd::Crossings {
-                        from: a.at,
-                        to: crossings[b].at,
-                    };
-                    self.finish(&states, end, min_t)?
-                }
-                // The march cannot progress: the Hermite candidate. Where
-                // a step of the branch clears the band, it was the
-                // march's to trace, and the march's refusal stands.
-                Err(march) if step_in_band(&march) => {
+            let branch = match self.hermite(a, crossings[j], near) {
+                Ok(branch) => {
                     used[j] = true;
-                    self.hermite(a, crossings[j], near).map_err(|e| match e {
-                        SsiError::ShortBranchUncertified { .. } => e,
-                        _ => march,
-                    })?
+                    branch
                 }
-                Err(e) => return Err(e),
+                Err(hermite) => {
+                    let (b, branch) = self.marched(a, near, crossings, &used).map_err(|march| {
+                        match hermite {
+                            SsiError::ShortBranchUncertified { .. } => hermite,
+                            _ => march,
+                        }
+                    })?;
+                    used[b] = true;
+                    branch
+                }
             };
             out.push(branch);
         }
         Ok(out)
+    }
+
+    /// The marched candidate from crossing `a`: its far crossing's
+    /// index, and the branch fitted and certified.
+    fn marched(
+        &self,
+        a: Crossing,
+        near: f64,
+        crossings: &[Crossing],
+        used: &[bool],
+    ) -> Result<(usize, SsiBranch), SsiError> {
+        let (b, states, min_t) = self.march_from(a, near, crossings, used)?;
+        let end = BranchEnd::Crossings {
+            from: a.at,
+            to: crossings[b].at,
+        };
+        Ok((b, self.finish(&states, end, min_t)?))
     }
 
     /// The march from crossing `a`, inward, to the crossing on the side
@@ -435,8 +436,8 @@ impl<'a> Ends<'a> {
     /// certificate refuses the candidate:
     /// [`SsiError::ShortBranchUncertified`] on a branch too short for
     /// `length / SHORT_BRANCH_STEPS` to clear the band, and on a longer
-    /// one the certificate's refusal itself, bare, which the caller
-    /// replaces by the march's.
+    /// one the certificate's refusal itself, bare, after which the
+    /// caller marches.
     fn hermite(&self, a: Crossing, b: Crossing, length: f64) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
         let ta = tangent(self.sys, &a.state, &self.ctx, true);
