@@ -40,6 +40,15 @@ failure as it stands:
   `Join(RingHomingAmbiguous)`, which is
   `work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`'s.
 
+- **The pinch's own end inside a face**: the prism along the diagonal
+  x = y of `two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`,
+  whose face in that plane holds the whole pinch line, so the pinch's
+  top end (0,0,1.5) lies inside it. `pinch ∖ prism` keeps both pieces
+  there and fails 3′ with `VertexVertex` at (0,0,1.5) and the
+  `EdgeEdgeOverlap` at (0,0,1); the other five ops pass. Reached since
+  `fuse/shared-vertex-tie`, whose strut tie builds the lower end (on
+  main every op refused `SharedVertexCrossings`). Pinned in that test.
+
 Not `a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut`:
 there the new end was a v-v group whose kept corner was a null-edge
 copy, and the group remap reaching copies fixed it. Here the new end

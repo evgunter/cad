@@ -1617,9 +1617,12 @@ pub enum BooleanError {
     /// there, in a way the insertion cannot place: an operand holds
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and the pairs' cuts in the shared vertex's orbit
-    /// interleave, cannot be ordered within one corner, or fall between
-    /// a dangling null edge's two germs (`insert::reconcile_shared`).
+    /// neighborhoods, and one pair has no run in the shared vertex's
+    /// orbit that holds none of another pair's cuts: a dangling null
+    /// edge whose segment holds one (the segment outside a piece with a
+    /// reflex corner there), a null edge both of whose ways round hold
+    /// one, or two pairs whose runs are one arc
+    /// (`insert::reconcile_shared`).
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -2803,7 +2806,7 @@ impl core::fmt::Display for BooleanError {
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
                 "a corner of the {} solid meets a point where the other solid holds \
-                 several corners that only touch each other (or both solids do), and \
+                 several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
                 operand_word(*operand)

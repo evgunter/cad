@@ -51,3 +51,33 @@ read off the pieces' own faces, and build the arm, as
 all six ops at volumes checked outside the kernel, with 3′ passing.
 For the three unreached arms: show they cannot be reached and make
 them invariants, or build a witness.
+
+## Progress on `fuse/shared-vertex-tie`
+
+- **The tie builds.** Cuts along one direction in one sector entry
+  are placed by the runs (`insert::tied_held`): runs leaving the line
+  in opposite senses are disjoint, nested ones resolve as strict cuts
+  do. The two-piece witness and a three-piece one build in every op at
+  volumes from a polygon clip, 3′ passing.
+- **Two struts tied in one corner** (the `strut_anchor` arm): built,
+  `two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`.
+  Struts now splice by their lower germ, so the arm is a
+  `ClassificationInvariant`.
+- **Another pair's cut between a strut's germs: reachable.** A piece
+  with a reflex corner (a block's pyramidal pit with a spike in it)
+  leaves its strut on the Out side holding the spike's cuts. Pinned
+  typed: `a_dangling_null_edge_holding_another_pairs_cut_refuses_typed`.
+  Building it needs nested null edges at one vertex whose ends differ
+  (In of one, Out of the other), which `mint_directed`'s end guard
+  forbids: a design question.
+- **Interleave (a fan both ways round holding cuts)**: disjoint pieces
+  do alternate in a convex corner (three corners round the cube's,
+  measured), but a pair whose run is one of its own In-arcs is clear,
+  so the arm needs a pair paired across its Out-arcs (four crossings,
+  the In-arc wrapping the A orbit's first sector). That shape refuses
+  `PairingMismatch` first:
+  `work/cleave/a-corner-crossing-another-four-times-refuses-pairing-mismatch.md`.
+  Unreached; kept typed.
+- **Two pairs' runs one arc**: needs the shared corner's whole
+  boundary inside two pieces that touch along two of its rays, which
+  leaves the vertex no sector of its own. No witness; kept typed.
