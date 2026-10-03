@@ -3838,6 +3838,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
+    "ValidationError::VolumeSignUnresolved": "ValidationFinding.variant",
     "ValidationError::Pcurve": "ValidationFinding.variant",
     "ValidationError::RingMeetsOuter": "ValidationFinding.variant",
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",

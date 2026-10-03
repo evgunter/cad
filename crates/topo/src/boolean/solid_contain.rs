@@ -5456,7 +5456,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
             Certified::Role(role) => Some(Ok(role)),
             Certified::Refused(source) => Some(Err(refused(source))),
-            Certified::Open(unread) => {
+            Certified::Open(unread) | Certified::Unresolved(unread) => {
                 last.set(Some(unread));
                 None
             }
@@ -5476,16 +5476,12 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The side-at-infinity decision's names on the walk's sums.
-const AT_INFINITY: crate::props::RoleNames = crate::props::RoleNames {
-    high: "bool_point_in_solid_infinity",
-    low: "bool_point_in_solid_infinity",
-};
+const AT_INFINITY: crate::props::RoleNames =
+    crate::props::RoleNames::one("bool_point_in_solid_infinity");
 
 /// The side-at-infinity decision's name on the interval re-derivation.
-const AT_INFINITY_ENCLOSURE: crate::props::RoleNames = crate::props::RoleNames {
-    high: "bool_point_in_solid_infinity_enclosure",
-    low: "bool_point_in_solid_infinity_enclosure",
-};
+const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
+    crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
 
 #[cfg(test)]
 #[path = "r1_probes.rs"]

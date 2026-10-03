@@ -400,6 +400,8 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     else {
         panic!("expected the cavity's undecided role, alone, got: {errors:?}");
     };
+    // Check 10 reads a shell's role under check 7's names.
+    assert_eq!(ind.predicate, Some("positive_volume"), "{error}");
     assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
     let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
         panic!("expected a valued margin, got: {error}");

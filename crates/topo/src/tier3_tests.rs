@@ -2735,6 +2735,20 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (Void, Void),
         "inside-out: the roles"
     );
+    // Point containment's side at infinity reads the same sign: inside
+    // and beside the slab, both ways round.
+    use crate::boolean::SolidContainment::{In, Out};
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let (inside, beside) = (Point3::new(5e-4, 5e-4, 5e-8), Point3::new(5e-3, 5e-4, 5e-8));
+    for (body, name, want) in [
+        (&upright, "upright", [In, Out]),
+        (&inverted, "inside out", [Out, In]),
+    ] {
+        let got = [inside, beside].map(|p| {
+            crate::boolean::point_in_solid(body, p, band, tol).expect("containment answers")
+        });
+        assert_eq!(got, want, "{name}: inside and beside the slab");
+    }
 }
 
 /// **An inside-out body just past the band is refused**, at every ε. A
@@ -2759,6 +2773,175 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
             "a {t:e} m slab anchored {far} m away, inside out"
         );
     }
+}
+
+/// **A half-disc of radius `r` and height `h` with its axis corner at
+/// `(cx, cy, z0)`**: a two-sided prism whose cross-section is the half of
+/// the circle on `+y` and its chord, so one wall is a cylinder and the
+/// walk is not all-planar. Its exact volume is `π r² h / 2`.
+fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), tol: Tol) -> Body<f64> {
+    let mut p = crate::fixtures::raw_prism(2, tol);
+    let xy = [(cx + r, cy), (cx - r, cy)];
+    for (i, (x, y)) in xy.into_iter().enumerate() {
+        for (v, z) in [(p.t[i], z0 + h), (p.u[i], z0)] {
+            let point = p.body.get_vertex(v).unwrap().point;
+            *p.body.points.get_mut(point).unwrap() = Point3::new(x, y, z);
+        }
+    }
+    let wall = Surface::Cylinder {
+        origin: Point3::new(cx, cy, z0),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let chord = Surface::Plane {
+        origin: Point3::new(cx, cy, z0),
+        normal: -Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let top = Surface::Plane {
+        origin: Point3::new(cx, cy, z0 + h),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let bottom = Surface::Plane {
+        origin: Point3::new(cx, cy, z0),
+        normal: -Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (face, surface) in [
+        (p.face_top, top),
+        (p.face_bottom, bottom),
+        (p.face_side[0], wall),
+        (p.face_side[1], chord),
+    ] {
+        p.body
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface,
+                    sense: true,
+                },
+            )
+            .unwrap();
+    }
+    let arc = |body: &Body<f64>, edge| {
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let p0 = at(body.get_half_edge(he).unwrap().start);
+        let center = Point3::new(cx, cy, p0.z);
+        let u_ref = (p0 - center) / r;
+        geom::Curve3::Circle {
+            center,
+            axis: u_ref.cross(Vec3::unit_y()),
+            radius: r,
+            u_ref,
+        }
+    };
+    let segment = |body: &Body<f64>, edge| {
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let (p0, p1) = (
+            at(body.get_half_edge(he).unwrap().start),
+            at(body.half_edge_end(he).unwrap()),
+        );
+        geom::Curve3::Line {
+            origin: p0,
+            dir: (p1 - p0) / p0.distance(p1),
+        }
+    };
+    for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
+        let is_arc = e == p.et[0] || e == p.eb[0];
+        let carrier = if is_arc {
+            arc(&p.body, e)
+        } else {
+            segment(&p.body, e)
+        };
+        let he = p.body.get_edge(e).unwrap().he_plus;
+        let p0 = *p
+            .body
+            .get_point(
+                p.body
+                    .get_vertex(p.body.get_half_edge(he).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        let p1 = *p
+            .body
+            .get_point(
+                p.body
+                    .get_vertex(p.body.half_edge_end(he).unwrap())
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        let t1 = if is_arc {
+            std::f64::consts::PI
+        } else {
+            p0.distance(p1)
+        };
+        let (s1, s2) = adjacent_surfaces(&p.body, e);
+        let witness = carrier.eval(0.5 * t1);
+        let spec = EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            carrier,
+            param_start: 0.0,
+            param_end: t1,
+        };
+        p.body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
+    p.body
+}
+
+/// **A curved walk's sign is read off its exact volume too.** A 1 mm
+/// half-disc 1 µm thick, 5 km from the world origin (exact volume
+/// `π·(1e-3)²·1e-6/2`): upright it passes check 7 and reads `Outer`,
+/// inside out it is refused `NegativeVolume` and reads `Void`. Taken
+/// about the world origin its cylinder wall's closed form is wide enough
+/// to straddle zero, and the inside-out body passed.
+#[test]
+fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
+    use crate::ShellRole::{Outer, Void};
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the half-disc's 1 µm walls are below a band this wide",
+        );
+        return;
+    }
+    let d = 5e3;
+    let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), tol);
+    let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
+    let read = crate::mass_properties(&upright, tol).expect("the half-disc measures");
+    assert!(
+        (read.volume - exact).abs() <= 1e-3 * exact,
+        "the oracle: {read:?} vs {exact:e}"
+    );
+    assert_eq!(
+        validate_geometric(&upright, tol),
+        Ok(()),
+        "upright: check 7"
+    );
+    assert_eq!(
+        roles_of(&upright, tol),
+        (Outer, Outer),
+        "upright: the roles"
+    );
+    let inverted = upright.revert().expect("the half-disc reverts");
+    let solid = inverted.solids().next().expect("one solid").0;
+    assert_eq!(
+        validate_geometric(&inverted, tol),
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "inside-out: check 7"
+    );
+    assert_eq!(
+        roles_of(&inverted, tol),
+        (Void, Void),
+        "inside-out: the roles"
+    );
 }
 
 /// **Check 10 reads every shell's role, or refuses the solid typed.** A

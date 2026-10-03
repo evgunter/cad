@@ -1374,6 +1374,17 @@ pub enum ValidationError {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
+    /// Tier 3, check 7 — **the sign is unresolved.** The solid's volume
+    /// enclosure straddles zero, and it was taken partly about the world
+    /// origin (a quadrature face's flux keeps the width it was measured
+    /// with), so the straddle may be that width rather than a volume in
+    /// the band. Escalated rather than exempted: exempting it would pass
+    /// an inside-out body whose enclosure is merely wide
+    /// (escalate-never-guess, D4 paragraph 3).
+    VolumeSignUnresolved {
+        /// The solid whose volume's sign is unresolved.
+        solid: SolidKey,
+    },
     /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
     /// at-rest pass: missing on a chart that mints, failed
     /// re-certification (the meters-through-the-map residual, the
@@ -3331,6 +3342,12 @@ impl fmt::Display for ValidationError {
                 "a solid holds {outer} separate pieces of material, and a solid is one piece. \
                  {DEFECT}"
             ),
+            Self::VolumeSignUnresolved { .. } => f.write_str(
+                "the sign of a solid's volume cannot be read: its enclosure straddles zero, and \
+                 a face measured through the certified quadrature keeps the width it was measured \
+                 with far from the world origin. Recourse: model the part nearer the origin, or \
+                 tighten the tolerance",
+            ),
             Self::ShellRoleUndecided { error, .. } => write!(
                 f,
                 "a shell's role in its solid cannot be read, so the solid's shells cannot be \
@@ -4260,17 +4277,21 @@ pub fn validate_geometric_certificate<
 /// and never about the scalar it is called at — the `f64` caller gets
 /// exactly what the dual caller gets. **Check 7 runs through the closed
 /// form alone** (`plus_v_by_sign` with no lane, the one place every
-/// door makes it): on a body the closed form computes, the verdict is
-/// [`validate_geometric`]'s — an inverted planar body is refused
-/// [`ValidationError::NegativeVolume`] here too — and a face that
-/// needed the quadrature is refused typed
+/// door makes it), and **decides on the walk's own sums**: certifying a
+/// sign needs the interval re-derivation, which a lane carries and a
+/// dual cannot, so this door reads the sums at every scalar alike. It
+/// therefore diverges from [`validate_geometric`], which reads the
+/// re-derivation: on a body whose volume is below its sums' rounding
+/// (a thin body far from the world origin), the two can give opposite
+/// verdicts (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
 /// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×
 /// described-NURBS `Intersection`): that class re-derives only through
 /// the certified plane × NURBS lane, which this door does not hold.
-/// Check 10 (shell winding) reads each shell's role through the same
-/// closed form, so it is silent on a shell whose sign needed the
-/// quadrature.
+/// Check 10 (shell winding) reads each shell's role off the same sums,
+/// and refuses a several-shell solid one of whose shells needed the
+/// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
 ///
 /// Its check 7 is gated the way the one-call battery gates it — on
 /// checks 1–6 — where the composed door gates on the whole structural
@@ -4448,6 +4469,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     for (solid, faces) in check7_subjects(body) {
+        // Whether the last round's sign was unresolved rather than in
+        // band ([`crate::props::Certified::Unresolved`]).
+        let unresolved = core::cell::Cell::new(false);
         match crate::props::sign_walk(
             body,
             &faces,
@@ -4458,10 +4482,17 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
                 Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
                 Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
-                Certified::Open(_) => None,
+                Certified::Open(_) => {
+                    unresolved.set(false);
+                    None
+                }
+                Certified::Unresolved(_) => {
+                    unresolved.set(true);
+                    None
+                }
                 Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
             },
-            plus_v_at_target,
+            |refusal| plus_v_at_target(refusal, unresolved.get()),
         ) {
             Ok((verdict, certificate)) => {
                 errors.extend(plus_v_errors(solid, &verdict));
@@ -4849,7 +4880,7 @@ pub(crate) fn shell_role<T: Decide>(
         |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
             Certified::Role(role) => Some(Ok(role)),
             Certified::Refused(source) => Some(Err(props(source))),
-            Certified::Open(unread) => {
+            Certified::Open(unread) | Certified::Unresolved(unread) => {
                 last.set(Some(unread));
                 None
             }
@@ -4950,6 +4981,10 @@ pub(crate) enum PlusVVerdict {
     /// the round's interval re-derivation refused a face. The payload
     /// is that refusal.
     Uncomputable(crate::props::MassPropsError),
+    /// The sign is unresolved: the enclosure straddles zero, and it kept
+    /// a quadrature face's world-origin width, so the straddle is not
+    /// known to be the body's own rounding.
+    Unresolved,
 }
 
 /// Check 7's names: the bracket's high end under `positive_volume`, the
@@ -4962,10 +4997,8 @@ pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
 
 /// Check 7's name on the interval re-derivation, which reads the exact
 /// value of the stored geometry ([`crate::props::Round::certify`]).
-pub(crate) const PLUS_V_EXACT: crate::props::RoleNames = crate::props::RoleNames {
-    high: "positive_volume_exact",
-    low: "positive_volume_exact",
-};
+pub(crate) const PLUS_V_EXACT: crate::props::RoleNames =
+    crate::props::RoleNames::one("positive_volume_exact");
 
 /// Check 7's reading of one volume ([`crate::props::read_role`] under
 /// [`PLUS_V`]).
@@ -4978,16 +5011,23 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 
 /// **What a round that decided nothing means once there is nothing
 /// left to refine** — the sign-level walk's `last_word`, handed the
-/// outstanding target refusal. Undecided with the schedule run out is
-/// not a pass when the quadrature still owes a refusal: it never
-/// produced an enclosure tight enough to decide, and the body is
-/// exactly as unvalidatable as the reporting door says it is. With no
-/// refusal owed, the sign is undecided at this tolerance, which the
-/// invariant exempts.
-fn plus_v_at_target(refusal: Option<crate::props::MassPropsError>) -> PlusVVerdict {
-    match refusal {
-        Some(source) => PlusVVerdict::Uncomputable(source),
-        None => PlusVVerdict::Pass,
+/// outstanding target refusal and whether the last round's sign was
+/// unresolved. Undecided with the schedule run out is not a pass when
+/// the quadrature still owes a refusal: it never produced an enclosure
+/// tight enough to decide, and the body is exactly as unvalidatable as
+/// the reporting door says it is. Nor is it a pass when the enclosure
+/// kept a quadrature face's world-origin width: a straddle there may be
+/// that width and not the body, and is escalated. A sign in band or
+/// straddling zero by the body's own rounding is what the invariant
+/// exempts.
+fn plus_v_at_target(
+    refusal: Option<crate::props::MassPropsError>,
+    unresolved: bool,
+) -> PlusVVerdict {
+    match (refusal, unresolved) {
+        (Some(source), _) => PlusVVerdict::Uncomputable(source),
+        (None, true) => PlusVVerdict::Unresolved,
+        (None, false) => PlusVVerdict::Pass,
     }
 }
 
@@ -5000,6 +5040,7 @@ fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError
             solid,
             source: source.clone(),
         }],
+        PlusVVerdict::Unresolved => vec![ValidationError::VolumeSignUnresolved { solid }],
     }
 }
 
@@ -7830,8 +7871,11 @@ pub fn validate_pseudomanifold<
 /// this door gets exactly what the dual caller gets. **Check 7 runs
 /// through the closed form alone**: a face that needs the certified
 /// quadrature refuses typed ([`ValidationError::VolumeUncomputable`])
-/// rather than passing unbounded, and on a closed-form body the verdict
-/// is the certified door's, with pads of `0`. **Check 2 makes no claim
+/// rather than passing unbounded, and the sign is decided on the walk's
+/// own sums, where the certified door reads their interval
+/// re-derivation — so the two can disagree on a body whose volume is
+/// below its sums' rounding ([`validate_geometric_structural`] says
+/// more). **Check 2 makes no claim
 /// about an M7-8 edge**, at any scalar, this one's `f64` included: that
 /// class re-derives only through the certified plane × NURBS lane,
 /// which this door does not hold, and check 2 is a whole-edge check, so

@@ -1637,6 +1637,7 @@ fn attribute(
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
+        | ValidationError::VolumeSignUnresolved { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }

@@ -6213,6 +6213,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
+            "volume_sign_unresolved",
             "volume_uncomputable",
         ],
         delegates: &[],
