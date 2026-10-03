@@ -1056,7 +1056,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "NegativeSpacing",
             NodeErrorKind::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: [-1.0, 0.0, 0.0],
+                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
             },
         ),
         row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
@@ -1064,15 +1064,15 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(at)",
             NodeErrorKind::FullRangeStep {
-                step: std::f64::consts::TAU,
-                past: false,
+                step: "360 deg".to_owned(),
+                nearer: None,
             },
         ),
         row(
             "FullRangeStep(past)",
             NodeErrorKind::FullRangeStep {
-                step: -7.0,
-                past: true,
+                step: "360 deg / scalar(blades) - 400 deg".to_owned(),
+                nearer: Some("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
             },
         ),
         row(

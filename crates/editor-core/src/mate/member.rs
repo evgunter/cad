@@ -749,13 +749,14 @@ fn pattern_map<P: crate::ProfilePayload>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { .. } => SteppedOperands::linear(
+        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
             need_vec3(&vals, SlotId::Direction).map_err(here)?,
             need_scalar(&vals, SlotId::Spacing).map_err(here)?,
+            direction,
             band,
         )
         .map_err(here)?,
-        PatternKind::Circular { axis, .. } => {
+        PatternKind::Circular { axis, step } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
@@ -771,6 +772,7 @@ fn pattern_map<P: crate::ProfilePayload>(
                 )
                 .map_err(at_datum)?,
                 need_scalar(&vals, SlotId::Step).map_err(here)?,
+                step,
                 band,
             )
             .map_err(here)?

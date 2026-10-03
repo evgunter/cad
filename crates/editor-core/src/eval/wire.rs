@@ -4222,15 +4222,17 @@ pub(crate) const PATTERN_STEP: &str = "pattern_step";
 /// turn.
 pub(crate) const PATTERN_STEP_TURN: &str = "pattern_step_full_turn";
 
-impl<T: Decide + geom_core::Bounds> SteppedOperands<T> {
+impl<T: Decide> SteppedOperands<T> {
     /// A linear rule's operands. The direction is normalized under
     /// [`PATTERN_DIRECTION_ROLE`]; the spacing is a size, so its sign
     /// is decided at the band as an extrude's depth is: below zero
-    /// refuses naming the direction that steps the other way, and zero
+    /// refuses naming the direction that steps the other way, spelled
+    /// from `authored` (the direction slots' expressions), and zero
     /// refuses because every copy would land on the master.
     pub(crate) fn linear(
         direction: Vec3<T>,
         spacing: T,
+        authored: &[crate::expr::Expr; 3],
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band)?;
@@ -4251,26 +4253,27 @@ impl<T: Decide + geom_core::Bounds> SteppedOperands<T> {
             Sign::Zero => Err(NodeErrorKind::DegenerateSpacing),
             Sign::Negative => Err(NodeErrorKind::NegativeSpacing {
                 spacing: decided.margin,
-                reversed: [-direction.x, -direction.y, -direction.z].map(reading),
+                reversed: authored.each_ref().map(negated),
             }),
         }
     }
 
     /// A circular rule's operands. The step keeps its sign; a zero (or
-    /// sliver) step refuses, and so does one at or past a full turn.
-    /// Both are radians against the linear band, as the revolve's
-    /// full-turn check is (ledger row F14).
+    /// sliver) step refuses, and so does one at or past a full turn,
+    /// spelled from `authored` (the step slot's expression). Both are
+    /// radians against the linear band, as the revolve's full-turn
+    /// check is (ledger row F14).
     pub(crate) fn circular(
         origin: Point3<T>,
         dir: UnitVec3<T>,
         step: T,
+        authored: &crate::expr::Expr,
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let escalated = |predicate| move |source| NodeErrorKind::Escalated { predicate, source };
-        if geom_core::k_stats::decide_flagged(PATTERN_STEP, step, band, "F14")
-            .map_err(escalated(PATTERN_STEP))?
-            == Sign::Zero
-        {
+        let sign = geom_core::k_stats::decide_flagged(PATTERN_STEP, step, band, "F14")
+            .map_err(escalated(PATTERN_STEP))?;
+        if sign == Sign::Zero {
             return Err(NodeErrorKind::DegenerateStep);
         }
         let past = match geom_core::k_stats::decide_flagged(
@@ -4286,17 +4289,45 @@ impl<T: Decide + geom_core::Bounds> SteppedOperands<T> {
             Sign::Positive => true,
         };
         Err(NodeErrorKind::FullRangeStep {
-            step: reading(step),
-            past,
+            step: crate::expr::unparse(authored),
+            nearer: past.then(|| turn_nearer_zero(authored, sign == Sign::Positive)),
         })
     }
 }
 
-/// A scalar's value for error text: the midpoint of its bracket (the
-/// value itself at `f64`), with a negative zero read as zero.
-fn reading<T: geom_core::Bounds>(x: T) -> f64 {
-    let (lo, hi) = (x.lo(), x.hi());
-    lo + (hi - lo) / 2.0 + 0.0
+/// `authored`, negated, in the grammar a user types: a literal's own
+/// value negated (a zero stays `0.0`), anything else under a unary
+/// minus. Either evaluates to the exact negation, so the direction it
+/// spells steps the copies where the negative spacing did.
+fn negated(authored: &crate::expr::Expr) -> String {
+    use crate::expr::Expr;
+    let flipped = match authored.literal_value() {
+        Some(v) => Expr::literal(-v + 0.0, authored.dim()),
+        None => Expr::neg(authored.clone()),
+    };
+    flipped.map_or_else(
+        |_| format!("-({})", crate::expr::unparse(authored)),
+        |e| crate::expr::unparse(&e),
+    )
+}
+
+/// `authored` a full turn nearer zero, `step - 360 deg` for a positive
+/// step and `step + 360 deg` for a negative one.
+fn turn_nearer_zero(authored: &crate::expr::Expr, positive: bool) -> String {
+    use crate::expr::Expr;
+    let turn = Expr::angle_in(360.0, quantity::DEG);
+    let nearer = turn.and_then(|turn| {
+        if positive {
+            Expr::sub(authored.clone(), turn)
+        } else {
+            Expr::add(authored.clone(), turn)
+        }
+    });
+    let sign = if positive { '-' } else { '+' };
+    nearer.map_or_else(
+        |_| format!("{} {sign} 360 deg", crate::expr::unparse(authored)),
+        |e| crate::expr::unparse(&e),
+    )
 }
 
 /// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or
@@ -4323,7 +4354,7 @@ pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> A
 /// INSIDE so a rule's operands are demanded only when a step uses
 /// them: placement 0 is the identity and reads none. A listed rule
 /// refuses as `listed`, the mismatch it is on the caller's node.
-fn stepped_map<T: Decide + geom_core::Bounds>(
+fn stepped_map<T: Decide>(
     kind: &PatternKind,
     listed: crate::node::CountMismatch,
     i: i64,
@@ -4339,19 +4370,26 @@ fn stepped_map<T: Decide + geom_core::Bounds>(
             ));
         }
         _ if i == 0 => return Ok(Affine3::identity()),
-        PatternKind::Linear { .. } => SteppedOperands::linear(
+        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
+            direction,
             band(tol)?,
         )?,
-        PatternKind::Circular { axis, .. } => {
+        PatternKind::Circular { axis, step } => {
             let (origin, dir) = operand(results, *axis, super::phrase::DATUM_AXIS, |v| {
                 match &v.payload {
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
                     _ => None,
                 }
             })?;
-            SteppedOperands::circular(*origin, *dir, need_scalar(vals, SlotId::Step)?, band(tol)?)?
+            SteppedOperands::circular(
+                *origin,
+                *dir,
+                need_scalar(vals, SlotId::Step)?,
+                step,
+                band(tol)?,
+            )?
         }
     };
     Ok(stepped_rule_map(&ops, i))
@@ -4366,7 +4404,7 @@ fn stepped_map<T: Decide + geom_core::Bounds>(
 /// ([`names::flat_body_index`], which the name table is keyed by too).
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
-fn wire_pattern<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -5708,43 +5746,62 @@ mod stepped_operand_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
+    use crate::expr::{Dimension, Expr, ParamEnv, eval};
     use geom_core::{Band, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    fn scalar(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Scalar).unwrap()
+    }
+
+    fn value(e: &Expr) -> f64 {
+        eval::<f64>(e, &ParamEnv::default()).unwrap()
+    }
+
     /// **The negative spacing's recourse, followed.** The refusal
-    /// quotes the evaluated direction negated; written in with the
-    /// spacing made positive, it steps every copy to the map the
-    /// negative spacing stepped it to, bit for bit up to the sign of a
-    /// zero component (a zero is quoted as `0`, the spelling a user
-    /// types, and `p + 0` is `p + -0` for every coordinate but `-0`).
+    /// spells the authored direction negated; parsed back and written
+    /// in with the spacing made positive, it steps every copy to the
+    /// map the negative spacing stepped it to, bit for bit up to the
+    /// sign of a zero component (a zero literal is spelled `0.0`, and
+    /// `p + 0.0` is `p + -0.0` for every coordinate but `-0.0`).
     #[test]
     fn the_reversed_direction_steps_where_the_negative_spacing_did() {
+        let sum = Expr::add(scalar(0.1), scalar(0.2)).unwrap();
         for authored in [
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(3.0, 4.0, 0.0),
-            Vec3::new(-0.3, 0.7, 1.9),
+            [scalar(1.0), scalar(0.0), scalar(0.0)],
+            [scalar(3.0), scalar(4.0), scalar(0.0)],
+            [scalar(-0.3), sum, scalar(1.9)],
         ] {
+            let direction = Vec3::new(
+                value(&authored[0]),
+                value(&authored[1]),
+                value(&authored[2]),
+            );
             let Err(NodeErrorKind::NegativeSpacing { reversed, .. }) =
-                SteppedOperands::linear(authored, -4.25, band())
+                SteppedOperands::linear(direction, -4.25, &authored, band())
             else {
                 panic!("a negative spacing refuses for {authored:?}");
             };
             let mirrored = SteppedOperands::Linear {
-                direction: unit(authored, PATTERN_DIRECTION_ROLE, band()).unwrap(),
+                direction: unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap(),
                 spacing: -4.25,
             };
-            let [x, y, z] = reversed;
-            let followed = SteppedOperands::linear(Vec3::new(x, y, z), 4.25, band())
-                .expect("the recourse builds");
+            let written = reversed.each_ref().map(|text| {
+                crate::parse::parse_expr(text, &std::collections::BTreeMap::new())
+                    .unwrap_or_else(|e| panic!("{text:?} parses: {e:?}"))
+            });
+            let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
+            let followed =
+                SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");
             let bits = |c: [f64; 12]| c.map(|v| (v + 0.0).to_bits());
             for i in 1..6 {
                 assert_eq!(
                     bits(stepped_rule_map(&mirrored, i).components()),
                     bits(stepped_rule_map(&followed, i).components()),
-                    "copy {i} of {authored:?} lands where the negative spacing put it"
+                    "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }
         }

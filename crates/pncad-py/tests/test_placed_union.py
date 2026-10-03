@@ -754,14 +754,14 @@ class TestTheStepsReadBack(unittest.TestCase):
             self.assertEqual(self.refusal(self.linear(0.0), union=union).kind, "degenerate_spacing")
             refused = self.refusal(self.linear(-4.0, (3.0, 4.0, 0.0)), union=union)
             self.assertEqual(refused.kind, "negative_spacing")
-            self.assertIn("(-3, -4, 0)", str(refused))
+            self.assertIn("(-3.0, -4.0, 0.0)", str(refused))
             self.assertIsNone(self.refusal(self.linear(4.0, (-3.0, -4.0, 0.0)), union=union))
 
     def test_a_step_is_a_signed_angle_within_a_turn(self):
         self.assertEqual(self.refusal(self.circular(0.0)).kind, "degenerate_step")
         for degrees in (360.0, -360.0, 400.0, -400.0):
             self.assertEqual(self.refusal(self.circular(degrees)).kind, "full_range_step", degrees)
-        self.assertIn("40°", str(self.refusal(self.circular(400.0))))
+        self.assertIn("write it as 400 deg - 360 deg,", str(self.refusal(self.circular(400.0))))
         for degrees in (90.0, -90.0):
             self.assertIsNone(self.refusal(self.circular(degrees)), degrees)
 

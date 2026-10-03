@@ -828,13 +828,13 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: [-1.0, 0.0, 0.0],
+                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: 7.0,
-                past: true,
+                step: "400 deg".to_owned(),
+                nearer: Some("400 deg - 360 deg".to_owned()),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {

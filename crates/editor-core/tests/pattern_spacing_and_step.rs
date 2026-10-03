@@ -19,9 +19,11 @@ use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
+use std::collections::BTreeMap;
+
 use editor_core::{
     Expr, Node, NodeErrorClass, NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId,
-    ValuePayload,
+    ValuePayload, parse_expr,
 };
 use fixture::{ang, len, scl};
 
@@ -121,7 +123,7 @@ fn a_linear_spacing_is_a_positive_length() {
     }
     let (_, text) = patterned(3, |_| linear([3.0, 4.0, 0.0], -4.0), false).refusal();
     assert!(
-        text.contains("-4 m") && text.contains("(-3, -4, 0)"),
+        text.contains("-4 m") && text.contains("(-3.0, -4.0, 0.0)"),
         "the sentence quotes the spacing and the direction negated: {text}"
     );
     assert_eq!(
@@ -155,21 +157,26 @@ fn a_circular_step_is_a_signed_angle_within_a_turn() {
         let (got, text) = patterned(3, circular(step), false).refusal();
         assert_eq!(got, class, "step {step}: {text}");
     }
-    let past = |degrees: f64| {
-        patterned(3, circular(degrees.to_radians()), false)
-            .refusal()
-            .1
-    };
-    let text = past(400.0);
-    assert!(
-        text.contains("400°") && text.contains("− 360°, 40°"),
-        "past a turn, the step a turn nearer zero: {text}"
-    );
-    let text = past(-400.0);
-    assert!(
-        text.contains("-400°") && text.contains("+ 360°, -40°"),
-        "and the other way for a negative step: {text}"
-    );
+    // Past a turn the refusal spells the step a turn nearer zero, in
+    // the grammar; written back in, it builds.
+    for (written, nearer) in [
+        ("400 deg", "400 deg - 360 deg"),
+        ("-400 deg", "-400 deg + 360 deg"),
+    ] {
+        let step = parse_expr(written, &BTreeMap::new()).unwrap();
+        let built = patterned(3, |axis| PatternKind::Circular { axis, step }, false);
+        let (_, text) = built.refusal();
+        assert!(
+            text.contains(&format!("write it as {nearer},")),
+            "past a turn, the step a turn nearer zero: {text}"
+        );
+        let step = parse_expr(nearer, &BTreeMap::new()).unwrap();
+        assert_eq!(
+            patterned(3, |axis| PatternKind::Circular { axis, step }, false).bodies(),
+            3,
+            "the recourse, followed, builds: {nearer}"
+        );
+    }
     for step in [0.5, -0.5, TAU / 3.0] {
         assert_eq!(
             patterned(3, circular(step), false).bodies(),
@@ -254,8 +261,8 @@ fn the_refusals_carry_their_values() {
         panic!("a negative spacing, got {kind:?}");
     };
     assert_eq!(
-        *reversed,
-        [0.0, -2.0, 0.0],
+        reversed.each_ref().map(String::as_str),
+        ["0.0", "-2.0", "0.0"],
         "the authored direction, negated"
     );
 }

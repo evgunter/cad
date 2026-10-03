@@ -1558,9 +1558,10 @@ pub enum NodeErrorKind {
         /// The spacing as the classifier saw it, in metres, for the
         /// sentence only.
         spacing: geom_core::MarginDiag,
-        /// The evaluated direction, negated: the one that, with the
-        /// spacing made positive, builds the same copies.
-        reversed: [f64; 3],
+        /// The authored direction negated, each component spelled as
+        /// a user writes it: with the spacing made positive, it builds
+        /// the same copies.
+        reversed: [String; 3],
     },
     /// A linear pattern's spacing is zero at tolerance, so every copy
     /// would land on the master.
@@ -1571,10 +1572,12 @@ pub enum NodeErrorKind {
     /// A circular pattern's step reaches a full turn at tolerance, or
     /// passes it.
     FullRangeStep {
-        /// The step in radians, for the sentence only.
-        step: f64,
-        /// Past a full turn, rather than at one.
-        past: bool,
+        /// The step as authored.
+        step: String,
+        /// Past a full turn, the step a turn nearer zero, which places
+        /// every copy where this one does; `None` at a full turn,
+        /// where every copy lands on the master.
+        nearer: Option<String>,
     },
     /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
     /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
@@ -2187,19 +2190,6 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     }
 }
 
-/// An angle in degrees for error text, to six decimals with trailing
-/// zeros dropped: a step authored as `400 deg` reads back as 400, not
-/// as the radian round trip's last bit.
-struct Degrees(f64);
-
-impl core::fmt::Display for Degrees {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let text = format!("{:.6}", self.0);
-        let text = text.trim_end_matches('0').trim_end_matches('.');
-        f.write_str(if text == "-0" { "0" } else { text })
-    }
-}
-
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
 // and then FORWARDS its payload's own `Display` — the kernel refusal
@@ -2471,27 +2461,22 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::DegenerateStep => f.write_str(
                 "the pattern step is zero at tolerance, so every copy would land on the \
                  master. Recourse: make the step an angle the tolerance tells from zero \
-                 (360° over the count closes a ring), or lower the tolerance",
+                 (360 deg over the count closes a ring), or lower the tolerance",
             ),
-            Self::FullRangeStep { step, past: false } => write!(
+            Self::FullRangeStep { step, nearer: None } => write!(
                 f,
-                "the pattern step evaluated to {}°, a full turn, so every copy would land on \
-                 the master. Recourse: make the step less than a turn (360° over the count \
-                 closes a ring)",
-                Degrees(step.to_degrees())
+                "the pattern step {step} is a full turn, so every copy would land on the \
+                 master. Recourse: make the step less than a turn (360 deg over the count \
+                 closes a ring)"
             ),
-            Self::FullRangeStep { step, past: true } => {
-                let turn = 360f64.copysign(*step);
-                let degrees = Degrees(step.to_degrees());
-                write!(
-                    f,
-                    "the pattern step evaluated to {degrees}°, past a full turn, and a step is \
-                     an angle within one. Recourse: write the step {} 360°, {}°, which places \
-                     every copy where this does",
-                    if *step > 0.0 { "−" } else { "+" },
-                    Degrees(degrees.0 - turn)
-                )
-            }
+            Self::FullRangeStep {
+                step,
+                nearer: Some(nearer),
+            } => write!(
+                f,
+                "the pattern step {step} is past a full turn, and a step is an angle within \
+                 one. Recourse: write it as {nearer}, which places every copy where this does"
+            ),
             Self::PlacementsUncertified { i, j } => write!(
                 f,
                 "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \
