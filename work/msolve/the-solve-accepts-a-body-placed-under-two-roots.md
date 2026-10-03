@@ -2,13 +2,13 @@
 id: the-solve-accepts-a-body-placed-under-two-roots
 kind: issue
 title: the mate solve accepts a document whose gather refuses PlacedUnderTwoRoots, so the two layers still disagree about one instance mated through two transform roots
-status: open
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: M
 refs: [3142]
 design: true
-needs_ev: true
+closed: 2026-10-03
 ---
 
 Filed by GATHER's two-roots lane (branch `gather/two-roots-refusal`),
@@ -62,4 +62,15 @@ Brief corrections: `work/gather/` left the tracker
 solves before it gathers: it lands through the product and badges
 this refusal on the frame. Only Python's `solve_document` exposes the
 solve bare.
+
+## Closed
+
+Ruled by Ev on `[ev]` PR 3695 (2026-10-01): the solve does not refuse.
+`ASSEMBLY.md` A11 (4) states it: the solve states where each instance
+is and what each mate decides, never that a product exists; a product
+refusal, `PlacedUnderTwoRoots` among them, is not a mate fault. Ev
+called the second refusal that the gather's recourse leads into a
+defect: "it should be possible to do that". That defect is
+`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
+The recourse rewording rides the unit that fixes it.
 
