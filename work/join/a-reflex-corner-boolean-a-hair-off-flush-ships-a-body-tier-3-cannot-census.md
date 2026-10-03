@@ -74,3 +74,35 @@ within the band of a loop it is not on.
 
 `rc_wide_battery` reports no build that fails tier 3′. The boolean
 either builds a body tier 3′ passes, or refuses typed.
+
+## Measured
+
+Release build. On main at `82b9ceb2`, 15 of the 16 poses already build
+SOUND, every `point_in_loop_side` row among them. A first-parent bisect
+of `sqQ1 0.003 0 -0.1 U` from PR 3900's merge (reproduces, `-1.37e-9`)
+names PR 3866 (CLEAVE far-plane) as the first SOUND commit. That PR made
+`polygon_walk` abandon a ray on an in-band side or advance. One pose
+still failed: `sqQ1 0.003 -0.25 -0.75 U`, on `point_in_loop_arm`
+5.65e-9.
+
+No result entity sits in band of a loop it is not on. Census pass 4
+(edge × face) asks whether `a`'s floor edge along `y = x` pierces face
+3 where it crosses that face's plane, at `q = (0.99995, 0.99995, 0)`.
+Face 3 is the part of `b`'s turned `x' = 1` wall below `a`'s floor:
+`b`'s corner `(1 − 5.2e-5, 1 + 5.2e-5)` sits at `z = −2.6e-5`, so the
+union truly carries a face about 1e-4 across, and its volume is the
+closed form's. The wall's normal is 5.2e-5 off the schedule's first
+member `(1, 0, 0)`. That member's arm at the loop's reach is
+5.2e-5 × 1.08e-4 = 5.65e-9, in band, and `polygon_walk` escalated on it.
+That reading is about one schedule member, not about `q`, and the
+walk's other ray-level rows already abandon the ray. Instrumented:
+the loop, the normal, the extent, and `d_raw = (2.7e-9, −5.2e-5, 0)`.
+
+## Built
+
+`walk_schedule` abandons an in-band arm's member in both walks (the
+claimed row `point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`
+has the details). All 16 poses build SOUND.
+`join_rc_probes::reflex_corner_a_hair_off_flush_passes_its_own_census`
+pins four of them: the arm pose, two sqQ1 `U` side poses and one
+dRight `S_ab` side pose.

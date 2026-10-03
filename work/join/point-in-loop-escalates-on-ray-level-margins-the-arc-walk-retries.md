@@ -7,6 +7,7 @@ opened: 2026-09-27
 priority: P2
 cost: M
 refs: [3288]
+parent: a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census
 ---
 
 Filed by ATREST-12's delta review (PR #3288, MINOR-A), on REACH's
@@ -75,3 +76,23 @@ the abandon rule. Moving it to `ArmBand::Retry` changes refusals that
 `editor-core/tests/docm2_part_interval.rs` pins: that file names
 `point_in_loop_arm` as the predicate its narrow rungs certify past.
 That consumer has to be measured first.
+
+## Built (JOIN, branch `join/rc-census-escalation`)
+
+Claimed from HONE by JOIN's P0 reflex-corner census row, whose last pose
+was this row's arm half: the `sqQ1 0.003 -0.25 -0.75 U` union's census
+read `point_in_loop_arm` at 5.65e-9 on a 1e-4 face.
+
+- `walk_schedule` abandons a member whose arm is in band, into a
+  `ray_parity::Abandoned` of its own, in both walks. The reading is the
+  refusal only if no ray decides and no ray-level reading came first.
+  `ArmBand` is gone. The arc walk now keeps that reading where it used
+  to drop it, so an exhausted schedule there names the arm rather than
+  a bare `RayExhausted`.
+- `review_m3_pr3_pil::an_in_band_schedule_arm_takes_the_next_member`
+  pins it: a unit square turned 5e-9, whose wall's arm is 3.5e-9 to
+  7.9e-9. On main it reds on `point_in_loop_arm`.
+- The consumer the row named: `docm2_part_interval`'s width ladder.
+  Its ε/16 rung was the union escalating on `point_in_loop_arm`; it
+  now certifies at the default, 1e-6 and 1e-12 ε rows. The ladder is
+  re-baselined: ε/10 still escalates, and ε/16 is the floor.

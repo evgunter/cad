@@ -11,7 +11,9 @@
 
 use geom_core::Tol;
 
-use crate::common::differential::{REFLEX_OPS, REFLEX_PROFILES, outcome, reflex_pose, reflex_run};
+use crate::common::differential::{
+    REFLEX_OPS, REFLEX_PROFILES, ReflexPose, outcome, reflex_pose, reflex_run,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -98,29 +100,64 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
         ("eRight", 0.003, -0.5, -0.5),
     ] {
         let p = reflex_pose(profile, rot, sx, sy, tol());
-        for (k, op) in REFLEX_OPS[..3].iter().enumerate() {
-            let what = format!("{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}");
-            let bb = match reflex_run(&p, op, tol()) {
-                Ok(topo::BooleanResult::Body(bb)) => bb,
-                other => panic!("{what}: {other:?}"),
-            };
-            assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
-            assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
-                Ok(()),
-                "{what}: tier 3′"
+        for op in &REFLEX_OPS[..3] {
+            assert_builds_sound(
+                &p,
+                op,
+                &format!("{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}"),
             );
-            assert!(
-                topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
-                "{what}: the at-rest certificate"
-            );
-            let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
-            assert!(
-                (v - p.want[k]).abs() < 1e-9,
-                "{what}: volume {v} against the closed form {}",
-                p.want[k]
-            );
-            sweep::test_support::assert_legal_operand(&what, &bb.body, tol());
         }
     }
+}
+
+/// **A hair off flush, the reflex corner's result passes its own tier
+/// 3′.** Turned 0.003°, sqQ1's and dRight's corner edges run 5.2e-5 off
+/// `a`'s, so `b`'s side faces sit 5.2e-5 off a schedule axis. The
+/// census's in-plane walks on them read a far vertex's side
+/// (`point_in_loop_side`, the sx = 0 rows) or, on the 1e-4 face where
+/// the first row's `b` corner pokes 2.6e-5 through `a`'s floor, the
+/// first member's arm (`point_in_loop_arm`), in band. Each is a reading
+/// about one ray, and the walk takes the next.
+#[test]
+fn reflex_corner_a_hair_off_flush_passes_its_own_census() {
+    for (profile, sx, sy, op) in [
+        ("sqQ1", -0.25, -0.75, "U"),
+        ("sqQ1", 0.0, -0.1, "U"),
+        ("sqQ1", 0.0, 0.5, "U"),
+        ("dRight", 0.0, -0.5, "S_ab"),
+    ] {
+        let p = reflex_pose(profile, 0.003, sx, sy, tol());
+        assert_builds_sound(
+            &p,
+            op,
+            &format!("{profile} turned 0.003° (sx, sy) = ({sx}, {sy}) {op}"),
+        );
+    }
+}
+
+/// `op` on `p` builds a body that passes tiers 2 and 3′ and the at-rest
+/// certificate, has the closed-form volume, and is a legal operand.
+fn assert_builds_sound(p: &ReflexPose, op: &str, what: &str) {
+    let k = REFLEX_OPS.iter().position(|o| *o == op).unwrap();
+    let bb = match reflex_run(p, op, tol()) {
+        Ok(topo::BooleanResult::Body(bb)) => bb,
+        other => panic!("{what}: {other:?}"),
+    };
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        Ok(()),
+        "{what}: tier 3′"
+    );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
+        "{what}: the at-rest certificate"
+    );
+    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    assert!(
+        (v - p.want[k]).abs() < 1e-9,
+        "{what}: volume {v} against the closed form {}",
+        p.want[k]
+    );
+    sweep::test_support::assert_legal_operand(what, &bb.body, tol());
 }
