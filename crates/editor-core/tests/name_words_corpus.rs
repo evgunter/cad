@@ -303,6 +303,7 @@ fn respoken_after_a_dropped_step() {
         Node::Extrude {
             profile,
             distance: fixture::len(2.0),
+            side: editor_core::ExtrudeSide::Along,
         },
     );
     let crease = lateral_edge(&doc, rod, CREASE);
