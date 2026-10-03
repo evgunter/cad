@@ -11,7 +11,7 @@
 //! boundary, nested pockets, ring+transversal same face), boundary-on-boundary refusal honesty
 //! (UnpairedLooseEnds {4}/{8} + sharp perturbation boundary + null-edge
 //! dump), THE DIE (21 pips, exact oracle), and the standing sweeps
-//! (D9 replay, A minus B == A meet revert B, interval lane).
+//! (D9 replay, A minus B and A meet B partitioning A, interval lane).
 //! Every Ok carries an EXACT dyadic volume oracle.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -117,15 +117,18 @@ fn vol(body: &Body<f64>) -> f64 {
     mass_properties(body, Tol::witness()).unwrap().volume
 }
 
-/// Subtract with the exact volume oracle AND the A minus B == A meet
-/// revert(B) cross-oracle; returns the owned result body.
+/// Subtract with the exact volume oracle AND the partition cross-oracle
+/// (A minus B and A meet B, each through the door, sum to A); returns
+/// the owned result body.
 fn sub_exact(a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) -> AtRestBody<f64> {
     let r = run(subtract_with, a, b);
     let out = body_of(&r);
     assert_eq!(vol(&out.body), volume, "exact subtract volume");
-    let rb = finished("the reverted operand", b.revert().unwrap(), Tol::witness());
-    let ri = run(topo::intersect_with, a, &rb);
-    assert_eq!(vol(&body_of(&ri).body), volume, "revert-oracle volume");
+    let meet = match run(topo::intersect_with, a, b) {
+        BooleanResult::Body(m) => vol(&m.body),
+        BooleanResult::Empty => 0.0,
+    };
+    assert_eq!(volume + meet, vol(a), "A minus B and A meet B partition A");
     // The owned body is the one ALREADY computed above, cloned — not a
     // fresh `run`. INVARIANT: a third execution would be bit-identical
     // to `out.body` and so asserts nothing new. `run` above already
@@ -344,7 +347,7 @@ fn a_fig151_variants_exact() {
         assert_eq!(vol(&body_of(&r).body), expect, "off {off}");
         let r = run(topo::intersect_with, &b, &a);
         assert_eq!(vol(&body_of(&r).body), expect, "off {off} swapped");
-        // Union + subtract on the same family (with revert oracle).
+        // Union + subtract on the same family (with the partition oracle).
         let r = run(union_with, &a, &b);
         assert_eq!(vol(&body_of(&r).body), 8.0 - expect, "off {off} union");
         sub_exact(&a, &b, 4.0 - expect);
@@ -813,7 +816,7 @@ fn e_collinear_mixed_with_transversal() {
 }
 
 /// The U-slab family under ALL ops (not just subtract), with the
-/// revert oracle on the subtract lane.
+/// partition oracle on the subtract lane.
 #[test]
 fn e_uslab_all_ops() {
     let u = prism_z::<f64>(
@@ -1166,7 +1169,7 @@ mod interval {
 }
 
 /// THE DIE, end to end in topo: 21 sequential pip subtracts, exact
-/// volume after each op, revert oracle and D9 replay throughout,
+/// volume after each op, partition oracle and D9 replay throughout,
 /// tiers 1+2 on every intermediate.
 #[test]
 fn d_die_21_pips_exact() {

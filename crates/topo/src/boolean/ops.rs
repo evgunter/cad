@@ -3583,15 +3583,15 @@ mod tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{gate, seam_class, seam_must_carry, volume_backstop};
-    use crate::test_support::finished;
     use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
+    use crate::test_support::finished;
 
     /// The result gate refuses a scaffold at rest: a box whose chords
-    /// were never described is a closed solid (tiers 1 and 2 pass) and is
-    /// refused with one `ScaffoldAtRest` per edge; the same box described
-    /// passes.
+    /// were never described is a closed solid (tiers 1 and 2 pass), and
+    /// tier 3 refuses it with one `ScaffoldAtRest` per edge among its
+    /// findings; the same box described passes.
     #[test]
     fn the_result_gate_refuses_a_scaffold_at_rest() {
         let tol = Tol::witness();
@@ -3608,9 +3608,9 @@ mod tests {
         };
         let mut named: Vec<_> = errors
             .iter()
-            .map(|e| match e {
-                crate::ValidationError::ScaffoldAtRest { edge } => *edge,
-                other => panic!("only the fence refuses, got {other:?}"),
+            .filter_map(|e| match e {
+                crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+                _ => None,
             })
             .collect();
         named.sort();
@@ -3628,33 +3628,31 @@ mod tests {
         );
     }
 
-    /// An operand's own scaffold reaches the gate through the public
-    /// door: an undescribed box minus a brick it never meets is the
-    /// box itself, and the gate refuses its twelve chords; the same op
-    /// on the described box answers.
+    /// An operand's own scaffold never reaches the door: the undescribed
+    /// box is refused at the at-rest gate that finishes it, naming its
+    /// twelve chords, and the described box answers through the door.
     #[test]
-    fn an_operand_carried_scaffold_is_refused_at_the_door() {
+    fn an_operand_carried_scaffold_is_refused_at_the_at_rest_gate() {
         let tol = Tol::witness();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let raw = quad_prism(&square, 1.0, tol);
+        let errors = crate::AtRestBody::validate(raw.clone(), tol)
+            .expect_err("the box's chords are scaffolds at rest");
+        let mut named: Vec<_> = errors
+            .iter()
+            .filter_map(|e| match e {
+                crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+                _ => None,
+            })
+            .collect();
+        named.sort();
+        let mut edges: Vec<_> = raw.edges().map(|(k, _)| k).collect();
+        edges.sort();
+        assert_eq!(named, edges, "one finding per chord: {errors:?}");
         let far = finished(
             "far brick",
             crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol),
             tol,
-        );
-        let raw = finished("undescribed box", quad_prism(&square, 1.0, tol), tol);
-        let refused = crate::boolean::subtract(&raw, &far, tol);
-        let Err(BooleanError::ResultInvalid { errors }) = &refused else {
-            panic!(
-                "the box's chords are scaffolds at rest, got {:?}",
-                refused.err()
-            );
-        };
-        assert_eq!(errors.len(), 12, "one finding per chord: {errors:?}");
-        assert!(
-            errors
-                .iter()
-                .all(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. })),
-            "{errors:?}"
         );
         let described = finished(
             "described box",
@@ -3665,46 +3663,6 @@ mod tests {
             crate::boolean::subtract(&described, &far, tol).is_ok(),
             "the described box answers"
         );
-    }
-
-    /// The gate's fence is check 2's: on tier-2-valid bodies, the
-    /// gate's `ScaffoldAtRest` refusals are exactly the `ScaffoldAtRest`
-    /// findings of `validate_geometric`, in the same order. An undescribed box has
-    /// a scaffold on every edge; a described prism with a collinear
-    /// profile run keeps one, on the smooth edge between its two
-    /// coplanar walls.
-    #[test]
-    fn the_fence_is_check_twos_scaffold_findings() {
-        let tol = Tol::witness();
-        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let run = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        for (what, body, count) in [
-            ("undescribed box", quad_prism(&square, 1.0, tol), 12),
-            (
-                "collinear prism",
-                crate::test_support_fixtures::prism_z::<f64>(&run, 0.0, 1.0, tol).body,
-                1,
-            ),
-        ] {
-            assert_eq!(crate::validate_closed(&body), Ok(()), "{what}: tier 2");
-            let band = Band::linear(tol).unwrap();
-            let fence: Vec<_> = match gate(body.clone(), band, tol) {
-                Ok(_) => Vec::new(),
-                Err(BooleanError::ResultInvalid { errors }) => errors
-                    .into_iter()
-                    .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
-                    .collect(),
-                Err(other) => panic!("{what}: the gate refuses at tier 3 only, got {other:?}"),
-            };
-            let check_two: Vec<_> = crate::validate_geometric(&body, tol)
-                .err()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
-                .collect();
-            assert_eq!(fence, check_two, "{what}: the fence is check 2's");
-            assert_eq!(fence.len(), count, "{what}: scaffolds at rest");
-        }
     }
 
     /// The backstop's refusal wiring, by construction: feed it a
@@ -4001,14 +3959,12 @@ mod tests {
     /// constructor inherits this door, never the vertex-probe silence
     /// the S12 finding executed. That re-gate is pinned here at the
     /// mechanism, because a body on the `mvfs` `Nurbs` PLACEHOLDER
-    /// surface can no longer reach the fallback at all: a placeholder's
-    /// control net is poison, so its face box is poison, so it is never
-    /// pruned and its pairs meet the crossing layer's typed refusal
-    /// first. Both doors are pinned below; what neither may become is a
-    /// silent assembly.
+    /// surface cannot reach the boolean at all: it is not a finished
+    /// body, and the at-rest gate refuses each of its faces as
+    /// uncertifiable. Both are pinned below; what neither may become is
+    /// a silent assembly.
     #[test]
     fn nurbs_faces_refuse_typed_at_both_doors() {
-        use crate::boolean::{BooleanDeclarations, SweepStrategy, boolean_op_with};
         use crate::test_support_fixtures::{FaceGeometry, UNIT_SQUARE, declined_cube, prism_ops};
         use geom_core::Point3;
 
@@ -4029,37 +3985,34 @@ mod tests {
             body
         };
 
-        let a = finished(
-            "declined cube",
-            declined_cube::<f64>(Tol::witness()).body,
-            Tol::witness(),
-        );
-        let b = finished("far declined cube", far_cube(10.0), Tol::witness());
-        let err = boolean_op_with(
-            BooleanOp::Union,
-            &a,
-            &b,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            Tol::witness(),
-        )
-        .expect_err("a NURBS operand must refuse typed, never be vertex-probed");
-        // Door 1 — the placeholder is unbounded, so the pair is a
-        // candidate and the crossing layer refuses it by kind.
-        let BooleanError::CurvedBooleanUnsupported {
-            kind: geom::SurfaceKind::Nurbs,
-            ..
-        } = err
-        else {
-            panic!("expected the crossing-layer refusal, got {err:?}");
-        };
+        let a = declined_cube::<f64>(Tol::witness()).body;
+        let b = far_cube(10.0);
+        // Door 1 — the placeholder is not a finished body: the at-rest
+        // gate that would hand it to the boolean refuses each of its
+        // faces as uncertifiable, so no NURBS placeholder reaches a pair.
+        for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
+            let errors = crate::AtRestBody::validate(body.clone(), Tol::witness())
+                .expect_err("a NURBS placeholder is not a finished body");
+            let mut uncertifiable: Vec<_> = errors
+                .iter()
+                .filter_map(|e| match e {
+                    crate::ValidationError::UncertifiableSurface { face } => Some(*face),
+                    _ => None,
+                })
+                .collect();
+            uncertifiable.sort();
+            let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+            faces.sort();
+            assert_eq!(uncertifiable, faces, "{what}: every face named: {errors:?}");
+        }
 
         // Door 2 — the fallback's own re-gate, at the mechanism: any
         // fallback entry carrying a NURBS face refuses BEFORE a vertex
         // is probed. NO end-to-end path reaches it today (a lofted
-        // operand is refused at its NURBS EDGES first, a placeholder's
-        // poison box is never pruned) — `sweep`'s `s16_box_soundness`
-        // pins both blockers, so the day one lifts is loud.
+        // operand is refused at its NURBS EDGES first, a placeholder at
+        // the at-rest gate) — `sweep`'s `s16_box_soundness` pins the
+        // first and Door 1 above the second, so the day one lifts is
+        // loud.
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");

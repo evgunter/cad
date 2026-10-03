@@ -2,11 +2,12 @@
 id: a-stranded-operand-reaches-the-classification-invariant
 kind: issue
 title: topo: a stranded operand crossed by a brick ends on ClassificationInvariant (contfp ray schedule exhausted), not a typed refusal
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
 refs: [a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted]
+closed: 2026-10-03
 ---
 
 
@@ -46,3 +47,13 @@ offer cases rested on this fixture, and executing their offers through
 a crossing brick reached this invariant at every ε. Those cases now run
 on valid bodies; the stranded fixture is kept only as the pinning row
 above. Not fixed there.
+
+## Closed (2026-10-03, REACH `boolean-door-adopts-the-finished-body-type`)
+
+The boolean door takes finished operands (`&AtRestBody`), so the
+stranded split top never reaches a classification: finishing it refuses
+typed at the at-rest gate, with the stranded half's own
+`PlanarFaceResidual` / `PlanarBoundaryResidual` / `DescriptionNotAdjacent`
+findings, at every ε. The pinning row is
+`offer_rows::a_stranded_split_top_is_refused_at_the_at_rest_gate`
+(`crates/topo/src/boolean/offer_rows.rs`).

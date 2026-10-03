@@ -4516,7 +4516,11 @@ mod declaration_order_rows {
         let band = Band::linear(tol).expect("the witness band");
         let phi = 5.0_f64.to_radians();
         let p = Point3::new(0.5, 0.2, 1.0);
-        let block = finished("block", brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         let block_volume = 3.0 * 4.5;
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
@@ -4611,7 +4615,11 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
-        let block = finished("block", brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         type Pose = (
             &'static str,
             crate::body::Body<f64>,

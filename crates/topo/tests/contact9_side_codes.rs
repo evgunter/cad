@@ -103,17 +103,38 @@ fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: 
     b
 }
 
-/// `r` is the result gate's refusal of exactly one scaffold at rest:
-/// the seam along the 1 mm edge, the one edge of these results whose
-/// faces that length cannot tell from tangent. The refusal withholds the
-/// body, so the edge is pinned by the count; a second scaffold, or a
-/// different finding, turns the row red.
+/// `r` is the result gate's refusal of the seam along the 1 mm edge,
+/// the one edge of these results whose faces that length cannot tell
+/// from tangent: tier 3 finds it a scaffold at rest, and may read its
+/// wedge as a lamina's, on that edge and no other
+/// (`work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
+/// The refusal withholds the body, so the edge is pinned by the count; a
+/// second scaffold, another edge, or a different finding turns the row
+/// red.
 fn refuses_the_seam_alone(r: &Result<BooleanResult<f64>, BooleanError>, what: &str) {
+    let Err(BooleanError::ResultInvalid { errors }) = r else {
+        panic!(
+            "{what}: the 1 mm seam is refused at rest, got {:?}",
+            r.as_ref().err()
+        );
+    };
+    let scaffolds: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    let [seam] = scaffolds.as_slice() else {
+        panic!("{what}: one scaffold at rest, got {errors:?}");
+    };
     assert!(
-        matches!(r, Err(BooleanError::ResultInvalid { errors })
-            if matches!(errors.as_slice(), [ValidationError::ScaffoldAtRest { .. }])),
-        "{what}: the 1 mm seam's scaffold, alone, is refused at rest, got {:?}",
-        r.as_ref().err()
+        errors.iter().all(|e| match e {
+            ValidationError::ScaffoldAtRest { edge }
+            | ValidationError::LaminaWedge { edge, .. } => edge == seam,
+            _ => false,
+        }),
+        "{what}: every finding is the seam's, got {errors:?}"
     );
 }
 

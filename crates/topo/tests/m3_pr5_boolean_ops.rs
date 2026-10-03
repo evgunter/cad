@@ -417,14 +417,15 @@ fn inset_leg_union() {
 }
 
 // ---------------------------------------------------------------
-// Acceptance (3): the A∖B ≡ A∩revert(B) executable oracle
-// (Problem 15.9) across the corpus: census + volume + area equality
-// (bitwise replay equality is NOT claimed across the two routes —
-// they take different pipeline paths; documented in the PR report).
+// Acceptance (3), Problem 15.9's ∖/∩ duality through the door: A∖B and
+// A∩B partition A, each through the public door with finished operands.
+// The door's own A∖B ≡ A∩revert(B) route is internal: revert(B) is a
+// complement, which is not a finished body (tier 3's +V invariant), so
+// it refuses at the at-rest gate, naming its solid.
 // ---------------------------------------------------------------
 
 #[test]
-fn subtract_equals_intersect_revert_oracle() {
+fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
     let corpus: Vec<(&str, AtRestBody<f64>, AtRestBody<f64>)> = vec![
         (
             "two-brick",
@@ -469,25 +470,32 @@ fn subtract_equals_intersect_revert_oracle() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b, Tol::witness()).unwrap();
-        let reverted = finished(name, b.revert().unwrap(), Tol::witness());
-        let via_revert = topo::intersect(&a, &reverted, Tol::witness()).unwrap();
-        match (&direct, &via_revert) {
-            (BooleanResult::Empty, BooleanResult::Empty) => {}
-            (BooleanResult::Body(d), BooleanResult::Body(r)) => {
-                assert_eq!(
-                    arena_counts(&d.body),
-                    arena_counts(&r.body),
-                    "{name}: census equality"
-                );
-                let md = mass_properties(&d.body, Tol::witness()).unwrap();
-                let mr = mass_properties(&r.body, Tol::witness()).unwrap();
-                assert_eq!(md.volume, mr.volume, "{name}: volume equality");
-                assert_eq!(md.surface_area, mr.surface_area, "{name}: area equality");
-            }
-            _ => panic!("{name}: oracle kinds diverge: {direct:?} vs {via_revert:?}"),
-        }
+        partition_and_complement(name, &a, &b);
     }
+}
+
+/// The duality row's two claims on one pair: `vol(A∖B) + vol(A∩B) =
+/// vol(A)` exactly (the corpus is dyadic), and `revert(B)` refused at
+/// the at-rest gate with `NegativeVolume` alone.
+pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
+    let volume = |r: BooleanResult<f64>| {
+        r.body().map_or(0.0, |bb| {
+            mass_properties(&bb.body, Tol::witness()).unwrap().volume
+        })
+    };
+    let minus = volume(subtract(a, b, Tol::witness()).unwrap());
+    let meet = volume(topo::intersect(a, b, Tol::witness()).unwrap());
+    let whole = mass_properties(a, Tol::witness()).unwrap().volume;
+    assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
+    let refused = AtRestBody::validate(b.revert().unwrap(), Tol::witness())
+        .expect_err("a complement is not a finished body");
+    assert!(
+        !refused.is_empty()
+            && refused
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::NegativeVolume { .. })),
+        "{name}: the complement refuses on its +V sign alone, got {refused:?}"
+    );
 }
 
 // ---------------------------------------------------------------
