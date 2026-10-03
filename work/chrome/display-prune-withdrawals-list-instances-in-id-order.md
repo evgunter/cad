@@ -24,7 +24,7 @@ lists them in an order that is neither the tree's nor the authoring
 one, and that differs between ε rows.
 
 Found by PLACE's document-order sweep
-(`work/place/document-order-is-read-off-node-id-comparison-since-ids-are-digests.md`).
+(`document-order-is-read-off-node-id-comparison-since-ids-are-digests`, closed with PLACE (`docs/doc-ledger/place-leaves-the-tracker.md`)).
 
 ## Why it is not a one-line fix there
 

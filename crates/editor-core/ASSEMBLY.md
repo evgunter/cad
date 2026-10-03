@@ -163,8 +163,8 @@ also places:
   and an authored `AxisSense` (so no π-flip is inferred). Each
   `MateFrame` is a base composed with an offset, a `Placement` written
   in the base's frame (the empty chain by default); the base is the
-  side's part frame, or `FromFace`, which names no face and is its
-  side's own head face. The `MatePrimitive` names only the residual
+  side's part frame, or the face base (`FrameBase::Face`), which names
+  no face and is its side's own head face. The `MatePrimitive` names only the residual
   subgroup and carries no number: `FrameCoincidence`,
   `Coaxial { roll: Free | Pinned }`, `PlanarRest`.
 
@@ -547,10 +547,11 @@ so a mated part is evaluated once). Two answers cross that door:
   enters only as the lever a parallelism verdict is decided over:
   `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`, no
   floor and no constant.
-- A side framed `FromFace` takes its head face's canonical pose, read
+- A side on a face base takes its head face's canonical pose, read
   off its surface parameters exactly (`topo::readback::face_pose`, no
   tolerance) in the part's own coordinates and composed with the side's
-  offset, as the side's frame, so a side set on a face follows that face
+  offset (an offset that does not evaluate faults
+  `MateFault::FrameUnevaluated`), as the side's frame, so a side set on a face follows that face
   through any edit of the part. The offset is any rigid motion; which
   offsets a mate admits is its contact class's to say (a `Rest` side set
   back from its face declares a contact the gate refutes). A face with
@@ -569,7 +570,7 @@ pose in the run that binds it.
 *Faults.* A mated part that does not resolve faults its mate in the
 resolver's own voice, carrying the part fault unaltered:
 `MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
-`FaceRefusal::Reach`) where a `FromFace` side stands on it, since a
+`FaceRefusal::Reach`) where a face-based side stands on it, since a
 side's frame is read before the lever, else `MateFault::Unleverable`.
 That fault poisons the group as any mate fault does.
 

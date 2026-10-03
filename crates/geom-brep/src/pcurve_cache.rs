@@ -3619,9 +3619,9 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] carrying [`geom_core::MarginKind::Invalid`] when
-/// the subtended length is not definitely positive; the classifier's
-/// own escalation otherwise.
+/// [`Indeterminate`] under `pcurve_interval_meter`: carrying the
+/// decided margin when the subtended length is decided non-positive,
+/// and the classifier's own escalation when it is in band or poison.
 fn param_rate_gate<T: Decide>(
     carrier: &Curve3<T>,
     band: Band,
@@ -9151,8 +9151,9 @@ mod tests {
 
     /// A carrier whose meter collapses refuses AT THE METER — no
     /// forward verdict is fabricated from a rate that cannot convert a
-    /// span to metres, and the refusal is `Invalid`, distinct from the
-    /// backwards-span verdict the metered check below it names.
+    /// span to metres, and the refusal of a poison rate is `Invalid`,
+    /// distinct from the backwards-span verdict the metered check below
+    /// it names.
     #[test]
     fn a_collapsed_carrier_meter_refuses_rather_than_metering_a_span() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();

@@ -956,7 +956,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     };
                     let own_sec = &own_secs[own_idx];
                     let other_sec = &other_secs[oi];
-                    let same = match crate::validate::decide_nonzero_reported(
+                    let same = match crate::validate::decide_nonzero(
                         "bool_dir_same",
                         Margin::levered(w.dot(ow), arm),
                         band,

@@ -2444,13 +2444,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::DirectionSense",
         1,
     ),
-    (
-        "sectors.rs",
-        "invalid_escalation",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
     (
