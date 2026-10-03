@@ -2,13 +2,14 @@
 id: extent-scan-carrier-tangency-off-the-faces-refuses
 kind: issue
 title: A carrier tangency on the no-crossings path refuses though the touch point lies off every face
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [ball-inside-a-two-sphere-body-refuses-at-the-extent-scan]
 branch: reach/extent-scan-off-face-tangency
 pr: 3978
+closed: 2026-10-03
 ---
 
 
@@ -110,3 +111,7 @@ Residue:
 - `torus-touch-off-the-faces-refuses-at-the-section-pass`;
 - `edge-tangent-to-a-curved-carrier-off-the-face-refuses-at-the-pierce`
   (the crossing layer, not the extent passes).
+
+## Closed
+
+PR 3978. On the no-crossings path, a carrier tangency now clears only on a pair with no event, and only when its touch point is placed outside a face. A pair with an event still refuses as tangent. The touch-ball guard went as redundant under premise S; an independent verifier showed S by execution.
