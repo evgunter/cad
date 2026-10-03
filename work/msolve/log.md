@@ -1114,8 +1114,8 @@ Ev's three answers, all from 2026-10-01:
   union recourse's `ReadBelowARoot` a defect; it is filed as item 26.
   The decision is in fork-log row 59.
 - **#3681 (item 22):** approved, and Ev's ±0 point is already met by
-  #2468. The merge is held, though, because PLACE's later row 52
-  collides with it. The same two designers have a round 3 with row 52
+  #2468. The merge is held, though, because PLACE's later row 53
+  collides with it. The same two designers have a round 3 with row 53
   in hand.
 
 Rows were renumbered at merge: main's fork log runs to 57.
