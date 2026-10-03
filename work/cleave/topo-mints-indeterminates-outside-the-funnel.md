@@ -178,3 +178,120 @@ not a one-line `decide_positive` — gating each member would log an
 escalation for every member a later one rescues — so it wants a
 decision at the site (log one gate escalation after the loop, through
 `k_stats`, rather than per member).
+
+## Re-taken against main (CLEAVE measurement lane, 2026-10-03, `82b9ceb2`)
+
+The full table is on branch `analysis/cleave/mints-retake`,
+`analysis/cleave-mints-retake.md`.
+
+Summary: of the item's 28 sites, 24 are still live on main. A sweep for the
+same shape found about 35 more.
+
+| class | live sites |
+|---|---|
+| (a) real indeterminacy off the funnel | 12 |
+| (b) definite contradiction dressed as `INVALID` | 28 (20 new; 17 of them are display-only contradiction labels in `boolean/mod.rs`) |
+| (c) impossible sign: no door fits, nothing admits `{Zero, Positive}` | 10 |
+| (c) disagreement or out of lane | 12 |
+| (c) broken invariant | 1 |
+
+What changed since this row was filed:
+- **Retired:** `bool_dir_same` and `data_rungs`' nonzero arm. `declared_rung` moved to `carrier_eq::declared_reading`, but `plane_eq.rs:269`'s `untyped()` turns its typed zero back into `INVALID` for every public caller.
+- **The four local `invalid` helpers** now share one crate helper, `invalid_margin::invalid`.
+- **PR 3513 retired none of this row's mints and added one:** `vtxfac.rs:232` `bool_sector_coplanar`, class b.
+
+User-visible, measured:
+- **pr4 sliding union.** At x = 0.5 and 0.99 it now succeeds. At x = 1.0 its text still says "margin is invalid (NaN …)", rendered by editor-core's `UndeclaredCoincidenceFinding::story` (`eval/mod.rs:2147`).
+- **`r2_p7`.** The margin no longer reaches the text since PR 3493, but `INVALID` survives in the public `margin` field.
+
+Cited, not run: `bool_wall_trim_period` refuses 567 of 729 `point_in_solid`
+probes on a revolved tube (`work/contact/revolved-tube-wall-...`).
+
+Six readers treat `is_invalid()` as "decided exactly zero":
+`carrier_eq.rs:315`, `flush.rs:302`, `boolean/mod.rs:2967`,
+`refusal_routes.rs:1337`, `refusal_routes.rs:1505` and `census.rs:7712`.
+
+Dangling links: `work/props/...` was deleted when PROPS closed.
+
+Next: a designer pair, on three questions:
+- what payload class (b) carries;
+- which door, if any, class (c)'s impossible signs need;
+- how the six `is_invalid()` readers change.
+
+## Designed (2026-10-03; designer pair converged, no ratified text changes)
+
+Labels and the rounds are on `analysis/design-fork/topo-mints` (byte 123).
+
+**The premise is one level too low.** The mints are forced by a field typed
+wrong. Every contradiction, finding and self-check error in `topo` carries
+"which predicate, what band, what it saw" in a slot typed `Indeterminate`.
+A site that holds a decided answer therefore has to forge an escalation.
+The funnel's own gate doors do the same: `decide_positive` and
+`decide_nonzero` reject a decided sign as `INVALID`. Routing classes (b) and
+(c) through the funnel would be wrong, because `drive::log_read` answers
+`Bisect` for a logged non-sliver. A definite verdict on an enclosure never
+flips under refinement, so the driver would split until its budget ran out.
+
+The final state:
+
+1. **Only the funnel builds an `Indeterminate`.** It becomes
+   `#[non_exhaustive]` (fields readable); `MarginDiag::INVALID` becomes
+   crate-private; fixtures use a `test-support` constructor. This deletes
+   `invalid_margin.rs` and `sectors.rs::invalid_escalation`, and makes the
+   `reporting-margin-door.sh` literal pin a compile error. Last step, once
+   every site has its home.
+2. **Gate rejections keep the decided margin.** The `_reported` doors fold
+   into the plain ones, and `MarginKind::Invalid` means poison and nothing
+   else. This closes
+   `work/verdict/decide-positive-synthesizes-invalid-for-a-decided-zero.md`.
+3. **Class (b) definite contradictions become typed facts, on no log.**
+   A new `geom_core::Definite { predicate, sign, margin, band }` is the
+   evidence type. Contradiction errors become
+   `Contradicted { fact: Contradiction, evidence: Option<Definite> }`, where
+   `None` means a structural finding (a sense bit, two kinds). The
+   predicate-name labels in `boolean/mod.rs` (`contact_tangent_rim_*`,
+   `seam_senses_aligned`, …) become `Contradiction` variants, and the tests
+   that pin those names re-pin by fact.
+4. **Coincidence is typed.** `Coincidence::{Decided(Definite),
+   InBand(Indeterminate)}` is the payload of `CarrierEqError::Undeclared`,
+   `BooleanError::UndeclaredCoincidence` and editor-core's twin. Three
+   existing types collapse onto it: `LadderRefusal::Coplanar`,
+   `NeighbourOffset` and geom-brep's `RefusedArm`. `untyped()` and
+   `reported()` go. The six `is_invalid()`-as-zero readers match the
+   variant, and `flush.rs`'s poison-read-as-coincident case becomes
+   `InBand`. The pr4 union at x = 1.0 then reads "decided zero", not "NaN".
+5. **Impossible signs go through a magnitude door.**
+   `k_stats::decide_magnitude(name, margin, band) -> Result<Magnitude,
+   Indeterminate>`, with `Magnitude::{Zero, Positive}`. A decided `Negative`
+   is `unreachable!` inside the door, with the predicate, band and margin in
+   the message (D9 row 4, Ev's `a0781edfa`). `unreachable!` is deliberately
+   outside the workspace's `clippy::panic` family (`49168e708`).
+   `decide_invariant`'s "never a panic" covers integral backstops, not
+   impossible branches. The door accepts only quantities nonnegative by
+   construction (a norm, a sqrt, a sum of those). A difference that is
+   nonnegative only mathematically can round negative, so it is reachable
+   and does not belong here.
+6. **Class (a) real indeterminacies** go through the gate doors. Two sound
+   bounds on ONE quantity that straddle the band are a real indeterminacy:
+   their margin is the enclosure `[lo, hi]`, and they go on the log
+   (`rows.straddle`, `bool_ray_torus_count`).
+7. **Two definite verdicts that disagree are never an escalation.**
+   - One fact decided twice (I8, the edge screen against the dihedral; N17):
+     decide once, so the second question takes the first verdict as typed
+     input.
+   - Independent honest measurements (N15; N18, a rim whose class changes
+     along its length): a typed finding carrying both `Definite`s, told with
+     its decision's story (D4 ¶1 (iv)), or a typed `Unsupported*` where the
+     state is a lane limit. Decide which per site, after reading it.
+   - Unreachable combinations (I2; N6 at K = 10): item 5's shape, a panic.
+   - I11 (a body certified at a coarser band) is a D4 ¶1 (iv) finding.
+
+Build order, one PR each:
+1. the geom-core doors (items 2, 5 and `Definite`);
+2. `Coincidence` and the six readers (item 4);
+3. contradiction typing (item 3);
+4. the remaining class (a)/(c) sites (items 6 and 7, per site);
+5. the seal (item 1).
+
+Also: `sweep/src/blend/battery.rs::short_arm` is the same shape, so it goes
+with step 4. `refusal_routes::NeighbourOffset::reported` goes with step 2.

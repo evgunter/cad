@@ -1045,3 +1045,163 @@ the plan, not only reading it. Three of the rows are now MSOLVE-12
 (plan item 23), dispatched on Opus with a single full review. The
 fourth, the null-payload spelling, is blocked on item 22 (plan item
 24).
+
+## 2026-10-01 — MSOLVE-12 handed back; review dispatched
+
+PR 3698 came back green at `fc5ea8dca`, and the head is frozen.
+
+The lane measured §1 wider than the row: six table shapes reached an
+`Invalid` margin under a membership predicate's name, all through the
+square of a decided sine. The fix is final state (a): closed-form
+solves that divide only by the decided sine. `inverse3` is gone. A
+meeting point beyond the number format refuses
+`MateFault::PoseOutOfRange`, with the range recourse.
+
+The new arm reached outside the fence:
+- `eval/class.rs` and `viewer/src/tree.rs`;
+- three census re-syncs.
+
+The PR declares these for the review to rule on.
+
+Filed:
+- `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2,
+  reachable at ordinary arms; it needs a range statement in
+  geom-core);
+- `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`
+  (P3).
+
+Main carries a stale rustdoc link (`solve_cluster`, renamed by
+`f714adf56` beside MSOLVE-11). It clears when PR 3698 merges. One
+full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-12 review of `fc5ea8dca`: APPROVE-WITH-FIXES, no MAJOR. C1–C5
+hold, checked against exact rationals over about 31,000 poses: the
+closed forms' error is the problem's own conditioning, ε/sine. One
+MINOR. Below the zero band, `parallel` decides everything parallel and
+the stage divides by an exact zero, so a pair meeting at the origin
+refuses `PoseOutOfRange`. That is a false cause through the public
+`intersect`, and the doors may not reach it. The fix pass has nine
+rulings, R1–R9:
+- a typed refusal at an arm at or below the zero band, before any
+  division;
+- the decided divisor given one home, carried from the table;
+- `PoseOutOfRange` naming both mates;
+- an independent C2 reference, with cylinder and skew rows;
+- doc and display truths.
+
+The fix pass went back to the implementer lane.
+
+## 2026-10-03 — resumed after the weekly limit; Ev's three answers
+
+The weekly limit stopped the session on 2026-10-01 at about 15:30Z,
+with MSOLVE-12's fix pass waiting on CI at `c9022ce85`. The limit
+reset on 2026-10-03 at 15:00Z. Main had moved a long way in between:
+- EDIT left the tracker, and PLACE opened.
+- #3676 deleted the cluster maintenance, which made MSOLVE-12's §3
+  moot and left the PR dirty.
+- PLACE's row 53 gave every mate frame a general offset.
+
+The MSOLVE-12 lane was resumed to merge main, with main's deletion
+winning.
+
+Ev's three answers, all from 2026-10-01:
+- **#3679 (item 19):** approved, with a request to update A11 (5) in
+  place. Done in `b79b9b84e`. The appended sentence had also been
+  wrong to say "what the walk reads" is read at the nominal, so the
+  scalar rule now lives in the sentences it qualifies. The decision is
+  in fork-log row 58.
+- **#3695 (item 21):** approved, so the row is closed. Ev ruled the
+  union recourse's `ReadBelowARoot` a defect; it is filed as item 26.
+  The decision is in fork-log row 59.
+- **#3681 (item 22):** approved, and Ev's ±0 point is already met by
+  #2468. The merge is held, though, because PLACE's later row 53
+  collides with it. The same two designers have a round 3 with row 53
+  in hand.
+
+Rows were renumbered at merge: main's fork log runs to 57.
+
+#3679 merged at `a8ba0b451`, after Ev's approval and the in-place
+edit to A11 (5) that Ev asked for. Item 19 becomes an MSOLVE unit
+once MSOLVE-12 is in.
+
+The roll fork's round 3 converged. With PLACE's row 53 ruled, both
+designers recommend dropping the turn: the sides' offsets carry the
+roll, `Coaxial { roll: Free | Pinned }`, and `PlanarRest`'s standoff
+retires. The rider deletions stand. #3681 is updated in place to ask
+the revised question (fork-log row 60, all three rounds). The two
+designers differ only on which side the GUI composes a turn onto,
+which is a convention.
+
+Item 26's designers converged in one reconciliation round. The
+Fable/Opus labels are held off-file, since this fork goes to no
+`[ev]` PR. They agreed on the direction: the gate resolves a mate's
+face at its operand and lifts it up to the product, and the walk
+descends a union by member. They split on two points, and one
+designer moved to the other on both:
+- A transform above the operand refuses `MovedAbove`. The code decides
+  it: the member walk never composes a node above the operand, so
+  verifying the contact at the moved placement is a false refutation.
+- Member identity becomes the instance plus the placing nodes passed.
+  Otherwise a mate spelled at `t1` and one spelled at `U` would not
+  fold.
+
+`git log -S` shows both sentences that move are agent text: A5's from
+MSOLVE-5 and A11 (5)'s from MSOLVE-2. Ev ruled the defect, and both
+designers say no fork remains. So the fix is a unit, MSOLVE-13, and Ev
+is told rather than asked. The spec is on `msolve/13-read-at-operand`,
+and the unit dispatches once MSOLVE-12's lane frees the disk.
+## 2026-10-01 — MSOLVE-12 fix pass
+
+The review of `fc5ea8dca` came back APPROVE-WITH-FIXES, with no MAJOR,
+and C1–C5 held. The fix pass took the nine rulings:
+
+- **R1.** A lever at or below the band's zero threshold decides no
+  angle. It is refused as `LeverRefusal::BelowZeroBand` at `intersect`
+  and at the rider's roll, before any division, with the reviewer's
+  probe pinned as a row. That guard closes
+  `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+- **R2.** The table's verdict hands the translation stage the sine or
+  cosine it decided, and the stage divides by that alone. The shapes a
+  verdict called parallel or perpendicular are solved with no division.
+- **R3.** `PoseOutOfRange` names held and added, and the tree blames
+  both.
+- **R4.** C2 builds every pair around a known point, with cylinders and
+  a skew pair added.
+- **R5–R9.** `unreachable!` for the impossible arm; `undecided`'s prose;
+  the Display's distance sentence; the body's claim about
+  representatives corrected; the harness copy disclosed and the loader's
+  K derived.
+
+Friction: the first round's census missed that a lever below the zero
+band makes `parallel` and `perpendicular` both answer yes. The census
+swept arms from 1 m up, so the bottom of the lever's range was never
+probed. A sweep over a levered decision owes the arms at and under the
+band's own thresholds.
+
+
+## 2026-10-03 — MSOLVE-12 MERGED (PR 3698)
+
+Two decidably non-parallel shapes now meet in closed form. Their only
+divisor is the number the table decided; six shapes used to divide by
+its square, and `inverse3` is gone. A meeting point beyond measurement
+refuses `PoseOutOfRange`, naming both mates. A lever inside the zero
+band refuses `BelowZeroBand` before any angle is decided. A mate's
+`Band` is reached by a loaded snapshot.
+
+The single full review found no MAJOR. Fix pass R1–R9. The main merge
+dropped §3 (overtaken by #3676) and guarded main's new offset check
+with R1. Closes MSOLVE-12,
+`near-parallel-planes-refuse-under-a-false-predicate`,
+`mate-band-fault-unreachable-on-a-mate` and
+`plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+Filed: `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2).
+The spec was deleted, with a note in `docs/doc-ledger/msolve-12-spec.md`.
+
+MSOLVE-12 merged on PR 3698. Its MERGED entry rode the unit branch.
+MSOLVE-13 was dispatched on Opus with a single full review, red rows
+first. Two things the MSOLVE-12 lane noted:
+- The editor-core rustdoc gate trips on two redundant link targets in
+  `meta/ser.rs`, a file identical to main's, so the nightly may be red
+  on main. Unverified here; it is not this program's file.
+- One merge commit on that branch (`84db7bf21`) lacks the trailers. It
+  is merged history now, and merge-only means it stays.

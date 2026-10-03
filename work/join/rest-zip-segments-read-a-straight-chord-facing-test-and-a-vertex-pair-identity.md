@@ -51,3 +51,11 @@ with unchanged outcomes. Ignoring `bool_arc_ahead` turns 15 rows red at
 the PR's fix-pass head, those among them. The straight-chord test matches every pair no arc does. JOIN-2's plan (the zip reads the join's
 segments) would replace both; whether this row closes on that branch or
 on JOIN-2 is the owner's call.
+
+## Note (JOIN-3's fix pass)
+
+The REST zip's arc spec (`boolean/rest.rs`, the `spec(from)` arm that
+runs a circle back) spells "θ ↦ −θ about the flipped axis" by hand. The
+reversal has one home now, `geom::Curve3::reversed`, which every
+`chord_join` site reads; when this row reworks the zip's segments, read
+it there too.
