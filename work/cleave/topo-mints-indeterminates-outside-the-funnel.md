@@ -7,7 +7,7 @@ opened: 2026-09-20
 priority: P0
 cost: M
 design: true
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P0
 cost: H
 refs: [a-flush-declared-reflex-union-ships-the-wrong-volume, reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap]
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

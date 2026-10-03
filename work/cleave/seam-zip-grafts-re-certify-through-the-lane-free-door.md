@@ -8,7 +8,7 @@ priority: P3
 cost: E
 parent: graft-recertifies-through-the-narrow-lane
 refs: [the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door]
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
