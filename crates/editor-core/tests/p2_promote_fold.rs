@@ -185,7 +185,9 @@ fn fold_joins_the_gauges_steps_in_front_and_promote_after_it_is_the_identity() {
 /// cut the group leaving the promoted gauge. The part's root sits at the
 /// empty chain on its world, the instance on the promoted gauge at the
 /// empty offset, the evaluation is unchanged, and the round trip is the
-/// promoted document up to node ids.
+/// promoted document up to node ids. A kept declaring mate reading the
+/// root refuses the frame rule while the root sits off the empty chain,
+/// and crosses once the root is promoted.
 #[test]
 fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
     let (p, doc, [base, top, mate]) = placed_pair("pf-frame");
@@ -209,6 +211,20 @@ fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
     assert_eq!(before.2.to_bits(), after.2.to_bits());
     same_extent(before, after, "split-then-evaluate keeps the material");
     round_trip(&promoted, &[base, top, mate], &p, "pf-frame-r1");
+
+    let (doc, own) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 9.0])));
+    let (doc, kept) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_gauge(doc, kept, Some(own));
+    let (doc, crossing) = insert(doc, seat(head(p.top_cap(kept)), head(p.base_cap(base))));
+    let err = split(&doc, &[base, top, mate], "pf-frame-crossing", &o)
+        .expect_err("the root sits off the empty chain");
+    assert!(
+        matches!(&err, editor_core::SplitError::MateFrameCrosses { mate: m, .. } if m.id() == crossing),
+        "{err:?}"
+    );
+    let (promoted, _) = promote(doc, base);
+    split(&promoted, &[base, top, mate], "pf-frame-crossing", &o)
+        .expect("promoted, the root sits at the empty chain and the mate crosses");
 }
 
 /// **Cutting a gauge's content and folding the gauge left behind gives
