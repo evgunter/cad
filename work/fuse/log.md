@@ -203,3 +203,7 @@ orchestrator resolved it and checked that it compiles.
 `a-boolean-result-gate-ships-a-scaffold-at-rest` closed. The fix pass
 gave `is_scaffold` one crate-wide home and made `ResultInvalid` and
 `BooleanBody`'s docs honest about what the gate checks.
+## 2026-10-03 — the edge-contact CorruptOperand lands (PR 3914)
+
+`a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
+closed. Its two-crossing residue is P0 on this slate.
