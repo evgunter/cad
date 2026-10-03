@@ -4712,7 +4712,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_inner_tag",
         values: &[],
-        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
+        delegates: &["placement_rule_inner_tag"],
     },
     TagEntry {
         function: "boundary_edit_tag",
