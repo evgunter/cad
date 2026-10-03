@@ -123,7 +123,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet,
-    RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order, regauge_then_mate,
+    Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order,
+    regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,

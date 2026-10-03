@@ -286,3 +286,11 @@ lane, because both edit `remap_contacts`.
   two vertices with a v-v record at each overlap end, not one vertex
   with two coincident edges. The lane stops if it finds ratified text
   that says otherwise.
+
+- 2026-10-03 — Ev ruled on PR 3901: a solid is one piece of material,
+  and booleans take bodies. "Nearest enclosing" was replaced by "the
+  piece whose material surrounds the cavity", and pieces that only
+  touch are distinct solids. A product operand refuses in the editor,
+  because an explicit union is the recourse. Fork-log row 48 records
+  Ev's decision and the mapping (byte 93, A=fable B=opus). PR 3891 is
+  reworked to the piece rule rather than landed.

@@ -1571,8 +1571,8 @@ pub struct OpOutcome {
     /// several edits (a cascade delete, a profile on a new frame), and
     /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
     /// carrier it deleted, a name it moved
-    /// twice. The rows are folded through
-    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// twice. The rows are netted by the action's
+    /// `pncad::document::Recording`, which states which survive,
     /// so this holds what is true of the document the action ended at.
     ///
     /// Empty on every operation that committed nothing, and on a

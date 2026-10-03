@@ -173,9 +173,8 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
     )
 }
 
-/// Raise `EditError` for a refusal the BOUNDARY built — a name that
-/// would not serialize, an insert that minted no id, a placement rule
-/// spelled through the wrong constructor.
+/// Raise `EditError` for a refusal the BOUNDARY built — a
+/// [`BoundaryEdit`].
 ///
 /// It has a `variant`, the `inner_variant` the same kernel arm
 /// publishes at its own door, and nothing else to carry; the attributes
@@ -187,16 +186,16 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
 /// VALUE and the words are that enum's own maps', even though the raise
-/// site is here — `Doc.insert`'s `no_minted_id` and
-/// `Node.placed_union`'s count-spelling refusal (`variant` and
-/// `inner_variant` both) are the two live cases, and forwarding the
-/// value is what keeps each the words the kernel door that publishes
-/// the same refusal speaks. Where none does — a
-/// `serde_json` failure has no arm anywhere — the word is minted in
+/// site is here — `Node.placed_union`'s count-spelling refusal
+/// (`variant` and `inner_variant` both) and a `label=` text that is not
+/// a label (`label_fault_tag`) are the two cases, and forwarding the
+/// value is what keeps one map the only speller of its words. Where
+/// none does — a `serde_json` failure, a mate head or parameter name
+/// whose constructor refuses with one struct — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
 ///
 /// **This door's set of refusals is closed** because it takes a
-/// [`BoundaryEdit`] rather than a word: a fourth boundary refusal is a
+/// [`BoundaryEdit`] rather than a word: another boundary refusal is a
 /// variant of that enum and an arm of
 /// [`crate::tags::boundary_edit_tag`] before it can be raised. It is
 /// the door that is closed, not the class — `EditError.variant`'s
@@ -877,8 +876,8 @@ impl Doc {
     /// not by the type system**: `inner` and `maintenance` are
     /// `pub(crate)` because the rest of the crate reads the document,
     /// so nothing stops a new door assigning either field directly.
-    /// [`Doc::insert_node`] closes that hole for `insert` by accepting
-    /// internally, and [`Doc::declare_findings`] closes it for the
+    /// [`Doc::insert_node`] closes that hole for `insert` by taking its
+    /// action up internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
     /// here; a door reaching `d::apply` for any OTHER edit lands here,
     /// and a kernel door answering a whole action's paired document and
@@ -895,61 +894,42 @@ impl Doc {
 
     /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
     /// action and answers its document and maintenance already paired
-    /// (`regauge_then_mate`'s outcome) rather than one edit's
-    /// [`d::Applied`].
+    /// (`regauge_then_mate`'s outcome, a [`d::Recorded`]) rather than
+    /// one edit's [`d::Applied`].
     fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
         self.inner = doc;
         self.maintenance = maintenance;
     }
 
     /// Insert a node, label it when `label` is given, and take the
-    /// acceptance up: `insert`'s body, which accepts internally rather
-    /// than handing an un-accepted `Applied` back for a caller to
+    /// action up: `insert`'s body, which takes it up internally rather
+    /// than handing an un-accepted result back for a caller to
     /// remember to swap.
     ///
     /// A labelled insert is the kernel's two edits — the insert, which
-    /// carries no label, then `SetLabel` on the id it minted — taken up
-    /// as one acceptance: both land or neither does, and the record and
-    /// maintenance are the insert's (a label edit performs none).
-    ///
-    /// `Ok(None)` is the contract violation "an accepted `InsertNode`
-    /// minted no id", and the document is **not** swapped on that arm:
-    /// each door raises its own refusal for it, and a refusal leaves
-    /// the document untouched exactly as the immutable API guarantees.
+    /// carries no label, then `SetLabel` on the id it minted — recorded
+    /// as one action ([`d::Recording`]): both land or neither does, and
+    /// the maintenance is the action's.
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
-    ) -> Result<Option<NodeId>, d::EditError> {
+    ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let applied = d::apply(
-            &self.inner,
-            &d::DocEdit::InsertNode {
-                node: Box::new(node),
-            },
-            tol,
-            &reach,
-        )?;
-        let Some(id) = applied.record.minted else {
-            return Ok(None);
-        };
-        let applied = match label {
-            None => applied,
-            Some(label) => {
-                let edit = d::DocEdit::SetLabel {
-                    node: id,
-                    label: Some(label),
-                };
-                d::Applied {
-                    doc: d::apply(&applied.doc, &edit, tol, &reach)?.doc,
-                    ..applied
-                }
-            }
-        };
-        Ok(self.accept(applied).minted.map(NodeId))
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let id = action.insert(node)?;
+        if let Some(label) = label {
+            action.apply(d::DocEdit::SetLabel {
+                node: id,
+                label: Some(label),
+            })?;
+        }
+        let done = action.finish();
+        self.take_up(done.doc, done.maintenance);
+        Ok(NodeId(id))
     }
 
     /// The declare doors' shared tail: the kernel declare sugar's
@@ -1368,16 +1348,7 @@ impl Doc {
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         self.insert_node(node.inner.clone(), label, resolver)
-            .map_err(|err| edit_err(py, &err))?
-            .ok_or_else(|| {
-                // An accepted insert always mints; this is the
-                // contract violation, refused rather than invented.
-                boundary_edit_err(
-                    py,
-                    BoundaryEdit::NoMintedId,
-                    "an insert minted no node id".to_owned(),
-                )
-            })
+            .map_err(|err| edit_err(py, &err))
     }
 
     /// **Insert a sketch frame and return its id** — the one line a

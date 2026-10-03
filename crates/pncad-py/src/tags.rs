@@ -374,7 +374,7 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 /// [`BoundaryEdit`] its raise takes.
 ///
 /// Exhaustive over that enum, so the boundary's set of refusals is
-/// closed: a fourth needs a variant there and an arm here before it can
+/// closed: another needs a variant there and an arm here before it can
 /// be raised. Two arms FORWARD the kernel value whole rather than
 /// restating its word, so the delegation is the real one the inventory
 /// reads — the whole of each delegate's vocabulary is reachable
@@ -383,7 +383,6 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
-        BoundaryEdit::NoMintedId => "no_minted_id",
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
@@ -398,7 +397,6 @@ pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str
     match refusal {
         BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
         BoundaryEdit::NameSerialize
-        | BoundaryEdit::NoMintedId
         | BoundaryEdit::MateHead(_)
         | BoundaryEdit::ParamName(_)
         | BoundaryEdit::Label(_) => None,
