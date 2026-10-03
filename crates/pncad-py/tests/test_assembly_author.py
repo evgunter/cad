@@ -1969,8 +1969,10 @@ class TestMateFrameFromFace(BenchWorkspace):
     """`MateFrame.from_face()`: a mate side whose frame is its own head
     face, resolved at the solve through the part's own evaluation."""
 
-    def seated(self, seed, post_frame, a_top=None):
+    def seated(self, seed, post_frame, a_top=None, prelude=None):
         doc = Doc(seed)
+        if prelude is not None:
+            prelude(doc)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         # The shelf carries no offset: a mate places its FIRST
@@ -2038,6 +2040,55 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertAlmostEqual(
             after.origin[2].meters - before.origin[2].meters, 0.1, places=12
         )
+
+    def test_a_face_offset_slides_the_seat_and_a_parameter_drives_it(self):
+        """`MateFrame.on_face(offset)`: the offset is written in the
+        face's frame, whose local +Y is the carrier's reference (+x on
+        the post's cap), so a slide of 0.1 along y moves the shelf 0.1
+        along x. A rigid step reading a document parameter moves it
+        with one value edit; a mirrored step refuses at the insert,
+        naming the side and the step."""
+        doc, _, shelf_i, _ = self.seated("face-offset-plain", MateFrame.from_face())
+        plain = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        slid = MateFrame.on_face(Placement.literal(Frame.translation((0 * m, 0.1 * m, 0 * m))))
+        self.assertEqual(slid.base, "face")
+        doc, _, shelf_i, _ = self.seated("face-offset-slid", slid)
+        moved = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        self.assertAlmostEqual(
+            moved.origin[0].meters - plain.origin[0].meters, 0.1, places=12
+        )
+        self.assertAlmostEqual(moved.origin[2].meters, plain.origin[2].meters, places=12)
+
+        def declare(d):
+            d.apply(DocEdit.set_doc_param(pncad.ParamName("slide"), pncad.DocParam.length(0.1 * m)))
+
+        def driven(d):
+            return MateFrame.on_face(
+                Placement.rigid(
+                    translation=(Expr.length_in(0.0, m), d.parse_expr("slide"), Expr.length_in(0.0, m)),
+                    axis=(Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                    angle=Expr.angle_in(0.0, rad),
+                )
+            )
+
+        probe = Doc("face-offset-probe")
+        declare(probe)
+        doc, _, shelf_i, _ = self.seated("face-offset-param", driven(probe), prelude=declare)
+        at = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        self.assertAlmostEqual(at.origin[0].meters, moved.origin[0].meters, places=12)
+        doc.apply(
+            DocEdit.set_doc_param_value(pncad.ParamName("slide"), pncad.DocParamValue.length(0.3 * m)),
+            resolver=self.ws,
+        )
+        later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        self.assertAlmostEqual(later.origin[0].meters - at.origin[0].meters, 0.2, places=12)
+
+        mirror = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+        with self.assertRaises(pncad.EditError) as caught:
+            self.seated("face-offset-mirror", MateFrame.on_face(Placement.literal(mirror)))
+        self.assertEqual(caught.exception.variant, "improper_placement")
+        self.assertEqual(caught.exception.side, "a")
+        self.assertEqual(caught.exception.index, 0)
 
     def test_a_vanished_face_refuses_typed_with_the_face_named(self):
         # The post's own cap, wrapped at the instance as a head is, with

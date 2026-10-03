@@ -503,6 +503,8 @@ mod pierce_ring_engraving;
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
+#[path = "place_mate_frame_offset.rs"]
+mod place_mate_frame_offset;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
