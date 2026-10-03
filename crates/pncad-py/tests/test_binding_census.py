@@ -1760,7 +1760,7 @@ FAMILIES: dict[str, str] = {
 #: **`behind-a-door` — kernel machinery a bound door uses and never
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
-#: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
+#: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
 #: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
@@ -2601,6 +2601,9 @@ NOT_BOUND = {
     # joined them on the same terms.
     "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
+    # The boolean doors' operand type: the evaluator finishes each
+    # operand at the boolean seat, so Python hands it no body to finish.
+    "AtRestBody": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
