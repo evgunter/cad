@@ -10224,13 +10224,24 @@ fn a_split_node_map_reaches_python_in_document_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    // One instance gives the cut its material (a cut of frames alone
+    // refuses `no_material`); the frames give it its many ids.
+    let material = || {
+        insert(
+            ProfileDoc::empty_derived("place-node-map", Tol::witness()),
+            Node::instantiate_part(pncad::document::DocRef {
+                id: DocumentId::derive("place-node-map-ref"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            }),
+        )
+    };
     let (doc, cut) = (3..12u32)
         .map(|n| {
             (0..n).fold(
-                (
-                    ProfileDoc::empty_derived("place-node-map", Tol::witness()),
-                    Vec::new(),
-                ),
+                {
+                    let (doc, instance) = material();
+                    (doc, vec![instance])
+                },
                 |(doc, mut cut), i| {
                     let (doc, id) = insert(doc, frame(f64::from(i)));
                     cut.push(id);

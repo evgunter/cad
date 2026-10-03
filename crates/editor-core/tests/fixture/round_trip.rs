@@ -7,11 +7,11 @@
 //!   live node of the first has a live image, and every live node of
 //!   the second a preimage;
 //! - **each payload is the first's with its ids replaced** — read field
-//!   by field off the node's serialized form, independently of the
-//!   remapping the refactorings carry nodes with: every integer that is
-//!   a node id of the first must read as its image, every integer that
-//!   is a step id as the step map's image, and every other field is
-//!   equal. Gauge references, offsets, gauge placements, mate
+//!   by field off the node's derived rendering (`Debug`),
+//!   independently of the remapping the refactorings carry nodes with:
+//!   every `RecipeNodeId(n)` the map holds must read as its image, every
+//!   `StepId(n)` the step map holds as its image, and every other field
+//!   is equal. Gauge references, offsets, gauge placements, mate
 //!   alignments and heads, and a profile's step ids are all fields;
 //! - **the root sets agree** through the map, and the parameters,
 //!   labels and ε agree;
@@ -27,9 +27,8 @@
 //! **What it does not undo**: a name whose canonical form orders its
 //! parts by id (a union's sides) is re-sorted by the remapping, and
 //! this reading does not re-sort it, so such a name reads as a
-//! mismatch — loudly, never as a false agreement. A literal integer
-//! that equals a node or step id of the first would be read as that
-//! id; ids are minted far from the small literals a payload holds.
+//! mismatch — loudly, never as a false agreement. An id the maps do
+//! not hold reads as itself.
 //!
 //! A refactoring's round trip composes its two outcomes' maps
 //! ([`composed`]).
@@ -37,7 +36,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{InlineOutcome, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
-use serde_json::Value;
 
 /// **The split document's ids carried through split then inline**: a
 /// kept node keeps its id (the remainder is the document edited), and a
@@ -94,53 +92,67 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
     (nodes, steps)
 }
 
-/// Field by field: `b` is `a` with every node id the map holds read as
-/// its image and every step id as its step image. Each disagreement is
-/// pushed with the path it sits at.
-fn same_value(
-    a: &Value,
-    b: &Value,
+/// `text` with every `RecipeNodeId(n)` the map holds read as its image
+/// and every `StepId(n)` the step map holds as its image.
+fn renamed(text: &str, ids: &BTreeMap<u64, u64>, steps: &BTreeMap<u64, u64>) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find("Id(") {
+        let (head, tail) = rest.split_at(at + 3);
+        out.push_str(head);
+        let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
+        let number = tail[..digits].parse::<u64>().ok();
+        let table = if head.ends_with("RecipeNodeId(") {
+            Some(ids)
+        } else if head.ends_with("StepId(") {
+            Some(steps)
+        } else {
+            None
+        };
+        match (number, table) {
+            (Some(n), Some(table)) if tail[digits..].starts_with(')') => {
+                out.push_str(&table.get(&n).copied().unwrap_or(n).to_string());
+            }
+            _ => out.push_str(&tail[..digits]),
+        }
+        rest = &tail[digits..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Field by field: `b` is `a` with its node and step ids read as their
+/// images, read off the node's derived rendering, which spells every
+/// field (gauge references, offsets, placements, alignments, heads,
+/// a profile's step ids); the first disagreement is reported in context.
+fn same_payload(
+    a: &Node<editor_core::ProfileProgram>,
+    b: &Node<editor_core::ProfileProgram>,
     ids: &BTreeMap<u64, u64>,
     steps: &BTreeMap<u64, u64>,
-    at: &str,
     out: &mut Vec<String>,
 ) {
-    match (a, b) {
-        (Value::Object(x), Value::Object(y)) => {
-            let keys = |m: &serde_json::Map<String, Value>| m.keys().cloned().collect::<Vec<_>>();
-            if keys(x) != keys(y) {
-                out.push(format!("{at}: fields {:?} vs {:?}", keys(x), keys(y)));
-                return;
-            }
-            for (k, v) in x {
-                same_value(v, &y[k], ids, steps, &format!("{at}.{k}"), out);
-            }
-        }
-        (Value::Array(x), Value::Array(y)) => {
-            if x.len() != y.len() {
-                out.push(format!("{at}: {} entries vs {}", x.len(), y.len()));
-                return;
-            }
-            for (i, (v, w)) in x.iter().zip(y).enumerate() {
-                same_value(v, w, ids, steps, &format!("{at}[{i}]"), out);
-            }
-        }
-        (Value::Number(x), Value::Number(y)) => {
-            let want = match x.as_u64() {
-                Some(n) if ids.contains_key(&n) => Value::from(ids[&n]),
-                Some(n) if steps.contains_key(&n) => Value::from(steps[&n]),
-                _ => a.clone(),
-            };
-            if &want != b {
-                out.push(format!("{at}: want {want}, got {y} (first held {x})"));
-            }
-        }
-        _ => {
-            if a != b {
-                out.push(format!("{at}: {a} vs {b}"));
-            }
-        }
+    let want = renamed(&format!("{a:?}"), ids, steps);
+    let got = format!("{b:?}");
+    if want == got {
+        return;
     }
+    // The first disagreement, with the field context around it.
+    let at = want
+        .bytes()
+        .zip(got.bytes())
+        .position(|(x, y)| x != y)
+        .unwrap_or(want.len().min(got.len()));
+    let window = |s: &str| {
+        let from = s.floor_char_boundary(at.saturating_sub(60));
+        let to = s.ceil_char_boundary((at + 60).min(s.len()));
+        s[from..to].to_owned()
+    };
+    out.push(format!(
+        ": want …{}…, got …{}…",
+        window(&want),
+        window(&got)
+    ));
 }
 
 /// **`a` and `b` are one document up to node ids under `map` and
@@ -185,11 +197,8 @@ pub fn same_up_to_ids(
             problems.push(format!("image: {id:?} -> {to:?}, which is not live"));
             continue;
         };
-        let json = |n: &Node<editor_core::ProfileProgram>| {
-            serde_json::to_value(n).expect("a node serializes")
-        };
         let mut out = Vec::new();
-        same_value(&json(x), &json(y), &ids, &step_ids, "", &mut out);
+        same_payload(x, y, &ids, &step_ids, &mut out);
         problems.extend(
             out.into_iter()
                 .map(|p| format!("payload: {id:?} -> {to:?}{p}")),
