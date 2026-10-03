@@ -151,7 +151,7 @@ const PINNED: &[(&str, u64)] = &[
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x0856_e02c_2e9d_1b7b),
+    ("part_select", 0x2367_de71_295e_bf33),
     ("loft_prism", 0x74db_6889_4c07_172b),
     ("die_composed", 0xab17_b650_d73d_ea22),
     ("die_composed_tour", 0x4285_e851_34e0_a537),

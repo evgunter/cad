@@ -6171,6 +6171,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // One fact at two doors: `node::declared_side_fault`, asked by the
+    // edit doors and by the load door.
+    ("declared_name_not_upstream", 2),
+    ("declared_site_not_an_operand", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
     // `unrepresentable_surface_datum` there); at the Boolean's pierce
