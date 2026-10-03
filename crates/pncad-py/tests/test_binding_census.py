@@ -2318,6 +2318,11 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
+    # The compound door's outcome, `Applied`'s shape for a whole
+    # action: `Doc.regauge_then_mate` swaps the document and
+    # `last_maintenance` in and returns the mate's id. Its edit record
+    # has no Python shape for the reason the replay door below has none.
+    "RegaugeThenMateOutcome": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the replay door has
     # no Python shape to bind.

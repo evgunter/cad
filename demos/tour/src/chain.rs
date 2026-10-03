@@ -238,8 +238,10 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 3.016e-7;
 /// The enclosures are TIGHT, not padded: `2.430e-11` m is exactly
 /// `L · 3σ_c · 1` at the certified box's own σ. Since the extrude
 /// closes with the pcurve mint the box is `6.751e-8` of the study, so
-/// every enclosure is far under a pixel; the sheet widens it to be
-/// seen.
+/// every enclosure is far under a pixel: the sheet draws each side
+/// under `mcchain`'s pixel floor AT that floor, centred on the pin,
+/// says in its legend which sides are floored, and prints the true
+/// half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (0e0, 0e0),
     (6.938893903907228e-18, 2.430341361328867e-11),

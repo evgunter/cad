@@ -75,10 +75,6 @@
 //!   (`work/wire/a-placement-cannot-turn-about-a-point-or-an-axis.md`):
 //!   the turntable's turn about the bench's centre is a three-step
 //!   chain, and no step reads a `Datum::Axis` (`turntable`).
-//! - **A partly-applied compound mate declares in silence**
-//!   (`work/recipe/a-partly-applied-regauge-then-mate-list-declares-silently.md`):
-//!   `regauge_then_mate` returns an edit list the caller must apply
-//!   whole and in order, or the mate lands declaring (`mate_onto`).
 //! - **A part resting on a gauge cannot follow a part edit**
 //!   (`work/place/a-part-resting-on-a-gauge-cannot-follow-a-part-edit.md`):
 //!   the crate's shelf-top gauge restates the shelf's top in numbers
@@ -632,31 +628,16 @@ fn turn_about_z(angle: Expr, scope: &BTreeMap<ParamName, Dimension>) -> Step {
 /// Mates `a` to `b` through the compound door — "copy `b`'s gauge to
 /// `a`'s group, then mate" — so the mate PLACES rather than declares
 /// across two gauges, and returns the mate's id.
-///
-/// GAP (`work/recipe/a-partly-applied-regauge-then-mate-list-declares-silently.md`):
-/// the door hands back an edit LIST computed against the document
-/// before the re-gauge, and nothing holds the caller to applying it
-/// whole and in order. Applied alone, or first, the mate's insert is
-/// accepted as a DECLARING mate across two gauges, without a word at
-/// the edit door; only the solve's roles (asserted in `stand_scene`)
-/// or a later gate say so. Python's `Doc.regauge_then_mate` applies
-/// the list itself; Rust callers apply it by hand, as here.
 fn mate_onto(
     doc: &mut ProfileDoc,
     mate: Node<ProfileProgram>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
-    let edits = regauge_then_mate(doc, mate)
+    let out = regauge_then_mate(doc, mate, tol, reach)
         .unwrap_or_else(|err| panic!("the compound mate door admits the mate: {err:?}"));
-    let mut minted = None;
-    for e in &edits {
-        let applied =
-            apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("the edit applies: {err:?}"));
-        *doc = applied.doc;
-        minted = applied.record.minted.or(minted);
-    }
-    minted.expect("the compound door ends on the mate's insert")
+    *doc = out.doc;
+    out.mate
 }
 
 fn stand_doc(

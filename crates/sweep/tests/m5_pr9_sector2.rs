@@ -8,12 +8,10 @@
 //! edge, both rim arcs depart exactly in-plane (the first-order
 //! departure trilean honestly returns On), and the wall faces' local
 //! normals are plane-parallel at the ON vertices (the old
-//! `TangencyUnsupported` door). Before PR 9 this refused at first
-//! order; now the second-order lane classifies it — the arcs curve
-//! definitely toward Below, the walls definitely bend off the plane —
-//! and whatever the pipeline ultimately refuses on is a DOWNSTREAM
-//! honest verdict (the one-sided graze has no two-sided split), never
-//! the first-order tie.
+//! `TangencyUnsupported` door). The second-order lane classifies it:
+//! the arcs curve definitely toward Below, the walls definitely bend
+//! off the plane and into their material, and the whole cylinder lands
+//! Below, never refusing at the first-order tie.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,9 +53,7 @@ fn the_tangent_graze_resolves_past_first_order() {
     // definitely bends off the plane — tangent_sector_osculation),
     // no ConsecutiveOnSectors (the arcs' in-plane departures resolve
     // at second order — tangent_sector_order2), no SliverSector on
-    // those predicates. What remains is the documented one-sided
-    // graze residue, refused DOWNSTREAM (the degenerate section /
-    // finish net) — a tangent plane cannot two-side a convex body.
+    // those predicates.
     use geom_core::k_stats::Bracket;
     let body = cylinder_body();
     let plane = topo::test_support::split_plane(
@@ -82,26 +78,21 @@ fn the_tangent_graze_resolves_past_first_order() {
                 .collect::<std::collections::BTreeSet<_>>()
         );
     }
-    // The pipeline runs ALL the way to the documented one-sided
-    // tangency net: the TangentIntersection section chords were
-    // minted and CERTIFIED (the jet gate ran inside a real body),
-    // the section polygon then honestly bounds zero area — the
-    // degenerate side has no material. The graze refuses THERE, with
-    // the recourse, never at the first-order tie.
-    let err = out.expect_err("a tangent plane cannot two-side a convex body");
-    let msg = format!("{err}");
+    // The pipeline runs all the way through: the walls' convexity
+    // (`wall_bend_order2`) sends the seam with its material, and the
+    // whole cylinder lands Below.
     assert!(
-        msg.contains("zero area") && msg.contains("one-sided tangency"),
-        "the graze must reach the degenerate-section net: {msg}"
+        v.iter().any(|x| x.predicate == "wall_bend_order2"),
+        "the wall's convexity was never read"
     );
-    // The join runs under a split here, which takes no declaration, so
-    // its recourse names the two levers the reader has, and not
-    // "declare".
+    let r = out.expect("a tangent plane lands a convex body whole on its material's side");
+    assert!(matches!(r.above, topo::splitting::SplitPart::Empty));
+    let below = r.below.body().expect("the cylinder lands Below");
+    let vol = topo::mass_properties(below, Tol::witness()).unwrap().volume;
     assert!(
-        msg.contains(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
-        "{msg}"
+        (vol - std::f64::consts::PI / 4.0).abs() <= 1e-9,
+        "the whole cylinder: {vol}"
     );
-    assert!(!msg.contains("declare"), "{msg}");
 }
 
 #[test]
