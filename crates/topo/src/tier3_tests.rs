@@ -206,7 +206,7 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
-    // Lifts both refusals: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
+    // Lifts RechartStrandsDescriptions: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
     body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
@@ -830,7 +830,7 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
     ];
     for (name, surface) in cases {
         let (mut body, split) = coplanar_pillow(tol);
-        // Lifts both refusals: the datum verdicts are the row's, whatever else the swap costs the body.
+        // Lifts RechartStrandsDescriptions: the datum verdicts are the row's, whatever else the swap costs the body.
         body.set_face_surface_stranding_for_tests(
             split.face,
             FaceSurface::New {
@@ -1357,7 +1357,9 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(crate::null::CurveGeom::certified)
             .unwrap();
-        let (_, lever) = crate::loop_winding::conic_segment_term(curve, true).unwrap();
+        let (_, lever) =
+            crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true)
+                .unwrap();
         assert_eq!(lever, pi * reach, "{name}: the lever is |Δ| times {reach}");
     }
 }
@@ -1497,7 +1499,7 @@ fn description_references_keep_a_surface_alive() {
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
     // referenced only by the description — and must survive.
-    // Lifts both refusals: the stranded description keeping the old surface alive is the row.
+    // Lifts RechartStrandsDescriptions: the stranded description keeping the old surface alive is the row.
     body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
