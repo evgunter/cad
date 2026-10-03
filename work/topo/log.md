@@ -6214,3 +6214,8 @@ pin.
     `strut_anchor` on cleave.
   - CI run 37139069412 passed. The cloud reviewer is
     `session_019aQcGAqQrs7aJVZHm9oi7i`.
+
+## PR 3975 merged (2026-10-03)
+
+`EmptyAnchorsCollide` merged as `7c4b912d40`, after CI run 37140779910
+passed. Its implementer and reviewer cloud sessions are archived.
