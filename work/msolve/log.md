@@ -1362,3 +1362,61 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-04 — MSOLVE-14 MERGED (PR 3986)
+
+The mate solve now runs at the evaluation's own scalar. Frames, placer
+maps, the coset fold, `check_offsets`, PLACE's parametric frame offset
+and the solved poses are all folded at `T`. The structure, the counts
+and the reach stay nominal. The memo key carries the pose at `T` on
+both dual channels. `Unpinned` is deleted. At `f64` the solve is
+bit-identical to main's at ε = 1e-9, 1e-6 and 1e-12, measured against
+main's own digests over a corpus that now holds thirteen documents.
+
+**Dual review**, frozen head `3053f4254`. The arm was CONCURRENT and
+ran under the late-trigger fallback: R2 reviewed the same head after
+R1, with an identical brief. Both verdicts were NOT-MERGEABLE-AS-IS,
+for the same MAJOR, shown by execution in two different documents.
+- **The MAJOR.** A shaft in two coaxial bores puts a pin's axis point
+  on the held axis. `clocking_about` relied on `atan2(0, 0) = 0`, which
+  holds only at `f64`. At `Dual64`, every vertex read a NaN tangent
+  and no node errored. At `Interval`, the group refused
+  (`PoseOutOfRange` in one document, `Indeterminate(Invalid)` in the
+  other).
+- **Blinded coding** (byte 66) found 18 distinct findings and no tally
+  candidate.
+
+**The fix pass** applied rulings F1–F11:
+- The clocking radius is decided before its angle is taken
+  (`mate_clocking_radius`). Coinciding axis lines end the clocking with
+  the identity.
+- The interval `atan2` no longer returns the whole circle across its
+  branch cut.
+- The C5 row compares fault variants against an exact table of the
+  expected escalations, each carrying `MarginDiag::Enclosure`. Every
+  lane asserts finite tangents.
+- An `Under` stays `Under` on every lane.
+- `sensitivities` and `stackup` take the resolver, and
+  `sensitivities_resolved` is gone.
+- The guide states both refusals at the placement door, and the topo
+  row is retitled to cover boxed translations.
+- The A5 clearance row now tells a `T`-solve from a lift of the
+  nominal.
+
+**One CI red on an intermediate head** was the bounds census. A door
+from PR 3978, `centred_box`, had no roster row; the lane added one.
+
+Closes MSOLVE-14. Filed and parked on D10's build:
+- `an-identically-zero-margin-escalates-at-a-fine-eps`: six of the
+  thirteen documents escalate at 1e-12;
+- `a-box-over-a-solved-clocking-widens-thirty-thousandfold`: the
+  interval dependency through the adjugate inverse.
+
+Filed to flux: `the-box-driver-carries-no-part-resolver`. Without it a
+stackup over an assembly cannot produce a verdict.
+`a-box-independent-mate-fault-bisects-the-whole-leaf-budget` is parked
+on D10's build and on that flux row. The spec is deleted, with a note
+in `docs/doc-ledger/msolve-14-spec.md`.
+
+Under the intent-refactor hold, nothing in the program may start now.
+The program goes to `blocked`, and the orchestrator stops.

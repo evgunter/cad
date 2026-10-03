@@ -2,10 +2,11 @@
 id: a-box-independent-mate-fault-bisects-the-whole-leaf-budget
 kind: issue
 title: A mate fault no box can move falls to the driver's catch-all Bisect, so a box run splits through its leaf budget and reports Budget
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt, the-box-driver-carries-no-part-resolver]
 ---
 
 Found by a designer weighing plan item 19 (the analysis lanes). The
