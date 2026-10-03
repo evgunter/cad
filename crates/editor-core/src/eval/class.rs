@@ -413,7 +413,7 @@ impl NodeErrorClass {
     #[must_use]
     pub fn of_placement_rule(fault: &PlacementRuleFault) -> Self {
         match fault {
-            PlacementRuleFault::CountSpelling => Self::PlacementRuleCountSpelling,
+            PlacementRuleFault::CountSpelling { .. } => Self::PlacementRuleCountSpelling,
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
             PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
@@ -812,7 +812,9 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {
-                K::PlacementRule(crate::PlacementRuleFault::CountSpelling)
+                K::PlacementRule(crate::PlacementRuleFault::CountSpelling {
+                    shape: crate::CountMismatch::ListedOnPattern,
+                })
             }
             C::PlacementRuleNoPlacements => {
                 K::PlacementRule(crate::PlacementRuleFault::NoPlacements)

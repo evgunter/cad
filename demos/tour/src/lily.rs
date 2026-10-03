@@ -19,16 +19,15 @@
 //!
 //! What the lily IS, therefore:
 //!
-//! - the plant has its underground half now: a **corm** — the swollen
-//!   stem-base a *Calochortus* rises from each spring — threaded on
-//!   the straight basal internode, the **foot**. The corm is a
+//! - the plant's underground half is its one JOINED body, the
+//!   **rootstock** ([`rootstock`]): a **corm** — the swollen stem-base
+//!   a *Calochortus* rises from each spring — threaded on the straight
+//!   basal internode, the **foot**, and unioned with it. The corm is a
 //!   sphere-zone swelling with a coaxial BORE at the stem's own
-//!   diameter, so the two bodies are cosurface along the whole bore:
-//!   the cleanest declared CYLINDRICAL contact this plant has, and
-//!   the exact class M9-3 built. The declared socket unions
-//!   (`review_probes::the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone`);
-//!   the scene still shows the two threaded and apart
-//!   (`work/show/lily-rootstock-joins-at-its-socket.md`).
+//!   diameter, so the two parts are cosurface along the whole bore:
+//!   the plant's one CYLINDRICAL contact, with no planar contact
+//!   anywhere on the mate. Declared, it unions into one shell whose
+//!   volume is the two parts' sum.
 //! - the **stem** is a chain of circular tube arcs — each one a
 //!   windowed TUBE ALONG AN ARC, i.e. a torus segment said in world
 //!   coordinates: ring centre, spine axis, start radial, ring radius,
@@ -161,8 +160,9 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{Body, BooleanError, Operand, TransformError};
+use pncad::topo::{Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError};
 
+use crate::booleans::{check, expect_seamed, try_union_declared};
 use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
@@ -431,8 +431,7 @@ fn lantern<S: Scalar>(
 }
 
 /// The **corm**: the swollen underground stem-base a *Calochortus*
-/// rises from each spring — and, since M9-3, the one place on this
-/// plant where two authored bodies are made ONE.
+/// rises from each spring.
 ///
 /// A corm is not a thing the stem stands on; it is the stem's OWN base,
 /// swollen, with the axis running through it. So it is authored as
@@ -526,6 +525,49 @@ const STEM_R: f64 = 0.060;
 /// Where the foot's root end stops, below the corm.
 const FOOT_BOTTOM_Z: f64 = -0.92;
 
+/// A body's exact volume, read out at `f64`.
+fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
+    pncad::topo::mass_properties(b, tol)
+        .expect("the volume integrates")
+        .volume
+        .f()
+}
+
+/// The rootstock's two parts as authored: the [`corm`] and the
+/// [`foot`] threaded through its bore.
+fn rootstock_parts<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
+    (
+        corm(
+            CORM_TOP_Z,
+            CORM_GLOBE,
+            CORM_SHOULDER,
+            CORM_BASE,
+            STEM_R,
+            tol,
+        ),
+        foot(FOOT_BOTTOM_Z, 0.0, STEM_R, tol),
+    )
+}
+
+/// The **rootstock**: the corm and the foot made ONE body, through the
+/// contact they were authored to share — the corm's bore wall against
+/// the foot's, declared by [`crate::booleans::try_union_declared`]. It
+/// is the one place on this plant where two authored bodies are made
+/// one.
+///
+/// The oracle is additivity: the bore is the foot's own cylinder, so
+/// the parts' interiors are disjoint and the union's volume is their
+/// sum, asked of the kernel's three answers.
+fn rootstock<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    let (corm, foot) = rootstock_parts::<S>(tol);
+    let parts = volume(&corm, tol) + volume(&foot, tol);
+    expect_seamed(
+        "the rootstock (corm unioned with the foot at their declared socket)",
+        check(try_union_declared(&corm, &foot, tol), parts, tol),
+        parts,
+    )
+}
+
 /// A **bud**: three pre-tepals, each a PARTIAL revolve of the same
 /// [`meridian`], on three axes that form a narrow TRIPOD about the
 /// bud's own axis and are rolled so the wedges nest like a pinwheel.
@@ -561,8 +603,8 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 /// axis in sketch coordinates ([`sketch_axis`]), so a tilted axis is
 /// spelled by tilting the sketch plane. The segments overlap each
 /// other on purpose and are not joined — gluing them is the same
-/// curved-boolean wall the rest of the plant is stopped by (probes 2
-/// and 7).
+/// curved-boolean wall the stem, flower and leaves are stopped by
+/// (probes 2 and 7).
 ///
 /// **Three, in the return type.** `plant` names the segments with a
 /// `.zip(["lily_bud_a", …])`, which truncates silently against a
@@ -1338,7 +1380,7 @@ fn loft_plan<S: Scalar>(
 /// # They meet the globe TANGENTIALLY, and provably never re-enter it
 ///
 /// Two bodies that overlap are not a modelling error in this scene —
-/// nothing here is joined, and the flower's own throat disk and the
+/// nothing above ground is joined, and the flower's own throat disk and the
 /// arch's end cap are exactly coincident where the two abut. But a
 /// sepal that
 /// merely *starts near* the flower and hopes to miss it is a fudge,
@@ -1458,6 +1500,9 @@ pub struct Piece<S: Scalar> {
     // carrying it: the render path wants the body alone.
     #[allow(dead_code)]
     pub caps: Option<WedgeFrames<S>>,
+    /// For a piece that is a boolean RESULT (the rootstock), the
+    /// contacts its op declared, which its tier-3′ gate consumes.
+    pub contacts: Option<ContactRecords>,
 }
 
 /// The BUD's globe radius and truncation height — much smaller than
@@ -1509,12 +1554,13 @@ const YELLOW_TEPAL: [f64; 3] = [0.95, 0.84, 0.32];
 /// The sepals are greener than the petals and stay so: on a live
 /// pulchellus they read as the yellow-green sheath the globe hangs in.
 const GREEN_SEPAL: [f64; 3] = [0.72, 0.76, 0.36];
-/// The corm is underground and reads as such: a dull, papery brown.
-const GREEN_CORM: [f64; 3] = [0.55, 0.44, 0.30];
+/// The rootstock is underground and reads as such: a dull, papery
+/// brown, foot and corm alike, because they are one body.
+const BROWN_ROOTSTOCK: [f64; 3] = [0.55, 0.44, 0.30];
 
-/// Builds the whole plant: two stem arcs, one branching pedicel, two
-/// nodding lanterns, three basal leaves — eight bodies, every one a
-/// closed analytic solid.
+/// Builds the whole plant: the rootstock, two stem arcs, one branching
+/// pedicel, the lantern, the bud's three pre-tepals, three basal
+/// leaves and three sepals — fourteen bodies, every one closed.
 ///
 /// The stem is walked by a [`Turtle`] so the arcs are G1 at their
 /// joints by construction: each arc's start tangent IS the previous
@@ -1627,48 +1673,36 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         sepal_plan,
         tol,
     );
+    let rootstock = rootstock::<S>(tol);
 
     let mut pieces = vec![
         Piece {
-            name: "lily_corm",
-            color: GREEN_CORM,
-            // The swollen stem-base, threaded on the foot below —
-            // TOUCHING it along the whole bore and not joined to it.
-            body: corm(
-                CORM_TOP_Z,
-                CORM_GLOBE,
-                CORM_SHOULDER,
-                CORM_BASE,
-                STEM_R,
-                tol,
-            ),
+            name: "lily_rootstock",
+            color: BROWN_ROOTSTOCK,
+            body: rootstock.body,
             caps: None,
-        },
-        Piece {
-            name: "lily_foot",
-            color: GREEN_STEM,
-            // The straight basal internode: runs up through the corm
-            // to the world origin, where the turtle's first arc starts.
-            body: foot(FOOT_BOTTOM_Z, 0.0, STEM_R, tol),
-            caps: None,
+            contacts: Some(rootstock.contacts),
         },
         Piece {
             name: "lily_stem",
             color: GREEN_STEM,
             body: stem,
             caps: Some(stem_caps),
+            contacts: None,
         },
         Piece {
             name: "lily_arch",
             color: GREEN_STEM,
             body: arch,
             caps: Some(arch_caps),
+            contacts: None,
         },
         Piece {
             name: "lily_pedicel",
             color: GREEN_STEM,
             body: pedicel_body,
             caps: Some(pedicel_caps),
+            contacts: None,
         },
         Piece {
             name: "lily_lantern",
@@ -1690,6 +1724,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
+            contacts: None,
         },
         Piece {
             name: "lily_leaf_a",
@@ -1712,18 +1747,21 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
+            contacts: None,
         },
         Piece {
             name: "lily_leaf_b",
             color: GREEN_LEAF,
             body: LEAF_B.build(tol),
             caps: None,
+            contacts: None,
         },
         Piece {
             name: "lily_leaf_c",
             color: GREEN_LEAF,
             body: LEAF_C.build(tol),
             caps: None,
+            contacts: None,
         },
     ];
     // The bud's three pre-tepals, then the three sepals, each named in
@@ -1738,6 +1776,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             color: GREEN_SEPAL,
             body,
             caps: None,
+            contacts: None,
         });
     }
     // The three sepals, named in order round the flower axis so the
@@ -1751,6 +1790,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             color: GREEN_SEPAL,
             body,
             caps: None,
+            contacts: None,
         });
     }
     pieces
@@ -1760,7 +1800,12 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let pieces = plant::<f64>(tol);
     let note = format!(
-        "{} closed solids: 3 torus-segment stem tubes said in WORLD \
+        "{} closed solids: 1 ROOTSTOCK — a sphere-zone corm whose \
+         bore is the stem's own cylinder, UNIONED with the foot threaded \
+         through it on their one declared cylindrical Rest contact (the \
+         bore wall against the foot's three arcs; no planar pair on the \
+         mate), one shell whose volume is the two parts' sum — 3 \
+         torus-segment stem tubes said in WORLD \
          coordinates (centre/axis/u_ref/radii stored exactly as \
          given), 1 sphere-zone lantern with a NECK cone cut at the \
          arch tube's own radius — its rim IS that tube's terminal \
@@ -1776,34 +1821,33 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          degrees about its own spine on the way, eased toward the tip. \
          The sepals stand TANGENT to the globe: the stand-off is the \
          section's own keel, and no vertex of any sepal is inside the \
-         sphere. The five analytic bodies approximate nothing — torus, \
-         sphere, cone and plane exactly, parameters included; the \
-         blades are fitted skins, the price of leaving the plane. \
-         Nothing is JOINED — the leaf to its own sheath least of \
-         all: see the wall probes.",
+         sphere. The eight analytic bodies approximate nothing — torus, \
+         sphere, cylinder, cone and plane exactly, parameters included; \
+         the blades are fitted skins, the price of leaving the plane. \
+         Nothing above ground is JOINED — the leaf to its own sheath \
+         least of all: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
         name: "lily",
         caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
-        story: "a nodding yellow fairy lantern — arching stem, two closed \
-                globular lantern with three spreading sepals tangent to the \
+        story: "a nodding yellow fairy lantern — a brown rootstock (the \
+                corm unioned with the stem's foot through its socket), \
+                arching stem, a closed globular lantern with three spreading sepals tangent to the \
                 globe, a bud of three nested pre-tepals on a tripod of axes, \
                 one long tapering twisted basal leaf and two shorter \
-                untapered ones; torus/sphere/cone/plane exact to the stored \
+                untapered ones; torus/sphere/cylinder/cone/plane exact to the stored \
                 parameter, blades skinned out of plane",
-        ops: "Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
+        ops: "revolve(Full) bored corm + extrude three-arc foot -> \
+              find_flush_candidates -> declare_all -> union_with (the \
+              rootstock); Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
               bud; sweep_body(lanceolate arc section, arched NURBS \
               spine) for the two short leaves; loft_body(rectangle -> diamond -> diamond \
               sections on rolled placements) for the long leaf and the sepals",
-        // One chord budget for the whole scene is a poor fit here: at
-        // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
-        // costs ~2e5 triangles, because the torus lane spends its
-        // budget on the 5 m RING and not on the tube (findings 9).
-        delta: 2e-3,
+        delta: 5e-3,
         note: Some(note),
         view: View {
             elev: 12.0,
@@ -1812,7 +1856,25 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
         bodies: pieces
             .into_iter()
-            .map(|p| SceneBody::plain(p.name, p.color, p.body))
+            .map(|p| {
+                let sb = match p.contacts {
+                    Some(contacts) => SceneBody::seamed(p.name, p.color, p.body, contacts),
+                    None => SceneBody::plain(p.name, p.color, p.body),
+                };
+                // The split is by SECTION. The lofted blades (`leaf_a`
+                // and the sepals) are lofted through straight-sided
+                // sections, and at 5e-3 their meshes are within 0.1% of
+                // exact volume. Every other body has a curved section
+                // (tubes, revolves, the lens-section swept leaves) and
+                // takes 2e-3. The names below are the lofted blades; a
+                // piece added, renamed or rebuilt with another section
+                // is placed by this rule, not by its name.
+                if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
+                    sb
+                } else {
+                    sb.finer(2e-3)
+                }
+            })
             .collect(),
     }]
 }
@@ -3173,8 +3235,8 @@ mod review_probes {
         assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
     }
 
-    /// Finding 13 re-measured: one chord budget for the whole scene
-    /// spends wildly differently per body, and these are the numbers.
+    /// Finding 13 re-measured: one chord budget spends wildly
+    /// differently per body, and these are the numbers.
     ///
     /// The five analytic rows are the SAME counts the sketch-frame
     /// revolve produced — the tube door changed which parameters are
@@ -3496,7 +3558,8 @@ mod review_probes {
         // And the OTHER flower. Tangency to the globe a sepal stands
         // on says nothing about the bud 1.44 m up the stem, and the
         // kernel will not say anything either: these are separate
-        // bodies, this scene joins none of them, so one solid passing
+        // bodies, this scene joins none of them (its one union is the
+        // rootstock, underground), so one solid passing
         // through another is not a condition any operation here could
         // refuse. It is the SCENE's invariant, so the scene tests it.
         // Sepal 0's radial, unphased, points almost exactly at the bud
@@ -4068,12 +4131,7 @@ mod verbs_gate_r1_probes {
         let x = (d * d + zr * zr - br * br) / (2.0 * d);
         let cap = |r: f64, h: f64| PI * h * h * (3.0 * r - h) / 3.0;
         let lens = cap(zr, zr - x) + cap(br, br - (d - x));
-        let volume = |b: &Body<f64>| {
-            pncad::topo::mass_properties(b, tol)
-                .expect("the volume integrates")
-                .volume
-        };
-        let (va, vb) = (volume(lant), 4.0 / 3.0 * PI * br.powi(3));
+        let (va, vb) = (volume(lant, tol), 4.0 / 3.0 * PI * br.powi(3));
         let built = |label: &str, r: Result<pncad::topo::BooleanResult<f64>, BooleanError>| {
             let r = r.unwrap_or_else(|e| panic!("{label}: the carve builds, got {e:?}"));
             let body = r.body().expect("a body").body.clone();
@@ -4103,7 +4161,7 @@ mod verbs_gate_r1_probes {
                 vb - lens,
             ),
         ] {
-            let got = volume(&body);
+            let got = volume(&body, tol);
             println!("wall-7 probe: {label} volume {got}, lens oracle {want}");
             assert!(
                 (got - want).abs() <= 1e-9 * want.max(1.0),
@@ -4252,13 +4310,13 @@ mod verbs_gate_r1_probes {
     /// plant, measured** — two mates, two different answers, kept as
     /// a row because the second is the one to re-read if it moves.
     ///
-    /// 1. The corm/foot SOCKET is the detector's own report now: the
-    ///    scene used to assemble those pairs itself by filtering both
-    ///    arenas for a wall at `STEM_R`, and the detector reports
-    ///    exactly that set — the corm's one bore wall against the
-    ///    foot's three arcs — and the union it declares builds: one
-    ///    shell, valid at tier 3, its volume the two parts' sum (the
-    ///    interiors are disjoint).
+    /// 1. The corm/foot SOCKET is the detector's own report: the
+    ///    corm's one bore wall against the foot's three arcs, all
+    ///    cylindrical, no planar pair. The plant's rootstock is the
+    ///    union it declares — one shell, valid at tier 3, its volume
+    ///    the two parts' sum (the interiors are disjoint) and the
+    ///    closed form of a sphere slab plus the foot standing out of
+    ///    it.
     /// 2. The stem GLUE (wall 1) declares exactly what it declared
     ///    while the detector was planar — the two arcs' shared disk.
     ///    Their tube walls are tori about DIFFERENT ring centres, so
@@ -4279,15 +4337,15 @@ mod verbs_gate_r1_probes {
                 .expect("named lily piece")
                 .body
         };
-        let (corm, foot) = (by("lily_corm"), by("lily_foot"));
+        let (corm, foot) = rootstock_parts::<f64>(tol);
+        let (corm, foot) = (&corm, &foot);
         let socket = crate::booleans::flush_declarations(corm, foot, tol);
         println!("lily socket declarations: {:?}", socket.coincident_faces);
         assert_eq!(
             socket.coincident_faces.len(),
             3,
             "the socket is the corm's ONE bore wall against the foot's three arcs, \
-             all on the one carrier — the same set the scene used to assemble by \
-             filtering both arenas, now reported by the door that verifies it: {:?}",
+             all on the one carrier: {:?}",
             socket.coincident_faces
         );
         for d in &socket.coincident_faces {
@@ -4301,25 +4359,38 @@ mod verbs_gate_r1_probes {
                 Some(SurfaceKind::Cylinder)
             );
         }
-        let rootstock = match pncad::topo::union_with(corm, foot, &socket, tol) {
-            Ok(pncad::topo::BooleanResult::Body(bb)) => bb.body,
-            other => panic!("the declared socket unions: {:?}", other.err()),
-        };
+        for d in &socket.coincident_faces {
+            assert_eq!(
+                d.class,
+                pncad::topo::BooleanCoincidence::REST,
+                "the bore's concave wall against the foot's convex one is a Rest"
+            );
+        }
+        let rootstock = by("lily_rootstock");
         assert_eq!(rootstock.shells().count(), 1, "one rootstock shell");
         assert_eq!(
-            pncad::topo::validate_geometric(&rootstock, tol),
+            pncad::topo::validate_geometric(rootstock, tol),
             Ok(()),
             "the rootstock is valid at tier 3"
         );
-        let volume = |b: &Body<f64>| {
-            pncad::topo::mass_properties(b, tol)
-                .expect("a volume")
-                .volume
-        };
-        let (got, parts) = (volume(&rootstock), volume(corm) + volume(foot));
+        let (got, parts) = (
+            volume(rootstock, tol),
+            volume(corm, tol) + volume(foot, tol),
+        );
         assert!(
             (got - parts).abs() <= 1e-12 * parts,
             "the rootstock's volume is the parts' sum: {got} vs {parts}"
+        );
+        // The slab of the corm's sphere between its two cut planes,
+        // π[R²h − h³/3] from −base to +shoulder about the centre, plus
+        // the foot's cylinder where it stands out of that slab.
+        let (r, sh, ba) = (CORM_GLOBE, CORM_SHOULDER, CORM_BASE);
+        let slab = PI * (r * r * (sh + ba) - (sh.powi(3) + ba.powi(3)) / 3.0);
+        let stands_out = PI * STEM_R * STEM_R * (-FOOT_BOTTOM_Z - (sh + ba));
+        let closed = slab + stands_out;
+        assert!(
+            (got - closed).abs() <= 1e-12 * closed,
+            "the rootstock's volume is the slab-plus-foot closed form: {got} vs {closed}"
         );
 
         let (stem, arch) = (by("lily_stem"), by("lily_arch"));

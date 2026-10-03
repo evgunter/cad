@@ -1,5 +1,5 @@
 //! **The door-A rider** (M6 unit 1): the circle-carrier definite-miss
-//! bound `bool_circle_curved_clearance` — the arm that retires M5's
+//! bound `bool_conic_curved_clearance` — the arm that retires M5's
 //! UNCONDITIONAL conic-carrier pierce refusal (PR 12 fix pass F4
 //! recorded the dishonesty: the reviewer measured 1.6 cm of true
 //! clearance and the arm refused anyway).
