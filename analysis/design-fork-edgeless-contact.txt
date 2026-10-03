@@ -1,0 +1,3 @@
+Design fork: tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line (CLEAVE, 2026-10-03)
+byte: 26
+mapping (even -> Opus is A): A=Opus, B=Fable
