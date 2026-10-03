@@ -2,11 +2,13 @@
 id: limb-3-tube-banks-a-second-arc-as-accounted
 kind: issue
 title: limb 3's tube proved one solution per slice, not one arc, and the searches banked a second arc inside it as accounted — a silent lost branch on main's R3 lane
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: H
 branch: ssi/limb3-one-arc
+closed: 2026-10-03
+pr: 3999
 ---
 
 ## Found (review of PR 3983, Hermite-first; reproduced and widened by the limb-3 lane, 2026-10-03)
