@@ -271,11 +271,11 @@ and CHROME; triaged 2026-10-01:**
     `Coaxial { turn: Option }`, with the rider deleted. Asked on `[ev]`
     PR 3681 (fork-log row 35 at the time). Ev approved on 2026-10-01
     and noted that ±0 must never matter; #2468, merged the same day,
-    already meets that. On 2026-10-03 PLACE's row 52 gave every mate
+    already meets that. On 2026-10-03 PLACE's row 53 gave every mate
     frame a general offset (`MateFrame { base, offset: Placement }`),
     which can already turn a side about its axis. So the turn and two
     offsets now spell one roll three ways. #3681 is held while the
-    same designers weigh the roll with row 52 in hand (round 3). If approved, the unit also owes an edit
+    same designers weigh the roll with row 53 in hand (round 3). If approved, the unit also owes an edit
     that rewrites a committed mate's turn (only `InsertNode` writes a
     mate's datum today), and the mate panel's turn control (it
     hard-codes `clocking: None`). The planar zero went to a note under
@@ -305,7 +305,7 @@ and CHROME; triaged 2026-10-01:**
     a declaring mate's `Alignment` is stored and persisted, but nothing
     reads it. The open question is whether the gate should check it,
     or whether a declaring mate should hold no alignment at all.
-    Weighed after items 22 and 26, since row 52's offset touches the
+    Weighed after items 22 and 26, since row 53's offset touches the
     same field.
 26. **`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`**
     (P1, design): Ev's ruling on #3695. Two designers weigh how a mate

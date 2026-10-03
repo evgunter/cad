@@ -1099,7 +1099,7 @@ reset on 2026-10-03 at 15:00Z. Main had moved a long way in between:
 - EDIT left the tracker, and PLACE opened.
 - #3676 deleted the cluster maintenance, which made MSOLVE-12's §3
   moot and left the PR dirty.
-- PLACE's row 52 gave every mate frame a general offset.
+- PLACE's row 53 gave every mate frame a general offset.
 
 The MSOLVE-12 lane was resumed to merge main, with main's deletion
 winning.
