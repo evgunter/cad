@@ -38,7 +38,7 @@
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, div_up, max_bound, norm_sup};
+use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Interval, Margin, Point3, Sign, Vec3};
 
@@ -582,7 +582,7 @@ impl Pass<'_> {
                 } else {
                     0.0
                 };
-                let speed = norm_sup(&[d.x, d.y, d.z]);
+                let speed = boxes.speed_sup(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
                 if !(inf > 0.0 && speed.is_finite()) {
                     bound = (f64::INFINITY, f64::INFINITY);
                     break;
@@ -686,10 +686,8 @@ impl Pass<'_> {
             }
             // The wall's speeds over the cell, which bound the path from
             // the corner to a zero in it.
-            let speed = |along_u: bool| {
-                let d = boxes.deriv_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1, along_u);
-                norm_sup(&[d.x, d.y, d.z])
-            };
+            let speed =
+                |along_u: bool| boxes.speed_sup(cell.u.0, cell.u.1, cell.v.0, cell.v.1, along_u);
             let (s_u, s_v) = (speed(true), speed(false));
             let inf_u = super::enclose::zero_free_lower_bound(pu);
             let inf_v = super::enclose::zero_free_lower_bound(pv);
