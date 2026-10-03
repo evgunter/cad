@@ -67,7 +67,7 @@ direction of departure at each site (`chord_join::Leave`): the boolean
 germ's `dir`, the split's `±(n_plane × n_out)` (`splitting::join`'s
 `split_leave`, which `conic_pairs` walks by too). The chord takes, of
 the conic's two arcs, the one leaving its start along it
-(`chord_arc_leave`). `select_arc`, `select_arc_by_run_side`,
+(`chord_arc_leave_germ`, `chord_arc_leave_section`). `select_arc`, `select_arc_by_run_side`,
 `SectionConic::azimuth_monotone`, the window handed to the planar side,
 `ArcWindowCase`'s chord cases, `ArcSideCase`, `SectionArcSide` and
 `SectionNotPolar` are gone; the cone apex's window case survives as
@@ -75,5 +75,10 @@ the conic's two arcs, the one leaving its start along it
 
 Landed behind a cross-check: both selections side by side, refusing on
 any disagreement, over the full suite at three ε. The PR body has the
-counts and the one class where they disagreed (the run-side rule read
-the wrong run).
+counts. In-suite, the two disagreed in two classes, each time with the
+datum's body meeting its closed form: the run-side rule on a ball whose
+seam lies in the other operand's plane face (the die pips; a `y`-poled
+ball on a cylinder cap), and the window rule on a cylinder wall
+(`germ_coplanar_conic`'s tube strut). The phase-1 commit as written
+paired by chord length; run that way, a third class shows, a slab
+across a round boss, which the walk-order pairing removed.

@@ -64,8 +64,8 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, Leave, SectionCase, SectionCtx,
-    SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, Leave, SectionCase,
+    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
     vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -167,6 +167,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                             split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
                         ),
                     ],
+                    datum: Datum::Section,
                 };
                 let Sweep {
                     joiner, section, ..

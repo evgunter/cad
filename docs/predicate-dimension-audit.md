@@ -524,18 +524,16 @@ which is what actually moves the number.
 | splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
 | splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
-| chord_join.rs (`run_is_section_arc`) | split_arc_run_on_section_plane / split_arc_run_on_section_conic | a run edge's midpoint offset from the section plane (m); its conic residual in unit coordinates, levered by the semi-major axis | m | OK |
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
-| chord_join.rs (`arc_leaving`) | chord_arc_leave | the departure datum's component along the conic's unit tangent at the chord's start, `leave·Ĉ′(θ₁)`, levered by the semi-major axis: a boolean germ's unit direction gives the cosine between it and the tangent, the split's `±(n_plane × n_out)` that sine times it | m | OK (REACH) |
+| chord_join.rs (`arc_leaving`) | chord_arc_leave_germ | a boolean germ's unit direction against the conic's unit tangent at the chord's start, `dir·Ĉ′(θ₁)` (the cosine between them), levered by the semi-major axis | m | OK (REACH) |
+| chord_join.rs (`arc_leaving`) | chord_arc_leave_section | the split's `±(n_plane × n_out)` against the same unit tangent (the sine between plane and wall times that cosine), levered by the wall's `curvature_lever_arm` at the chord's start: the quantity and the lever `split_join_conic_heading` decides it on | m | OK (REACH) |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
-| chord_join.rs (`between_edge_is_section`, boolean planar side) | bool_between_line_on_wall | a line's midpoint offset from the wall, `geom_brep::implicit_residual` (cylinder: (ρ² − r²)/2r; sphere: (‖p − c‖² − r²)/2r), the signed distance to first order | m | OK |
 | chord_join.rs (`chart_v_du`) | split_chart_azimuth_linear | harmonic azimuth amplitude `\|pa.x\| + \|pb.x\|` (rad), levered at the radius | m | OK (a precondition: the cylinder chart writes the azimuth linear; TANG, PR 3851) |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_window | `τ − Δu` (rad) levered at the radius | m | OK |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_azimuth | azimuth difference (rad) levered at the radius | m | OK (cylinder only; a sphere refuses before it) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_height | axial height difference, bare | m | OK |
-| chord_join.rs:1468 | bool_between_arc_window | (cosΔ−cos h)·r_c — quadratic in the angular deviation for narrow windows | m | FLAG F8 |
 | chord_join.rs:1490 | split_chart_azimuth_frame | radial·u_ref (m) — branch selection | m | OK (note N5) |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
@@ -788,11 +786,12 @@ Flagged, NOT fixed here (dispositions):
   what D4's ε classifies. The collapsed-arm idiom keeps the two
   failure modes distinct: a collapsed or poison meter is `Invalid`,
   a backwards span is `IntervalNotForward`.
-- **F8** window/cosine family: `bool_between_arc_window` (cosΔ−cos h,
-  quadratic near narrow/full windows), `bool_wall_trim` cone term
-  (same shape, conservative direction), sphere-wall `split_arc_window`
-  arm (R vs local parallel radius R·cos lat — over-generous near
-  poles, the anti-conservative direction). One family, one fix shape
+- **F8** window/cosine family: `bool_wall_trim` cone term (cosΔ−cos h,
+  quadratic near narrow/full windows, conservative direction). Its two
+  chord-side members, `bool_between_arc_window` and the sphere-wall
+  `split_arc_window` arm (R vs local parallel radius R·cos lat —
+  over-generous near poles), are retired with the window selection: a
+  chord takes the arc its pairing leaves along. One fix shape
   (linearized angular margin × honest local arm); own unit.
 - **F9** `ssi_closure_tangent` (march.rs:484): cos × whole-branch arc
   length — an unbounded arm (nothing folds in `ctx.extent`).

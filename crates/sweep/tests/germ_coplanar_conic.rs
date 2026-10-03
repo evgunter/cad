@@ -24,7 +24,8 @@
 //!
 //! Each op must refuse typed or answer its closed-form volume with
 //! `point_in_solid` agreeing on its set membership at witness points,
-//! or refusing typed there.
+//! or refusing typed there; which of the two each op does is pinned
+//! too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -248,6 +249,7 @@ fn every_op_refuses_or_answers_its_closed_form() {
     let tol = Tol::witness();
     let mut failures = Vec::new();
     let mut refusals = Vec::new();
+    let mut outcomes = Vec::new();
     for fx in fixtures() {
         let (a, b, ov) = (&fx.a, &fx.b, fx.overlap);
         let rows: [Row; 3] = [
@@ -270,10 +272,11 @@ fn every_op_refuses_or_answers_its_closed_form() {
             let r = match r {
                 Ok(r) => r,
                 Err(e) => {
-                    refusals.push(format!("{what}: {:?}", e.kind()));
+                    outcomes.push(format!("{what}: {:?}", e.kind()));
                     continue;
                 }
             };
+            outcomes.push(format!("{what}: builds"));
             let Some(body) = r.body() else {
                 failures.push(format!("{what}: came back empty"));
                 continue;
@@ -315,7 +318,33 @@ fn every_op_refuses_or_answers_its_closed_form() {
         "{}\n(refused: {refusals:?})",
         failures.join("\n")
     );
+    assert_eq!(
+        outcomes, OUTCOMES,
+        "which ops build and where the rest stop"
+    );
 }
+
+/// What each op of [`every_op_refuses_or_answers_its_closed_form`] does:
+/// builds to its closed form, or refuses at the door named (module
+/// docs). Pinned per op, so a change that moves one is a red row rather
+/// than a refusal the row above would also accept.
+const OUTCOMES: [&str; 15] = [
+    "cylinder cap in the box top: A ∪ B: UndeclaredCoincidence",
+    "cylinder cap in the box top: A ∩ B: UndeclaredCoincidence",
+    "cylinder cap in the box top: A ∖ B: UndeclaredCoincidence",
+    "outer equator arc in the box top: A ∪ B: GermFrameUnsupported",
+    "outer equator arc in the box top: A ∩ B: GermFrameUnsupported",
+    "outer equator arc in the box top: A ∖ B: GermFrameUnsupported",
+    "tube strut arc in the box top: A ∪ B: builds",
+    "tube strut arc in the box top: A ∩ B: builds",
+    "tube strut arc in the box top: A ∖ B: builds",
+    "whole tube strut in the box top: A ∪ B: Join",
+    "whole tube strut in the box top: A ∩ B: Join",
+    "whole tube strut in the box top: A ∖ B: Join",
+    "y-poled pip on the cube's top face: A ∪ B: Join",
+    "y-poled pip on the cube's top face: A ∩ B: Join",
+    "y-poled pip on the cube's top face: A ∖ B: Join",
+];
 
 /// The closed forms the row above holds an answer to, checked against
 /// the operands' own volumes, so an answer is not measured against a

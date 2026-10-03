@@ -284,6 +284,9 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
 /// What stops it is reading which section loop bounds the result: every
 /// witness of both hemispheres lies on the cube's top face
 /// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// The row pins that door, not an arc: the role read stops the op
+/// whichever arc a chord takes, so no change to the chord's arc turns
+/// it red; a change that moves the frontier does, either way.
 #[test]
 fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
     let cube = sweep::test_support::cube::<f64>(1.0, Tol::witness());

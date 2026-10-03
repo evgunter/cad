@@ -144,7 +144,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, Chords, CutOutcome, JoinLane, Leave, SegmentCurve, SplitJoinError,
+    ChordJoiner, Chords, CutOutcome, Datum, JoinLane, Leave, SegmentCurve, SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -734,9 +734,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             };
             Leave {
                 at: [at(seg.ends[0]), at(seg.ends[1])],
+                datum: Datum::Germ,
             }
         };
         let (leave_a, leave_b) = (germ_at(true), germ_at(false));
+        // A chord's datum is looked up by the half it starts at
+        // (`Leave::from`), so the two halves each curve is minted
+        // between must be the matched germs' own: `choose_roles` orders
+        // them and picks no other.
+        for (halves, leave) in [(a_halves, &leave_a), (b_halves, &leave_b)] {
+            let named = leave.at.map(|(h, _)| h);
+            if !(named.contains(&halves.0) && named.contains(&halves.1)) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a segment's curve halves are not its matched germs' own",
+                });
+            }
+        }
         let (curve_a, curve_b) = match lane {
             None => (
                 sa.curve(&mut red.a, a_halves, JoinLane::AlongEdge, seg_a, leave_a)?,
@@ -2467,6 +2480,7 @@ mod self_check_rows {
                         (h1, Vec3::new(1.0, 0.0, 0.0)),
                         (h2, Vec3::new(-1.0, 0.0, 0.0)),
                     ],
+                    datum: crate::chord_join::Datum::Germ,
                 },
             )
             .expect("a planar face's chord is straight");

@@ -265,7 +265,8 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// a typed frontier. The ball is also exactly TANGENT to the top
 /// face's carrier (`z = 1`), which the extent scan refused when the
 /// sweep did not see the poles. (Nudge the ball off both coincidences
-/// and the S13 lanes cut it — the pips suite.)
+/// and the S13 lanes cut it — the pips suite.) The row pins that door,
+/// not an arc: the role read stops the op whichever arc a chord takes.
 #[test]
 fn the_die_pips_shape_stops_typed_at_its_section_roles() {
     let slab = validated(vec![profile::ProfileLoop::polygon([

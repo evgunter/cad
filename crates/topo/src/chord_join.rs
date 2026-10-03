@@ -77,9 +77,11 @@
 //! it, and hands it over as the section's direction of departure at
 //! each end ([`Leave`]) — the boolean's germ direction, the split's
 //! conic walk. The chord only orients the arc along it
-//! (`chord_arc_leave`), so a chord reads no chart and every conic the
-//! table mints, on any carrier and at any tilt, takes its arc the same
-//! way.
+//! (`chord_arc_leave_germ`, `chord_arc_leave_section`), so a chord reads
+//! no chart: every conic that reaches it takes its arc the same way.
+//! What reaches it is bounded upstream, not here: the boolean's planar
+//! side wires a cylinder or a sphere partner, and the split's reduce
+//! refuses a sphere.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
@@ -940,24 +942,53 @@ fn oriented_arc<T: Real>(
 /// pairing saw rather than deriving it again.
 ///
 /// The boolean hands each matched half's germ direction
-/// ([`crate::boolean::HalfGerm::dir`]); the split hands `±(n_plane × n_out)`,
-/// the way its conic walk enters the face at a down crossing and leaves
-/// it at an up one (`splitting::join`'s `split_leave`). Either is
-/// tangent to the section at the site, of any positive length.
+/// ([`crate::boolean::HalfGerm::dir`], [`Datum::Germ`]); the split hands
+/// `±(n_plane × n_out)`, the way its conic walk enters the face at a
+/// down crossing and leaves it at an up one (`splitting::join`'s
+/// `split_leave`, [`Datum::Section`]). Either is tangent to the section
+/// at the site, of any positive length.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Leave<T: Real> {
     /// Each matched half and the direction at its site.
     pub(crate) at: [(HalfEdgeKey, Vec3<T>); 2],
+    /// Which quantity the directions are.
+    pub(crate) datum: Datum,
+}
+
+/// What a [`Leave`]'s directions measure, and so how the chord decides
+/// along them: two quantities, each under its own name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Datum {
+    /// A boolean germ's unit direction: its component along the
+    /// section's unit tangent is the cosine between them.
+    Germ,
+    /// The split's `±(n_plane × n_out)`: its component along the unit
+    /// tangent is the sine between the plane and the wall times that
+    /// cosine — the quantity, on the lever, its conic walk's
+    /// `split_join_conic_heading` decides.
+    Section,
+}
+
+/// One end's departure, as a chord reads it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Departure<T: Real> {
+    /// The section's direction at the chord's start.
+    pub(crate) dir: Vec3<T>,
+    /// What `dir` measures.
+    pub(crate) datum: Datum,
 }
 
 impl<T: Real> Leave<T> {
-    /// The direction at the site of matched half `he`; a half that is
+    /// The departure at the site of matched half `he`; a half that is
     /// neither is the caller's broken invariant.
-    fn from(&self, he: HalfEdgeKey, face: FaceKey) -> Result<Vec3<T>, SplitJoinError> {
+    fn from(&self, he: HalfEdgeKey, face: FaceKey) -> Result<Departure<T>, SplitJoinError> {
         self.at
             .iter()
             .find(|(h, _)| *h == he)
-            .map(|&(_, d)| d)
+            .map(|&(_, dir)| Departure {
+                dir,
+                datum: self.datum,
+            })
             .ok_or(SplitJoinError::SectionInvariant {
                 face,
                 what: "a chord starts at neither of the halves its departure datum names",
@@ -967,9 +998,13 @@ impl<T: Real> Leave<T> {
 
 /// Whether the chord `p1 → p2` takes the conic's ccw candidate: the one
 /// whose tangent at `p1` agrees with `leave`, the section's direction of
-/// departure there ([`Leave`]). Decided as `leave · Ĉ′(θ₁)` levered by
-/// the semi-major axis (`chord_arc_leave`); a datum with no component
-/// along the section is malformed and refuses.
+/// departure there ([`Leave`]). Decided as `leave · Ĉ′(θ₁)`, per datum:
+/// a germ's cosine levered by the semi-major axis
+/// (`chord_arc_leave_germ`); the split's sine on the wall's
+/// [`geom_brep::curvature_lever_arm`] at `p1`
+/// (`chord_arc_leave_section`), the lever its conic walk decides the
+/// same sine on, so the two cannot disagree outside the band. A datum
+/// with no component along the section is malformed and refuses.
 ///
 /// # Errors
 ///
@@ -979,17 +1014,20 @@ fn arc_leaving<T: Decide>(
     face: FaceKey,
     band: Band,
     conic: &SectionConic<T>,
+    wall: &geom::Surface<T>,
     p1: Point3<T>,
-    leave: Vec3<T>,
+    leave: Departure<T>,
 ) -> Result<bool, SplitJoinError> {
     let tangent = conic.tangent(conic.param(p1));
-    match decide(
-        "chord_arc_leave",
-        Margin::levered(leave.dot(tangent) / tangent.norm(), conic.sa),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
+    let along = leave.dir.dot(tangent) / tangent.norm();
+    let (name, margin) = match leave.datum {
+        Datum::Germ => ("chord_arc_leave_germ", Margin::levered(along, conic.sa)),
+        Datum::Section => (
+            "chord_arc_leave_section",
+            Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
+        ),
+    };
+    match decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })? {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
         Sign::Zero => Err(SplitJoinError::SectionInvariant {
@@ -1029,7 +1067,7 @@ fn chord_spec<T: Decide>(
     face: FaceKey,
     u1: VertexKey,
     u2: VertexKey,
-    leave: Vec3<T>,
+    leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     // Self-loop chords keep the scaffolding-circle convention.
     if u1 == u2 {
@@ -1068,7 +1106,7 @@ fn chord_spec<T: Decide>(
                    only planar faces)",
         });
     };
-    let Some(WallSection { case, .. }) =
+    let Some(WallSection { wall, case }) =
         wall_section(body, band, ctx.origin, ctx.normal, face, u1)?
     else {
         return Err(SplitJoinError::SectionInvariant {
@@ -1146,7 +1184,7 @@ fn chord_spec<T: Decide>(
     };
     let p1 = vertex_point(body, u1)?;
     let p2 = vertex_point(body, u2)?;
-    let ccw = arc_leaving(face, band, &conic, p1, leave)?;
+    let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
     let (carrier, t_start, t_end) =
         oriented_arc(&conic, face, conic.param(p1), conic.param(p2), ccw)?;
     // The aux plane surface (honest u_ref: the section's major
@@ -1295,7 +1333,7 @@ fn bool_planar_chord_spec<T: Decide>(
     partner_key: &mut Option<SurfaceKey>,
     u1: VertexKey,
     u2: VertexKey,
-    leave: Vec3<T>,
+    leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     if !matches!(
         wall,
@@ -1346,7 +1384,7 @@ fn bool_planar_chord_spec<T: Decide>(
     };
     let p1 = vertex_point(body, u1)?;
     let p2 = vertex_point(body, u2)?;
-    let ccw = arc_leaving(face, band, &conic, p1, leave)?;
+    let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let (carrier, t_start, t_end) =
         oriented_arc(&conic, face, conic.param(p1), conic.param(p2), ccw)?;
     // The aux WALL surface in this body (honest full copy of the
@@ -3190,6 +3228,10 @@ mod tests {
     /// `chord_spec` on the fixture's chord, θ = 0 to θ = π/2, with the
     /// section leaving θ = 0 along `leave`.
     fn spec_leaving(leave: Vec3<f64>) -> Result<Option<EdgeCurveSpec<f64>>, SplitJoinError> {
+        let leave = super::Departure {
+            dir: leave,
+            datum: super::Datum::Section,
+        };
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
         chord_spec(
@@ -3247,9 +3289,10 @@ mod tests {
 
     /// **A datum with no component along the section refuses**, typed,
     /// and one whose component is in the band escalates naming
-    /// `chord_arc_leave`: the section's normal (the plane's own, which
-    /// no section tangent has a component along), and the tangent
-    /// scaled to put the levered margin `leave·Ĉ′ × a` at 5e-9.
+    /// `chord_arc_leave_section`: the section's normal (the plane's own,
+    /// which no section tangent has a component along), and the tangent
+    /// scaled to put the levered margin `leave·Ĉ′ × r` at 5e-9 (the unit
+    /// cylinder's radius, the lever the split's walk reads).
     #[test]
     fn a_datum_off_the_section_refuses() {
         let phi = 0.5f64;
@@ -3259,11 +3302,11 @@ mod tests {
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"
         );
-        let err = spec_leaving(n + Vec3::unit_y() * (5e-9 * phi.cos())).unwrap_err();
+        let err = spec_leaving(n + Vec3::unit_y() * 5e-9).unwrap_err();
         let SplitJoinError::Escalated { diag, .. } = err else {
             panic!("expected an escalation, got {err:?}");
         };
-        assert_eq!(diag.predicate, Some("chord_arc_leave"));
+        assert_eq!(diag.predicate, Some("chord_arc_leave_section"));
     }
 
     #[test]
@@ -3294,12 +3337,19 @@ mod tests {
         assert!(!msg.contains("declare"), "{msg}");
     }
 
-    /// **The anti-re-fork row for the arc a chord takes.** Its one
-    /// rung, `chord_arc_leave`, is decided in exactly ONE place in this
-    /// crate — counted, not merely located: for most of this module's
-    /// life `chord_spec` and `bool_planar_chord_spec` sat 500 lines
-    /// apart carrying line-identical copies of their arc selection, and
-    /// a cross-file guard would have been green throughout.
+    /// **The anti-re-fork row for the arc a chord takes.** Its rungs —
+    /// `chord_arc_leave_germ` and `chord_arc_leave_section`, one per
+    /// datum, in this file — and the split's own walk heading,
+    /// `split_join_conic_heading` in `splitting/join.rs`, are each
+    /// decided in exactly ONE place in this crate, counted, not merely
+    /// located: for most of this module's life `chord_spec` and
+    /// `bool_planar_chord_spec` sat 500 lines apart carrying
+    /// line-identical copies of their arc selection, and a cross-file
+    /// guard would have been green throughout.
+    ///
+    /// On the split the walk and the chord read one sine on one lever
+    /// ([`arc_leaving`]): that is the one duplicate this row admits, and
+    /// it names both halves so a third cannot join them unseen.
     ///
     /// **What it cannot match** — three shapes:
     ///
@@ -3315,27 +3365,47 @@ mod tests {
     ///    foreign crate would have to call `geom_core`'s directly.
     #[test]
     fn the_chord_arc_rung_is_decided_in_one_place() {
+        let files = crate::source_walk::crate_sources();
         // Assembled rather than spelled, so this file is subject to the
         // count like any other.
-        let rung = format!("\"chord_{}\"", "arc_leave");
-        let home = crate::source_walk::src_root().join("chord_join.rs");
-        let files = crate::source_walk::crate_sources();
-        assert!(files.contains(&home), "the walk did not find chord_join.rs");
-        let mut sites = 0;
-        for path in &files {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
-            // DECIDE sites, counted on a whitespace-stripped copy so a
-            // call broken across lines counts the same as an inline one.
-            let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-            sites += stripped.matches(&format!("decide({rung}")).count();
+        for (rung, home) in [
+            (format!("\"chord_{}_germ\"", "arc_leave"), "chord_join.rs"),
+            (
+                format!("\"chord_{}_section\"", "arc_leave"),
+                "chord_join.rs",
+            ),
+            (
+                format!("\"split_join_{}\"", "conic_heading"),
+                "splitting/join.rs",
+            ),
+        ] {
+            let home = crate::source_walk::src_root().join(home);
             assert!(
-                path == &home || !text.contains(rung.as_str()),
-                "{} names {rung}: the chord's arc has been re-forked out of chord_join.rs, \
-                 which must hold the only one. Call `arc_leaving` instead.",
-                path.display()
+                files.contains(&home),
+                "the walk did not find {}",
+                home.display()
             );
+            let mut sites = 0;
+            for path in &files {
+                let text = std::fs::read_to_string(path).expect("a readable source file");
+                // DECIDE sites, counted on a whitespace-stripped copy so
+                // a call broken across lines counts the same as an
+                // inline one.
+                let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                sites += stripped.matches(&format!("decide({rung}")).count();
+                // A rung chosen from a `match` and decided under a bound
+                // name still counts: its literal lives in its home.
+                sites += stripped.matches(&format!("=>({rung},")).count();
+                assert!(
+                    path == &home || !text.contains(rung.as_str()),
+                    "{} names {rung}: the chord's arc has been re-forked out of {}, which \
+                     must hold the only one. Call `arc_leaving` instead.",
+                    path.display(),
+                    home.display()
+                );
+            }
+            assert_eq!(sites, 1, "{rung} is decided at {sites} site(s)");
         }
-        assert_eq!(sites, 1, "{rung} is decided at {sites} site(s)");
     }
 }
 

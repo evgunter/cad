@@ -405,9 +405,9 @@ mod tests {
 
     /// **A head spun about the shared axis builds.** Spun 0.9 rad, the
     /// head's seam leaves the bottom ball's plane, and the level section
-    /// passes through the head's face as a ring; its chords take their
-    /// arcs from the face's window. Every op passes tier 3 and meets the
-    /// coaxial closed form, which the spin does not move.
+    /// passes through the head's face as a ring; its chords take the
+    /// arcs their paired germs leave along. Every op passes tier 3 and
+    /// meets the coaxial closed form, which the spin does not move.
     #[test]
     fn a_head_spun_about_the_axis_builds_to_its_closed_form() {
         let tol = Tol::witness();

@@ -526,12 +526,13 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     assert_eq!(rows(&below), rows(&below2));
 }
 
-/// Seam-placement independence of the window computation (S9): the
-/// belly cut, rotated about the cylinder axis by 0.7 rad. The chart's
-/// `u_ref` does NOT rotate with it, so the run's azimuth window, the
-/// chord endpoints and the section arcs all land on a different part of
-/// the chart — including across the chart seam. The window rule
-/// compares only differences of azimuths, so the answer must not care:
+/// Seam-placement independence of the chord's arc (S9): the belly cut,
+/// rotated about the cylinder axis by 0.7 rad. The chart's `u_ref` does
+/// NOT rotate with it, so the chord endpoints and the section arcs all
+/// land on a different part of the chart — including across the chart
+/// seam. Each chord takes the arc leaving its start along the split's
+/// datum `±(n_plane × n_out)`, which reads no chart, so the answer must
+/// not care:
 /// both sides split, every arc stays on the wall, and the section's
 /// TOTAL sweep is the rotation-invariant it must be (the individual
 /// arcs differ because the profile seams cut the section elsewhere).
@@ -574,7 +575,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 /// belly cut — PR 6's pcurve mint pass ACCEPTED those bodies (the
 /// wrong-arc loops still closed on the chart). So this configuration
 /// was shipping a wrong body silently, with nothing in the kernel able
-/// to see it. The window rule selects 0.387386 rad here, on the wall;
+/// to see it. The chord now takes 0.387386 rad here, on the wall;
 /// the extent assertions below are what makes that visible.
 ///
 /// ---- The merge-base measurement, as a history note (probe F2) ----
@@ -667,11 +668,10 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// arc-side selector: that rule reduced azimuth differences taken *at*
 /// the coincident-copy chord endpoints, whose enclosures straddle a
 /// period boundary, and `reduce_periodic`'s containment-honest floor
-/// widened them to a full period. The window rule reduces against the
-/// window's CENTRE instead — half a window away from the boundary by
-/// construction — so the enclosures stay narrow and the interval lane
-/// now splits the belly document two-sided, with every section arc on
-/// the finite wall.
+/// widened them to a full period. The chord now reads no azimuth
+/// difference to choose its arc — it takes the one leaving its start
+/// along the split's datum — so the interval lane splits the belly
+/// document two-sided, with every section arc on the finite wall.
 #[test]
 fn even_crossing_belly_cut_at_interval() {
     use crate::common::interval::{iv, p2, p3};
