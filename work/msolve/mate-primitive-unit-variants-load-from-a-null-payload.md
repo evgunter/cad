@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-19
 priority: P0
 cost: E
+blocked_on: [a-face-frame-cannot-turn-its-roll]
 ---
 
 
@@ -30,3 +31,12 @@ docs should say a unit variant has two readings so a golden that
 spells `null` is not mistaken for a format drift. Not MSOLVE-7's: the
 unit's attribute changes what a field-bearing variant accepts, not
 how a unit one is spelled.
+
+## Waits on plan item 22 (2026-10-01)
+
+`[ev]` PR 3681 asks for the turn to go on the primitives:
+`FrameCoincidence { turn }` and `Coaxial { turn: Option }`, with
+`Clocking` deleted. Under that answer no unit variant of
+`MatePrimitive` remains, and this row dissolves. Under the fallback,
+which keeps the rider, the unit variants stay and this row is owed.
+
