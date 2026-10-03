@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 branch: cleave/carrier-crossings
+pr: 3924
 ---
 
 Filed by TANG's re-measurement of `work/tang/arc-aware-point-in-loop.md`
