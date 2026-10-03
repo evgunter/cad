@@ -16,7 +16,7 @@
 //!
 //! A mate's alignment frames are in each member's own part
 //! coordinates, and this tool authors each one AS THE PICKED FACE
-//! (`MateFrame::FromFace`), which names nothing: the side's frame is
+//! (`MateFrame::from_face`), which names nothing: the side's frame is
 //! its own head's face — the head's name with the walk's
 //! qualification stripped (`head_face`), the row of the part's own
 //! table the instance placed — so the solve resolves the frame from
@@ -37,9 +37,11 @@
 //! ([`pncad::document::member_of`]). A pick authors the reference the
 //! kernel's own walk takes: the name the ray resolved to, read at the
 //! node the ray MET — so a pick on a transformed instance says the
-//! transformed instance, and a pick on a pattern copy authors an
-//! `Instance(i)`-headed reference at the pattern. Everything the walk
-//! cannot stand a member on is
+//! transformed instance, a pick on a pattern copy authors an
+//! `Instance(i)`-headed reference at the pattern, and a pick on a
+//! union of placed instances authors the member's face, `FromMember`
+//! headed, at the union. Everything the walk cannot stand a member on
+//! is
 //! [`MateToolError::NotAnInstancePick`]. A copy's frame is read at
 //! its MASTER (the member walk takes off one `Instance(i)` per pattern
 //! level, `member_reading`):
@@ -150,11 +152,12 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
-/// the name's head, through transforms, `Part` instance selections
-/// and any number of pattern levels, ending on a live
-/// `InstantiatePart`. The walk refuses a fused body's node because a
-/// boolean is not a pass-through: it mints its own geometry and its
-/// own names, and no member stands on it.
+/// the name's head, through transforms, `Part` instance selections,
+/// any number of pattern levels and any number of unions (at the
+/// member the name says), ending on a live `InstantiatePart`. The walk
+/// refuses a pair boolean's node because a boolean is not a
+/// pass-through: it mints its own geometry and its own names, and no
+/// member stands on it.
 ///
 /// # Errors
 ///
@@ -215,11 +218,11 @@ pub enum MateToolError {
     /// The pick's reference is outside A11's member vocabulary, so
     /// there is no member to mate: the walk from the node the ray met
     /// down to the name's head runs through something that is not a
-    /// transform, a `Part` instance selection or a pattern level the
-    /// name qualifies, or ends on something that is not a live
+    /// transform, a `Part` instance selection, or a pattern level or
+    /// union the name qualifies, or ends on something that is not a live
     /// `InstantiatePart`
-    /// ([`pncad::document::member_of`]) — a fused body, a split
-    /// half.
+    /// ([`pncad::document::member_of`]) — a pair boolean's body, a
+    /// split half.
     NotAnInstancePick {
         /// Which pick.
         side: MateSide,
@@ -581,7 +584,7 @@ impl MateTool {
 
     /// Derive the committed edit from the two held picks and the
     /// user's choice: each pick's member, and its head's face as the
-    /// side's frame (`MateFrame::FromFace`), after the face's pose has
+    /// side's frame (`MateFrame::from_face`), after the face's pose has
     /// been read once through the shipped interrogation door as a
     /// pre-check that stores nothing.
     ///
@@ -657,7 +660,7 @@ impl MateTool {
                 let held = held_by(&error, doc);
                 MateToolError::Frame { side, error, held }
             })?;
-            Ok(MateFrame::FromFace)
+            Ok(MateFrame::from_face())
         };
         let frame_a = frame_of(MateSide::A, &member_a, &placed_a)?;
         let frame_b = frame_of(MateSide::B, &member_b, &placed_b)?;

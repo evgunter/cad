@@ -264,6 +264,7 @@
 use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
@@ -1244,24 +1245,20 @@ pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both fa
 /// `Display`.
 pub(crate) const CURVE_RECORD_WITNESS: &str = "along the declared edge";
 
-/// A nonnegative gap margin as a trilean coincidence verdict:
-/// `Some(true)` coincident, `Some(false)` apart, `None` escalated
-/// (already pushed).
+/// A gap margin as a trilean coincidence verdict: `Some(true)`
+/// coincident, `Some(false)` apart, `None` escalated (already pushed).
+/// Every caller's gap is nonnegative by construction (a norm, an `abs`
+/// over a norm, a norm levered by a chord length), the magnitude door's
+/// precondition.
 fn gap_is_zero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    match decide(name, margin, band) {
-        Ok(Sign::Zero) => Some(true),
-        Ok(Sign::Positive) => Some(false),
-        Ok(Sign::Negative) => {
-            errors.push(ValidationError::CensusEscalated {
-                cause: crate::invalid_margin::invalid(band, name),
-            });
-            None
-        }
+    match geom_core::k_stats::decide_magnitude(name, margin, band) {
+        Ok(Magnitude::Zero) => Some(true),
+        Ok(Magnitude::Positive) => Some(false),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None

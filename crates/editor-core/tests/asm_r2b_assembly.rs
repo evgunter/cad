@@ -103,7 +103,8 @@ fn kiss_part(label: &str) -> ProfileDoc {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// A `Rest` mate declaring instance `a`'s TOP cap against instance
@@ -1659,7 +1660,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
             [MintRefusal::Reference { why, .. }] => {
-                assert_eq!(*why, editor_core::RefusedRef::Vanished);
+                assert_eq!(*why, editor_core::RefusedRef::Vanished { by: None });
             }
             rows => panic!("one mate refused, so one row: {rows:?}"),
         },

@@ -314,3 +314,96 @@ rounded plate) are main's, identical on both trees, absent at main
 `66bbdaa6b`; evidence on CONTACT's census row.
 
 Signed (JOIN orchestrator).
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — PR 3962 lands: edge-edge membership reads a dihedral wedge by its extent
+
+`edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex` closed.
+`recl::resolve_edge_edge` reads one half-space verdict per flanking
+plane; two alike settle it, split verdicts are inside iff the wedge is
+reflex (`wedge_is_reflex`, `bool_wedge_reflex`, PR 3900's levered-sine
+shape; a decided half-turn refuses `Coincide::Sectors`). 2 250 + 1 194
+reflex-wedge runs that refused `ClassificationInvariant` on main build
+sound; JOIN-1's batteries and `rc_wide` byte-identical.
+
+Review tier: single FULL, cloud session (the first dispatch was lost
+to a short SHA the session could not resolve; re-dispatched).
+APPROVE-WITH-FIXES, 0/1/4. The reviewer derived n̂₀·r̂₁ = −sin α by hand
+and ran 22 194 lines under identity, rigid and projective maps: 2 508
+`ClassificationInvariant` → SOUND, 0 SOUND→refusal, 0 BAD. The MINOR:
+two `review_m3_pr4` rows kept the old limitation's premise and could
+not go red; the fix pass pinned them to sound bodies and showed both
+mutants (the convex AND, the sign flip) and a pairing mutant redden
+rows. Filed: `levered-sign-as-bool-has-no-shared-home`,
+`undeclared-anti-parallel-touch-builds-a-scaffold-at-rest-in-one-op`
+(24 runs reach `ResultInvalid{ScaffoldAtRest}`: loud, not wrong).
+## 2026-10-03 — PR 3967 lands: the reflex corner a hair off flush passes its own census
+
+`a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0) closed, and with it HONE's claimed
+`point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`.
+Measured first: 15 of the 16 poses already built SOUND on main since
+CLEAVE's PR 3866 (the polygon walk abandons in-band ray readings). The
+sixteenth built the right body; tier 3′ escalated on `point_in_loop_arm`,
+a reading about one schedule member at a 1e-4 sliver face, not about
+the point. `walk_schedule` now abandons an in-band arm into
+`ray_parity::Abandoned` in both walks (`ArmBand` gone); the band is not
+widened. `docm2_part_interval`'s ε/16 rung now certifies (re-baselined).
+
+Review tier: single FULL, cloud session. APPROVE, 0/0/6. The reviewer
+proved the arm depends on q only through the extent, so an in-band arm
+on every member puts q within band of every vertex, which the boundary
+pre-pass answers first; 2 488 320 containment queries per lane against
+a signed-distance oracle: 0 wrong on head (f64 and Interval), 3 692
+`Esc(point_in_loop_arm)` → correct answers; 25 344 near-flush booleans
+byte-identical main vs head.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-03 — the intent-refactor hold applied (Ev, PR #3990)
+
+Five rows parked on `[3990]` per the hold notice above; the list and
+what stays startable are in `plan.md`. JOIN-2 and PR 3962 finish as
+started units. The held four-germ P0 is parked, not dispatched.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

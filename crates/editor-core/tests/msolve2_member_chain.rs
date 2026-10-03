@@ -81,8 +81,20 @@ fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> Node<ProfileProgra
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored(a_origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                a_origin,
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -312,13 +324,14 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
         .expect("a nested copy is a member");
     assert_eq!(member.instance, top, "the member stands on the instance");
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(outer, 1), (inner, 1)],
         "the copy chain is outermost first"
     );
     assert_eq!(
-        member.at, outer,
-        "the operand is the node the mate is read at"
+        member.chain.first().map(|p| p.node()),
+        Some(outer),
+        "the placing chain starts at the outermost placer"
     );
 
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -633,13 +646,14 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     let member = member_of(&doc, &crate::fixture::head_at(part, b.clone())).expect("a member");
     assert_eq!(member.instance, top);
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(pattern, 1)],
         "one level, through the Part"
     );
     assert_eq!(
-        member.at, part,
-        "the operand is the Part the mate is read at"
+        member.chain.len(),
+        1,
+        "the Part places nothing: the pattern's copy is the whole chain"
     );
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -658,13 +672,12 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
 
 /// **A3(b).** One copy, two OPERANDS: a mate read at the pattern
 /// under `Instance(1)` and a mate read at a `Part` selecting that
-/// same instance are two members over one body. They agree on
-/// `instance` and on the whole copy chain and differ at
-/// `Member::at`, which is enough to key them as two pairs — so the
-/// second closes a loop and declares rather than folding into the
-/// first.
+/// same instance are one placement spelled two ways, so one member:
+/// the `Part` places nothing, and both walks pass the same copy. The
+/// two mates key as ONE pair and fold, both determining, and the gate
+/// holds both.
 #[test]
-fn a3b_two_operands_over_one_copy_are_two_members() {
+fn a3b_two_operands_over_one_copy_are_one_member() {
     let s = scene("msolve2-a3b");
     let (base, top) = (s.base, s.top);
     let (base_body, top_body) = (s.base_body, s.top_body);
@@ -699,16 +712,22 @@ fn a3b_two_operands_over_one_copy_are_two_members() {
         member_of(&doc, &at_pattern).expect("a member at the pattern"),
         member_of(&doc, &at_part).expect("a member at the Part"),
     );
-    assert_eq!(
-        (mp.instance, &mp.copy),
-        (mq.instance, &mq.copy),
-        "one instance, one copy chain — the same body"
+    assert_eq!(mp, mq, "one instance, one placing chain — one member");
+    let poses = solve(&doc, &s.opts, Tol::witness());
+    for m in [m1, m2] {
+        assert!(poses.fault(m).is_none(), "A3(b): {:?}", poses.fault(m));
+        assert_eq!(
+            poses.role(m),
+            Some(MateRole::Determining),
+            "A3(b): both mates fold onto the one pair"
+        );
+    }
+    let ev = run(&doc, &s.opts);
+    assert!(
+        gate(&doc, &ev).is_ok(),
+        "A3(b): the gate holds both: {:?}",
+        gate(&doc, &ev).err()
     );
-    assert_ne!(mp.at, mq.at, "two operands: the members differ at `at`");
-    assert_ne!(mp, mq, "and are therefore two members");
-    // Both declare the same seat, so the pair is consistent: the loop
-    // closes and the gate holds it.
-    assert_loop_closes(&doc, &s.opts, m1, m2, true, "A3(b)");
 }
 
 /// **A3(c).** `Transform` over `Part { Instance(1) }` over a pattern,
@@ -749,11 +768,11 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
     let mate = mate.unwrap();
     let member = member_of(&doc, &crate::fixture::head_at(moved, b.clone())).expect("a member");
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(pattern, 1)],
         "the transform contributes no copy — only the pattern does"
     );
-    assert_eq!(member.at, moved);
+    assert_eq!(member.chain.first().map(|p| p.node()), Some(moved));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
@@ -848,10 +867,11 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
 /// **What the at-rest gate says for a mate read BELOW the outer
 /// pattern** — on a nested document. The SOLVE places such a mate;
 /// the gate refuses it, because the name's row is the `Part`'s own
-/// and the product lists only the outer pattern, whose rows are
-/// `Instance(i)`-qualified. The refusal is in the operand's voice:
-/// `ReadBelowARoot { at: part }`, naming the `Part` the mate reads
-/// at rather than calling the name vanished. Reading the same
+/// and the outer pattern places that body again before the product
+/// holds it. The refusal is in the operand's voice: `MovedAbove { at:
+/// part, by: outer }`, naming the `Part` the mate reads at and the
+/// pattern that moves it, rather than calling the name vanished.
+/// Reading the same
 /// document's mate AT the outer pattern (every other row here) holds,
 /// because there the name is a root's own row.
 #[test]
@@ -905,10 +925,18 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         panic!("expected one reference refusal, got {refusals:?}");
     };
     assert_eq!((*at, *side), (mate, MateSide::B));
-    // The gate names the operand the mate reads at, not a vanished
-    // name: the `Part`'s row is there, one level below the root. (The
-    // sentence is pinned in `display_contract`.)
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: part });
+    // The gate names the operand the mate reads at and the placer
+    // above it, not a vanished name: the `Part`'s row is there, one
+    // level below the root. (The sentence is pinned in
+    // `display_contract`.)
+    assert_eq!(
+        *why,
+        RefusedRef::MovedAbove {
+            at: part,
+            by: outer,
+            copies: true,
+        }
+    );
     // Read AT the outer pattern instead, the same document gathers
     // and the gate holds: the difference is whether the name is a
     // product ROOT's own row.
@@ -955,9 +983,12 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
     );
     let mate = mate.unwrap();
     let m = member_of(&doc, &r).expect("a member through both transforms");
-    assert_eq!((m.instance, m.at), (top, t_top));
     assert_eq!(
-        m.copy,
+        (m.instance, m.chain.first().map(|p| p.node())),
+        (top, Some(t_top))
+    );
+    assert_eq!(
+        m.copy(),
         vec![(p2, 2), (p1, 1)],
         "the transforms contribute no copy — only the patterns do"
     );
@@ -1014,7 +1045,7 @@ fn a1c_three_levels_deep_seat() {
     );
     let mate = mate.unwrap();
     let m = member_of(&doc, &r).expect("a member three levels down");
-    assert_eq!(m.copy, vec![(p3, 2), (p2, 1), (p1, 1)]);
+    assert_eq!(m.copy(), vec![(p3, 2), (p2, 1), (p1, 1)]);
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
@@ -1113,9 +1144,10 @@ fn a2d_a_rotating_outer_map_on_the_tree_edge_seats_and_closes() {
 /// **A4′(a) — a `Part` mismatch on a DECLARING mate refuses too.**
 ///
 /// Two `Part`s over one pattern: `m1` (at `part1`, selects 0, names 0)
-/// takes the tree edge and seats copy 0; `m2` (at `part2`, selects 2,
-/// NAMES 0) is a different member — a different operand — so its pair
-/// is not the tree edge and its offset is never derived.
+/// takes the tree edge and seats copy 0; `m2` (read at a transform
+/// over `part2`, selects 2, NAMES 0) is a different member — a
+/// different placement, the transform on its chain — so its pair is
+/// not the tree edge and its offset is never derived.
 ///
 /// While the check lived in the offset this document was SILENTLY
 /// GREEN: `m2` solved `Declaring` with no fault, the product gathered,
@@ -1135,6 +1167,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     // re-pointed at copy 2 below, which is how a `Part` comes to
     // disagree after insert.
     let (doc, part2) = insert(doc, part_of(pattern, 0));
+    let (doc, moved) = insert(doc, xform(part2, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 0.0));
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 0, in_part(top, top_body, CapEnd::Start));
     let (doc, m1) = step(
@@ -1152,12 +1185,17 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         DocEdit::InsertNode {
             node: Box::new(seat_at(
                 crate::fixture::head(a),
-                crate::fixture::head_at(part2, b.clone()),
+                crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
+    assert_ne!(
+        member_of(&doc, &crate::fixture::head_at(part1, b.clone())),
+        member_of(&doc, &crate::fixture::head_at(moved, b.clone())),
+        "the premise: two placements, two members"
+    );
     let (doc, _) = step(
         doc,
         DocEdit::SetStructuralParam {
@@ -1168,7 +1206,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     );
     // Both references are members: admission is structural and the
     // disagreement is about two numbers.
-    assert!(member_of(&doc, &crate::fixture::head_at(part2, b)).is_some());
+    assert!(member_of(&doc, &crate::fixture::head_at(moved, b)).is_some());
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(m1).is_none(),

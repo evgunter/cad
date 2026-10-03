@@ -461,22 +461,21 @@ impl<T: Decide> Body<T> {
     /// another loop, whose members the ring would take); the old loop's
     /// and then the ring's new anchor holds: a non-empty side's first
     /// member lies in its loop, and an empty side leaves its loop no
-    /// member but `he1`, `he2` (and, for the old loop, the ring side) and
-    /// the only loop `Empty` at its vertex (`LoopCycleBroken` naming the
-    /// loop — a torn `next` can put that first member in another loop,
-    /// or empty the side of a loop that keeps members outside the walk);
-    /// the two empty
-    /// components (if both sides are empty) anchor at
-    /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]); no
+    /// member but `he1`, `he2` (and, for the old loop, the ring side)
+    /// (`LoopCycleBroken` naming the loop — a torn `next` can put that
+    /// first member in another loop, or empty the side of a loop that
+    /// keeps members outside the walk), and is then the only loop
+    /// `Empty` at its vertex ([`EulerOpError::EmptyAnchorsCollide`]);
+    /// the two empty components (if both sides are empty) anchor at
+    /// distinct vertices (`EmptyAnchorsCollide`); no
     /// half-edge but `he1` and `he2` names the edge
     /// ([`EulerOpError::UnclaimedHalfEdge`] naming the first in arena
     /// order — tier-1-invalid input the kill would leave naming a dead
     /// edge); nothing the kill keeps names `he1` or `he2`: no `next` or
-    /// `prev` as the splices leave it, and no loop's `first` but the old
-    /// loop's (`LoopCycleBroken` naming the half-edge's loop, or the
-    /// loop), then no vertex's `emanating` but the endpoints' and no
-    /// other edge's slot ([`EulerOpError::KillLeavesDangling`]), each
-    /// first in arena order.
+    /// `prev` as the splices leave it, no loop's `first` but the old
+    /// loop's, no vertex's `emanating` but the endpoints' and no other
+    /// edge's slot ([`EulerOpError::KillLeavesDangling`] from the first
+    /// record, in that order and in arena order within each).
     ///
     /// # Errors
     ///

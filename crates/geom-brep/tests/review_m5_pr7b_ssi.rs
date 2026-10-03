@@ -128,24 +128,17 @@ fn section_curvature_zero() -> f64 {
 
 #[test]
 fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
-    // Reproduce the reported ~3.8e-9 m fit-pair deviation with NO ring
-    // code in the loop: two independently fitted objects (carrier,
-    // pcurve∘surface) evaluated directly, 200k samples. If the number
-    // were an artifact of the composite or the certificate, this scan
-    // could not see it.
+    // Reproduce the fit-pair deviation with NO ring code in the loop:
+    // two independently fitted objects (carrier, pcurve∘surface)
+    // evaluated directly, 200k samples. If the number were an artifact
+    // of the composite or the certificate, this scan could not see it.
     //
     // This row is about the MARCH ε, which it hands to `trace_deviation`
-    // explicitly (1e-9 below) — the ambient band is not an input to it.
-    // It used to carry an `at_default_eps()` guard on the theory that
-    // the `[3.0e-9, 4.5e-9]` window was a default-band magnitude, and
-    // that guard suppressed the whole measurement on two of three rows.
-    //
-    // MEASURED (2026-08-13 audit) rather than assumed: the deviation is
-    // 3.805e-9 m at u = 0.4873 on ALL THREE ambient bands, bit for bit,
-    // in under a second each — and 3.805e-9 is also what `deviation2b`
-    // reports for the same wall at the same march ε. The ambient band
-    // never reached this march at all, so the guard was pure loss. It is
-    // gone; the row now asserts on every ε row.
+    // explicitly (1e-9 below) — the ambient band is not an input to it,
+    // so it asserts on every ε row. Measured: 4.503e-9 m at u = 0.4868
+    // on all three ambient bands, bit for bit. The window is ±7% of it:
+    // step rungs read on the ℝ⁴ state curve rather than the carrier
+    // sample this wall more densely and read 3.805e-9 m, outside it.
     //
     // The budget refusal is handled where it can actually happen rather
     // than pre-empted by a guard: if a future ambient band ever does
@@ -165,8 +158,8 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     };
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
     assert!(
-        (3.0e-9..=4.5e-9).contains(&max),
-        "reported ~3.8e-9 m not reproduced: {max:e}"
+        (4.2e-9..=4.8e-9).contains(&max),
+        "reported ~4.5e-9 m not reproduced: {max:e}"
     );
     // And it sits at the section's curvature-zero crossing, where the
     // step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.

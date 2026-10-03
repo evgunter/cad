@@ -1058,7 +1058,7 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
     # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a `from_face` side's head face answered no pose
+    # arm publishes: why a face-based side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
     # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
     # instance crosses as `MateFault.instance`, the face as
@@ -1068,12 +1068,11 @@ BOUND_AS = {
     # alone; the solve wraps it into `FaceRefusal` with the instance
     # and the face, which is the shape Python reads.
     "FacePoseRefusal": "MateFault.inner_variant",
-    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or the
-    # side's head face resolved at the solve. `MateFrame` is one Python
-    # class whose `variant` says which (`authored`, `from_face`); the
-    # authored vectors are its `origin`/`axis`/`reference`, so the
-    # inner struct is not a class of its own.
-    "AuthoredFrame": "MateFrame.variant",
+    # WHAT A MATE FRAME'S OFFSET IS WRITTEN IN: the part frame, or the
+    # side's head face resolved at the solve. `MateFrame.base` says
+    # which (`part`, `face`), so the two-arm enum is not a class of
+    # its own.
+    "FrameBase": "MateFrame.base",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -2739,6 +2738,8 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # One placing node on a `Member`'s chain: interior with it.
+    "Placing": INTERIOR,
     # The one thing `Frame::rotate_then_translate` refuses, and the
     # only thing `EditError::PlacementAxis` converts from — a type so
     # that no other node refusal can reach a caller wearing the axis's
@@ -2761,6 +2762,10 @@ NOT_BOUND = {
     # failure's tag word and prose, the checks refusal as
     # `product_unavailable` and the refusal's prose.
     "ProductRefusal": INTERIOR,
+    # What `ProductError::PlacedUnderTwoRoots` places twice — the input
+    # its recourse branches on. The sentence a Python caller reads
+    # already says which recourse; the kind behind it is interior.
+    "PlacedTwice": INTERIOR,
     # The one generic both wrappers above are spellings of; Python holds
     # neither, so it holds no instance of this either.
     "Refusal": INTERIOR,
@@ -3620,10 +3625,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
     "MateFault::SelfMate": "MateFault.variant",
     "MateFault::FaceUnresolved": "MateFault.variant",
-    # A mate frame's two arms cross as `MateFrame.variant`
-    # (`authored`, `from_face`); the constructor `MateFrame(...)` is
-    # the authored arm and `MateFrame.from_face()` the other.
-    "MateFrame::Authored": "MateFrame.variant",
+    "MateFault::FrameUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",
@@ -3704,7 +3706,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
     "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
