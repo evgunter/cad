@@ -16,13 +16,10 @@ When the edge is retired, it gets one rung keyed on the carrier:
 - a NURBS edge: the existing rational Bernstein composite (`geom_core::spline::compose`);
 - a spiric edge: a transfer to the conic section of its cap plane, using the existing conic×torus lanes.
 
-**Terms.**
-- *Carrier*: an edge's underlying curve.
-- *Spiric*: a torus cut by a plane parallel to its axis. The offset-axial door mints it as a hollowed partial
-  revolve's rim.
-- *Crossing layer*: the sweep that finds where an operand edge meets the other operand's faces.
-- *Rung*: one certified case of the crossing layer.
-- *Analytic face*: plane, cylinder, cone, sphere or torus.
+**Terms.** *Carrier*: an edge's underlying curve. *Spiric*: a torus cut by a plane parallel to its axis (the
+offset-axial door mints one as a hollowed partial revolve's rim). *Crossing layer*: the sweep that finds where an
+operand edge meets the other operand's faces; a *rung* is one certified case of it. *Analytic face*: plane, cylinder,
+cone, sphere or torus.
 
 ### Premise check (sure, measured)
 
@@ -87,10 +84,8 @@ When the edge is retired, it gets one rung keyed on the carrier:
 
 ### Options weighed
 
-- **A. Edge rung as a line item of its first consumer's row; planar-lane fix now (recommended).**
-  - Nothing is built without a caller.
-  - The silent arm is closed first.
-  - Reversible.
+- **A. Edge rung as a line item of its first consumer's row; planar-lane fix now (recommended).** Nothing is built
+  without a caller, the silent arm is closed first, and it is reversible.
 - **B. Standalone edge lane now.**
   - It is unit-testable on hand-built bodies.
   - But no end-to-end consumer exists: measured in both populations above. That is the dead-code pattern (frontier
@@ -103,11 +98,9 @@ When the edge is retired, it gets one rung keyed on the carrier:
   - The split could narrow its gate because its only other operand is a plane, and its insertion site re-checks
     clearance. Neither holds here.
   - Not recommended.
-- **D. Per-carrier `|C′|,|C″|,|C‴|` bounds with a sampled residual enclosure.** This was my first draft.
-  - It works, but it re-derives per carrier what the composite carries exactly.
-  - It lacks a cone arm, which the composite has.
-  - For the spiric it is weaker than the exact section transfer.
-  - Not recommended.
+- **D. Per-carrier `|C′|,|C″|,|C‴|` bounds with a sampled residual enclosure** (my first draft). It works, but it
+  re-derives per carrier what the composite carries exactly, lacks a cone arm, and for the spiric is weaker than the
+  exact section transfer. Not recommended.
 
 **Ratified text:** nothing to change. The edge gate lives only in code docs. C12.1 decides the shape. DESIGN's "every
 boolean output is a legal operand" is the reason (d) is ordered after the retirement.
