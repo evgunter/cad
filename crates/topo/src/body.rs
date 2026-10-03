@@ -1469,10 +1469,12 @@ impl<T: Real> Body<T> {
     /// [`Body::vertex_orbit`] from that half-edge, once the half-edge is
     /// proven to start at `vertex`. `Some(empty)` for a vertex with no
     /// emanating half-edge; `None` on a stale vertex, an `emanating` that
-    /// does not resolve or starts at another vertex, or a walk
-    /// [`Body::vertex_orbit`] refuses. Every vertex-keyed orbit read
-    /// starts here, so none answers for a walk another vertex's
-    /// `emanating` lends it.
+    /// does not resolve or starts at another vertex, a walk
+    /// [`Body::vertex_orbit`] refuses, or a walk a member's inverse step
+    /// `mate(prev(·))` does not walk back ([`Body::orbit_inverts`]).
+    /// Every vertex-keyed orbit read starts here, so none answers for a
+    /// walk another vertex's `emanating` lends it, or with part of an
+    /// orbit a torn `next` split or closed past some of its members.
     pub(crate) fn vertex_orbit_of(&self, vertex: VertexKey) -> Option<Vec<HalfEdgeKey>> {
         let Some(first) = self.get_vertex(vertex)?.emanating else {
             return Some(Vec::new());
@@ -1481,6 +1483,7 @@ impl<T: Real> Body<T> {
             return None;
         }
         self.vertex_orbit(first)
+            .filter(|orbit| self.orbit_inverts(orbit))
     }
 
     /// The edges meeting `vertex`, each ONCE — or `None` where the
@@ -1572,6 +1575,21 @@ impl<T: Real> Body<T> {
         self.bounded_walk(first, |body, he| {
             let next = body.orbit_step(he)?;
             (body.half_edges.get(next)?.start == origin).then_some(next)
+        })
+    }
+
+    /// Whether a `Closed` orbit walk is closed to every other walk: each
+    /// member's inverse step `mate(prev(·))` is the member before it.
+    /// The walk's own steps cannot show this: a torn `next` that splits
+    /// the orbit, or closes the walk past some of its members, leaves a
+    /// member reached by a step its `prev` does not invert. O(valence).
+    pub(crate) fn orbit_inverts(&self, orbit: &[HalfEdgeKey]) -> bool {
+        let before = orbit.iter().cycle().skip(orbit.len().saturating_sub(1));
+        orbit.iter().zip(before).all(|(&member, &before)| {
+            self.half_edges
+                .get(member)
+                .and_then(|data| self.mate(data.prev))
+                == Some(before)
         })
     }
 
