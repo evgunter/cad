@@ -420,8 +420,8 @@ fn four_crossings_at_one_corner_build_in_every_op() {
     );
 }
 
-/// **Two pinches crossing on one line refuse their union typed, and
-/// build the rest.** Four bricks in the four quadrants about the
+/// **Two pinches crossing on one line refuse their union as
+/// non-manifold, and build the rest.** Four bricks in the four quadrants about the
 /// z-axis, paired into two pinches that overlap over z ∈ (1, 1.5). The
 /// union is a pinch below the overlap and another above it. Below, the
 /// two coincident pinch edges each pair one brick's two faces, which
@@ -429,8 +429,9 @@ fn four_crossings_at_one_corner_build_in_every_op() {
 /// corners; at (0,0,1) each empty corner is bounded by one face of each
 /// brick, so the two edges' ends there lie in one vertex orbit, which
 /// passes the pinch line twice. That shared-entity wedge fan is
-/// unrepresentable under tier 3′, and the reduction refuses it where
-/// two crossing pairs share both their vertices. Red if that case
+/// unrepresentable under tier 3′, and the reduction refuses it
+/// `NonManifoldResult` where two crossing pairs share both their
+/// vertices, naming A's vertex at (0,0,1) and two of B's. Red if that case
 /// reaches the finish: the zip fuses a vertex onto an edge's other end
 /// and refuses `Euler(SelfLoopEdge)`. The pinches' interiors are
 /// disjoint, so each difference is its minuend at volume 2 and passes
@@ -450,21 +451,19 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         decls.carried_b.vv.clone_from(cb);
         // At (0,0,1) the lower pinch's two vertices are its split edges'
         // and the upper pinch's are its corners; every pair crosses.
-        // Both operands' vertices are shared, and the refusal names A's
-        // and the two B vertices it crosses into.
+        // The refusal names A's vertex there and the two B vertices it
+        // crosses into.
         let (a_at, b_at) = (
             keys_at(&a.body, (0.0, 0.0, 1.0)),
             keys_at(&b.body, (0.0, 0.0, 1.0)),
         );
         match union_with(&a.body, &b.body, &decls, tol) {
-            Err(BooleanError::SharedVertexCrossings {
-                operand,
-                vertex,
-                partners: [p0, p1],
+            Err(BooleanError::NonManifoldResult {
+                a_vertex: vertex,
+                b_vertices: [p0, p1],
             }) => {
                 let mut partners = vec![p0, p1];
                 partners.sort();
-                assert_eq!(operand, topo::Operand::A, "{name} ∪: the refusal names A");
                 assert_ne!(p0, p1, "{name} ∪: two distinct partners");
                 if b_at.is_empty() {
                     assert!(a_at.contains(&vertex), "{name} ∪: A's corner at (0,0,1)");
@@ -473,7 +472,7 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
                 }
             }
             other => panic!(
-                "{name} ∪: want SharedVertexCrossings, got {:?}",
+                "{name} ∪: want NonManifoldResult, got {:?}",
                 other.map(|_| ())
             ),
         }

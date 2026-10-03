@@ -67,11 +67,15 @@ holds unrepresentable and a typed error (`docs/DESIGN.md`,
 "Representability boundary", ~352–358). The stretch above the
 overlap is the mirror case at (0,0,1.5).
 
-So the refusal is the contract's answer for the union, and no zip arm
+So refusing is the contract's answer for the union, and no zip arm
 is owed. Its subtract (volume 2, passing 3′) and empty intersect are
 pinned beside it. The end-to-end variant (overlap a single point)
 builds in every op and passes 3′, with four vertices at (0,0,1):
-`two_pinches_meeting_end_to_end_build_in_every_op`. What is left is
-to decide whether the refusal should name the case it now is, an
-unrepresentable result, rather than "no way through this in the
-kernel yet".
+`two_pinches_meeting_end_to_end_build_in_every_op`.
+
+The refusal is now permanent and named: the both-shared arm of
+`insert::reconcile_shared` refuses `BooleanError::NonManifoldResult`
+(pncad-py tag `non_manifold_result`, no offer), naming A's vertex at
+the point and two of B's, with the recourse to keep the pinch lines
+from overlapping along a length. Every other `SharedVertexCrossings`
+arm keeps its kind.
