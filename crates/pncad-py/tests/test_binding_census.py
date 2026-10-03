@@ -2813,6 +2813,13 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
+    # turn or more lands every copy on the master or names an angle
+    # within the turn. Carried in Rust so a consumer matching that
+    # variant can name the field's type; interior here because Python
+    # never holds one. The refusal crosses as `full_range_step` plus
+    # its sentence, which names the angle.
+    "StepTurns": INTERIOR,
     # `BooleanError::CoincidentShell`'s orientation: why the settled
     # coincidence pairs did not certify a shell lying on the other
     # operand. Carried in Rust so a consumer matching that variant can
