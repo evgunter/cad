@@ -611,14 +611,19 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
 }
 
 /// **The insert door and `SetDeclare` refuse a declared pair whose
-/// NAME's node or whose SITE is not live** — the two halves of the
-/// payload, each checked by the door that owns it
-/// (`Node::payload_names`, `Node::payload_read_sites`), and asked
-/// alike of a new union and of a live one whose list is replaced.
+/// NAME's node or whose SITE is not live, whose site is not one of the
+/// node's operands, or whose name is minted at or after the node** —
+/// the two halves of the payload, each checked by the door that owns
+/// it (`Node::payload_names`, `Node::payload_read_sites`), then the
+/// pair rule both doors ask (`node::declared_side_fault`), asked alike
+/// of a new union and of a live one whose list is replaced.
 ///
-/// A declaration names what exists BEFORE its consumer, so neither
-/// half can point forward: this row measures the door that keeps it
-/// that way.
+/// A declaration names what exists BEFORE its consumer, so no side can
+/// point forward: this row measures the doors that keep it that way.
+/// A forward NAME is one only `SetDeclare` can be offered — a node
+/// being inserted comes after every live one — so its cases are asked
+/// of the live union: a block inserted after it, and the union's own
+/// output.
 #[test]
 fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let doc = ProfileDoc::empty_derived("docm7_forward", Tol::witness());
@@ -679,6 +684,74 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
                 "{door}: expected the read-site door's refusal, got {refused:?}"
             );
         }
+    }
+    // A LIVE site that is not a member: the prototype block outside
+    // the union, whose table holds the name.
+    let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (live, union) = insert(
+        doc.clone(),
+        Node::Union {
+            members: vec![a, b],
+            declare: Vec::new(),
+        },
+    );
+    let off_member = editor_core::declare_continuation(vec![(
+        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(spare, fname(spare, wall(&doc, spare, 0))),
+    )]);
+    let inserted = doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Union {
+                members: vec![a, b],
+                declare: off_member.clone(),
+            }),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    let set = live.apply(
+        &DocEdit::SetDeclare {
+            node: union,
+            pairs: off_member,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    for (door, refused) in [("insert", inserted), ("SetDeclare", set)] {
+        assert!(
+            matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == spare),
+            "{door}: expected the site-is-an-operand refusal, got {refused:?}"
+        );
+    }
+    // A FORWARD name, sited at a member: a block inserted after the
+    // union, and the union's own output.
+    let (later, late) = block(live.clone(), (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    for (what, name) in [
+        ("a later block's wall", fname(late, wall(&later, late, 0))),
+        (
+            "the union's own body",
+            StableName {
+                kind: EntityKind::Body,
+                node: union,
+                path: vec![RoleSeg::OutputBody],
+            },
+        ),
+    ] {
+        let refused = later.apply(
+            &DocEdit::SetDeclare {
+                node: union,
+                pairs: editor_core::declare_continuation(vec![(
+                    SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+                    SitedRef::new(b, name.clone()),
+                )]),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        );
+        assert!(
+            matches!(&refused, Err(EditError::DeclaredNameNotUpstream { name: said, .. }) if said.name() == &name),
+            "{what}: expected the minted-before refusal, got {refused:?}"
+        );
     }
 }
 
