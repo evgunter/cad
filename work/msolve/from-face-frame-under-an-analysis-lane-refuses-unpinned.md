@@ -7,6 +7,7 @@ opened: 2026-09-20
 priority: P1
 cost: H
 design: true
+parent: MSOLVE-14
 ---
 
 Found by the MSOLVE-9 lane while wiring `MateReach::face_pose`
