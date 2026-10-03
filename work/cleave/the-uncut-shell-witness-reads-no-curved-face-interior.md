@@ -55,3 +55,24 @@ it, and where the off-boundary curved face has no settled coincidence
 pair it refuses `CoincidentShell { orientation: Unpaired { face } }`
 instead. Still a refusal, still unreached by a
 fixture; the fix above is unchanged. The join caller is untouched.
+
+## Evidence (2026-10-03, `reach/arc-from-pairing`): the role read reaches it
+
+The join's arc now comes from the germs, so three poses whose section
+lies along a revolved ball's seam edges — the seam great circle in a
+plane face of the other operand — get past the join's chords and stop at
+the role read, `Join(SectionLoopUndecided)`: both section loops' region
+faces are the ball's two hemispheres, and every witness the probe holds
+for them lies on the plane face (measured on the pip: `Tally {
+on_boundary: 4, in_band: 0 }` for each loop).
+
+- the cube against the `y`-poled ball(0.3) at `(0.5, 0.5, 1)`, every op
+  (`crates/sweep/tests/tilted_sphere_pair.rs`,
+  `a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read`;
+  `germ_coplanar_conic.rs`, the y-poled pip);
+- the slab `[−2, 2]² × [0, 1]` less the unit ball at the origin
+  (`m5_pr9c_sphere_doors.rs`,
+  `the_die_pips_shape_stops_typed_at_its_section_roles`);
+- the cylinder of `review_ring_clearance_r1_probes.rs`
+  `r1_diag_cylinder_pierces` against a `y`-poled ball(0.16) on its top
+  cap (recorded, not asserted, there).
