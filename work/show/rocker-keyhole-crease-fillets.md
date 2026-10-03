@@ -2,10 +2,12 @@
 id: rocker-keyhole-crease-fillets
 kind: unit
 title: the rocker plate gains a keyhole and a D-bore whose convex line-arc creases fillet to the closed form
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+pr: 3834
+closed: 2026-10-02
 ---
 
 ## What

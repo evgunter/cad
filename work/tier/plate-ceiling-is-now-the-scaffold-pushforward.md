@@ -181,7 +181,7 @@ scale `s` is `1e-4 ± 1.6e-4·s`, so at the ceiling (`s ≈ 0.263`) it is
 `[5.79e-5, 1.42e-4] > 0` everywhere and the enclosure is widened ~6e-5
 each side; the flip first enters the box at `s = 0.625`
 (`work/sym/real-margin-dependency-widening`, pinned in
-`m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`).
+`m10_10_pins_interval::m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`).
 The "real margin" this table's last row predicted is therefore the
 margin's WIDENED enclosure — the ceiling is widening-bound; the leaves
 certify up to the real flip (the whole drive's refusals refine to

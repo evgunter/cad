@@ -436,10 +436,11 @@ pub enum SlotId {
     /// sharpening of the design's `(step, arg)` sketch — a profile is
     /// plane + several loops, so the address needs it. Step indices are
     /// stable under every slot edit because program STRUCTURE changes
-    /// only by [`crate::DocEdit::SetProgram`], which reports every name
-    /// its reshaping strands and rebinds every name it moves (V2,
-    /// `crates/profile/README.md`); for the carrier loop forms
-    /// (`circle`/`circle_split`) `step` is 0.
+    /// only by [`crate::DocEdit::SetProgram`], which keeps every kept
+    /// step's names as they are spelled and reports every name on a
+    /// piece the new program does not draw and the old one drew, or
+    /// could not be replayed to say (V2, `crates/profile/README.md`);
+    /// for the carrier loop forms (`circle`/`circle_split`) `step` is 0.
     Profile {
         /// The loop's index in the program (description order).
         loop_: u32,
@@ -610,7 +611,9 @@ impl SlotId {
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
             // addresses — it changes by `DocEdit::SetProgram`, which
-            // rebinds every kept name and retires the rest (DM7).
+            // rewrites no name and reports every one whose piece the
+            // new program does not draw, unless the old one under the
+            // current values did not draw it either (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
         }
     }
@@ -1824,7 +1827,10 @@ pub enum PlacementRuleFault {
     /// two different ways: an `Explicit` rule paired with a count, a
     /// stepped rule without one, or an `Explicit` rule on
     /// [`Node::Pattern`] (whose count is a non-optional field).
-    CountSpelling,
+    CountSpelling {
+        /// Which of the three it is.
+        shape: CountMismatch,
+    },
     /// An `Explicit` rule listing NO placements. The list is the
     /// count, so this is the explicit rule's `count < 1`.
     NoPlacements,
@@ -1859,7 +1865,7 @@ pub enum PlacementRuleFault {
 impl core::fmt::Display for PlacementRuleFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::CountSpelling => f.write_str(
+            Self::CountSpelling { .. } => f.write_str(
                 "the placement rule and the count slot disagree about how many placements \
                  there are",
             ),
@@ -1892,6 +1898,29 @@ impl core::fmt::Display for PlacementRuleFault {
             ),
         }
     }
+}
+
+/// Which of the two answers to "how many placements" a placement-rule
+/// node gives twice ([`PlacementRuleFault::CountSpelling`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CountMismatch {
+    /// A [`Node::PlacedUnion`] with a listed rule and a count: the list
+    /// is the count.
+    ListedWithCount,
+    /// A [`Node::PlacedUnion`] with a stepped rule and no count.
+    SteppedWithoutCount,
+    /// A [`Node::Pattern`] with a listed rule: its count is a field it
+    /// always carries.
+    ListedOnPattern,
+}
+
+/// Where a placement-rule node keeps its count.
+#[derive(Clone, Copy)]
+enum CountSlot {
+    /// A field the node always carries ([`Node::Pattern`]).
+    Field,
+    /// An optional slot, filled or not ([`Node::PlacedUnion`]).
+    Optional { present: bool },
 }
 
 impl PatternKind {
@@ -3348,12 +3377,12 @@ impl<P> Node<P> {
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
-    /// - The duplicate clause is sound everywhere because no node kind
-    ///   in this crate has a meaning for the same input twice. A
-    ///   boolean with `a == b` is a self-operation whose result is one
-    ///   of its own operands; a `Split` cutting a body by itself is the
-    ///   same; a `Mate` between a part and itself has no relative
-    ///   frame. The one kind that could plausibly want a repeat is
+    /// - The duplicate clause is over the same input NODE: one node id
+    ///   at two seats of any kind. It is not a claim about the bodies
+    ///   those seats evaluate to. Two distinct nodes that evaluate to
+    ///   one body (two `Part`s of one split half) are admitted, and the
+    ///   boolean answers them (`A ∪ A = A`, `A − A` empty). The one kind
+    ///   that could plausibly want a repeat is
     ///   [`Node::Measure`], and it does not: its edges come from the
     ///   measurement's own node set, which DEDUPS before `inputs`
     ///   returns, so a measurement over one body twice presents one
@@ -3972,47 +4001,11 @@ impl<P> Node<P> {
     /// three can never diverge on what a usable rule is. `None` for
     /// every non-placement node.
     pub fn placement_rule_fault(&self, tol: geom_core::Tol) -> Option<PlacementRuleFault> {
-        let (count_present, kind) = match self {
-            // Pattern's count is a non-optional field, so it always
-            // "has" one — which is why an explicit list there is
-            // always a second answer to the same question.
-            Node::Pattern { kind, .. } => (true, kind),
-            Node::PlacedUnion { count, kind, .. } => (count.is_some(), kind),
-            // EXHAUSTIVE on purpose: a future node kind carrying a
-            // placement rule must be classified here or the compile
-            // breaks, rather than defaulting to "has no rule" and
-            // slipping past all three doors this function is the one
-            // answer for.
-            Node::Datum(..)
-            | Node::Profile(..)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Transform { .. }
-            | Node::Part { .. }
-            | Node::Declare { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => return None,
-        };
-        let Some(frames) = kind.placements() else {
-            // A stepped rule needs its count slot and nothing else.
-            return (!count_present).then_some(PlacementRuleFault::CountSpelling);
-        };
-        if count_present {
-            return Some(PlacementRuleFault::CountSpelling);
+        if let Some(shape) = self.count_mismatch() {
+            return Some(PlacementRuleFault::CountSpelling { shape });
         }
+        // A stepped rule with its count has nothing more to check.
+        let frames = self.placement_rule()?.1.placements()?;
         // The list IS the count, so an EMPTY list is the explicit
         // rule's `count < 1` — refused for the same reason
         // `NonPositiveCount` refuses a stepped rule's zero, rather
@@ -4042,6 +4035,65 @@ impl<P> Node<P> {
                     Some(PlacementRuleFault::NonRigidFrame { index, check })
                 }
             })
+    }
+
+    /// Which answer to "how many placements" this node gives twice, if
+    /// it gives one twice. `None` for every non-placement node.
+    fn count_mismatch(&self) -> Option<CountMismatch> {
+        let (slot, kind) = self.placement_rule()?;
+        match (slot, kind.placements().is_some()) {
+            (CountSlot::Field, true) => Some(CountMismatch::ListedOnPattern),
+            (CountSlot::Optional { present: true }, true) => Some(CountMismatch::ListedWithCount),
+            (CountSlot::Optional { present: false }, false) => {
+                Some(CountMismatch::SteppedWithoutCount)
+            }
+            (CountSlot::Field | CountSlot::Optional { present: true }, false)
+            | (CountSlot::Optional { present: false }, true) => None,
+        }
+    }
+
+    /// Where this node keeps its count, and its rule, if it is a
+    /// placement-rule node.
+    fn placement_rule(&self) -> Option<(CountSlot, &PatternKind)> {
+        match self {
+            // Pattern's count is a non-optional field, so it always
+            // "has" one — which is why an explicit list there is
+            // always a second answer to the same question.
+            Node::Pattern { kind, .. } => Some((CountSlot::Field, kind)),
+            Node::PlacedUnion { count, kind, .. } => Some((
+                CountSlot::Optional {
+                    present: count.is_some(),
+                },
+                kind,
+            )),
+            // EXHAUSTIVE on purpose: a future node kind carrying a
+            // placement rule must be classified here or the compile
+            // breaks, rather than defaulting to "has no rule" and
+            // slipping past all three doors this function is the one
+            // answer for.
+            Node::Datum(..)
+            | Node::Profile(..)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::Part { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
     }
 
     /// A `Declare` node whose every pair asserts the CONFORMAL class

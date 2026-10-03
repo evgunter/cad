@@ -163,3 +163,85 @@ reflex and frontier lanes, and DUAL for JOIN-2 and JOIN-3 (they move
 the zip's and the ring lane's sources of truth; architectural).
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — PR 3887 lands: the pole strut binding
+
+`locus-matching-moves-frontier-refusals-to-join-desync` closed. JOIN-1's
+`insert::strut_facing` had already fixed the ball's pole strut. This
+PR re-measured JOIN-1's batteries (no pose leaves sound, none becomes a
+wrong body), pins the pole pose's typed frontier in all six op and order
+combinations, and files two reflex rows:
+`reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop`
+and `a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`
+(P1/H each). Review tier: the orchestrator's read. It is a test row and
+tracker records only, with no kernel code.
+## 2026-10-02 — PR 3790 lands: JOIN-1, a section germ names its cell
+
+JOIN-1, `an-edge-lying-in-a-cutter-face-…` and `dumbbell-joint-union-…`
+closed. The record of the review rounds:
+
+- **Dual review** (concurrent pair, frozen head 4ef105c30, DR row in
+  `docs/DUAL-REVIEW-LOG.md`). Both reviewers raised the same MAJOR:
+  undeclared unions that share part of a corner edge with 180° of wedge
+  returned tier-3-red bodies (`ScaffoldAtRest`) where main refused. The
+  cause was `recl::resolve_edge_edge`'s A-alone/B-alone tiers, a second
+  flank decision outside the fold rule. Both also found that the acceptance
+  rows were blind to the mechanisms.
+- **Fix pass 1:** one fold rule at edge-edge sites (`sectors::crossing_flank`),
+  a lane for segments that are an edge in both solids
+  (`JoinLane::AlongEdge`), and one match criterion (`join::partners`). It
+  also restated `Scaffold` descriptions. **The delta review** found that
+  restatement masked the defect: the ∪ results carried unlicensed
+  same-sense coplanar seams and failed as operands, against DESIGN's
+  ratified output clauses. It also found a lens-prism regression.
+- **Fix pass 2:** the restatement went. REACH's PR 3657 (the continuation
+  refusal, Ev's PR 3613 ruling) landed mid-pass and was merged in. JOIN-1
+  now adds no refusal of its own; it only builds more.
+- **Final delta review:** 0 BAD and 0 non-operand builds over ~145k
+  battery ops, and no SOUND→refusal. **Fix pass 3:** a typed frontier
+  (`SectionLoopUndecided`) where a legal input read as a kernel bug; one
+  operand-check helper; a home for `strut_facing`; the `event_pairs`
+  copies.
+- **Narrow review** of fix pass 3's unreviewed changes: the `event_pairs`
+  widening is sound. **Fix pass 4:** `strut_facing`'s vote table pinned,
+  and a closed edge refused typed at the pierce strut. A container
+  restart killed that lane after it committed and before it pushed. The
+  orchestrator recovered its commits, merged main (main's `CorruptOperand`
+  now carries a `Corruption`; seat8's `part_select` re-measured), and
+  pushed.
+
+Net, on the reviewers' batteries: about 16k poses that used to refuse
+now build sound, and no build is unsound or an illegal operand. Ev's
+dumbbell builds. Filed along the way: ZIP's pre-existing wrong-volume
+reflex union (P0), FUSE's scaffold-at-rest result gate (P1),
+`locus-matching-moves-frontier-refusals-to-join-desync`, and the coarse-ε
+peg-in-socket row.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3900 lands: the reflex corner's strut order
+
+`reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap` closed.
+Review tier: single FULL, in a cloud session. The review was
+APPROVE-WITH-FIXES, 1 MAJOR: within a half-turn `strut_order` compared
+cosines, which are flat beside 0 and π, so it misordered germs within
+about √(2ε/arm) of them and answered when nothing ordered them. Its
+rows go red on head.
+
+The fix pass reads the order as distances: the germs' own cross
+product, with each comparand under its own predicate name
+(`bool_strut_side`, `bool_strut_order`), and the on-line germ through
+`sectors::direction_sense`. A decided zero now refuses. That pinned
+`f12_four_survivor_pairing`'s synthetic all-parallel fixture as a
+refusal; no battery pose mints four survivors there. The orchestrator
+read the new `strut_order`. On the review's widened battery (40 320
+runs), 8 481 refusals now build sound, with 0 BAD or non-operand moves.
+The oracle helpers have one home, `sweep/tests/common/differential.rs`,
+whose `outcome` carries the certificate and operand columns.
+
+Filed: `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0/H: 16 builds that census-escalate at tier 3′) and
+`edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex` (P1/M).
+The ZIP wrong-volume row gains its wider class.
+
+Signed (JOIN orchestrator).

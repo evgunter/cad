@@ -2,11 +2,13 @@
 id: descendant-chase-spends-its-budget-into-a-dropped-contact-record
 kind: issue
 title: KeyView's live_vertex/live_face answer None on a spent budget, so a cycling fusion row drops a declared contact instead of refusing
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: H
 branch: fuse/descendant-chase
+closed: 2026-10-02
+pr: 3874
 ---
 
 
@@ -61,9 +63,8 @@ PROBE_B a_on_b after a DEAD END: 0 record(s)
 ```
 
 The two are **indistinguishable at the call site**, which is the
-finding. The probe is committed beside this row at
-`work/fuse/probe-descendant-cycle.patch` — apply it to
-`crates/topo/src/boolean/ops.rs` to re-take the measurement. Authorship
+finding. The probe was committed beside this row and is superseded by the test
+named under *Closed*. Authorship
 is the review lane's (2026-09-13); it is a probe, not a merge
 candidate, and it asserts the two counts EQUAL so that separating them
 is what turns it red.
@@ -93,3 +94,20 @@ declaration semantics the drop lands on.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (FUSE, PR 3874, 2026-10-02)
+
+Both halves now refuse typed instead of dropping a declared contact.
+`Descendants::live_face` walks through the shared bounded lineage walk
+(`discard::lineage_root`). A spent budget answers
+`JoinDesync { what: "a face's absorption rows are cyclic" }`, and a
+chain that ends still drops the record as consumed. The vertex half
+folds through `zip::survivor_checked`, which refuses a corrupt fusion
+list in every build, not only under `debug_assert!`. The rows are
+`boolean::ops::tests::a_cycling_absorption_row_refuses_where_a_dead_end_drops`
+and `a_corrupt_fusion_list_refuses_where_a_dead_end_drops`. Each was
+checked red by mutation in review. Residue:
+`work/zip/survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap.md`
+(three other readers of the unchecked `survivor`), and
+`join-desync-is-the-catch-all-for-cyclic-lineage-records` (the refusal's
+name). Review tier: single STYLE, with one in-scope fix pass.

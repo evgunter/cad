@@ -2,10 +2,13 @@
 id: a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only
 kind: issue
 title: A sharp-over-rounded stack (and a concave L) builds only with the rounded operand as A: the mid-edge tangency is a frontier in the other order
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+branch: reach/mid-edge-tangency
+pr: 3846
+closed: 2026-10-02
 ---
 
 Found while building the continuation ruling (PR 3657) and widened by
@@ -36,3 +39,36 @@ split the sharp edges at the tangent points, so the touch lands on
 endpoints and is covered. The outcome therefore depends on sweep
 order rather than geometry. A fix either splits at structural tangent
 points before the sweep, or gives the cover a mid-edge arm.
+
+## Measured on `cd49025f`, and the fix
+
+Still refusing on `origin/main` at `cd49025f`: with the sharp operand as
+A, union, intersect and sharp − rounded refuse `CurvedPierceUnsupported`
+(the sharp bottom edge × the fillet cylinder, `wall_crossing`'s line ×
+wall roots answering `Tangent`), at every radius, plate and L alike.
+Holding the pair for both directions' splits exposed a second
+order-dependence behind it: the `Rest` zip minted a STRAIGHT seam chord
+in the sharp operand's bottom face along each fillet's rim and kept
+operand A's seam edge, so with the sharp plate as A the result carried a
+chord where the arc belongs (`describe_minted_edges` refused it,
+`JoinDesync`). PR 3814's twin chord (`rest::Twin`) closed the second on
+main; the hold-then-settle on `reach/mid-edge-tangency` closes the first;
+`a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order`
+holds every pose in both orders through ∪, A ∖ B, B ∖ A and ∩.
+
+## Closed (2026-10-02, PR 3846)
+
+A sharp-over-rounded stack, a concave L and mismatched-radius stacks
+build in either operand order under ∪, A ∖ B, B ∖ A and ∩. The checks:
+radii 0.01 to 1.99, scales ×1e-3 and ×1e3, rotated poses, and results
+reused as operands. Both reviewers checked them against closed-form
+volumes and point membership. A covered line touching a cylinder or a
+sphere inside an edge is deferred until both sweep directions have
+split the edge, then settled on its fragments (`settle_deferred`). The
+settled pair is written to its direction's trace. A touch with no
+vertex under it refuses in both orders. A covered arc, and a covered
+line against a torus, keep the refusal: their residual is not convex.
+
+Residue:
+- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`;
+- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends`.

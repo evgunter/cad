@@ -262,14 +262,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "ArcLoopContainmentUnsupported",
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: LoopKey::default(),
+                cause: topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge,
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
             },
         ),
         (
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
             },
         ),
         (
@@ -480,6 +486,30 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "CoincidentShell (unpaired)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Unpaired { face },
+            },
+        ),
+        (
+            "CoincidentShell (mixed)",
+            BooleanError::CoincidentShell {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Mixed,
+            },
+        ),
+        (
+            "CoincidentShell (not covered back)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Same,
+            },
+        ),
+        (
             "RimSeamNotDeclarable",
             BooleanError::RimSeamNotDeclarable { declaration },
         ),
@@ -488,6 +518,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::RimCuspArmUnbuilt {
                 declaration,
                 wedge: MaterialWedge::Slit,
+            },
+        ),
+        (
+            "SharedVertexCrossings",
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
             },
         ),
     ];
@@ -530,7 +568,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         ),
         (
             "Containment(EdgeCarrierUnsupported)",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: Default::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "Containment(WallOutlineUnsupported)",

@@ -1,7 +1,7 @@
 ---
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
-title: "zip: fifteen of the rest zip's sixteen typed sub-frontier refusals are reached by no row, so which are gates and which are dead is unmeasured"
+title: "zip: none of the rest zip's sixteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
 status: open
 opened: 2026-10-01
 priority: P3
@@ -75,3 +75,19 @@ earlier refusal shadows it on the natural fixture, its text folded into
 the one a user actually meets.
 
 Filed from the TANG m9-3 residues unit.
+
+## Now sixteen (JOIN-1, PR 3790)
+
+`ChordBetweenIsolatedPierces` lost its fixture: the stepped bricks
+(`seat3_flush_detector`) build in the chord join since JOIN-1, so the
+zip never runs on them, and the row now pins the build
+(`a_declared_report_is_a_set_and_the_whole_set_builds`). Its
+`NOT_YET_ENDING` text check went with it; the display table in
+`boolean/mod.rs` still asserts the wording. No other reaching pose was
+found: on JOIN-1's fix-pass-2 head, R1's reflex, declared, tube, seam and
+bored-capsule batteries (`crates/sweep/tests/join1_r1_probes.rs`; 1152,
+27000, 6900, 12150 and 2400 poses) reach no `RestZipUnsupported` at
+all; on main 0abf909cb the reflex battery reached it on 8 poses
+(`ChordBetweenIsolatedPierces` among them, `sqQ2` unions), which the
+join now builds or refuses before the zip runs. All sixteen sub-frontiers
+are reached by no row.

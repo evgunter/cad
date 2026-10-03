@@ -16,7 +16,16 @@ use geom_core::Tol;
 // transparent local newtype carries the same test payloads.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
-impl editor_core::ProfilePayload for Fake {}
+impl editor_core::ProfilePayload for Fake {
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::ParamEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
 

@@ -333,7 +333,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         || {
             lily::plant::<Probe>(tol)
                 .into_iter()
-                .map(|piece| plain(piece.name, piece.body))
+                .map(|piece| (piece.name.to_string(), piece.body, piece.contacts))
                 .collect()
         },
         tol,

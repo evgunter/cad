@@ -978,6 +978,15 @@ BOUND_AS = {
     # it could not build was the one whose third field this façade did
     # not carry.
     "MetaVersionError": "EditError.inner_variant",
+    # `CountMismatch` is what `EditError::PlacementRuleMismatch` carries:
+    # which answer to "how many placements" the node gives twice, three
+    # shapes with three different repairs, crossing at the carrier's
+    # second word (`listed_with_count`, `stepped_without_count`,
+    # `listed_on_pattern`). Every carrier of the fault publishes it the
+    # same way: `Node.placed_union`'s boundary refusal on
+    # `EditError.inner_variant` too, and `NodeErrorKind::PlacementRule`
+    # on `EvaluationError.inner_kind`.
+    "CountMismatch": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
     # `PersistError.variant` says WHICH stage refused; three of these
@@ -2791,6 +2800,13 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::CoincidentShell`'s orientation: why the settled
+    # coincidence pairs did not certify a shell lying on the other
+    # operand. Carried in Rust so a consumer matching that variant can
+    # name the field's type; interior here because Python never holds
+    # one. The refusal crosses as `coincident_shell` plus prose, and the
+    # prose names the shortfall.
+    "ShellOrientation": INTERIOR,
     # The frame WITNESS — an origin and a right-handed orthonormal
     # triple, minted where its axes were decided. Python never holds
     # one: `SketchPlane.from_frame` takes the two directions a caller
@@ -3548,7 +3564,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",
     "InlineError::Unplaced": "InlineError.variant",
-    "InlineError::NeedsAGauge": "InlineError.variant",
+    "InlineError::MovedMemberOffset": "InlineError.variant",
     "InlineError::PartDeadGauge": "InlineError.variant",
     "InlineError::MateFrameCrosses": "InlineError.variant",
     "InlineError::MateFaceFrameCrosses": "InlineError.variant",
@@ -3684,9 +3700,10 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
-    "SplitError::CutHoldsGauge": "SplitError.variant",
+    "SplitError::SeveredGauge": "SplitError.variant",
     "SplitError::TwoAnchors": "SplitError.variant",
     "SplitError::DeadGaugeReference": "SplitError.variant",
+    "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",

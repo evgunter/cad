@@ -508,8 +508,9 @@ pub enum SessionOp {
     /// does. The program itself, and `ids`' shape, are the edit door's
     /// to judge, and refuse in its words ([`Refusal::Edit`]).
     ///
-    /// A name on a step the program does not keep is stranded, and the
-    /// door's report of it rides [`OpOutcome::maintenance`];
+    /// A name on a step the program does not keep, or on a kept step's
+    /// piece it stops drawing, is stranded, and the door's report of it
+    /// rides [`OpOutcome::maintenance`];
     /// [`crate::session::DocSession::edit_profile_report`] reads the
     /// same rows before the op is performed.
     ///
