@@ -50,3 +50,16 @@ outright and turns the clipped-slab row into a refusal), or the slab
 should be cut to the bounded operand's box so that only a genuinely
 unbounded pair meets it. Either changes what the ℝ³ door answers for a
 clipped slab, which is a decision, not a fix.
+
+## The final chord
+
+`push_boundary` appends the bisected crossing however close it lies to
+the last marched state, and drops only an exact duplicate. On the
+plane × NURBS lane, a final chord far shorter than the step failed
+limb 2 at ε 1e-9 and 1e-12 until `ssi/ends.rs`'s `close_at` let a last
+state nearer the crossing than half its step give way to it
+(`ssi-final-chord-far-shorter-than-the-step-fails-the-certificate`,
+closed with that measurement). A scan of 600 slab shifts on the clipped
+north loop did not reproduce it here: the shortest chord it reached was
+6.8e-7 m. The scan is recorded in that row. A resolution that keeps
+`push_boundary` should give it `close_at`'s rule.
