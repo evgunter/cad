@@ -134,12 +134,13 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // refused; what the three arms separate is whether there was a number
 // at all, and `MarginDiag::kind` reads them as a `MarginKind`, which
 // carries none (the numbers leave only through the type's one named
-// error-text door). A value says the margin landed in the band and tightening ε
-// may help; an enclosure says a certified bracket straddles, which is
-// the subdivision driver's lever; a poisoned margin says the question
-// was never validly posed, and it is the one arm none of
-// `COINCIDENCE_RECOURSE`'s three levers answers. Three different next
-// moves, off a struct this list already carries.
+// error-text door). A value says the margin landed in the band, or was
+// decided on a side the decision does not pass; an enclosure says a
+// certified bracket straddles, which is the subdivision driver's lever,
+// or was decided likewise; a poisoned margin says nothing was measured,
+// and it is the one arm none of `COINCIDENCE_RECOURSE`'s three levers
+// answers. Different next moves, off a struct this list already
+// carries.
 //
 // So the rung under a carried struct is carried too: a caller holding
 // an `Escalated` arm out of any of the twelve reads `band`,

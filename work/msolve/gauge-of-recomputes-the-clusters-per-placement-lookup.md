@@ -2,10 +2,11 @@
 id: gauge-of-recomputes-the-clusters-per-placement-lookup
 kind: issue
 title: gauge_of recomputes clusters(doc) on every placement lookup, so an evaluation's placement reads cost O(instances²) on any document with a mate
-status: open
+status: parked
 opened: 2026-09-19
 priority: P3
 cost: E
+blocked_on: [3990]
 ---
 
 

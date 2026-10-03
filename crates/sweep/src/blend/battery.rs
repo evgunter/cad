@@ -36,9 +36,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
-};
+use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
@@ -48,6 +46,7 @@ use super::build::fan_at;
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
+    classify_positive,
 };
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -435,24 +434,6 @@ pub struct BatteryVerdict<T: Real> {
     pub transverse_caps: Vec<VertexKey>,
 }
 
-/// A junction arm `fillet3_chain_arm` decided non-positive: an angle at
-/// so short an arm is not a question, so it refuses at `site` as that
-/// decision, carrying the arm it read — the band-decided sibling of an
-/// in-band arm, with the same ending (D4 ¶1 (iv)).
-fn short_arm<T: Bounds>(site: BlendSite, arm: T, band: Band) -> BlendError {
-    let decision = BlendDecision::ChainArm;
-    BlendError::Escalated {
-        site,
-        decision,
-        source: Indeterminate {
-            margin: measured(arm),
-            band,
-            predicate: Some(decision.predicate()),
-            terminal_sliver: false,
-        },
-    }
-}
-
 /// A face's outward normal at `p`: the implicit gradient folded
 /// through the STORED sense bit (`Face::sense`) at its one home,
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
@@ -646,9 +627,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
 ///
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
 /// margin is: an angle at an arm not definitely positive is not a
-/// question, so such an arm refuses as that gate, carrying the arm it
-/// read (`short_arm`), rather than classifying — the same predicate at
-/// the LINK site instead of the joint.
+/// question, so such an arm refuses as that gate
+/// ([`classify_positive`]), carrying the arm it read, rather than
+/// classifying — the same predicate at the LINK site instead of the
+/// joint.
 ///
 /// # Errors
 ///
@@ -663,12 +645,7 @@ pub fn convexity_at<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
-    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(short_arm(site, arm, band));
-        }
-    }
+    classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
     let sign = classify(site, BlendDecision::ConvexitySign, margin, band)?;
     let reading = |s| classified(BlendDecision::ConvexitySign, margin.value(), band, s);
@@ -702,8 +679,9 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// two carriers' unit tangents at the junction and `arm` the smaller
 /// of the two links' extents. It is gated by `fillet3_chain_arm`
 /// exactly as the dihedral is: an angle at an arm not definitely
-/// positive is not a question, so such an arm refuses as that gate,
-/// carrying the arm it read (`short_arm`), rather than classifying.
+/// positive is not a question, so such an arm refuses as that gate
+/// ([`classify_positive`]), carrying the arm it read, rather than
+/// classifying.
 ///
 /// A closed chain must be G1 at EVERY junction (including the
 /// wrap-around) for a constant-radius spine to exist through it;
@@ -720,12 +698,7 @@ pub fn chain_g1<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let site = BlendSite::Joint { vertex };
-    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(short_arm(site, arm, band));
-        }
-    }
+    classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
     let margin = Margin::levered(sin_theta, arm);
     match classify(site, BlendDecision::ChainG1, margin, band)? {

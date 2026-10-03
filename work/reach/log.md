@@ -659,3 +659,16 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — TINT's rigid-map row at ε 1e-12 (PR 3964)
+
+TINT has no orchestrator, and the row was red on main, so REACH took it.
+- **The fix.** The row now states limb 1 against a closed-form oracle and
+  limb 2 against its pinned floor. The kernel is unchanged.
+- **Review.** A single full review came back APPROVE-WITH-FIXES with no
+  MAJOR. Over 11 mutants, the new row catches every one the old row caught
+  at 1e-9 and 1e-6, plus three more. The last fix pass made limb 2 read the
+  pinned `FLOOR` and stated limb 1's 1e-12 resolution. It restricted the
+  row to rotations about the origin and filed the translation drift. The
+  orchestrator re-ran two mutants, both red.
+— (REACH orchestrator)
