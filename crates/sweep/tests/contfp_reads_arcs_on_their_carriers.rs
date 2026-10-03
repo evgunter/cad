@@ -643,11 +643,11 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
     );
 }
 
-/// **An in-band clearance from an uncrossable edge's ball skips the ray,
-/// it does not escalate the walk.** Points just outside the ball a
-/// vessel cavity's spiric arc is held in, and 0.3 m or 1 m back from it
-/// along the face's plane, are outside the face: some rays graze the
-/// ball within the band and are abandoned, and the rest answer.
+/// **An in-band reading on a ray skips the ray, it does not escalate
+/// the walk.** Points just outside the ball a vessel cavity's spiric arc
+/// lies in, and 0.3 m or 1 m back from it along the face's plane, are
+/// outside the face: a ray whose crossing of a piece of the arc lands in
+/// the band is abandoned, and the rest answer.
 #[test]
 fn an_in_band_ball_clearance_skips_the_ray() {
     let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);

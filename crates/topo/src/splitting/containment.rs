@@ -61,9 +61,19 @@
 //!   rows above, over the loop's STRAIGHT edges.
 //! - **`point_in_arc_loop_arm`**: the schedule gate, with the conics'
 //!   and balls' reach in the extent.
-//! - **`point_in_arc_loop_reach`**: a ray's clearance from an
-//!   uncrossable (spiric, spline) edge's ball, less its reach — anything
-//!   but definitely clear abandons the ray.
+//! - **`point_in_arc_loop_reach`**: a ray's clearance from a ball, less
+//!   its reach: an uncrossable (spline) edge's, where anything but
+//!   definitely clear abandons the ray, and a spiric piece's, where it
+//!   halves the piece.
+//! - **`point_in_arc_loop_spiric_{end,clear,on,leaf}`**: the boundary
+//!   reading of a spiric edge ([`SpiricArc::contact`]) — the distance to
+//!   an end, a piece's ball's clearance from the point, the distance to
+//!   a point of the arc, and a piece's own radius, which ends the halving.
+//! - **`point_in_arc_loop_spiric_{side,turn,advance}`**: a ray's
+//!   crossing of a spiric piece ([`SpiricArc::crossings`]) — an end's
+//!   offset from the ray line, the piece's monotonicity margin, and its
+//!   ball's advance along the ray — where anything undecided halves the
+//!   piece, and a piece still unsettled at the depth abandons the ray.
 //! - **`point_in_arc_loop_conic_span`**: a conic arc's gap to a full
 //!   period, `(τ − w)` levered by the smaller semi-axis — read only for a
 //!   window wound definitely PAST a period, which is no edge. Anything
@@ -86,9 +96,11 @@
 //!   by the smaller semi-axis, where a `Zero` or an in-band margin only
 //!   abandons the ray.
 //!
-//! Two escalation names never reach the funnel
+//! Three escalation names never reach the funnel
 //! ([`crate::invalid_margin`]): **`point_in_arc_loop_conic_straddle`**, an
-//! ellipse's two bounds on its distance straddling the whole band, and
+//! ellipse's two bounds on its distance straddling the whole band,
+//! **`point_in_arc_loop_spiric_depth`**, a spiric piece the boundary
+//! reading left unsettled on no margin of its own, and
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
@@ -148,17 +160,19 @@ pub enum PointInLoopError {
         r#loop: LoopKey,
     },
     /// The arc-aware walk ([`point_in_carrier_loop`]) could not decide:
-    /// an edge it has no crossing row for stood in the way of every
-    /// ray. [`point_in_loop`] never returns it.
+    /// an edge it could not cross stood in the way of every ray.
+    /// [`point_in_loop`] never returns it.
     Uncrossable(Uncrossable),
 }
 
 /// **Where the arc-aware walk could not decide, and why**: every
-/// scheduled ray from the point either grazed or could meet `edge`, an
-/// edge of `loop` on a carrier the walk has no crossing row for. The
-/// walk holds such an edge as a ball its locus lies in, so this is
-/// confined to points from which no ray definitely misses that ball —
-/// every point inside it included.
+/// scheduled ray from the point either grazed or was abandoned on
+/// `edge`, an edge of `loop` the walk could not cross along it. A
+/// spline has no crossing row: the walk holds it as a ball its locus
+/// lies in, so this is confined to points from which no ray definitely
+/// misses that ball. A spiric is crossed piece by piece, and abandons a
+/// ray only where a piece meeting it is settled neither way by the
+/// halving's depth.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Uncrossable {
     /// The loop the walk could not read.
@@ -169,7 +183,7 @@ pub struct Uncrossable {
     pub carrier: UncrossableCarrier,
 }
 
-/// The carrier of an edge the in-plane walk has no crossing row for.
+/// The carrier of an edge the in-plane walk could not cross.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UncrossableCarrier {
     /// A plane's section of a torus.
@@ -1212,8 +1226,9 @@ pub(crate) fn carrier_loop<T: Decide>(
 
 /// **A ball holding the arc `span` of `carrier`**, `(center, radius)`,
 /// read off the carrier's own data with no decision: a conic within its
-/// larger semi-axis of its centre, a spiric oval and a spline as
-/// [`LoopEdge::Unrowed`] carries them. `None` for a line, whose segment
+/// larger semi-axis of its centre, a spiric arc within its speed bound
+/// times its half-width of its midpoint, a spline within its control
+/// hull's ball. `None` for a line, whose segment
 /// its two end vertices hold, and for a spline with no control points.
 fn carrier_ball<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<(Point3<T>, T)> {
     match *carrier {
@@ -1374,15 +1389,22 @@ enum Boundary {
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
 ///   advance — abandons the ray.
-/// - **An edge on any other carrier** (a spiric, a spline): no crossing
-///   row exists, so such an edge is held as a ball its locus lies in
-///   (the arc's own, from its midpoint and its speed bound, for a
-///   spiric; the control hull's, for a spline), and a ray that could
-///   meet that ball — or whose clearance from it lands in the band — is
-///   abandoned like a graze. The rest of the loop answers along any
-///   scheduled ray that definitely misses every such ball, and
-///   [`PointInLoopError::Uncrossable`] only where none does, which
-///   includes every point inside a ball.
+/// - **Spiric arcs**: the boundary pass reads the arc by halving it
+///   until every piece's ball is definitely clear of the point, or a
+///   point of the arc is within the band of it ([`SpiricArc::contact`]),
+///   and each ray counts its crossings piece by piece, a piece settled
+///   when its ball misses the ray or when its offset from the ray line
+///   is definitely monotone across it ([`SpiricArc::crossings`]). A ray
+///   with a piece still unsettled at the depth is abandoned like a
+///   graze, and charged to that edge.
+/// - **A spline edge**: no crossing row exists, so it is held as its
+///   control hull's ball, and a ray that could meet that ball — or whose
+///   clearance from it lands in the band — is abandoned like a graze.
+///   The rest of the loop answers along any scheduled ray that
+///   definitely misses every such ball.
+///
+/// [`PointInLoopError::Uncrossable`] is where every scheduled ray was
+/// abandoned and some on such an edge.
 ///
 /// `q` must lie in the loop's plane, whose unit normal is `normal`.
 ///
@@ -1477,8 +1499,10 @@ fn carrier_walk<T: Decide>(
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
     for (i, edge) in edges.iter().enumerate() {
-        if let (Boundary::Decided, LoopEdge::Chord | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }) =
-            (boundary, edge)
+        if let (
+            Boundary::Decided,
+            LoopEdge::Chord | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. },
+        ) = (boundary, edge)
         {
             continue;
         }

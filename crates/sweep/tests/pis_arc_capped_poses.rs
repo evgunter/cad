@@ -689,7 +689,9 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     assert!(
         matches!(
             got,
-            Err(PointInSolidError::Loop(topo::PointInLoopError::Escalated { .. }))
+            Err(PointInSolidError::Loop(
+                topo::PointInLoopError::Escalated { .. }
+            ))
         ),
         "a point in the spiric's band refuses, got {got:?}"
     );

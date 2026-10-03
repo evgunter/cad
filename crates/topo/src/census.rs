@@ -479,8 +479,8 @@ impl CensusTrace {
 /// whose region walk refuses or escalates though the vertex is
 /// nowhere near the face (`contfp`'s `RayExhausted` refusal, its
 /// ray-walk escalations, and its `Uncrossable` refusal anywhere
-/// inside the reach of a spiric or spline edge, which can be far wider
-/// than the face). The exact sweep
+/// inside the reach of a spline edge, which can be far wider than the
+/// face). The exact sweep
 /// escalates or refuses those — it asked a carrier question and could
 /// not answer it — and the box separation answers the entity question
 /// the census is asking with a DEFINITE verdict: the entities are
@@ -7635,18 +7635,15 @@ mod tests {
         );
     }
 
-    /// **The spiric ball's reach is the bound, nearly tight.** On the
-    /// torus `R = 10, r = 1` cut at `offset = 5`, the oval's speed near
-    /// `v = π/2` is within 4% of the bound `r(R − r)/√((R − r)² − offset²)`,
-    /// so a short arc there (`w = 0.2`) ends within about 4% of the ball's
-    /// reach from its midpoint. A point just past the arc's end, along
-    /// its tangent, lies inside that ball: every ray from it could meet
-    /// the arc, and the face refuses. A ball any smaller — the speed
-    /// taken as `r` (the offset factor dropped, 17% smaller), or the
-    /// reach cut by a tenth — would leave the point outside it and let
-    /// a ray that clips the uncrossable arc answer.
+    /// **Just past a spiric arc's end, the cap answers.** On the torus
+    /// `R = 10, r = 1` cut at `offset = 5`, a short arc (`w = 0.2`) near
+    /// `v = π/2`, where the oval's speed is within 4% of its bound, and a
+    /// point just past the arc's end along its tangent — inside the ball
+    /// the whole arc lies in, so no ray from it misses that ball. The
+    /// walk crosses the arc on the oval itself, and the point lies past
+    /// the chord's end, outside the lens between chord and arc.
     #[test]
-    fn a_spiric_ball_that_is_nearly_tight_still_holds_the_arc() {
+    fn just_past_a_spiric_arcs_end_the_cap_answers() {
         use std::f64::consts::FRAC_PI_2;
         let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
         let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
@@ -7658,38 +7655,36 @@ mod tests {
             minor_radius: 1.0,
             offset: 5.0,
         };
-        let end = spiric.eval(v1);
+        let (start, end) = (spiric.eval(v0), spiric.eval(v1));
         let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
         let mid = spiric.eval(0.5 * (v0 + v1));
         let reach = 9.0 / (81.0f64 - 25.0).sqrt() * 0.1;
         let q = end + tangent * 0.003;
-        // The fixture's own premise: `q` sits inside the ball and outside
-        // both smaller ones.
-        let from_mid = (q - mid).norm();
+        let chord = end - start;
         assert!(
-            from_mid < reach && from_mid > 0.9 * reach && from_mid > 0.1,
-            "{from_mid} against the reach {reach}"
+            (q - mid).norm() < reach && (q - start).dot(chord) > chord.dot(chord),
+            "the fixture's premise: inside the arc's ball, past the chord's end"
         );
         let cap = body
             .faces()
             .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
             .map(|(k, _)| k)
             .expect("the cap");
-        let got = crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band());
-        assert!(
-            matches!(got, Err(ContainError::Uncrossable(_))),
-            "just past the arc's end, inside its ball, the cap refuses: {got:?}"
+        assert_eq!(
+            crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band()),
+            Ok(FaceContainment::Out),
+            "just past the arc's end, the cap answers"
         );
     }
 
-    /// The census's point-in-face refusal, executed: a vertex in the
-    /// spiric cap's plane inside the ball its spiric arc is held in, so
-    /// every scheduled ray from it could meet that arc. The census
-    /// carries the door's own refusal — `CensusUnsupported` about the
-    /// FACE, cause `Containment(Uncrossable)` — and no
+    /// The census's point-in-face reading, executed: the cube's
+    /// vertices in the spiric cap's plane lie inside the ball the cap's
+    /// spiric arc lies in, and outside the cap. The walk crosses the
+    /// arc, so the census reads every one of them off the cap — no
+    /// `CensusUnsupported` about the face, no contact with it, and no
     /// `CensusEscalated` over a margin nothing metred.
     #[test]
-    fn a_spiric_caps_refusal_reaches_the_census_as_itself() {
+    fn a_spiric_cap_reads_the_near_vertices_off_it() {
         let body = spiric_cap_and_near_cube();
         let (errors, _) = census_traces(
             &body,
@@ -7699,21 +7694,16 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
-        let refused = errors
-            .iter()
-            .filter(|e| {
-                matches!(
-                    e,
-                    ValidationError::CensusUnsupported {
-                        subject: CensusSubject::Entity(EntityId::Face(_)),
-                        cause: CensusUnsupportedCause::Containment(ContainError::Uncrossable(_)),
-                    }
-                )
-            })
-            .count();
         assert!(
-            refused > 0,
-            "the spiric cap refuses the near vertices: {errors:?}"
+            errors.iter().all(|e| !matches!(
+                e,
+                ValidationError::CensusUnsupported { .. }
+                    | ValidationError::UndeclaredContact {
+                        contact: CensusContact::VertexOnFace { .. },
+                        ..
+                    }
+            )),
+            "the spiric cap reads the near vertices off it: {errors:?}"
         );
         for e in &errors {
             if let ValidationError::CensusEscalated { cause } = e {

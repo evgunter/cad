@@ -2,10 +2,11 @@
 id: carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges
 kind: issue
 title: The in-plane carrier walk has no crossing row for a spiric or spline edge, so a planar face bounded by one refuses containment near that edge
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
+branch: cleave/carrier-crossings
 ---
 
 Filed by TANG's re-measurement of `work/tang/arc-aware-point-in-loop.md`
@@ -68,3 +69,6 @@ crossing row can answer. That is this row's reachability.
 in the section's plane, and a ray × spline count by subdivision against
 the control hull. How the callers name the walk's refusal is a separate
 question, answered by `work/cleave/carrier-walk-none-is-answered-four-ways.md`.
+
+The spiric half is answered by `splitting::spiric_arc`; the spline half
+is split off to `carrier-walk-has-no-crossing-row-for-spline-edges`.

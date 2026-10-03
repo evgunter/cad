@@ -101,8 +101,7 @@ impl<T: Decide> SpiricArc<T> {
         let outer = big + r;
         let f_min = (inner.powi(2) - offset.powi(2)).sqrt();
         let speed = r * inner / f_min;
-        let accel =
-            r * (r + outer) / f_min + (outer * r).powi(2) / (f_min * f_min.powi(2)) + r;
+        let accel = r * (r + outer) / f_min + (outer * r).powi(2) / f_min.powi(3) + r;
         Some(Self {
             carrier: carrier.clone(),
             span,
@@ -260,9 +259,16 @@ impl<T: Decide> SpiricArc<T> {
                 decide(CROSS_SIDE, Margin::of(sb), band),
             );
             let four = T::from_f64(4.0);
-            let monotone = positive(CROSS_TURN, (sb - sa).abs() - four * self.accel * h * h, band);
-            if let (true, Ok(a @ (Sign::Positive | Sign::Negative)), Ok(b @ (Sign::Positive | Sign::Negative))) =
-                (monotone, ends.0, ends.1)
+            let monotone = positive(
+                CROSS_TURN,
+                (sb - sa).abs() - four * self.accel * h.powi(2),
+                band,
+            );
+            if let (
+                true,
+                Ok(a @ (Sign::Positive | Sign::Negative)),
+                Ok(b @ (Sign::Positive | Sign::Negative)),
+            ) = (monotone, ends.0, ends.1)
             {
                 if a == b {
                     continue;
@@ -351,8 +357,9 @@ mod tests {
         let k = arc::<T>();
         let f = T::from_f64;
         let n = 20_000;
-        let mut boundary: Vec<(f64, f64)> =
-            (0..=n).map(|i| at(-2.0 + 4.0 * f64::from(i) / f64::from(n))).collect();
+        let mut boundary: Vec<(f64, f64)> = (0..=n)
+            .map(|i| at(-2.0 + 4.0 * f64::from(i) / f64::from(n)))
+            .collect();
         boundary.push(at(-2.0));
         let truth = |(y, z): (f64, f64)| -> (bool, f64) {
             let mut inside = false;
@@ -377,7 +384,10 @@ mod tests {
         let (mut asked, mut inside) = (0, 0);
         for i in 0..=24 {
             for j in 0..=24 {
-                let q = (1.2 + 1.4 * f64::from(i) / 24.0, -0.7 + 1.4 * f64::from(j) / 24.0);
+                let q = (
+                    1.2 + 1.4 * f64::from(i) / 24.0,
+                    -0.7 + 1.4 * f64::from(j) / 24.0,
+                );
                 let (want, gap) = truth(q);
                 if gap < 1e-3 {
                     continue;
@@ -402,7 +412,11 @@ mod tests {
                 let Some(count) = got else {
                     panic!("{lane} {q:?}: the ray was abandoned");
                 };
-                assert_eq!((count + chord) % 2 == 1, want, "{lane} {q:?}: {count} arc crossings");
+                assert_eq!(
+                    (count + chord) % 2 == 1,
+                    want,
+                    "{lane} {q:?}: {count} arc crossings"
+                );
             }
         }
         assert!(
@@ -410,8 +424,16 @@ mod tests {
             "{lane}: not vacuous ({asked} asked, {inside} inside)"
         );
         let mid = point(at(0.3));
-        assert_eq!(k.contact(mid, ROWS, band), Ok(SpiricHit::On), "{lane}: on the arc");
-        assert_eq!(k.contact(point(b), ROWS, band), Ok(SpiricHit::End), "{lane}: at its end");
+        assert_eq!(
+            k.contact(mid, ROWS, band),
+            Ok(SpiricHit::On),
+            "{lane}: on the arc"
+        );
+        assert_eq!(
+            k.contact(point(b), ROWS, band),
+            Ok(SpiricHit::End),
+            "{lane}: at its end"
+        );
         // Off the arc's outermost point, along the plane, in the band.
         let (top, _) = at(0.0);
         let in_band = point((top + 0.5 * (band.zero() + band.escalate()), 0.0));
@@ -419,6 +441,52 @@ mod tests {
             k.contact(in_band, ROWS, band).is_err(),
             "{lane}: in the band of the arc, the reading refuses"
         );
+    }
+
+    /// **The speed and acceleration bounds hold, and the speed bound is
+    /// nearly tight.** Sampled densely over whole ovals of three tori —
+    /// a fat ring, a thin one, and `R = 10, r = 1` cut at `offset = 5`,
+    /// where the oval's speed near `v = π/2` comes within 4% of its bound
+    /// — `|P′|` never exceeds `S` and `|P″|` never exceeds `A`; on the
+    /// third, the sampled speed reaches 95% of `S`, so a bound a tenth
+    /// smaller would let a piece's ball miss its own arc.
+    #[test]
+    fn the_carriers_bounds_hold_and_the_speed_bound_is_nearly_tight() {
+        for (big, r, offset) in [(2.0, 1.0, 0.5), (3.0, 0.2, 2.5), (10.0, 1.0, 5.0)] {
+            let carrier = geom::Curve3::Spiric {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                major_radius: big,
+                minor_radius: r,
+                offset,
+            };
+            let k = SpiricArc::of(&carrier, (0.0, 1.0)).expect("a spiric");
+            let (mut speed, mut accel) = (0.0_f64, 0.0_f64);
+            for i in 0..20_000 {
+                let v = core::f64::consts::TAU * f64::from(i) / 20_000.0;
+                speed = speed.max(carrier.deriv(v).norm());
+                accel = accel.max(carrier.deriv2(v).norm());
+            }
+            let torus = format!("R = {big}, r = {r}, offset = {offset}");
+            assert!(
+                speed <= k.speed,
+                "{torus}: speed {speed} over its bound {}",
+                k.speed
+            );
+            assert!(
+                accel <= k.accel,
+                "{torus}: acceleration {accel} over its bound {}",
+                k.accel
+            );
+            if big == 10.0 {
+                assert!(
+                    speed >= 0.95 * k.speed,
+                    "{torus}: {speed} against {}",
+                    k.speed
+                );
+            }
+        }
     }
 
     #[test]
