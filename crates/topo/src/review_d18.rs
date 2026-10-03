@@ -3170,3 +3170,75 @@ fn kfmrh_refuses_in_its_fusion_form_a_face_or_shell_another_record_names() {
     let torn = dangling(EntityId::Solid(other.solid), EntityId::Shell(b));
     assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
 }
+
+/// A segment's solid beside a third solid whose loop is torn `Empty` at
+/// the segment's `seed` vertex, which `kev(he)` leaves lone: the
+/// segment's `mvfs` keys and `he`, the half that starts at that vertex.
+fn segment_beside_a_torn_empty_loop() -> (
+    Body<f64>,
+    crate::euler::MvfsCreated,
+    crate::euler::MvfsCreated,
+    HalfEdgeKey,
+) {
+    let (mut body, seg, _) = segment_beside_a_lone_solid();
+    let third = body.mvfs(p(9.0), true).unwrap();
+    body.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty { vertex: seg.vertex };
+    let he = body
+        .half_edges()
+        .find(|(_, data)| data.start == seg.vertex)
+        .map(|(he, _)| he)
+        .unwrap();
+    (body, seg, third, he)
+}
+
+#[test]
+fn kev_refuses_an_empty_loop_another_loop_already_holds() {
+    // `kev` of the segment empties its loop at `seed`, where the torn
+    // third loop is already `Empty`: two empty loops would hold one lone
+    // vertex.
+    let (mut body, seg, _, he) = segment_beside_a_torn_empty_loop();
+    let torn = EulerOpError::EmptyAnchorsCollide { vertex: seg.vertex };
+    assert_kev_refuses(&mut body, he, &torn);
+}
+
+#[test]
+fn an_empty_loop_write_refuses_a_broken_cycle_before_a_collision() {
+    // `require_kill_anchors` handed `kev`'s segment arm, with and
+    // without the torn third loop: an `Empty` write at a vertex no
+    // `Lone` write anchors, or with the mate left in the loop, is a
+    // broken cycle whether or not another loop holds the vertex; one
+    // that passes both collides only where another loop does.
+    use crate::euler::KillAnchor;
+    let (torn_body, seg, third, he) = segment_beside_a_torn_empty_loop();
+    let mut clean = torn_body.clone();
+    clean.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty {
+        vertex: third.vertex,
+    };
+    let m = torn_body.mate(he).unwrap();
+    let v = seg.vertex;
+    let loops = [(seg.r#loop, LoopBoundary::Empty { vertex: v })];
+    let lone = [(v, KillAnchor::Lone, he)];
+    let broken = Err(EulerOpError::LoopCycleBroken { r#loop: seg.r#loop });
+    for (body, collides) in [(&torn_body, true), (&clean, false)] {
+        assert_eq!(
+            body.require_kill_anchors(&[], &loops, &[he, m], None),
+            broken,
+            "no Lone write at the vertex (collides: {collides})"
+        );
+        assert_eq!(
+            body.require_kill_anchors(&lone, &loops, &[he], None),
+            broken,
+            "the mate stays in the loop (collides: {collides})"
+        );
+        let collision = if collides {
+            Err(EulerOpError::EmptyAnchorsCollide { vertex: v })
+        } else {
+            Ok(())
+        };
+        assert_eq!(
+            body.require_kill_anchors(&lone, &loops, &[he, m], None),
+            collision,
+            "both conjuncts hold (collides: {collides})"
+        );
+    }
+}
