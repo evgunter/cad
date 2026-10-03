@@ -189,10 +189,12 @@ Everything Python can say about geometry, in full:
   `Evaluation.find_flush_candidates(a, b)` reports the flush pairs as
   those typed values — every carrier the `Rest` ladder verifies, plane
   through torus — and they go straight into `declare=`, or onto a
-  live boolean or union through `Doc.declare`/`Doc.declare_all` (the
-  `DocEdit.set_declare` edit). The undeclared refusal itself is the
-  MENU (`EvaluationError.kind == "undeclared_coincidence"`, the
-  candidate `finding` attached).
+  live boolean or union through `Doc.declare` (which adds one
+  finding's pair to those the node declares) or `Doc.declare_all`
+  (which sets the whole list, the `DocEdit.set_declare` edit). The
+  undeclared refusal itself is the MENU (`EvaluationError.kind ==
+  "undeclared_coincidence"`, the candidate `finding` attached), and
+  `Doc.declare` with each refusal's `finding` converges.
 - `Node.fillet(target, radius, selection)` — constant-radius blends
   on named edges. The selection is edge names as TEXT, materialized
   off an evaluation and then FROZEN into the recipe: a commitment,
