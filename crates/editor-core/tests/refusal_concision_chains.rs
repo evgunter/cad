@@ -23,7 +23,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
-use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
+use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
 
@@ -356,7 +356,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Finish/Corrupt",
     "Split/Finish/DegenerateSide",
     "Split/Finish/Euler",
-    "Split/Finish/NotSingleSolid",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
@@ -1068,6 +1067,55 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::NonPositiveCount { count: 0 },
         ),
         row(
+            "NegativeSpacing",
+            NodeErrorKind::NegativeSpacing {
+                spacing: geom_core::MarginDiag::value(-4.0),
+                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+            },
+        ),
+        row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
+        row("DegenerateStep", NodeErrorKind::DegenerateStep),
+        row(
+            "FullRangeStep(whole)",
+            NodeErrorKind::FullRangeStep {
+                step: "360 deg".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Whole,
+            },
+        ),
+        row(
+            "FullRangeStep(whole, evaluated)",
+            NodeErrorKind::FullRangeStep {
+                step: "720 deg * scalar(blades)".to_owned(),
+                evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
+                turns: StepTurns::Whole,
+            },
+        ),
+        row(
+            "FullRangeStep(within)",
+            NodeErrorKind::FullRangeStep {
+                step: "760 deg".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Within("40 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(within, evaluated)",
+            NodeErrorKind::FullRangeStep {
+                step: "360 deg / scalar(blades) - 400 deg".to_owned(),
+                evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
+                turns: StepTurns::Within("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(unresolved)",
+            NodeErrorKind::FullRangeStep {
+                step: "1e20 rad".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Unresolved,
+            },
+        ),
+        row(
             "PlacementsUncertified",
             NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),
@@ -1530,7 +1578,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
     });
     let shell = ShellKey::default();
     let finish = [
-        ("NotSingleSolid", F::NotSingleSolid { count: 2 }),
         (
             "DegenerateSide",
             F::DegenerateSide {
@@ -1577,7 +1624,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([("Pcurves".to_owned(), SplitError::Pcurves(pcurve()))])
+        .chain([
+            ("Pcurves".to_owned(), SplitError::Pcurves(pcurve())),
+            (
+                "Pieces".to_owned(),
+                SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
+            ),
+        ])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()
@@ -3747,10 +3800,16 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Pieces",
+            S::Pieces {
+                error: topo::PieceSortError::Crossing { shell },
+            },
+        ),
+        (
             "OperandOuterShells",
             S::OperandOuterShells {
                 solid: SolidKey::default(),
-                outer: 2,
+                outer: 0,
             },
         ),
         (

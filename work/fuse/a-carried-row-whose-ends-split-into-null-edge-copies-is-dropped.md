@@ -34,8 +34,23 @@ result's `a_on_b`/`b_on_a` are empty, so this is not
 `a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records`
 (a pierce's vertex-on-face rows).
 
+## A second witness
+
+`y ∖ cube` in `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`
+(`lens_in_a_lens`, same test file), with `y` built both ways. `y` is
+a block less a lens, with a smaller lens put back. They touch along a
+pinch line in the cube's bottom face whose far end, (0.5, 0.15, 0),
+lies inside that face. 3′ fails `UndeclaredContact` `VertexVertex`
+there, plus `EdgeEdgeOverlap` along the line. The other five ops pass.
+Pinned there as it stands.
+
+Measured on PR 3950's first head, where two lenses tied at both rays
+still built: `remap_carried` resolved neither end of the carried rows
+at the two far ends. The undeclared pairs were exactly those ends'
+copies in `desc.copies_of`.
+
 ## Owed
 
 Have `remap_carried` record a carried row between the live copies of
 its two ends, as `remap_contacts` does for its groups, then flip the
-pin to 3′ passing in all six ops.
+pins to 3′ passing in all six ops.

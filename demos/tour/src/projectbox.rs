@@ -425,13 +425,13 @@ mod tests {
     /// halves' section rings, `plane_section`'s areas against their
     /// closed forms and the spring's volume and footing; this adds what `crate::run_body`
     /// asserts on the tour pass (tier 3′ on the box with its declared
-    /// contacts, tier 3 on every other body), and the shell roles the
-    /// above half's STEP pin rests on: the cut frees the two bored
-    /// bosses' tops, so that half is the walls' piece and two caps,
-    /// each bounding material.
+    /// contacts, tier 3 on every other body), and the above half's
+    /// pieces: the cut frees the two bored bosses' tops, so that half is
+    /// the walls' piece and two caps, each bounding material, and each a
+    /// solid of its own.
     #[test]
-    fn the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_outer_shells()
-     {
+    fn the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids()
+    {
         use pncad::topo::ShellRole;
         let tol = Tol::witness();
         let stop = stop(tol);
@@ -455,6 +455,7 @@ mod tests {
             .map(|c| c.role)
             .collect();
         assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
+        assert_eq!(above.body.solids().count(), 3, "one solid per piece");
     }
 
     /// **The coil's gap to `A·L` is discretization, not a volume

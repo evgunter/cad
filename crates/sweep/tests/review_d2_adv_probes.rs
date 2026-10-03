@@ -543,9 +543,9 @@ fn d2_reached_variants() {
 /// the scenario the refutation describes — *a caller keeps the body it
 /// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
 /// mints one empty destination solid per source solid before any
-/// fallible step) or a shell (`graft_disjoint_all_onto_keyed`), so a
-/// destination that already held a solid never presents as one solid
-/// with one shell afterwards, spent or whole, and the door refuses
+/// fallible step), so a destination that already held a solid never
+/// presents as one solid with one shell afterwards, spent or whole,
+/// and the door refuses
 /// `UnsupportedBody` above all 46 sites.
 ///
 /// It does NOT close the question: a graft into an EMPTY destination

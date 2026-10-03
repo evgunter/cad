@@ -308,6 +308,17 @@ lane, because both edit `remap_contacts`.
   invariants or pins them. The #3891 rework runs in parallel on the
   piece rule.
 
+- 2026-10-03 — PR 3891 lands: a solid is one piece (Ev, PR 3901).
+  - Review: dual. The editor lane's MAJOR (the product fence leaked
+    through a nested sub-assembly, a `Transform` and `PlacedUnion`) was
+    fixed with a carried `NodeValue::parts`, and re-checked by
+    execution.
+  - A face-frame datum regression from that fix is fixed too: only
+    callers that fuse or reshape material refuse a product.
+  - Closed: the hollow-island unit, and the two rows filed during the
+    first pass.
+  - Residue: P3 connectedness, P2 one home for where a shell stands,
+    restfront P1 for overlapping solids, and the STEP voids writer.
 - 2026-10-03 — PR 3891, dual review of the one-piece rework:
   - Kernel lane: mergeable with fixes.
   - Editor/baselines lane: not mergeable. The product fence leaks through
@@ -345,3 +356,25 @@ lane, because both edit `remap_contacts`.
   to the insertion, and no ratified text governs it, so the orchestrator
   decides it is the implementer's call rather than a designer fork. The
   lane stops if it finds ratified text that binds it.
+
+- 2026-10-03 — PR 3950 lands: a dangling null edge nests another at its
+  tip.
+  - The FULL review's MAJOR: the one-arc tie depended on insertion
+    order, and in one order regressed a typed refusal to `JoinDesync`.
+    It is answered by returning the one-arc tie to a typed refusal (own
+    row), with witnesses built both ways.
+  - The notched witnesses refuse typed, and the old pair order is
+    restored.
+  - The tie row drops to P3: only the unreached interleave arm remains,
+    and it waits on cleave's `PairingMismatch` row.
+
+- 2026-10-03 — Both PR 3950 and PR 3891 have landed. Dispatched two lanes
+  in parallel; they touch different stages:
+  - `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings`
+    (P0) on `fuse/one-arc-struts`: an order-free holder rule, plus a
+    permutation row across every tied-strut witness.
+  - Step 1 of Ev's PR 3881 build on `fuse/cell-pair-contacts`: cell-pair
+    contact records, including `VeContact`; census certification; one
+    substitution door replacing `remap_contacts`/`remap_carried`; and
+    edge-split lineage. It folds in the P1
+    `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.

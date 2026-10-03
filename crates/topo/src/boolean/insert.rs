@@ -33,7 +33,7 @@
 //!
 //! **Plan, then mint.** [`plan_null_pairs`] takes every reading a
 //! pair's null edges need (codes, pairing, germ cells and directions,
-//! each run's direction) and [`mint_plan`] mints from the plan without
+//! each run's direction) and [`mint_plans`] mints from the plan without
 //! reading the orbit's geometry again. The reduction plans every vertex
 //! pair before it mints any: one vertex can sit in several pairs (an
 //! operand whose own contact left several vertices at one point pairs
@@ -41,9 +41,11 @@
 //! vertex's orbit. Where several crossing pairs cut one vertex,
 //! [`reconcile_shared`] turns each run that would hold another pair's
 //! cut the other way round its orbit, so the runs there are disjoint
-//! and no mint moves a half-edge another pair's plan read. Struts there
-//! mint before any fan, each spliced past those hung earlier in its
-//! corner at a lower germ ([`strut_anchor`]).
+//! and no mint moves a half-edge another pair's plan read, unless one
+//! strut's segment holds another's whole: the inner then hangs at the
+//! outer's tip ([`holds_whole`]). Struts there mint before any fan, an
+//! outer before its inner, each spliced past those hung earlier at its
+//! vertex at a lower germ ([`strut_anchor`]).
 
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
@@ -86,16 +88,9 @@ fn insert_null_pairs<T: Decide>(
     let mut plans = [plan_null_pairs(
         a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, band,
     )?];
-    reconcile_shared(&mut plans, &[(a_sectors, b_sectors)], a_body, b_body, band)?;
-    mint_plan(
-        a_body,
-        b_body,
-        &plans[0],
-        a_sectors,
-        b_sectors,
-        &mut Hung::default(),
-        band,
-    )
+    let orbits = [(a_sectors, b_sectors)];
+    reconcile_shared(&mut plans, &orbits, a_body, b_body, band)?;
+    mint_plans(a_body, b_body, &plans, &orbits, band)
 }
 
 /// One solid's side of a planned null edge: the germs it runs between,
@@ -127,8 +122,8 @@ type Cut<T> = (usize, Vec3<T>);
 pub(super) struct Hung<T: geom_core::Real> {
     /// Each strut hung at a shared vertex.
     struts: Vec<HungStrut<T>>,
-    /// Each null edge's end at the vertex: whether it is the below
-    /// (In) end.
+    /// Each end of every null edge minted there: whether it is the
+    /// below (In) end.
     ends: Vec<(Operand, VertexKey, bool)>,
 }
 
@@ -136,11 +131,18 @@ pub(super) struct Hung<T: geom_core::Real> {
 #[derive(Debug)]
 struct HungStrut<T: geom_core::Real> {
     operand: Operand,
+    /// The shared vertex whose orbit its germs were read in.
+    root: VertexKey,
+    /// The vertex it hangs at: `root`, or the tip of the strut whose
+    /// segment holds its own ([`nests`]).
     vertex: VertexKey,
-    /// Its null half that starts at the vertex.
+    /// Its null half that starts at `vertex`; it ends at the tip.
     half: HalfEdgeKey,
-    /// The earlier of its two germs ([`run_ends`]).
+    /// Its two germs in walk order ([`run_ends`]).
     lower: Cut<T>,
+    upper: Cut<T>,
+    /// Whether `half` faces `lower`.
+    half_faces_lower: bool,
 }
 
 impl<T: geom_core::Real> Default for Hung<T> {
@@ -153,7 +155,7 @@ impl<T: geom_core::Real> Default for Hung<T> {
 }
 
 /// The null edges of one vertex pair, every reading taken: what
-/// [`mint_plan`] mints without reading the orbit's geometry again.
+/// [`mint_plans`] mints without reading the orbit's geometry again.
 #[derive(Clone, Debug)]
 pub(super) struct NullPlan<T: geom_core::Real> {
     /// The vertex pair.
@@ -301,21 +303,6 @@ pub(super) fn plan_null_pairs<T: Decide>(
     Ok(plan)
 }
 
-impl<T: Decide> NullPlan<T> {
-    /// Whether a null edge of this pair is a strut at a shared vertex:
-    /// such struts are minted before any fan there, while the corners
-    /// they splice into still hold their own half-edges.
-    pub(super) fn hangs_shared_strut(&self, sectors: [&[BoolSector<T>]; 2]) -> bool {
-        self.runs.iter().any(|r| hangs_shared_strut(r, sectors))
-    }
-}
-
-fn hangs_shared_strut<T: Decide>(runs: &[SideRun<T>; 2], sectors: [&[BoolSector<T>]; 2]) -> bool {
-    runs.iter()
-        .zip(sectors)
-        .any(|(r, secs)| r.shared && run_fan(secs, r.from.0, r.to.0).is_ok_and(|f| f.is_empty()))
-}
-
 impl<T: geom_core::Real> SideRun<T> {
     fn directed(g0: Germ<T>, g1: Germ<T>, swapped: bool) -> Self {
         let (from, to) = if swapped { (g1, g0) } else { (g0, g1) };
@@ -338,64 +325,168 @@ impl<T: geom_core::Real> SideRun<T> {
     }
 }
 
-/// Mints a plan's null edges in both solids.
-pub(super) fn mint_plan<T: Decide>(
+/// Mints every plan's null edges, each solid in its own order: at a
+/// shared vertex its struts before any fan, each strut after every
+/// strut whose segment holds its own ([`nests`]), so it can hang at
+/// that strut's tip.
+pub(super) fn mint_plans<T: Decide>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
-    plan: &NullPlan<T>,
-    a_sectors: &[BoolSector<T>],
-    b_sectors: &[BoolSector<T>],
-    hung: &mut Hung<T>,
+    plans: &[NullPlan<T>],
+    orbits: &[Orbits<'_, T>],
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
-    let contact = plan.contact;
-    let mismatch = || BooleanError::PairingMismatch {
-        a_vertex: contact.a,
-        b_vertex: contact.b,
-    };
     let mut out = InsertOut {
         edges: Vec::new(),
         pairs: Vec::new(),
     };
-    let mut order: Vec<usize> = (0..plan.runs.len()).collect();
-    order.sort_by_key(|&k| !hangs_shared_strut(&plan.runs[k], [a_sectors, b_sectors]));
-    for [a_run, b_run] in order.into_iter().map(|k| &plan.runs[k]) {
-        let a_rec = mint_directed(
-            a_body,
-            (Operand::A, contact.a),
-            a_sectors,
-            *a_run,
-            hung,
-            mismatch,
-            band,
-        )?;
-        let b_rec = mint_directed(
-            b_body,
-            (Operand::B, contact.b),
-            b_sectors,
-            *b_run,
-            hung,
-            mismatch,
-            band,
-        )?;
-        // Slot canonicalization (the joining's slot lock): germ slot i
-        // of the A and B records must be the SAME spatial germ; a
-        // degeneracy swap in one solid only would misalign them, so
-        // align B's array to A's (entries carry their halves — the
-        // germ↔half binding is untouched).
-        let mut b_rec = b_rec;
-        if a_run.swapped != b_run.swapped {
-            b_rec.germs.swap(0, 1);
+    // The pairs' order: plans that hang a shared strut first, and those
+    // runs first within a plan (`join::find_match` breaks ties by it).
+    let hangs = |i: usize, k: usize| {
+        let r = &plans[i].runs[k];
+        [orbits[i].0, orbits[i].1]
+            .into_iter()
+            .zip(r)
+            .any(|(secs, r)| {
+                r.shared && run_fan(secs, r.from.0, r.to.0).is_ok_and(|f| f.is_empty())
+            })
+    };
+    let mut order: Vec<usize> = (0..plans.len()).collect();
+    order.sort_by_key(|&i| !(0..plans[i].runs.len()).any(|k| hangs(i, k)));
+    let runs: Vec<(usize, usize)> = order
+        .into_iter()
+        .flat_map(|i| {
+            let mut ks: Vec<usize> = (0..plans[i].runs.len()).collect();
+            ks.sort_by_key(|&k| !hangs(i, k));
+            ks.into_iter().map(move |k| (i, k))
+        })
+        .collect();
+    let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
+    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+        let vertex = |i: usize| {
+            let c = plans[i].contact;
+            if slot == 0 { c.a } else { c.b }
+        };
+        let orbit = |i: usize| if slot == 0 { orbits[i].0 } else { orbits[i].1 };
+        let run = |(i, k): (usize, usize)| plans[i].runs[k][slot];
+        let shared_strut = |at: (usize, usize)| -> Result<bool, BooleanError> {
+            let r = run(at);
+            Ok(r.shared && run_fan(orbit(at.0), r.from.0, r.to.0)?.is_empty())
+        };
+        let mut keyed = Vec::with_capacity(runs.len());
+        for (n, &at) in runs.iter().enumerate() {
+            let depth = if shared_strut(at)? {
+                let mut d = 0;
+                for &other in &runs {
+                    if other != at
+                        && vertex(other.0) == vertex(at.0)
+                        && shared_strut(other)?
+                        && nests(orbit(at.0), run(other), run(at), band)?
+                    {
+                        d += 1;
+                    }
+                }
+                Some(d)
+            } else {
+                None
+            };
+            keyed.push((depth.is_none(), depth.unwrap_or(0), n));
         }
+        keyed.sort();
+        let body = if slot == 0 {
+            &mut *a_body
+        } else {
+            &mut *b_body
+        };
+        let mut hung = Hung::default();
+        for (.., n) in keyed {
+            let (i, k) = runs[n];
+            let mismatch = || BooleanError::PairingMismatch {
+                a_vertex: plans[i].contact.a,
+                b_vertex: plans[i].contact.b,
+            };
+            let mut rec = mint_directed(
+                body,
+                (operand, vertex(i)),
+                orbit(i),
+                plans[i].runs[k][slot],
+                &mut hung,
+                mismatch,
+                band,
+            )?;
+            // Slot canonicalization (the joining's slot lock): germ slot
+            // i of the A and B records must be the SAME spatial germ; a
+            // degeneracy swap in one solid only would misalign them, so
+            // align B's array to A's (entries carry their halves — the
+            // germ↔half binding is untouched).
+            let [a_run, b_run] = plans[i].runs[k];
+            if operand == Operand::B && a_run.swapped != b_run.swapped {
+                rec.germs.swap(0, 1);
+            }
+            edges[slot][n] = Some(rec.edge);
+            out.edges.push(rec);
+        }
+    }
+    for (n, &(i, _)) in runs.iter().enumerate() {
+        let (Some(a_edge), Some(b_edge)) = (edges[0][n], edges[1][n]) else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a planned null edge was not minted",
+            });
+        };
         out.pairs.push(NullEdgePairRecord {
-            a_edge: a_rec.edge,
-            b_edge: b_rec.edge,
-            site: PairSite::VertexVertex(contact),
+            a_edge,
+            b_edge,
+            site: PairSite::VertexVertex(plans[i].contact),
         });
-        out.edges.push(a_rec);
-        out.edges.push(b_rec);
     }
     Ok(out)
+}
+
+/// Whether `outer` and `inner` are struts and `outer`'s segment holds
+/// `inner`'s whole ([`holds_whole`]).
+fn nests<T: Decide>(
+    secs: &[BoolSector<T>],
+    outer: SideRun<T>,
+    inner: SideRun<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let strut = |r: SideRun<T>| run_fan(secs, r.from.0, r.to.0).map(|f| f.is_empty());
+    Ok(strut(outer)?
+        && strut(inner)?
+        && holds_whole(
+            secs,
+            run_ends(secs, outer, band)?,
+            run_ends(secs, inner, band)?,
+            band,
+        )?)
+}
+
+/// A strut's segment: its germs in walk order ([`run_ends`]).
+type Segment<T> = (Cut<T>, Cut<T>);
+
+/// **Whether the strut segment `outer` holds the strut segment `inner`
+/// whole**: both in one physical sector, `inner`'s germs between
+/// `outer`'s, strictly at one end at least and at the other strictly
+/// or along its direction (a pinch line in the corner's face). The
+/// inner strut then hangs at the outer's tip ([`mint_plans`]). Two
+/// struts tied at both ends (one arc) hold neither: which would hold
+/// the other is not read off the geometry, and the pair refuses
+/// [`BooleanError::SharedVertexCrossings`] ([`tied_held`]).
+fn holds_whole<T: Decide>(
+    secs: &[BoolSector<T>],
+    (lo, hi): Segment<T>,
+    (ilo, ihi): Segment<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if secs[lo.0].he != secs[ilo.0].he {
+        return Ok(false);
+    }
+    let (at_lo, at_hi) = (
+        precedes(secs, lo, ilo, band)?,
+        precedes(secs, ihi, hi, band)?,
+    );
+    let inside = |o: Option<bool>| o != Some(false);
+    Ok(inside(at_lo) && inside(at_hi) && (at_lo, at_hi) != (None, None))
 }
 
 /// **Several vertex pairs' null edges at one vertex.** An operand
@@ -409,13 +500,21 @@ pub(super) fn mint_plan<T: Decide>(
 /// the corner reads. A run that holds one is turned the other way
 /// round its orbit, every run re-read until none turns (one turn can
 /// make another's nested run the one to turn); cuts along one
-/// direction are placed by the runs ([`tied_held`]). A null edge both of whose runs hold another pair's
-/// cut refuses [`BooleanError::SharedVertexCrossings`]: a strut (whose
-/// other way round is the whole orbit) whose segment holds one, which
-/// a piece with a reflex corner at the point reaches; a fan whose two
-/// ways round both do, which needs a pair paired across the arcs
-/// outside its piece; or a run that is another pair's arc whole. Two
-/// crossing pairs that share both their vertices refuse
+/// direction are placed by the runs ([`tied_held`]). A strut (whose
+/// other way round is the whole orbit) whose segment holds another
+/// pair's strut whole keeps it, the inner hanging at its tip
+/// ([`holds_whole`]): a piece with a reflex corner at the point leaves
+/// such a segment outside it. Another pair's cut strictly inside a
+/// strut's segment lies outside the strut's piece, and so does that
+/// pair's piece's In arc from it, up to the segment's ends: both its
+/// cuts lie in the segment, and its run is a strut that nests (the
+/// other way round would be the whole orbit). A null edge both of
+/// whose runs hold another pair's cut otherwise refuses
+/// [`BooleanError::SharedVertexCrossings`]: two struts with one
+/// segment (two pieces touching along both its ends' directions), or a
+/// fan whose two ways round both hold one, which needs a pair paired
+/// across the arcs outside its piece. Two crossing pairs that share both their
+/// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
 /// shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
@@ -499,17 +598,20 @@ fn reconcile_pass<T: Decide>(
             for &j in &others {
                 for r in &plans[j].runs {
                     let (lo, hi) = run_ends(secs, r[slot], band)?;
+                    let strut = run_fan(secs, r[slot].from.0, r[slot].to.0)?.is_empty();
                     cuts.push(OtherCut {
                         at: lo,
                         mate: hi,
                         leaves: true,
                         owner: j,
+                        strut,
                     });
                     cuts.push(OtherCut {
                         at: hi,
                         mate: lo,
                         leaves: false,
                         owner: j,
+                        strut,
                     });
                 }
             }
@@ -557,6 +659,8 @@ struct OtherCut<T: geom_core::Real> {
     mate: Cut<T>,
     leaves: bool,
     owner: usize,
+    /// Whether its run is a strut.
+    strut: bool,
 }
 
 /// A run's two ends in walk order: a fan's leaving germ then its
@@ -587,7 +691,8 @@ fn run_ends<T: Decide>(
 /// whole, or in an end entry on the run's side of that end's germ, or a
 /// cut along an end germ's own direction that [`tied_held`] counts. A
 /// strut holds a cut of its own physical sector between its two germs,
-/// or along either that [`tied_held`] counts.
+/// or along either that [`tied_held`] counts, unless that cut's strut
+/// and it nest ([`nested`]).
 fn held_cut<T: Decide>(
     secs: &[BoolSector<T>],
     run: SideRun<T>,
@@ -601,7 +706,7 @@ fn held_cut<T: Decide>(
     for &cut in cuts {
         let (j, d) = cut.at;
         let held = if strut {
-            if secs[j].he != secs[lo.0].he {
+            if secs[j].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)? {
                 false
             } else {
                 match (
@@ -636,6 +741,24 @@ fn held_cut<T: Decide>(
     Ok(None)
 }
 
+/// Whether `cut`'s run is a strut that the strut segment `own` holds
+/// whole, or that holds `own` whole ([`holds_whole`]): one hangs at
+/// the other's tip, and neither holds the other's cuts.
+fn nested<T: Decide>(
+    secs: &[BoolSector<T>],
+    own: Segment<T>,
+    cut: OtherCut<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (lo, hi) = if cut.leaves {
+        (cut.at, cut.mate)
+    } else {
+        (cut.mate, cut.at)
+    };
+    let other = (lo, hi);
+    Ok(cut.strut && (holds_whole(secs, own, other, band)? || holds_whole(secs, other, own, band)?))
+}
+
 /// **Another pair's cut along one end germ's direction** (a pinch line
 /// lying flat in a face of the shared corner): whether `run` holds it.
 /// Each pair's run lies on the side of the line its codes, read off its
@@ -643,9 +766,12 @@ fn held_cut<T: Decide>(
 /// before the cut. Runs on opposite sides are disjoint: not held. Runs
 /// on one side are nested: not held either, as the longer holds the
 /// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
-/// point); unless both ends tie, one arc, which holds. No witness
-/// reaches that arm, nor the invariant that the two directions are
-/// opposite rays (a convex sector holds none).
+/// point); unless both ends tie, one arc, which holds, and the other
+/// way round is the complement, on the opposite side, so a fan turns,
+/// while a strut's is the whole orbit. Struts on one side otherwise
+/// nest before this reading ([`nested`]). No witness reaches a fan's
+/// one arc, nor the invariant that the two directions are opposite rays
+/// (a convex sector holds none).
 fn tied_held<T: Decide>(
     secs: &[BoolSector<T>],
     ((k, own), own_leaves): (Cut<T>, bool),
@@ -726,8 +852,47 @@ fn mint_directed<T: Decide>(
     // moves. Run direction is untouched (a strut's reverse run spans
     // the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
-    let structural = if empty {
-        let corrupt = || BooleanError::corrupt_at(operand, vertex);
+    let corrupt = || BooleanError::corrupt_at(operand, vertex);
+    // A strut at a shared vertex: its germs in walk order, and the
+    // innermost strut hung earlier whose segment holds its own.
+    let walk = if empty && run.shared {
+        let (lo, hi) = run_ends(sectors, run, band)?;
+        let mut holder: Option<&HungStrut<T>> = None;
+        for h in hung
+            .struts
+            .iter()
+            .filter(|h| (h.operand, h.root) == (operand, vertex))
+        {
+            let segment = |h: &HungStrut<T>| (h.lower, h.upper);
+            let holds = holds_whole(sectors, segment(h), (lo, hi), band)?;
+            let inner = match holder {
+                None => true,
+                Some(o) => holds_whole(sectors, segment(o), segment(h), band)?,
+            };
+            if holds && inner {
+                holder = Some(h);
+            }
+        }
+        Some(SharedStrut {
+            lo,
+            hi,
+            from_is_lo: precedes(sectors, (gf.0, gf.3), (gt.0, gt.3), band)? == Some(true),
+            holder: holder.map(|h| (h.half, h.half_faces_lower)),
+        })
+    } else {
+        None
+    };
+    let structural = if let Some(SharedStrut {
+        from_is_lo,
+        holder: Some((_, faces_lower)),
+        ..
+    }) = walk
+    {
+        // Hung at the tip of the strut whose segment holds it, its half
+        // met first follows that strut's half from the vertex, so it
+        // faces its own germ on the side of the one that half faces.
+        Some(from_is_lo == faces_lower)
+    } else if empty {
         let arrival = body
             .get_half_edge(sectors[gf.0].he)
             .ok_or_else(corrupt)?
@@ -779,60 +944,90 @@ fn mint_directed<T: Decide>(
     // Germ facings as data (module docs): he_plus faces the from-germ,
     // he_minus the to-germ (the mev splice contract).
     let meta = [(gf.2, gf.3), (gt.2, gt.3)];
-    let lower = if empty && run.shared {
-        Some(run_ends(sectors, run, band)?.0)
-    } else {
-        None
+    // A nested strut hangs at its holder's tip, past the struts hung
+    // there earlier at a lower germ; any other shared strut at the
+    // vertex, past those hung in its corner.
+    let site = match walk {
+        Some(w) => {
+            // The half arriving at the corner the strut splices into.
+            let (at, arrival) = match w.holder {
+                Some((half, _)) => (body.half_edge_end(half).ok_or_else(corrupt)?, half),
+                None => (vertex, body.mate(sectors[w.lo.0].he).ok_or_else(corrupt)?),
+            };
+            let first = body.get_half_edge(arrival).ok_or_else(corrupt)?.next;
+            Some((
+                at,
+                strut_anchor(body, (operand, at), sectors, first, w.lo, hung, band)?,
+            ))
+        }
+        None => None,
     };
-    let anchor = lower
-        .map(|lo| strut_anchor(body, (operand, vertex), sectors, lo, hung, band))
-        .transpose()?;
+    let at = site.map_or(vertex, |(v, _)| v);
     let rec = mint_run(
         body,
         operand,
-        vertex,
+        at,
         sectors,
         from,
         to,
         side,
         meta,
         spike_from_first,
-        anchor,
+        site.map(|(_, he)| he),
     )?;
-    if let Some(lo) = lower {
-        let edge = body
-            .get_edge(rec.edge)
-            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
-        let at_vertex = [edge.he_plus, edge.he_minus]
+    if let Some(SharedStrut {
+        lo, hi, from_is_lo, ..
+    }) = walk
+    {
+        let edge = body.get_edge(rec.edge).ok_or_else(corrupt)?;
+        let half = [edge.he_plus, edge.he_minus]
             .into_iter()
-            .find(|&h| body.get_half_edge(h).is_some_and(|d| d.start == vertex))
-            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
+            .find(|&h| body.get_half_edge(h).is_some_and(|d| d.start == at))
+            .ok_or_else(corrupt)?;
         hung.struts.push(HungStrut {
             operand,
-            vertex,
-            half: at_vertex,
+            root: vertex,
+            vertex: at,
+            half,
             lower: lo,
+            upper: hi,
+            half_faces_lower: (rec.germs[0].he == half) == from_is_lo,
         });
     }
     // The join reads a null half's sense off the side its start vertex
-    // is the end of, so a vertex several crossing pairs cut is the same
-    // end of all their null edges: each run takes its own pair's
-    // region, and the vertex keeps what lies outside them all.
+    // is the end of, so no vertex at a shared point may be the In end
+    // of one null edge and the Out end of another. Each run takes its
+    // own pair's region and the vertex keeps what lies outside them
+    // all; a nested strut hangs at its holder's tip, and its facing
+    // (above) makes that tip the same end of both.
     if run.shared {
-        let below = rec.attr.below_end == vertex;
-        if hung
-            .ends
-            .iter()
-            .any(|&(o, v, b)| (o, v) == (operand, vertex) && b != below)
-        {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a vertex several crossing pairs cut is the In end of one null edge and \
-                       the Out end of another",
-            });
+        for (end, below) in [(rec.attr.below_end, true), (rec.attr.above_end, false)] {
+            if hung
+                .ends
+                .iter()
+                .any(|&(o, v, b)| (o, v) == (operand, end) && b != below)
+            {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a vertex at a shared point is the In end of one null edge and the \
+                           Out end of another",
+                });
+            }
+            hung.ends.push((operand, end, below));
         }
-        hung.ends.push((operand, vertex, below));
     }
     Ok(rec)
+}
+
+/// A strut at a shared vertex, as [`mint_directed`] places it: its germs
+/// in walk order, whether its run leaves from the lower, and the half
+/// from the vertex of the innermost strut hung earlier whose segment
+/// holds its own, with whether that half faces its lower germ.
+#[derive(Clone, Copy)]
+struct SharedStrut<T: geom_core::Real> {
+    lo: Cut<T>,
+    hi: Cut<T>,
+    from_is_lo: bool,
+    holder: Option<(HalfEdgeKey, bool)>,
 }
 
 /// The entry past `k` whose end bound is a real edge: the one holding
@@ -847,16 +1042,19 @@ fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> u
 }
 
 /// Where a strut at a shared vertex splices: before the first half-edge
-/// past its corner's end-bound one that is not a strut hung earlier in
-/// the same corner at a lower germ (`germ`, the earlier of a strut's
-/// two). The struts [`reconcile_shared`] leaves in one corner hold none
-/// of each other's cuts, so their segments are disjoint, and two lower
-/// germs along one direction would make one segment hold the other's
-/// cut or both be one segment: an invariant.
+/// from `first` (the one past its corner's arrival) that is not a strut
+/// hung earlier at that vertex at a lower germ (`germ`, the earlier of
+/// a strut's two). The struts [`reconcile_shared`] leaves in one corner
+/// hold none of each other's cuts unless one nests whole inside the
+/// other, which hangs at the other's tip, so the segments hung at one
+/// vertex are disjoint, and two lower germs along one direction would
+/// make one segment hold the other's cut or both be one segment: an
+/// invariant.
 fn strut_anchor<T: Decide>(
     body: &Body<T>,
     (operand, vertex): (Operand, VertexKey),
     sectors: &[BoolSector<T>],
+    first: HalfEdgeKey,
     germ: Cut<T>,
     hung: &Hung<T>,
     band: Band,
@@ -866,7 +1064,7 @@ fn strut_anchor<T: Decide>(
         let mate = body.mate(he).ok_or_else(corrupt)?;
         Ok(body.get_half_edge(mate).ok_or_else(corrupt)?.next)
     };
-    let mut he = successor(sectors[germ.0].he)?;
+    let mut he = first;
     while let Some(at) = hung
         .struts
         .iter()

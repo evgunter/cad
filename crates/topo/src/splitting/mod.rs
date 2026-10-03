@@ -551,6 +551,9 @@ pub enum SplitError {
     /// itself succeeded topologically; the refusal is loud rather
     /// than shipping a body whose caches are uncertified (D4 ¶2).
     Pcurves(crate::pcurves::PcurveMintError),
+    /// A side could not be sorted into solids ([`crate::pieces`]): the
+    /// piece a shell of it belongs to could not be read.
+    Pieces(crate::pieces::PieceSortError),
 }
 
 impl From<SplitReduceError> for SplitError {
@@ -590,6 +593,10 @@ impl core::fmt::Display for SplitError {
             Self::Join(e) => write!(f, "{e}"),
             Self::Finish(e) => write!(f, "{e}"),
             Self::Pcurves(e) => write!(f, "{e}"),
+            Self::Pieces(e) => write!(
+                f,
+                "a side of the split could not be sorted into solids: {e}"
+            ),
         }
     }
 }
@@ -730,6 +737,35 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// carry contacts split declares nowhere
 /// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<SplitResult<T>, SplitError> {
+    let flat;
+    let operand = if operand.solids().nth(1).is_some() {
+        let mut body = operand.clone();
+        body.merge_all_solids()
+            .map_err(|e| SplitError::Finish(finish::SplitFinishError::Euler(e)))?;
+        flat = body;
+        &flat
+    } else {
+        operand
+    };
+    let mut result = split_one_solid(operand, plane, tol)?;
+    let band = geom_core::Band::linear(tol)
+        .map_err(|e| SplitError::Finish(finish::SplitFinishError::Band(e)))?;
+    for part in [&mut result.above, &mut result.below] {
+        if let finish::SplitPart::Body(body) = part {
+            crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
+                .map_err(SplitError::Pieces)?;
+        }
+    }
+    Ok(result)
+}
+
+/// [`split`] over an operand read as one solid: the direct run, and the
+/// mirrored rerun for the pinch lane.
+fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

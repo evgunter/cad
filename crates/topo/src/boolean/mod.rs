@@ -1245,7 +1245,9 @@ pub struct HalfGerm<T: Real> {
 pub struct BoolNullEdgeRecord<T: Real> {
     /// Which operand's clone the keys index.
     pub operand: Operand,
-    /// The classified vertex whose neighborhood minted this edge.
+    /// The vertex this edge was minted at: the classified vertex whose
+    /// neighborhood minted it, or, for a dangling null edge whose
+    /// segment another's holds whole at a shared vertex, that one's tip.
     pub at_vertex: VertexKey,
     /// The null edge.
     pub edge: EdgeKey,
@@ -1257,6 +1259,45 @@ pub struct BoolNullEdgeRecord<T: Real> {
     /// The two germ facings ([`HalfGerm`]), in mint order (the from-
     /// germ first).
     pub germs: [HalfGerm<T>; 2],
+}
+
+/// **One operand's null-edge copies**: the vertices its null edges join,
+/// each on one point by construction. A vertex's copies are read
+/// transitively, since a dangling null edge can hang at another's tip.
+#[derive(Clone, Debug, Default)]
+pub(super) struct NullCopies(std::collections::BTreeMap<VertexKey, Vec<VertexKey>>);
+
+impl NullCopies {
+    /// `operand`'s null edges among `null_edges`.
+    pub(super) fn of_operand<T: Real>(
+        null_edges: &[BoolNullEdgeRecord<T>],
+        operand: Operand,
+    ) -> Self {
+        let mut map: std::collections::BTreeMap<VertexKey, Vec<VertexKey>> =
+            std::collections::BTreeMap::new();
+        for r in null_edges.iter().filter(|r| r.operand == operand) {
+            let (u, w) = (r.attr.below_end, r.attr.above_end);
+            map.entry(u).or_default().push(w);
+            map.entry(w).or_default().push(u);
+        }
+        Self(map)
+    }
+
+    /// `v`, then every vertex null edges join it to, transitively, in
+    /// the order the walk meets them.
+    pub(super) fn of(&self, v: VertexKey) -> Vec<VertexKey> {
+        let mut out = vec![v];
+        let mut i = 0;
+        while let Some(&at) = out.get(i) {
+            for &c in self.0.get(&at).into_iter().flatten() {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+            i += 1;
+        }
+        out
+    }
 }
 
 /// The site a corresponding null-edge pair was minted at.
@@ -1837,11 +1878,10 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: a dangling null
-    /// edge whose segment holds one (the segment outside a piece with a
-    /// reflex corner there), a null edge both of whose ways round hold
-    /// one, or two pairs whose runs are one arc
-    /// (`insert::reconcile_shared`).
+    /// orbit that holds none of another pair's cuts: two dangling null
+    /// edges with one segment, or a null edge both of whose ways round
+    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
+    /// segment holds another's whole builds: the inner hangs at its tip.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -2310,6 +2350,11 @@ pub enum BooleanError {
     /// bitwise-identical inputs make this unreachable for well-formed
     /// grafts; loud, never a dangling reference).
     GraftRecertify(geom_brep::CertifyError),
+    /// The result sort could not read which piece of material a shell
+    /// of the result belongs to ([`crate::pieces`]): a solid is one
+    /// piece, and the result is not handed back under a guessed
+    /// grouping.
+    Pieces(crate::pieces::PieceSortError),
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -2453,6 +2498,8 @@ pub enum BooleanErrorKind {
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
     GraftRecertify,
+    /// [`BooleanError::Pieces`].
+    Pieces,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -2618,6 +2665,7 @@ impl BooleanError {
             Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
+            Self::Pieces(_) => BooleanErrorKind::Pieces,
         }
     }
 }
@@ -3198,6 +3246,7 @@ impl core::fmt::Display for BooleanError {
                     e.render(geom_brep::recourse::Reading::Build)
                 )
             }
+            Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
         }
     }
 }
@@ -3632,18 +3681,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
-    // A strut at a shared vertex is minted before any fan there.
-    let mut order: Vec<usize> = (0..plans.len()).collect();
-    order.sort_by_key(|&i| !plans[i].hangs_shared_strut([orbits[i].0, orbits[i].1]));
-    let mut hung = insert::Hung::default();
-    for i in order {
-        let (_, a_sectors, b_sectors, ..) = &classified[i];
-        let out = insert::mint_plan(
-            &mut a, &mut b, &plans[i], a_sectors, b_sectors, &mut hung, band,
-        )?;
-        null_edges.extend(out.edges);
-        null_pairs.extend(out.pairs);
-    }
+    let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
+    null_edges.extend(out.edges);
+    null_pairs.extend(out.pairs);
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .coincident_faces
@@ -5126,7 +5166,7 @@ mod tests {
     /// enums and `&'static str` — everything the projection can be
     /// checked on without reaching into another crate's error type.
     /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
-    /// `Revert`, `GraftRecertify`, `CrossingInsertion`) are absent by
+    /// `Revert`, `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
     /// the same rule.
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5451,6 +5491,7 @@ mod tests {
                 BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
+                BooleanErrorKind::Pieces => "Pieces",
             }
         }
         /// The variant name `Debug` opens with.

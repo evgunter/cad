@@ -4342,11 +4342,6 @@ pub(crate) mod staleness_posture {
              row the graft walk did not reach, which is the staleness test itself",
             ),
             (
-                "graft_disjoint_all_onto_keyed",
-                Transfers,
-                "the graft — see `graft_disjoint_all_keyed`",
-            ),
-            (
                 "insert_void",
                 Transfers,
                 "the void-insertion door — see `insert_voids`, which it calls with the one \

@@ -32,8 +32,8 @@ mod wire;
 pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
-    need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
+    stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub(crate) use anchor::derive_naming;
@@ -540,6 +540,19 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// How many parts each of this value's output bodies is
+    /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
+    /// product is its roots, so an instantiation's bodies are as many
+    /// parts as the referenced document's root outputs, each counted at
+    /// its own `parts` — a sub-assembly's parts count through. Two root
+    /// outputs that are a split's two halves are two parts. The placers
+    /// (`Transform`, `Pattern`) and `Part` carry the count through; every
+    /// other op builds a body of its own and counts 1, an explicit union
+    /// (the fuse) included. More than one makes the value a PRODUCT,
+    /// which every op that fuses or reshapes a single body operand
+    /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
+    /// geometry (a datum's face frame) reads it as it is.
+    pub parts: usize,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -655,9 +668,10 @@ pub enum ValuePayload<T: Decide> {
     /// bodies is N rigid maps and needs no guess. `Part` takes one
     /// instance out of it by index, and the product gather takes
     /// every instance in order. Every other consumer of a body
-    /// operand — the set is `wire::body_operand`'s callers: a datum's
-    /// face frame, a blend's and a shell's body, a split's target, a
-    /// boolean's and a union's members, a placed union's prototype —
+    /// operand — the set is `wire::read_body`'s callers (a datum's
+    /// face frame) and `wire::body_operand`'s (a blend's and a shell's
+    /// body, a split's target, a boolean's and a union's members, a
+    /// placed union's prototype) —
     /// takes ONE body and refuses this value typed (`WrongOperand`):
     /// a boolean of N bodies is N booleans or one union of them, a
     /// blend of N bodies is N blends, and the recipe does not guess
@@ -1243,6 +1257,20 @@ pub mod entity_door {
     }
 }
 
+/// How the copies of a circular pattern whose step is a turn or more
+/// would land ([`NodeErrorKind::FullRangeStep`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepTurns {
+    /// The step is a whole number of turns at tolerance, so every
+    /// copy lands on the master.
+    Whole,
+    /// The angle within one turn that lands every copy where the step
+    /// does, up to rounding, spelled as a user writes it.
+    Within(String),
+    /// The step holds more whole turns than its value resolves.
+    Unresolved,
+}
+
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
 #[derive(Debug)]
@@ -1442,6 +1470,20 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A body operand is a PRODUCT — several parts a document gathered
+    /// ([`NodeValue::parts`]; `crates/editor-core/ASSEMBLY.md`, A2) —
+    /// which no op that fuses or reshapes one body accepts
+    /// (`docs/DESIGN.md`, "A solid is one piece of material"): which
+    /// solids are one part is recipe structure, and an explicit union is
+    /// what makes the parts one body. The placers carry a product
+    /// through instead, and a reader of geometry (a datum's face frame)
+    /// consumes no material and reads it as it is.
+    ProductOperand {
+        /// The operand node.
+        input: RecipeNodeId,
+        /// How many parts its document gathered.
+        parts: usize,
+    },
     /// A [`crate::Node::Part`] selected a split half that holds no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
@@ -1550,6 +1592,36 @@ pub enum NodeErrorKind {
     NonPositiveCount {
         /// The evaluated count.
         count: i64,
+    },
+    /// A linear pattern's spacing evaluated definitely below zero. A
+    /// spacing is a size; which way the copies step is the direction's
+    /// to say.
+    NegativeSpacing {
+        /// The spacing as the classifier saw it, in metres, for the
+        /// sentence only.
+        spacing: geom_core::MarginDiag,
+        /// The authored direction negated, each component spelled as
+        /// a user writes it: with the spacing made positive, it builds
+        /// the same copies.
+        reversed: [String; 3],
+    },
+    /// A linear pattern's spacing is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateSpacing,
+    /// A circular pattern's step is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateStep,
+    /// A circular pattern's step reaches a full turn at tolerance, or
+    /// passes it.
+    FullRangeStep {
+        /// The step as authored.
+        step: String,
+        /// What the step evaluated to, in radians, when it is not a
+        /// literal (a literal's text already says), for the sentence
+        /// only.
+        evaluated: Option<geom_core::MarginDiag>,
+        /// How the copies would land.
+        turns: StepTurns,
     },
     /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
     /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
@@ -2317,6 +2389,12 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} is the empty value — the body ops take real bodies",
                 by.node_as(*input, "input")
             ),
+            Self::ProductOperand { input, parts } => write!(
+                f,
+                "{} gathers {parts} parts, and this op takes one body. Recourse: union the \
+                 parts explicitly in their document and use that union",
+                by.node_as(*input, "input")
+            ),
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "the split's {} half ({}) holds no material",
@@ -2410,6 +2488,69 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
+            }
+            Self::NegativeSpacing { spacing, reversed } => {
+                let [x, y, z] = reversed;
+                write!(
+                    f,
+                    "the pattern spacing evaluated to {spacing} m, below zero, and a spacing is \
+                     a size: which way the copies step is the direction's to say, not a sign's. \
+                     Recourse: make the spacing evaluate positive (its sign comes from whatever \
+                     drives it) and point the direction the other way, ({x}, {y}, {z})"
+                )
+            }
+            Self::DegenerateSpacing => f.write_str(
+                "the pattern spacing is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the spacing a length the tolerance tells from zero, \
+                 or lower the tolerance",
+            ),
+            Self::DegenerateStep => f.write_str(
+                "the pattern step is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the step an angle the tolerance tells from zero \
+                 (360 deg over the count closes a ring), or lower the tolerance",
+            ),
+            Self::FullRangeStep {
+                step,
+                evaluated,
+                turns,
+            } => {
+                write!(f, "the pattern step {step}")?;
+                if let Some(radians) = evaluated {
+                    write!(f, ", which evaluated to {radians} rad,")?;
+                }
+                // A literal is rewritten; anything else is made to
+                // evaluate to the angle.
+                let make = if evaluated.is_some() {
+                    "make it evaluate to"
+                } else {
+                    "make the step"
+                };
+                match turns {
+                    StepTurns::Whole => write!(
+                        f,
+                        " is a whole number of turns, so every copy would land on the master. \
+                         Recourse: {make} a nonzero angle within one turn (360 deg over the \
+                         count closes a ring)"
+                    ),
+                    StepTurns::Within(within) if evaluated.is_some() => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         make it evaluate within one turn; {within} does, and places every copy \
+                         where this does, up to rounding"
+                    ),
+                    StepTurns::Within(within) => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         write it as {within}, which places every copy where this does, up to \
+                         rounding"
+                    ),
+                    StepTurns::Unresolved => write!(
+                        f,
+                        " holds more whole turns than its value resolves, and a step is an \
+                         angle within one. Recourse: {make} an angle within one turn (360 deg \
+                         over the count closes a ring)"
+                    ),
+                }
             }
             Self::PlacementsUncertified { i, j } => write!(
                 f,
@@ -4260,6 +4401,7 @@ where
                 fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
+                parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
