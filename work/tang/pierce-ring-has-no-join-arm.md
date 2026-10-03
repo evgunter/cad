@@ -373,7 +373,7 @@ the poses that stopped one layer early now reach this unit's doors:
   `editor-core` `reach_slab_cut_sector_side`, whose rows check the
   closed-form volume once this arm lands), a slab across a round boss
   in every union member order (same file), the long bar
-  (`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door`),
+  (`verbs_germarms::a_long_armed_bar_reaches_the_same_door`),
   `block ∖ cylinder` grooves (`review_fillet_h7_r1_probes`) and the
   axis laps (`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring`).
 - **A sphere face, too**: the bar through the ball
@@ -394,6 +394,48 @@ null scaffolding, the run-side rule's form of `NoChartedRun`
 (`crates/sweep/tests/tilted_sphere_pair.rs`,
 `a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`). Their
 in-seam-plane siblings, whose pierces land on the seams, build.
+
+## Measured (JOIN-3)
+
+On the boolean lanes the wall door `NoChartedRun` was the SECOND chord
+of the `mekr` that merges a pierce ring into its wall face's outer loop:
+`ChordJoiner::join` recomputed each chord's arc from the run it
+co-bounds, and after a cross-loop join that run was empty. JOIN-3 gives
+a matched segment its chord curve once (`chord_join::SegmentCurve`); the
+first chord's arc, selected in the `mekr` target cycle's window, is the
+second chord's run back. Measured on that branch:
+
+- the groove `block ∖ cylinder` builds, sound, at the closed form
+  (`review_fillet_h7_r1_probes`, `the_boolean_builds_the_groove_and_a_short_sunk_rod`);
+- the spun snowman builds under every op at every spin, sound, at the
+  closed form (`snowman::a_spun_snowman_builds_under_every_boolean`);
+- the diagonal bars at `c = 0.9` sunk `≥ 0.03` into a cap: ∩ and B∖A
+  build at the closed form, ∪ and A∖B stop at the notched wall's
+  measurement (`reach_wall_chord_rows`);
+- the bar through a wall (`verbs_germarms`, its interval twin, the R1
+  probe) and the laps across the rod's rulings (`axis_lap`) join and
+  stop at the volume backstop on the notched wall
+  (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`);
+- the bar through a ball stops at the run-side arc rule,
+  `SectionArcSide { ReflexRunEnd }`; the tilted sphere pair off the seam
+  plane at `SectionArcSide { TangentToRun }`, and the smaller ball off
+  every axis still at `NoCertifiedRun`
+  (`tilted_sphere_pair::a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`);
+- the drum crenellation (editor-core `reach_slab_cut_sector_side`) stops
+  at the notched wall; the round boss crossed by a slab still at
+  `NoChartedRun`;
+- the parallel pierced cylinders stop at their walls' cylinder ×
+  cylinder pair (`CurvedBooleanUnsupported { Cylinder }`);
+- the laps OFF the axis (`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring`,
+  `y` from `0.2` or `0.35`) still refuse `NoChartedRun`: there the run
+  of the chord itself carries only scaffolding.
+
+Renamed rows: `snowman::a_spun_snowman_refuses_at_the_pierce_ring_door`
+is `a_spun_snowman_builds_under_every_boolean`;
+`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door` is
+`a_long_armed_bar_reaches_the_same_door`, and the other two
+`…_reaches_the_join` rows are `…_reaches_the_volume_backstop`. The split lane keeps
+the per-chord computation (`work/cleave/split-lane-second-chord-recomputes-the-first-chords-arc`).
 
 ## 2026-10-02 — closed: the ring joins on a curved face (`tang/pierce-ring`)
 

@@ -336,8 +336,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    (recipe data) — near-coincidence NEVER silently becomes contact
    (escalated typed error instead); (ii) result-side touching arises
    only from those intentional coincidences propagated through the
-   boolean node, or from an op's copies of one vertex, which share its
-   point; the boolean's result carries machine-checkable
+   boolean node, or from an op's copies of one vertex at such a
+   coincidence (structural, or declared on the op's node), which share
+   its point; the boolean's result carries machine-checkable
    declared-contact records (the ON-set survivors, carried across
    seam-zip/merge mints by a descendant map, never re-derived);
    (iii) an *undeclared* contact discovered at validation is a hard
@@ -467,7 +468,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Coincidence discipline in the reduction.** Every
   reduction/classification comparison is a Q1 trilean: definitely-off
   ⇒ clean side, exactly-on ⇒ ON, in-band ⇒ escalated typed error (a
-  genuine sliver: the operand pair is ill-conditioned at this ε). No
+  genuine sliver: the operand pair is ill-conditioned at this ε). An
+  ON verdict that only places topology is derived; one that would make
+  pieces of one result touch (a split vertex whose orbit has two or
+  more runs on one side) is a value coincidence, so it needs the node's
+  declaration, and undeclared it refuses typed, at a zero margin and a
+  sub-ε one alike. No
   EPS snapping anywhere in the pipeline. Booleans on independently
   modeled nearly-touching bodies fail loudly rather than guess — the
   design thesis; the resolution is an explicit D7-style
@@ -549,7 +555,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   consumer (variable-radius fillets).
 
 Unlettered standing entries: the both-sided zero-area pinch split
-(single-sided pinches succeed by the exact mirror identity
+(declared single-sided pinches succeed by the exact mirror identity
 `split(S, n) ≡ swap(split(S, −n))`; the `BOTH_SIDED` fixture pins the
 refusal); reflex-corner tilted crossings; the torus declared-`Rest`
 lane (#968) and full-period walls in the cylindrical `Rest` lane
