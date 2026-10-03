@@ -543,6 +543,8 @@ mod verbs_tubewall_r1_probes;
 mod verbs_tubewall_r2_probes;
 #[path = "verbs_tubewall_r2_solidbits.rs"]
 mod verbs_tubewall_r2_solidbits;
+#[path = "wall_face_tangent_reach.rs"]
+mod wall_face_tangent_reach;
 
 test_utils::every_suite_file_is_aggregated!();
 
