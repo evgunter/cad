@@ -78,7 +78,7 @@ pub(super) fn gate_operand<T: Decide>(
                 | geom::Curve3::Ellipse { .. } => {}
                 // No crossing-root arm reads a spiric or a spline.
                 geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                    if !edge_clears(body, edge_key, plane, band) {
+                    if !edge_clears(body, edge_key, plane, band, &frame) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
                 }
@@ -93,14 +93,15 @@ pub(super) fn gate_operand<T: Decide>(
 /// (`census::edge_reach_in`) or behind the reach of either face it
 /// bounds, since an edge lies on both its faces. A spline edge has no
 /// sound box of its own (`EdgeBoxRule::NoSoundBox`), so its faces'
-/// reaches are what clear it.
+/// reaches are what clear it. `frame` is the plane's
+/// ([`BoxFrame::aimed`] at its normal).
 fn edge_clears<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
+    frame: &BoxFrame<T>,
 ) -> bool {
-    let frame = &BoxFrame::aimed(plane.normal);
     let bounding = body
         .get_edge(edge)
         .map(|e| [e.he_plus, e.he_minus].map(|he| body.face_of_half_edge(he)));
@@ -137,7 +138,6 @@ fn gate_face_reach<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let rule = crate::census::face_reach_in(body, face, band, frame)?;
     let f = body.get_face(face)?;
     let patch = match body.get_surface(f.surface)? {
         surface @ geom::Surface::Sphere { .. } => {
@@ -159,7 +159,7 @@ fn gate_face_reach<T: Decide>(
         ),
         _ => None,
     };
-    Some(patch.unwrap_or(rule))
+    patch.or_else(|| crate::census::face_reach_in(body, face, band, frame))
 }
 
 /// A sphere face's latitude zone, in `frame`: [`zone_extent`] per
@@ -208,40 +208,48 @@ fn sphere_zone_reach<T: Decide>(
         crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band)
             .ok()??;
     let unit = UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band).ok()?;
-    let h = Span {
-        lo: trim.south.map_or(T::zero() - *radius, |(h, _)| h),
-        hi: trim.north.map_or(*radius, |(h, _)| h),
-    };
+    let window = (
+        trim.south.unwrap_or((T::zero() - *radius, T::zero())),
+        trim.north.unwrap_or((*radius, T::zero())),
+    );
     let (c, a) = (frame.point(*center), frame.vector(unit.get()));
     let ((xl, xh), (yl, yh), (zl, zh)) = (
-        zone_extent(c.x, a.x, h, *radius),
-        zone_extent(c.y, a.y, h, *radius),
-        zone_extent(c.z, a.z, h, *radius),
+        zone_extent(c.x, a.x, window, *radius),
+        zone_extent(c.y, a.y, window, *radius),
+        zone_extent(c.z, a.z, window, *radius),
     );
     Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
 }
 
 /// **One coordinate of a sphere's latitude zone, exactly**: the least
 /// and greatest `e·p` over the zone of the sphere about `c` of radius
-/// `r` whose axial coordinate lies in `h`, where `e` is a unit
+/// `r` between its two extreme latitudes, where `e` is a unit
 /// direction, `c` is `e`'s component of the centre and `a = e·â` its
-/// component of the unit polar axis.
+/// component of the unit polar axis. Each latitude is the trim's
+/// `(axial, radial)` pair `(h, ρ)`, `ρ = √(r² − h²)`, south first; a
+/// pole is `(∓r, 0)`.
 ///
-/// A zone point is `c + h·â + ρ·û` with `û ⊥ â` unit and
-/// `ρ = √(r² − h²)`, so `e·p − e·c = h·a + ρ·(e·û)` and `e·û` reaches
-/// `±√(1 − a²)` on every parallel. The greatest value is therefore the
-/// largest `G(h) = h·a + √(1 − a²)·√(r² − h²)` over `h`, and `G` is
-/// concave on `[−r, r]` with its one stationary point at `h = r·a`
-/// (where it is `r`, the ball's own support). The largest value over a
-/// window is `G` at that point clamped into the window; the least is
-/// the same reading of `−e`. The clamp is branch-free, so no sign is
-/// decided here, and an `h` read a rounding off its true value moves
-/// `G` by as little, since `G` is continuous.
-fn zone_extent<T: Decide>(c: T, a: T, h: Span<T>, r: T) -> (T, T) {
+/// A zone point is `c + h·â + ρ·û` with `û ⊥ â` unit, so
+/// `e·p − e·c = h·a + ρ·(e·û)` and `e·û` reaches `±√(1 − a²)` on every
+/// parallel. The greatest value is therefore the largest
+/// `G(h) = h·a + √(1 − a²)·√(r² − h²)` over the window, and `G` is
+/// concave on `[−r, r]` with its one stationary point at `h = r·a`,
+/// where it is `r`, the ball's own support. So the largest value is
+/// `r` when that crest lies in the window and `G` at the nearer end
+/// otherwise; the least is the same reading of `−e`.
+///
+/// At an end `G` is read from the rim's own pair, never from
+/// `√(r² − h²)`: near a pole that root cancels, and a rounding `δ` in
+/// `h` would move it by `√(2rδ)`. Which arm applies is read branch-free
+/// (`select_le_zero`), and the two arms agree where the crest meets an
+/// end, so a crest a rounding off an end gives either to within that
+/// rounding.
+fn zone_extent<T: Decide>(c: T, a: T, (south, north): ((T, T), (T, T)), r: T) -> (T, T) {
     let s = (T::one() - a.powi(2)).max(T::zero()).sqrt();
     let most = |a: T| {
-        let at = (r * a).max(h.lo).min(h.hi);
-        at * a + s * (r.powi(2) - at.powi(2)).max(T::zero()).sqrt()
+        let crest = r * a;
+        let at = |(h, rho): (T, T)| h * a + s * rho;
+        (crest - north.0).select_le_zero((south.0 - crest).select_le_zero(r, at(south)), at(north))
     };
     (c - most(T::zero() - a), c + most(a))
 }
@@ -266,11 +274,7 @@ fn torus_window_reach<T: Decide>(
     ) {
         return None;
     }
-    let window = crate::boolean::boxes::torus_chart_window(
-        &crate::boolean::boxes::face_window_steps(body, face)?,
-        major,
-        minor,
-    )?;
+    let window = crate::census::torus_chart_window(body, face, major, minor)?;
     let (c, ax, ur, vr) = (
         frame.point(center),
         frame.vector(axis),
@@ -345,9 +349,15 @@ fn reach_clears<T: Decide>(
         return false;
     };
     let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
-    let n = plane.normal.get();
-    let at = n.x * plane.origin.x + n.y * plane.origin.y + n.z * plane.origin.z;
-    let gap = (lo.x - at).max(at - hi.x) - pad;
+    // The frame turns about the world origin, so a reach's first
+    // coordinate is `n·p`, and the world origin's own offset from the
+    // plane turns it into `n·(p − q)`.
+    let origin = crate::sector_shape::plane_offset(
+        plane.origin,
+        plane.normal.get(),
+        Point3::new(T::zero(), T::zero(), T::zero()),
+    );
+    let gap = (lo.x + origin).max(T::zero() - (hi.x + origin)) - pad;
     matches!(
         decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
         Ok(Sign::Positive)
@@ -823,7 +833,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             // only behind a box the plane cannot meet, read here as at
             // the gate, so its whole locus is on one side.
             Err(()) if !matches!(curve.carrier(), geom::Curve3::Line { .. }) => {
-                if edge_clears(body, edge_key, plane, band) {
+                if edge_clears(body, edge_key, plane, band, &BoxFrame::aimed(plane.normal)) {
                     continue;
                 }
                 return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
@@ -1180,7 +1190,8 @@ mod tests {
                 let samples = sampled(600, (t0, t1), (0.0, 2.0 * PI), |t, p| {
                     c * a + r * (e_perp * t.sin() * p.cos() + a * t.cos())
                 });
-                let got = super::zone_extent(c * a, a, super::Span { lo, hi }, r);
+                let rim = |h: f64| (h, (r * r - h * h).max(0.0).sqrt());
+                let got = super::zone_extent(c * a, a, (rim(lo), rim(hi)), r);
                 assert_support(&format!("window [{lo}, {hi}], a = {a}"), got, samples, 1e-4);
             }
         }

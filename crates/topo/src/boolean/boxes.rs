@@ -325,11 +325,12 @@ impl<T: Real> SpanBox<T> {
 
 /// The enclosure of a DECIDED unit direction: the [`SpanBox`] of a
 /// [`UnitVec3`], minted only from one, so an extent that takes it
-/// reads a unit axis by type. The census lane takes the witness at its
-/// own scalar, in the frame it reads ([`BoxFrame::unit`]), the bracket
-/// lane takes its
-/// `f64` bracket ([`UnitSpanBox::bracketed`]); either way the box
-/// encloses a vector whose length was decided and divided out.
+/// reads a unit axis by type. Two mints: the bracket lane takes the
+/// witness's `f64` bracket ([`UnitSpanBox::bracketed`]); the census
+/// lane takes it at its own scalar, rotated into the frame it reads
+/// ([`BoxFrame::unit`]), which is the witness's components along
+/// orthonormal rows — unit to the rounding of a dot product, as the
+/// witness itself is unit to the rounding of its normalize.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UnitSpanBox<T>(SpanBox<T>);
 
@@ -344,10 +345,12 @@ impl<T: Real> UnitSpanBox<T> {
 /// them whose first axis is a decided unit direction.
 ///
 /// Every per-kind extent in this module computes coordinate `i` of its
-/// box from coordinate `i` of its inputs alone, and its soundness
-/// argument reads coordinate `i` as the component along a UNIT
-/// direction — never as anything particular to the world's `x̂`, `ŷ`
-/// or `ẑ`. So the same extents, fed the components of their inputs
+/// box from coordinate `i` of its inputs alone
+/// (`every_extent_reads_each_coordinate_from_that_coordinate_alone`
+/// holds each of them to it, bit for bit), and its soundness argument
+/// reads coordinate `i` as the component along a UNIT direction —
+/// never as anything particular to the world's `x̂`, `ŷ` or `ẑ`. An
+/// extent added here owes the same, and a row in that test. So the same extents, fed the components of their inputs
 /// along the rows of any orthonormal frame, box the face in that
 /// frame, and the first coordinate of an [`Aimed`](Self::Aimed) frame's
 /// box is the face's support along its aim. That is a reading that
@@ -358,9 +361,16 @@ impl<T: Real> UnitSpanBox<T> {
 /// The aimed frame is the aim with [`UnitVec3::orthonormal_basis`],
 /// in the cyclic order `(aim, b1, b2)` of the right-handed
 /// `(b1, b2, aim)`, so a cross product of two mapped vectors is the
-/// mapped cross product. The rows are unit and orthogonal up to the
-/// rounding of that construction, which is ulps of a unit row and
-/// rides with the rest of the box's rounding under the pad.
+/// mapped cross product.
+///
+/// **Rounding.** A point is turned about the WORLD origin, so its
+/// coordinate along a row is a dot product rounded by at most
+/// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|`, about one and a half ulps of `|p|`
+/// (`the_aimed_frames_rounding_is_a_few_ulps_of_the_point` measures it
+/// out to `|p| = 10⁸` m). The pad every reader adds is `12 ε`, so it
+/// covers that wherever a coordinate of magnitude `|p|` resolves `ε` at
+/// all — and a body placed where `ulp(|p|) > ε` has vertices the band
+/// cannot place either.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum BoxFrame<T: Real> {
     /// The world's axes: every point and vector read as it is stored.
@@ -5101,6 +5111,175 @@ pub(crate) mod tests {
                 "wrap window: the census box must contain this lane's box by no more than \
                  the charge {charge} at {name}, gap {gap}"
             );
+        }
+    }
+
+    /// **Every extent reads coordinate `i` from coordinate `i` alone** —
+    /// the premise [`BoxFrame`] rests on: an extent that mixed a second
+    /// coordinate into the first would be exact in the world frame and
+    /// unsound in an aimed one, which no world row could see. Each
+    /// extent is run twice on inputs that agree in `x` and disagree in
+    /// `y` and `z`, and its `x` span must not move by a bit.
+    #[test]
+    fn every_extent_reads_each_coordinate_from_that_coordinate_alone() {
+        let v = |x: f64, y: f64, z: f64| SpanBox::vector(Vec3::new(x, y, z));
+        let pt = |x: f64, y: f64, z: f64| SpanBox::point(Point3::new(x, y, z));
+        let same = |what: &str, a: SpanBox<f64>, b: SpanBox<f64>| {
+            assert!(
+                a.x.lo.to_bits() == b.x.lo.to_bits() && a.x.hi.to_bits() == b.x.hi.to_bits(),
+                "{what}: the x span moved with y and z: {:?} vs {:?}",
+                a.x,
+                b.x
+            );
+        };
+        let h = Span { lo: -0.4, hi: 0.9 };
+        // Two readings of the same x components: (0.3, …) etc.
+        for (oy, oz, ay, az) in [(5.0, -2.0, 0.6, 0.1), (-7.0, 3.5, 0.0, 0.95)] {
+            let (o0, o1) = (pt(0.3, 0.2, -0.1), pt(0.3, oy, oz));
+            let (a0, a1) = (v(0.28, 0.5, 0.82), v(0.28, ay, az));
+            let (u0, u1) = (v(0.6, -0.7, 0.2), v(0.6, az, oy));
+            let (w0, w1) = (v(-0.3, 0.1, 0.9), v(-0.3, oz, ay));
+            same(
+                "slab_extent",
+                slab_extent(&o0, &UnitSpanBox(a0), h, 0.7),
+                slab_extent(&o1, &UnitSpanBox(a1), h, 0.7),
+            );
+            same(
+                "cone_frustum_extent",
+                cone_frustum_extent(&o0, &a0, h, 0.4),
+                cone_frustum_extent(&o1, &a1, h, 0.4),
+            );
+            same("ball_extent", ball_extent(&o0, 0.7), ball_extent(&o1, 0.7));
+            same(
+                "torus_extent",
+                torus_extent(&o0, &a0, 0.75, 0.25),
+                torus_extent(&o1, &a1, 0.75, 0.25),
+            );
+            let window = (Span { lo: 0.3, hi: 2.9 }, Span { lo: -1.0, hi: 1.4 });
+            same(
+                "torus_window_extent",
+                torus_window_extent(
+                    &o0,
+                    &a0,
+                    &u0,
+                    &w0,
+                    Span::exact(0.75),
+                    Span::exact(0.25),
+                    window,
+                ),
+                torus_window_extent(
+                    &o1,
+                    &a1,
+                    &u1,
+                    &w1,
+                    Span::exact(0.75),
+                    Span::exact(0.25),
+                    window,
+                ),
+            );
+            same(
+                "conic_extent",
+                conic_extent(&o0, &u0, &w0, 0.9, 0.4),
+                conic_extent(&o1, &u1, &w1, 0.9, 0.4),
+            );
+            same(
+                "arc_extent",
+                arc_extent(&o0, &u0, &w0, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
+                arc_extent(&o1, &u1, &w1, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
+            );
+        }
+    }
+
+    /// **The aimed frame's rounding, measured.** A point's first
+    /// coordinate is the dot product `n·p`, whose rounding is at most
+    /// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|` (about one and a half ulps of `|p|`): against
+    /// an error-free reference (each product split exactly by `mul_add`,
+    /// the sum carried in two parts), at `|p|` from a millimetre to
+    /// `10⁸` m. The pad, `12 ε`, covers it wherever a coordinate of
+    /// magnitude `|p|` resolves `ε` at all (`ulp(|p|) ≤ ε`), which is
+    /// what [`BoxFrame`]'s docs lean on.
+    #[test]
+    fn the_aimed_frames_rounding_is_a_few_ulps_of_the_point() {
+        let two_sum = |a: f64, b: f64| {
+            let s = a + b;
+            let bb = s - a;
+            (s, (a - (s - bb)) + (b - bb))
+        };
+        let exact_dot = |n: Vec3<f64>, p: Point3<f64>| {
+            let (mut hi, mut lo) = (0.0f64, 0.0f64);
+            for (a, b) in [(n.x, p.x), (n.y, p.y), (n.z, p.z)] {
+                let prod = a * b;
+                let err = a.mul_add(b, -prod);
+                let (s, e) = two_sum(hi, prod);
+                hi = s;
+                lo += e + err;
+            }
+            (hi, lo)
+        };
+        let band = witness_band();
+        let mut worst = 0.0f64;
+        for (k, scale) in [1e-3, 1.0, 1e3, 1e6, 1e8].into_iter().enumerate() {
+            for i in 0..200u32 {
+                let t = f64::from(i) * 0.731 + k as f64;
+                let n = UnitVec3::new(
+                    Vec3::new(t.sin(), (1.7 * t).cos(), (0.3 * t).sin() + 0.2),
+                    BOX_CYLINDER_AXIS,
+                    band,
+                )
+                .unwrap();
+                let p = Point3::new(
+                    scale * (2.3 * t).cos(),
+                    scale * (1.1 * t).sin(),
+                    scale * (0.7 * t + 1.0).cos(),
+                );
+                let got = BoxFrame::aimed(n).point(p).x;
+                let (hi, lo) = exact_dot(n.get(), p);
+                let norm = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
+                let err = ((got - hi) - lo).abs();
+                assert!(
+                    err <= 3.0 * f64::EPSILON / 2.0 * norm,
+                    "the aimed coordinate of {p:?} along {n:?} is off by {err}, over 3u·|p| = {}",
+                    3.0 * f64::EPSILON / 2.0 * norm
+                );
+                worst = worst.max(err / norm);
+            }
+        }
+        println!("the aimed frame's worst rounding: {worst:e}·|p|");
+    }
+
+    /// **The spiric edge's reach turns with the frame**: read in frames
+    /// aimed off every world axis, the first coordinate of
+    /// `census::edge_reach_in` holds `n·p` for a dense sample of the
+    /// spiric — the arm the split gate reads a spiric edge through. A
+    /// world-frame row cannot see a component left unrotated here.
+    #[test]
+    fn the_spiric_edge_reach_holds_the_curve_in_an_aimed_frame() {
+        let (body, _, edge) = spiric_sector();
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let band = witness_band();
+        for aim in [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.3, -0.4, 0.87),
+            Vec3::new(-0.8, 0.2, 0.55),
+            Vec3::new(0.6, 0.7, -0.4),
+        ] {
+            let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::aimed(n)).unwrap();
+            for i in 0..=20_000 {
+                let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+                let p = curve.carrier().eval(t);
+                let along = n.get().dot(Vec3::new(p.x, p.y, p.z));
+                assert!(
+                    along >= lo.x - 1e-15 && along <= hi.x + 1e-15,
+                    "along {aim:?}, the spiric point at v = {t} reads {along}, \
+                     outside the reach [{}, {}]",
+                    lo.x,
+                    hi.x
+                );
+            }
         }
     }
 }

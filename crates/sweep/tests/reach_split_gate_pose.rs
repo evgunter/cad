@@ -484,23 +484,41 @@ fn a_cut_into_the_face_refuses_in_every_pose() {
         let body = build(&f);
         let (lo, _) = face_support(&f, s, tilted);
         let d = lo + 1e-3 * s;
-        for (pose, map) in poses(s) {
-            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
-            let what = format!("{}, {pose}", f.name);
-            let plane = (
+        let mut cuts = vec![(
+            "tilted",
+            (
                 tilted,
                 Point3::new(tilted.x * d, tilted.y * d, tilted.z * d),
-            );
-            match split_posed(&f, s, &posed, map, plane, &what) {
-                Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
-                    face,
-                    kind: k,
-                })) => {
-                    assert_eq!(k, kind, "{what}");
-                    let surface = posed.get_face(face).unwrap().surface;
-                    assert_eq!(posed.get_surface(surface).unwrap().kind(), kind, "{what}");
+            ),
+        )];
+        if f.name == "truncated ball" {
+            // 1.1 from the centre along ±z: a circle on the sphere face
+            // of angular radius acos(1.1/1.25) that reaches no edge.
+            for (side, n) in [("-z flank", -1.0), ("+z flank", 1.0)] {
+                cuts.push((
+                    side,
+                    (
+                        Vec3::new(0.0, 0.0, n),
+                        Point3::new(0.0, 0.25 * s, 1.1 * n * s),
+                    ),
+                ));
+            }
+        }
+        for (pose, map) in poses(s) {
+            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+            for &(cut, plane) in &cuts {
+                let what = format!("{}, {pose}, {cut}", f.name);
+                match split_posed(&f, s, &posed, map, plane, &what) {
+                    Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+                        face,
+                        kind: k,
+                    })) => {
+                        assert_eq!(k, kind, "{what}");
+                        let surface = posed.get_face(face).unwrap().surface;
+                        assert_eq!(posed.get_surface(surface).unwrap().kind(), kind, "{what}");
+                    }
+                    other => panic!("{what}: expected the gate's refusal, got {other:?}"),
                 }
-                other => panic!("{what}: expected the gate's refusal, got {other:?}"),
             }
         }
     }
