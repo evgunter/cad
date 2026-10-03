@@ -8480,7 +8480,9 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         if he.start != vertex_key {
             continue; // pass 5 reported the mismatch
         }
-        match body.orbit_walk(emanating) {
+        // The walk that reads no start, so a foreign member is named
+        // rather than collapsed into `Broken`.
+        match body.orbit_walk_reading_no_start(emanating) {
             // Broken: a stale link or broken mate — passes 1/3 reported
             // the cause.
             Walk::Broken => {}

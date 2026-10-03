@@ -1007,7 +1007,8 @@ impl<T: Decide> Body<T> {
     /// the fan-merge geometry). Pure.
     ///
     /// Beyond resolving every key the kill writes, it proves that every
-    /// half-edge of the merged fan starts at the dying vertex, the
+    /// half-edge of the merged fan starts at the dying vertex (the
+    /// orbit walk's own proof, [`Body::vertex_orbit`]), the
     /// survivor's new `emanating` and the loops' new anchors
     /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
     /// names the edge, the vertex or the half-edges it removes
@@ -1015,10 +1016,8 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_killed_halves_unnamed`]). The first is
     /// what keeps the killed edge out of its own merged members: its
     /// halves are `he`, which starts at the survivor, and the mate, which
-    /// heads the orbit walk and so is not in the fan. The walk steps
-    /// through `next(mate(·))` and reads no start vertex, so a torn
-    /// `next` can put a foreign half-edge — the killed half among
-    /// them — on it, and only this check sees one.
+    /// heads the orbit walk and so is not in the fan; a torn `next` that
+    /// puts the killed half on the walk breaks it.
     fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
         let ProvenMate {
             he_data,
@@ -1052,11 +1051,10 @@ impl<T: Decide> Body<T> {
         }
         // w's whole fan, walked clockwise from the doomed mate: the
         // members after m are the survivors to merge onto v (bounded
-        // walk, D9).
+        // walk, D9; every member starts at w).
         let orbit_w = self
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
-        self.require_orbit_starts_at(&orbit_w, w, m)?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
         let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
@@ -2838,7 +2836,7 @@ mod tests {
         body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
         body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
         assert_eq!(
-            body.vertex_orbit(seg.he_minus),
+            body.vertex_orbit_reading_no_start(seg.he_minus),
             Some(vec![seg.he_minus, strut.he_plus, seg.he_plus])
         );
         let torn = EulerOpError::OrbitBroken { he: seg.he_minus };
@@ -2871,7 +2869,7 @@ mod tests {
         let m = body.mate(he).unwrap();
         let torn = EulerOpError::OrbitBroken { he: m };
         let killed = body.get_half_edge(he).unwrap().edge;
-        let orbit = body.vertex_orbit(m).unwrap();
+        let orbit = body.vertex_orbit_reading_no_start(m).unwrap();
         assert!(
             orbit[1..]
                 .iter()

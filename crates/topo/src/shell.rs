@@ -1937,8 +1937,18 @@ fn canonicalize_chart<T: Decide>(
 
     // ---- 2 and 3: proper loops. ----
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor) {
-        let far = |he| body.half_edge_end(he);
-        if far(he1).is_some_and(|v| valence(body, v) == 1) {
+        // Whether `he` ends at a valence-one tip, which `kev` kills; a
+        // far vertex whose valence cannot be read refuses.
+        let tip = |body: &Body<T>, he: HeKey| -> Result<bool, ShellError<T>> {
+            let far = body.half_edge_end(he).ok_or(ShellError::Corrupt {
+                key: EntityId::HalfEdge(he),
+            })?;
+            let valence = valence(body, far).ok_or(ShellError::Corrupt {
+                key: EntityId::Vertex(far),
+            })?;
+            Ok(valence == 1)
+        };
+        if tip(body, he1)? {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
@@ -1947,7 +1957,7 @@ fn canonicalize_chart<T: Decide>(
             dead.vertices.push(killed.killed_vertex);
             continue;
         }
-        if far(he2).is_some_and(|v| valence(body, v) == 1) {
+        if tip(body, he2)? {
             let killed = body.kev(he2).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
@@ -2117,12 +2127,14 @@ fn split_cycle<T: Real>(
     }
 }
 
-/// How many edges emanate from a vertex.
-fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> usize {
-    body.get_vertex(vertex)
-        .and_then(|d| d.emanating)
-        .and_then(|he| body.vertex_orbit(he))
-        .map_or(0, |orbit| orbit.len())
+/// How many edges emanate from a vertex: `None` where the vertex is
+/// stale or its orbit does not walk ([`Body::vertex_orbit`]), which is
+/// not a valence.
+fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> Option<usize> {
+    match body.get_vertex(vertex)?.emanating {
+        None => Some(0),
+        Some(he) => body.vertex_orbit(he).map(|orbit| orbit.len()),
+    }
 }
 
 /// Sampled points along a run of half-edges — each edge at the
@@ -2763,4 +2775,27 @@ fn face_neighbours<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Vec<FaceKey
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// A vertex whose orbit does not walk has no valence to answer, so
+    /// the read refuses rather than answer zero, which the spur test
+    /// reads as "not a tip" and sends to the slit's `kemr`. A lone
+    /// vertex meets no edge and answers zero.
+    #[test]
+    fn valence_refuses_a_vertex_whose_orbit_does_not_walk() {
+        let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        assert_eq!(valence(&body, v), None, "the torn walk");
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let start = body.get_half_edge(halves[11]).unwrap().start;
+        assert_eq!(start, v);
+        assert_eq!(valence(&cube, v), Some(3), "the same vertex untorn");
+        let lone = crate::fixtures::mvfs_state();
+        assert_eq!(valence(&lone.body, lone.vertex), Some(0), "a lone vertex");
+        assert_eq!(valence(&cube, VertexKey::default()), None, "a stale vertex");
+    }
 }
