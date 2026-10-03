@@ -942,7 +942,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
 /// the middle of an action, [`editor_core::Recording::insert`] refuses an
 /// empty placement list, a non-finite frame, a mirror and a stretched
 /// frame with exactly the error `apply` gives the same insert against
-/// the same document, records nothing for it, and the action goes on.
+/// the same document, records nothing for it, and ends the action on it.
 /// The placement rule is checked by the whole-document backstop every
 /// edit passes through after it is written, not by the insert's own
 /// arm, so an insert that skipped that backstop would land here.
@@ -956,11 +956,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
     let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
     stretched.columns[0] = [2.0, 0.0, 0.0];
 
-    let mut action =
-        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
-    let first = action
-        .insert(with(vec![Frame::IDENTITY]))
-        .expect("one placement is legal");
     for (what, node) in [
         ("an empty placement list", with(Vec::new())),
         (
@@ -970,6 +965,11 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
         ("a mirror", with(vec![mirror])),
         ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
     ] {
+        let mut action =
+            editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+        let first = action
+            .insert(with(vec![Frame::IDENTITY]))
+            .expect("one placement is legal");
         let before = action.doc().clone();
         let want = apply(
             &before,
@@ -992,7 +992,7 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
         );
         assert_eq!(
             action.insert(node),
-            Err(want),
+            Err(want.clone()),
             "the typed insert refuses {what} as `apply` does"
         );
         assert!(
@@ -1000,9 +1000,10 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
             "a refused insert of {what} leaves the action where it stood"
         );
         assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
+        assert_eq!(
+            action.finish().map(|done| done.minted),
+            Err(want),
+            "the refused insert of {what} ends the action"
+        );
     }
-    let last = action
-        .insert(with(vec![Frame::translation([4.0, 0.0, 0.0])]))
-        .expect("the action goes on after the refusals");
-    assert_eq!(action.finish().minted, vec![Some(first), Some(last)]);
 }
