@@ -7,6 +7,7 @@ opened: 2026-10-03
 priority: P1
 cost: M
 branch: recipe/one-action-recorder
+pr: 3931
 ---
 
 
@@ -24,3 +25,7 @@ PR 3925's first review had already counted four composers of several edits' `App
 One generic recorder in editor-core (`Recording` made generic over the payload, or a new home both use) that the viewer's `stage_run`, refactor and `regauge_then_mate` all call; the door's `unreachable!` on the minted id goes with it (the reviewer: apply the re-gauges in the loop and the insert after it).
 
 Filed by the RECIPE orchestrator from PR 3925's second review.
+
+## Built (2026-10-03, PR 3931)
+
+`editor_core::Recording`/`Recorded` is the one recorder; the viewer, refactor, `regauge_then_mate` and pncad-py's labelled insert record through it, and a typed insert door retires the minted-id `unreachable!`s. The PR body carries the sweep and its dispositions.
