@@ -6242,3 +6242,14 @@ All eight rulings were applied.
 
 I closed the row on the branch from the lane's own worktree (`1d469db18e`).
 The merge waits on CI on that head.
+
+## PR 3702 merged; merge-orientation-rung dispatched (2026-10-03)
+
+- **PR 3702 merged** as `2096c0dfe6` from head `1d469db18e`, after CI
+  run 37143357176 passed. The merge door re-describes its kept faces'
+  boundaries, which is agreed part (1) of the kef/kfmrh fork.
+- **merge-orientation-rung** (P2) is dispatched as a cloud session on
+  branch `topo/merge-orientation-rung-levers-at-the-extent`. The rung
+  levers at the edge's extent at both the merge site and F7, the
+  tolerance offers are executed, and the witnesses are a circle-split
+  coplanar pair at each site.
