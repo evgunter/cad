@@ -370,8 +370,24 @@ never persisted (`crates/viewer/src/display.rs`).
 **A10 — Explicit product roots.** `Doc::roots` is an ordered list of
 node ids, document data. Invariants (`roots::check`): coverage (every
 live node is ancestor-of-or-equal-to some root) and ancestor-freedom
-(no root is a strict ancestor of another); together the root set is
-exactly the DAG's sink set and the list adds only the solid order.
+(no root is a strict ancestor of another), both over the node graph,
+whose edges are operands; together the root set is exactly the sink set
+and the list adds only the solid order. A reference's type says what it
+is. A bare node id in a node's payload is an OPERAND: the node consumes
+that whole node, and its output supersedes the input in what the
+document denotes (a Boolean's operands, a fillet's target, an extrude's
+profile, an assertion's measure). A sited reference (`{ at, name }`, an
+entity read inside the value at `at`: a measure's references, a face
+frame's face, a mate's heads, a gauge reference) is a READ: the input
+keeps denoting what it denoted, and a read is not an edge of this
+graph, so a body a requirement measures or a sketch is drawn on stays a
+product root. Reads order evaluation, key the memo and carry poison,
+except where the reader's value is the solve's answer (a mate, a gauge,
+an instance), whose reads the solve orders; A9's partition does not run
+through a reader whose value lives in no space (a measure, an
+assertion). Deleting an operand is refused; deleting a read's site
+strands the read and the edit reports it (DM7), and `Rebind` moves a
+site read at its name's own mint along with the name.
 Maintenance: a new sink appends; a node that replaces roots (an
 insert consuming them, or split's instance) goes where the first of
 them was; removing it puts what it replaced back at its position (a
