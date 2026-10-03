@@ -56,6 +56,12 @@ the first verb door to adopt it.
      `docm2_part_interval`).
 4. **The 49 test fixtures handed in below tier 3** take
    `describe_as_intersections`, or pin their refusal at `validate`.
+   (The 49 are the designers' count of shipped RESULTS that failed tier
+   3 and traced to a below-tier-3 operand, 49 of 52 failures, on their
+   measurement tree, `1b59e45c`. The unit's own measurement counts
+   door CALLS whose operand is below tier 3, on `origin/main` 82b9ceb2:
+   151 calls in 38 tests, 126 in 31 topo tests and 25 in 7 sweep tests;
+   a test that hands one fixture to several ops counts once per call.)
 
 `shell`'s adoption waits on CONTACT's
 `census-cross-solid-curved-pairs-undecidable-on-shell-results`. The

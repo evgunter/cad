@@ -958,10 +958,11 @@ impl core::error::Error for SplitError {}
 /// answers `groups` and `root_at_empty` from the part it holds or
 /// builds.
 ///
-/// An authored side is held to all three: its vectors are coordinates
-/// of the instance it reads, and only there do they not change. A
-/// `FromFace` side is held to (b) alone: its frame is its head's face
-/// in the member's part, the head crosses with it, and the face moves
+/// A part-based side is held to all three: its frame is in coordinates
+/// of the instance it reads, and only there does it not change. A
+/// face-based side is held to (b) alone: its frame is its head's face
+/// in the member's part, the head crosses with it, its offset rides
+/// the face, and the face moves
 /// only if the member's place in the world does. A copy or a placer
 /// between is admitted on purpose: the head names the copy's face
 /// through the placer, and it crosses as it is.
@@ -974,9 +975,9 @@ fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     let placed = groups
         .iter()
         .any(|(members, _, cause)| cause.is_none() && members.as_ref().contains(&read.instance));
-    match frame {
-        crate::mate::MateFrame::FromFace => placed,
-        crate::mate::MateFrame::Authored(_) => {
+    match frame.base {
+        crate::mate::FrameBase::Face => placed,
+        crate::mate::FrameBase::Part => {
             read.chain.is_empty() && placed && root_at_empty(read.instance)
         }
     }
@@ -2121,9 +2122,11 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            // The datum crosses verbatim: its vectors are numbers, and
-            // a `FromFace` side holds nothing, its face being the
-            // head's, remapped above.
+            // The datum crosses verbatim: its frames are a base word
+            // and a placement of numbers and expressions over document
+            // parameters, which split and inline carry beside it, and
+            // a face base holds no name, its face being the head's,
+            // remapped above.
             alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
@@ -2497,7 +2500,7 @@ pub fn split(
     // no instance, would start); and its cut side's coordinates must
     // not change, which is the frame rule (`frame_survives`): an
     // authored side's instance must be, in the part, its group's root
-    // at the empty chain on the part's world; a `FromFace` side's
+    // at the empty chain on the part's world; a face-based side's
     // member must be placed in the part's world, and its head carries
     // its face across.
     //
@@ -3239,7 +3242,7 @@ pub fn inline(
     // that reads the instance — its name wrapped at it, which the
     // rebind below re-anchors onto the inner name. The inner instance
     // must be its part group's root at the empty chain on the part's
-    // world, so the frame means what it meant — or, for a `FromFace`
+    // world, so the frame means what it meant — or, for a face-based
     // side, its inner member must be placed in the part's world, its
     // head carrying its face across (`frame_survives`); and the placing
     // mates of one pair must still read one pair.

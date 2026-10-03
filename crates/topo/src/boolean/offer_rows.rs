@@ -1933,6 +1933,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
+        | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
@@ -2443,6 +2444,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",
@@ -2525,7 +2527,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
-    ("rest.rs", "enumerate_segments", "Coincide::Join", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2539,15 +2540,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::DirectionSense",
         1,
     ),
-    (
-        "sectors.rs",
-        "invalid_escalation",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
         "side_code",

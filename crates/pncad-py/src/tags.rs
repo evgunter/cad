@@ -524,6 +524,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "profile",
         SlotId::PlacementStep { .. } => "placement_step",
+        SlotId::MateFrameStep { .. } => "mate_frame_step",
     }
 }
 
@@ -1069,6 +1070,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOffsetDisagrees => "mate_offset_disagrees",
         C::MateOffsetUnchecked => "mate_offset_unchecked",
         C::MateFaceUnresolved => "mate_face_unresolved",
+        C::MateFrameUnevaluated => "mate_frame_unevaluated",
         C::CrossingUnverified => "crossing_unverified",
         // A node reading an unplaced group's space beside another.
         C::Unplaced => "unplaced",
@@ -1571,6 +1573,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
+        BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
@@ -1812,8 +1815,8 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for a face refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a `FromFace`
-/// frame's face answered no pose through the mated part's own
+/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a face base's
+/// face answered no pose through the mated part's own
 /// evaluation. The reach's own refusal is spelled by its own map
 /// ([`face_pose_refusal_tag`]).
 ///

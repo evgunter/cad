@@ -77,9 +77,10 @@ use crate::validate::decide;
 ///
 /// **Why a ray-level margin abandons the ray.** A walk's boundary pass
 /// asks where `q` itself stands, and its rows escalate. Every row past
-/// it is a fact about ONE RAY: where it passes a vertex, meets a conic
-/// or a face's carrier, clears an uncrossable edge's ball, how far
-/// along it a crossing falls, or which way it runs against a carrier.
+/// it is a fact about ONE RAY: whether its schedule member projects
+/// into the plane, where it passes a vertex, meets a conic or a face's
+/// carrier, clears an uncrossable edge's ball, how far along it a
+/// crossing falls, or which way it runs against a carrier.
 /// A verdict is read only off a ray whose every decision on it is
 /// definite, so abandoning a ray on an in-band one — as a graze is
 /// abandoned — can turn a refusal into an answer, never into a wrong

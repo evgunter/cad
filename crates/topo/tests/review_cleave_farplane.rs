@@ -294,9 +294,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
     // (`work/reach/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
     let want: Vec<(String, bool)> = [2.0, 5.0, 9.0]
         .iter()
-        .flat_map(|k| {
-            ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true))
-        })
+        .flat_map(|k| ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true)))
         .collect();
     assert_eq!(refused, want, "the refusals, each the ring's escalation");
 }

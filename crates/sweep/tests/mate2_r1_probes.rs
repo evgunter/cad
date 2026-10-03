@@ -38,6 +38,22 @@ fn probe_misaligned_azimuth_split_unions() {
     let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
+    let join = topo::test_support::boolean_join_refusal(
+        topo::BooleanOp::Union,
+        &c,
+        &p,
+        &decls,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
+        "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
+    );
     let bb = boolean_body(
         topo::union_with(&c, &p, &decls, Tol::witness()).expect("the misaligned mate unions"),
     );
