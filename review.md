@@ -1,6 +1,6 @@
 # Review of PR #3982, frozen head 7ca2662950
 
-Lane `reach-dual3982-r1`. Wall clock: start 2026-10-03 17:10 UTC, end END_TIME UTC. Glimpses: none. I read only my own brief file on the briefs branch, and the PR body via `get` (plus the head's check runs). I read no comments, no reviews and no other `analysis/reach-dual/*` branch.
+Lane `reach-dual3982-r1`. Wall clock: start 2026-10-03 17:10 UTC, end 18:29 UTC. Glimpses: none. I read only my own brief file on the briefs branch, and the PR body via `get` (plus the head's check runs). I read no comments, no reviews and no other `analysis/reach-dual/*` branch.
 
 **Verdict: APPROVE-WITH-FIXES** (the fixes are MINOR coverage work, not correctness). **0 MAJOR · 1 MINOR · 4 NOTE**, plus a style section.
 
@@ -35,7 +35,7 @@ Each is tried in 4 poses (upright, turned 0.3 rad, the PR's skew, and a second s
 
    Runner: `probes/dual3982_r1_mutants.py`.
 
-Suites (local, `CARGO_INCREMENTAL=0`, own target dir): SUITES. CI on `7ca266295`: run 37139134700, all jobs green.
+Suites (local, `CARGO_INCREMENTAL=0`, own target dir), all green: `nextest -p topo -p sweep` at ε 1e-9 gave 4231/4231; `--profile ci` at ε 1e-6 gave 4181/4181, and at ε 1e-12 gave 4181/4181. CI on `7ca266295`: run 37139134700, all jobs green.
 
 ## Findings
 - **MINOR-1 · `crates/topo/src/splitting/classify.rs:303–328` (`torus_rect_extent` / `most_cos`) · DEMONSTRATED BY EXECUTION.** No committed end-to-end row sees a partial chart window. Mutants M3 and M4 are unsound on purpose. Both pass every committed sweep row, including both new pose rows and PR 3843's per-face rows. Only the unit row `the_torus_rect_extent_is_the_rectangles_support_along_every_direction` kills them.
