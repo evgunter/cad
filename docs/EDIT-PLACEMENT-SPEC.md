@@ -11,7 +11,7 @@ The ruling reaches the data model, the mate solve, evaluation, persistence, expo
 | P2 | Gauges; the registry and maintenance go; own space; STEP refusal | `edit/placement-gauges` | dual |
 | P2-carry | Split and inline keep a carried member's checked offset (ruling 9 below) | `place/carry-keeps-offsets` | single, full |
 | P2-split | Split and inline at a gauge: the gauge hoist, inline's gauge, the mate-placed inline | `place/p2-split` | dual |
-| P2-face | A `FromFace` side across the seam (rulings 7 and 8's `FromFace` case) | `place/p2-face` | after Ev's ruling |
+| P2-face | A `FromFace` side across the seam (rulings 7 and 8's `FromFace` case) | `place/p2-face` | dual |
 | P3 | Viewer: the group-wide probe and "place where shown" | the viewer owner's | filed on its slate, not EDIT's |
 
 Every premise below was read off `origin/main` by earlier surveys and may have moved. Treat each one as a hypothesis, verify it, and report any correction. This program's specs have each carried at least one false premise.
@@ -164,7 +164,7 @@ Announce each crossing.
 
    - a cut that leaves a group's placing mate behind refuses `PlacingMateLeft`;
    - every reference leaving the cut votes for an anchor, and plain geometry votes for the world; a group unplaced for lack of an offset casts no vote;
-   - a `FromFace` side whose frame would cross the seam refuses `MateFaceFrameCrosses`, at split and at inline. Its frame is written in the reading instance's coordinates; `work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md` (M1) is the uniform fix.
+   - a `FromFace` side crosses the seam with its head (P2-split's ruling 7).
 
    Every refusal is typed and carries a one-edit recourse (the refusal standard), guarded by `refusal_concision_refactor.rs`. Replace `InlineError::UnplaceableFrame` only if a new arm states the same refusal more truly.
 
@@ -259,14 +259,14 @@ Announce each crossing in the PR body.
 
 **The cut into units.** This section builds as three units, in order:
 - **P2-carry**: ruling 9 and row C1, alone. It is a live defect on main (a checked offset dropped by a split or inline that P2-core admits), so it does not wait for the rest.
-- **P2-split**: rulings 1–6, 8 with condition (c) binding every side, and 10; rows S1–S7, I1–I5 and R1. `MateFaceFrameCrosses` keeps refusing at both seams, as P2-core has it.
-- **P2-face**: ruling 7, the `FromFace` case of ruling 8, `SetMateFrame`, and rows F1–F5. It waits for Ev's ruling on how a face frame crosses the seam (below), which a designer pair weighs first; the representation is part of that question (re-spelling through a new edit, or a face spelled in the host's naming so `Rebind` carries it), so nothing of it is built ahead.
+- **P2-split**: rulings 1–6, 8 for authored sides, and 10; rows S1–S7, I1–I5 and R1.
+- **P2-face**: ruling 7, the `FromFace` case of ruling 8, and rows F1–F5, as Ev ruled on `[ev]` #3888.
 
 **What PR 3908 builds of P2-split, and what follows it.** `[ev]` PR 3888 asks whether a gauge in the cut moves into the part as it is or becomes the instance, and whether the group hoist and inline's sugar stay. P2-split's PR builds the part that is the same under every answer:
 - **Built:** ruling 1 with D2 (an instance votes its gauge whatever its space, a dead reference having refused first; a cut gauge on a dead chain refuses `DeadGaugeReference`, whose field is `node`); ruling 2 (`SplitError::SeveredGauge`); ruling 4 for every cut that holds a gauge, so no cut gauge is hoisted and `SplitError::CutHoldsGauge` is gone; ruling 5 with D3's half for inline (the minted gauge takes the instance's label; `InlineError::MovedMemberOffset`; `InlineError::NeedsAGauge` is gone); ruling 6 (`MatePlaced` narrowed; its `part_root` and `part_gauges` name the concrete remedy where only the part root's offset or the gauges its group sits on are wrong); ruling 10. `inline`'s stale doc comment is rewritten.
 - **Rows:** S2, S3, S4 with D2's, S5 and S6 re-cut to the verbatim move (a kept mate reading a root on a cut gauge refuses `MateFrameCrosses`, since that root lands on the gauge's image; a kept instance on the anchor declaring into a cut gauge refuses `WouldStartPlacing`), I1–I5, and R1 over every cut holding a gauge, nested and parametric gauges among them (`crates/editor-core/tests/p2_split.rs`). The comparator is `tests/fixture/round_trip.rs`: it reads each node off its own rendering, never through the remapping under test, and has a failing row for each field it reads.
 - **Three facts the premises missed.** Gauges live in no space, so a cut of gauges, datums or other body-less nodes passed every refusal and left an instance of a part with no body: `SplitError::NoMaterial` refuses a cut none of whose roots denotes a body. `SetGauge` may put a node on a gauge inserted after it, so `carry` orders each carried gauge ahead of what sits on it (`gauges_first`) rather than relying on document order. A gauge is a sink of the recipe DAG and so a product root (A10), so the gauge inline mints joins the root list at the instance's position, ahead of the spliced roots.
-- **The slate's next units, after Ev answers PR 3888:** ruling 3 with rows S1 and S7, or its retirement; the group hoist's and the sugar's removal with D1, if Ev removes them; and P2-face. The group hoist, the sugar and `MateFaceFrameCrosses` at both seams stand as P2-core built them.
+- **The slate's next units, after Ev answers PR 3888:** ruling 3 with rows S1 and S7, or its retirement; the group hoist's and the sugar's removal with D1, if Ev removes them; and P2-face. The group hoist and the sugar stand as P2-core built them.
 
 **Where the clauses disagree with themselves, ruled.**
 - **D1. A4's round trip against the gauge hoist and inline's sugar.** A gauge K whose placement is the empty chain, or whose content is exactly one group rooted at the empty chain on K, hoists to an instance that inline does not turn back into a gauge: at the empty offset no gauge is minted, and for one such group the root takes the offset. So `inline(split(d))` returns `d` with K folded into the root's offset: equal in evaluation, not in shape. Both sentences are ratified A4 text, so which gives way is Ev's, put with the face-frame question. P2-split builds both sentences as written, and R1 pins those two shapes to the evaluation-equal result, naming them.
@@ -308,18 +308,11 @@ Announce each crossing in the PR body.
    - When the instance is not its group's root and the part is one such group, the part's root takes the instance's offset, which is `None` or the checked offset it carries, on the instance's gauge.
    - The host mates that read the instance rebind onto the inner members. The frame and fold rules hold as for any inline.
    - Otherwise it refuses `MatePlaced`, narrowed to that case. Its recourse is the P2 ruling's: "set the part's root offset to the empty chain, or place the instance, then inline". Where the part is one group and only its root's offset or gauge is wrong, name the first remedy concretely (`SetOffset` in the referenced document, then `UpdateReference`). Otherwise name the second, as P2-core's text does.
-7. **Re-spelling a `FromFace` side across the seam.**
-   - **At split**, a kept mate's side that reads cut instance R with face `f` is re-spelled `StableName { node: node_map[R], path: [InPart { of: f }] }`, the part-local name of the same face in the new part. That spelling is total: the frame rule's read-at-its-own-instance condition (ruling 8 (a)) has already refused pattern-copy and placer reads.
-   - **At inline**, a host side that will read inner member X is re-spelled `FaceName::part_local(face, X)`.
-     - If that answers `None`, the face is not on the member the side will read: it is a face of another inner instance, or of the part's plain geometry. No spelling can name it, so it refuses `InlineError::MateFaceFrameCrosses`, its text narrowed to say so, keeping its recourse.
-     - `SplitError::MateFaceFrameCrosses` goes.
-   - **The re-spelling is a recorded edit.** Add one arm, `DocEdit::SetMateFrame { mate, side, frame: MateFrame }`:
-     - It is refused typed on a node that is no mate.
-     - It asks the per-mate admission as the insert does (`admit_mate`, so `writes_a_mates_datum` answers true for it), and it never runs `clear_joined_offsets`.
-     - It is applied after the head rebinds.
-     - A split asks it of the remainder through a reach whose resolver also answers the new part at its pin. P2-core's remainder uses `RefusingReach`, because it inserts no mate.
-     - Inline asks it through its own reach.
-     - It is bound in Python as `DocEdit.set_mate_frame`. It is also the first door that edits a mate's frame in place.
+7. **A `FromFace` side crosses the seam with its head** (Ev, `[ev]` #3888).
+   - A `FromFace` frame names no face. Its frame is the canonical pose of the face its own head names in the member's part: the head with the member walk's qualifiers stripped, one `Instance(i)` per pattern level and then the instance's `InPart` (`mate::head_face`, the one strip `resolve_side` and the viewer's mate tool both call).
+   - Split's and inline's head rebinds therefore carry the frame, and nothing re-spells it. `MateFaceFrameCrosses` is gone at both seams, and no edit writes a mate's frame in place.
+   - `Rebind` of a head carries its frame the same way (`work/place/a-from-face-frames-face-is-never-rewritten-by-rebind.md`).
+   - On the wire the face arm is the bare tag `"FromFace"`. A file whose face side carries a payload, as an older build wrote it, refuses `Unreadable` with the regenerate recourse.
 8. **The frame rule: one predicate, in `frame_survives`.** A mate side crosses the seam only when:
    - (a) it reads its member at the member's own instance, with no pattern copy and no placer between;
    - (b) that instance lies, in the part, in a group of the part's world space, never in an own space or under a dead reference; and
@@ -327,13 +320,11 @@ Announce each crossing in the PR body.
 
    An `Authored` side is held to (a), (b) and (c).
 
-   **For a re-spelled `FromFace` side, whether (c) binds is P2-face's question, for Ev:**
-   - if it binds, a `FromFace` side is held to all three, as A4's parenthetical reads;
-   - if it does not, it is held to (a) and (b), since its frame is read off the face in whichever part it names, and A4's parenthetical is re-worded to say so.
+   A `FromFace` side is held to (b) alone (Ev, `[ev]` #3888): its frame is its head's face in whichever part the head names, and the head crosses with it, so the frame moves only if the member's place in the part's world does. A4's frame-rule sentence states it.
 
    The fold rule (`MatePairSplits`) is unchanged.
 9. **`carry` leaves carried offsets as they were.** The part (or the spliced host) holds exactly the source's offsets, and the edit list replays to it without a solve. Whether carried mates skip the mate door's clear or the next edit re-states each cleared offset (`SetOffset`) is the unit's call; justify it against replay. No `OffsetCleared` for a carried node survives in the outcome's maintenance.
-10. **Every refusal states one recourse** and has its row in `refusal_concision_refactor.rs`. Remove `CutHoldsGauge`, `NeedsAGauge` and split's `MateFaceFrameCrosses` from the rosters, and add `SeveredGauge` and `MovedMemberOffset`. A new `EditError` arm for `SetMateFrame` on a non-mate goes in `viewer/tests/refusal_concision_edits.rs`.
+10. **Every refusal states one recourse** and has its row in `refusal_concision_refactor.rs`. Remove `CutHoldsGauge`, `NeedsAGauge` and both seams' `MateFaceFrameCrosses` from the rosters, and add `SeveredGauge` and `MovedMemberOffset`.
 
 **Rows.** Each is red on `origin/main` (or absent there, where the door is new), then green. `S`, `I`, `F` and `C` mark split, inline, face and carry.
 - **S1. The gauge hoist.**
@@ -362,28 +353,26 @@ Announce each crossing in the PR body.
   - With a checked offset on the instance, the root carries it.
   - Red: `MatePlaced`.
 - **I5. The mate-placed refusal.** The same over a part whose root sits at a non-empty offset refuses `MatePlaced`, naming the remedy. It holds on main; the guard is that the lift stays narrow.
-- **F1. `FromFace` at split.**
-  - A kept declaring mate's `FromFace` side reads a cut root at the empty chain. It crosses, its face spelled `node_map[R]`-wrapped.
-  - Its resolved frame (`face_pose` through the new part, composed onto the instance's pose) equals the pre-split one.
-  - Red: `MateFaceFrameCrosses`.
-- **F2. `FromFace` at inline.** A host side whose face is wrapped at the inner member it will read unwraps, and inline succeeds. Red: `MateFaceFrameCrosses`.
-- **F3. A face not on the member.** A host side whose face is wrapped at another inner instance refuses `MateFaceFrameCrosses`. It holds on main; it guards the narrowed arm.
-- **F4. The `FromFace` frame-rule ruling** (ruling 8). A `FromFace` side reading a cut member that is not its group's root: either it crosses with its resolved frame unchanged, or it refuses `MateFrameCrosses`, as ruled. A side reading an unplaced cut member refuses `MateFrameCrosses` under either ruling.
-- **F5. `SetMateFrame`.**
-  - It is refused typed on a non-mate.
-  - A frame the coset table refuses is refused `MateRefused`.
-  - A placing mate re-framed clears no offset.
-  - A log holding it replays without a solve.
-  - Absent on main.
+- **F1. A face side reading a non-root member crosses split and inline** (`p2_face::a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved`).
+  - A kept declaring mate's face side reads the second member of a placed group. Split re-anchors its head through the instance, and inline unwraps it back onto the inner member.
+  - At each of the three documents the side's resolved world frame (`face_pose` through the member's part, carried by the member's solved world pose) is the pre-seam one, bit for bit, and the mate solves with no fault.
+  - `inline(split(d))` is `d` up to node ids under R1's comparator, the mate's face sides included.
+  - The authored twin refuses `MateFrameCrosses`.
+- **F2. A face side reading an unplaced member refuses `MateFrameCrosses`** at split (`p2_face::a_face_side_reading_an_unplaced_member_refuses_mate_frame_crosses`). Inline's mirror is not a document the doors build: a part's product table carries no row for a body in an own space, so the host side's own insert refuses `NoSuchName`, and the row pins that.
+- **F3. A face side on a pattern copy reads its master's face, at the copy** (`p2_face::a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy`).
+- **F4. `Rebind` carries a face side.**
+  - A part-side rename, `UpdateReference`, then `Rebind` of the head: the side faults `NoSuchName` between, and after the rebind the mated block sits on the rebuilt face (`p2_face::a_rename_update_and_rebind_carry_the_face_side_with_the_head`).
+  - A head rebound onto another part's instance reads that part's face (`p2_face::a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face`).
+- **F5. The wire.** A face side saves as the bare tag. A file whose face side carries a face payload refuses `Unreadable` with the regenerate recourse, whether the payload names the head's face or another (`msolve9_from_face::an_older_file_naming_its_face_refuses_unreadable_with_the_recourse`).
 - **C1. The carry keeps offsets.**
   - A verbatim split of a group whose member carries a checked offset keeps it in the part, and `part_maintenance` holds no `OffsetCleared`.
   - The same holds at an empty-offset inline.
   - Red on main: the probe above.
 - **R1. The round trip.**
-  - `inline(split(d))` equals `d` up to node ids for S1, S2, S7, F1, F4 (where admitted), C1 and the nested-gauge shapes.
+  - `inline(split(d))` equals `d` up to node ids for S1, S2, S7, F1, C1 and the nested-gauge shapes.
   - Compare through the composed node map, with the hoisted gauge mapped to the minted one: node payloads (gauge references, offsets, mate alignments and heads), roots as a set, parameters, and labels.
   - Build the comparator once, in the test substrate, as an oracle independent of the code under test: it reads each node through the composed node and step maps and never calls `refactor::remap_node`.
-  - D1's two shapes are pinned to the evaluation-equal result until Ev rules on D1. The F rows join R1 in P2-face. C1's round trip joins R1 when P2-split builds the comparator; P2-carry pins it on offsets alone.
+  - D1's two shapes are pinned to the evaluation-equal result until Ev rules on D1. F1 joins R1. C1's round trip joins R1 when P2-split builds the comparator; P2-carry pins it on offsets alone.
 
 **Mutants** (plant, run, revert; report which rows go red):
 - the gauge hoist ignoring a cut instance on the anchor (S2, R1);
@@ -394,24 +383,25 @@ Announce each crossing in the PR body.
 - the members not moved onto the minted gauge (I2);
 - the further offset ignored (I3);
 - the mate-placed admission without "one such group" (I5);
-- the split re-spelling skipped (F1);
-- inline unwrapping at the head's inner member without asking `part_local` of the face (F3);
-- `SetMateFrame` running the mate door's clear (F5);
+- the strip reading the wrong qualifier level (F3);
+- `frame_survives` holding a face side to (c) (F1);
+- `frame_survives` not holding a face side to (b) (F2);
+- `Rebind` not rewriting a mate's heads (F4);
+- a face payload loading (F5);
 - the carry's re-statement skipped (C1, R1);
 - the hoisted gauge's parameters counted as cut (S7).
 
 **Sweep.**
-- **Datums the bridge does not rewrite.** List every `StableName` or `FaceName` field a node holds outside `payload_names`: these are the names split's and inline's bridge cannot rewrite. Give each one's disposition: `FaceFrame` is ruled here, and `InterfaceCrossing::Mate`'s `inner` is already remapped. State what that pattern misses: a name nested inside a non-name datum. Check that gap with a second pass over `remap_node`'s arms, which copy fields verbatim.
+- **Datums the bridge does not rewrite.** List every `StableName` or `FaceName` field a node holds outside `payload_names`: these are the names split's and inline's bridge cannot rewrite. Give each one's disposition: a `FromFace` frame holds none (ruling 7), and `InterfaceCrossing::Mate`'s `inner` is already remapped. State what that pattern misses: a name nested inside a non-name datum. Check that gap with a second pass over `remap_node`'s arms, which copy fields verbatim.
 - **Side effects the carry triggers.** List every side effect `apply`'s `InsertNode` arm has beyond minting: `roots::on_insert`, which split and inline already override with `SetRoots`, and `clear_joined_offsets`, ruled here. Say for each whether `carry` must undo it.
 
 **Seams.**
 - PLACE owns `refactor.rs`.
-- RECIPE: `edit.rs` (`SetMateFrame`, `writes_a_mates_datum`, its `EditError` arm), `resolve/mod.rs` and `persist/check.rs`, the `DocEdit` match sites.
-- MSOLVE: `mate/solve.rs` `admit_mate`, read and not changed. If ruling 8 drops (c) for `FromFace`, that is MSOLVE's frame semantics, and M1 (`work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md`) should cite it.
-- LIB/BIND: `pncad-py` `edit_payload.rs`, `py/doc.rs`, `tags.rs`, and the stubs and census for `set_mate_frame`.
-- The viewer: `session.rs`'s `DocEdit` match, kept compiling.
-- TCOST/TINT: `p2_gauges.rs`, `refusal_concision_refactor.rs`, `tests/corpus/mod.rs`'s `DocEdit` census and `refusal_concision_edits.rs`, all mechanical.
-- ASSEMBLY.md's code table names `SetMateFrame`. If Ev drops (c) for `FromFace`, A4's frame-rule sentence is re-worded in the same PR, which then waits for Ev.
+- RECIPE: `persist/check.rs`.
+- MSOLVE: `mate.rs` (`MateFrame::FromFace`, `FaceRefusal::NoPartFace`), `mate/member.rs` (`head_face`) and `mate/solve.rs` (`resolve_side`); M1 (`work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md`) cites ruling 8's face branch, which leaves M1 the authored arm.
+- LIB/BIND: `pncad-py` `py/mate.rs` (`MateFrame.from_face()` takes nothing, and its `face` getter is gone), `mate_payload.rs`, `tags.rs` (`no_part_face`), and the stubs, census and tag inventory.
+- The viewer: `matetool.rs`, which calls `head_face` for the face it pre-checks.
+- TCOST/TINT: `p2_gauges.rs`, `msolve9_from_face.rs`, `msolve10_door_admission.rs` and `refusal_concision_refactor.rs`.
 
 Announce each crossing in the PR body.
 
