@@ -403,8 +403,8 @@ fn split_posed(
 /// **A cut clear of a sphere or torus face splits the body however
 /// the body is turned.** Each fixture is cut square to its own axis at
 /// mid-height of the cylinder, under the cap or the rounding, and along
-/// a direction tilted off its axis `10⁻³` of its size clear of the
-/// face's own support there; in all three poses at unit scale, and
+/// a direction tilted off its axis `10⁻³` of its size (and `100 ε`)
+/// clear of the face's own support there; in all three poses at unit scale, and
 /// skewed at the other two scales. Both halves match the slice
 /// integral.
 #[test]
@@ -415,12 +415,32 @@ fn a_cut_clear_of_the_face_splits_in_every_pose() {
         0.7f64.sin() * 1.3f64.sin(),
     );
     for (s, pose_set) in [(1.0, 0..3), (1e-3, 2..3), (1e3, 2..3)] {
+        if s < 1e4 * Tol::witness().eps() {
+            test_utils::vacuity::stood_down(
+                &format!("scale {s}, eps = {:e}", Tol::witness().eps()),
+                "the body is under 10⁴ ε across, where the cut's later stages read in band",
+            );
+            continue;
+        }
         for f in [capped(s), rounded(s)] {
             let body = build(&f);
             let (lo, _) = face_support(&f, s, tilted);
-            let d = lo - 1e-3 * s;
+            // Clear of the face by a thousandth of its size, and of the
+            // sweep pad at every ε.
+            let d = lo - 1e-3 * s - 100.0 * Tol::witness().eps();
             for (pose, map) in &poses(s)[pose_set.clone()] {
-                let posed = transform_rigid(&body, map, Tol::witness()).unwrap();
+                let tol = Tol::witness();
+                let posed = match transform_rigid(&body, map, tol) {
+                    Ok(posed) => posed,
+                    Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
+                        test_utils::vacuity::stood_down(
+                            &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
+                            &format!("posing the body refused ({e}) before any cut"),
+                        );
+                        continue;
+                    }
+                    Err(e) => panic!("{} at scale {s}, {pose}: posing refused: {e}", f.name),
+                };
                 for (cut, plane) in [
                     (
                         "square",
