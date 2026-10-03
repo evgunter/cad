@@ -2852,7 +2852,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ),
     ];
     let placement = [
-        ("CountSpelling", PlacementRuleFault::CountSpelling),
+        (
+            "CountSpelling",
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            },
+        ),
         ("NoPlacements", PlacementRuleFault::NoPlacements),
         (
             "NonFiniteFrame",

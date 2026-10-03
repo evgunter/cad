@@ -526,13 +526,14 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
     let (pairs, in_pairs, scenes) = census(&sized);
-    assert_eq!(pairs, 12, "indistinguishable pairs among the sized rows");
-    assert_eq!(in_pairs, 24, "sized rows sitting in such a pair");
+    assert_eq!(pairs, 13, "indistinguishable pairs among the sized rows");
+    assert_eq!(in_pairs, 26, "sized rows sitting in such a pair");
     assert_eq!(
         scenes,
         [
             "klein/klein_loop",
             "lily/lily_sepal_b",
+            "lily/lily_sepal_c",
             "lofts/loft_prism",
             "lofts/nonuniform_loft",
             "s_duct/s_duct",
@@ -557,7 +558,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 26_531, "pairs across every row");
+    assert_eq!(all_pairs, 26_532, "pairs across every row");
     assert_eq!(all_scenes.len(), 85, "scenes carrying one, corpus-wide");
 }
 
@@ -821,27 +822,25 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     // have different CURVATURE, so the sizing lane gives them
     // different divisions and the identity columns separate them.
     //
-    // It reads ONE pair now, and it is not a scaled pair: it is
-    // `lily_sepal_b`'s faces 3 and 7, two DIFFERENT walls of the blade
-    // with different curvature: `mvv` 1.4203 against 1.3228, and `muv`,
-    // `mu1`, `mv1` within about a percent of each other. What they
+    // It reads TWO pairs now, and neither is a scaled pair: faces 5
+    // and 9 of `lily_sepal_b` and of `lily_sepal_c`, the two opposite
+    // walls of one blade with different curvature (`mvv` 4.82 against
+    // 4.54 on `sepal_b`, 4.82 against 4.67 on `sepal_c`). What they
     // share is every IDENTITY column. The trim box is the unit square,
     // and the divisions the sizing lane quantizes those sups into land
-    // on the same `nu = 2`, `nv = 307`. The certificates behind the
-    // divisions still differ, and so do the cell counts, by 2.
+    // on the same `nu = 1` and `nv` (278 on `sepal_b`, 274 on
+    // `sepal_c`). The certificates behind the divisions still differ,
+    // and so do the cell counts.
     //
-    // The pair arrived when the loft's correspondence became the
-    // author's (DM8, PR 3147). Under the lex-min start, the rectangle
-    // base section was paired one segment off the kite sections. That
-    // gave the blade a twist, and the twist gave these two walls
-    // different divisions (`nv` 360 and 384).
-    //
-    // The gate assertion above holds with this pair: the two slacks are
-    // within `GROWTH_TOLERANCE`. So it is pinned by name. A pair
+    // The gate assertion above holds with these pairs: the two slacks
+    // are within `GROWTH_TOLERANCE`. So they are pinned by name. A pair
     // arriving or leaving reds here and is read before it is re-pinned.
     assert_eq!(
         drifted,
-        ["lily/lily_sepal_b faces 3/7: grid_cells/span_opt_cells 272/261 against 274/266"],
+        [
+            "lily/lily_sepal_b faces 5/9: grid_cells/span_opt_cells 166/170 against 166/169",
+            "lily/lily_sepal_c faces 5/9: grid_cells/span_opt_cells 163/168 against 164/165",
+        ],
         "the pairs whose two recoverable slacks differ. The swap still costs the \
          gate nothing, but the margin that made it free has gone on these"
     );
@@ -991,9 +990,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 520_658, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 493_812, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 412_182,
+        t.nurbs_triangles, 385_398,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -1003,14 +1002,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 166_234.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 221_783.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 157_852.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 199_752.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 189_863.0,
+        t.opt_cells, 176_861.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 156_863.0,
+        t.span_opt_cells, 148_890.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1018,11 +1017,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.3342).abs() < 5e-4,
+        (held - 1.2654).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0597).abs() < 5e-4,
+        (recoverable - 1.0602).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
@@ -1063,7 +1062,7 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
         .collect();
     assert_eq!(
         at_bound.len(),
-        13,
+        15,
         "sized rows whose whole-patch schedule already is the cheapest split. \
          A row arriving or leaving is a face whose bound or divisions moved; \
          read which, then re-pin: {at_bound:#?}"

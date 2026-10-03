@@ -197,3 +197,21 @@ and the `node.rs` doc and the slip rows reverse if Ev rules otherwise.
 The merge of main conflicted in `topo/src/lib.rs` re-exports
 (`ShellOrientation` beside PR 3874's `lineage_root` rename); the
 orchestrator resolved it and checked that it compiles.
+
+## 2026-10-03 — the result gate lands (PR 3913)
+
+`a-boolean-result-gate-ships-a-scaffold-at-rest` closed. The fix pass
+gave `is_scaffold` one crate-wide home and made `ResultInvalid` and
+`BooleanBody`'s docs honest about what the gate checks.
+## 2026-10-03 — the edge-contact CorruptOperand lands (PR 3914)
+
+`a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
+closed. Its two-crossing residue is P0 on this slate.
+
+- 2026-10-03 — Ev ruled on PR 3883 ("the recommendation sounds good!",
+  after asking whether `On` only exists for one body twice and being
+  shown the shapes it answers with no shared `Arc`): N, no slip check.
+  The DM5 sentence lands; fork-log row 47 records Ev's decision and the
+  A/B mapping (byte 211, A=fable B=opus). The two-Parts row closes:
+  the `On` verdict (PR 3897) already answers it, and the rows live in
+  `on_verdict_rows.rs`.

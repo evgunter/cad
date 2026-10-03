@@ -1847,11 +1847,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               bud; sweep_body(lanceolate arc section, arched NURBS \
               spine) for the two short leaves; loft_body(rectangle -> diamond -> diamond \
               sections on rolled placements) for the long leaf and the sepals",
-        // One chord budget for the whole scene is a poor fit here: at
-        // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
-        // costs ~2e5 triangles, because the torus lane spends its
-        // budget on the 5 m RING and not on the tube (findings 9).
-        delta: 2e-3,
+        delta: 5e-3,
         note: Some(note),
         view: View {
             elev: 12.0,
@@ -1860,9 +1856,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
         bodies: pieces
             .into_iter()
-            .map(|p| match p.contacts {
-                Some(contacts) => SceneBody::seamed(p.name, p.color, p.body, contacts),
-                None => SceneBody::plain(p.name, p.color, p.body),
+            .map(|p| {
+                let sb = match p.contacts {
+                    Some(contacts) => SceneBody::seamed(p.name, p.color, p.body, contacts),
+                    None => SceneBody::plain(p.name, p.color, p.body),
+                };
+                // The split is by SECTION. The lofted blades (`leaf_a`
+                // and the sepals) are lofted through straight-sided
+                // sections, and at 5e-3 their meshes are within 0.1% of
+                // exact volume. Every other body has a curved section
+                // (tubes, revolves, the lens-section swept leaves) and
+                // takes 2e-3. The names below are the lofted blades; a
+                // piece added, renamed or rebuilt with another section
+                // is placed by this rule, not by its name.
+                if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
+                    sb
+                } else {
+                    sb.finer(2e-3)
+                }
             })
             .collect(),
     }]
@@ -3224,8 +3235,8 @@ mod review_probes {
         assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
     }
 
-    /// Finding 13 re-measured: one chord budget for the whole scene
-    /// spends wildly differently per body, and these are the numbers.
+    /// Finding 13 re-measured: one chord budget spends wildly
+    /// differently per body, and these are the numbers.
     ///
     /// The five analytic rows are the SAME counts the sketch-frame
     /// revolve produced — the tube door changed which parameters are

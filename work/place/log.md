@@ -61,3 +61,27 @@ The fix pass:
 - made the re-statement fail loud.
 
 The orchestrator adjudicated the fix pass on its own read.
+
+## 2026-10-03 — P2-split, the answer-independent part (PR 3908, DR-55)
+
+Review tier: dual, a concurrent Opus pair (class H), on frozen head `77a226b0ec`. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0. Both executed the same defect: a cut holding only gauges was admitted, leaving a remainder that faults `NoBodyRoots`.
+
+The fix pass, run from the union of both reviews:
+- `SplitError::NoMaterial` refuses every cut with no material;
+- the R1 comparator became an oracle independent of `remap_node`, with a negative self-test per check;
+- rows were added for the gauge-chain order, the minted gauge's root slot, a checked identity offset, per-body poses and name resolution;
+- the Python slots were straightened out;
+- `regauge` has one home.
+
+Waiting on `[ev]` #3888: ruling 3 (the gauge hoist) or its retirement, the removal of the group hoist and inline's sugar, and P2-face.
+
+## 2026-10-03 — the gauge-rest row goes to Ev (`[ev]` #3920)
+
+A designer pair weighed `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` (design-fork row 47) and converged in one round:
+- a `FromFace` mate side carries an offset `Placement` in its face's frame;
+- the crate goes on the shelf's gauge with a placing mate;
+- no new gauge kind, and A11 (2) unchanged.
+
+The alternative, a gauge parented on a face, was dropped: every touching item would be written twice, and gauge frames would read solved poses.
+
+#3920 is stacked on #3888, whose `FromFace` sentence it extends. Filed off the question: `work/msolve/a-declaring-mates-alignment-is-never-read.md`.

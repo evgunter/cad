@@ -46,10 +46,15 @@
 //!   in-plane fraction levered by the loop's reach from `q` (skip
 //!   gate, see above) — the loop's own extent is half of it.
 //! - **`point_in_loop_side`**: signed offset of an edge endpoint from
-//!   the ray line — Zero ⇒ grazing ⇒ next ray.
+//!   the ray line — anything but definitely off it ⇒ grazing ⇒ next ray.
 //! - **`point_in_loop_advance`**: the crossing's advance along the
-//!   ray — Zero would mean a crossing at `q` itself (contradicting the
-//!   boundary pre-pass) ⇒ next ray, escalating if persistent.
+//!   ray — anything but definitely positive or negative would put a
+//!   crossing at `q` itself (contradicting the boundary pre-pass) ⇒
+//!   next ray.
+//!
+//! Both are facts about one ray, never about `q`: an in-band reading on
+//! either abandons the ray, and is the walk's refusal only if no ray
+//! decides.
 //!
 //! The arc-aware walk ([`point_in_carrier_loop`]) and the one boundary
 //! reading of an edge on its carrier ([`LoopEdge::contact`]) carry their
@@ -316,16 +321,17 @@ fn loop_points<T: Decide>(
 /// way**, and a refusal is identical in variant, predicate and band.
 ///
 /// One thing is NOT identical, and saying so is what keeps the
-/// sentence above true: an escalation carries the **signed** margin it
-/// refused on, so the two signs refuse with `MarginKind::Value(−m)`
-/// against `Value(m)`. That is diagnostic payload —
+/// sentence above true: a refusal on a ray's in-band ordinate (the
+/// first ray's, when no ray decides) carries the **signed** margin, so
+/// the two signs refuse with `MarginKind::Value(−m)` against
+/// `Value(m)`. That is diagnostic payload —
 /// [`geom_core::Indeterminate`]'s own docs call its fields *"honest
 /// diagnostic data … for actionable error messages and later margin
 /// telemetry"*, and nothing in this walk reads a margin back — but a
 /// differential test comparing whole `Debug` renderings would see
 /// it.
 /// `topo/tests/review_m3_pr3_pil.rs`'s
-/// `the_verdict_is_blind_to_the_normals_sign` pins all of this, and
+/// `the_verdict_is_blind_to_the_normals_sign` pins the verdicts, and
 /// compares variant, predicate and band rather than the rendering.
 ///
 /// # Errors
@@ -357,7 +363,6 @@ fn polygon_walk<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     // The loop's own reach from q (evaluation-lane fold): the lever
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
@@ -367,17 +372,30 @@ fn polygon_walk<T: Decide>(
         extent = extent.max((*p - q).norm());
     }
 
-    walk_schedule(
+    // A ray-level margin in band abandons the ray
+    // ([`ray_parity::Abandoned`]).
+    let mut abandoned = ray_parity::Abandoned::new();
+    let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_loop_arm",
         ArmBand::Escalate,
         band,
-        |d, side_axis| {
-            ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band).map_err(escalate)
+        |d, side_axis| match ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band) {
+            Ok(verdict) => Ok(verdict),
+            Err(diag) => {
+                abandoned.abandon(PointInLoopError::Escalated { r#loop, diag });
+                Ok(None)
+            }
         },
-    )
+    );
+    match walked {
+        Err(exhausted @ PointInLoopError::RayExhausted { .. }) => {
+            Err(abandoned.refusal(|| exhausted))
+        }
+        walked => walked,
+    }
 }
 
 /// **Ray parity over the fixed schedule, in a loop's plane** — the
@@ -1142,15 +1160,11 @@ pub(crate) fn carrier_loop<T: Decide>(
             // placeholder from an honest whole-turn scaffold, so the loop
             // is not read; and a scaffold whose span is in the band is
             // not known to be either, so it escalates on that span.
-            Ok(Some(k))
-                if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) =>
-            {
-                match k.span_turn {
-                    Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
-                    Ok(_) => return Err(corrupt()),
-                    Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
-                }
-            }
+            Ok(Some(k)) if curve.description().is_scaffold() => match k.span_turn {
+                Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
+                Ok(_) => return Err(corrupt()),
+                Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+            },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match (curve.carrier(), ball) {
                 (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, _) => {
@@ -1262,7 +1276,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
 /// The points and balls [`extent_from`] folds for `loop`, read with no
 /// decision: every vertex, and each curved edge's [`step_ball`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
-fn loop_hull<T: Decide>(
+pub(crate) fn loop_hull<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<(Vec<Point3<T>>, Vec<(Point3<T>, T)>), PointInLoopError> {
@@ -1481,19 +1495,14 @@ fn carrier_walk<T: Decide>(
         }
     }
     // ---- The rays. ----
-    // WHY A RAY-LEVEL MARGIN RETRIES (the one home of this argument).
-    // Past the boundary pass, every row is a fact about ONE RAY — which
-    // schedule member, where it meets a vertex's line, a conic, an arc's
-    // end, an uncrossable edge's ball — and not about `q`: the boundary
-    // pass (this walk's own, or its caller's) has decided `q` off every
-    // edge and arc by more than the band, which bounds any crossing's
-    // advance `t` away from zero, so no in-band margin on a ray can be the
-    // question "is `q` on the boundary". And a ray's parity is used only
-    // when EVERY row on it is decisive, so abandoning one — exactly as a
-    // graze is abandoned — can only turn an escalation into an answer or
-    // into `RayExhausted`, never into a wrong verdict. Only the boundary
-    // pass's rows, which ask where `q` itself stands, escalate.
+    // A ray-level margin abandons the ray ([`ray_parity::Abandoned`]):
+    // the boundary pass (this walk's own, or its caller's) has decided
+    // `q` off every edge and arc by more than the band. A conic's own
+    // crossing reading carries no diagnostic, and abandons the ray
+    // without one; a ray that could meet an uncrossable edge's ball is
+    // `blocked`, which outranks an abandoned reading as the refusal.
     let mut blocked: Option<Uncrossable> = None;
+    let mut abandoned = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
@@ -1522,12 +1531,17 @@ fn carrier_walk<T: Decide>(
                     return Ok(None);
                 }
             }
-            let Ok(Some(mut crossings)) =
+            let crossings =
                 ray_parity::ray_crossings(verts, q, d, side_axis, &ARC_LOOP_ROWS, band, |i| {
                     matches!(edges[i], LoopEdge::Chord)
-                })
-            else {
-                return Ok(None);
+                });
+            let mut crossings = match crossings {
+                Ok(Some(c)) => c,
+                Ok(None) => return Ok(None),
+                Err(diag) => {
+                    abandoned.abandon(PointInLoopError::Escalated { r#loop, diag });
+                    return Ok(None);
+                }
             };
             for (i, edge) in edges.iter().enumerate() {
                 let LoopEdge::Conic(k) = *edge else {
@@ -1546,10 +1560,10 @@ fn carrier_walk<T: Decide>(
         Ok(_) => Ok(WalkSide::Out),
         // An uncrossable edge stood in the way of some ray: the loop
         // could not be read there, which is not an exhausted schedule.
-        Err(PointInLoopError::RayExhausted { .. }) => Err(blocked.map_or_else(
-            || PointInLoopError::RayExhausted { r#loop },
-            PointInLoopError::Uncrossable,
-        )),
+        Err(PointInLoopError::RayExhausted { .. }) => Err(match blocked {
+            Some(u) => PointInLoopError::Uncrossable(u),
+            None => abandoned.refusal(|| PointInLoopError::RayExhausted { r#loop }),
+        }),
         Err(e) => Err(e),
     }
 }

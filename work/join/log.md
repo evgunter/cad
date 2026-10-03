@@ -218,3 +218,30 @@ reflex union (P0), FUSE's scaffold-at-rest result gate (P1),
 peg-in-socket row.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3900 lands: the reflex corner's strut order
+
+`reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap` closed.
+Review tier: single FULL, in a cloud session. The review was
+APPROVE-WITH-FIXES, 1 MAJOR: within a half-turn `strut_order` compared
+cosines, which are flat beside 0 and π, so it misordered germs within
+about √(2ε/arm) of them and answered when nothing ordered them. Its
+rows go red on head.
+
+The fix pass reads the order as distances: the germs' own cross
+product, with each comparand under its own predicate name
+(`bool_strut_side`, `bool_strut_order`), and the on-line germ through
+`sectors::direction_sense`. A decided zero now refuses. That pinned
+`f12_four_survivor_pairing`'s synthetic all-parallel fixture as a
+refusal; no battery pose mints four survivors there. The orchestrator
+read the new `strut_order`. On the review's widened battery (40 320
+runs), 8 481 refusals now build sound, with 0 BAD or non-operand moves.
+The oracle helpers have one home, `sweep/tests/common/differential.rs`,
+whose `outcome` carries the certificate and operand columns.
+
+Filed: `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0/H: 16 builds that census-escalate at tier 3′) and
+`edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex` (P1/M).
+The ZIP wrong-volume row gains its wider class.
+
+Signed (JOIN orchestrator).
