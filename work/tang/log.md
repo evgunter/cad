@@ -442,3 +442,18 @@ Two band-edge disagreements resolved and pinned. One issue filed: the
 plane×cylinder section reads its gap at the stored origin.
 
 **Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
+
+## 2026-10-03 — a pierce strut at a pinch is placed with its own polygon (TANG implementer)
+
+A pierce ring that is all null edges and on the run at every vertex is
+left pending by ring re-homing. It is placed by the join that reaches
+it, in its partner's face. Three cases refuse loud: two pending rings
+in different faces, a join inside a pending loop, and a ring still
+pending at quiescence. The corner-holes and notch-and-hole unions build
+in every member order. The staircase, the bare pinch, a wedge in a
+reflex corner and the pinch on a face build in every op. The split is
+unchanged. Review tier: single, full.
+
+**Filed.** `a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`.
+
+**Closed in the PR.** `a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run`.

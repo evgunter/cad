@@ -174,6 +174,7 @@ REGISTER=(
   "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
+  "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
