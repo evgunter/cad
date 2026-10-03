@@ -99,7 +99,13 @@ gallery is the scenes, saved, not a second spelling of them.
 
 Every one of them saves and opens, but two do not denote what their scene means.
 `plate.pncad` draws a blank slab, because the document never subtracts its
-holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+holes: it reads the web off the hole extrudes. Cutting them is two live walls:
+the certified drive certifies no box of the cut plate, whose subtract volume
+bound is a tie
+(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`),
+and a measure over the cut part makes the assertion the document's one root,
+so it has no product to draw
+(`work/recipe/a-measured-part-is-not-a-product-root.md`). `chain.pncad`
 draws its nine placed links under a product-fault badge but has no product:
 the gather refuses one link placed four times by transforms, so checks, mass
 properties and export have nothing to read
