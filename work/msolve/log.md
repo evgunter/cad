@@ -1324,3 +1324,28 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent-refactor hold, applied
+
+The hold notice on this log is Ev's instruction. I checked it against
+Ev's own words in `5f7a1c71e3`: "hold off on starting any units which
+meaningfully use this stuff (and if that blocks their entire program,
+to switch its state to "blocked" and stop)" and "they CAN finish units
+they've already started even if they collide".
+
+Every live MSOLVE row is mate or solve work, so:
+- MSOLVE-14 finishes, as a started unit.
+- MSOLVE-15 stays unstarted. It is specced only, and PLACE's PR 3961
+  has already built half of it.
+- Eleven rows are parked on `blocked_on: [3990]`. The ruling's item id
+  is not on main yet, so it does not resolve.
+
+Once MSOLVE-14 merges, the program goes `blocked` and the orchestrator
+stops.
+
+New rows this check-in, placed by parking them: PLACE's
+`a-face-base-puts-its-reference-on-local-y` (P3, design) and
+`a-mate-frame-axis-is-decided-against-a-length-band` (P3, design).
+PLACE also widened `a-mate-through-a-parametric-placer…` with the
+frame offset's parameters, which MSOLVE-14's merge of main now has to
+cover.

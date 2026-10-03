@@ -599,7 +599,7 @@ impl Placement {
         self.0.bit_eq(&other.0)
     }
 
-    fn __repr__(&self) -> String {
+    pub(crate) fn __repr__(&self) -> String {
         let steps: Vec<&str> = self
             .0
             .steps

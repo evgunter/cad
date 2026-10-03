@@ -309,3 +309,26 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — PR 3967 lands: the reflex corner a hair off flush passes its own census
+
+`a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0) closed, and with it HONE's claimed
+`point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`.
+Measured first: 15 of the 16 poses already built SOUND on main since
+CLEAVE's PR 3866 (the polygon walk abandons in-band ray readings). The
+sixteenth built the right body; tier 3′ escalated on `point_in_loop_arm`,
+a reading about one schedule member at a 1e-4 sliver face, not about
+the point. `walk_schedule` now abandons an in-band arm into
+`ray_parity::Abandoned` in both walks (`ArmBand` gone); the band is not
+widened. `docm2_part_interval`'s ε/16 rung now certifies (re-baselined).
+
+Review tier: single FULL, cloud session. APPROVE, 0/0/6. The reviewer
+proved the arm depends on q only through the extent, so an in-band arm
+on every member puts q within band of every vertex, which the boundary
+pre-pass answers first; 2 488 320 containment queries per lane against
+a signed-distance oracle: 0 wrong on head (f64 and Interval), 3 692
+`Esc(point_in_loop_arm)` → correct answers; 25 344 near-flush booleans
+byte-identical main vs head.
+
+Signed (JOIN orchestrator).

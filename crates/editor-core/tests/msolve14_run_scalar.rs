@@ -146,7 +146,7 @@ impl Parts {
 }
 
 fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], Tol::witness()).expect("a frame")
 }
 
 /// **A seat**: `mover`'s frame (its own origin, axis down) coincident
@@ -361,7 +361,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         seat(
             head(p.bolt_foot(bolts[1])),
             head(p.slab_top(slab)),
-            MateFrame::FromFace,
+            MateFrame::from_face(),
         ),
         &p.opts(),
     );
@@ -440,7 +440,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // The patterned bolt, authored and face-framed.
     let b = bolted("msolve14-c-bolt", slab_at(6.0, 4.0));
     out.push(("patterned-bolt", b.doc, b.opts));
-    let b = bolted("msolve14-c-bolt-face", MateFrame::FromFace);
+    let b = bolted("msolve14-c-bolt-face", MateFrame::from_face());
     out.push(("patterned-bolt-face", b.doc, b.opts));
 
     // The rotating transform placer.
@@ -601,8 +601,10 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         b: head(p.slab_top(slab)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0]),
-            b: MateFrame::authored(b, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0], Tol::witness())
+                .expect("a frame"),
+            b: MateFrame::authored(b, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], Tol::witness())
+                .expect("a frame"),
             primitive: MatePrimitive::Coaxial,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -655,8 +657,20 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
             b: head(p.slab_top(slab)),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([0.5, 0.0, 0.5], [0.3, 1.0, 0.0], [0.0, 0.0, 1.0]),
-                b: MateFrame::authored([2.0, 3.0, 1.5], [1.0, 0.2, 0.0], [0.0, 0.0, 1.0]),
+                a: MateFrame::authored(
+                    [0.5, 0.0, 0.5],
+                    [0.3, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    Tol::witness(),
+                )
+                .expect("a frame"),
+                b: MateFrame::authored(
+                    [2.0, 3.0, 1.5],
+                    [1.0, 0.2, 0.0],
+                    [0.0, 0.0, 1.0],
+                    Tol::witness(),
+                )
+                .expect("a frame"),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -729,9 +743,11 @@ fn run_at<T: editor_core::EvalScalar>(
 }
 
 /// **The corpus digest the pre-generic tree gives, per ε row.** Measured
-/// on main's tree at `a8f56a79f` (this branch's dispatch, before any
-/// solve code moved) from this same file, and held since: the generic
-/// solve at `f64` is the nominal solve, bit for bit.
+/// on main's own tree from this same file — first at `a8f56a79f`, before
+/// any solve code moved, and again at `2d29576fb` once PLACE's
+/// mate-frame offset (#3961) changed how an authored side is held — and
+/// held since: the generic solve at `f64` is the nominal solve, bit for
+/// bit.
 ///
 /// One number per row because the documents are not ε-free: a part's
 /// content pin hashes its recorded ε, and an instance's id hashes the
@@ -739,9 +755,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x9699_0e48_61c0_f37c),
-    (1e-6, 0x8f98_680c_6689_9959),
-    (1e-12, 0xd74c_2d37_24c3_f3db),
+    (1e-9, 0x268f_5381_0521_3733),
+    (1e-6, 0xd176_201a_fc8e_85a0),
+    (1e-12, 0x6f9e_46a1_13ef_c283),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -838,10 +854,10 @@ fn boxed(opts: &EvalOptions, param: ParamName, lo: f64, hi: f64) -> EvalOptions 
 
 /// **A seed run's tangent at every vertex of `node` is the central
 /// difference of two `f64` builds** at `nominal ± h` — exact up to
-/// rounding where the motion is affine in the parameter, which every
-/// row here is (a translation, or a rotation the parameter does not
-/// turn). The value channel is the `f64` nominal build's bits.
-/// Returns each vertex's tangent.
+/// rounding where the motion is affine in the parameter (a translation,
+/// or a rotation the parameter does not turn); [`assert_turn_tangents_match`]
+/// takes a finer step for one the parameter turns. The value channel is
+/// the `f64` nominal build's bits. Returns each vertex's tangent.
 fn assert_tangents_match(
     doc: &ProfileDoc,
     opts: &EvalOptions,
@@ -851,7 +867,33 @@ fn assert_tangents_match(
     nominal: f64,
     what: &str,
 ) -> Vec<(StableName, [f64; 3])> {
-    let h = 1e-3;
+    tangents_match(doc, opts, ev, node, (param, nominal), (1e-3, 1e-9), what)
+}
+
+/// [`assert_tangents_match`] for a parameter that TURNS the vertices:
+/// the central difference's truncation is `h²/6` of the third
+/// derivative, so the step is `1e-5` and the slack `1e-8`.
+fn assert_turn_tangents_match(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    ev: &Evaluation<Dual64>,
+    node: RecipeNodeId,
+    param: ParamName,
+    nominal: f64,
+    what: &str,
+) -> Vec<(StableName, [f64; 3])> {
+    tangents_match(doc, opts, ev, node, (param, nominal), (1e-5, 1e-8), what)
+}
+
+fn tangents_match(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    ev: &Evaluation<Dual64>,
+    node: RecipeNodeId,
+    (param, nominal): (ParamName, f64),
+    (h, slack): (f64, f64),
+    what: &str,
+) -> Vec<(StableName, [f64; 3])> {
     let at = f64_vertices_at(doc, opts, node, param.clone(), nominal);
     let up = f64_vertices_at(doc, opts, node, param.clone(), nominal + h);
     let down = f64_vertices_at(doc, opts, node, param, nominal - h);
@@ -867,7 +909,7 @@ fn assert_tangents_match(
         for k in 0..3 {
             let fd = (up[&name][k] - down[&name][k]) / (2.0 * h);
             assert!(
-                (tangent[k] - fd).abs() <= 1e-9,
+                (tangent[k] - fd).abs() <= slack,
                 "{what}: ∂/∂param of {name:?}[{k}] is {} where the f64 builds give {fd}",
                 tangent[k]
             );
@@ -1184,6 +1226,150 @@ fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
     }
 }
 
+// ---- A2's third set of names: a mate frame's own offset ----
+
+/// **A bolt seated on a slab frame whose offset two parameters drive**
+/// (PLACE's mate-frame offset): the slab side is the part base composed
+/// with a rigid step that slides along `x` by `slide` and turns about
+/// the frame's axis by `spin`. The mate seats the bolt there, so the
+/// bolt moves with both.
+struct Slid {
+    doc: ProfileDoc,
+    opts: EvalOptions,
+    bolt: RecipeNodeId,
+    mate: RecipeNodeId,
+}
+
+const SLIDE: f64 = 2.0;
+const SPIN: f64 = 0.3;
+
+fn slide() -> ParamName {
+    ParamName::from_static("slide")
+}
+
+fn spin() -> ParamName {
+    ParamName::from_static("spin")
+}
+
+fn slid(label: &str) -> Slid {
+    let p = parts(label);
+    let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
+    let doc = declare(doc, slide(), SLIDE, Dimension::Length);
+    let doc = declare(doc, spin(), SPIN, Dimension::Angle);
+    let frame = MateFrame::on_part(Step::Rigid {
+        translation: [
+            Expr::param(slide(), Dimension::Length),
+            len(3.0),
+            len(SLAB_HEIGHT),
+        ],
+        axis: [0.0, 0.0, 1.0].map(scl),
+        angle: Expr::param(spin(), Dimension::Angle),
+    });
+    let (doc, mate) = insert(
+        doc,
+        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), frame),
+    );
+    Slid {
+        doc,
+        opts: p.opts(),
+        bolt: bolts[0],
+        mate,
+    }
+}
+
+/// **A seed on a mate frame's offset moves the mated part in that
+/// lane**: seeded on the slide, the bolt moves by `(1, 0, 0)`; seeded on
+/// the turn, each vertex by its `f64` builds' central difference — the
+/// frame's own parameters, a third set of names a run binds beside a
+/// placer's and a gauge's.
+#[test]
+fn a2_a_seed_on_a_mate_frames_offset_moves_the_mated_part() {
+    let s = slid("msolve14-a2-offset-seed");
+    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, slide()), None);
+    assert!(
+        ev.node_error(s.mate).is_none(),
+        "{:?}",
+        ev.node_error(s.mate)
+    );
+    for (name, t) in assert_tangents_match(
+        &s.doc,
+        &s.opts,
+        &ev,
+        s.bolt,
+        slide(),
+        SLIDE,
+        "the slid bolt",
+    ) {
+        assert!(
+            (t[0] - 1.0).abs() <= 1e-12 && t[1].abs() <= 1e-12 && t[2].abs() <= 1e-12,
+            "∂B/∂slide at {name:?} is {t:?}"
+        );
+    }
+    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, spin()), None);
+    assert!(
+        ev.node_error(s.mate).is_none(),
+        "{:?}",
+        ev.node_error(s.mate)
+    );
+    let turned = assert_turn_tangents_match(
+        &s.doc,
+        &s.opts,
+        &ev,
+        s.bolt,
+        spin(),
+        SPIN,
+        "the turned bolt",
+    );
+    assert!(
+        turned.iter().any(|(_, t)| t[0].abs() + t[1].abs() > 0.1),
+        "the turn moves the bolt in the plane"
+    );
+}
+
+/// **A box on a mate frame's offset encloses the mated part**: over a
+/// wide box on either parameter, the solve's pose of the bolt encloses
+/// its `f64` pose at both corners and the nominal; over a narrow box on
+/// the slide, so does every vertex of the evaluated bolt.
+#[test]
+fn a2_a_box_on_a_mate_frames_offset_encloses_the_mated_part() {
+    let s = slid("msolve14-a2-offset-box");
+    let width = assert_pose_encloses_corners(
+        &s.doc,
+        &s.opts,
+        s.bolt,
+        slide(),
+        SLIDE,
+        (-0.25, 0.25),
+        "the slid box, at the solve",
+    );
+    assert!(width >= 0.5, "the slide widens the pose: {width}");
+    assert_pose_encloses_corners(
+        &s.doc,
+        &s.opts,
+        s.bolt,
+        spin(),
+        SPIN,
+        (-0.1, 0.1),
+        "the turned box, at the solve",
+    );
+    let (lo, hi) = narrow(0.05);
+    let ev = run_at::<Interval>(&s.doc, &boxed(&s.opts, slide(), lo, hi), None);
+    assert!(
+        ev.node_error(s.mate).is_none(),
+        "{:?}",
+        ev.node_error(s.mate)
+    );
+    assert_encloses_corners(
+        &s.doc,
+        &s.opts,
+        &ev,
+        s.bolt,
+        (slide(), SLIDE),
+        (lo, hi),
+        "the slid box, evaluated",
+    );
+}
+
 // ---- A1: a face frame resolves on every lane ----
 
 /// **A face-framed mate on a `Dual64` seed run resolves and carries its
@@ -1192,7 +1378,7 @@ fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
 /// does, held to the `f64` builds' central difference.
 #[test]
 fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
-    let b = bolted("msolve14-a1-seed", MateFrame::FromFace);
+    let b = bolted("msolve14-a1-seed", MateFrame::from_face());
     let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
     assert!(
         ev.node_error(b.mate).is_none(),
@@ -1225,7 +1411,7 @@ fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
 /// whose face the frame reads — holds still.
 #[test]
 fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
-    let b = bolted("msolve14-a1-box", MateFrame::FromFace);
+    let b = bolted("msolve14-a1-box", MateFrame::from_face());
     let width = assert_pose_encloses_corners(
         &b.doc,
         &b.opts,
@@ -1267,7 +1453,7 @@ fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
 /// then move by `+2`.
 #[test]
 fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
-    let b = bolted("msolve14-a4", MateFrame::FromFace);
+    let b = bolted("msolve14-a4", MateFrame::from_face());
     let base_opts = EvalOptions {
         profile_lift: ProfileLift::Guided,
         ..b.opts.clone()
@@ -1451,7 +1637,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
 fn a5_sensitivities_cross_a_face_framed_mate() {
     use editor_core::stackup::{SensitivityOutcome, sensitivities_resolved};
     use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
-    let b = bolted("msolve14-a5-stackup", MateFrame::FromFace);
+    let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
@@ -1496,7 +1682,7 @@ fn a5_certified_clearance_runs_over_a_face_framed_mate() {
     use editor_core::clearance::{
         ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_with,
     };
-    let b = bolted("msolve14-a5-clearance", MateFrame::FromFace);
+    let b = bolted("msolve14-a5-clearance", MateFrame::from_face());
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let (lo, hi) = narrow(0.05);
     let leaf = ParamBox::from_axes(BTreeMap::from([(spacing(), BoxAxis::Varying { lo, hi })]));

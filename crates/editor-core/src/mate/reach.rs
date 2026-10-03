@@ -2,7 +2,7 @@
 //! two answers `ASSEMBLY.md` A11 rule 5 lets cross into the solve: a
 //! part's EXTENT, the body term of the lever a mate's angular
 //! decisions turn on, and a named FACE's canonical pose, the frame a
-//! `FromFace` side resolves to.
+//! face-based side resolves to.
 //!
 //! A parallelism verdict is consumed as "the separation is constant
 //! across the parts", so its margin is `sin θ · L` where `L` is the
@@ -110,7 +110,7 @@ pub trait MateReach<T: Real = f64> {
     /// names**, in the part's own coordinates: the name resolved in
     /// the part's own product table to its face, then
     /// `topo::readback::face_pose` on the part's own body — the
-    /// frame a `FromFace` mate frame resolves to
+    /// frame a face-based mate frame resolves to
     /// ([`super::MateFrame`]). The pose is the CARRIER's, read off
     /// its surface parameters exactly, with the face's orientation
     /// sense beside the axis and not folded into it.
@@ -120,25 +120,7 @@ pub trait MateReach<T: Real = f64> {
     /// [`FacePoseRefusal`]: the part does not resolve (the resolver's
     /// own fault), the table has no row for the name or ties it, or the
     /// readback refuses the face (no canonical frame, a dangling key).
-    fn face_pose(
-        &self,
-        part: &DocRef,
-        face: &crate::FaceName,
-    ) -> Result<FacePose<T>, FacePoseRefusal>;
-}
-
-/// **A face's canonical pose as the solve reads it**
-/// ([`MateReach::face_pose`]): the pose at the solve's scalar, and the
-/// `f64` upper bound on its origin's distance from the part's origin —
-/// the `‖origin‖` term of the lever (`Alignment::lever_arm`), which,
-/// like the reach, only ever needs to over-state. At `f64` the bound is
-/// the distance itself.
-#[derive(Debug, Clone, Copy)]
-pub struct FacePose<T: Real> {
-    /// The carrier's pose, in the part's own coordinates.
-    pub pose: Pose<T>,
-    /// An upper bound on `‖pose.origin‖`, in metres.
-    pub origin_reach: f64,
+    fn face_pose(&self, part: &DocRef, face: &crate::FaceName) -> Result<Pose<T>, FacePoseRefusal>;
 }
 
 /// Why a face's pose is not in hand ([`MateReach::face_pose`]) —
@@ -300,7 +282,7 @@ impl core::fmt::Display for ReachRefusal {
 
 /// **The refusing reach** — the reach of a door with no resolver in
 /// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
-/// so a solve through it levers no mate, resolves no `FromFace`
+/// so a solve through it levers no mate, resolves no face-based
 /// frame, and refuses each one in the resolver's own voice, and an
 /// edit whose maintenance needs a solved frame refuses at the door.
 /// What `eval::mate_reach` answers over options carrying no resolver,
@@ -323,7 +305,7 @@ impl<T: Real> MateReach<T> for RefusingReach {
         &self,
         _part: &DocRef,
         _face: &crate::FaceName,
-    ) -> Result<FacePose<T>, FacePoseRefusal> {
+    ) -> Result<Pose<T>, FacePoseRefusal> {
         Err(FacePoseRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
         })

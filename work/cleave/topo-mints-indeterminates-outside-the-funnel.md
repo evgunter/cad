@@ -295,3 +295,40 @@ Build order, one PR each:
 
 Also: `sweep/src/blend/battery.rs::short_arm` is the same shape, so it goes
 with step 4. `refusal_routes::NeighbourOffset::reported` goes with step 2.
+
+## Step 1 landed (PR 3979, branch `cleave/mints-doors`)
+
+The geom-core doors. Gate rejections keep the decided margin. The
+`_reported` twins are folded into the plain doors, and
+`MarginKind::Invalid` now means poison only. The escalation text says
+"lies past the ambiguity band — a decided sign this decision cannot
+use" and offers no tolerance on a sign-certain reading.
+`k_stats::decide_magnitude` is the magnitude door.
+
+- **Migrated to the magnitude door:** I9, I10, I13, I23, I26 (×3) and
+  I27, plus four `chart_region` sites that the retake had filed as test
+  code (`carrier_tilt`, and `norm_gate`'s `cyl_tilt`, `cyl_offset` and
+  `cyl_transfer`).
+- **`sweep` `short_arm`:** now goes through `decide_positive`
+  (`blend::classify_positive`).
+- **`Definite`:** deferred to step 3, which has its first consumer.
+
+Not migrated, for step 4:
+
+- **I16** (`bool_plane_parallel`). The arm is
+  `ExtentBall::radius()`, and the public `oriented_plane_eq` /
+  `ConsumedExtent::unwitnessed(ExtentBall::new(c, r))` takes any
+  radius, so the margin can decide Negative from input.
+- **N5.** The Positive arm quotes the decided margin, and
+  `decide_magnitude` returns no margin.
+
+New step-4 sites, of the same gate shape, off the log:
+
+- `chart_region::definite_diag` ×3 (`cyl_band_area`, `cross_order`,
+  `area`). Each echoes `Value(lo)`, which collapses an enclosure.
+- `chart_region`'s `cyl_axis_sense` decided Zero (a disagreement with
+  the tilt gate).
+- `merge_faces`' LoopWinding decided zero.
+
+Filed on flux:
+`work/flux/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.

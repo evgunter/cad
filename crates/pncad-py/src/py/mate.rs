@@ -42,7 +42,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
-use super::place::Frame;
+use super::place::{Frame, Placement};
 use super::quantity::{Angle, Length};
 
 /// Metres in, as the `Frame` family spells a position.
@@ -73,132 +73,125 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 
 // ---- The authored payload ----
 
-/// One side's **mate frame**, in that instance's own part
-/// coordinates — two arms, closed.
+/// One side's **mate frame**: a base composed with an offset, a
+/// `Placement` written in the base's frame (`ASSEMBLY.md` A3).
 ///
-/// **Authored**: three vectors the author writes — an origin, the
-/// primary axis (a planar rest's normal, a coaxial mate's axis), and
-/// the clocking reference that fixes roll. `axis` need not be unit
-/// and `reference` need not be perpendicular to it: only the axis's
-/// direction and the reference's perpendicular part are read. Both
-/// are plain numbers — a direction has no dimension — while `origin`
-/// is three lengths.
+/// **Part base** (`MateFrame.on_part(offset)`): the side's part frame.
+/// Three authored vectors — `MateFrame(origin, axis, reference)` —
+/// are the part base with one literal step: local +Z is `axis`, the
+/// local origin `origin`, the roll fixed by `reference`. `axis` need
+/// not be unit and `reference` need not be perpendicular to it: only
+/// the axis's direction and the reference's perpendicular part are
+/// read.
 ///
-/// **From a face** (`MateFrame.from_face()`): no name and no number.
-/// The side's frame is its own HEAD's face — the face the mate's
-/// reference on that side names, read in the mated part — whose
-/// canonical pose the solve reads off the part's own evaluation at
-/// every evaluation (`ASSEMBLY.md` A11 rule 5): the carrier's origin,
-/// its CHART axis, and its own in-frame reference direction as the
-/// roll — so a face frame's roll is the carrier's, and a side that
-/// needs a roll of its own takes authored vectors.
-/// The face's orientation sense is not folded into the axis; the
-/// mate's `AxisSense` says which way the sides point. Nothing is
-/// stored twice: edit the part so the face moves, and the mate
-/// follows. A face with no canonical frame (a NURBS carrier) refuses
-/// at the solve, typed, and keeps taking authored vectors. A face frame
-/// resolves on every lane: a seed run reads the pose with its tangent,
-/// a box run an enclosure of it.
+/// **Face base** (`MateFrame.from_face()`, or `MateFrame.on_face(offset)`):
+/// no name. The side's frame is its own HEAD's face — the face the
+/// mate's reference on that side names, read in the mated part —
+/// whose canonical pose the solve reads off the part's own evaluation
+/// at every evaluation (`ASSEMBLY.md` A11 rule 5): the carrier's
+/// origin, its CHART axis as local +Z, and its own in-frame reference
+/// direction as local +Y (the `point_at` convention: local +X is the
+/// reference crossed with the axis). The offset is written in that
+/// frame, so it slides
+/// along the face, turns about its normal, or sets back from it, and
+/// it follows the face through any edit of the part. The face's
+/// orientation sense is not folded into the axis; the mate's
+/// `AxisSense` says which way the sides point. A face with no
+/// canonical frame (a NURBS carrier) refuses at the solve, typed.
+///
+/// The offset is any rigid motion; the mate's contact class says which
+/// offsets are legal — a `Rest` side set back from its face declares a
+/// contact that is not there, and the at-rest gate refutes it. A rigid
+/// step's expressions can read a document parameter, so a parameter
+/// can drive where a side sits; a literal step is held to the
+/// placement frame's bar (finite, proper, rigid) at the edit door.
+///
+/// A face base resolves on every lane: a seed run reads the pose with
+/// its tangent, a box run an enclosure of it, and so does a parameter
+/// an offset step reads.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFrame(pub(crate) d::MateFrame);
 
 #[pymethods]
 impl MateFrame {
-    #[new]
-    fn new(
-        origin: (Length, Length, Length),
-        axis: (f64, f64, f64),
-        reference: (f64, f64, f64),
-    ) -> Self {
-        Self(d::MateFrame::authored(
-            meters(origin),
-            [axis.0, axis.1, axis.2],
-            [reference.0, reference.1, reference.2],
-        ))
-    }
-
-    /// A frame resolved from the side's own head face (the class docs
-    /// say how). It takes nothing: the head is the face, and its roll
-    /// is the carrier's own.
-    #[staticmethod]
-    fn from_face() -> Self {
-        Self(d::MateFrame::FromFace)
-    }
-
-    /// Which arm: `"authored"` or `"from_face"`.
-    #[getter]
-    fn variant(&self) -> &'static str {
-        match &self.0 {
-            d::MateFrame::Authored(_) => "authored",
-            d::MateFrame::FromFace => "from_face",
-        }
-    }
-
-    /// The frame's origin, in the part's own coordinates; `None` on a
-    /// `from_face` frame, whose origin is the face's and is read at
-    /// the solve.
-    #[getter]
-    fn origin(&self) -> Option<(Length, Length, Length)> {
-        self.0.authored_vectors().map(|f| lengths(f.origin))
-    }
-
-    /// The primary axis, as authored (not normalised); `None` on a
-    /// `from_face` frame.
-    #[getter]
-    fn axis(&self) -> Option<(f64, f64, f64)> {
-        self.0
-            .authored_vectors()
-            .map(|f| (f.axis[0], f.axis[1], f.axis[2]))
-    }
-
-    /// The clocking reference, as authored; `None` on a `from_face`
-    /// frame, whose roll is the carrier's own.
-    #[getter]
-    fn reference(&self) -> Option<(f64, f64, f64)> {
-        self.0
-            .authored_vectors()
-            .map(|f| (f.reference[0], f.reference[1], f.reference[2]))
-    }
-
-    /// The rigid placement an AUTHORED frame denotes: local +Z is
-    /// `axis`, the local origin is `origin`, roll fixed by
-    /// `reference`.
+    /// Three authored vectors: the part base with the one literal step
+    /// they denote.
     ///
     /// Raises `FrameError` when the axis has no definite direction,
     /// when the reference has no definite perpendicular offset from
     /// it, or — asked before either sign — when the axis's length or
     /// that perpendicular offset is not a finite number, whose
     /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
-    /// The same refusal the solve meets, reachable BEFORE authoring
-    /// the mate that would carry it. Raises `TypeError` on a
-    /// `from_face` frame, which denotes no placement until the solve
-    /// resolves it against the part: ask the solved document.
-    fn placement(&self, py: Python<'_>) -> PyResult<Frame> {
-        let Some(authored) = self.0.authored_vectors() else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "a from_face frame denotes no placement of its own: the solve resolves it \
-                 against the part's face at evaluation, so ask the solved document",
-            ));
-        };
-        let tol = Tol::witness();
-        authored
-            .placement(tol)
-            .map(|affine| Frame(d::Frame::from_affine(affine)))
-            .map_err(|err| super::place::frame_err(py, &err))
+    ///
+    /// The frame is decided at the process tolerance, the one ε this
+    /// session holds: every door here — `Doc.insert`, `Doc.apply` —
+    /// decides at it, and a document recording another ε is refused
+    /// before any of its geometry is read (D4). The literal step it
+    /// stores is judged again where it lands, by the placement frame
+    /// rule (finite, proper, rigid) at the insert door and at load.
+    #[new]
+    fn new(
+        py: Python<'_>,
+        origin: (Length, Length, Length),
+        axis: (f64, f64, f64),
+        reference: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        d::MateFrame::authored(
+            meters(origin),
+            [axis.0, axis.1, axis.2],
+            [reference.0, reference.1, reference.2],
+            Tol::witness(),
+        )
+        .map(Self)
+        .map_err(|err| super::place::frame_err(py, &err))
     }
 
+    /// The part base composed with `offset`, written in the part's own
+    /// coordinates.
+    #[staticmethod]
+    fn on_part(offset: &Placement) -> Self {
+        Self(d::MateFrame::on_part(offset.0.clone()))
+    }
+
+    /// The side's own head face, with no offset: the face's pose
+    /// itself (the class docs say how it is read).
+    #[staticmethod]
+    fn from_face() -> Self {
+        Self(d::MateFrame::from_face())
+    }
+
+    /// The side's own head face composed with `offset`, written in the
+    /// face's frame: origin on the face, +Z along its chart axis, +Y
+    /// along its reference direction.
+    #[staticmethod]
+    fn on_face(offset: &Placement) -> Self {
+        Self(d::MateFrame::on_face(offset.0.clone()))
+    }
+
+    /// What the offset is written in: `"part"` or `"face"`.
+    #[getter]
+    fn base(&self) -> &'static str {
+        self.0.base.name()
+    }
+
+    /// The offset, in the base's frame.
+    #[getter]
+    fn offset(&self) -> Placement {
+        Placement(self.0.offset.clone())
+    }
+
+    /// BIT-exact equality: the same base, and offsets equal by
+    /// `Placement.__eq__`'s rule.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
-        match &self.0 {
-            d::MateFrame::Authored(f) => format!(
-                "MateFrame(origin={:?}, axis={:?}, reference={:?})",
-                f.origin, f.axis, f.reference
-            ),
-            d::MateFrame::FromFace => "MateFrame.from_face()".to_owned(),
+        let offset = Placement(self.0.offset.clone()).__repr__();
+        match self.0.base {
+            d::FrameBase::Part => format!("MateFrame.on_part({offset})"),
+            d::FrameBase::Face => format!("MateFrame.on_face({offset})"),
         }
     }
 }
@@ -399,28 +392,10 @@ impl Alignment {
             .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
     }
 
-    /// The **datum's own contribution to the lever** this mate's
-    /// angular decisions turn on: both mate frames' distances from
-    /// their parts' origins plus every length the primitive authors,
-    /// summed. The lever itself adds the two mated parts' own extent
-    /// (an upper bound from each evaluated body), which only the solve
-    /// has in hand — so this is the part an alignment can answer
-    /// alone, never the whole, and it is zero for a datum authored at
-    /// both origins with no length, which is the ordinary spelling of
-    /// an axis-to-axis mate rather than a defect. `None` when a side
-    /// is a `from_face` frame: its origin is the face's, resolved at
-    /// the solve, so the term is formed there.
-    #[getter]
-    fn lever_arm(&self) -> Option<Length> {
-        let a = self.0.a.authored_vectors()?;
-        let b = self.0.b.authored_vectors()?;
-        Some(Length(pncad::quantity::Length::from_meters(
-            self.0.lever_arm(a, b),
-        )))
-    }
-
+    /// BIT-exact equality, `MateFrame.__eq__`'s rule over both frames,
+    /// with the primitive's lengths and the rider compared by bits.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {

@@ -25,7 +25,7 @@ its expectation from the ids. So the row passes at every ε, but what it
 pins is the digest order.
 
 Found by PLACE's document-order sweep (PR 3882,
-`work/place/document-order-is-read-off-node-id-comparison-since-ids-are-digests.md`).
+`document-order-is-read-off-node-id-comparison-since-ids-are-digests`, closed with PLACE (`docs/doc-ledger/place-leaves-the-tracker.md`)).
 
 ## The question
 

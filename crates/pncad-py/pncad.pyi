@@ -81,7 +81,7 @@ downstream door: `Node.pattern` says the unfused family and
 says the same family fused into one.
 """
 
-from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
+from typing import Any, Final, Generic, Literal, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -177,6 +177,7 @@ class EditError(PncadError):
     offered: Optional[float | int]
     determinant: Optional[float]
     index: Optional[int]
+    side: Optional[str]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
@@ -5530,71 +5531,84 @@ def evaluate(
 # outside it is compared with it (`SolvedPoses.unplaced`).
 
 class MateFrame:
-    """One side's mate frame, in that instance's own part coordinates
-    — two arms.
+    """One side's mate frame: a base composed with an offset, a
+    `Placement` written in the base's frame.
 
-    AUTHORED: three vectors, `MateFrame(origin, axis, reference)`.
-    `axis` need not be unit and `reference` need not be perpendicular
-    to it — only the axis's direction and the reference's
-    perpendicular part are read. Both are plain numbers (a direction
-    carries no dimension); `origin` is three lengths.
+    PART BASE: `MateFrame.on_part(offset)`, the side's part frame.
+    Three authored vectors, `MateFrame(origin, axis, reference)`, are
+    the part base with one literal step: local +Z is `axis`, the local
+    origin `origin`, the roll fixed by `reference`. `axis` need not be
+    unit and `reference` need not be perpendicular to it — only the
+    axis's direction and the reference's perpendicular part are read.
+    Both are plain numbers (a direction carries no dimension); `origin`
+    is three lengths.
 
-    FROM A FACE: `MateFrame.from_face()`, which takes nothing: the
-    side's frame is its own HEAD's face, the face the mate's reference
-    on that side names, read in the mated part. The solve reads that
-    face's canonical pose off the part's own evaluation at every
-    evaluation and takes it as the frame: the
-    carrier's origin, its CHART axis (the face's orientation sense is
-    not folded in — the mate's `AxisSense` says which way the sides
-    point) and the carrier's own in-frame reference direction as the
-    roll. So a face frame's roll is the carrier's: a side that needs a
-    roll of its own takes authored vectors. Nothing is stored twice:
-    edit the part so the face moves, or rebind the head, and the mate
-    follows; split and inline carry it with its head. A face with
-    no canonical frame (a NURBS carrier) refuses at the solve and keeps
-    taking authored vectors. A face frame resolves on every lane: a seed
-    run reads the pose with its tangent, a box run an enclosure of it."""
+    FACE BASE: `MateFrame.from_face()`, or `MateFrame.on_face(offset)`.
+    No name: the side's frame is its own HEAD's face, the face the
+    mate's reference on that side names, read in the mated part. The
+    solve reads that face's canonical pose off the part's own
+    evaluation at every evaluation: the carrier's origin, its CHART
+    axis as local +Z (the face's orientation sense is not folded in —
+    the mate's `AxisSense` says which way the sides point) and the
+    carrier's own in-frame reference direction as local +Y (the
+    `point_at` convention: local +X is the reference crossed with the
+    axis). The offset is
+    written in that frame, so it slides along the face, turns about its
+    normal, or sets back from it. Nothing is stored twice: edit the
+    part so the face moves, or rebind the head, and the side follows,
+    offset and all; split and inline carry it with its head. A face
+    with no canonical frame (a NURBS carrier) refuses at the solve.
+
+    The offset is any rigid motion; the mate's contact class says which
+    offsets are legal — a `Rest` side set back from its face declares a
+    contact that is not there, and the at-rest gate refutes it. A rigid
+    step's expressions may read a document parameter, so a parameter
+    can drive where a side sits.
+
+    A face base resolves on every lane: a seed run reads the pose with
+    its tangent, a box run an enclosure of it, and so does a parameter
+    an offset step reads."""
 
     def __init__(
         self,
         origin: tuple[Length, Length, Length],
         axis: tuple[float, float, float],
         reference: tuple[float, float, float],
-    ) -> None: ...
+    ) -> None:
+        """Three authored vectors: the part base with the one literal
+        step they denote. Raises FrameError when the axis has no
+        definite direction or the reference no definite perpendicular,
+        or a length is not a finite number. Decided at the session's
+        tolerance, the one every edit door decides at (a document
+        recording another epsilon is refused before its geometry is
+        read); the stored literal is judged again by the placement
+        frame rule where it lands."""
+    @staticmethod
+    def on_part(offset: Placement) -> MateFrame:
+        """The part base composed with `offset`, in the part's own
+        coordinates."""
     @staticmethod
     def from_face() -> MateFrame:
-        """A frame resolved from the side's own head face (see the
-        class docs); it takes nothing, and it resolves on the nominal
-        lane only."""
+        """The side's own head face with no offset: the face's pose
+        itself (see the class docs); it resolves on the nominal lane
+        only."""
+    @staticmethod
+    def on_face(offset: Placement) -> MateFrame:
+        """The side's own head face composed with `offset`, written in
+        the face's frame: origin on the face, +Z along its chart axis,
+        +Y along its reference direction."""
 
     @property
-    def variant(self) -> str:
-        """`"authored"` or `"from_face"`."""
+    def base(self) -> Literal["part", "face"]:
+        """What the offset is written in: `"part"` or `"face"`."""
 
     @property
-    def origin(self) -> Optional[tuple[Length, Length, Length]]:
-        """The authored origin; `None` on a `from_face` frame, whose
-        origin is the face's and is read at the solve."""
+    def offset(self) -> Placement:
+        """The offset, in the base's frame."""
 
-    @property
-    def axis(self) -> Optional[tuple[float, float, float]]:
-        """The authored axis; `None` on a `from_face` frame."""
-
-    @property
-    def reference(self) -> Optional[tuple[float, float, float]]:
-        """The authored clocking reference; `None` on a `from_face`
-        frame, whose roll is the carrier's own."""
-
-    def placement(self) -> Frame:
-        """The rigid placement an AUTHORED frame denotes: local +Z is
-        `axis`, roll fixed by `reference`. Raises FrameError when the
-        axis has no definite direction or the reference no definite
-        perpendicular — the refusal the solve would meet, reachable
-        BEFORE authoring the mate that carries it. Raises TypeError on
-        a `from_face` frame, which denotes no placement until the
-        solve resolves it against the part: ask the solved document."""
-
-    def __eq__(self, other: object) -> bool: ...
+    def __eq__(self, other: object) -> bool:
+        """BIT-exact: the same base, and offsets equal by
+        `Placement.__eq__`'s rule."""
 
 class AxisSense:
     """Which way the two sides' axes point at each other. `Opposed` is
@@ -5676,19 +5690,6 @@ class Alignment:
     def sense(self) -> AxisSense: ...
     @property
     def clocking(self) -> Optional[Angle]: ...
-    @property
-    def lever_arm(self) -> Optional[Length]:
-        """The datum's own contribution to the lever this mate's angular
-        decisions turn on: both mate frames' distances from their parts'
-        origins plus every length the primitive authors, summed. `None`
-        when a side is a `from_face` frame, whose origin is the face's
-        and is read at the solve, where the term is formed.
-
-        The lever itself adds the two mated parts' own extent (an upper
-        bound from each evaluated body), which only the solve has in
-        hand — so this is the part an alignment can answer alone, never
-        the whole. Zero for a datum authored at both origins with no
-        length, the ordinary spelling of an axis-to-axis mate."""
     def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:

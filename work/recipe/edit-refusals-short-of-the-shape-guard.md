@@ -174,7 +174,7 @@ this row, so it stays open, and the unit sets the `## Built` section.
 
 ## Built (2026-10-01, the placement unit's P2) — the placement arms
 
-Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on the list:
+Ruling 10 of `docs/doc-ledger/edit-placement-spec.md`'s P2, against the five arms still on the list:
 - **Deleted with what they refused:** `MaintenanceUnrecorded` (and, under MSOLVE's comment, `MaintenanceRefused` with its eleven forwarded rows). No edit records a frame, so nothing is maintained and nothing is unrecorded.
 - **Re-shaped, and stating a recourse:** `PlacementOnNonInstance` is `OffsetOnNonInstance` (`DocEdit::SetOffset` on a node that instantiates no part), ending "aim the offset at a node that instantiates a part". `PlacementAxis` — now raised by an instance's offset and a gauge's placement as well as a transform's — ends "give the rotation axis a direction of nonzero length".
 - **New, stating a recourse from birth:** `GaugeOnNonPlaced`, `GaugeNotLive`, `NotAGauge`, `GaugeCycle` (the `SetGauge` door), and `MateFault::OffsetDisagrees` / `OffsetUnchecked` under `MateRefused` (`OFFSET_RECOURSE`; repair the node whose placement did not evaluate, or clear the offset).
