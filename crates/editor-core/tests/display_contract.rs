@@ -1696,7 +1696,7 @@ fn a_border_delta_names_the_walls_that_moved() {
         },
         &[
             "at node 000000000007",
-            &format!("no longer borders the {} and the {}", wall(3), wall(4)),
+            &format!("no longer borders {} and {}", wall(3), wall(4)),
             "borders no wall it did not",
         ],
         &["BorderDelta", "gone", "new"],
@@ -1709,7 +1709,7 @@ fn a_border_delta_names_the_walls_that_moved() {
         },
         &[
             "no longer borders no wall",
-            &format!("borders the {} it did not", wall(5)),
+            &format!("borders {} it did not", wall(5)),
         ],
         &["BorderDelta"],
     );
