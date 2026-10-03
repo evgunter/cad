@@ -2,10 +2,11 @@
 id: split-refusal-detector-names-a-shared-parameter-coincidence
 kind: issue
 title: Split's undeclared-pinch refusal could name, as a detector finding, that the coincidence holds for every value of a shared parameter, so the user declares it with the reason in hand
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
+blocked_on: [3990]
 ---
 
 

@@ -2,11 +2,12 @@
 id: coincidence-intent-has-too-many-spellings
 kind: issue
 title: Coincidence intent can be said in too many ways (shared key, face-pair declaration, split declaration, carried records, derived datum, shared parameters); weigh whether they reduce to fewer
-status: open
+status: parked
 opened: 2026-10-03
 priority: P2
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 
