@@ -17,7 +17,7 @@ is what the refactor hold waits on: a row parked by the hold carries
 `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`, and it fires when
 this row closes, which is when the build has reached the ground the
 row stands on. Units already started may finish (Ev). The build is
-P0 throughout (Ev): it needs its own program, staged roughly as
+P0 throughout (Ev); the INTENT program builds it (`work/intent/plan.md`), staged as
 (1) variables and no dimensioned literal in a slot, derived
 parameters; (2) operations, the explicit product list, one dependency;
 (3) spaces, placements as mates, the world frame, the per-space

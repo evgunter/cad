@@ -2,10 +2,11 @@
 id: a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends
 kind: issue
 title: A sharp plate offset over a rounded one refuses its union Join(UnpairedLooseEnds) in both operand orders
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the dual review of PR 3846 (lanes r1 and r2) and measured on

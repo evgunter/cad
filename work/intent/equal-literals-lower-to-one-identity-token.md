@@ -7,6 +7,7 @@ opened: 2026-10-03
 priority: P0
 cost: E
 refs: [one-way-to-say-dependency-and-intent]
+rides_with: no-dimensioned-literal-in-a-slot
 ---
 
 
