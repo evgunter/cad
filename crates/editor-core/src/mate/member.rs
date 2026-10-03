@@ -15,6 +15,7 @@
 //! which is arithmetic, not admission — does evaluate, in the solve's
 //! one nominal environment ([`super::solve::solve_document`]).
 
+use geom_core::Decide;
 use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
 
@@ -473,12 +474,14 @@ pub(super) fn walk_of<'r, P>(
 /// asking a pattern's direction to answer "does copy 0 exist" would
 /// refuse a member whose pose does exist.
 ///
-/// `env` is the solve's one nominal environment — what it is and why
-/// there is one is stated where it is built, at
-/// [`super::solve::solve_document`].
-pub(super) fn check_reference<P: crate::ProfilePayload>(
+/// `env` is the solve's one environment, at whichever scalar the solve
+/// runs ([`super::solve::solve_document`] says why there is one). Only
+/// its `Count` bindings are read, and no box or seed binds a count, so
+/// in every lane they are the document's own: these two checks are
+/// decided at the nominal in every run (`ASSEMBLY.md` A11 (5)).
+pub(super) fn check_reference<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<S>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk<'_>,
@@ -700,18 +703,19 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// `direction-normalization-two-doors-one-home` and the
 /// `decide_unit_direction` seat it closed on.
 ///
-/// `env` is the solve's one nominal environment — what it is and why
-/// there is one is stated where it is built, at
-/// [`super::solve::solve_document`].
-pub(super) fn derived_offset<P: crate::ProfilePayload>(
+/// `env` is the solve's one environment, at the scalar it runs at
+/// ([`super::solve::solve_document`] says why there is one): a box or a
+/// seed that binds a placer's slot moves the map here, in the lane that
+/// binds it.
+pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk<'_>,
     band: Band,
-) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
-    let mut composed: Option<Affine3<f64>> = None;
+) -> Result<Option<Affine3<T>>, Box<MateFault>> {
+    let mut composed: Option<Affine3<T>> = None;
     for placer in &w.chain {
         let node = placer.node();
         let derived = match *placer {
@@ -779,13 +783,13 @@ fn refuse(
 /// its axis DATUM's slots, and a refusal from that read is the
 /// datum's: it is reported under the datum's id, which is the node an
 /// author would go and fix.
-fn pattern_map<P: crate::ProfilePayload>(
+fn pattern_map<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     i: u32,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     band: Band,
-) -> Result<Option<Affine3<f64>>, Seated> {
+) -> Result<Option<Affine3<T>>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -855,12 +859,12 @@ fn pattern_map<P: crate::ProfilePayload>(
 ///
 /// The node that raised and the kind it raised; for a transform that
 /// is always the transform itself.
-fn transform_map<P: crate::ProfilePayload>(
+fn transform_map<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     node: RecipeNodeId,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     band: Band,
-) -> Result<Affine3<f64>, Seated> {
+) -> Result<Affine3<T>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(transform @ Node::Transform { placement, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -873,10 +877,10 @@ fn transform_map<P: crate::ProfilePayload>(
 /// evaluation's own door, so a slot that does not evaluate on this
 /// road refuses with the very [`NodeErrorKind::Expr`] the node's own
 /// evaluation raises for it.
-fn node_slots<P: crate::ProfilePayload>(
+fn node_slots<P: crate::ProfilePayload, T: Decide>(
     node: &Node<P>,
-    env: &ParamEnv<f64>,
-) -> Result<SlotValues<f64>, NodeErrorKind> {
+    env: &ParamEnv<T>,
+) -> Result<SlotValues<T>, NodeErrorKind> {
     eval_slots(node, env).map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })
 }
 

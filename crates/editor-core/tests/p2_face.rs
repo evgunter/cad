@@ -133,7 +133,8 @@ fn side_world(
     };
     let reach = editor_core::PartReach::<f64>::with_resolver(o.resolver.as_ref(), Tol::witness());
     let pose = editor_core::MateReach::face_pose(&reach, doc_ref, &face)
-        .unwrap_or_else(|refusal| panic!("the face has a pose: {refusal:?}"));
+        .unwrap_or_else(|refusal| panic!("the face has a pose: {refusal:?}"))
+        .pose;
     let placed = solve(doc, o, Tol::witness())
         .placement(doc, member.instance)
         .expect("the member is placed")
@@ -517,7 +518,9 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         "the master's own row"
     );
     let reach = editor_core::PartReach::<f64>::with_resolver(o.resolver.as_ref(), Tol::witness());
-    let pose = editor_core::MateReach::face_pose(&reach, &p.top, &master).expect("a pose");
+    let pose = editor_core::MateReach::face_pose(&reach, &p.top, &master)
+        .expect("a pose")
+        .pose;
     let placed = solve(&doc, &o, Tol::witness())
         .placement(&doc, mover)
         .expect("the mover is placed");

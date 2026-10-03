@@ -79,12 +79,14 @@ pub mod solve;
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, Placing, head_face, member_of, member_reading};
 pub use reach::{
-    FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
+    FacePose, FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach,
+    part_reach,
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    MateRole, PoseRefusal, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
-    places, reading_edges, relative_freedom_components, root_of, solve_document,
+    MateRole, PoseRefusal, SolveScalar, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced,
+    gauge_chain, groups, places, reading_edges, relative_freedom_components, root_of,
+    solve_document, solve_document_at,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -193,7 +195,7 @@ impl AuthoredFrame {
 
     /// The origin's distance from the part's origin — this frame's
     /// term of the lever ([`Alignment::lever_arm`]).
-    fn origin_norm(&self) -> f64 {
+    pub(crate) fn origin_norm(&self) -> f64 {
         let [x, y, z] = self.origin;
         (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
     }
@@ -496,13 +498,19 @@ impl Alignment {
     /// scale, at whatever size the author works, and a lever of `L`
     /// makes the smallest decidable tilt `ε / L`.
     pub fn lever_arm(&self, a: &AuthoredFrame, b: &AuthoredFrame) -> f64 {
+        self.lever_terms(a.origin_norm(), b.origin_norm())
+    }
+
+    /// [`Self::lever_arm`] over the two sides' `‖origin‖` terms as the
+    /// solve holds them: an authored side's own distance, or a face
+    /// side's upper bound at the solve's scalar
+    /// ([`reach::FacePose::origin_reach`]).
+    pub(crate) fn lever_terms(&self, a_origin: f64, b_origin: f64) -> f64 {
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
-            .fold(a.origin_norm() + b.origin_norm(), |lever, length| {
-                lever + length.abs()
-            })
+            .fold(a_origin + b_origin, |lever, length| lever + length.abs())
     }
 
     /// Whether every authored coordinate is finite — the edit door's

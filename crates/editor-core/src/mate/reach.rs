@@ -58,7 +58,7 @@
 //! non-finite refuses where it is read.
 
 use geom::Surface;
-use geom_core::{Decide, Point3};
+use geom_core::{Decide, Point3, Real};
 use topo::Body;
 use topo::entity::FaceKey;
 use topo::readback::Pose;
@@ -89,7 +89,14 @@ use crate::ident::DocRef;
 /// part that is asked for is evaluated exactly once per evaluation
 /// (the evaluation's implementation reads its own part cache, which
 /// the instantiate node then hits).
-pub trait MateReach {
+///
+/// **At the scalar the solve runs at, `T`** (`ASSEMBLY.md` A11 (5)): a
+/// face's pose crosses as the part's own product reads it — a seed
+/// run's carrying its tangent, a box run's an enclosure — and the
+/// reach crosses as an `f64` upper bound in every lane, since the lever
+/// it forms only ever needs to over-state. `f64` is the default, the
+/// scalar every door outside an evaluation solves at.
+pub trait MateReach<T: Real = f64> {
     /// The reach `R` of the part `part` names, from its own origin.
     ///
     /// # Errors
@@ -111,14 +118,27 @@ pub trait MateReach {
     /// # Errors
     ///
     /// [`FacePoseRefusal`]: the part does not resolve (the resolver's
-    /// own fault), the table has no row for the name or ties it, the
-    /// readback refuses the face (no canonical frame, a dangling
-    /// key), or the product's scalar pins no `f64`.
+    /// own fault), the table has no row for the name or ties it, or the
+    /// readback refuses the face (no canonical frame, a dangling key).
     fn face_pose(
         &self,
         part: &DocRef,
         face: &crate::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal>;
+    ) -> Result<FacePose<T>, FacePoseRefusal>;
+}
+
+/// **A face's canonical pose as the solve reads it**
+/// ([`MateReach::face_pose`]): the pose at the solve's scalar, and the
+/// `f64` upper bound on its origin's distance from the part's origin —
+/// the `‖origin‖` term of the lever (`Alignment::lever_arm`), which,
+/// like the reach, only ever needs to over-state. At `f64` the bound is
+/// the distance itself.
+#[derive(Debug, Clone, Copy)]
+pub struct FacePose<T: Real> {
+    /// The carrier's pose, in the part's own coordinates.
+    pub pose: Pose<T>,
+    /// An upper bound on `‖pose.origin‖`, in metres.
+    pub origin_reach: f64,
 }
 
 /// Why a face's pose is not in hand ([`MateReach::face_pose`]) —
@@ -306,7 +326,7 @@ impl core::fmt::Display for ReachRefusal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;
 
-impl MateReach for RefusingReach {
+impl<T: Real> MateReach<T> for RefusingReach {
     fn reach(&self, _part: &DocRef) -> Result<f64, ReachRefusal> {
         Err(ReachRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
@@ -317,7 +337,7 @@ impl MateReach for RefusingReach {
         &self,
         _part: &DocRef,
         _face: &crate::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal> {
+    ) -> Result<FacePose<T>, FacePoseRefusal> {
         Err(FacePoseRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
         })

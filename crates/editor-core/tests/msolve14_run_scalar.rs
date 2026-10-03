@@ -39,10 +39,10 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocParam,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, Node,
-    NodeResult, ParamBox, ParamName, PatternKind, Placement, ProfileDoc, ProfileLift,
-    ProfileProgram, RecipeNodeId, SitedFace, StableName, Step, ValuePayload, all_vertices,
-    evaluate, vertex_position,
+    DocRef, DocumentId, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, Node, NodeResult,
+    ParamBox, ParamName, PatternKind, Placement, ProfileDoc, ProfileLift, ProfileProgram,
+    RecipeNodeId, SitedFace, StableName, Step, ValuePayload, all_vertices, evaluate,
+    vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
@@ -205,7 +205,11 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
 
 /// A slab (the root, at its default offset) and `n` bolts carrying no
 /// offset, each placed by whatever mates the caller adds.
-fn slab_and_bolts(p: &Parts, label: &str, n: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
+fn slab_and_bolts(
+    p: &Parts,
+    label: &str,
+    n: usize,
+) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (mut doc, slab) = insert(doc, Node::instantiate_part(p.slab));
     let mut bolts = Vec::new();
@@ -219,7 +223,11 @@ fn slab_and_bolts(p: &Parts, label: &str, n: usize) -> (ProfileDoc, RecipeNodeId
 
 /// Inserts `node` through the parts' own reach — the door a face-framed
 /// side's insert needs, since its admission reads the part's face.
-fn insert_through(doc: ProfileDoc, node: Node<ProfileProgram>, opts: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
+fn insert_through(
+    doc: ProfileDoc,
+    node: Node<ProfileProgram>,
+    opts: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
     let reach = editor_core::mate_reach::<f64>(opts, Tol::witness());
     let (doc, minted) = fixture::step_with(
         doc,
@@ -342,7 +350,11 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-seat", 2);
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), slab_at(1.0, 1.0)),
+        seat(
+            head(p.bolt_foot(bolts[0])),
+            head(p.slab_top(slab)),
+            slab_at(1.0, 1.0),
+        ),
     );
     let (doc, _) = insert_through(
         doc,
@@ -409,11 +421,19 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-contra", 1);
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), slab_at(1.0, 1.0)),
+        seat(
+            head(p.bolt_foot(bolts[0])),
+            head(p.slab_top(slab)),
+            slab_at(1.0, 1.0),
+        ),
     );
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), slab_at(2.0, 1.0)),
+        seat(
+            head(p.bolt_foot(bolts[0])),
+            head(p.slab_top(slab)),
+            slab_at(2.0, 1.0),
+        ),
     );
     out.push(("contradictory", doc, p.opts()));
 
@@ -481,13 +501,21 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     );
     let (doc, _) = insert(
         doc,
-        seat(head_at(t, p.bolt_foot(top)), head(p.slab_top(slab)), slab_at(1.0, 1.0)),
+        seat(
+            head_at(t, p.bolt_foot(top)),
+            head(p.slab_top(slab)),
+            slab_at(1.0, 1.0),
+        ),
     );
     let (doc, third) = insert(doc, fixture::mated_instance(p.bolt));
     let doc = set_gauge(doc, third, Some(g1));
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(third)), head(p.bolt_head(top)), authored([0.5, 0.5, BOLT_HEIGHT], [0.0, 0.0, 1.0])),
+        seat(
+            head(p.bolt_foot(third)),
+            head(p.bolt_head(top)),
+            authored([0.5, 0.5, BOLT_HEIGHT], [0.0, 0.0, 1.0]),
+        ),
     );
     // The third member states where it sits — a TRUE statement, read
     // off the solve: `G⁻¹ ∘ W`, the gauge frame `G` recovered from the
@@ -513,7 +541,11 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let doc = set_gauge(doc, fourth, Some(g1));
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(fourth)), head(p.slab_top(slab)), slab_at(7.0, 7.0)),
+        seat(
+            head(p.bolt_foot(fourth)),
+            head(p.slab_top(slab)),
+            slab_at(7.0, 7.0),
+        ),
     );
     let doc = set_offset(
         doc,
@@ -527,11 +559,19 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-loop", 2);
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), slab_at(1.0, 1.0)),
+        seat(
+            head(p.bolt_foot(bolts[0])),
+            head(p.slab_top(slab)),
+            slab_at(1.0, 1.0),
+        ),
     );
     let (doc, _) = insert(
         doc,
-        seat(head(p.bolt_foot(bolts[1])), head(p.slab_top(slab)), slab_at(4.0, 1.0)),
+        seat(
+            head(p.bolt_foot(bolts[1])),
+            head(p.slab_top(slab)),
+            slab_at(4.0, 1.0),
+        ),
     );
     let (doc, _) = insert(
         doc,
@@ -795,6 +835,88 @@ fn assert_encloses_corners(
     }
 }
 
+/// **A box narrow enough for the placement door**: `±w·ε` about the
+/// nominal. An instance's body is placed through `topo`'s rigid
+/// transform, which certifies each placed edge on its placed carrier,
+/// and a box-wide translation widens those two independently past the
+/// band — a refusal every boxed placer meets today
+/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// its "Measured" section). A box a fraction of ε wide is placed, and
+/// the rows that read the BODY read it over one; the rows that read
+/// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
+fn narrow(w: f64) -> (f64, f64) {
+    let eps = Tol::witness().eps();
+    (-w * eps, w * eps)
+}
+
+/// **The solve's own pose of `instance` over a box encloses its `f64`
+/// pose at both corners and the nominal** — read at the solve, through
+/// [`editor_core::mate::solve_document_at`] at `Interval` over the box's
+/// own environment, and held to [`solve`] at `f64` on the document with
+/// the parameter bound at each sample: the solve read where no placement
+/// door stands between it and the row. Returns the enclosure's widest
+/// translation component.
+fn assert_pose_encloses_corners(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    instance: RecipeNodeId,
+    param: ParamName,
+    nominal: f64,
+    (lo, hi): (f64, f64),
+    what: &str,
+) -> f64 {
+    use geom_core::Bounds;
+    let pbox = ParamBox::from_axes(BTreeMap::from([(
+        param.clone(),
+        BoxAxis::Varying { lo, hi },
+    )]));
+    let env = editor_core::param_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
+    let reach = editor_core::mate_reach::<Interval>(opts, Tol::witness());
+    let poses = editor_core::mate::solve_document_at(doc, &env, &reach, Tol::witness());
+    assert!(
+        poses.fault(instance).is_none(),
+        "{what}: the solve over the box poses {instance:?}: {:?}",
+        poses.fault(instance)
+    );
+    let map = poses.relative_map(instance).expect("posed over the box");
+    let entries = |m: &geom_core::Affine3<Interval>| {
+        [m.linear.c0, m.linear.c1, m.linear.c2, m.translation]
+            .into_iter()
+            .flat_map(|c| [c.x, c.y, c.z])
+            .collect::<Vec<_>>()
+    };
+    let got = entries(&map);
+    for v in [nominal + lo, nominal, nominal + hi] {
+        let at = set_value(doc.clone(), param.clone(), v);
+        let truth = solve(&at, opts, Tol::witness())
+            .relative(instance)
+            .expect("posed at f64")
+            .affine::<f64>();
+        let truth = [
+            truth.linear.c0,
+            truth.linear.c1,
+            truth.linear.c2,
+            truth.translation,
+        ]
+        .into_iter()
+        .flat_map(|c| [c.x, c.y, c.z]);
+        for (k, (x, t)) in got.iter().zip(truth).enumerate() {
+            assert!(
+                x.lo() <= t && t <= x.hi(),
+                "{what}: entry {k} of the pose over the box, [{}, {}], omits {t}, its f64 \
+                 pose at {v}",
+                x.lo(),
+                x.hi()
+            );
+        }
+    }
+    let t = map.translation;
+    [t.x, t.y, t.z]
+        .into_iter()
+        .map(|x| x.hi() - x.lo())
+        .fold(0.0, f64::max)
+}
+
 // ---- A2: a parametric placer moves its mated part in the run that binds it ----
 
 /// **The patterned bolt, seeded on its spacing** (the designers' worked
@@ -807,7 +929,11 @@ fn assert_encloses_corners(
 fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two() {
     let b = bolted("msolve14-a2-seed", slab_at(6.0, 4.0));
     let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
-    assert!(ev.node_error(b.mate).is_none(), "{:?}", ev.node_error(b.mate));
+    assert!(
+        ev.node_error(b.mate).is_none(),
+        "{:?}",
+        ev.node_error(b.mate)
+    );
     let bolt = assert_tangents_match(
         &b.doc,
         &b.opts,
@@ -839,17 +965,36 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
     );
 }
 
-/// **The patterned bolt over a box on its spacing**: every vertex of the
-/// bolt and of the pattern is enclosed at both box corners and the
-/// nominal, and the bolt's enclosure has the box's width twice over —
-/// it is not the nominal's point.
+/// **The patterned bolt over a box on its spacing.** At the solve, over
+/// a wide box: the bolt's pose encloses its `f64` pose at both corners
+/// and the nominal, and is twice the box wide along `x` — not the
+/// nominal's point. Through the evaluation, over a box narrow enough
+/// for the placement door ([`narrow`]): every vertex of the bolt and of
+/// the pattern is enclosed at both corners and the nominal.
 #[test]
 fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
-    use geom_core::Bounds;
     let b = bolted("msolve14-a2-box", slab_at(6.0, 4.0));
     let (lo, hi) = (-0.25, 0.25);
+    let width = assert_pose_encloses_corners(
+        &b.doc,
+        &b.opts,
+        b.bolt,
+        spacing(),
+        SPACING,
+        (lo, hi),
+        "the bolted box, at the solve",
+    );
+    assert!(
+        width >= 2.0 * (hi - lo),
+        "the bolt's pose spans the box twice over: {width}"
+    );
+    let (lo, hi) = narrow(0.05);
     let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
-    assert!(ev.node_error(b.mate).is_none(), "{:?}", ev.node_error(b.mate));
+    assert!(
+        ev.node_error(b.mate).is_none(),
+        "{:?}",
+        ev.node_error(b.mate)
+    );
     for node in [b.bolt, b.pattern] {
         assert_encloses_corners(
             &b.doc,
@@ -859,17 +1004,33 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
             spacing(),
             SPACING,
             (lo, hi),
-            "the bolted box",
+            "the bolted box, evaluated",
         );
     }
-    for (name, p) in vertices(&ev, b.bolt) {
-        assert!(
-            p.x.hi() - p.x.lo() >= 2.0 * (hi - lo) - 1e-9,
-            "the bolt's x at {name:?} spans the box twice over: [{}, {}]",
-            p.x.lo(),
-            p.x.hi()
-        );
-    }
+}
+
+/// **Over a wide box the solve places the bolt, and the instance meets
+/// the placement door's refusal** — the residual every boxed placer
+/// meets today (a `Transform` node with a boxed translation refuses the
+/// same way): the mate evaluates, and the bolt's own refusal is the
+/// rigid transform's certification, not a mate fault.
+#[test]
+fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
+    let b = bolted("msolve14-a2-wide", slab_at(6.0, 4.0));
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), -0.25, 0.25), None);
+    assert!(
+        ev.node_error(b.mate).is_none(),
+        "{:?}",
+        ev.node_error(b.mate)
+    );
+    let kind = &ev
+        .node_error(b.bolt)
+        .expect("the placement door refuses")
+        .kind;
+    assert!(
+        matches!(kind, editor_core::NodeErrorKind::Transform(_)),
+        "the bolt refuses at the rigid transform: {kind:?}"
+    );
 }
 
 /// **A rotating transform placer whose lift is seeded**: the bolt
@@ -880,16 +1041,13 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
     let l = lifted("msolve14-a2-lift-seed");
     let ev = run_at::<Dual64>(&l.doc, &seeded(&l.opts, gap()), None);
-    assert!(ev.node_error(l.mate).is_none(), "{:?}", ev.node_error(l.mate));
-    let tangents = assert_tangents_match(
-        &l.doc,
-        &l.opts,
-        &ev,
-        l.bolt,
-        gap(),
-        GAP,
-        "the lifted bolt",
+    assert!(
+        ev.node_error(l.mate).is_none(),
+        "{:?}",
+        ev.node_error(l.mate)
     );
+    let tangents =
+        assert_tangents_match(&l.doc, &l.opts, &ev, l.bolt, gap(), GAP, "the lifted bolt");
     let (s, c) = 0.4_f64.sin_cos();
     for (name, t) in tangents {
         let want = [0.0, -s, -c];
@@ -916,14 +1074,30 @@ fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
     }
 }
 
-/// **The same transform placer over a box on its lift**: every vertex of
-/// the bolt is enclosed at both corners and the nominal.
+/// **The same transform placer over a box on its lift**: the bolt's
+/// pose encloses its `f64` pose at both corners at the solve over a wide
+/// box, and every vertex of the bolt and the transformed body is
+/// enclosed through the evaluation over a narrow one.
 #[test]
 fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
     let l = lifted("msolve14-a2-lift-box");
-    let (lo, hi) = (-0.2, 0.3);
+    let width = assert_pose_encloses_corners(
+        &l.doc,
+        &l.opts,
+        l.bolt,
+        gap(),
+        GAP,
+        (-0.2, 0.3),
+        "the lifted box, at the solve",
+    );
+    assert!(width >= 0.5 * 0.4_f64.cos(), "the pose widens: {width}");
+    let (lo, hi) = narrow(0.05);
     let ev = run_at::<Interval>(&l.doc, &boxed(&l.opts, gap(), lo, hi), None);
-    assert!(ev.node_error(l.mate).is_none(), "{:?}", ev.node_error(l.mate));
+    assert!(
+        ev.node_error(l.mate).is_none(),
+        "{:?}",
+        ev.node_error(l.mate)
+    );
     for node in [l.bolt, l.transform] {
         assert_encloses_corners(
             &l.doc,
@@ -933,7 +1107,7 @@ fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
             gap(),
             GAP,
             (lo, hi),
-            "the lifted box",
+            "the lifted box, evaluated",
         );
     }
 }
@@ -974,12 +1148,23 @@ fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
 }
 
 /// **A face-framed mate on an `Interval` box run resolves to an
-/// enclosure of the pose at every box corner**, and the slab — whose
-/// face the frame reads — holds still.
+/// enclosure of the pose at every box corner**: at the solve over a wide
+/// box, and through the evaluation over a narrow one, where the slab —
+/// whose face the frame reads — holds still.
 #[test]
 fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
     let b = bolted("msolve14-a1-box", MateFrame::FromFace);
-    let (lo, hi) = (-0.25, 0.25);
+    let width = assert_pose_encloses_corners(
+        &b.doc,
+        &b.opts,
+        b.bolt,
+        spacing(),
+        SPACING,
+        (-0.25, 0.25),
+        "the face-seated box, at the solve",
+    );
+    assert!(width >= 1.0, "the face-seated pose widens: {width}");
+    let (lo, hi) = narrow(0.05);
     let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
     assert!(
         ev.node_error(b.mate).is_none(),
@@ -995,7 +1180,7 @@ fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
             spacing(),
             SPACING,
             (lo, hi),
-            "the face-seated box",
+            "the face-seated box, evaluated",
         );
     }
 }

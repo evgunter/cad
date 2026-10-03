@@ -3026,6 +3026,7 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + SectionScalar
+    + crate::mate::SolveScalar
 {
 }
 
@@ -3040,6 +3041,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + SectionScalar
+        + crate::mate::SolveScalar
 {
 }
 
@@ -3410,6 +3412,89 @@ where
     }
 }
 
+/// The interval lane's solve: a refusal quotes an enclosure's midpoint,
+/// the one `f64` read the lane makes of what it measured (the bracket
+/// door, at the evaluation-service seam), and the angle is the
+/// certified enclosure.
+impl crate::mate::SolveScalar for geom_core::Interval {
+    fn quoted(self) -> f64 {
+        use geom_core::Bounds;
+        0.5 * self.lo() + 0.5 * self.hi()
+    }
+
+    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
+        false
+    }
+
+    fn quoted_residual(
+        g: crate::mate::Subgroup<Self>,
+        band: geom_core::Band,
+    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
+        crate::mate::solve::quoted_residual(g, band)
+    }
+
+    fn solve_atan2(y: Self, x: Self) -> Self {
+        geom_core::Real::atan2(y, x)
+    }
+}
+
+/// The seed lane's solve: a refusal quotes the value channel — the
+/// `f64` lane's own number — and the angle's value channel is the
+/// `f64` lane's `atan2` with the dual's own tangent beside it.
+impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Decide,
+{
+    fn quoted(self) -> f64 {
+        self.value.quoted()
+    }
+
+    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
+        false
+    }
+
+    fn quoted_residual(
+        g: crate::mate::Subgroup<Self>,
+        band: geom_core::Band,
+    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
+        crate::mate::solve::quoted_residual(g, band)
+    }
+
+    fn solve_atan2(y: Self, x: Self) -> Self {
+        let angle = geom_core::Real::atan2(y, x);
+        Self {
+            value: T::solve_atan2(y.value, x.value),
+            deriv: angle.deriv,
+        }
+    }
+}
+
+/// The symbolic tier's solve: its lane scalar's quote, and the tier's
+/// own `atan2`, which records the expression.
+impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Decide,
+{
+    fn quoted(self) -> f64 {
+        self.value.quoted()
+    }
+
+    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
+        false
+    }
+
+    fn quoted_residual(
+        g: crate::mate::Subgroup<Self>,
+        band: geom_core::Band,
+    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
+        crate::mate::solve::quoted_residual(g, band)
+    }
+
+    fn solve_atan2(y: Self, x: Self) -> Self {
+        geom_core::Real::atan2(y, x)
+    }
+}
+
 impl Default for EvalOptions {
     fn default() -> Self {
         Self {
@@ -3467,17 +3552,16 @@ fn reach_over_cache<T: EvalScalar>(
 /// aggregate body that every row of its table indexes, so the row's
 /// output-body index is not read.
 ///
-/// The pose crosses to the solve as `f64`, the scalar the solve's
-/// frames are: at `f64` the product's coordinates are the value, and
-/// on an analysis scalar — an enclosure, a sensitivity — there is no
-/// single `f64` that is not a fabricated choice ([`SectionScalar`]'s
-/// rule), so the read refuses typed rather than picking one.
+/// The pose crosses to the solve at the evaluation's scalar, the one
+/// the solve runs at (`ASSEMBLY.md` A11 (5)), as the part's product
+/// holds it. Its origin's distance crosses beside it as the lever's
+/// `f64` upper bound — the bracket's `hi`, as the reach's is.
 fn face_pose_over_cache<T: EvalScalar>(
     parts: &parts::PartCache<'_, T>,
     part: &crate::ident::DocRef,
     face: &crate::FaceName,
     tol: Tol,
-) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+) -> Result<crate::mate::FacePose<T>, crate::mate::FacePoseRefusal> {
     use crate::mate::FacePoseRefusal as R;
     use crate::names::interrogate::{TableRefusal, key_in};
     let value = parts
@@ -3490,16 +3574,9 @@ fn face_pose_over_cache<T: EvalScalar>(
             TableRefusal::Kind { found } => R::NotAFace { found },
         })?;
     let pose = topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)?;
-    let pin = |x: T| x.pinned_f64().ok_or(R::Unpinned);
-    let point =
-        |p: geom_core::Point3<T>| Ok(geom_core::Point3::new(pin(p.x)?, pin(p.y)?, pin(p.z)?));
-    let vec = |v: geom_core::Vec3<T>| Ok(geom_core::Vec3::new(pin(v.x)?, pin(v.y)?, pin(v.z)?));
-    Ok(topo::readback::Pose {
-        origin: point(pose.origin)?,
-        axis: vec(pose.axis)?,
-        u_ref: pose.u_ref.map(vec).transpose()?,
-        sense: pose.sense,
-    })
+    let o = pose.origin;
+    let origin_reach = (o.x.powi(2) + o.y.powi(2) + o.z.powi(2)).sqrt().hi();
+    Ok(crate::mate::FacePose { pose, origin_reach })
 }
 
 /// The running evaluation's reach: its own cache, borrowed.
@@ -3508,7 +3585,7 @@ struct CacheReach<'r, 'a, T: EvalScalar> {
     tol: Tol,
 }
 
-impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
+impl<T: EvalScalar> crate::mate::MateReach<T> for CacheReach<'_, '_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(self.parts, part, self.tol)
     }
@@ -3517,7 +3594,7 @@ impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
         &self,
         part: &crate::ident::DocRef,
         face: &crate::FaceName,
-    ) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+    ) -> Result<crate::mate::FacePose<T>, crate::mate::FacePoseRefusal> {
         face_pose_over_cache(self.parts, part, face, self.tol)
     }
 }
@@ -3572,7 +3649,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
     }
 }
 
-impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
+impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(&self.parts, part, self.tol)
     }
@@ -3581,7 +3658,7 @@ impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
         &self,
         part: &crate::ident::DocRef,
         face: &crate::FaceName,
-    ) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+    ) -> Result<crate::mate::FacePose<T>, crate::mate::FacePoseRefusal> {
         face_pose_over_cache(&self.parts, part, face, self.tol)
     }
 }
@@ -3732,14 +3809,17 @@ where
     // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this group sit". Its two geometric
-    // reads — each mated part's extent (the lever) and a `FromFace`
-    // side's face pose — come off THIS run's part cache: at the top a
-    // mated part is evaluated on its first ask, once, under the cache's
-    // shielding bracket, and below the top the descent has already
-    // entered it. Either way its instantiate node then hits the cache.
+    // answer to "where does this group sit". It runs at this
+    // evaluation's scalar over the lane environment (A11 (5)), so a
+    // seed or a box that binds what a mate reads moves the poses with
+    // it. Its two geometric reads — each mated part's extent (the lever)
+    // and a `FromFace` side's face pose — come off THIS run's part
+    // cache: at the top a mated part is evaluated on its first ask,
+    // once, under the cache's shielding bracket, and below the top the
+    // descent has already entered it. Either way its instantiate node
+    // then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
-    let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
+    let poses = crate::mate::solve_with_env(doc, &env, &reach, tol);
     // Which space each node lives in, read off the solve once, as the
     // solve is: a per-node reading would be a second answer.
     let spaces = crate::mate::solve::spaces_of(doc, &poses);
@@ -4848,10 +4928,10 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 /// different faults on one mate can never be confused through reuse.
 #[derive(Debug, Clone, Copy)]
 struct SolveAnswer<T: geom_core::Real> {
-    /// The instance's pose around its group's frame, `None` when the
-    /// node is not an instance the solve posed — which includes an
-    /// instance whose group refused.
-    pose: Option<crate::mate::solve::Pose>,
+    /// The instance's pose around its group's frame, at this
+    /// evaluation's scalar, `None` when the node is not an instance the
+    /// solve posed — which includes an instance whose group refused.
+    pose: Option<crate::mate::solve::Pose<T>>,
     /// The group's frame in this lane: its gauge chain composed with
     /// its root's offset, the identity in an unplaced group's own
     /// space. `None` beside a `None` pose, and for a frame that did not
@@ -4880,7 +4960,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
     /// What `poses` answers for `id`, with the group's frame the node
     /// evaluated in this lane.
     fn of<P>(
-        poses: &crate::mate::SolvedPoses,
+        poses: &crate::mate::SolvedPoses<T>,
         doc: &crate::doc::Doc<P>,
         id: RecipeNodeId,
         frame: Option<crate::placement::Motion<T>>,
@@ -4928,17 +5008,18 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
     }
 
     /// The placement's tags: one for "no pose" so a refusing group
-    /// keys distinctly from any pose, else the pose's two factors by
-    /// bits and the group's frame by its lane's exact representation.
+    /// keys distinctly from any pose, else the pose's two factors and
+    /// the group's frame, each by its lane's exact representation
+    /// ([`ContentBits`]): a dual's two channels, value then tangent, so
+    /// a seeded pass's pose never meets an unseeded prior's entry.
     fn feed_placement(self, h: &mut KeyHasher) {
-        let frame_bits = |h: &mut KeyHasher, frame: &crate::placement::Frame| {
-            for x in frame
-                .columns
-                .iter()
-                .flatten()
-                .chain(frame.translation.iter())
-            {
-                h.write_f64_bits(*x);
+        // The linear part column by column, then the translation — the
+        // order a stored frame's arrays hold them in.
+        let frame_bits = |h: &mut KeyHasher, map: &geom_core::Affine3<T>| {
+            for c in [map.linear.c0, map.linear.c1, map.linear.c2, map.translation] {
+                for x in [c.x, c.y, c.z] {
+                    x.feed(h);
+                }
             }
         };
         let (Some(pose), Some(frame)) = (self.pose, self.frame) else {
@@ -4958,11 +5039,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
             crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
             crate::placement::Motion::Map(map) => {
                 h.write_tag(tag::presence::PRESENT);
-                for c in [map.linear.c0, map.linear.c1, map.linear.c2, map.translation] {
-                    for x in [c.x, c.y, c.z] {
-                        x.feed(h);
-                    }
-                }
+                frame_bits(h, &map);
             }
         }
     }

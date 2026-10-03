@@ -773,7 +773,7 @@ impl MateReach for Counting<'_> {
         &self,
         part: &editor_core::DocRef,
         face: &editor_core::FaceName,
-    ) -> Result<topo::readback::Pose<f64>, editor_core::FacePoseRefusal> {
+    ) -> Result<editor_core::mate::FacePose<f64>, editor_core::FacePoseRefusal> {
         self.1.face_pose(part, face)
     }
 }

@@ -39,7 +39,6 @@ use editor_core::{
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
 use geom_core::Tol;
-use topo::readback::Pose;
 
 // ---- Substrate ----
 
@@ -192,7 +191,7 @@ impl MateReach for Counting<'_> {
         &self,
         part: &editor_core::DocRef,
         face: &editor_core::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal> {
+    ) -> Result<editor_core::mate::FacePose<f64>, FacePoseRefusal> {
         self.2.set(self.2.get() + 1);
         self.1.face_pose(part, face)
     }

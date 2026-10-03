@@ -522,7 +522,8 @@ fn a2_the_reachs_face_pose_is_the_parts_own_face_frame_bit_for_bit() {
             &part_ref,
             &FaceName::new(name).expect("a face"),
         )
-        .unwrap_or_else(|refusal| panic!("{kind:?}: the reach answers: {refusal:?}"));
+        .unwrap_or_else(|refusal| panic!("{kind:?}: the reach answers: {refusal:?}"))
+        .pose;
         let p = |v: geom_core::Point3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
         let d = |v: geom_core::Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
         assert_eq!(p(got.origin), p(pose.origin), "{kind:?}: origin");
