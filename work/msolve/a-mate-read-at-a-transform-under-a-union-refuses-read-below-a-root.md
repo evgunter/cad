@@ -2,12 +2,14 @@
 id: a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root
 kind: issue
 title: Following PlacedUnderTwoRoots' recourse — union the two transforms of a mated instance — refuses each mate ReadBelowARoot, where Ev ruled it should work
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 design: true
 parent: MSOLVE-13
+pr: 3969
+closed: 2026-10-03
 ---
 
 
@@ -50,3 +52,24 @@ Whatever is chosen also has to answer two things:
 - whether `ReadBelowARoot` stays a refusal anywhere.
 
 **First step:** a red row on the traced document.
+
+## Closed
+
+Fixed by MSOLVE-13 (PR 3969). The traced document now gates: the gate
+reads each mate's face at its operand and carries it up the consumers
+to the product. Through the union, the face is carried as its member's
+name, and both contacts mint
+(`crates/editor-core/tests/msolve13_read_at_operand.rs`, A1(a)).
+
+The design questions are answered as follows:
+- **How a mate reads a face beneath a re-minting root.** By the lift
+  (`names::lift`, beside `verbatim_edge`). A placer on the route
+  refuses `RefusedRef::MovedAbove { at, by }`.
+- **What the recourse says.** It branches on what is placed twice
+  (`product::PlacedTwice`). For a body: union the two to fuse them,
+  or pattern it to keep the copies apart. For an instance: instantiate
+  it again or pattern it to place it twice, then union the two to fuse
+  them.
+- **Whether `ReadBelowARoot` stays.** No. `MovedAbove` replaces it, and
+  every row that pinned it still refuses, as `MovedAbove`, or as
+  `Vanished { by }` for the empty-boolean row.

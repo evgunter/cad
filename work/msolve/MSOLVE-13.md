@@ -2,11 +2,12 @@
 id: MSOLVE-13
 kind: unit
 title: A mate's face resolves at the node it is read at and is carried up to the product; a placer above the operand refuses MovedAbove; a member is its instance and the placing nodes passed
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: msolve/13-read-at-operand
+pr: 3969
 ---
 
 
