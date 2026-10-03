@@ -574,5 +574,6 @@ Built by a wave-one cloud implementer.
 - **Merges.** Main's factored circle × sphere extremes (#3847) were
   merged in. The circle residual extremes charge their running bounds
   plus the frame's defect.
-- **Filed.** CLEAVE's steep tube cut at ε 1e-6, red on main.
+- **Filed.** Evidence for CLEAVE's steep tube cut at ε 1e-6 (red on main),
+  folded into `steep-tube-split-refuses-trim-containment-at-eps-1e-6`.
 — (REACH orchestrator)
