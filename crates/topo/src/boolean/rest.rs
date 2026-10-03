@@ -901,9 +901,13 @@ struct Span {
 /// (an `OnEdge` cell), else a chord minted through the standard
 /// splitting machinery across the face it lies in, on the other solid's
 /// edge for the segment where it has one. A chord that divides a face
-/// leaves its rings on the old face (`mef`), so the chords ending at a
-/// pierce-ring vertex not yet joined to anything go first, each joining
-/// its ring into the face's boundary before any chord divides that face.
+/// leaves its rings on the old face (`mef`), and a chord between two
+/// pierce-ring vertices joined to nothing has no boundary to start from.
+/// So the seam grows outward from the face's boundary: a segment is
+/// taken only once one of its ends is joined to it, those that join a
+/// ring vertex first, and realizing one joins its other end. A segment
+/// both of whose ends stay unjoined once no other can be taken refuses
+/// typed ([`RestZipFrontier::ChordBetweenIsolatedPierces`]).
 /// `Ok(None)`: a segment does not resolve structurally — not this lane's
 /// frontier (pre-identification phase).
 fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
@@ -916,13 +920,19 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Option<SeamSet>, BooleanError> {
     let mut per_segment: Vec<Option<EdgeKey>> = vec![None; spans.len()];
     loop {
-        let isolated = |w: VertexKey| body.get_vertex(w).is_some_and(|d| d.emanating.is_none());
-        let next = (0..spans.len())
-            .find(|&i| {
-                per_segment[i].is_none() && (isolated(spans[i].ends.0) || isolated(spans[i].ends.1))
-            })
-            .or_else(|| (0..spans.len()).find(|&i| per_segment[i].is_none()));
+        let joined = |w: VertexKey| body.get_vertex(w).is_some_and(|d| d.emanating.is_some());
+        let open = || (0..spans.len()).filter(|&i| per_segment[i].is_none());
+        let unjoined = |i: usize| {
+            let (u, v) = spans[i].ends;
+            usize::from(!joined(u)) + usize::from(!joined(v))
+        };
+        let next = open()
+            .find(|&i| unjoined(i) == 1)
+            .or_else(|| open().find(|&i| unjoined(i) == 0));
         let Some(i) = next else {
+            if open().next().is_some() {
+                return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
+            }
             break;
         };
         let span = &spans[i];

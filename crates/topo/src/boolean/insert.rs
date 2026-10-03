@@ -242,6 +242,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
                     read: w.sb,
                 },
                 contacts,
+                band,
             )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;

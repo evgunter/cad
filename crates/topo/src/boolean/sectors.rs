@@ -918,17 +918,20 @@ pub(super) fn germ_locus<T: Decide>(
 /// **Both operands' cells of a germ at a vertex pair** ([`germ_locus`]
 /// on each). Where both sectors hold a bound read On, the two edges
 /// leave the site together: they are one segment when the reduction
-/// paired their far ends, and otherwise they part, and the segment runs
-/// along at most one of them, the one whose far end lies deeper in the
-/// partner by what the reduction recorded there ([`Touch`]). The other
-/// germ is only tangent to its edge, and lies in the face its curve
-/// enters ([`tangent_face`]). Two edges that part with their far ends
-/// recorded alike are left as they read: nothing recorded tells them
-/// apart.
+/// paired their far ends and each runs on the other's carrier
+/// ([`coincide`]), and otherwise they part, and the segment runs along
+/// at most one of them: the one whose far end lies deeper in the
+/// partner by what the reduction recorded there ([`Touch`]), or, where
+/// both are recorded alike, the one whose curve runs inside the
+/// partner's face ([`runs_in`]). The other germ is only tangent to its
+/// edge, and lies in the face its curve enters ([`tangent_face`]). Two
+/// edges recorded alike that the face test does not separate stay
+/// `OnEdge` both.
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
     contacts: &super::ContactRecords,
+    band: Band,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
@@ -942,7 +945,7 @@ pub(super) fn germ_loci<T: Decide>(
         .vv
         .iter()
         .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b));
-    if paired {
+    if paired && coincide(a, ea, b, eb, band)? {
         return Ok((OnEdge(ea.edge), OnEdge(eb.edge)));
     }
     let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
@@ -955,8 +958,102 @@ pub(super) fn germ_loci<T: Decide>(
         core::cmp::Ordering::Equal if ta == Touch::Apart => {
             (InFace(a.sector.face), InFace(b.sector.face))
         }
-        core::cmp::Ordering::Equal => (OnEdge(ea.edge), OnEdge(eb.edge)),
+        core::cmp::Ordering::Equal => {
+            match (runs_in(a, ea, b, eb, band)?, runs_in(b, eb, a, ea, band)?) {
+                (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)?),
+                (Some(false), Some(true)) => (tangent(a, b, eb)?, OnEdge(eb.edge)),
+                _ => (OnEdge(ea.edge), OnEdge(eb.edge)),
+            }
+        }
     })
+}
+
+/// A point inside an edge, away from its ends.
+fn edge_mid<T: Decide>(body: &Body<T>, edge: crate::entity::EdgeKey) -> Option<Point3<T>> {
+    let e = body.get_edge(edge)?;
+    Some(body.get_curve_geom(e.curve)?.certified()?.mid_point())
+}
+
+/// Whether two edges leaving a site with paired far ends are one curve:
+/// the midpoint of `ea` lies on `eb`'s carrier. Same ends and a shared
+/// carrier make them one edge, since both leave the site along the
+/// germ. A carrier other than a line or a circle answers `false`.
+fn coincide<T: Decide>(
+    a: GermSide<'_, T>,
+    ea: Along,
+    b: GermSide<'_, T>,
+    eb: Along,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let lost = || BooleanError::ClassificationInvariant {
+        what: "a germ edge has no certified curve",
+    };
+    let p = edge_mid(a.body, ea.edge).ok_or_else(lost)?;
+    let carrier = b
+        .body
+        .get_edge(eb.edge)
+        .and_then(|e| b.body.get_curve_geom(e.curve))
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or_else(lost)?
+        .carrier();
+    let miss = match *carrier {
+        geom::Curve3::Line { origin, dir } => (p - origin).cross(dir).norm(),
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => crate::splitting::containment::circle_miss(p, center, axis, radius),
+        _ => return Ok(false),
+    };
+    Ok(
+        decide("bool_germ_edges_coincide", Margin::of(miss), band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::EdgeOnEdge, DeclarationRead::Moot, diag)
+        })? == Sign::Zero,
+    )
+}
+
+/// Whether the edge `e` of `side`, past the site, runs inside the face
+/// of `partner` the germ runs along: the face across the partner's own
+/// edge `pe` from its sector's face. Its midpoint is decided on that
+/// face's plane and inside its trim
+/// ([`super::solid_contain::point_in_face`]); the sweep splits an edge
+/// at every crossing of the partner, so the midpoint speaks for the
+/// whole edge. `None`: undecided — a midpoint on the face's boundary, a
+/// face that is not a plane, or a trim the walk cannot read.
+fn runs_in<T: Decide>(
+    side: GermSide<'_, T>,
+    e: Along,
+    partner: GermSide<'_, T>,
+    pe: Along,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
+    let pb = partner.body;
+    let edge = pb
+        .get_edge(pe.edge)
+        .ok_or(invariant("a germ edge no longer resolves"))?;
+    let faces = [edge.he_plus, edge.he_minus].map(|h| pb.face_of_half_edge(h));
+    let [face] = faces
+        .into_iter()
+        .flatten()
+        .filter(|&f| f != partner.sector.face)
+        .collect::<Vec<_>>()[..]
+    else {
+        return Ok(None);
+    };
+    let Ok((origin, normal)) = super::solid_contain::face_plane(pb, face) else {
+        return Ok(None);
+    };
+    let p = edge_mid(side.body, e.edge).ok_or(invariant("a germ edge has no certified curve"))?;
+    let height = Margin::of((p - origin).dot(normal));
+    match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
+        BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
+    })? {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => return Ok(Some(false)),
+    }
+    Ok(super::solid_contain::point_in_face(pb, face, normal, p, band).unwrap_or(None))
 }
 
 /// The bound of the germ's sector read On against the partner face, when
