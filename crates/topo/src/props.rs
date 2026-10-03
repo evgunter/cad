@@ -718,7 +718,7 @@ pub(crate) struct Round<'r, 'b, T: Decide> {
 
 impl<T: Decide> Round<'_, '_, T> {
     /// The walk's own sums at this round.
-    pub(crate) fn reading(&self) -> VolumeReading<T> {
+    pub(crate) fn reading(&self) -> SignReading<T> {
         fold_runs(self.runs).0.reading()
     }
 
@@ -741,7 +741,7 @@ impl<T: Decide> Round<'_, '_, T> {
 
 /// **A volume as a role read takes it.**
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum VolumeReading<U: Real> {
+pub(crate) enum SignReading<U: Real> {
     /// One value, its sign read once and at both ends: a sum with no
     /// quadrature pad, or an interval, whose own width the decision
     /// already reads.
@@ -755,7 +755,7 @@ pub(crate) enum VolumeReading<U: Real> {
     Bracket(VolumeEnclosure<U>),
 }
 
-impl<U: Real> VolumeReading<U> {
+impl<U: Real> SignReading<U> {
     /// One value and its lever, read once.
     pub(crate) fn exact(volume: U, lever: U) -> Self {
         Self::Exact { volume, lever }
@@ -799,11 +799,11 @@ impl<U: Real> VolumeReading<U> {
 impl<T: Real> MassProperties<T> {
     /// This sum as a role read takes it: exact where no face carried a
     /// quadrature pad, else the bracket.
-    pub(crate) fn reading(&self) -> VolumeReading<T> {
+    pub(crate) fn reading(&self) -> SignReading<T> {
         if self.volume_pad == 0.0 {
-            VolumeReading::exact(self.volume, self.surface_area)
+            SignReading::exact(self.volume, self.surface_area)
         } else {
-            VolumeReading::Bracket(self.enclosure())
+            SignReading::Bracket(self.enclosure())
         }
     }
 }
@@ -864,7 +864,7 @@ impl RoleUnread {
 ///
 /// [`RoleRead::Unread`] when no end decides a role.
 pub(crate) fn read_role<U: Decide>(
-    reading: VolumeReading<U>,
+    reading: SignReading<U>,
     names: RoleNames,
     band: Band,
 ) -> RoleRead {
@@ -881,14 +881,14 @@ pub(crate) fn read_role<U: Decide>(
         None => RoleRead::Unread(unread),
     };
     match reading {
-        VolumeReading::Exact { volume, lever } => {
+        SignReading::Exact { volume, lever } => {
             let one = sign(names.high, volume, lever);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
-        VolumeReading::Bracket(ends) => {
+        SignReading::Bracket(ends) => {
             let hi = sign(names.high, ends.volume_hi, ends.surface_area);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
@@ -955,8 +955,8 @@ pub(crate) enum Certified {
 /// no re-derivation, and its sums decide
 /// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 pub(crate) fn certify_role<T: Decide>(
-    reading: VolumeReading<T>,
-    interval: impl FnOnce() -> Option<Result<(VolumeReading<Interval>, bool), MassPropsError>>,
+    reading: SignReading<T>,
+    interval: impl FnOnce() -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
     names: RoleNames,
     certified: RoleNames,
     band: Band,
@@ -987,8 +987,8 @@ fn rederived<T: Decide>(
     band: Band,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
-) -> Result<(VolumeReading<Interval>, bool), MassPropsError> {
-    rederive(body, band, lane, runs).map(|r| (VolumeReading::exact(r.volume, r.area), r.recentred))
+) -> Result<(SignReading<Interval>, bool), MassPropsError> {
+    rederive(body, band, lane, runs).map(|r| (SignReading::exact(r.volume, r.area), r.recentred))
 }
 
 /// **A walk's runs re-derived in interval arithmetic**, about the least
@@ -1056,17 +1056,20 @@ fn rederive_about<T: Decide>(
         };
         let (f, a) = match (run.contribution.enclosure, centre) {
             (Some(enclosure), None) => enclosure,
-            (Some((f, a)), Some(centre)) => match (lane.quadrature_about)(f, &loops, centre) {
-                Ok(f) => {
-                    recentred = false;
-                    (f, a)
+            (Some(enclosure), Some(centre)) => {
+                match (lane.closed_form)(surface, &loops, face.sense, band, centre, Some(enclosure))
+                {
+                    Ok((c, _)) => {
+                        recentred = false;
+                        (c.flux, c.area)
+                    }
+                    Err(_) => return Ok(None),
                 }
-                Err(_) => return Ok(None),
-            },
+            }
             (None, _) => {
                 let at = centre.unwrap_or(Point3::origin());
-                let (c, moved) =
-                    (lane.closed_form)(surface, &loops, face.sense, band, at).map_err(refused)?;
+                let (c, moved) = (lane.closed_form)(surface, &loops, face.sense, band, at, None)
+                    .map_err(refused)?;
                 recentred &= moved;
                 (c.flux, c.area)
             }
@@ -2991,12 +2994,8 @@ pub struct QuadLane<T: Decide> {
         bool,
         Band,
         Point3<Interval>,
+        Option<(Interval, Interval)>,
     ) -> Result<(FaceContribution<Interval>, bool), PropsError>,
-    /// A quadrature face's flux enclosure carried from the world origin
-    /// to a centre — `quad_lane::quadrature_about` (`wiring_rows` pins
-    /// the pointer).
-    quadrature_about:
-        fn(Interval, &[Vec<LoopEdge<T>>], Point3<Interval>) -> Result<Interval, PropsError>,
     /// A value of the walk's scalar as the interval holding it —
     /// `Interval::from_certified` (`wiring_rows` pins the pointer).
     lift: fn(T) -> Interval,
@@ -3015,7 +3014,6 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
         Self {
             cut_face_rounds: quad_lane::cut_face_rounds::<T>,
             closed_form: quad_lane::closed_form::<T>,
-            quadrature_about: quad_lane::quadrature_about::<T>,
             lift: Interval::from_certified::<T>,
         }
     }
@@ -3126,15 +3124,9 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().closed_form,
-            quad_lane::closed_form::<T> as fn(_, _, _, _, _) -> _,
+            quad_lane::closed_form::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("closed_form is not `quad_lane::closed_form`");
-        }
-        if !std::ptr::fn_addr_eq(
-            QuadLane::<T>::certified().quadrature_about,
-            quad_lane::quadrature_about::<T> as fn(_, _, _) -> _,
-        ) {
-            return Err("quadrature_about is not `quad_lane::quadrature_about`");
         }
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().lift,
@@ -4211,8 +4203,8 @@ mod face_list_door_tests {
                         Some(QuadLane::certified()),
                         Some(QuadLane::certified()),
                         |r: &Round<'_, '_, f64>| match r.reading() {
-                            VolumeReading::Exact { volume, .. } => (volume > 0.0).then_some(true),
-                            VolumeReading::Bracket(e) => (e.volume_lo > 0.0).then_some(true),
+                            SignReading::Exact { volume, .. } => (volume > 0.0).then_some(true),
+                            SignReading::Bracket(e) => (e.volume_lo > 0.0).then_some(true),
                         },
                         |_| false,
                     )

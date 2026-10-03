@@ -5003,7 +5003,7 @@ pub(crate) const PLUS_V_EXACT: crate::props::RoleNames =
 /// Check 7's reading of one volume ([`crate::props::read_role`] under
 /// [`PLUS_V`]).
 pub(crate) fn plus_v_read<T: geom_core::Decide>(
-    reading: crate::props::VolumeReading<T>,
+    reading: crate::props::SignReading<T>,
     band: Band,
 ) -> Option<crate::props::ShellRole> {
     crate::props::read_role(reading, PLUS_V, band).role()

@@ -129,26 +129,63 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
     })
 }
 
-/// One closed-form face's flux about `centre` and its area, at the
-/// interval scalar: its surface and loops lifted point for point
-/// (`map_scalar`, which does no arithmetic), carried by `−centre`
-/// ([`translated_surface`], [`translated_curve`]), and handed to the
-/// same closed form the face walk runs (`super::closed_form_of`), whose
-/// flux about the moved origin is the face's flux about `centre`. A
-/// plane is taken about `centre` directly ([`planar_face_about`]).
+/// One face's flux about `centre` and its area, at the interval scalar.
 ///
-/// The second half says whether the face was RECENTRED: `false` for a
-/// face whose geometry has no translated twin here, whose flux is then
-/// the closed form about the world origin less `centre · A⃗` — the same
-/// value, but with the width of the world-origin form.
+/// A closed-form face (`quadrature` is `None`): its surface and loops
+/// lifted point for point (`map_scalar`, which does no arithmetic),
+/// carried by `−centre` ([`translated_surface`], [`translated_curve`]),
+/// and handed to the same closed form the face walk runs
+/// (`super::closed_form_of`), whose flux about the moved origin is the
+/// face's flux about `centre`. A plane is taken about `centre` directly
+/// ([`planar_face_about`]).
+///
+/// A quadrature face (`quadrature` is its lane's flux and area
+/// enclosures, about the world origin): the flux less `centre · A⃗`, with
+/// `A⃗` the face's vector area from its own loops — the same value, at
+/// the width the quadrature returned it with.
+///
+/// The second half says whether the face was RECENTRED, its width the
+/// body's own: `false` for a quadrature face, and for a closed-form face
+/// whose geometry has no translated twin here, whose flux is then the
+/// closed form about the world origin less `centre · A⃗`.
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
     sense: bool,
     band: Band,
     centre: Point3<Interval>,
+    quadrature: Option<(Interval, Interval)>,
 ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
-    let loops = lifted_loops(loops);
+    let loops: Vec<Vec<LoopEdge<Interval>>> = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| LoopEdge {
+                    carrier: e.carrier.map_scalar(Interval::from_certified),
+                    carrier_id: e.carrier_id,
+                    t0: Interval::from_certified(e.t0),
+                    t1: Interval::from_certified(e.t1),
+                    forward: e.forward,
+                    start: e.start,
+                    end: e.end,
+                })
+                .collect()
+        })
+        .collect();
+    let about_centre = |flux: Interval, area| -> Result<_, PropsError> {
+        let va = loops_vector_area(&loops)?;
+        Ok((
+            FaceContribution {
+                flux: flux - (centre - Point3::origin()).dot(va),
+                area,
+            },
+            false,
+        ))
+    };
+    if let Some((flux, area)) = quadrature {
+        return about_centre(flux, area);
+    }
     let surface = surface.map_scalar(Interval::from_certified);
     if let Surface::Plane { origin, normal, .. } = surface {
         return Ok((planar_face_about(origin, normal, &loops, centre)?, true));
@@ -167,60 +204,16 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
                 .collect::<Option<Vec<_>>>()
         })
         .collect::<Option<Vec<_>>>();
-    let moved = translated_surface(&surface, centre).zip(moved_loops);
-    match moved {
+    match translated_surface(&surface, centre).zip(moved_loops) {
         Some((surface, moved_loops)) => Ok((
             super::closed_form_of(&surface, &moved_loops, sense, band)?,
             true,
         )),
         None => {
             let about_origin = super::closed_form_of(&surface, &loops, sense, band)?;
-            let va = loops_vector_area(&loops)?;
-            Ok((
-                FaceContribution {
-                    flux: about_origin.flux - (centre - Point3::origin()).dot(va),
-                    area: about_origin.area,
-                },
-                false,
-            ))
+            about_centre(about_origin.flux, about_origin.area)
         }
     }
-}
-
-/// A quadrature face's flux enclosure `flux` (about the world origin)
-/// taken about `centre`: `flux − centre · A⃗`, with `A⃗` the face's
-/// vector area from its own loops. The same value, at the width the
-/// quadrature returned it with — a quadrature face is never recentred.
-pub(super) fn quadrature_about<T: Decide + geom_core::CertifiedBounds>(
-    flux: Interval,
-    loops: &[Vec<LoopEdge<T>>],
-    centre: Point3<Interval>,
-) -> Result<Interval, PropsError> {
-    let va = loops_vector_area(&lifted_loops(loops))?;
-    Ok(flux - (centre - Point3::origin()).dot(va))
-}
-
-/// Loops lifted to the interval scalar, point for point.
-fn lifted_loops<T: Decide + geom_core::CertifiedBounds>(
-    loops: &[Vec<LoopEdge<T>>],
-) -> Vec<Vec<LoopEdge<Interval>>> {
-    loops
-        .iter()
-        .map(|edges| {
-            edges
-                .iter()
-                .map(|e| LoopEdge {
-                    carrier: e.carrier.map_scalar(Interval::from_certified),
-                    carrier_id: e.carrier_id,
-                    t0: Interval::from_certified(e.t0),
-                    t1: Interval::from_certified(e.t1),
-                    forward: e.forward,
-                    start: e.start,
-                    end: e.end,
-                })
-                .collect()
-        })
-        .collect()
 }
 
 /// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about

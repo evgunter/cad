@@ -1867,7 +1867,7 @@ impl Posture {
     /// The margin's reading — exact, or a bracket over the bodies'
     /// quadrature pads ([`crate::props::MassProperties::reading`]) — read
     /// at whatever scalar it is carried in.
-    fn read<U: Decide>(self, margin: crate::props::VolumeReading<U>) -> Reading {
+    fn read<U: Decide>(self, margin: crate::props::SignReading<U>) -> Reading {
         match self {
             Posture::Bound { exact, .. } => {
                 let (lo, hi, lever) = margin.ends();
@@ -1935,7 +1935,7 @@ fn bound_holds<'t, 'b, T: Decide>(
     loop {
         // The margin `Σ large − Σ small`, and the summed surface area it
         // is metered over (fn docs, audit F3).
-        let mut margin = crate::props::VolumeReading::exact(T::zero(), T::zero());
+        let mut margin = crate::props::SignReading::exact(T::zero(), T::zero());
         // The result's volume, and what the other bodies bound it by,
         // for the refusal's text.
         let (mut got, mut others) = (T::zero(), T::zero());
@@ -1982,7 +1982,7 @@ fn bound_holds<'t, 'b, T: Decide>(
                     area = area + a;
                 }
             }
-            if posture.read(crate::props::VolumeReading::exact(margin, area)) == Reading::Violated {
+            if posture.read(crate::props::SignReading::exact(margin, area)) == Reading::Violated {
                 return Err(implausible());
             }
             open = true;
