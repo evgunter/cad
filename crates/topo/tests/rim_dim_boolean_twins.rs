@@ -111,10 +111,15 @@ fn box_at<F: Fn(f64) -> f64>(
 /// rows where the mm pocket subtract refused in-band).
 fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     let s = |v: f64| v * scale;
-    k_stats::start_recording();
+    let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
     // Corner overlap: generic crossing subtract.
-    let a = box_at(&s, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = box_at(&s, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
+    let a = fin("a", box_at(&s, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+    let b = fin("b", box_at(&s, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0)));
+    // Through-pocket: the tool pierces the top and bottom faces, so
+    // the result carries ring loops (the point-in-loop lane).
+    let a2 = fin("a2", box_at(&s, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0)));
+    let b2 = fin("b2", box_at(&s, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0)));
+    k_stats::start_recording();
     let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
@@ -124,13 +129,10 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     // `pm_census_ee_parallel` — decide every entity pair.
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
         .expect("corner census");
-    // Through-pocket: the tool pierces the top and bottom faces, so
-    // the result carries ring loops (the point-in-loop lane). This is
-    // the configuration whose mm twin refused in-band on F4's area
-    // comparand at ε = 1e-6; with the winding metered to a mean width
-    // it computes at every ε row, so ANY refusal here is now a finding.
-    let a2 = box_at(&s, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let b2 = box_at(&s, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
+    // The pocket is the configuration whose mm twin refused in-band on
+    // F4's area comparand at ε = 1e-6; with the winding metered to a
+    // mean width it computes at every ε row, so ANY refusal here is now
+    // a finding.
     match subtract(&a2, &b2, Tol::witness()) {
         Ok(BooleanResult::Body(_)) => {}
         Ok(other) => panic!("pocket: expected a body, got {other:?}"),

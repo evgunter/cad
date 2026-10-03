@@ -15,20 +15,21 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{Body, BooleanResult, mass_properties, union_with, validate_pseudomanifold};
+use topo::{AtRestBody, BooleanResult, mass_properties, union_with, validate_pseudomanifold};
 
-fn member(name: char) -> Body<f64> {
+fn member(name: char) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    match name {
+    let body = match name {
         'a' => brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         'c' => brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
         'd' => brick::<f64>((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol),
         'f' => brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
         _ => unreachable!("the star has four members"),
-    }
+    };
+    finished("a star member", body, tol)
 }
 
 /// Every permutation of the four members, in lexicographic order.

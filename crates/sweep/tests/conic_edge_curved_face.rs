@@ -19,14 +19,16 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
+use sweep::test_support::{finished, revolved_about_y};
+use topo::{
+    AtRestBody, Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces,
+};
 
 const DRUM_RADIUS: f64 = 0.5;
 const TILT: f64 = 0.3;
 
 /// The drum's lower part: its rim is the cut face's two `Ellipse` arcs.
-fn drum_lower() -> Body<f64> {
+fn drum_lower() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let r = DRUM_RADIUS;
     let cylinder = sweep::test_support::prism(
@@ -52,7 +54,7 @@ fn drum_lower() -> Body<f64> {
         2,
         "the rim is two ellipse arcs"
     );
-    below
+    finished("the drum's lower part", below, tol)
 }
 
 fn drum_volume() -> f64 {
@@ -65,32 +67,37 @@ fn cut_height(x: f64) -> f64 {
 }
 
 /// A ball of radius `r` about `c` (a full revolve about `y`, moved).
-fn ball(r: f64, c: [f64; 3]) -> Body<f64> {
+fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let at_origin = revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
         Tol::witness(),
     );
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
-    topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid")
+    let ball =
+        topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid");
+    finished("the ball", ball, Tol::witness())
 }
 
 /// [`ball`] with its revolve axis turned onto the cut plane's normal, so
 /// the plane's section of it is a latitude circle of its own chart.
-fn polar_ball(r: f64, c: [f64; 3]) -> Body<f64> {
+fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let k = Vec3::new(TILT.cos(), 0.0, -TILT.sin());
     let turn = Affine3::rotation_about_axis(Point3::from_array(c), k, core::f64::consts::FRAC_PI_2);
-    topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid")
+    let ball =
+        topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid");
+    finished("the polar ball", ball, Tol::witness())
 }
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z0 + h]`.
-fn rod(r: f64, x: f64, y: f64, z0: f64, h: f64) -> Body<f64> {
-    sweep::test_support::prism_at(
+fn rod(r: f64, x: f64, y: f64, z0: f64, h: f64) -> AtRestBody<f64> {
+    let rod = sweep::test_support::prism_at(
         vec![(Point2::new(x - r, y), 1.0), (Point2::new(x + r, y), 1.0)],
         z0,
         h,
         Tol::witness(),
-    )
+    );
+    finished("the rod", rod, Tol::witness())
 }
 
 fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -135,8 +142,8 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
 
 fn run(
     op: BooleanOp,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
 ) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
@@ -181,7 +188,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 
 /// A solid `b` of volume `vb` held strictly inside the drum, under ∪,
 /// ∩ and both differences, each against its closed form.
-fn assert_held_inside(label: &str, a: &Body<f64>, b: &Body<f64>, vb: f64) {
+fn assert_held_inside(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, vb: f64) {
     let va = drum_volume();
     for (op_label, op, x, y, expected) in [
         ("A ∪ B", BooleanOp::Union, a, b, Some(va)),
@@ -268,7 +275,7 @@ fn a_rod_held_inside_the_drum_clears_the_rim() {
 }
 
 /// The boolean's refusal under every op; a body fails with the op named.
-fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
+fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError> {
     [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract]
         .into_iter()
         .map(|op| {
@@ -308,7 +315,7 @@ fn a_rim_crossing_reaches_the_join() {
         )
     };
     type Door<'a> = &'a dyn Fn(&E) -> bool;
-    let poses: [(&str, Body<f64>, Door); 5] = [
+    let poses: [(&str, AtRestBody<f64>, Door); 5] = [
         (
             "ball r 0.2 at (0.5, 0, 0.35)",
             ball(0.2, [0.5, 0.0, 0.35]),

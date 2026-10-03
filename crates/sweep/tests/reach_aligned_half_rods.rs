@@ -18,10 +18,10 @@
 
 use geom_core::{Point2, Tol};
 use profile::circle_split;
-use sweep::test_support::{extruded, sketch_at};
+use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
-    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    Operand, PlaneRelation,
+    AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
+    BooleanResult, Operand, PlaneRelation,
 };
 
 use core::f64::consts::{FRAC_PI_2, PI};
@@ -41,10 +41,14 @@ fn tol() -> Tol {
 
 /// A rod of radius 1 and height 1 standing on `z0`, its wall the two
 /// half-cylinders of a rim split at `phase`.
-fn rod(z0: f64, phase: f64) -> Body<f64> {
+fn rod(z0: f64, phase: f64) -> AtRestBody<f64> {
     let rim =
         circle_split(Point2::new(0.0, 0.0), 1.0, 2, phase, tol()).expect("the two-arc rim authors");
-    extruded(sketch_at(z0), vec![rim.into()], 1.0, tol())
+    finished(
+        "the rod",
+        extruded(sketch_at(z0), vec![rim.into()], 1.0, tol()),
+        tol(),
+    )
 }
 
 /// Every finding the flush detector offers between `a` and `b`, declared.

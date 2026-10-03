@@ -11,7 +11,7 @@
 //! boundary, nested pockets, ring+transversal same face), boundary-on-boundary refusal honesty
 //! (UnpairedLooseEnds {4}/{8} + sharp perturbation boundary + null-edge
 //! dump), THE DIE (21 pips, exact oracle), and the standing sweeps
-//! (D9 replay, A ∩ revert(B) refused, interval lane).
+//! (D9 replay, A minus B and A meet B partitioning A, interval lane).
 //! Every Ok carries an EXACT dyadic volume oracle.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -19,11 +19,11 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3};
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
     subtract_with, union_with, validate, validate_closed,
 };
 
@@ -41,7 +41,7 @@ fn tprism<T: Decide + topo::AtRestPolicy>(
     z0: f64,
     z1: f64,
     m: [[f64; 3]; 3],
-) -> Body<T> {
+) -> AtRestBody<T> {
     let mut body = Body::<T>::new();
     common::prism_ops(
         &mut body,
@@ -59,12 +59,22 @@ fn tprism<T: Decide + topo::AtRestPolicy>(
         Tol::witness(),
     );
     common::describe_as_intersections(&mut body, Tol::witness());
-    body
+    finished("tprism", body, Tol::witness())
+}
+
+/// The brick `x × y × z`, finished.
+fn finished_brick<T: Decide + topo::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> AtRestBody<T> {
+    let tol = Tol::witness();
+    finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
 type BoolOp<T> = fn(
-    &Body<T>,
-    &Body<T>,
+    &AtRestBody<T>,
+    &AtRestBody<T>,
     &topo::BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<T>, BooleanError>;
@@ -72,7 +82,7 @@ type BoolOp<T> = fn(
 /// Functional run with the author's flush contacts declared (M4
 /// PR 5): operands bitwise untouched, result tier-1+2 valid, D9
 /// bitwise replay.
-fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
+fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let decls = flush_declarations(a, b, Tol::witness());
     let r = op(a, b, &decls, Tol::witness()).unwrap();
@@ -107,25 +117,18 @@ fn vol(body: &Body<f64>) -> f64 {
     mass_properties(body, Tol::witness()).unwrap().volume
 }
 
-/// Subtract with the exact volume oracle; `A ∩ revert(B)` refuses its
-/// inside-out operand rather than answering for the complement.
-/// Returns the owned result body.
-fn sub_exact(a: &Body<f64>, b: &Body<f64>, volume: f64) -> Body<f64> {
+/// Subtract with the exact volume oracle AND the partition cross-oracle
+/// (A minus B and A meet B, each through the door, sum to A); returns
+/// the owned result body.
+fn sub_exact(a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) -> AtRestBody<f64> {
     let r = run(subtract_with, a, b);
     let out = body_of(&r);
     assert_eq!(vol(&out.body), volume, "exact subtract volume");
-    let rb = b.revert().unwrap();
-    let decls = flush_declarations(a, &rb, Tol::witness());
-    assert!(
-        matches!(
-            topo::intersect_with(a, &rb, &decls, Tol::witness()),
-            Err(BooleanError::InsideOutOperand {
-                operand: topo::Operand::B,
-                ..
-            })
-        ),
-        "A ∩ revert(B) refuses the inside-out operand"
-    );
+    let meet = match run(topo::intersect_with, a, b) {
+        BooleanResult::Body(m) => vol(&m.body),
+        BooleanResult::Empty => 0.0,
+    };
+    assert_eq!(volume + meet, vol(a), "A minus B and A meet B partition A");
     // The owned body is the one ALREADY computed above, cloned — not a
     // fresh `run`. INVARIANT: a third execution would be bit-identical
     // to `out.body` and so asserts nothing new. `run` above already
@@ -141,7 +144,7 @@ fn sub_exact(a: &Body<f64>, b: &Body<f64>, volume: f64) -> Body<f64> {
 
 /// A refusal must be typed, deterministic, and leave operands bitwise
 /// untouched.
-fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> String {
+fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let d = flush_declarations(a, b, Tol::witness());
     let e1 = op(a, b, &d, Tol::witness()).map(|_| ()).unwrap_err();
@@ -274,8 +277,8 @@ fn b_sense_theorem_census() {
     let pil = [(0.75, 0.75), (1.25, 0.75), (1.25, 1.25), (0.75, 1.25)];
     for op in ops {
         // Transversal lanes: STRICT anti-correlation.
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-        let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
+        let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+        let b = finished_brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
         assert_eq!(
             sense_census(op, &a, &b),
             SenseCensus {
@@ -285,8 +288,8 @@ fn b_sense_theorem_census() {
             },
             "two-brick {op:?}"
         );
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-        let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5), Tol::witness());
+        let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+        let b = finished_brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
         assert_eq!(
             sense_census(op, &a, &b),
             SenseCensus {
@@ -308,8 +311,8 @@ fn b_sense_theorem_census() {
             "sheared {op:?}"
         );
         // Coplanar-cap lane: anti-correlation holds here too.
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-        let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), Tol::witness());
+        let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+        let b = finished_brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
         assert_eq!(
             sense_census(op, &a, &b),
             SenseCensus {
@@ -338,18 +341,13 @@ fn b_sense_theorem_census() {
 #[test]
 fn a_fig151_variants_exact() {
     for (off, expect) in [(1.0, 1.0), (1.5, 0.25), (0.5, 2.25)] {
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-        let b = brick::<f64>(
-            (off, off + 2.0),
-            (off, off + 2.0),
-            (0.0, 1.0),
-            Tol::witness(),
-        );
+        let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+        let b = finished_brick::<f64>((off, off + 2.0), (off, off + 2.0), (0.0, 1.0));
         let r = run(topo::intersect_with, &a, &b);
         assert_eq!(vol(&body_of(&r).body), expect, "off {off}");
         let r = run(topo::intersect_with, &b, &a);
         assert_eq!(vol(&body_of(&r).body), expect, "off {off} swapped");
-        // Union + subtract on the same family (`sub_exact`).
+        // Union + subtract on the same family (with the partition oracle).
         let r = run(union_with, &a, &b);
         assert_eq!(vol(&body_of(&r).body), 8.0 - expect, "off {off} union");
         sub_exact(&a, &b, 4.0 - expect);
@@ -361,15 +359,15 @@ fn a_fig151_variants_exact() {
 /// at corner sites of a seam-born body.
 #[test]
 fn a_three_brick_corner_pileup() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    let b = finished_brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
     let r = run(topo::intersect_with, &a, &b);
     let ab = match run(topo::intersect_with, &a, &b) {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!(),
     };
     assert_eq!(vol(&body_of(&r).body), 1.0);
-    let c = brick::<f64>((1.5, 2.5), (1.5, 2.5), (0.0, 1.0), Tol::witness());
+    let c = finished_brick::<f64>((1.5, 2.5), (1.5, 2.5), (0.0, 1.0));
     let r2 = run(topo::intersect_with, &ab, &c);
     assert_eq!(vol(&body_of(&r2).body), 0.25, "pileup meet");
     let r3 = run(union_with, &ab, &c);
@@ -383,8 +381,8 @@ fn a_three_brick_corner_pileup() {
 /// gives volume 1/2.
 #[test]
 fn a_multi_spike_shared_corner_vertex() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    let b = finished_brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
     let ab = match run(topo::intersect_with, &a, &b) {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!(),
@@ -396,6 +394,7 @@ fn a_multi_spike_shared_corner_vertex() {
         Tol::witness(),
     )
     .body;
+    let c = finished("c", c, Tol::witness());
     // A shared corner VERTEX of z-parallel prisms puts AB's vertical
     // corner edge along C's: the section segment up that edge names the
     // edge at both ends in both solids, and each solid folds the edge
@@ -452,7 +451,11 @@ fn a_reflex_315_corner_tilted_cap() {
         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.5, -0.25, 1.0]],
     ];
     for (k, m) in shears.into_iter().enumerate() {
-        let a = prism_z::<f64>(&reflex, 0.0, 1.0, Tol::witness()).body;
+        let a = finished(
+            "the reflex prism",
+            prism_z::<f64>(&reflex, 0.0, 1.0, Tol::witness()).body,
+            Tol::witness(),
+        );
         assert_eq!(vol(&a), 14.0);
         let b = tprism::<f64>(&sq, 1.0, 3.0, m);
         assert_eq!(vol(&b), 8.0);
@@ -483,7 +486,7 @@ fn a_reflex_315_corner_tilted_cap() {
     // CONTROL: the same tilted cap crossing a PLAIN brick's top face
     // with the germ line through face INTERIOR (no reflex corner, no
     // vertex contact) succeeds with the same 13/24 volume.
-    let a = brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), Tol::witness());
+    let a = finished_brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0));
     let b = tprism::<f64>(&sq, 1.0, 3.0, shears[0]);
     let r = run(topo::intersect_with, &a, &b);
     let v = vol(&body_of(&r).body);
@@ -491,7 +494,7 @@ fn a_reflex_315_corner_tilted_cap() {
     // Second control: a CONVEX (90-degree) corner vertex under the
     // same tilted cap — distinguishes "any vertex contact" from
     // "reflex sector". Exact dyadic oracle 3/8.
-    let a = brick::<f64>((-2.0, 0.0), (-2.0, 0.0), (0.0, 1.0), Tol::witness());
+    let a = finished_brick::<f64>((-2.0, 0.0), (-2.0, 0.0), (0.0, 1.0));
     let b = tprism::<f64>(&sq, 1.0, 3.0, shears[0]);
     match topo::intersect_with(
         &a,
@@ -555,7 +558,7 @@ fn b_transformed_pocket_exact() {
 /// operand swap included.
 #[test]
 fn b_diamond_through_brick_exact() {
-    let a = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b = prism_z::<f64>(
         &[(2.0, 1.0), (3.0, 2.0), (2.0, 3.0), (1.0, 2.0)],
         -1.0,
@@ -563,6 +566,7 @@ fn b_diamond_through_brick_exact() {
         Tol::witness(),
     )
     .body;
+    let b = finished("b", b, Tol::witness());
     // diamond area 2, inside height 1 -> meet = 2.
     let out = sub_exact(&a, &b, 16.0 - 2.0);
     assert_eq!(vol(&out), 14.0);
@@ -585,8 +589,8 @@ fn b_diamond_through_brick_exact() {
 /// seam runs close to (never touching) all four face edges.
 #[test]
 fn c_pocket_spanning_most_of_face() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((0.125, 1.875), (0.125, 1.875), (1.5, 2.5), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let b = finished_brick::<f64>((0.125, 1.875), (0.125, 1.875), (1.5, 2.5));
     // pocket 1.75 x 1.75 x 0.5
     sub_exact(&a, &b, 8.0 - 1.75 * 1.75 * 0.5);
 }
@@ -594,13 +598,8 @@ fn c_pocket_spanning_most_of_face() {
 /// Pocket close to one edge (0.0625 clearance), strongly asymmetric.
 #[test]
 fn c_pocket_near_edge() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>(
-        (0.0625, 0.5625),
-        (0.0625, 0.5625),
-        (1.75, 2.25),
-        Tol::witness(),
-    );
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let b = finished_brick::<f64>((0.0625, 0.5625), (0.0625, 0.5625), (1.75, 2.25));
     sub_exact(&a, &b, 8.0 - 0.5 * 0.5 * 0.25);
 }
 
@@ -618,10 +617,10 @@ fn c_six_face_pocket_chain() {
         ((0.75, 1.25), (1.5, 2.5), (0.75, 1.25)),  // +y
         ((0.75, 1.25), (-0.5, 0.5), (0.75, 1.25)), // -y
     ];
-    let mut acc = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let mut acc = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let mut expect = 8.0;
     for (i, (x, y, z)) in pillars.into_iter().enumerate() {
-        let b = brick::<f64>(x, y, z, Tol::witness());
+        let b = finished_brick::<f64>(x, y, z);
         expect -= 0.5 * 0.5 * 0.5;
         acc = sub_exact(&acc, &b, expect);
         assert!(vol(&acc) == expect, "step {i}");
@@ -644,8 +643,8 @@ fn c_boss_orientation_matrix() {
         ("-y", (0.75, 1.25), (-0.5, 0.5), (0.75, 1.25)),
     ];
     for (name, x, y, z) in pillars {
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-        let b = brick::<f64>(x, y, z, Tol::witness());
+        let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+        let b = finished_brick::<f64>(x, y, z);
         let r = run(union_with, &a, &b);
         let out = body_of(&r);
         assert_eq!(out.kind, BooleanResultKind::Seamed, "{name}");
@@ -659,9 +658,9 @@ fn c_boss_orientation_matrix() {
 /// lands on a face already carrying a pocket seam.
 #[test]
 fn c_pocket_and_boss_same_face() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let pocket = brick::<f64>((0.25, 0.75), (0.25, 0.75), (1.5, 2.5), Tol::witness());
-    let boss = brick::<f64>((1.25, 1.75), (1.25, 1.75), (1.5, 2.5), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let pocket = finished_brick::<f64>((0.25, 0.75), (0.25, 0.75), (1.5, 2.5));
+    let boss = finished_brick::<f64>((1.25, 1.75), (1.25, 1.75), (1.5, 2.5));
     let carved = sub_exact(&a, &pocket, 8.0 - 0.125);
     let r = run(union_with, &carved, &boss);
     let out = body_of(&r);
@@ -698,8 +697,9 @@ fn e_six_collinear_sites() {
         Tol::witness(),
     )
     .body;
+    let w = finished("w", w, Tol::witness());
     assert_eq!(vol(&w), 11.0);
-    let b = brick::<f64>((-1.0, 6.0), (2.0, 2.5), (-0.5, 1.5), Tol::witness());
+    let b = finished_brick::<f64>((-1.0, 6.0), (2.0, 2.5), (-0.5, 1.5));
     let r = run(subtract_with, &w, &b);
     let out = body_of(&r);
     assert_eq!(out.body.shells().count(), 4, "base + three tips");
@@ -733,8 +733,9 @@ fn e_eight_collinear_sites() {
         Tol::witness(),
     )
     .body;
+    let comb = finished("comb", comb, Tol::witness());
     assert_eq!(vol(&comb), 15.0);
-    let b = brick::<f64>((-1.0, 8.0), (2.0, 2.5), (-0.5, 1.5), Tol::witness());
+    let b = finished_brick::<f64>((-1.0, 8.0), (2.0, 2.5), (-0.5, 1.5));
     let r = run(subtract_with, &comb, &b);
     let out = body_of(&r);
     assert_eq!(out.body.shells().count(), 5, "base + four tips");
@@ -766,7 +767,8 @@ fn e_collinear_mixed_with_transversal() {
         Tol::witness(),
     )
     .body;
-    let b = brick::<f64>((-1.0, 6.0), (0.5, 2.5), (0.25, 1.5), Tol::witness());
+    let w = finished("w", w, Tol::witness());
+    let b = finished_brick::<f64>((-1.0, 6.0), (0.5, 2.5), (0.25, 1.5));
     // REVIEW FINDING (E-2), CLOSED by the fix pass: the refusal was a
     // typed poison escalation (Join(RingHoming(Escalated {
     // point_in_loop_boundary, margin Invalid }))) from the ring
@@ -794,7 +796,7 @@ fn e_collinear_mixed_with_transversal() {
     assert_eq!(vol(&bb.body), 11.0 - 3.375 - 1.875, "mixed lane EXACT");
     // Neighbor variant: the same channel cut crossing the prongs
     // ENTIRELY (no collinear stub on the prong line).
-    let b2 = brick::<f64>((-1.0, 6.0), (0.5, 3.5), (0.25, 1.5), Tol::witness());
+    let b2 = finished_brick::<f64>((-1.0, 6.0), (0.5, 3.5), (0.25, 1.5));
     match subtract_with(
         &w,
         &b2,
@@ -814,7 +816,7 @@ fn e_collinear_mixed_with_transversal() {
 }
 
 /// The U-slab family under ALL ops (not just subtract), with the
-/// inside-out refusal of `revert(B)` on the subtract lane.
+/// partition oracle on the subtract lane.
 #[test]
 fn e_uslab_all_ops() {
     let u = prism_z::<f64>(
@@ -833,8 +835,9 @@ fn e_uslab_all_ops() {
         Tol::witness(),
     )
     .body;
+    let u = finished("u", u, Tol::witness());
     assert_eq!(vol(&u), 7.0);
-    let b = brick::<f64>((-1.0, 4.0), (2.0, 2.5), (-0.5, 1.5), Tol::witness());
+    let b = finished_brick::<f64>((-1.0, 4.0), (2.0, 2.5), (-0.5, 1.5));
     sub_exact(&u, &b, 6.0);
     let r = run(topo::intersect_with, &u, &b);
     let out = body_of(&r);
@@ -857,7 +860,7 @@ fn e_uslab_all_ops() {
 /// — never a misclassified ring side.
 #[test]
 fn f_residual_probe_all_corners_on_boundary() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = prism_z::<f64>(
         &[(-1.0, 1.0), (1.0, -1.0), (3.0, 1.0), (1.0, 3.0)],
         1.0,
@@ -865,6 +868,7 @@ fn f_residual_probe_all_corners_on_boundary() {
         Tol::witness(),
     )
     .body;
+    let b = finished("b", b, Tol::witness());
     match subtract_with(
         &a,
         &b,
@@ -888,10 +892,10 @@ fn f_residual_probe_all_corners_on_boundary() {
 /// seam-born. Exact volumes at each step.
 #[test]
 fn f_nested_pocket_in_pocket_floor() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let p1 = brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.5, 2.5), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let p1 = finished_brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.5, 2.5));
     let carved = sub_exact(&a, &p1, 8.0 - 0.5);
-    let p2 = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.25, 1.75), Tol::witness());
+    let p2 = finished_brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.25, 1.75));
     sub_exact(&carved, &p2, 8.0 - 0.5 - 0.0625);
 }
 
@@ -901,7 +905,7 @@ fn f_nested_pocket_in_pocket_floor() {
 /// other crossing the y = 2 edge (open crossing).
 #[test]
 fn f_ring_plus_transversal_same_face() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     // (u, v) profile = (y, z) after the cyclic map (u,v,w) -> (w,u,v).
     let perm = [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
     let prof = [
@@ -923,7 +927,7 @@ fn f_ring_plus_transversal_same_face() {
 /// interior).
 #[test]
 fn f_two_rings_same_face_from_one_operand() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let perm = [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
     let prof = [
         (0.5, 1.5),
@@ -956,9 +960,9 @@ fn f_two_rings_same_face_from_one_operand() {
 #[test]
 fn g_boundary_on_boundary_refusals_sharp() {
     // Corner-flush pillar: 2 contact-square edges on A's face edges.
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0), Tol::witness());
-    let undeclared_refusal = |a: &Body<f64>, b: &Body<f64>| {
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let b = finished_brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
+    let undeclared_refusal = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
         let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
         let e1 = topo::union(a, b, Tol::witness()).map(|_| ()).unwrap_err();
         let e2 = topo::union(a, b, Tol::witness()).map(|_| ()).unwrap_err();
@@ -974,26 +978,16 @@ fn g_boundary_on_boundary_refusals_sharp() {
     let r = run(union_with, &a, &b);
     assert_eq!(vol(&body_of(&r).body), 8.0 + 0.25, "corner-flush glued");
     // Stacked-full: B's bottom rim = A's top rim, all four on-edge.
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0), Tol::witness());
+    let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     undeclared_refusal(&a, &b);
     let r = run(union_with, &a, &b);
     assert_eq!(vol(&body_of(&r).body), 8.0 + 4.0, "stacked-full glued");
     // Perturbed corner-flush (pulled 1/16 inside): exact union.
-    let b = brick::<f64>(
-        (0.0625, 0.5625),
-        (0.0625, 0.5625),
-        (2.0, 3.0),
-        Tol::witness(),
-    );
+    let b = finished_brick::<f64>((0.0625, 0.5625), (0.0625, 0.5625), (2.0, 3.0));
     let r = run(union_with, &a, &b);
     assert_eq!(vol(&body_of(&r).body), 8.0 + 0.25, "perturbed corner-flush");
     // Perturbed stack (shrunk 1/16 per side): exact union.
-    let b = brick::<f64>(
-        (0.0625, 1.9375),
-        (0.0625, 1.9375),
-        (2.0, 3.0),
-        Tol::witness(),
-    );
+    let b = finished_brick::<f64>((0.0625, 1.9375), (0.0625, 1.9375), (2.0, 3.0));
     let r = run(union_with, &a, &b);
     assert_eq!(
         vol(&body_of(&r).body),
@@ -1009,8 +1003,8 @@ fn g_boundary_on_boundary_refusals_sharp() {
 /// class the docs say has no facing chord partner.
 #[test]
 fn g_stacked_full_on_edge_germ_dump() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0), Tol::witness());
+    let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     let red = topo::boolean_reduce_declared(
         topo::BooleanOp::Union,
         &a,
@@ -1051,7 +1045,7 @@ fn g_stacked_full_on_edge_germ_dump() {
 /// Pip pillar bricks for a standard die on the [0,2]^3 cube: face
 /// normal axis + pip centers on a {0.5, 1.0, 1.5} grid; pips 0.25
 /// square, 0.125 deep. Opposite faces sum to 7.
-fn die_pips() -> Vec<Body<f64>> {
+fn die_pips() -> Vec<AtRestBody<f64>> {
     let g = [0.5, 1.0, 1.5];
     let layouts: [(usize, bool, Vec<(f64, f64)>); 6] = [
         (2, true, vec![(g[1], g[1])]), // +z: 1
@@ -1100,7 +1094,7 @@ fn die_pips() -> Vec<Body<f64>> {
                 1 => (ur, nr, vr),
                 _ => (ur, vr, nr),
             };
-            pips.push(brick::<f64>(x, y, z, Tol::witness()));
+            pips.push(finished_brick::<f64>(x, y, z));
         }
     }
     assert_eq!(pips.len(), 21);
@@ -1118,12 +1112,7 @@ mod interval {
     #[test]
     fn interval_new_fixtures() {
         // Diamond through brick (mixed alignment).
-        let a = brick::<Interval>(
-            (0.0, 4.0),
-            (0.0, 4.0),
-            (0.0, 1.0),
-            geom_core::Tol::witness(),
-        );
+        let a = finished_brick::<Interval>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
         let b = prism_z::<Interval>(
             &[(2.0, 1.0), (3.0, 2.0), (2.0, 3.0), (1.0, 2.0)],
             -1.0,
@@ -1131,6 +1120,7 @@ mod interval {
             geom_core::Tol::witness(),
         )
         .body;
+        let b = finished("b", b, Tol::witness());
         let r = run(subtract_with, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
         // Sheared (tilted-plane) pocket.
@@ -1162,47 +1152,28 @@ mod interval {
             geom_core::Tol::witness(),
         )
         .body;
-        let cutter = brick::<Interval>(
-            (-1.0, 6.0),
-            (2.0, 2.5),
-            (-0.5, 1.5),
-            geom_core::Tol::witness(),
-        );
+        let w = finished("w", w, Tol::witness());
+        let cutter = finished_brick::<Interval>((-1.0, 6.0), (2.0, 2.5), (-0.5, 1.5));
         let r = run(subtract_with, &w, &cutter);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
         // A -z boss union (orientation matrix representative) and one
         // die pip.
-        let a = brick::<Interval>(
-            (0.0, 2.0),
-            (0.0, 2.0),
-            (0.0, 2.0),
-            geom_core::Tol::witness(),
-        );
-        let b = brick::<Interval>(
-            (0.75, 1.25),
-            (0.75, 1.25),
-            (-0.5, 0.5),
-            geom_core::Tol::witness(),
-        );
+        let a = finished_brick::<Interval>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+        let b = finished_brick::<Interval>((0.75, 1.25), (0.75, 1.25), (-0.5, 0.5));
         let r = run(union_with, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
-        let pip = brick::<Interval>(
-            (0.875, 1.125),
-            (0.875, 1.125),
-            (1.875, 2.5),
-            geom_core::Tol::witness(),
-        );
+        let pip = finished_brick::<Interval>((0.875, 1.125), (0.875, 1.125), (1.875, 2.5));
         let r = run(subtract_with, &a, &pip);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
     }
 }
 
 /// THE DIE, end to end in topo: 21 sequential pip subtracts, exact
-/// volume after each op, the inside-out refusal of `revert(B)` and D9
-/// replay throughout, tiers 1+2 on every intermediate.
+/// volume after each op, partition oracle and D9 replay throughout,
+/// tiers 1+2 on every intermediate.
 #[test]
 fn d_die_21_pips_exact() {
-    let mut acc = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let mut acc = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let mut expect = 8.0;
     let pip_vol = 0.25 * 0.25 * 0.125;
     for (i, pip) in die_pips().iter().enumerate() {

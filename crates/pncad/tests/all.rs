@@ -1460,7 +1460,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .expect("the slab rectangle authors");
         let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
-        extrude(
+        let body = extrude(
             &profile,
             Extrusion::Distance {
                 depth: real(z.1 - z.0),
@@ -1469,7 +1469,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             Tol::witness(),
         )
         .expect("slab extrude")
-        .body
+        .body;
+        AtRestBody::validate(body, Tol::witness()).expect("the slab is a finished body")
     };
 
     // The post is strictly interior in x and y and pokes out of the

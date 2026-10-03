@@ -1,8 +1,9 @@
-//! **An inside-out operand refuses at the Boolean's operand gate.** A
-//! prism over a clockwise profile is closed and passes tiers 1 and 2,
-//! but its faces point inward: tier 3's check 7 decides its volume
-//! negative. Consumed, it is the complement of the wedge it bounds, and
-//! ∖ and ∩ answered each other's volume.
+//! **An inside-out body is not a finished body, so no Boolean takes
+//! it.** A prism over a clockwise profile is closed and passes tiers 1
+//! and 2, but its faces point inward: tier 3's check 7 decides its
+//! volume negative, per solid, and the at-rest gate that finishes an
+//! operand refuses it there. Consumed, it would be the complement of the
+//! wedge it bounds, and ∖ and ∩ answered each other's volume.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -10,8 +11,8 @@ use crate::common;
 use common::{brick, flush_declarations};
 use geom_core::{Bounds, Decide, Interval, Tol};
 use topo::{
-    AtRestPolicy, Body, BooleanError, BooleanResult, Operand, intersect_with, mass_properties,
-    subtract_with, union_with,
+    AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, ValidationError, intersect_with,
+    mass_properties, subtract_with, union_with,
 };
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
@@ -35,8 +36,8 @@ fn operands<T: Decide + AtRestPolicy>(ccw: bool, tol: Tol) -> (Body<T>, Body<T>)
 }
 
 type Op<T> = fn(
-    &Body<T>,
-    &Body<T>,
+    &AtRestBody<T>,
+    &AtRestBody<T>,
     &topo::BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<T>, BooleanError>;
@@ -49,25 +50,27 @@ fn ops<T: Decide + Bounds + AtRestPolicy>() -> [(&'static str, Op<T>); 3] {
     ]
 }
 
-/// Every op, in both operand orders, refuses the clockwise wedge as
-/// the inside-out operand it is, naming the operand. Red before the
-/// gate: ∖ answered 0.0352 and ∩ 0.9648 (each the other's volume), and
-/// ∪ was refused `ResultVolumeImplausible` by the backstop.
+/// `body`'s at-rest gate refuses exactly the solids in `inside_out`, each
+/// on check 7's negative sign and nothing else.
+fn refused_inside_out<T: Decide + AtRestPolicy>(what: &str, body: &Body<T>, inside_out: usize) {
+    let errors = T::gate_at_rest_kept(body.clone(), Tol::witness())
+        .expect_err("an inside-out body is not a finished body");
+    assert!(
+        errors.len() == inside_out
+            && errors
+                .iter()
+                .all(|e| matches!(e, ValidationError::NegativeVolume { .. })),
+        "{what}: {inside_out} solid(s) refused inside-out, got {errors:?}"
+    );
+}
+
+/// The clockwise wedge refuses at the gate that would finish it for any
+/// op, on its one solid. Red before the type: ∖ answered 0.0352 and ∩
+/// 0.9648 (each the other's volume), and ∪ was refused
+/// `ResultVolumeImplausible` by the backstop.
 fn refuses_inside_out<T: Decide + Bounds + AtRestPolicy>(scalar: &str) {
-    let tol = Tol::witness();
-    let (brick, wedge) = operands::<T>(false, tol);
-    for (name, op) in ops::<T>() {
-        for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            let decls = flush_declarations(a, b, tol);
-            match op(a, b, &decls, tol) {
-                Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
-                    operand, inside_out,
-                    "{scalar} {name}: the refusal names the inside-out operand"
-                ),
-                other => panic!("{scalar} {name}: want InsideOutOperand, got {other:?}"),
-            }
-        }
-    }
+    let (_, wedge) = operands::<T>(false, Tol::witness());
+    refused_inside_out(scalar, &wedge, 1);
 }
 
 #[test]
@@ -93,6 +96,10 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
     let wedge = 0.5 * (0.5 * 110f64.to_radians().sin());
     let (brick, prism) = operands::<f64>(true, tol);
     let decls = flush_declarations(&brick, &prism, tol);
+    let (brick, prism) = (
+        common::finished("the brick", brick, tol),
+        common::finished("the outward wedge", prism, tol),
+    );
     for ((name, op), want) in
         ops::<f64>()
             .into_iter()
@@ -109,6 +116,10 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
     }
     let at_interval = operands::<Interval>(true, tol);
     let decls = flush_declarations(&at_interval.0, &at_interval.1, tol);
+    let at_interval = (
+        common::finished("the brick", at_interval.0, tol),
+        common::finished("the outward wedge", at_interval.1, tol),
+    );
     for (name, op) in ops::<Interval>() {
         assert!(
             matches!(
@@ -121,10 +132,9 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
 }
 
 /// **A small inside-out part beside a larger ordinary one**, in one
-/// operand: the body's total volume is positive, so a reading of the
-/// whole operand sees nothing. The gate reads each solid before the
-/// pipeline merges them, and names the operand. Red if the operand is
-/// read as one merged solid.
+/// body: the body's total volume is positive, so a reading of the whole
+/// sees nothing. The at-rest gate reads check 7 per solid and refuses the
+/// inside-out part alone. Red if the body is read as one merged solid.
 #[test]
 fn an_inside_out_part_beside_an_ordinary_one_refuses() {
     let tol = Tol::witness();
@@ -156,14 +166,6 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses() {
         mass_properties(&parts, tol).unwrap().volume > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );
-    let cutter = brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.5, 2.5), tol);
-    for (name, op) in ops::<f64>() {
-        match op(&parts, &cutter, &topo::BooleanDeclarations::none(), tol) {
-            Err(BooleanError::InsideOutOperand {
-                operand: Operand::A,
-                ..
-            }) => {}
-            other => panic!("{name}: want InsideOutOperand on A, got {other:?}"),
-        }
-    }
+    assert_eq!(parts.solids().count(), 2, "two solids, one per part");
+    refused_inside_out("the two parts", &parts, 1);
 }

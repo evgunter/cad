@@ -13,9 +13,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::finished;
 use mesh::validate::{check_mesh, signed_volume};
 use topo::{
-    Body, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
+    AtRestBody, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
     validate_pseudomanifold,
 };
 
@@ -29,8 +30,9 @@ use geom_core::Tol;
 /// same die from the same door — and the boolean is done here because
 /// what this row measures is the RESULT's contact lists, which a
 /// body-returning fixture cannot hand back.
-fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
+fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let (cube, cutter) = sweep::test_support::pocket_die_parts(x0, y0, z0, Tol::witness());
+    let (cube, cutter) = (finished("the cube", cube), finished("the cutter", cutter));
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };

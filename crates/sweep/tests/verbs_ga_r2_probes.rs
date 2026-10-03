@@ -11,7 +11,7 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -142,7 +142,8 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
         Tol::witness(),
     )
     .unwrap();
-    let b = turned();
+    let spun = finished("the spun cylinder", spun, Tol::witness());
+    let b = finished("B", turned(), Tol::witness());
     let err =
         topo::union(&spun, &b, Tol::witness()).expect_err("B's seam tangency still has no arm");
     // MEASUREMENT (first run refuted the B prediction): print the whole
@@ -194,8 +195,12 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 fn r2_a_box_with_on_carrier_rulings_keeps_the_cosurface_door() {
     let x = (1.0f64 - 0.09).sqrt();
     let err = topo::union(
-        &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
+        &finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), Tol::witness()),
+        &finished(
+            "the box",
+            brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect_err("an undeclared on-carrier contact must refuse");
@@ -280,8 +285,12 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     .unwrap()
     .body;
     let err = topo::union(
-        &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        &finished("the frustum", frustum, tol),
+        &finished(
+            "the bar",
+            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            tol,
+        ),
         tol,
     )
     .expect_err("a cone wall has no roots anywhere");
@@ -312,8 +321,12 @@ fn r2_an_off_centre_bar_unions_to_the_closed_form() {
     let shared = 0.5 * (strip(0.7) - strip(0.15));
     for x in [(-3.0, 3.0), (-1.1, 1.1)] {
         let out = topo::union(
-            &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-            &brick(x, (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+            &finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), Tol::witness()),
+            &finished(
+                "the bar",
+                brick(x, (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("bar {x:?}: refused {e:?}"));

@@ -34,8 +34,9 @@ use crate::revolve_common::{axis_y, validated};
 
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{Body, SolidContainment};
+use topo::{AtRestBody, Body, SolidContainment};
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let lp = ProfileLoop::polygon([
@@ -136,8 +137,8 @@ type Witness = ([f64; 3], bool, bool);
 
 struct Fixture {
     name: &'static str,
-    a: Body<f64>,
-    b: Body<f64>,
+    a: AtRestBody<f64>,
+    b: AtRestBody<f64>,
     vol_a: f64,
     vol_b: f64,
     overlap: f64,
@@ -150,11 +151,12 @@ struct Fixture {
 const DONUT_WINDOW: ((f64, f64), (f64, f64)) = ((-0.4, 0.4), (2.2, 3.0));
 
 fn fixtures() -> Vec<Fixture> {
+    let fin = |what: &str, body: Body<f64>| finished(what, body, Tol::witness());
     vec![
         Fixture {
             name: "cylinder cap in the box top",
-            a: cyl(1.0, 0.5),
-            b: boxed((0.0, 2.0), (-0.5, 0.5), (-1.0, 0.5)),
+            a: fin("the cylinder", cyl(1.0, 0.5)),
+            b: fin("the box", boxed((0.0, 2.0), (-0.5, 0.5), (-1.0, 0.5))),
             vol_a: PI,
             vol_b: 3.0,
             overlap: disc_band(0.5),
@@ -169,8 +171,11 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "outer equator arc in the box top",
-            a: equator_donut(),
-            b: boxed(DONUT_WINDOW.0, (-1.0, 0.0), DONUT_WINDOW.1),
+            a: fin("the equator donut", equator_donut()),
+            b: fin(
+                "the box",
+                boxed(DONUT_WINDOW.0, (-1.0, 0.0), DONUT_WINDOW.1),
+            ),
             vol_a: PI * PI,
             vol_b: 0.64,
             overlap: donut_under_window(DONUT_WINDOW.0, DONUT_WINDOW.1, 1000),
@@ -185,8 +190,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "tube strut arc in the box top",
-            a: strutted_tube(),
-            b: boxed((-0.3, 0.3), (-2.0, 0.0), (0.8, 1.3)),
+            a: fin("the strutted tube", strutted_tube()),
+            b: fin("the box", boxed((-0.3, 0.3), (-2.0, 0.0), (0.8, 1.3))),
             vol_a: 1.5 * PI,
             vol_b: 0.6,
             overlap: disc_band(0.3) - 0.48,
@@ -200,8 +205,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "whole tube strut in the box top",
-            a: strutted_tube(),
-            b: boxed((-1.5, 1.5), (-2.0, 0.0), (-1.5, 1.5)),
+            a: fin("the strutted tube", strutted_tube()),
+            b: fin("the box", boxed((-1.5, 1.5), (-2.0, 0.0), (-1.5, 1.5))),
             vol_a: 1.5 * PI,
             vol_b: 18.0,
             overlap: 0.75 * PI,
@@ -215,8 +220,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "y-poled pip on the cube's top face",
-            a: sweep::test_support::cube(1.0, Tol::witness()),
-            b: y_poled_pip(),
+            a: fin("the cube", sweep::test_support::cube(1.0, Tol::witness())),
+            b: fin("the y-poled pip", y_poled_pip()),
             vol_a: 1.0,
             vol_b: 4.0 / 3.0 * PI * 0.027,
             overlap: 2.0 / 3.0 * PI * 0.027,

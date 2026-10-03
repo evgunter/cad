@@ -17,6 +17,7 @@ use crate::mate2_common;
 
 use geom_core::Tol;
 use mate2_common::*;
+use sweep::test_support::finished;
 use topo::{BooleanDeclarations, BooleanResult};
 
 /// PROBE 1 — the azimuth splits MISALIGNED by 60 degrees.
@@ -33,8 +34,8 @@ use topo::{BooleanDeclarations, BooleanResult};
 /// annulus `π(1.5² − 0.5²)·1` plus the disc `π·0.5²·2`.
 #[test]
 fn probe_misaligned_azimuth_split_unions() {
-    let c = collar();
-    let p = peg_at(60.0, 0.5, 2.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let bb = boolean_body(
@@ -70,8 +71,8 @@ fn probe_misaligned_azimuth_split_unions() {
 /// holds a point above the carrier's own faces.
 #[test]
 fn probe_out_by_height_reports_its_outcome() {
-    let c = collar();
-    let p = peg_at(0.0, 1.5, 1.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg_at(0.0, 1.5, 1.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     match out {
@@ -105,8 +106,8 @@ fn probe_out_by_height_reports_its_outcome() {
 /// both trees to check that.
 #[test]
 fn probe_undeclared_misaligned_reports_its_outcome() {
-    let c = collar();
-    let p = peg_at(60.0, 0.5, 2.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
     let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
     match out {
         Err(e) => println!("PROBE3 REFUSED: {e:?}"),
@@ -120,8 +121,8 @@ fn probe_undeclared_misaligned_reports_its_outcome() {
 /// PROBE 4 — the UNDECLARED control for the unit's own aligned mate.
 #[test]
 fn probe_undeclared_aligned_reports_its_outcome() {
-    let c = collar();
-    let p = peg_at(0.0, 0.5, 2.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
     let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
     match out {
         Err(e) => println!("PROBE4 REFUSED: {e:?}"),
@@ -144,8 +145,8 @@ fn probe_reports_actual_additivity_ulps() {
     let ulps = additivity_ulps;
     // partial engagement
     {
-        let c = collar();
-        let p = peg_at(0.0, 0.5, 2.0);
+        let c = finished("the collar", collar(), Tol::witness());
+        let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
         let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
@@ -160,8 +161,8 @@ fn probe_reports_actual_additivity_ulps() {
     }
     // full engagement
     {
-        let c = collar();
-        let p = peg_at(0.0, 1.0, 1.0);
+        let c = finished("the collar", collar(), Tol::witness());
+        let p = finished("the peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
         let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));

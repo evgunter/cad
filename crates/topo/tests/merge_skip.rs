@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{BooleanResult, mass_properties, union_with, validate_pseudomanifold};
@@ -28,8 +28,17 @@ use topo::{BooleanResult, mass_properties, union_with, validate_pseudomanifold};
 /// 1 + 1 − (0.5 · 0.75 · 1).
 #[test]
 fn declared_l_corner_caps_merge_and_stay_tier3_green() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0), Tol::witness());
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
     let r = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush-caps union runs");

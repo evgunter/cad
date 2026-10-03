@@ -21,7 +21,7 @@ use mesh::validate::{check_mesh, signed_volume};
 use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
 use crate::common;
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 
 fn stl_dir() -> String {
@@ -46,6 +46,7 @@ fn stl_dir() -> String {
 fn corner_kiss_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let (a, b) = (finished("brick a", a), finished("brick b", b));
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
@@ -76,6 +77,7 @@ fn corner_kiss_assembly_exports() {
 fn tangent_edge_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
+    let (a, b) = (finished("brick a", a), finished("brick b", b));
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };

@@ -32,7 +32,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::test_support::{brick, mapped_cube};
+use topo::test_support::{brick, finished, mapped_cube};
 use topo::{
     Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, CarrierDesc,
     FacePairDeclaration, face_carrier,
@@ -79,7 +79,11 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
     let band = Band::linear(tol).expect("the witness band");
     let phi = 5.0_f64.to_radians();
     let p = Point3::new(0.5, 0.2, 1.0);
-    let block = brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+    let block = finished(
+        "block",
+        brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        tol,
+    );
     let block_volume = 3.0 * 4.5;
     let wedge = |h: f64| phi.sin() * h;
     let (standing, sunk) = ((1.0, 0.0, -1.0), (0.5, 0.5, 1.0));
@@ -172,8 +176,12 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
         );
-        let tool = mapped_cube::<f64>(
-            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+        let tool = finished(
+            "tool",
+            mapped_cube::<f64>(
+                move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+                tol,
+            ),
             tol,
         );
         let (top, face) = (face_facing(&block, 1.0), face_facing(&tool, facing));

@@ -33,7 +33,7 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::f64::consts::PI;
 use sweep::ExtrudeSide;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
@@ -83,7 +83,12 @@ fn probe_torus_union_is_never_silently_wrong() {
     let torus = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let slab = brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
+    let torus = finished("the torus", torus, Tol::witness());
+    let slab = finished(
+        "the slab",
+        brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness()),
+        Tol::witness(),
+    );
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
         match boolean_op_with(
             op,
@@ -110,8 +115,12 @@ fn probe_torus_union_is_never_silently_wrong() {
 #[test]
 fn probe_cylinder_radial_poke_is_exact_or_typed() {
     let r: f64 = 1.05;
-    let a = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = disc2(r, PI / 4.0, 0.2, 0.6);
+    let a = finished(
+        "the box",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished("the cylinder", disc2(r, PI / 4.0, 0.2, 0.6), Tol::witness());
     let alpha = (1.0 / r).acos();
     let cap = r * r * (alpha - alpha.sin() * alpha.cos()); // one side's escape segment
     let lens_area = PI * r * r - 4.0 * cap;
@@ -150,7 +159,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
 /// it. Exact or typed; silence is the MAJOR.
 #[test]
 fn probe_horizontal_log_halfburied_is_exact_or_typed() {
-    let slab = operands::slab();
+    let slab = finished("the slab", operands::slab(), Tol::witness());
     // Vertical 2-arc cylinder r=0.7, then rotate about x so the axis
     // runs along y at z = 0.5, spanning y in [0.5, 3.5].
     let log0 = disc2(0.7, 0.0, 0.0, 3.0);
@@ -166,6 +175,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
         Tol::witness(),
     )
     .unwrap();
+    let log = finished("the log", log, Tol::witness());
     let r: f64 = 0.7;
     let beta = (0.5 / r).acos();
     let seg = r * r * (beta - beta.sin() * beta.cos()); // area beyond each slab plane
@@ -216,7 +226,11 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
 /// without a surface crossing, which the frontier door catches.
 #[test]
 fn probe_contained_cylinder_reaches_the_fallback_soundly() {
-    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
+    let a = finished(
+        "the box",
+        brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
     let b = topo::transform_rigid(
         &b,
@@ -224,6 +238,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
         Tol::witness(),
     )
     .unwrap();
+    let b = finished("the boss", b, Tol::witness());
     for (op, expect) in [
         (BooleanOp::Intersect, PI * 0.09 * 0.4),
         (BooleanOp::Subtract, 9.0 - PI * 0.09 * 0.4),
@@ -255,14 +270,19 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
 /// mixed senses) — both encodings must each flip exactly once, twice.
 #[test]
 fn probe_involution_on_a_boolean_result_body() {
-    let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness());
-    let boss = m5_boss(3, 0.3, 1.0);
+    let plate = finished(
+        "the plate",
+        brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness()),
+        Tol::witness(),
+    );
+    let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
     let holed = topo::subtract(&plate, &boss, Tol::witness())
         .unwrap()
         .body()
         .unwrap()
         .body
-        .clone();
+        .clone()
+        .into_body();
     let senses: Vec<bool> = holed.faces().map(|(_, f)| f.sense).collect();
     assert!(
         senses.contains(&false),

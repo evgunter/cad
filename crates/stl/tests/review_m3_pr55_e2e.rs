@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::type_complexity)] // fixture tables read clearer inline
 
+use crate::common::finished;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
@@ -17,7 +18,7 @@ use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
+use topo::{AtRestBody, BooleanResult, mass_properties, subtract, validate, validate_closed};
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
@@ -33,14 +34,14 @@ fn slab(
     w: (f64, f64),
     h: (f64, f64),
     depth: f64,
-) -> Body<f64> {
+) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(w.0, h.0),
         Point2::new(w.1, h.0),
         Point2::new(w.1, h.1),
         Point2::new(w.0, h.1),
     ]);
-    extrude(
+    let body = extrude(
         &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
         Extrusion::Distance {
             depth,
@@ -49,7 +50,8 @@ fn slab(
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the slab", body)
 }
 
 /// THE DIE from raw extrude operands: cube [0,2]^3, 21 pips (0.25

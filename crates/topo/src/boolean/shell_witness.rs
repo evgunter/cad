@@ -615,6 +615,7 @@ mod tests {
     use super::{ShellOrientation, ShellVerdict, on_verdict};
     use crate::boolean::{BooleanError, BooleanResult, CarrierRelation, Operand, SettledPair};
     use crate::entity::{FaceKey, ShellKey};
+    use crate::test_support::finished;
     use crate::test_support_fixtures::brick;
     use crate::{Body, union};
     use geom_core::Tol;
@@ -633,8 +634,8 @@ mod tests {
         let tol = Tol::witness();
         let unit = (0.0, 1.0);
         let s: Body<f64> = brick(unit, unit, unit, tol);
-        let p1: Body<f64> = brick(unit, unit, unit, tol);
-        let p2: Body<f64> = brick((3.0, 4.0), unit, unit, tol);
+        let p1 = finished("P1", brick::<f64>(unit, unit, unit, tol), tol);
+        let p2 = finished("P2", brick::<f64>((3.0, 4.0), unit, unit, tol), tol);
         let BooleanResult::Body(other) = union(&p1, &p2, tol).unwrap() else {
             panic!("two blocks are not empty");
         };

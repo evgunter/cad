@@ -10,10 +10,11 @@
 //! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's.
 
 use geom_core::{Point3, Tol};
+use sweep::test_support::finished;
 use topo::test_support::{
     FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
 };
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
 
 /// The signed area of a simple polygon (positive counter-clockwise).
 pub fn area(p: &[(f64, f64)]) -> f64 {
@@ -103,7 +104,11 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
-                let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol);
+                let far = finished(
+                    "the far brick",
+                    sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+                    tol,
+                );
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
                 match topo::mass_properties(&bb.body, tol).map(|m| m.volume) {
                     Ok(v) => {
@@ -174,8 +179,8 @@ pub const REFLEX_OPS: [&str; 4] = ["I", "U", "S_ab", "S_ba"];
 /// corner `(0, 0, 1)`; their flush declarations (for the `(a, b)`
 /// order); and the closed-form volumes of [`REFLEX_OPS`].
 pub struct ReflexPose {
-    pub a: Body<f64>,
-    pub b: Body<f64>,
+    pub a: AtRestBody<f64>,
+    pub b: AtRestBody<f64>,
     pub d: BooleanDeclarations,
     pub want: [f64; 4],
 }
@@ -232,8 +237,8 @@ pub fn reflex_pose(profile: &str, rot: f64, sx: f64, sy: f64, tol: Tol) -> Refle
     let (va, vb) = (area(&a_prof), area(&prof) * 2.0);
     let d = flush_declarations(&a, &b, tol);
     ReflexPose {
-        a,
-        b,
+        a: finished("the reflex corner", a, tol),
+        b: finished("the sheared strut", b, tol),
         d,
         want: [vi, va + vb - vi, va - vi, vb - vi],
     }

@@ -21,7 +21,7 @@ mod certified {
     use geom_core::{Affine3, Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::{cube, sketch_from_axes};
+    use sweep::test_support::{cube, finished, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, BooleanDeclarations, mass_properties};
@@ -130,8 +130,8 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &cube(DIE_L, Tol::witness()),
-            &pip_ball(),
+            &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
+            &finished("the pip ball", pip_ball(), Tol::witness()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),

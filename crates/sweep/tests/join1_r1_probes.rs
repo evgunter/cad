@@ -32,9 +32,9 @@
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::AtRestBody;
 
 use crate::common::differential::{
     REFLEX_OPS, REFLEX_PROFILES, area, clip_convex, clip_rect, outcome, reflex_pose, reflex_run,
@@ -44,12 +44,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+fn prism(pts: &[(f64, f64)], h: f64) -> AtRestBody<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(
+    let prism = extrude(
         &profile,
         Extrusion::Distance {
             depth: h,
@@ -58,15 +58,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the prism", prism, tol())
 }
 
-fn rod(h: f64) -> Body<f64> {
+fn rod(h: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), 0.5, tol()).unwrap();
     let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol())
         .unwrap();
-    extrude(
+    let rod = extrude(
         &profile,
         Extrusion::Distance {
             depth: h,
@@ -75,7 +76,8 @@ fn rod(h: f64) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the rod", rod, tol())
 }
 
 fn overlap(a: (f64, f64), b: (f64, f64)) -> f64 {
@@ -132,7 +134,7 @@ fn join1_r1_battery() {
         for &x in &ranges {
             for &y in &ranges {
                 for &z in &zs {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the brick", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = area(&clip_rect(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
@@ -170,8 +172,8 @@ fn disc_poly(r: f64, n: usize) -> Vec<(f64, f64)> {
 
 /// A full revolve about `y` of the rectangle `x ∈ [0, r], y ∈ [0, h]`:
 /// ONE wall face whose seam meridian is an edge with both halves in it.
-fn revolved_cylinder(r: f64, h: f64) -> Body<f64> {
-    sweep::test_support::revolved_about_y(
+fn revolved_cylinder(r: f64, h: f64) -> AtRestBody<f64> {
+    let cylinder = sweep::test_support::revolved_about_y(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
             (Point2::new(r, 0.0), 0.0),
@@ -180,7 +182,8 @@ fn revolved_cylinder(r: f64, h: f64) -> Body<f64> {
         ],
         sweep::Revolution::Full,
         tol(),
-    )
+    );
+    finished("the revolved cylinder", cylinder, tol())
 }
 
 /// The volume of the ball of radius `r` at the origin inside the box,
@@ -221,6 +224,7 @@ fn join1_r1_seam_battery() {
     let n = 1 << 16;
     let cyl = revolved_cylinder(r, 2.0);
     let ball = sweep::test_support::ball_poled_y(r, geom_core::Vec3::new(0.0, 0.0, 0.0), tol());
+    let ball = finished("the ball", ball, tol());
     let coords = [-1.0, -0.25, 0.0, 0.25, 0.5, 1.0];
     let mut ranges = Vec::new();
     for i in 0..coords.len() {
@@ -253,7 +257,7 @@ fn join1_r1_seam_battery() {
         for &x in &ranges {
             for &z in &ranges {
                 for &y in &ys {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the brick", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = if name == "rcyl" {
                         area(&clip_rect(&disc, x, z)) * overlap((0.0, 2.0), y)
@@ -291,7 +295,7 @@ fn join1_r1_seam_battery() {
 /// A prism along `+y` over `y ∈ [y0, y1]` of a polygon given in world
 /// `(x, z)`: sketched in the zx plane (sketch `(u, v)` is world
 /// `(v, 0, u)`), so the sketch takes `(z, x)`.
-fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> Body<f64> {
+fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> AtRestBody<f64> {
     let lp = bulge_loop(xz.iter().map(|&(x, z)| (Point2::new(z, x), 0.0)).collect());
     let profile = Profile::new(SketchPlane::zx(), vec![lp])
         .validate(tol())
@@ -306,12 +310,13 @@ fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body;
-    topo::transform_rigid(
+    let placed = topo::transform_rigid(
         &body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, y.0, 0.0)),
         tol(),
     )
-    .unwrap()
+    .unwrap();
+    finished("the y prism", placed, tol())
 }
 
 /// Flush-declared poses: z-prisms against boxes whose caps and side
@@ -357,7 +362,7 @@ fn join1_r1_declared_battery() {
         for &x in &ranges {
             for &y in &ranges {
                 for &z in &zs {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the brick", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = area(&clip_rect(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
@@ -402,7 +407,11 @@ fn join1_r1_hex_detail() {
         ],
         2.0,
     );
-    let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
+    let b = finished(
+        "the box",
+        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        tol(),
+    );
     let r = topo::union(&hex, &b, tol()).expect("builds");
     let bb = r.body().expect("a body");
     println!("t2 {:?}", topo::validate_closed(&bb.body));
@@ -447,8 +456,8 @@ fn join1_r1_reflex_battery() {
 /// A full revolve about `y` of an ANNULAR profile (bored at `bore`, so
 /// the revolve gate takes it): one outer wall face whose seam meridian
 /// (world `z = 0`, `x > 0`) is an edge with both halves in that face.
-fn revolved_tube(bore: f64, r: f64, h: f64) -> Body<f64> {
-    sweep::test_support::revolved_about_y(
+fn revolved_tube(bore: f64, r: f64, h: f64) -> AtRestBody<f64> {
+    let tube = sweep::test_support::revolved_about_y(
         vec![
             (Point2::new(bore, 0.0), 0.0),
             (Point2::new(r, 0.0), 0.0),
@@ -457,7 +466,8 @@ fn revolved_tube(bore: f64, r: f64, h: f64) -> Body<f64> {
         ],
         sweep::Revolution::Full,
         tol(),
-    )
+    );
+    finished("the revolved tube", tube, tol())
 }
 
 /// A bored capsule: the tube `bore ≤ ρ ≤ r` over `y ∈ [0, c]` capped by
@@ -465,7 +475,7 @@ fn revolved_tube(bore: f64, r: f64, h: f64) -> Body<f64> {
 /// the wall at a crease along the circle `ρ = r, y = c` (an edge
 /// between two CURVED faces, so a box face in `y = c` holds it with no
 /// coplanar face). Returns the body and its profile's top `y`.
-fn bored_capsule(bore: f64, r: f64, c: f64, big: f64) -> (Body<f64>, f64) {
+fn bored_capsule(bore: f64, r: f64, c: f64, big: f64) -> (AtRestBody<f64>, f64) {
     let d = (big * big - r * r).sqrt();
     let yc = c - d;
     let top = yc + (big * big - bore * bore).sqrt();
@@ -482,7 +492,7 @@ fn bored_capsule(bore: f64, r: f64, c: f64, big: f64) -> (Body<f64>, f64) {
         sweep::Revolution::Full,
         tol(),
     );
-    (body, top)
+    (finished("the bored capsule", body, tol()), top)
 }
 
 /// `∫ area((disc ρ_out(y) ∖ disc bore) ∩ rect_xz) dy` over `y ∈ ys`,
@@ -542,7 +552,7 @@ fn join1_r1_tube_battery() {
         }
     }
     let ys = [(-1.0, 3.0), (1.0, 3.0), (-1.0, 1.0), (0.5, 1.5), (0.0, 2.0)];
-    let run = |tag: &str, w: &Body<f64>, vw: f64, vi: f64| {
+    let run = |tag: &str, w: &AtRestBody<f64>, vw: f64, vi: f64| {
         for (op, want_ab, want_ba) in [
             ("U", vt + vw - vi, vt + vw - vi),
             ("S", vt - vi, vw - vi),
@@ -566,7 +576,7 @@ fn join1_r1_tube_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for &y in &ys {
-                let b = brick(x, y, z, tol());
+                let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ann(x, z) * overlap((0.0, h), y);
                 run(&format!("box x={x:?} y={y:?} z={z:?}"), &b, vb, vi);
@@ -630,7 +640,7 @@ fn join1_r1_bored_capsule_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for y in [(1.0, 3.0), (0.5, 3.0), (-1.0, 1.0), (1.0, 1.1)] {
-                let b = brick(x, y, z, tol());
+                let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let lo = (y.0.max(0.0), y.1.min(c));
                 let hi = (y.0.max(c), y.1.min(top));

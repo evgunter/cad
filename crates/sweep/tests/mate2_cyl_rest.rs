@@ -45,15 +45,15 @@ use crate::mate2_common;
 use geom_core::{Point2, Tol};
 use mate2_common::*;
 use profile::{ProfileLoop, RawLoop};
-use sweep::test_support::{extruded, sketch_at};
+use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{ContactClass, FacePairDeclaration};
 
 /// Spelling (3)/(1): the shaft-in-a-bore mate at fixture (i)'s face
 /// structure, PARTIAL engagement, cylindrical `Rest` the only contact.
 #[test]
 fn threaded_collar_partial_engagement_unions() {
-    let c = collar();
-    let p = peg(0.5, 2.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg(0.5, 2.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
@@ -83,8 +83,8 @@ fn threaded_collar_partial_engagement_unions() {
 /// spanning the collar, its caps flush with the collar's annuli.
 #[test]
 fn threaded_collar_full_engagement_unions() {
-    let c = collar();
-    let p = peg(1.0, 1.0);
+    let c = finished("the collar", collar(), Tol::witness());
+    let p = finished("the peg", peg(1.0, 1.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("full engagement: {:?}", out.as_ref().err());
@@ -130,9 +130,10 @@ fn seated_collar_with_a_planar_rest_unions() {
         Point2::new(-2.0, 2.0),
     ]);
     let flange = extruded(sketch_at(0.0), vec![plate], 1.0, Tol::witness());
-    let shaft = peg(0.6, 1.9);
-    let seated = body_of(topo::union(&flange, &shaft, Tol::witness()).unwrap());
-    let c = collar();
+    let flange = finished("the flange", flange, Tol::witness());
+    let shaft = finished("the shaft", peg(0.6, 1.9), Tol::witness());
+    let seated = boolean_body(topo::union(&flange, &shaft, Tol::witness()).unwrap()).body;
+    let c = finished("the collar", collar(), Tol::witness());
     let mut decls = wall_decls(&c, &seated);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&c, 1.0, false),

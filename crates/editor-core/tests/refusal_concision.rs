@@ -281,13 +281,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "InsideOutOperand",
-            BooleanError::InsideOutOperand {
-                operand: Operand::B,
-                solid: topo::SolidKey::default(),
-            },
-        ),
-        (
             "NonMaximalFaces",
             BooleanError::NonMaximalFaces {
                 operand: Operand::B,

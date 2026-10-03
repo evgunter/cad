@@ -11,16 +11,16 @@ use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
-fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
+fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(
+    let cyl = extrude(
         &profile,
         Extrusion::Distance {
             depth: z1 - z0,
@@ -29,7 +29,8 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the cylinder", cyl, tol)
 }
 
 /// **PROBE 1 — the tangency finding, re-derived from the surfaces
@@ -157,7 +158,11 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     let cap = volume(
         topo::union(
             &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-            &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+            &finished(
+                "the bar",
+                brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+                tol,
+            ),
             tol,
         ),
         "the planar cap pierce",
@@ -169,7 +174,11 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     let wall = volume(
         topo::union(
             &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-            &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
+            &finished(
+                "the bar",
+                brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
+                tol,
+            ),
             tol,
         ),
         "the curved wall pierce",
@@ -219,8 +228,12 @@ fn r1_the_cone_fixture_names_its_own_door() {
         .body
     };
     let err = topo::union(
-        &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        &finished("the frustum", frustum, tol),
+        &finished(
+            "the bar",
+            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            tol,
+        ),
         tol,
     )
     .expect_err("no arm for a cone pierce");
@@ -247,7 +260,11 @@ fn r1_the_cone_fixture_names_its_own_door() {
 #[test]
 fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     let tol = Tol::witness();
-    let bar = brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol);
+    let bar = finished(
+        "the bar",
+        brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol),
+        tol,
+    );
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
     let text = err.to_string();

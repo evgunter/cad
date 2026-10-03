@@ -39,3 +39,12 @@ lane), before any offset reads it. The finished-body adoption
 once `shell` takes `AtRestBody`. The blend and offset doors' posture is
 unmeasured: the clockwise wedge's fillet requests refused alike in both
 orientations, so no measurement reached them.
+
+## 2026-10-03 — the boolean's refusal moved (REACH)
+
+`BooleanError::InsideOutOperand` and `validate::inside_out_solids`
+retired with the boolean's typed operands
+(`boolean-door-adopts-the-finished-body-type`): an inside-out body
+refuses at `AtRestBody::validate`, tier 3's `NegativeVolume` per solid.
+`shell` reaches the same refusal by taking `AtRestBody` (its own
+adoption unit), or reads check 7 per solid at its door until then.

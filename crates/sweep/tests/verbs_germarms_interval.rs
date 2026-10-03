@@ -24,21 +24,21 @@ use sweep::ExtrudeSide;
 use crate::common::interval::{iv, p2, v3};
 use geom_core::{Affine3, Bounds, Interval, Tol};
 use profile::{Profile, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// The `f64` suite's pipe at the certified scalar: radius 1 about `z`,
 /// `z ∈ [−2, 2]`, built through the same public doors so the two
 /// lanes differ in the SCALAR and in nothing else. Every coordinate is
 /// dyadic, so the operands' enclosures are points and the margins below
 /// are the lane's own width rather than the fixture's.
-fn pipe() -> Body<Interval> {
+fn pipe() -> AtRestBody<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(
+    let pipe = extrude(
         &vp,
         Extrusion::Distance {
             depth: iv(4.0),
@@ -47,7 +47,8 @@ fn pipe() -> Body<Interval> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the pipe", pipe, tol)
 }
 
 /// **The build arm.** The bar's crossings are found at the certified
@@ -64,7 +65,11 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
     let tol = Tol::witness();
     let out = topo::union(
         &pipe(),
-        &brick((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
+        &finished(
+            "the bar",
+            brick((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
+            tol,
+        ),
         tol,
     )
     .unwrap_or_else(|e: BooleanError| panic!("the ring lane refused: {e:?}"));
@@ -92,7 +97,11 @@ fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
         &pipe(),
-        &brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+        &finished(
+            "the bar",
+            brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+            tol,
+        ),
         tol,
     )
     .expect("no crossing to route") else {

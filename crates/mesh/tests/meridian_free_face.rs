@@ -29,7 +29,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::TessellateError;
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
-use topo::{Body, FaceKey};
+use topo::{AtRestBody, Body, FaceKey};
 
 fn z_axis() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
@@ -209,7 +209,7 @@ fn dome() -> Body<f64> {
 }
 
 /// The block `|x|, |z| ≤ 2`, `−2 ≤ y ≤ y0`.
-fn slab_below_y(y0: f64) -> Body<f64> {
+fn slab_below_y(y0: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -226,12 +226,13 @@ fn slab_below_y(y0: f64) -> Body<f64> {
     )
     .unwrap()
     .body;
-    topo::transform_rigid(
+    let block = topo::transform_rigid(
         &block,
         &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, -2.0)),
         Tol::witness(),
     )
-    .unwrap()
+    .unwrap();
+    topo::test_support::finished("the slab", block, Tol::witness())
 }
 
 /// **The positive control: the SEAMED statements of the same two solids
@@ -242,16 +243,17 @@ fn slab_below_y(y0: f64) -> Body<f64> {
 #[test]
 fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
     let tol = Tol::witness();
+    let ball = topo::test_support::finished("the ball", ball(), tol);
     let cut = topo::boolean_op_with(
         topo::BooleanOp::Intersect,
-        &ball(),
+        &ball,
         &slab_below_y(0.5),
         &topo::BooleanDeclarations::default(),
         topo::SweepStrategy::Realized,
         tol,
     )
     .unwrap();
-    let cut = &cut.body().expect("the ball meets the slab").body;
+    let cut: &Body<f64> = &cut.body().expect("the ball meets the slab").body;
     for (name, seamed, rim_only, exact) in [
         (
             "dome",

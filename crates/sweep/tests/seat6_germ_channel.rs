@@ -32,6 +32,7 @@ use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch};
 use geom_brep::RadiusEvidence;
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, ParamSource, SurfaceField};
 
@@ -51,7 +52,9 @@ fn declare(body: &mut Body<f64>, token: &ParamSource) {
 
 /// The evidence the germ read, off the door it refused at.
 fn germ_evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    match topo::union(a, b, Tol::witness()).expect_err("this family has no join arm") {
+    let a = finished("operand A", a.clone(), Tol::witness());
+    let b = finished("operand B", b.clone(), Tol::witness());
+    match topo::union(&a, &b, Tol::witness()).expect_err("this family has no join arm") {
         BooleanError::GermFrameCylinderPinch { evidence, .. } => evidence,
         other => panic!("expected the germ frame's pinch door, got {other:?}"),
     }
@@ -155,6 +158,8 @@ fn the_records_survive_into_a_boolean_result() {
     .unwrap();
     declare(&mut a, &token);
     declare(&mut b, &token);
+    let a = finished("the first cylinder", a, Tol::witness());
+    let b = finished("the second cylinder", b, Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("two disjoint solids unite");
     let topo::BooleanResult::Body(bb) = out else {
         panic!("a disjoint union is not empty");

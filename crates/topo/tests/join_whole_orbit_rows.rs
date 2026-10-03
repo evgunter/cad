@@ -14,22 +14,22 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::{Point3, Tol, Vec3};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, intersect_with, mass_properties, split,
-    subtract_with, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, intersect_with,
+    mass_properties, split, subtract_with, union_with, validate_pseudomanifold,
 };
 
 type Op = fn(
-    &Body<f64>,
-    &Body<f64>,
+    &AtRestBody<f64>,
+    &AtRestBody<f64>,
     &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
-fn exact(label: &str, op: Op, x: &Body<f64>, y: &Body<f64>, want: f64) {
+fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f64) {
     let tol = Tol::witness();
     let decls = flush_declarations(x, y, tol);
     let r = op(x, y, &decls, tol).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
@@ -54,8 +54,16 @@ fn exact(label: &str, op: Op, x: &Body<f64>, y: &Body<f64>, want: f64) {
 #[test]
 fn a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op() {
     let tol = Tol::witness();
-    let c = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
-    let d = brick::<f64>((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol);
+    let c = finished(
+        "c",
+        brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let d = finished(
+        "d",
+        brick::<f64>((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let BooleanResult::Body(bar) =
         union_with(&c, &d, &flush_declarations(&c, &d, tol), tol).expect("the bar folds")
     else {
@@ -72,7 +80,7 @@ fn a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op() {
         ((1.1, 1.6), (0.25, 1.5), (0.0, 1.0)), // deeper into the bar
         ((1.1, 1.6), (0.5, 1.5), (0.0, 0.5)), // half height
     ] {
-        let g = brick::<f64>(gx, gy, gz, tol);
+        let g = finished("g", brick::<f64>(gx, gy, gz, tol), tol);
         let g_v = (gx.1 - gx.0) * (gy.1 - gy.0) * (gz.1 - gz.0);
         let meet = (gx.1 - gx.0) * (1.0 - gy.0) * (gz.1.min(1.0) - gz.0.max(0.0));
         let tag = format!("g = {gx:?} × {gy:?} × {gz:?}");
@@ -125,7 +133,7 @@ fn the_reflex_315_corner_under_a_tilted_cap_answers_exactly() {
     ];
     let meet = 13.0 / 24.0;
     for (k, m) in shears.into_iter().enumerate() {
-        let a = prism_z::<f64>(&reflex, 0.0, 1.0, tol).body;
+        let a = finished("a", prism_z::<f64>(&reflex, 0.0, 1.0, tol).body, tol);
         let mut b = Body::<f64>::new();
         common::prism_ops(
             &mut b,
@@ -142,6 +150,7 @@ fn the_reflex_315_corner_under_a_tilted_cap_answers_exactly() {
             tol,
         );
         common::describe_as_intersections(&mut b, tol);
+        let b = finished("b", b, tol);
         exact(&format!("shear {k}: a ∩ b"), intersect_with, &a, &b, meet);
         exact(
             &format!("shear {k}: a ∖ b"),

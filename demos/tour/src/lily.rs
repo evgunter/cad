@@ -161,9 +161,11 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError};
+use pncad::topo::{
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
+};
 
-use crate::booleans::{check, expect_seamed, try_union_declared};
+use crate::booleans::{check, expect_seamed, finished, try_union_declared};
 use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
@@ -543,17 +545,19 @@ fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
 
 /// The rootstock's two parts as authored: the [`corm`] and the
 /// [`foot`] threaded through its bore.
-fn rootstock_parts<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
+fn rootstock_parts<S: Scalar>(tol: Tol) -> (AtRestBody<S>, AtRestBody<S>) {
+    let corm = corm(
+        CORM_TOP_Z,
+        CORM_GLOBE,
+        CORM_SHOULDER,
+        CORM_BASE,
+        STEM_R,
+        tol,
+    );
+    let foot = foot(FOOT_BOTTOM_Z, 0.0, STEM_R, tol);
     (
-        corm(
-            CORM_TOP_Z,
-            CORM_GLOBE,
-            CORM_SHOULDER,
-            CORM_BASE,
-            STEM_R,
-            tol,
-        ),
-        foot(FOOT_BOTTOM_Z, 0.0, STEM_R, tol),
+        finished("the corm", corm, tol),
+        finished("the foot", foot, tol),
     )
 }
 
@@ -1687,7 +1691,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         Piece {
             name: "lily_rootstock",
             color: BROWN_ROOTSTOCK,
-            body: rootstock.body,
+            body: rootstock.body.into_body(),
             caps: None,
             contacts: Some(rootstock.contacts),
         },
@@ -2205,7 +2209,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             .expect("named lily piece")
             .body
     };
-    let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+    // The pieces the walls below hand to the boolean doors, finished
+    // once.
+    let operand = |name: &str| finished(name, by(name).clone(), tol);
+    let (stem, arch, lant) = (
+        &operand("lily_stem"),
+        &operand("lily_arch"),
+        &operand("lily_lantern"),
+    );
+    let leaf_a = &operand("lily_leaf_a");
     let arch_caps = pieces
         .iter()
         .find(|p| p.name == "lily_arch")
@@ -2470,10 +2482,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // the walls' own scalar, so its decisions record under the probe
     // scalar like every other wall's; the mesher is an f64 door, so
     // what it draws is the f64 carve, as a user's would be.
-    let carve = |lantern: &Body<S>| {
+    let carve = |lantern: &AtRestBody<S>| {
         pncad::topo::subtract(
             lantern,
-            &ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
+            &finished(
+                "the wall-7 ball",
+                ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
+                tol,
+            ),
             tol,
         )
     };
@@ -2482,7 +2498,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "carve a tepal seam into the lantern and draw it (sphere x sphere by \
          geometry; the seam's section is tilted against the zone's chart)",
         carve(lant).map_err(Wall7::Carve).and_then(|carved| {
-            let body = &carved.body().expect("the carve leaves the lantern").body;
+            let body: &Body<S> = &carved.body().expect("the carve leaves the lantern").body;
             let drawn = match (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
                 Some(b) => b.clone(),
                 None => {
@@ -2491,16 +2507,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                         .find(|p| p.name == "lily_lantern")
                         .expect("named lily piece")
                         .body;
-                    pncad::topo::subtract(
-                        &lantern,
-                        &ball::<f64>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
+                    let ball = ball::<f64>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol);
+                    let carved = pncad::topo::subtract(
+                        &finished("lily_lantern", lantern, tol),
+                        &finished("the wall-7 ball", ball, tol),
                         tol,
                     )
-                    .map_err(Wall7::Carve)?
-                    .body()
-                    .expect("the carve leaves the lantern")
-                    .body
-                    .clone()
+                    .map_err(Wall7::Carve)?;
+                    Body::clone(&carved.body().expect("the carve leaves the lantern").body)
                 }
             };
             pncad::mesh::tessellate(&drawn, 2e-3, tol).map_err(Wall7::Draw)
@@ -2535,7 +2549,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // Runs back out of the leaf's base along -dir, so its bottom
         // cap IS the leaf's bottom cap: same plane, same rectangle,
         // opposite outward normals.
-        lofted_blade::<S>(
+        let sheath = lofted_blade::<S>(
             LEAF_A_BASE,
             -LEAF_A_DIR,
             LEAF_A_UP,
@@ -2552,12 +2566,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             },
             9,
             tol,
-        )
+        );
+        finished("the leaf's sheath", sheath, tol)
     };
     wall(
         8,
         "graft the leaf's sheath onto its blade at their shared, DECLARED rectangle",
-        crate::booleans::try_union_declared(by("lily_leaf_a"), &sheath, tol),
+        crate::booleans::try_union_declared(leaf_a, &sheath, tol),
         // The KIND is the claim, as in wall 1: a curved EDGE stops
         // this, not a curved face and not the planar contact. If this
         // ever starts refusing on the contact instead, the sentence
@@ -2582,7 +2597,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //      left to merge. What replaces the wall is that measurement,
     //      asserted on this scene's own lantern.
     {
-        let mut before = lant.clone();
+        let mut before = Body::clone(lant);
         let outcome = before
             .merge_coplanar_faces(tol)
             .expect("probe 13 RETIRED: the merge door stays open");
@@ -3015,6 +3030,10 @@ mod review_probes {
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
         let decls = crate::booleans::flush_declarations(lant, arch, tol);
+        let (lant, arch) = (
+            &finished("lily_lantern", lant.clone(), tol),
+            &finished("lily_arch", arch.clone(), tol),
+        );
         println!(
             "declared coincident face pairs: {:?}",
             decls.coincident_faces
@@ -4112,7 +4131,8 @@ mod verbs_gate_r1_probes {
              {min_frustum_gap:.4}, so this overlap is AABB looseness on a tilted \
              frustum, not contact"
         );
-        let ball_body = ball::<f64>(bc, br, tol);
+        let ball_body = finished("the wall-7 ball", ball::<f64>(bc, br, tol), tol);
+        let lant = &finished("lily_lantern", lant.clone(), tol);
         // **The measured outcome, and it is neither branch the review
         // anticipated.** With the axial window taken from the
         // boundary's own locus, the pucker's box clears the ball by
@@ -4202,7 +4222,12 @@ mod verbs_gate_r1_probes {
                 .expect("named lily piece")
                 .body
         };
-        let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+        let operand = |name: &str| finished(name, by(name).clone(), tol);
+        let (stem, arch, lant) = (
+            &operand("lily_stem"),
+            &operand("lily_arch"),
+            &operand("lily_lantern"),
+        );
 
         let glued = crate::booleans::try_union_declared(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");

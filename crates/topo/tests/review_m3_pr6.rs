@@ -7,7 +7,7 @@
 
 use crate::common;
 
-use common::{brick, cube_into, mapped_cube, prism, prism_z};
+use common::{brick, cube_into, finished, mapped_cube, prism, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
@@ -378,8 +378,8 @@ fn r2_inscribed_diamond_vertices_on_edges() {
 // that detects WRONG-RESULT outcomes the internal gates cannot.
 // =================================================================
 
-fn l_prism() -> Body<f64> {
-    prism_z::<f64>(
+fn l_prism() -> topo::AtRestBody<f64> {
+    let l = prism_z::<f64>(
         &[
             (0.0, 0.0),
             (4.0, 0.0),
@@ -392,7 +392,8 @@ fn l_prism() -> Body<f64> {
         1.0,
         Tol::witness(),
     )
-    .body
+    .body;
+    finished("the L-prism", l, Tol::witness())
 }
 
 /// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
@@ -433,6 +434,7 @@ fn r4_frontier_is_joindesync_not_pairingmismatch() {
         },
         Tol::witness(),
     );
+    let b = finished("the tilted cube", b, Tol::witness());
     let err = union(&a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::JoinDesync { .. }),
@@ -479,7 +481,11 @@ fn r4_extended_sweep_volume_identities() {
                         Point3::new(2.0 + x1, 2.0 + y2, zc + z2)
                     }
                 };
-                let b = mapped_cube(map, Tol::witness());
+                let b = finished(
+                    "a tilted cube",
+                    mapped_cube(map, Tol::witness()),
+                    Tol::witness(),
+                );
                 let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
                 let ctx = format!("zc={zc} family={family} k={k}");
                 let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
@@ -579,7 +585,11 @@ fn r5_straddle_f64() {
 /// acceptance suite only tampers vv).
 #[test]
 fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let slab = finished(
+        "slab",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let tilted = mapped_cube(
         |x, y, z| {
             let (e1, e2, e3) = (
@@ -595,6 +605,7 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         },
         Tol::witness(),
     );
+    let tilted = finished("the tilted cube", tilted, Tol::witness());
     let BooleanResult::Body(r) = union(&slab, &tilted, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
@@ -640,14 +651,16 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
 /// gate) — never silent wrongness.
 #[test]
 fn r7_closure_reversed_rows_loud() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let block =
+        |what, x, y, z| finished(what, brick::<f64>(x, y, z, Tol::witness()), Tol::witness());
+    let a = block("a", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = block("b", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let BooleanResult::Body(base) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss base");
     };
     // Reversed subtract: mover ∖ assembly. Oracle: mover [1.5,2.5]^3
     // minus its overlap with B-cube [1,2]^3 = 1 − 0.125 = 0.875.
-    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5), Tol::witness());
+    let mover = block("mover", (1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
     match subtract(&mover, &base.body, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(
@@ -670,7 +683,7 @@ fn r7_closure_reversed_rows_loud() {
         Err(e) => eprintln!("R7 reversed subtract refusal: {e:?}"),
     }
     // Intersect vs a second toucher kissing the same (1,1,1) locus.
-    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let toucher = block("toucher", (0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
     match intersect(&base.body, &toucher, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             // The intersection of the assembly with the edge-tied

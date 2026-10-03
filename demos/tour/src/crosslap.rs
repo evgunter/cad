@@ -35,7 +35,7 @@ const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 /// Beam A runs along x, notched from the TOP at the crossing.
 fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
+    let beam: pncad::topo::AtRestBody<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
     let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol);
     expect_seamed(
         "beam A notch subtract",
@@ -47,7 +47,7 @@ fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 /// Beam B runs along y, notched from the BOTTOM — the two half-depth
 /// notches interlock.
 fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
+    let beam: pncad::topo::AtRestBody<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
     let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol);
     expect_seamed(
         "beam B notch subtract",
@@ -146,7 +146,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "crosslap_glued",
                 [0.72, 0.53, 0.30],
-                glued.body.clone(),
+                glued.body.into_body(),
                 glued.contacts.clone(),
             )],
         },
@@ -168,7 +168,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 up: 'z',
             },
             bodies: vec![
-                SceneBody::seamed("crosslap_exp_a", [0.72, 0.53, 0.30], a.body, a.contacts),
+                SceneBody::seamed(
+                    "crosslap_exp_a",
+                    [0.72, 0.53, 0.30],
+                    a.body.into_body(),
+                    a.contacts,
+                ),
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.

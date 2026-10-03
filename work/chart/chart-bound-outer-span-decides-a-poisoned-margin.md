@@ -107,3 +107,12 @@ CHART — `crates/topo/src/chart_bound.rs` is chart's territory
 (`scripts/work.py territory`). Found by the PROPS k-lint baseline unit,
 which measured but does not fix kernel geometry, and does not own
 reading 3's question either.
+
+## 2026-10-03 — more rows with tier 3 at the boolean door (REACH)
+
+With the boolean door gating its result at tier 3 and callers finishing
+operands (`boolean-door-adopts-the-finished-body-type`), the sweep
+records 43 `chart_bound_outer_span` rule-1 flags per ε row (1e-6, 1e-9):
+projectbox_cutaway 16, tiltedcut 12, lily_walls 6, lily 3, bossplate 3,
+boss_union 3. Tier 3 asks the predicate on every body it validates.
+`work/reach/k-lint-reads-the-boolean-doors-tier-3-at-probe.md`.

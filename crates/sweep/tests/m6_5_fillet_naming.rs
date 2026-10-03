@@ -18,7 +18,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{assert_naming_totality, cube};
+use sweep::test_support::{assert_naming_totality, cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
@@ -80,9 +80,10 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box
 /// edges and its pip rim's two arcs.
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_keys: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pip = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)));
+    let pip = finished("the pip ball", pip, Tol::witness());
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
         &cube0,
@@ -95,7 +96,8 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
     .body()
     .expect("a body")
     .body
-    .clone();
+    .clone()
+    .into_body();
     let box_edges: Vec<_> = box_keys
         .into_iter()
         .filter(|k| pipped.get_edge(*k).is_some())

@@ -52,10 +52,11 @@ use sweep::ExtrudeSide;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::{
-    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass, FaceContainment,
-    FaceKey, FacePairDeclaration,
+    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass,
+    FaceContainment, FaceKey, FacePairDeclaration,
 };
 
 /// The waist's tube.
@@ -80,7 +81,7 @@ enum Handle {
 /// One half of the dumbbell, `sign = +1` above the joint plane and `−1`
 /// below it, fully revolved: its end disc, shoulder annulus and joint
 /// disc are each built as one face.
-fn half(sign: f64, handle: Handle) -> Body<f64> {
+fn half(sign: f64, handle: Handle) -> AtRestBody<f64> {
     let s = sign;
     // CCW in the (ρ, y) half-plane.
     let (mut chain, tangent_joint) = match handle {
@@ -126,14 +127,15 @@ fn half(sign: f64, handle: Handle) -> Body<f64> {
         Some(j) => bulge_loop(chain).with_tangent_joints(vec![j]),
         None => bulge_loop(chain),
     };
-    revolve(
+    let half = revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .expect("the half revolves")
-    .body
+    .body;
+    finished("the half dumbbell", half, Tol::witness())
 }
 
 fn surface(body: &Body<f64>, f: FaceKey) -> &geom::Surface<f64> {
@@ -232,7 +234,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
     }
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     for body in [&a, &b] {
-        let mut m = body.clone();
+        let mut m = (**body).clone();
         let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
@@ -444,7 +446,7 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
 // The line × torus crossing, on a donut.
 // -------------------------------------------------------------------
 
-fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
+fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     use geom_core::{Affine3, Mat3, Vec3};
     let lp = ProfileLoop::polygon([
         Point2::new(x.0, y.0),
@@ -459,7 +461,7 @@ fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the bar profile validates");
-    sweep::extrude(
+    let bar = sweep::extrude(
         &vp,
         sweep::Extrusion::Distance {
             depth: z.1 - z.0,
@@ -468,14 +470,16 @@ fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         Tol::witness(),
     )
     .expect("the bar extrudes")
-    .body
+    .body;
+    finished("the bar", bar, Tol::witness())
 }
 
-fn donut() -> Body<f64> {
+fn donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+    let donut = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .expect("the donut revolves")
-        .body
+        .body;
+    finished("the donut", donut, Tol::witness())
 }
 
 /// **A segment through the tube is pierced at both quartic roots, one
@@ -703,7 +707,11 @@ fn a_three_face_cylinder_rod_builds_under_every_op() {
     };
     let (p60, p180) = (at(60.0), at(180.0));
     let (t0, t1, width) = (-0.5, 2.2, 0.02);
-    let rod = framed_bar(p60, p180 - p60, t0, t1, width);
+    let rod = finished(
+        "the rod",
+        framed_bar(p60, p180 - p60, t0, t1, width),
+        Tol::witness(),
+    );
     let (h, c) = (width / 2.0, 0.5);
     let chord_integral = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
     let shared = 2.0 * h * (chord_integral(c + h) - chord_integral(c - h));
@@ -745,7 +753,7 @@ fn a_three_face_cylinder_rod_builds_under_every_op() {
 
 /// A radius-1 cylinder about `z`, two metres tall, its wall split into
 /// three faces by seams at 0°, 120° and 240°.
-fn three_face_cylinder() -> Body<f64> {
+fn three_face_cylinder() -> AtRestBody<f64> {
     use geom_core::{Affine3, Mat3, Vec3};
     let bulge = (std::f64::consts::PI / 6.0).tan();
     let s = 3f64.sqrt() / 2.0;
@@ -761,7 +769,7 @@ fn three_face_cylinder() -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the three-arc circle validates");
-    sweep::extrude(
+    let cylinder = sweep::extrude(
         &vp,
         sweep::Extrusion::Distance {
             depth: 2.0,
@@ -770,7 +778,8 @@ fn three_face_cylinder() -> Body<f64> {
         Tol::witness(),
     )
     .expect("the cylinder extrudes")
-    .body
+    .body;
+    finished("the three-face cylinder", cylinder, Tol::witness())
 }
 
 // -------------------------------------------------------------------
@@ -863,7 +872,7 @@ fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     // run's band, so the thinnest bar is taken only where it is one.
     let floor = 100.0 * Tol::witness().get().eps;
     for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
-        let b = framed_bar(o, d, -4.6, -0.1, w);
+        let b = finished("the bar", framed_bar(o, d, -4.6, -0.1, w), Tol::witness());
         if let Ok(r) = topo::union_with(&donut(), &b, &BooleanDeclarations::none(), Tol::witness())
         {
             panic!(
@@ -898,6 +907,7 @@ fn a_rod_inside_the_tube_is_not_passed_silently() {
         // run band (a square must stand clear of a hundred ε).
         1e-5_f64.max(200.0 * Tol::witness().get().eps),
     );
+    let rod = finished("the rod", rod, Tol::witness());
     if let Ok((_, on_d)) = topo::sweep_traces(
         &d,
         &rod,
@@ -1032,6 +1042,7 @@ fn a_cylinder_grazing_the_outer_equator_is_not_an_assembly() {
     )
     .expect("the cylinder extrudes")
     .body;
+    let cyl = finished("the cylinder", cyl, Tol::witness());
     if let Ok(r) = topo::union(&donut(), &cyl, Tol::witness()) {
         assert!(
             !matches!(
@@ -1056,6 +1067,7 @@ fn two_tori_meeting_in_an_oval_are_not_an_assembly() {
         Tol::witness(),
     )
     .expect("the donut translates");
+    let far = finished("the far donut", far, Tol::witness());
     if let Ok(r) = topo::union(&d, &far, Tol::witness()) {
         assert!(
             !matches!(
@@ -1271,6 +1283,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
         -0.1,
         1e-3,
     );
+    let near = finished("the near-perpendicular bar", near, Tol::witness());
     for (name, b) in [
         ("near-perpendicular bar", near),
         ("belly bar", bar((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0))),
@@ -1297,6 +1310,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
         Tol::witness(),
     )
     .expect("the donut translates");
+    let far = finished("the far donut", far, Tol::witness());
     let cyl = {
         let lp = bulge_loop(vec![
             (Point2::new(-0.55, 3.0), 1.0),
@@ -1309,7 +1323,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
         let vp = profile::Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .expect("the circle validates");
-        sweep::extrude(
+        let cyl = sweep::extrude(
             &vp,
             sweep::Extrusion::Distance {
                 depth: 2.0,
@@ -1318,7 +1332,8 @@ fn subtract_and_intersect_refuse_where_union_does() {
             Tol::witness(),
         )
         .expect("the cylinder extrudes")
-        .body
+        .body;
+        finished("the grazing cylinder", cyl, Tol::witness())
     };
     let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let waists = declarations(&halves.0, &halves.1, Some(BooleanCoincidence::Continuation));

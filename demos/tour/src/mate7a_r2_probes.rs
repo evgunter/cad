@@ -10,6 +10,7 @@
 use pncad::geom_core::{Point3, Tol};
 use pncad::topo::{Body, BooleanError, FaceKey};
 
+use crate::booleans::finished;
 use crate::lily::plant;
 
 fn body_of<'a>(pieces: &'a [crate::lily::Piece<f64>], name: &str) -> &'a Body<f64> {
@@ -66,6 +67,10 @@ fn r2_lily_wall_one_remeasured() {
     let pieces = plant::<f64>(tol);
     let stem = body_of(&pieces, "lily_stem");
     let arch = body_of(&pieces, "lily_arch");
+    let (stem, arch) = (
+        &finished("lily_stem", stem.clone(), tol),
+        &finished("lily_arch", arch.clone(), tol),
+    );
 
     let err = crate::booleans::try_union_declared(stem, arch, tol).expect_err("wall 1 refuses");
     println!("R2 wall-1 refusal: {err:?}");
@@ -125,6 +130,10 @@ fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let pieces = plant::<f64>(tol);
     let stem = body_of(&pieces, "lily_stem");
     let arch = body_of(&pieces, "lily_arch");
+    let (stem, arch) = (
+        &finished("lily_stem", stem.clone(), tol),
+        &finished("lily_arch", arch.clone(), tol),
+    );
     let planes: Vec<_> = arch
         .faces()
         .filter_map(|(k, f)| match arch.get_surface(f.surface) {

@@ -40,6 +40,7 @@ use geom_core::{Point2, Point3};
 use profile::RawLoop;
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 
@@ -281,7 +282,8 @@ fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
     )
     .unwrap()
     .body;
-    let b = ball();
+    let a = finished("the slab", a, Tol::witness());
+    let b = finished("the ball", ball(), Tol::witness());
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
     let topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = &err else {
         panic!("expected the join's tilted-section frontier, got {err:?}");
@@ -326,13 +328,14 @@ fn tangent_schedule_ray_grazes_and_the_retry_answers() {
 /// boolean's own containment fallback, not just a direct query.
 #[test]
 fn two_ball_body_classifies_each_shell_independently() {
-    let a = ball();
+    let a = finished("the ball", ball(), Tol::witness());
     let b = topo::transform_rigid(
         &a,
         &geom_core::Affine3::translation(geom_core::Vec3::new(4.0, 0.0, 0.0)),
         Tol::witness(),
     )
     .unwrap();
+    let b = finished("the moved ball", b, Tol::witness());
     let result = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let topo::BooleanResult::Body(bb) = result else {
         panic!("two disjoint balls union to a real body");

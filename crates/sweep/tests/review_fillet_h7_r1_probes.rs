@@ -36,11 +36,11 @@ use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
-    rod_section_cut, rod_with_flat,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, finished, rod_chord_at,
+    rod_creases, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
 
 const R: f64 = ROD_FILLET;
 /// The block's length along the ruling.
@@ -92,16 +92,24 @@ fn extruded(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>, len: f64) -> 
 /// The block: `x ∈ [−1, 1]`, `y ∈ [−1, 0]`, `z ∈ [0, L]` — its top
 /// plane is `y = 0`, its two end faces `z = 0` and `z = L` are the
 /// transverse caps.
-fn block() -> Body<f64> {
-    extruded(SketchPlane::xy(), vec![rect(-1.0, 1.0, -1.0, 0.0)], L)
+fn block() -> AtRestBody<f64> {
+    finished(
+        "the block",
+        extruded(SketchPlane::xy(), vec![rect(-1.0, 1.0, -1.0, 0.0)], L),
+        tol(),
+    )
 }
 
 /// A cylinder of radius [`ROD_R`] about the line `(0, −ROD_FLAT, z)`, over
 /// `z ∈ [z0, z0 + len]`.
-fn cylinder(z0: f64, len: f64) -> Body<f64> {
+fn cylinder(z0: f64, len: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, -ROD_FLAT), ROD_R, tol()).expect("a disc");
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    extruded(plane, vec![disc.into()], len)
+    finished(
+        "the cylinder",
+        extruded(plane, vec![disc.into()], len),
+        tol(),
+    )
 }
 
 /// **The cross-section a ruled band moves, in the general shape**: the
@@ -360,12 +368,16 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
 /// support gate answers first, in its own words.
 #[test]
 fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
-    let rod = rod_with_flat(tol());
+    let rod = finished("the rod", rod_with_flat(tol()), tol());
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
-    let pocket = extruded(
-        plane,
-        vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
-        0.2,
+    let pocket = finished(
+        "the pocket",
+        extruded(
+            plane,
+            vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
+            0.2,
+        ),
+        tol(),
     );
     let source = topo::subtract(&rod, &pocket, tol())
         .expect("the pocket sinks into the flat")

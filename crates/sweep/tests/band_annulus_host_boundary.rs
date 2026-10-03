@@ -27,28 +27,16 @@ use profile::SketchPlane;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{prism_on, revolved_about_y, rim_arcs_at};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, validate_geometric};
+use sweep::test_support::{prism_on, realized, revolved_about_y, rim_arcs_at};
+use topo::boolean::BooleanOp;
+use topo::{Body, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {

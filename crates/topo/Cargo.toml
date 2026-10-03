@@ -57,10 +57,8 @@ per-op-postcondition = []
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
 probe = ["geom-core/probe", "geom-brep/probe"]
-# The boolean door's tier-3 meter (`boolean/door_meter.rs`): runs the
-# at-rest gate on every result the door builds and records its verdict
-# and cost beside the backstop's, for the measurement on
-# `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
+# The boolean door's meter (`boolean/door_meter.rs`): records each
+# public call's cost and its result gate's cost and verdict.
 # Opt-in and instrumentation only — it changes no result — run through
 # `scripts/door-tier3-meter.py`.
 door-tier3-meter = []

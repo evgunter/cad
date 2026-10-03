@@ -14,12 +14,14 @@
 
 use crate::common;
 
-use common::{brick, describe_as_intersections, flush_declarations, holed_block, prism_z};
+use common::{
+    brick, describe_as_intersections, finished, flush_declarations, holed_block, prism_z,
+};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, Operand,
-    mass_properties, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
+    Operand, mass_properties, union_with, validate_pseudomanifold,
 };
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
@@ -69,16 +71,29 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
 /// bent 90° at (1, 1).
 fn a_union_f() -> BooleanBody<f64> {
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let f = brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol);
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let f = finished(
+        "f",
+        brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&a, &f, tol);
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
     unwrap_body(union_with(&a, &f, &decls, tol).expect("the declared area-overlap union runs"))
 }
 
 /// The third brick, touching both blocks.
-fn c() -> Body<f64> {
-    brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness())
+fn c() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "c",
+        brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 /// **The two cap pairs merge**: two `Merged` rows, one cap at each
@@ -210,7 +225,12 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
         tol,
     )
     .body;
-    let bar = brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol);
+    let u = finished("U", u, tol);
+    let bar = finished(
+        "bar",
+        brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&u, &bar, tol);
     let bb = unwrap_body(union_with(&u, &bar, &decls, tol).expect("the declared union runs"));
     assert!(
@@ -234,11 +254,11 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
 
 /// A block with a unit-square through-hole, `[0,3]×[0,2]×[0,2]` less
 /// `[1,2]×[0.5,1.5]`, described.
-fn holed() -> Body<f64> {
+fn holed() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let mut block = holed_block::<f64>(3.0, &[1.5], tol);
     describe_as_intersections(&mut block, tol);
-    block
+    finished("the holed block", block, tol)
 }
 
 /// `holed() ∪ plug`, every flush pair declared, then a next union with
@@ -246,6 +266,7 @@ fn holed() -> Body<f64> {
 /// no skip and stay green, at the volumes given.
 fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     let tol = Tol::witness();
+    let plug = finished(what, plug, tol);
     let block = holed();
     let decls = flush_declarations(&block, &plug, tol);
     let bb = unwrap_body(
@@ -268,7 +289,11 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
         bb.body.faces().count(),
         bb.naming.merge_groups
     );
-    let next = brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol);
+    let next = finished(
+        "next",
+        brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&bb.body, &next, tol);
     let nb = unwrap_body(
         union_with(&bb.body, &next, &decls, tol)
@@ -320,7 +345,11 @@ fn an_oversized_plug_merges_to_whole_caps() {
 #[test]
 fn a_plug_folded_first_merges_into_the_face_it_plugs() {
     let tol = Tol::witness();
-    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol);
+    let plug = finished(
+        "plug",
+        brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol),
+        tol,
+    );
     let block = holed();
     let decls = flush_declarations(&plug, &block, tol);
     let bb =

@@ -68,7 +68,7 @@ use crate::common::approx::band;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
@@ -683,8 +683,9 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
 /// donut has no planar face at all.
 #[test]
 fn a_disjoint_union_with_a_donut_now_assembles() {
-    let a = donut();
+    let a = finished("the donut", donut(), Tol::witness());
     let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = finished("the brick", b, Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(

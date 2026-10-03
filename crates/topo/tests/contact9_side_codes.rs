@@ -22,9 +22,9 @@
 use crate::common;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment, ValidationError,
-    face_carrier, intersect, mass_properties, point_in_solid, split, subtract, subtract_with,
-    union, union_with, validate_geometric,
+    AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment,
+    ValidationError, face_carrier, intersect, mass_properties, point_in_solid, split, subtract,
+    subtract_with, union, union_with, validate_geometric,
 };
 
 /// The far end's depth, in zero thresholds: definite under a 1 m arm
@@ -43,8 +43,13 @@ fn at(e: [[f64; 3]; 3], u: f64, v: f64, w: f64) -> Point3<f64> {
 
 /// The parallelepiped `u·a + v·b + w·c` over the unit cube
 /// (`det[a, b, c] > 0`).
-fn parallelepiped(e: [[f64; 3]; 3]) -> Body<f64> {
-    common::mapped_cube(move |u, v, w| at(e, u, v, w), Tol::witness())
+fn parallelepiped(e: [[f64; 3]; 3]) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    common::finished(
+        "parallelepiped",
+        common::mapped_cube(move |u, v, w| at(e, u, v, w), tol),
+        tol,
+    )
 }
 
 /// A needle at the origin: a long edge `(x, y, -dip)` and two edges
@@ -86,7 +91,8 @@ fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: 
         .body()
         .unwrap_or_else(|| panic!("{what}: a body"))
         .body
-        .clone();
+        .clone()
+        .into_body();
     if tier3 {
         assert_eq!(
             validate_geometric(&b, Tol::witness()),
@@ -97,17 +103,38 @@ fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: 
     b
 }
 
-/// `r` is the result gate's refusal of exactly one scaffold at rest:
-/// the seam along the 1 mm edge, the one edge of these results whose
-/// faces that length cannot tell from tangent. The refusal withholds the
-/// body, so the edge is pinned by the count; a second scaffold, or a
-/// different finding, turns the row red.
+/// `r` is the result gate's refusal of the seam along the 1 mm edge,
+/// the one edge of these results whose faces that length cannot tell
+/// from tangent: tier 3 finds it a scaffold at rest, and may read its
+/// wedge as a lamina's, on that edge and no other
+/// (`work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
+/// The refusal withholds the body, so the edge is pinned by the count; a
+/// second scaffold, another edge, or a different finding turns the row
+/// red.
 fn refuses_the_seam_alone(r: &Result<BooleanResult<f64>, BooleanError>, what: &str) {
+    let Err(BooleanError::ResultInvalid { errors }) = r else {
+        panic!(
+            "{what}: the 1 mm seam is refused at rest, got {:?}",
+            r.as_ref().err()
+        );
+    };
+    let scaffolds: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    let [seam] = scaffolds.as_slice() else {
+        panic!("{what}: one scaffold at rest, got {errors:?}");
+    };
     assert!(
-        matches!(r, Err(BooleanError::ResultInvalid { errors })
-            if matches!(errors.as_slice(), [ValidationError::ScaffoldAtRest { .. }])),
-        "{what}: the 1 mm seam's scaffold, alone, is refused at rest, got {:?}",
-        r.as_ref().err()
+        errors.iter().all(|e| match e {
+            ValidationError::ScaffoldAtRest { edge }
+            | ValidationError::LaminaWedge { edge, .. } => edge == seam,
+            _ => false,
+        }),
+        "{what}: every finding is the seam's, got {errors:?}"
     );
 }
 
@@ -147,8 +174,8 @@ const RESOLVED_VOLUME: f64 = 1e-12;
 /// both, is in the intersection and the union and out of
 /// `solid − tool`; every result passes tier 3.
 fn answers(
-    solid: &Body<f64>,
-    tool: &Body<f64>,
+    solid: &AtRestBody<f64>,
+    tool: &AtRestBody<f64>,
     overlap: f64,
     corners: &[Point3<f64>],
     q: Point3<f64>,
@@ -226,7 +253,11 @@ fn needle_corners(e: [[f64; 3]; 3]) -> Vec<Point3<f64>> {
 fn a_pierce_reads_a_dipping_edge_at_its_far_vertex() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
-    let slab = common::brick::<f64>((-20.0, 20.0), (-20.0, 20.0), (-5.0, 0.0), tol);
+    let slab = common::finished(
+        "slab",
+        common::brick::<f64>((-20.0, 20.0), (-20.0, 20.0), (-5.0, 0.0), tol),
+        tol,
+    );
     let rise = [[0.0, 1.0, 1.0], [0.0, 0.0, 1.0]];
     for (what, s) in [("1 mm edges", 1e-3), ("control, 1 m edges", 1.0)] {
         let e = needle(10.0, 0.0, s, rise);
@@ -249,7 +280,11 @@ fn a_pierce_reads_a_dipping_edge_at_its_far_vertex() {
 fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
-    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let rise = [[-1.0, 0.0, 1.0], [0.0, -1.0, 1.0]];
     for (what, s) in [("1 mm edges", 1e-3), ("control, 1 m edges", 1.0)] {
         let e = needle(7.0, 7.0, s, rise);
@@ -278,11 +313,15 @@ fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {
 fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
-    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let e = [[10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
     let corner = Vec3::new(5.0, 5.0, 0.0);
     let point = move |u, v, w| at(e, u, v, w) + corner;
-    let wedge = common::mapped_cube(point, tol);
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
     let q = point(0.99, 0.5, 0.1 * dip / e[2][2]);
     // ∩ and − keep a seam along the 1 mm edge between faces `dip/10`
     // radians apart, which that edge's length cannot tell from tangent:
@@ -331,7 +370,11 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let dip = 5.0 * band.escalate();
-    let block = common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let wedge = parallelepiped([[10.0, 0.0, -dip], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let (top, bottom) = (
         face_with_normal(&block, [0.0, 0.0, 1.0]),
@@ -397,18 +440,26 @@ fn wedge_on_the_top(
     rise: f64,
     lift: f64,
 ) -> (
-    Body<f64>,
+    AtRestBody<f64>,
     FaceKey,
-    Body<f64>,
+    AtRestBody<f64>,
     FaceKey,
     Result<topo::ContactVerdict, topo::ContactRefusal>,
 ) {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let block = common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let e = [[10.0, 0.0, rise], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
-    let wedge = common::mapped_cube(
-        move |u, v, w| at(e, u, v, w) + Vec3::new(0.0, 0.0, lift),
+    let wedge = common::finished(
+        "wedge",
+        common::mapped_cube(
+            move |u, v, w| at(e, u, v, w) + Vec3::new(0.0, 0.0, lift),
+            tol,
+        ),
         tol,
     );
     let (top, bottom) = (
@@ -545,11 +596,15 @@ fn an_unsettled_declared_pair_refuses_as_its_reach() {
 fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
-    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let e = [[0.2e-3, 1e-3, 0.0], [10.0, 1.0, dip], [1e-4, 1e-4, -1e-3]];
     let corner = Vec3::new(5.0, 5.0, 0.0);
     let point = move |u, v, w| at(e, u, v, w) + corner;
-    let tool = common::mapped_cube(point, tol);
+    let tool = common::finished("tool", common::mapped_cube(point, tol), tol);
     let q = point(0.5, 0.99, 0.1 * dip / -e[2][2]);
     // The sliver reaches the result gate, so the classification read
     // the germ line; its seam along the 1 mm edge is the wedge row's
@@ -573,7 +628,11 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 fn a_near_coincident_pair_at_a_corner_refuses_typed() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
-    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
     let edges = |s: f64| {
         [
             [10.0, 1.0, dip],
@@ -644,7 +703,11 @@ fn a_near_coincident_pair_at_a_corner_refuses_typed() {
 fn a_dip_inside_the_band_still_reads_on() {
     let tol = Tol::witness();
     let dip = 0.5 * tol.eps();
-    let slab = common::brick::<f64>((-20.0, 20.0), (-20.0, 20.0), (-5.0, 0.0), tol);
+    let slab = common::finished(
+        "slab",
+        common::brick::<f64>((-20.0, 20.0), (-20.0, 20.0), (-5.0, 0.0), tol),
+        tol,
+    );
     let e = [[10.0, 0.0, -dip], [0.0, 1e-3, 1e-3], [0.0, 0.0, 1e-3]];
     let tool = parallelepiped(e);
     let joined = body_of(union(&slab, &tool, tol), "∪");

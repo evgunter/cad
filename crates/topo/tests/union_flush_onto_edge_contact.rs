@@ -7,11 +7,11 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass, intersect_with,
-    mass_properties, subtract_with, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
+    intersect_with, mass_properties, subtract_with, union_with, validate_pseudomanifold,
 };
 
 /// `c`'s x-range: over `b` alone, inside `a ∩ b`, and across `a`'s
@@ -27,11 +27,11 @@ const ORDERS: [[usize; 3]; 6] = [
     [2, 1, 0],
 ];
 
-fn members(c_span: (f64, f64), tol: Tol) -> [Body<f64>; 3] {
+fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
     [
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-        brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
-        brick(c_span, (-1.0, 0.0), (-1.0, 0.0), tol),
+        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol),
+        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol),
+        finished("c", brick(c_span, (-1.0, 0.0), (-1.0, 0.0), tol), tol),
     ]
 }
 
@@ -39,7 +39,7 @@ fn members(c_span: (f64, f64), tol: Tol) -> [Body<f64>; 3] {
 /// `carry`, carrying the accumulator's own v-v records in as `Rest`.
 /// Every step's result, or the refusal and the step it came at.
 fn fold(
-    bodies: &[Body<f64>; 3],
+    bodies: &[AtRestBody<f64>; 3],
     order: [usize; 3],
     carry: bool,
     tol: Tol,
@@ -131,7 +131,13 @@ fn quarter_pinch(
     z: (f64, f64),
     tol: Tol,
 ) -> (BooleanBody<f64>, Vec<CarriedVv>) {
-    let [p, q] = lows.map(|(x, y)| brick((x, x + 1.0), (y, y + 1.0), z, tol));
+    let [p, q] = lows.map(|(x, y)| {
+        finished(
+            "a quarter brick",
+            brick((x, x + 1.0), (y, y + 1.0), z, tol),
+            tol,
+        )
+    });
     let BooleanResult::Body(pinch) =
         union_with(&p, &q, &flush_declarations(&p, &q, tol), tol).expect("an edge contact builds")
     else {
@@ -159,21 +165,22 @@ fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,
 /// under 180°) about the z-axis, over `z`.
-fn wedge(d0: f64, d1: f64, z: (f64, f64), tol: Tol) -> Body<f64> {
+fn wedge(d0: f64, d1: f64, z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
     let at = |deg: f64| (deg.to_radians().cos(), deg.to_radians().sin());
-    common::prism_z(&[(0.0, 0.0), at(d0), at(d1)], z.0, z.1, tol).body
+    let body = common::prism_z(&[(0.0, 0.0), at(d0), at(d1)], z.0, z.1, tol).body;
+    finished("a wedge", body, tol)
 }
 
 /// The wedge from 80° to 190° over z ∈ (0.5, 1), sheared by `shear`
 /// per unit of height above 0.5: its corner stays at the pinch's lower
 /// end and its vertical edge leans off the pinch line.
-fn sheared_wedge(shear: (f64, f64), tol: Tol) -> Body<f64> {
+fn sheared_wedge(shear: (f64, f64), tol: Tol) -> AtRestBody<f64> {
     sheared(triangle(80.0, 190.0), shear, tol)
 }
 
 /// The prism over `tri` at z ∈ (0.5, 1), sheared by `shear` per unit
 /// of height above 0.5.
-fn sheared(tri: [(f64, f64); 3], shear: (f64, f64), tol: Tol) -> Body<f64> {
+fn sheared(tri: [(f64, f64); 3], shear: (f64, f64), tol: Tol) -> AtRestBody<f64> {
     let mut body = Body::<f64>::new();
     common::prism_ops(
         &mut body,
@@ -184,7 +191,7 @@ fn sheared(tri: [(f64, f64); 3], shear: (f64, f64), tol: Tol) -> Body<f64> {
         tol,
     );
     common::describe_as_intersections(&mut body, tol);
-    body
+    finished("a sheared prism", body, tol)
 }
 
 /// The vertices of `body` at `p`, sorted.
@@ -206,9 +213,9 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
 /// passes 3′: `pinch ∪ cutter`, `pinch ∖ cutter`, `pinch ∩ cutter` and
 /// `cutter ∖ pinch`.
 fn every_op_builds(
-    pinch: &Body<f64>,
+    pinch: &AtRestBody<f64>,
     carried: &[CarriedVv],
-    cutter: &Body<f64>,
+    cutter: &AtRestBody<f64>,
     [union, pinch_less, common, cutter_less]: [f64; 4],
     tol: Tol,
 ) {
@@ -343,7 +350,7 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// triangles clipped to the cutter's give. A nonzero `shear` leans
 /// the cutter by that much per unit of height ([`sheared`]).
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
-    let fold = |acc: &BooleanBody<f64>, next: &Body<f64>| {
+    let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
         let mut decls = flush_declarations(&acc.body, next, tol);
         decls.carried_a.vv = rest_rows(&acc.contacts);
         match union_with(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
@@ -351,7 +358,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
             BooleanResult::Empty => panic!("a union of wedges came back empty"),
         }
     };
-    let wedges: Vec<Body<f64>> = spans
+    let wedges: Vec<AtRestBody<f64>> = spans
         .iter()
         .map(|&(d0, d1)| wedge(d0, d1, (0.5, 1.5), tol))
         .collect();
@@ -690,7 +697,11 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     let tol = Tol::witness();
     let (pinch, carried) = pinch(tol);
     let cutter = sheared_wedge((0.3, -0.3), tol);
-    let block: Body<f64> = brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol);
+    let block = finished(
+        "block",
+        brick::<f64>((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol),
+        tol,
+    );
     let mut ab = flush_declarations(&pinch.body, &cutter, tol);
     ab.carried_a.vv.clone_from(&carried);
     let mut ba = flush_declarations(&cutter, &pinch.body, tol);
@@ -782,8 +793,11 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
 fn a_face_through_a_pinch_line_builds_in_every_op() {
     let tol = Tol::witness();
     let (pinch, carried) = pinch(tol);
-    let wall: Body<f64> =
-        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body;
+    let wall = finished(
+        "wall",
+        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
+        tol,
+    );
     let mut ab = flush_declarations(&pinch.body, &wall, tol);
     ab.carried_a.vv.clone_from(&carried);
     let mut ba = flush_declarations(&wall, &pinch.body, tol);
@@ -791,8 +805,11 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
     // The same wall over z ∈ (0.75, 1.25) cuts the brick on its side
     // in two and leaves the other whole: the pinch survives below 0.75
     // with a new pair of vertices at its cut.
-    let upper: Body<f64> =
-        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body;
+    let upper = finished(
+        "upper",
+        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
+        tol,
+    );
     let mut cut = flush_declarations(&pinch.body, &upper, tol);
     cut.carried_a.vv = carried;
     // The prism holds the half x + y > 0 of the square, so it meets
@@ -851,8 +868,16 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
 fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     let tol = Tol::witness();
     let (pinch_a, carried_a) = pinch(tol);
-    let q2: Body<f64> = brick((-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), tol);
-    let q4: Body<f64> = brick((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol);
+    let q2 = finished(
+        "q2",
+        brick::<f64>((-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), tol),
+        tol,
+    );
+    let q4 = finished(
+        "q4",
+        brick::<f64>((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol),
+        tol,
+    );
     let BooleanResult::Body(pinch_b) =
         union_with(&q2, &q4, &flush_declarations(&q2, &q4, tol), tol).expect("a pinch builds")
     else {
@@ -876,7 +901,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
 /// (a right-handed triple), scaled by `scale`: the linear image of the
 /// unit right prism, so its faces stay planar and its corner cone is
 /// the rays' own.
-fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> Body<f64> {
+fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
     let mut body = Body::<f64>::new();
     common::prism_ops(
         &mut body,
@@ -890,17 +915,21 @@ fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> Body<f64> {
         tol,
     );
     common::describe_as_intersections(&mut body, tol);
-    body
+    finished("a corner prism", body, tol)
 }
 
 /// The unit cube's corner at the origin against `y`'s, every op in
 /// both operand orders, with `carried` as `y`'s records.
 fn against_the_cube(
-    y: &Body<f64>,
+    y: &AtRestBody<f64>,
     carried: &[CarriedVv],
     tol: Tol,
 ) -> [(&'static str, BooleanOutcome); 6] {
-    let cube: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let cube = finished(
+        "cube",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let mut ab = flush_declarations(y, &cube, tol);
     ab.carried_a.vv = carried.to_vec();
     let mut ba = flush_declarations(&cube, y, tol);
@@ -975,6 +1004,7 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         tol,
     );
     common::describe_as_intersections(&mut prism, tol);
+    let prism = finished("the diagonal prism", prism, tol);
     let rect: Vec<(f64, f64)> = [(-0.8, 1.0), (0.8, 1.0), (0.8, 0.0), (-0.8, 0.0)]
         .iter()
         .map(|&(w, u)| ((w + u) * r, (w - u) * r))
@@ -1183,7 +1213,11 @@ fn pit_holding_spikes_built(
     tol: Tol,
 ) {
     let pit = corner_prism(PIT, 3.0, tol);
-    let block: Body<f64> = brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
+    let block = finished(
+        "block",
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
+        tol,
+    );
     let BooleanResult::Body(mut y) =
         subtract_with(&block, &pit, &flush_declarations(&block, &pit, tol), tol)
             .expect("the pit is cut")
@@ -1341,7 +1375,11 @@ fn lens_ys(
         lens
     };
     let k = lens(outer, LENS_SCALES.0);
-    let block: Body<f64> = brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
+    let block = finished(
+        "block",
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
+        tol,
+    );
     let BooleanResult::Body(cut) = subtract_with(
         &block,
         &k.body,
@@ -1503,7 +1541,7 @@ fn two_dangling_null_edges_with_one_segment_refuse_typed() {
 /// `cut ∪ lens` ([`lens_ys`]) with the inner lens notched: the lens over
 /// `([1, 0.6, 0], [0.6, 1, 0])`, thinner and scaled past it, taken out
 /// of the inner lens, then `fill` put back if given.
-fn notched(y: &BooleanBody<f64>, fill: Option<&Body<f64>>, tol: Tol) -> BooleanBody<f64> {
+fn notched(y: &BooleanBody<f64>, fill: Option<&AtRestBody<f64>>, tol: Tol) -> BooleanBody<f64> {
     let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
         let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
         let BooleanResult::Body(lens) =

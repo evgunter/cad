@@ -2,8 +2,9 @@
 id: boolean-and-split-result-gates-are-one-gate-with-two-texts
 kind: issue
 title: BooleanError::ResultInvalid and SplitFinishError::ResultInvalid are one tier-2 gate with two texts, and boolean's gate runs tier 1 twice
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-03
 ---
 
 Found by the review of PR 3797 (TQUERY), which added split's
@@ -25,3 +26,14 @@ tier-2 result gate.
   The first call is redundant. On a tier-1 failure it also returns
   before tier 2's findings exist, which is a different report from the
   one `validate_closed` alone would give.
+
+## Closed (2026-10-03, REACH `boolean-door-adopts-the-finished-body-type`)
+
+- **Tier 1 runs twice:** gone. `ops::gate` is the kept tier-3 gate
+  (`AtRestPolicy::gate_at_rest_kept`), whose first act is tiers 1 and 2,
+  once.
+- **Two texts:** `BooleanError::ResultInvalid` renders its first finding
+  through `ValidationError`'s `Display`, as split's twin does, with no
+  Debug struct; "kernel bug, unless an operand carried the finding in" is
+  gone because the operands are finished bodies, so the findings are the
+  door's own.

@@ -16,7 +16,7 @@
 //! tube declared `Tangent`, whose rim offer is withdrawn.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::test_support::{ball_poled, ball_poled_y, brick, dome, revolved_about_y};
+use crate::test_support::{ball_poled, ball_poled_y, brick, dome, finished, revolved_about_y};
 use geom_core::{Band, Point2, Tol, Vec3};
 use test_utils::offer::{DESIGN_EPS, Executed, Outcome, Verdict, execute, report, run};
 use topo::{BooleanDeclarations, ContactClass, FacePairDeclaration};
@@ -42,7 +42,11 @@ fn outcome(got: Result<(), topo::BooleanError>) -> Outcome {
 }
 
 /// The public op `k` (0 union, 1 subtract, else intersect).
-fn op(k: u8, a: &topo::Body<f64>, b: &topo::Body<f64>) -> Result<(), topo::BooleanError> {
+fn op(
+    k: u8,
+    a: &topo::AtRestBody<f64>,
+    b: &topo::AtRestBody<f64>,
+) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
     match k {
         0 => topo::union(a, b, tol).map(|_| ()),
@@ -55,8 +59,16 @@ fn op(k: u8, a: &topo::Body<f64>, b: &topo::Body<f64>) -> Result<(), topo::Boole
 /// height `z` above that center: their union.
 fn two_balls(z: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
-    let big = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), tol);
-    let small = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5 + z), tol);
+    let big = finished(
+        "the big ball",
+        ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), tol),
+        tol,
+    );
+    let small = finished(
+        "the small ball",
+        ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5 + z), tol),
+        tol,
+    );
     topo::union(&big, &small, tol).map(|_| ())
 }
 
@@ -64,8 +76,16 @@ fn two_balls(z: f64) -> Result<(), topo::BooleanError> {
 /// `[0, 4]² × [0, 1]`: their union.
 fn ball_over_a_slab(gap: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol);
-    let ball = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.5 + gap), tol);
+    let slab = finished(
+        "the slab",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let ball = finished(
+        "the ball",
+        ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.5 + gap), tol),
+        tol,
+    );
     topo::union(&slab, &ball, tol).map(|_| ())
 }
 
@@ -77,8 +97,8 @@ fn slanted_balls(k: u8, d: f64) -> Result<(), topo::BooleanError> {
     let dir = Vec3::new(1.0, 1.0, 1.0).normalize();
     op(
         k,
-        &ball_poled_y(1.3, c0, tol),
-        &ball_poled_y(0.4, c0 + dir * d, tol),
+        &finished("the big ball", ball_poled_y(1.3, c0, tol), tol),
+        &finished("the small ball", ball_poled_y(0.4, c0 + dir * d, tol), tol),
     )
 }
 
@@ -90,8 +110,8 @@ fn nested_balls(k: u8, d: f64) -> Result<(), topo::BooleanError> {
     let dir = Vec3::new(1.0, -1.0, 2.0).normalize();
     op(
         k,
-        &ball_poled_y(1.3, c0, tol),
-        &ball_poled_y(0.4, c0 + dir * d, tol),
+        &finished("the big ball", ball_poled_y(1.3, c0, tol), tol),
+        &finished("the small ball", ball_poled_y(0.4, c0 + dir * d, tol), tol),
     )
 }
 
@@ -100,11 +120,19 @@ fn nested_balls(k: u8, d: f64) -> Result<(), topo::BooleanError> {
 /// poled along `z`, by op `k`.
 fn ball_under_a_slab(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol);
-    let ball = ball_poled(
-        0.7,
-        Vec3::new(1.7, 2.2, -0.7 - gap),
-        Vec3::new(0.0, 0.0, 1.0),
+    let slab = finished(
+        "the slab",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let ball = finished(
+        "the ball",
+        ball_poled(
+            0.7,
+            Vec3::new(1.7, 2.2, -0.7 - gap),
+            Vec3::new(0.0, 0.0, 1.0),
+            tol,
+        ),
         tol,
     );
     op(k, &slab, &ball)
@@ -114,27 +142,37 @@ fn ball_under_a_slab(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
 /// off the slab's face `x = 4`, poled along `x`, by op `k`.
 fn ball_beside_a_slab(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 2.0), tol);
-    let ball = ball_poled(
-        0.6,
-        Vec3::new(4.6 + gap, 2.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+    let slab = finished(
+        "the slab",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 2.0), tol),
+        tol,
+    );
+    let ball = finished(
+        "the ball",
+        ball_poled(
+            0.6,
+            Vec3::new(4.6 + gap, 2.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            tol,
+        ),
         tol,
     );
     op(k, &slab, &ball)
 }
 
 /// A tube about `y` (radii 0.3 to `outer`, `y` over `[lo, hi]`).
-fn tube(outer: f64, lo: f64, hi: f64) -> topo::Body<f64> {
-    revolved_about_y(
-        vec![
-            (Point2::new(0.3, lo), 0.0),
-            (Point2::new(outer, lo), 0.0),
-            (Point2::new(outer, hi), 0.0),
-            (Point2::new(0.3, hi), 0.0),
-        ],
-        crate::Revolution::Full,
-        Tol::witness(),
+fn tube(outer: f64, lo: f64, hi: f64) -> topo::AtRestBody<f64> {
+    let tol = Tol::witness();
+    let profile = vec![
+        (Point2::new(0.3, lo), 0.0),
+        (Point2::new(outer, lo), 0.0),
+        (Point2::new(outer, hi), 0.0),
+        (Point2::new(0.3, hi), 0.0),
+    ];
+    finished(
+        "the tube",
+        revolved_about_y(profile, crate::Revolution::Full, tol),
+        tol,
     )
 }
 
@@ -142,7 +180,12 @@ fn tube(outer: f64, lo: f64, hi: f64) -> topo::Body<f64> {
 /// stands `gap` below a unit tube's wall, its edges across the axis, by
 /// op `k`.
 fn brick_below_a_tube(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
-    let b = brick::<f64>((-0.5, 0.5), (0.2, 0.8), (-2.0, -1.0 - gap), Tol::witness());
+    let tol = Tol::witness();
+    let b = finished(
+        "the brick",
+        brick::<f64>((-0.5, 0.5), (0.2, 0.8), (-2.0, -1.0 - gap), tol),
+        tol,
+    );
     op(k, &tube(1.0, 0.0, 1.0), &b)
 }
 
@@ -152,7 +195,7 @@ fn brick_below_a_tube(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
 /// declaration door.
 fn dome_on_a_tube(r: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
-    let a = dome(1.0, tol);
+    let a = finished("the dome", dome(1.0, tol), tol);
     let b = tube(r, -1.0, 0.0);
     let spheres: Vec<topo::FaceKey> = a
         .faces()

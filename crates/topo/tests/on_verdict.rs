@@ -13,25 +13,25 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanError, BooleanResult, BooleanResultKind, GeomSource, Operand, ShellOrientation,
-    intersect, mass_properties, subtract, union,
+    AtRestBody, Body, BooleanError, BooleanResult, BooleanResultKind, GeomSource, Operand,
+    ShellOrientation, intersect, mass_properties, subtract, union,
 };
 
-/// Stamps every surface of `b` with a distinct `minted(node, i)`, as
-/// the recipe layer's `stamp_minted` does.
-fn stamped(mut b: Body<f64>, node: u64) -> Body<f64> {
+/// `b` with every surface stamped with a distinct `minted(node, i)`,
+/// as the recipe layer's `stamp_minted` does, finished.
+fn stamped(mut b: Body<f64>, node: u64) -> AtRestBody<f64> {
     let keys: Vec<_> = b.surfaces().map(|(k, _)| k).collect();
     for (i, k) in keys.into_iter().enumerate() {
         b.set_surface_source(k, GeomSource::minted(node, u32::try_from(i).unwrap()))
             .unwrap();
     }
-    b
+    finished("a stamped block", b, Tol::witness())
 }
 
-fn unit_block(node: u64) -> Body<f64> {
+fn unit_block(node: u64) -> AtRestBody<f64> {
     let unit = (0.0, 1.0);
     stamped(brick(unit, unit, unit, Tol::witness()), node)
 }
@@ -178,7 +178,11 @@ fn a_lump_filling_a_void_lies_on_it_opposed() {
 fn a_shell_its_partner_does_not_cover_back_refuses() {
     let tol = Tol::witness();
     let x = unit_block(7);
-    let pocket: Body<f64> = brick((0.05, 0.25), (0.75, 0.95), (0.5, 2.0), tol);
+    let pocket = finished(
+        "pocket",
+        brick::<f64>((0.05, 0.25), (0.75, 0.95), (0.5, 2.0), tol),
+        tol,
+    );
     let BooleanResult::Body(pocketed) = subtract(&x, &pocket, tol).unwrap() else {
         panic!("X − pocket is not empty");
     };
@@ -215,7 +219,7 @@ fn an_uncut_component_of_a_seamed_boolean_lies_on_its_twin() {
     let x = unit_block(7);
     let z = stamped(brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol), 8);
     let w = stamped(brick((3.5, 5.0), (0.25, 0.75), (0.25, 0.75), tol), 9);
-    let fused = |p: &Body<f64>, q: &Body<f64>| match union(p, q, tol).unwrap() {
+    let fused = |p: &AtRestBody<f64>, q: &AtRestBody<f64>| match union(p, q, tol).unwrap() {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("a union of blocks is not empty"),
     };

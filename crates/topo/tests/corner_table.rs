@@ -23,7 +23,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
@@ -32,11 +32,16 @@ use topo::{BooleanError, BooleanResult, BooleanResultKind, mass_properties, unio
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
 
-fn top<T: Decide + topo::AtRestPolicy>() -> topo::Body<T> {
-    brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25), Tol::witness())
+fn top<T: Decide + topo::AtRestPolicy>() -> topo::AtRestBody<T> {
+    let tol = Tol::witness();
+    finished(
+        "the top",
+        brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25), tol),
+        tol,
+    )
 }
 
-fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::Body<T> {
+fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::AtRestBody<T> {
     let (x0, x1) = if cx == 0.0 {
         (0.0, 0.5)
     } else {
@@ -47,7 +52,12 @@ fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::Body<T> {
     } else {
         (cy - 0.5, cy)
     };
-    brick::<T>((x0, x1), (y0, y1), (0.0, 1.125), Tol::witness())
+    let tol = Tol::witness();
+    finished(
+        "a leg",
+        brick::<T>((x0, x1), (y0, y1), (0.0, 1.125), tol),
+        tol,
+    )
 }
 
 /// Capability pin: one corner-aligned leg unions tier-2-exactly WITH

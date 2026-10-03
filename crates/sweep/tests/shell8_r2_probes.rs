@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use sweep::test_support::{block, brick};
+use sweep::test_support::{block, brick, finished};
 use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey};
 
@@ -651,12 +651,20 @@ fn r2_e2e_consumer_seat() {
 /// are filed back under ONE solid through the `sweep-testing` merge
 /// door, the shape the ownership door's rows start from.
 fn split_slab(moved: bool) -> Body<f64> {
-    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
+    let slab = finished(
+        "the slab",
+        brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        tol(),
+    );
+    let wall = finished(
+        "the wall",
+        brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
         panic!("no body")
     };
-    let body = b.body;
+    let body = b.body.into_body();
     assert_eq!(body.shells().count(), 2, "the subtract files two shells");
     assert_eq!(body.solids().count(), 2, "one solid per component");
     if moved {
@@ -790,8 +798,16 @@ fn r2_replace_faces_offset_on_one_solids_wearers_leaves_the_other_on_the_old_key
 /// own faces: its own cap's interior in, the other's out.
 #[test]
 fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
-    let slab = brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {
         panic!("no body")
     };
@@ -1021,9 +1037,21 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
 #[test]
 fn r2_three_solids_on_one_sphere_chart_open_additively() {
     let tol = tol();
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol);
-    let upper = brick((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness());
-    let lower = brick((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let upper = finished(
+        "the upper slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness()),
+        tol,
+    );
+    let lower = finished(
+        "the lower slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness()),
+        tol,
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &upper, tol) else {
         panic!("the first cut builds")
     };
@@ -1167,8 +1195,16 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
 /// the move, the whole-body query does.
 #[test]
 fn r2_point_in_solid_reads_one_sphere_chart_across_two_shells_of_one_solid() {
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
-    let slab = brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {
         panic!("no body")
     };

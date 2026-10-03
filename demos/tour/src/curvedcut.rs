@@ -36,9 +36,11 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError};
+use pncad::topo::{
+    AtRestBody, Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError,
+};
 
-use crate::booleans::try_subtract;
+use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
 use crate::{SceneBody, Stop, View};
 
@@ -177,9 +179,9 @@ fn glyph_t<S: Scalar>(tol: Tol) -> Glyph<S> {
 /// A glyph's tool: its outline on `plane`, which lies [`DEPTH`] inside
 /// the face being engraved, extruded 2·[`DEPTH`] along the plane's
 /// normal so the tool straddles that face.
-fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol) -> Body<S> {
+fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol) -> AtRestBody<S> {
     let profile = validated(plane, vec![outline], tol).expect("a glyph validates");
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(2.0 * DEPTH),
@@ -188,7 +190,8 @@ fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol)
         tol,
     )
     .expect("extrude a glyph")
-    .body
+    .body;
+    finished("a glyph's tool", body, tol)
 }
 
 /// The xy sketch plane at height `z`.
@@ -200,23 +203,26 @@ fn level<S: Scalar>(z: f64) -> SketchPlane<S> {
 pub struct Cut<S: Scalar> {
     /// The cylinder, then the cylinder after each glyph's pocket, in
     /// [`lettering`] order.
-    pub stages: Vec<Body<S>>,
+    pub stages: Vec<AtRestBody<S>>,
     /// The half on the section normal's side: it carries the
     /// engraved cap.
-    pub above: Body<S>,
+    pub above: AtRestBody<S>,
     /// The half against the section normal, unengraved.
-    pub below: Body<S>,
+    pub below: AtRestBody<S>,
 }
 
 /// `body` split by the plane tilted [`PHI`] through mid-height, as
-/// (above, below).
-fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (Body<S>, Body<S>) {
+/// (above, below), each finished.
+fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (AtRestBody<S>, AtRestBody<S>) {
     let plane = split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()), tol);
     let result = split(body, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
         panic!("the section plane crosses the wall: both sides must be bodies");
     };
-    (above, below)
+    (
+        finished("the upper half", above, tol),
+        finished("the lower half", below, tol),
+    )
 }
 
 /// Engraves the cap, then cuts the cylinder by the tilted plane
@@ -232,7 +238,7 @@ pub fn build<S: Scalar>(tol: Tol) -> Cut<S> {
     )
     .expect("extrude cylinder")
     .body;
-    let mut stages = vec![cylinder];
+    let mut stages = vec![finished("the cylinder", cylinder, tol)];
     for g in lettering::<S>(tol) {
         let last = stages.last().expect("the cylinder is the first stage");
         let pocketed = match try_subtract(last, &tool(level(H - DEPTH), g.outline, tol), tol) {
@@ -301,7 +307,7 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
 /// The pockets against their closed forms: what each subtraction
 /// removed from the closed-form cylinder volume is its glyph's area ×
 /// [`DEPTH`]. Returns the pockets' closed-form total and the narration.
-fn pocket_narration(stages: &[Body<f64>], tol: Tol) -> (f64, String) {
+fn pocket_narration(stages: &[AtRestBody<f64>], tol: Tol) -> (f64, String) {
     let volume = |b: &Body<f64>| {
         let m = pncad::topo::mass_properties(b, tol).expect("the engraved cylinder measures");
         assert_eq!(
@@ -463,8 +469,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             up: 'z',
         },
         bodies: vec![
-            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above),
-            SceneBody::plain("tiltedcut_below", [0.40, 0.62, 0.80], below),
+            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above.into_body()),
+            SceneBody::plain("tiltedcut_below", [0.40, 0.62, 0.80], below.into_body()),
         ],
     }]
 }

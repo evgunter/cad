@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{Body, CurveGeom, FaceKey, FaceSurface};
 
 use crate::common;
@@ -409,7 +410,9 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
     let Some((a, _)) = twisted_approx() else {
         return;
     };
-    let e = topo::union(&a, &moved_box(), Tol::witness())
+    let a = finished("the twisted Approx body", a, Tol::witness());
+    let b = finished("the moved box", moved_box(), Tol::witness());
+    let e = topo::union(&a, &b, Tol::witness())
         .expect_err("a lofted Approx operand is outside the boolean envelope");
     assert!(
         matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
@@ -417,10 +420,10 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
     );
 }
 
-/// **The germ-pair refusal from a genuinely skinned base**: a
-/// doubly-curved bicubic base's certified offset surface sits on a box
-/// cap (`Line` carriers, so the FACE rule decides), and the pair-scoped
-/// gate refuses naming `SurfaceKind::Approx` against `Plane`.
+/// **A genuinely skinned base's offset on a box cap**: a doubly-curved
+/// bicubic base's certified offset surface set on a box cap (`Line`
+/// carriers, so the FACE rule would decide) re-certifies at rest, and the
+/// box is not a finished body, which the at-rest gate says on the cap.
 ///
 /// The base here is nothing like the PR's planar pull-backs: the fit
 /// has real curvature in both directions and a `d` five orders above ε.
@@ -448,19 +451,29 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
         },
     )
     .expect("the attach-layer door accepts a live face");
-    let e = topo::union(&a, &moved_box(), Tol::witness())
-        .expect_err("an Approx operand is unsupported-kind for the boolean gate");
+    // The cap's edges keep the box's line descriptions under the
+    // offset surface, so the box is not a finished body and no boolean
+    // takes it: the germ-pair refusal naming `Approx` against `Plane` is
+    // reached by no row through the public door
+    // (`work/reach/an-approx-face-on-line-edges-has-no-finished-fixture.md`).
+    let errors = topo::AtRestBody::validate(a, Tol::witness())
+        .expect_err("the stranded cap is not a finished body");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. }))
+            .count(),
+        4,
+        "the cap's four edges keep the box's descriptions: {errors:?}"
+    );
     assert!(
-        matches!(
+        errors.iter().all(|e| matches!(
             e,
-            topo::BooleanError::CurvedPairUnsupported {
-                kind: geom::SurfaceKind::Approx,
-                other_kind: geom::SurfaceKind::Plane,
-                face: f,
-                ..
-            } if f == face
-        ),
-        "expected the germ-pair refusal naming SurfaceKind::Approx on {face:?}, got {e}"
+            topo::ValidationError::DescriptionNotAdjacent { .. }
+                | topo::ValidationError::ApproxCertification { .. }
+                | topo::ValidationError::Pcurve { .. }
+        )),
+        "every finding is the stranded cap's: {errors:?}"
     );
 }
 

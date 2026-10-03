@@ -14,7 +14,7 @@ use crate::revolve_common;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid};
 
@@ -418,8 +418,9 @@ fn r2_planar_base_cap_interior_is_on_the_boundary() {
 /// tessellate the result.
 #[test]
 fn r2_e2e_cone_boolean_tessellate() {
-    let a = quarter_cone();
+    let a = finished("the quarter cone", quarter_cone(), Tol::witness());
     let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = finished("the brick", b, Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the cone arm unlocks this union");
     let result = out.body().expect("a disjoint union is not empty");
     assert_eq!(topo::validate_closed(&result.body), Ok(()));
@@ -636,6 +637,8 @@ fn r2_crossing_cone_booleans_and_the_surviving_raise_site() {
         ),
     ];
     for (name, a, b) in cases {
+        let a = finished(&format!("{name}: A"), a, Tol::witness());
+        let b = finished(&format!("{name}: B"), b, Tol::witness());
         let r = topo::union(&a, &b, Tol::witness());
         let tag = match &r {
             Ok(_) => "Ok(assembled)".to_string(),

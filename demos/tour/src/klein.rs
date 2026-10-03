@@ -261,9 +261,10 @@ use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{
-    Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
+    AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
 };
 
+use crate::booleans::finished;
 use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
 
@@ -632,11 +633,11 @@ fn sweep_loop<S: Scalar>(
     sweep_body::<S>(section, place, spine, STATIONS, V_DEGREE, tol).map(|l| l.body)
 }
 
-/// The bottle: the bulb, the loop, and the spine the loop was swept
-/// along.
+/// The bottle: the bulb and the loop, each finished, and the spine the
+/// loop was swept along.
 struct Bottle<S: Scalar> {
-    bulb: Body<S>,
-    top: Body<S>,
+    bulb: AtRestBody<S>,
+    top: AtRestBody<S>,
     spine: NurbsCurve3<f64>,
 }
 
@@ -646,8 +647,12 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let top = sweep_loop::<S>(&spine, &annulus::<f64>(&m, 0.0, true, tol), tol)
         .expect("the annulus sweeps along the loop's whole spine");
     Bottle {
-        bulb: bulb(band::<S>(&m, tol), Revolution::Full, tol),
-        top,
+        bulb: finished(
+            "the bulb",
+            bulb(band::<S>(&m, tol), Revolution::Full, tol),
+            tol,
+        ),
+        top: finished("the loop", top, tol),
         spine,
     }
 }
@@ -1002,10 +1007,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // body wall and running down to the rim's hole. An opaque
             // render hides the half of the shape that makes it a
             // Klein bottle at any camera.
-            SceneBody::plain("klein_bulb", [0.38, 0.62, 0.72], bulb).transparent(55),
+            SceneBody::plain("klein_bulb", [0.38, 0.62, 0.72], bulb.into_body()).transparent(55),
             // A colour of its own: the loop is the piece that runs
             // INSIDE the bulb, and seeing where it enters is the point.
-            SceneBody::plain("klein_loop", [0.80, 0.34, 0.24], top).transparent(45),
+            SceneBody::plain("klein_loop", [0.80, 0.34, 0.24], top.into_body()).transparent(45),
         ],
     }]
 }

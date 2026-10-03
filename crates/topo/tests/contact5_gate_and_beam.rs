@@ -326,9 +326,13 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
     let tol = Tol::witness();
     for (lump2, meets) in [((10.0, 11.0), true), ((20.0, 21.0), false)] {
         let unit = (0.0, 1.0);
-        let union =
-            topo::boolean::union(&block(unit, unit, unit), &block(lump2, unit, unit), tol).unwrap();
-        let a = union.body().unwrap().body.clone();
+        let union = topo::boolean::union(
+            &common::finished("lump 1", block(unit, unit, unit), tol),
+            &common::finished("lump 2", block(lump2, unit, unit), tol),
+            tol,
+        )
+        .unwrap();
+        let a = union.body().unwrap().body.clone().into_body();
         assert_eq!((a.solids().count(), a.shells().count()), (2, 2));
         let body = assembly(&[a, block((-1.0, 10.0), (-1.0, 2.0), (-1.0, 2.0))]);
         let lumps = body.solids().next().unwrap().0;
@@ -675,15 +679,20 @@ fn a_two_lump_body_seated_declared() {
         ([(4.0, 6.0), (-0.8, -0.2), (4.0, 6.0)], true),
     ] {
         let lumps = topo::boolean::union(
-            &block(seated[0], seated[1], seated[2]),
-            &block(sibling[0], sibling[1], sibling[2]),
+            &common::finished("seated lump", block(seated[0], seated[1], seated[2]), tol),
+            &common::finished(
+                "sibling lump",
+                block(sibling[0], sibling[1], sibling[2]),
+                tol,
+            ),
             tol,
         )
         .unwrap()
         .body()
         .unwrap()
         .body
-        .clone();
+        .clone()
+        .into_body();
         assert_eq!(lumps.shells().count(), 2);
         let body = assembly(&[channel(), lumps]);
         let result = declared_seats(&body);

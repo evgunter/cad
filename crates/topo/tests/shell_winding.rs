@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{Body, BooleanResult, ShellKey, ShellRole, SolidKey, ValidationError};
 
@@ -26,9 +26,9 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn cut(a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>) -> Body<f64> {
     match topo::subtract(a, b, tol()).expect("the subtraction runs") {
-        BooleanResult::Body(r) => r.body,
+        BooleanResult::Body(r) => r.body.into_body(),
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -37,11 +37,19 @@ fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// of it: one solid, an `Outer` shell and a `Void`.
 fn hollow(lo: f64, hi: f64, wall: f64) -> Body<f64> {
     cut(
-        &brick((lo, hi), (lo, hi), (lo, hi), tol()),
-        &brick(
-            (lo + wall, hi - wall),
-            (lo + wall, hi - wall),
-            (lo + wall, hi - wall),
+        &finished(
+            "the block",
+            brick((lo, hi), (lo, hi), (lo, hi), tol()),
+            tol(),
+        ),
+        &finished(
+            "the cavity",
+            brick(
+                (lo + wall, hi - wall),
+                (lo + wall, hi - wall),
+                (lo + wall, hi - wall),
+                tol(),
+            ),
             tol(),
         ),
     )

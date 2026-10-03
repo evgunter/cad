@@ -13,7 +13,14 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanResult};
+use topo::{AtRestBody, Body, BooleanResult};
+
+/// `body` as a finished body — its at-rest validation verdict kept —
+/// panicking with `what` when the gate refuses it.
+pub fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
+    AtRestBody::validate(body, Tol::witness())
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
@@ -149,9 +156,11 @@ pub fn boss_plate() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let plate = finished("the plate", plate);
+    let boss = finished("the boss", boss);
     let out = topo::union(&plate, &boss, Tol::witness()).unwrap();
     match out {
-        BooleanResult::Body(bb) => bb.body,
+        BooleanResult::Body(bb) => bb.body.into_body(),
         other => panic!("the boss union yields a body, got {other:?}"),
     }
 }
@@ -215,8 +224,10 @@ pub fn az_intersect() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let a = finished("prism A", a);
+    let z = finished("prism Z", z);
     match topo::intersect(&a, &z, Tol::witness()) {
-        Ok(BooleanResult::Body(bb)) => bb.body,
+        Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
 }

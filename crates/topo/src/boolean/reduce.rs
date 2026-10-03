@@ -372,15 +372,14 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
 /// for a germ pair with no arm; [`BooleanError::CurvedBooleanUnsupported`]
 /// for a face whose surface key does not resolve.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::DeclaredPairs<T>,
     band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand(body, operand, band, tol)?;
+        gate_operand(body, operand)?;
     }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
@@ -417,21 +416,13 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 ///    — a rung-3 INPUT operand is outside the supported envelope,
 ///    rung-3 edges being what the zip MINTS rather than what it
 ///    consumes;
-/// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
-///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
-///    definitely negative refuses [`BooleanError::InsideOutOperand`];
-///    one whose sign it leaves open passes, as check 7 passes it, and
-///    the volume backstop keeps its own refusal of a body it cannot
-///    measure.
 ///
-/// The subject of 3 is the solid: a body's total hides a sign, so a
-/// several-solid operand is gated here before it is read as one solid
-/// (`ops::one_solid`).
-pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
+/// Orientation is not read here: an operand is a finished body
+/// ([`crate::AtRestBody`]), whose tier-3 verdict includes check 7 per
+/// solid, so an inside-out solid never reaches the door.
+pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
-    band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     let (broken, scaffolding) = crate::validate::closed_by_tier(body);
     if !broken.is_empty() {
@@ -447,11 +438,6 @@ pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
         });
     }
     gate_operand_edges(body, operand)?;
-    if let Some(&solid) =
-        crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
-    {
-        return Err(BooleanError::InsideOutOperand { operand, solid });
-    }
     Ok(())
 }
 
@@ -3851,6 +3837,7 @@ mod declaration_order_rows {
     };
     use crate::contact::{BooleanCoincidence, ContactClass};
     use crate::entity::VertexKey;
+    use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -4425,8 +4412,8 @@ mod declaration_order_rows {
 
     /// `a ∪ b` with the pair `(fa, fb)` declared as `class`.
     fn union_declared(
-        a: &crate::body::Body<f64>,
-        b: &crate::body::Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
         class: Option<BooleanCoincidence>,
     ) -> Result<(), BooleanError> {
@@ -4484,6 +4471,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, a, b, n) in poses {
+            let (a, b) = (finished(label, a, tol), finished(label, b, tol));
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
             let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
             assert_eq!(
@@ -4544,7 +4532,11 @@ mod declaration_order_rows {
         let band = Band::linear(tol).expect("the witness band");
         let phi = 5.0_f64.to_radians();
         let p = Point3::new(0.5, 0.2, 1.0);
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         let block_volume = 3.0 * 4.5;
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
@@ -4572,11 +4564,15 @@ mod declaration_order_rows {
                 geom_core::Vec3::new(1.0, 0.0, 0.0),
                 geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
             );
-            let wedge = mapped_cube::<f64>(
-                move |u, v, w| {
-                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
-                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
-                },
+            let wedge = finished(
+                label,
+                mapped_cube::<f64>(
+                    move |u, v, w| {
+                        let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                    },
+                    tol,
+                ),
                 tol,
             );
             let pair = (
@@ -4635,7 +4631,11 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         type Pose = (
             &'static str,
             crate::body::Body<f64>,
@@ -4668,6 +4668,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, wedge, facing, offered, other) in poses {
+            let wedge = finished(label, wedge, tol);
             let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
                 let hits: Vec<_> = wedge
                     .faces()

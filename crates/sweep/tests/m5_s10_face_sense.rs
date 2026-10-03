@@ -48,6 +48,7 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
@@ -197,6 +198,8 @@ fn assembly_flip_is_wrong_but_nonzero() {
     )
     .unwrap()
     .body;
+    let ball = finished("the ball", ball, Tol::witness());
+    let cuboid = finished("the cuboid", cuboid, Tol::witness());
     let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
     let honest = topo::mass_properties(body, Tol::witness()).unwrap();
@@ -398,8 +401,12 @@ fn fixed_concave_arc_wall_sense_is_false() {
 /// add exactly.
 #[test]
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
-    let a = mixed_turn_arcs().body;
-    let b = pellet::<f64>();
+    let a = finished(
+        "the mixed-turn revolve",
+        mixed_turn_arcs().body,
+        Tol::witness(),
+    );
+    let b = finished("the pellet", pellet::<f64>(), Tol::witness());
     let vol_a = topo::mass_properties(&a, Tol::witness()).unwrap().volume;
     let vol_b = topo::mass_properties(&b, Tol::witness()).unwrap().volume;
     assert!(

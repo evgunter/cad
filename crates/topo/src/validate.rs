@@ -4433,29 +4433,6 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **The solids of `body` that check 7 refuses as inside-out** — its
-/// [`ValidationError::NegativeVolume`] verdicts and nothing else, at the
-/// lane `quad` gives. A solid whose sign the lane leaves undecided, or
-/// cannot measure, is not named: this reads only what check 7 decides
-/// definitely. Premise: tier 1 is clean ([`check7_subjects`]).
-pub(crate) fn inside_out_solids<T: geom_core::Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<SolidKey> {
-    match plus_v_by_sign(body, band, tol, quad) {
-        Ok(_) => Vec::new(),
-        Err(errors) => errors
-            .into_iter()
-            .filter_map(|e| match e {
-                ValidationError::NegativeVolume { solid } => Some(solid),
-                _ => None,
-            })
-            .collect(),
-    }
-}
-
 /// The certificate a CLEAN tier-3 verdict implies.
 ///
 /// INVARIANT: check 7 either hands back a certificate or puts its
@@ -4779,24 +4756,6 @@ pub(crate) fn shell_role<T: Decide>(
     )
     .ok()
     .and_then(|(role, _)| role)
-}
-
-/// Tier 3's transience fence on its own: a
-/// [`ValidationError::ScaffoldAtRest`] for every edge whose description
-/// is still a scaffold, in edge-arena order. On a body that passes
-/// tier 2 every edge has two faces, so these are exactly the fence
-/// findings check 2 makes, with no re-certification around them.
-pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError> {
-    body.edges
-        .iter()
-        .filter(|(_, edge)| {
-            body.curves
-                .get(edge.curve)
-                .and_then(CurveGeom::certified)
-                .is_some_and(|curve| curve.description().is_scaffold())
-        })
-        .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
-        .collect()
 }
 
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
