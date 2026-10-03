@@ -57,8 +57,8 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
-    LoopProgram, Maintenance, Node, ParamName, PartReach, PartResolver, ProductError,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
+    Label, LoopProgram, Maintenance, Node, ParamName, PartReach, PartResolver, ProductError,
     ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, apply,
     assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
@@ -2378,8 +2378,8 @@ impl DocSession {
     /// committed action and therefore one undo
     /// ([`ProfilePlane::NewXy`]).
     ///
-    /// The frame's id is not predicted: each edit is built from what
-    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// The frame's id is not predicted: the profile is built from what
+    /// the frame's insert MINTED ([`Self::commit_run`]), so the profile
     /// names the node the door actually created. All-or-nothing comes
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
@@ -2389,27 +2389,14 @@ impl DocSession {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let mut loops = Some(loops);
-        self.commit_run(|minted| match minted {
-            [] => Some(DocEdit::InsertNode {
-                node: Box::new(frame.clone()),
-            }),
-            [Some(plane)] => Some(DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    plane: *plane,
-                    // Loud, like the arm below: ending the run here
-                    // instead would commit the lone frame, which is
-                    // the exact orphan all-or-nothing promises
-                    // against. The generator is called once per
-                    // position and this position comes round once.
-                    loops: loops
-                        .take()
-                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
-                    ids: Vec::new(),
-                })),
-            }),
-            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
-            _ => None,
+        self.commit_run(|run| {
+            let plane = run.insert(frame)?;
+            run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }))?;
+            Ok(())
         })
     }
 
@@ -2543,22 +2530,17 @@ impl DocSession {
         // on — rather than as the narrower complaint about the pair.
         // An empty list is the undeclared boolean.
         let pairs = declared_pairs(&declare);
-        let staged = self.stage_run(|minted| {
-            minted.is_empty().then(|| DocEdit::InsertNode {
-                node: Box::new(Node::Boolean {
-                    op,
-                    a,
-                    b,
-                    declare: pairs.clone(),
-                }),
+        let staged = self.stage_run(|run| {
+            run.insert(Node::Boolean {
+                op,
+                a,
+                b,
+                declare: pairs,
             })
         });
-        let staged = match staged {
+        let (staged, node) = match staged {
             Ok(staged) => staged,
             Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        let Some(Some(node)) = staged.minted.last().copied() else {
-            unreachable!("the run ends on the boolean's `InsertNode`")
         };
         // Judged before it is recorded: the one recourse to a contact
         // refusal is a declaration in the same action, which cannot be
@@ -2721,22 +2703,12 @@ impl DocSession {
         // takes the root slot the pattern took from the body it
         // replicates; each later projection's input has stopped being a
         // root by then, so it is APPENDED to the root list.
-        self.commit_run(|minted| match minted.split_first() {
-            None => Some(DocEdit::InsertNode {
-                node: Box::new(pattern.clone()),
-            }),
-            Some((Some(pattern), projections)) => i64::try_from(projections.len())
-                .ok()
-                .filter(|index| *index < combine::DUPLICATE_COUNT)
-                .map(|index| DocEdit::InsertNode {
-                    node: Box::new(combine::part_node(
-                        *pattern,
-                        PartSelectSpec::Instance(index),
-                    )),
-                }),
-            Some((None, _)) => {
-                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+        self.commit_run(|run| {
+            let pattern = run.insert(pattern)?;
+            for index in 0..combine::DUPLICATE_COUNT {
+                run.insert(combine::part_node(pattern, PartSelectSpec::Instance(index)))?;
             }
+            Ok(())
         })
     }
 
@@ -2951,31 +2923,34 @@ impl DocSession {
     /// list of them: one run of [`Self::commit_run`], so one user
     /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        let mut edits = edits.into_iter();
-        self.commit_run(|_| edits.next())
+        self.commit_run(|run| {
+            for edit in edits {
+                run.apply(edit)?;
+            }
+            Ok(())
+        })
     }
 
     /// The same door again, for an action whose later edits name the
     /// ids its earlier ones MINTED: [`Self::stage_run`], then
     /// [`Self::record_run`].
-    fn commit_run<F>(&mut self, next: F) -> OpOutcome
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
-        match self.stage_run(next) {
-            Ok(staged) => self.record_run(staged),
+    fn commit_run(
+        &mut self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>,
+    ) -> OpOutcome {
+        match self.stage_run(action) {
+            Ok((staged, ())) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
         }
     }
 
-    /// **An action's edits, applied and not yet recorded.**
+    /// **An action's edits, applied and not yet recorded**, beside what
+    /// `action` answered.
     ///
-    /// `next` is handed what each edit so far minted, in order — an
-    /// `InsertNode`'s new id, `None` for every edit that creates no
-    /// node — and answers with the next edit, or `None` to end the
-    /// run. The slice's LENGTH is how many edits have landed, so a
-    /// caller that only inserts can match on its shape and a caller
-    /// with a fixed list ([`Self::commit_action`]) ignores it.
+    /// `action` records its edits on the [`Recording`] it is handed — an
+    /// insert through [`Recording::insert`], which answers the id it
+    /// minted, so a later edit names the node the door actually
+    /// created.
     ///
     /// **All or nothing**: each edit is applied to the value the last
     /// one produced and nothing is recorded until [`Self::record_run`]
@@ -2983,10 +2958,10 @@ impl DocSession {
     /// drops the staged run — leaves the session on the document it
     /// started from. That is purity doing the work — no rollback
     /// exists to be got wrong.
-    fn stage_run<F>(&self, mut next: F) -> Result<Recorded<ProfileProgram>, Refusal>
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
+    fn stage_run<T>(
+        &self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
+    ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): an inserted
         // mate's clocking rider asks it, and nothing it decides is
@@ -2994,14 +2969,11 @@ impl DocSession {
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         let mut run = Recording::start(self.history.doc(), self.tol, &reach);
-        while let Some(edit) = next(run.minted()) {
-            run.apply(edit)
-                .map_err(|error| Refusal::Edit(Box::new(error)))?;
-        }
-        if run.minted().is_empty() {
+        let answer = action(&mut run).map_err(|error| Refusal::Edit(Box::new(error)))?;
+        if run.is_empty() {
             unreachable!("an action commits at least one edit")
         }
-        Ok(run.finish())
+        Ok((run.finish(), answer))
     }
 
     /// **A staged run, recorded**: the whole run is one history state,

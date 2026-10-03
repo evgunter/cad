@@ -3210,6 +3210,11 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         &self.minted
     }
 
+    /// Whether the action has recorded no edit yet.
+    pub fn is_empty(&self) -> bool {
+        self.edits.is_empty()
+    }
+
     /// Apply `edit` to the document so far and record it. Returns the
     /// id it minted, if any.
     ///
@@ -3335,8 +3340,8 @@ fn check_param_refs<P>(
 ///
 /// **Which document an edit refusal speaks from.** A node the door was
 /// handed is spoken from that document, as it stood before the edit
-/// (`doc` in [`apply_maintaining`], `before` in the helpers it hands
-/// the working copy to), never from the working copy the edit is
+/// (`doc` in [`door`] and the writers it hands the working copy to,
+/// `before` in their helpers), never from the working copy the edit is
 /// writing. A node the edit is minting is spoken by
 /// [`SpokenNode::entering`]. An id neither holds is
 /// [`SpokenNode::absent`]. The one exception is a cluster gauge, which
@@ -4792,7 +4797,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // The offset's rigid steps are the instance's slots, held
             // to the insert door's own checks: dimensions and parameter
             // references. Its literal steps meet the frame rule in the
-            // backstop below, with every other placement's.
+            // backstop `door` holds every edit to, with every other
+            // placement's.
             let probe = new.nodes[instance].clone();
             check_node_slots(new, doc, *instance, &probe)?;
             // Structural: where an instance sits is recipe shape, and it

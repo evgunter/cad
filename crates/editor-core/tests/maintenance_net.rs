@@ -224,8 +224,10 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     };
 
     let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    assert!(action.is_empty(), "a started action has recorded nothing");
     let deleted = action.apply(DocEdit::DeleteNode { id: b });
     assert_eq!(deleted, Ok(None), "a delete mints nothing");
+    assert!(!action.is_empty(), "the delete is recorded");
     let before_refusal = action.doc().clone();
     let refused = action.apply(DocEdit::DeleteNode { id: b });
     assert!(
