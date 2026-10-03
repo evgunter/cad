@@ -1583,6 +1583,22 @@ pub enum BooleanError {
         /// The B-side vertex.
         b_vertex: VertexKey,
     },
+    /// Two vertex-vertex coincidences that share a vertex both cross
+    /// there: an operand holds two vertices at one point (its own
+    /// contact's) and the other operand's vertex at that point crosses
+    /// into both of their neighborhoods. Each pair's null edges would
+    /// split the shared vertex's orbit the other pair read, and the
+    /// insertion handles one crossing pair per vertex.
+    SharedVertexCrossings {
+        /// The operand whose vertex both pairs share.
+        operand: Operand,
+        /// That vertex.
+        vertex: VertexKey,
+        /// Two of the other operand's vertices at its point that it
+        /// crosses into, in classification order: the first two, when
+        /// it crosses into more.
+        partners: [VertexKey; 2],
+    },
     /// A classification invariant failed (e.g. a surviving record
     /// without one IN and one OUT code per side) — a kernel bug
     /// surfaced loudly, not silently mis-joined.
@@ -2099,6 +2115,8 @@ pub enum BooleanErrorKind {
     InvalidDeclaration,
     /// [`BooleanError::PairingMismatch`].
     PairingMismatch,
+    /// [`BooleanError::SharedVertexCrossings`].
+    SharedVertexCrossings,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
     /// [`BooleanError::CorruptOperand`].
@@ -2290,6 +2308,7 @@ impl BooleanError {
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
+            Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -2709,6 +2728,14 @@ impl core::fmt::Display for BooleanError {
                  ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
                  refusal)"
+            ),
+            Self::SharedVertexCrossings { operand, .. } => write!(
+                f,
+                "a corner of the {} solid meets a point where the other solid holds two \
+                 corners that only touch each other, and cuts into both of them; the \
+                 Boolean cannot yet join one corner into two at once. There is no way \
+                 through this in the kernel yet",
+                operand_word(*operand)
             ),
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
@@ -3205,7 +3232,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         covered.extend(out.covered);
     }
 
-    // Vertex-vertex classification.
+    // Vertex-vertex classification, every pair read before the first
+    // insertion: a vertex may sit in more than one pair (an operand
+    // whose own contact left two vertices at one point pairs both with
+    // the other operand's vertex there), and an insertion moves its
+    // vertices' orbits. A pair that crosses nowhere inserts nothing, so
+    // its reading stays good; two that cross at one vertex would each
+    // need the orbit the other moved, and refuse.
+    let mut classified = Vec::with_capacity(contacts.vv.len());
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
@@ -3236,8 +3270,34 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
         )?;
+        classified.push((c, a_sectors, b_sectors, records, raw));
+    }
+    let crosses: Vec<bool> = classified
+        .iter()
+        .map(|(.., records, _)| records.iter().any(sectors::PairRecord::survives))
+        .collect();
+    for (i, c) in contacts.vv.iter().enumerate() {
+        let shared = |d: &VvContact| d.a == c.a || d.b == c.b;
+        if let Some(j) = (0..i).find(|&j| crosses[i] && crosses[j] && shared(&contacts.vv[j])) {
+            let d = contacts.vv[j];
+            return Err(if d.a == c.a {
+                BooleanError::SharedVertexCrossings {
+                    operand: Operand::A,
+                    vertex: c.a,
+                    partners: [d.b, c.b],
+                }
+            } else {
+                BooleanError::SharedVertexCrossings {
+                    operand: Operand::B,
+                    vertex: c.b,
+                    partners: [d.a, c.a],
+                }
+            });
+        }
+    }
+    for (c, a_sectors, b_sectors, records, raw) in &classified {
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
+            &mut a, &mut b, *c, a_sectors, b_sectors, records, raw, &declared, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
@@ -4329,6 +4389,11 @@ mod tests {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
             },
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
@@ -4494,6 +4559,7 @@ mod tests {
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
+                BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
