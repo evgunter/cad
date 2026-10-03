@@ -2,11 +2,12 @@
 id: k-lint-reads-the-boolean-doors-tier-3-at-probe
 kind: issue
 title: k-lint (dev-probe) flags 108 rows with tier 3 at the boolean door: the gate asks chart_bound_outer_span and check 7's quadrature on results and finished operands at Probe
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [boolean-door-adopts-the-finished-body-type, chart-bound-outer-span-decides-a-poisoned-margin, quad-last-round-margin-has-no-sign-premise]
+closed: 2026-10-03
 ---
 
 
@@ -50,3 +51,26 @@ The geometry is not to be changed (`docs/prompts/implementer-discipline.md`
 recording poison), a ruling on `props_quad_last_round`'s rule-(4)
 roster, and a baseline re-derivation per `docs/K-REPORT.md` against a
 sweep with the gate in.
+
+## Closed (2026-10-03): red on main by the same flags, not this door's
+
+The attribution above was by mechanism, and a same-base measurement
+disproves it. `scripts/k_probe_sweep.sh` (past
+`tilted_sphere_pair_k_rows`, as above) then `tools/k-lint` over the 1e-6
+and 1e-9 rows, on `origin/main` 11d9c7a7f and on this branch merged with
+it: both GATE FAILED with **104** flags, identical line for line (shape,
+predicate, margin, rule), and both 1e-12 demo passes stop at
+`lily_leaf_b`. Main's rule-1 count is 41 per row, not the nightly's
+recorded 9: the nine are old.
+
+The branch's earlier 108 had four more `demo/tiltedcut:chart_bound_outer_span`
+rows: the tour finished the tilted cut's two split halves, which no
+boolean takes, so tier 3 ran on two more bodies with a periodic-chart
+face at `Probe`. The halves are finished only where the walls use them
+as operands (`demos/tour/src/curvedcut.rs`). The gate adds samples
+(1.58 M to 2.87 M per row) and no flag.
+
+The red row is main's: CHART's
+`chart-bound-outer-span-decides-a-poisoned-margin` (whose readings may be
+a design fork), the `props_quad_*` roster ruling, and
+`demo/table:volume_backstop`.

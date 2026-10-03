@@ -108,11 +108,11 @@ CHART — `crates/topo/src/chart_bound.rs` is chart's territory
 which measured but does not fix kernel geometry, and does not own
 reading 3's question either.
 
-## 2026-10-03 — more rows with tier 3 at the boolean door (REACH)
+## 2026-10-03 — main's count (REACH)
 
-With the boolean door gating its result at tier 3 and callers finishing
-operands (`boolean-door-adopts-the-finished-body-type`), the sweep
-records 43 `chart_bound_outer_span` rule-1 flags per ε row (1e-6, 1e-9):
-projectbox_cutaway 16, tiltedcut 12, lily_walls 6, lily 3, bossplate 3,
-boss_union 3. Tier 3 asks the predicate on every body it validates.
-`work/reach/k-lint-reads-the-boolean-doors-tier-3-at-probe.md`.
+On `origin/main` 11d9c7a7f the sweep records 41
+`chart_bound_outer_span` rule-1 flags per ε row (1e-6, 1e-9):
+projectbox_cutaway 16, tiltedcut 10, lily_walls 6, lily 3, bossplate 3,
+boss_union 3 — not the nine above. The boolean door's tier-3 gate
+(`boolean-door-adopts-the-finished-body-type`) leaves them identical
+(`work/reach/k-lint-reads-the-boolean-doors-tier-3-at-probe.md`).
