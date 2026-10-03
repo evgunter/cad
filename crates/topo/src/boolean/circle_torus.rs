@@ -15,7 +15,11 @@
 //! ladder ([`super::circle_roots::half_angle_roots`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
-//! (bicircular) torus pass. At most four crossings per turn.
+//! (bicircular) torus pass. At most four crossings per turn. The
+//! harmonics are read from the conic's one home
+//! ([`geom_brep::ConicTorusHarmonics`], of degree four on an ellipse);
+//! on a circle its third and fourth harmonics are rounding, charged to
+//! the noise.
 //!
 //! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
 //! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
@@ -176,7 +180,6 @@ pub(super) fn circle_torus_roots<T: Decide>(
         });
     };
     let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
     let v_ref = axis.cross(u_ref);
     let w0 = center - t_center;
     let point_at = |theta: T| {
@@ -252,33 +255,28 @@ pub(super) fn circle_torus_roots<T: Decide>(
         };
     }
 
-    // `F` along the carrier as a degree-2 trigonometric polynomial about
-    // `θ = 0`, from `S = S₀ + S₁c cos θ + S₁s sin θ` and
-    // `h = H₀ + H₁c cos θ + H₁s sin θ` (module docs), using
-    // `(x cos θ + y sin θ)² = (x² + y²)/2 + (x² − y²)/2·cos 2θ + x y sin 2θ`.
-    let half = T::from_f64(0.5);
-    let rr = major_radius.powi(2);
-    let four_rr = four * rr;
-    let s_k = w0.norm_squared() + radius.powi(2) + rr - minor_radius.powi(2);
-    let s0 = w0.norm_squared() + radius.powi(2);
-    let (s1c, s1s) = (two * radius * w0.dot(u_ref), two * radius * w0.dot(v_ref));
-    let (h1c, h1s) = (radius * u_ref.dot(t_axis), radius * v_ref.dot(t_axis));
+    // `F` along the carrier from its one home
+    // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
+    // third and fourth harmonics no more than the frame's rounding, which
+    // the noise carries.
+    let h = geom_brep::conic_torus_harmonics(
+        &geom_brep::Conic::circle(center, axis, radius, u_ref),
+        t_center,
+        t_axis,
+        major_radius,
+        minor_radius,
+    );
+    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = Harmonics {
-        c0: s_k.powi(2) + (s1c.powi(2) + s1s.powi(2)) * half
-            - four_rr * (s0 - h0.powi(2) - (h1c.powi(2) + h1s.powi(2)) * half),
-        c1: two * s_k * s1c - four_rr * (s1c - two * h0 * h1c),
-        s1: two * s_k * s1s - four_rr * (s1s - two * h0 * h1s),
-        c2: (s1c.powi(2) - s1s.powi(2)) * half + four_rr * (h1c.powi(2) - h1s.powi(2)) * half,
-        s2: s1c * s1s + four_rr * h1c * h1s,
+        c0: h.cos[0],
+        c1: h.cos[1],
+        s1: h.sin[1],
+        c2: h.cos[2],
+        s2: h.sin[2],
     };
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
-    // The noise meter's inputs: a bound on every term the harmonics are
-    // built from, and the torus's floor on `|F|` per metre of residual.
-    let s_abs = s_k.abs() + s1c.abs() + s1s.abs();
-    let h_abs = h0.abs() + h1c.abs() + h1s.abs();
-    let terms = s_abs.powi(2) + four_rr * (s0.abs() + s1c.abs() + s1s.abs() + h_abs.powi(2));
-    let f_per_metre = two * minor_radius * (rr - minor_radius.powi(2));
     half_angle_roots(
         &harmonics,
         |theta| geom_brep::implicit_residual(torus, point_at(theta)),
@@ -288,8 +286,8 @@ pub(super) fn circle_torus_roots<T: Decide>(
             speed_lo: radius,
             speed_hi: radius,
             lever,
-            noise: rounding_charge(terms),
-            f_per_metre,
+            noise: rounding_charge(h.terms) + dropped,
+            f_per_metre: h.f_per_metre_lo,
         },
         &CIRCLE_TORUS_ROWS,
         band,

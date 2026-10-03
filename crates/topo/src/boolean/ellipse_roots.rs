@@ -1467,7 +1467,8 @@ mod torus_rows {
     /// answer — to the file `CAD_ELLIPSE_TORUS_DUMP` names;
     /// `scripts/oracles/ellipse_torus_mpmath.py` then re-solves each pose
     /// at 40 digits and checks the count, every root's place along the
-    /// arc, and every `Miss`. Run:
+    /// arc, every `Miss`, and the residual's running rounding bound at
+    /// every certified root ([`geom_brep::conic_torus_residual`]). Run:
     /// `CAD_ELLIPSE_TORUS_DUMP=/tmp/et.jsonl cargo nextest run -p topo --lib
     /// --run-ignored only dump_for_the_mpmath_oracle`, then
     /// `python3 scripts/oracles/ellipse_torus_mpmath.py /tmp/et.jsonl`.
@@ -1509,6 +1510,21 @@ mod torus_rows {
                         Ok(CircleRoots::Uncertain) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
+                    let conic = geom_brep::Conic::of(&e).expect("an ellipse");
+                    let bounds: Vec<[f64; 2]> = roots
+                        .iter()
+                        .map(|&t| {
+                            let r = geom_brep::conic_torus_residual(
+                                &conic,
+                                *hub,
+                                *t_axis,
+                                *major_radius,
+                                *minor_radius,
+                                t,
+                            );
+                            [r.value, r.error]
+                        })
+                        .collect();
                     let v = |p: Vec3<f64>| format!("[{:?}, {:?}, {:?}]", p.x, p.y, p.z);
                     let pt = |p: Point3<f64>| format!("[{:?}, {:?}, {:?}]", p.x, p.y, p.z);
                     writeln!(
@@ -1516,7 +1532,8 @@ mod torus_rows {
                         "{{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
                          \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
-                         \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}}}",
+                         \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
+                         \"residuals\": {bounds:?}}}",
                         pt(*center),
                         v(*axis),
                         v(*u_ref),

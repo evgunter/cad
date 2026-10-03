@@ -2819,6 +2819,96 @@ mod conic_tests {
 
     use super::*;
 
+    /// **The torus implicit along a conic is the degree-4 polynomial the
+    /// harmonics spell.** Against tori in several poses, for every
+    /// ellipse here, a circle, and a frame that is not orthonormal, the
+    /// polynomial read from [`conic_torus_harmonics`] agrees with
+    /// `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)` evaluated at the
+    /// carrier's own points to within the rounding charged against its
+    /// term bound; on the circle its third and fourth harmonics are
+    /// rounding too. And `F = 2r·res·Q` places `|F| / |res|` between the
+    /// two floors it reports, away from the surface's own zero set.
+    #[test]
+    fn the_torus_harmonics_are_the_implicit_along_the_carrier() {
+        let tori = [
+            (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                0.55,
+                0.2,
+            ),
+            (
+                Point3::new(0.3, -0.1, 0.4),
+                Vec3::new(0.2, 1.0, -0.3).normalize(),
+                1.1,
+                0.35,
+            ),
+        ];
+        let mut conics = ellipses();
+        conics.push(Conic::circle(
+            Point3::new(0.2, 0.1, -0.1),
+            Vec3::new(0.0, 0.6, 0.8),
+            0.7,
+            Vec3::new(1.0, 0.0, 0.0),
+        ));
+        let skewed = Conic {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..conics[0]
+        };
+        conics.push(skewed);
+        for (k, conic) in conics.iter().enumerate() {
+            for &(c, ax, big, small) in &tori {
+                let h = conic_torus_harmonics(conic, c, ax, big, small);
+                let noise = rounding_charge(h.terms);
+                for j in 0..64 {
+                    let t = TAU * f64::from(j) / 64.0;
+                    let q = conic.point(t) - c;
+                    let (s, hh) = (q.norm_squared(), q.dot(ax));
+                    let direct =
+                        (s + big * big - small * small).powi(2) - 4.0 * big * big * (s - hh * hh);
+                    let poly = (0..5).fold(0.0, |acc, m| {
+                        let (sm, cm) = (f64::from(m) * t).sin_cos();
+                        acc + h.cos[m as usize] * cm + h.sin[m as usize] * sm
+                    });
+                    assert!(
+                        (poly - direct).abs() <= noise,
+                        "conic {k}: at {t} the polynomial reads {poly}, the implicit {direct}"
+                    );
+                    let res = implicit_residual(
+                        &Surface::Torus {
+                            center: c,
+                            axis: ax,
+                            major_radius: big,
+                            minor_radius: small,
+                            u_ref: Vec3::new(1.0, 0.0, 0.0),
+                        },
+                        conic.point(t),
+                    );
+                    if res.abs() > 1e-6 {
+                        let ratio = direct.abs() / res.abs();
+                        assert!(
+                            ratio >= h.f_per_metre_lo * (1.0 - 1e-9)
+                                && ratio <= h.f_per_metre_hi * (1.0 + 1e-9),
+                            "conic {k}: |F|/|res| = {ratio} outside [{}, {}]",
+                            h.f_per_metre_lo,
+                            h.f_per_metre_hi
+                        );
+                    }
+                }
+                if k == conics.len() - 2 {
+                    for m in 3..5 {
+                        assert!(
+                            h.cos[m].abs() <= noise && h.sin[m].abs() <= noise,
+                            "the circle's harmonic {m}: {} {}",
+                            h.cos[m],
+                            h.sin[m]
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// Unit, orthogonal frames at several tilts and eccentricities, in
     /// every stored order and sign.
     fn ellipses() -> Vec<Conic<f64>> {

@@ -16,7 +16,10 @@ closer than the sampling step), is refined by bisection. Then:
 
 - a certified count must equal the true count, and each certified root must lie
   within the band's zero, as arc length, of a true root;
-- a `miss` must have no true root, and a least distance past the band's zero.
+- a `miss` must have no true root, and a least distance past the band's zero;
+- at each certified root, the residual `(d^2 + h^2 - r^2)/2r` the door evaluated
+  must lie within its running rounding bound of the exact one
+  (`geom_brep::conic_torus_residual`).
 
 It prints the worst root error in units of the zero band, per family and band,
 and exits non-zero on any violation. Run: `python3 scripts/oracles/ellipse_torus_mpmath.py <dump>`.
@@ -71,6 +74,14 @@ class Pose:
         w = [q[i] - self.ax[i] * h for i in range(3)]
         rho = mp.sqrt(dot(w, w))
         return mp.hypot(rho - self.big, h) - self.small
+
+    def residual(self, t):
+        p = self.point(t)
+        q = [p[i] - self.hub[i] for i in range(3)]
+        h = dot(q, self.ax)
+        w = [q[i] - self.ax[i] * h for i in range(3)]
+        d = mp.sqrt(dot(w, w)) - self.big
+        return (d * d + h * h - self.small * self.small) / (2 * self.small)
 
     def speed(self, t):
         return mp.hypot(self.a * mp.sin(t), self.b * mp.cos(t))
@@ -149,6 +160,10 @@ def main(path):
                 failures.append(f"{label}: a miss with {len(roots)} true roots, least distance {mp.nstr(least, 5)}")
             continue
         got = [mpf(t) for t in d["roots"]]
+        for t, (value, bound) in zip(got, d["residuals"]):
+            off = abs(mpf(value) - pose.residual(t))
+            if off > mpf(bound):
+                failures.append(f"{label}: residual {value} at {mp.nstr(t, 17)} is {mp.nstr(off, 5)} off, bound {bound}")
         if len(got) != len(roots):
             failures.append(f"{label}: {len(got)} certified roots, {len(roots)} true")
             continue

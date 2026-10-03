@@ -89,6 +89,13 @@
 //! clear or monotone, each root bisected and read ON the surface, a
 //! tangency `Uncertain`).
 //!
+//! The subdivision is not bound to degree two: a residual of degree `N`
+//! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
+//! noise bounds read every harmonic up to `N`. An ellipse against a
+//! torus's implicit is of degree four, an octic in the half-angle with no
+//! ladder, and the ellipse door hands it to the subdivision alone
+//! ([`super::ellipse_roots`]) with a root-slack meter ([`RootSlack`]).
+//!
 //! **The ladder runs first, for its escalations only.** Under the
 //! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
 //! which the ray lane's certified quartic ladder decides; an in-band
@@ -532,10 +539,11 @@ const HARMONIC_INDEX: [f64; MAX_DEGREE + 1] = [0.0, 1.0, 2.0, 3.0, 4.0];
 /// to reach the scalar's resolution from a sixteenth of a turn.
 const BISECTIONS: u32 = 64;
 
-/// **The certified real roots of a degree-2 trigonometric polynomial
-/// `F(θ)` over the whole turn about the arc's midpoint, by subdivision
-/// decided in the RESIDUAL's metres.** It is [`half_angle_roots`]'
-/// answer; the ladder before it keeps only its escalations.
+/// **The certified real roots of a trigonometric polynomial `F(θ)` of
+/// degree `N ≤ MAX_DEGREE` over the whole turn about the arc's midpoint,
+/// by subdivision decided in the RESIDUAL's metres.** It is
+/// [`half_angle_roots`]' answer at `N = 2`, the ladder before it keeping
+/// only its escalations, and the ellipse × torus door's at `N = 4`.
 ///
 /// Why it is needed: the ladder decides on a quartic in a root variable
 /// whose length is arc length only to first order about the anchor, and
@@ -548,7 +556,7 @@ const BISECTIONS: u32 = 64;
 ///
 /// What it decides instead is Taylor's theorem about the piece's
 /// midpoint `m`, with the derivatives there to third order and the one
-/// global bound the harmonics give exactly, `|F⁗| ≤ M₄ = A₁ + 16A₂`. The
+/// global bound the harmonics give exactly, `|F⁗| ≤ M₄ = Σ k⁴Aₖ`. The
 /// turn is cut into pieces whose every end has a DEFINITE residual sign
 /// (a cut that would land in the band is moved along its piece). On a
 /// piece of half-width `w`:
@@ -563,7 +571,9 @@ const BISECTIONS: u32 = 64;
 ///   piece holds at most one root, and holds one exactly when its ends'
 ///   signs differ; that root is bisected on the residual itself to the
 ///   scalar's resolution and must then read ON the surface (`side`,
-///   `Zero`), or the answer is `Uncertain`;
+///   `Zero`), or the answer is `Uncertain` — and, where the caller hands
+///   a [`RootSlack`] meter, its slack must be definitely inside the band
+///   too;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
 ///   holds a double root — a tangency — and the answer is `Uncertain`,
@@ -572,8 +582,8 @@ const BISECTIONS: u32 = 64;
 /// `F` shares the residual's sign; its margins are in metres through
 /// `f_per_metre`. The harmonics are rounded: `F` read from them is the
 /// true one to within `noise`, so its `k`-th derivative to within
-/// `2ᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
-/// degree 2), and each Taylor term above is charged its own share.
+/// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
+/// degree `N`), and each Taylor term above is charged its own share.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 pub(super) fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,
@@ -675,7 +685,7 @@ pub(super) fn certified_subdivision<T: Decide>(
         // The true `F`'s derivatives at `m`, each read from the rounded
         // harmonics and widened by its own share of their error: `k`
         // derivatives of an error bounded by `noise` are bounded by
-        // `2ᵏ·noise` (Bernstein's inequality, degree 2).
+        // `Nᵏ·noise` (Bernstein's inequality, degree `N`).
         let (d1, d2, d3) = (slope(m).abs(), bend(m).abs(), jerk(m).abs());
         let (d1_lo, d1_hi) = (d1 - deg * noise, d1 + deg * noise);
         let d2_hi = d2 + deg.powi(2) * noise;
@@ -743,7 +753,7 @@ pub(super) fn certified_subdivision<T: Decide>(
     // times, and every change on a monotone piece was bisected; an odd
     // count therefore means a change on a piece read CLEAR — the residual
     // and its harmonics disagreeing by more than `noise` — and more than
-    // four is more than a degree-2 polynomial has. Either way a root was
+    // `2N` is more than a degree-`N` polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Ok(CircleRoots::Uncertain);

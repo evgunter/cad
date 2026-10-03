@@ -1617,10 +1617,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// harmonic bounds and the arc's own chord-dip bound), so a definitely
 /// one-sided arc clears. What definitely MEETS the face is split by
 /// kind, and the third paragraph below is the statement of record: a
-/// LINE or a CIRCLE carrier against a CYLINDER wall, a SPHERE or a
-/// TORUS, and an ELLIPSE against a cylinder wall or a sphere, is routed
-/// through the certified roots and pierces; everything else — a
-/// tangency, a cone, an ellipse against a torus, an undeclared
+/// LINE, a CIRCLE or an ELLIPSE carrier against a CYLINDER wall, a
+/// SPHERE or a TORUS is routed through the certified roots and pierces;
+/// everything else — a tangency, a cone, an undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
@@ -1730,9 +1729,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// [`super::circle_cylinder`]; a circle square to the wall's axis is a
 /// first harmonic again, and takes the square arm, the first-harmonic door).
 /// An ELLIPSE against a sphere or a cylinder wall is a degree-2
-/// trigonometric polynomial in its eccentric anomaly too
-/// ([`super::ellipse_roots`]). Every degree-2 door's answer is the
-/// certified subdivision's, decided on the residual itself
+/// trigonometric polynomial in its eccentric anomaly too, and against a
+/// torus one of degree four ([`super::ellipse_roots`]). Every such door's
+/// answer is the certified subdivision's, decided on the residual itself
 /// ([`super::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
 /// through a one-sided cover arm — those rest on a line's separation
@@ -3002,8 +3001,9 @@ enum SpanVerdict<T: geom_core::Real> {
 /// The curved-wall crossing route: solve the certified roots — a
 /// line's quadratic on a cylinder wall or a sphere, its quartic on a
 /// torus, a circle's closed form on a sphere and its half-angle quartic
-/// on a torus or a cylinder wall, an ellipse's half-angle quartic on a
-/// sphere or a cylinder wall — keep the roots the EDGE's
+/// on a torus or a cylinder wall, an ellipse's degree-2 residual on a
+/// sphere or a cylinder wall and its degree-4 one on a torus — keep the
+/// roots the EDGE's
 /// span carries strictly inside, and place the landing point in the
 /// face's trim.
 ///
