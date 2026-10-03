@@ -811,8 +811,7 @@ fn assert_encloses_corners(
     opts: &EvalOptions,
     ev: &Evaluation<Interval>,
     node: RecipeNodeId,
-    param: ParamName,
-    nominal: f64,
+    (param, nominal): (ParamName, f64),
     (lo, hi): (f64, f64),
     what: &str,
 ) {
@@ -1001,8 +1000,7 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
             &b.opts,
             &ev,
             node,
-            spacing(),
-            SPACING,
+            (spacing(), SPACING),
             (lo, hi),
             "the bolted box, evaluated",
         );
@@ -1104,8 +1102,7 @@ fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
             &l.opts,
             &ev,
             node,
-            gap(),
-            GAP,
+            (gap(), GAP),
             (lo, hi),
             "the lifted box, evaluated",
         );
@@ -1177,8 +1174,7 @@ fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
             &b.opts,
             &ev,
             node,
-            spacing(),
-            SPACING,
+            (spacing(), SPACING),
             (lo, hi),
             "the face-seated box, evaluated",
         );
@@ -1257,10 +1253,7 @@ fn structure<T: editor_core::EvalScalar>(
 /// fault the fault's — never its numbers, which are the lane's.
 fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
     let full = format!("{r:?}");
-    full.split(|c: char| c == '{' || c == '(')
-        .take(4)
-        .collect::<Vec<_>>()
-        .join("|")
+    full.split(['{', '(']).take(4).collect::<Vec<_>>().join("|")
 }
 
 /// **An interval lane's structure is the `f64` one's, or an escalation
