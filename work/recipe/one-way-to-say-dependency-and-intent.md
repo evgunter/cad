@@ -116,3 +116,5 @@ Part 3 (non-structural Zero coincidences glue and are linted):
 `git show fae23dbc71:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-3.md`.
 Part 4 (the `unproven-coincidence` lint):
 `git show c4158a079c:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-4.md`.
+Part 5 (the principle states only the margin; the lint checks structure):
+`git show da589659c0:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-5.md`.
