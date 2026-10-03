@@ -9,9 +9,15 @@
 //!
 //! 1. **excluded** — a certified enclosure of `f₁` (or `f₂`, or the
 //!    chart form `φ`) over the cell does not contain zero, so no
-//!    solution can be in it;
+//!    solution can be in it (on the chart lane, the boundary pass's
+//!    mean-value enclosure over a cell beside the wall's boundary
+//!    counts too);
 //! 2. **accounted** — the cell lies inside a found branch's uniqueness
-//!    tube, where limb 3 already proved there is exactly one arc;
+//!    tube, where limb 3 already proved there is exactly one arc, or
+//!    inside a boundary contact's certified region, where the boundary
+//!    pass proved the solution set lies within the region's reach of
+//!    a corner or side of the wall (at a corner, at most one arc)
+//!    (`super::boundary`); the receipt counts the two apart;
 //! 3. **refine** — split and recurse.
 //!
 //! At the named floor [`SSI_FLOOR`]·ε a cell that is still in state 3
@@ -241,10 +247,15 @@ pub struct Exhaustiveness {
     pub excluded: u32,
     /// Cells proved to lie inside a found branch's uniqueness tube.
     pub accounted: u32,
+    /// Cells proved to lie inside a boundary contact's certified region
+    /// ([`super::SsiBoundaryContact`]): within the region's reach of a
+    /// corner or side of the wall.
+    pub contact: u32,
     /// Cells that were neither, and were split — the interior nodes of
     /// the subdivision tree. Reported so the receipt adds up:
-    /// `examined == excluded + accounted + refined`, with every LEAF in
-    /// one of the first two. That identity is the theorem.
+    /// `examined == excluded + accounted + contact + refined`, with
+    /// every LEAF in one of the first three. That identity is the
+    /// theorem.
     ///
     /// It holds for every receipt that escapes this module, because only
     /// the accounting duty returns one: there, a leaf is excluded,
@@ -277,9 +288,14 @@ impl core::fmt::Display for Exhaustiveness {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "ssi exhaustiveness: {} cells to depth {} — {} excluded, {} accounted, \
-             {} refined — ",
-            self.examined, self.max_depth, self.excluded, self.accounted, self.refined
+            "ssi exhaustiveness: {} cells to depth {} — {} excluded, {} accounted by a \
+             branch, {} by a boundary contact region, {} refined — ",
+            self.examined,
+            self.max_depth,
+            self.excluded,
+            self.accounted,
+            self.contact,
+            self.refined
         )?;
         match self.lane {
             ExhaustLane::R3 => write!(
@@ -354,6 +370,11 @@ pub enum FloorKind {
     /// The accounting floor, a multiple of ε ([`SSI_FLOOR`]): the proof
     /// obligation's.
     Accounting,
+    /// The accounting floor in metres, minted again over one boundary
+    /// curve's parameter domain at that curve's own speed: the width the
+    /// boundary section isolates its roots to
+    /// ([`crate::boundary_section`]).
+    Section,
 }
 
 impl FloorKind {
@@ -361,6 +382,7 @@ impl FloorKind {
         match self {
             Self::Seeding => "seeding floor",
             Self::Accounting => "accounting floor",
+            Self::Section => "boundary section floor",
         }
     }
 }
@@ -558,6 +580,30 @@ impl SweepFloor<UvRect> {
     }
 }
 
+impl SweepFloor<ParamSpan> {
+    /// A boundary curve's section floor over its parameter domain
+    /// `root`: `meters` divided into the curve's parameter units by
+    /// `speed`, a certified sup of the curve's speed.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] as [`SweepFloor::mint`].
+    pub(crate) fn section(
+        root: ParamSpan,
+        meters: f64,
+        speed: SupSpeed<f64>,
+    ) -> Result<Self, SsiError> {
+        let lane = ExhaustLane::Chart { speed };
+        Self::mint(
+            root,
+            lane,
+            FloorKind::Section,
+            meters,
+            speed.to_param(meters),
+        )
+    }
+}
+
 impl<C: SweepCell> SweepFloor<C> {
     /// The one door.
     ///
@@ -634,22 +680,57 @@ enum SweepDuty<'a, C> {
     /// Return the centers of the cells that survived exclusion.
     Seed,
     /// Prove every leaf is excluded or lies inside one of these
-    /// uniqueness tubes; refuse at the floor otherwise.
+    /// uniqueness tubes or contact regions; refuse at the floor
+    /// otherwise.
     Account {
         /// The uniqueness tubes limb 3 banked, in the floor's lane's
         /// units.
         tubes: &'a [C],
+        /// The certified regions of the boundary contacts, in the same
+        /// units.
+        regions: &'a [C],
+        /// Cells the boundary pass proved the plane misses, by the same
+        /// mean-value enclosure the exclusion reads: a distance of one
+        /// sign at the boundary and a slope carrying it further from
+        /// zero inward.
+        clear: &'a [C],
     },
 }
 
+/// Which certificate accounts for a cell ([`SweepDuty::accounts`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Accounted {
+    /// The boundary pass's enclosure: no solution in it.
+    Clear,
+    /// A found branch's uniqueness tube.
+    Tube,
+    /// A boundary contact's certified region.
+    Contact,
+}
+
 impl<C: SweepCell> SweepDuty<'_, C> {
-    /// Whether limb 3 has already proved what is in this cell. Seeding
-    /// proves nothing about any cell, so the answer is `false` because
-    /// of the duty — not because a tube set happens to be empty.
-    fn accounts(self, cell: C) -> bool {
+    /// Whether limb 3 or the boundary pass has already proved what is in
+    /// this cell, and which. Seeding proves nothing about any cell, so
+    /// the answer is `None` because of the duty — not because a tube
+    /// set happens to be empty.
+    fn accounts(self, cell: C) -> Option<Accounted> {
         match self {
-            Self::Seed => false,
-            Self::Account { tubes } => tubes.iter().any(|t| cell.contained_in(*t)),
+            Self::Seed => None,
+            Self::Account {
+                tubes,
+                regions,
+                clear,
+            } => {
+                if clear.iter().any(|c| cell.contained_in(*c)) {
+                    Some(Accounted::Clear)
+                } else if tubes.iter().any(|t| cell.contained_in(*t)) {
+                    Some(Accounted::Tube)
+                } else if regions.iter().any(|r| cell.contained_in(*r)) {
+                    Some(Accounted::Contact)
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -725,6 +806,7 @@ struct SweepTally {
     examined: u32,
     excluded: u32,
     accounted: u32,
+    contact: u32,
     refined: u32,
     max_depth: u32,
 }
@@ -738,6 +820,7 @@ impl SweepTally {
             examined: self.examined,
             excluded: self.excluded,
             accounted: self.accounted,
+            contact: self.contact,
             refined: self.refined,
             max_depth: self.max_depth,
             floor,
@@ -782,10 +865,22 @@ fn sweep<C: SweepCell>(
             stats.excluded += 1;
             continue;
         }
-        // (ii) accounted: inside a found branch's uniqueness tube.
-        if duty.accounts(cell) {
-            stats.accounted += 1;
-            continue;
+        // (ii) accounted: inside a found branch's uniqueness tube, or
+        // a boundary contact's certified region.
+        match duty.accounts(cell) {
+            Some(Accounted::Clear) => {
+                stats.excluded += 1;
+                continue;
+            }
+            Some(Accounted::Tube) => {
+                stats.accounted += 1;
+                continue;
+            }
+            Some(Accounted::Contact) => {
+                stats.contact += 1;
+                continue;
+            }
+            None => {}
         }
         // (iii) refine, unless we are at the floor.
         if cell.width() <= width {
@@ -849,7 +944,12 @@ pub(crate) fn account_r3(
     tubes: &[Box3],
     floor: SweepFloor<Box3>,
 ) -> Result<Exhaustiveness, SsiError> {
-    let (tally, _) = sweep_r3(s1, s2, floor, SweepDuty::Account { tubes })?;
+    let duty = SweepDuty::Account {
+        tubes,
+        regions: &[],
+        clear: &[],
+    };
+    let (tally, _) = sweep_r3(s1, s2, floor, duty)?;
     Ok(tally.receipt(floor.lane, floor.width()))
 }
 
@@ -966,6 +1066,64 @@ impl SweepCell for UvRect {
     }
 }
 
+/// The boundary pass's refusal of a wall it cannot evaluate along a side:
+/// the same fact as the chart sweep's enclosure refusal, met first.
+pub(crate) const SIDE_ENCLOSURE_REFUSED: &str = "the NURBS control-net enclosure refused along a \
+     side of the wall — a weight so small that the rational's own denominator underflows to zero";
+
+/// An interval of a boundary curve's parameter — the section lane's
+/// cell ([`crate::boundary_section`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ParamSpan {
+    /// The interval's ends, in the curve's parameter units.
+    pub t: (f64, f64),
+}
+
+impl SweepCell for ParamSpan {
+    /// A surviving cell at the floor hands back itself: the section
+    /// reads the cluster of survivors around each root, not a seed.
+    type Seed = ParamSpan;
+
+    fn width(self) -> f64 {
+        self.t.1 - self.t.0
+    }
+    fn seed(self) -> ParamSpan {
+        self
+    }
+    fn split(self) -> (Self, Self) {
+        let m = 0.5 * (self.t.0 + self.t.1);
+        (Self { t: (self.t.0, m) }, Self { t: (m, self.t.1) })
+    }
+    fn contained_in(self, o: Self) -> bool {
+        o.t.0 <= self.t.0 && self.t.1 <= o.t.1
+    }
+    fn reach(self) -> f64 {
+        max_bound(self.t.0.abs(), self.t.1.abs())
+    }
+    fn finest_at(reach: f64) -> Self {
+        Self {
+            t: (reach.next_down(), reach),
+        }
+    }
+}
+
+/// **Root isolation on a boundary curve**: the cells of the floor's
+/// parameter interval at the floor that `excluded` does not clear, in
+/// ascending order. The same recursion as the two lanes' sweeps, asked
+/// for its seeding duty, since a survivor here is where a root may be,
+/// not a proof obligation.
+///
+/// # Errors
+///
+/// [`SsiError::CellBudget`], and whatever `excluded` refuses.
+pub(crate) fn isolate_section(
+    floor: SweepFloor<ParamSpan>,
+    excluded: impl Fn(ParamSpan) -> Result<bool, SsiError>,
+) -> Result<Vec<ParamSpan>, SsiError> {
+    let (_, cells) = sweep(floor, SweepDuty::Seed, excluded)?;
+    Ok(cells)
+}
+
 /// **Seed generation**, chart lane: the centers of the parameter cells
 /// that survived exclusion against the plane.
 ///
@@ -990,9 +1148,11 @@ pub(crate) fn seed_chart_plane(
 }
 
 /// **The accounting proof**, chart lane: every leaf of the floor's
-/// parameter rectangle is excluded or lies inside one of `tubes`; a
-/// cell that is neither, at the floor, is the typed refusal — `tubes`
-/// empty included.
+/// parameter rectangle is excluded — by its own enclosure, or inside
+/// one of the boundary pass's `clear` cells — or lies inside one of
+/// `tubes` or of the boundary contacts' `regions`; a cell that is none
+/// of these, at the floor, is the typed refusal — every set empty
+/// included.
 ///
 /// The floor carries the certified chart speed of `surface` that
 /// crossed the caller's metres into chart units, and hands it on to
@@ -1006,6 +1166,8 @@ pub(crate) fn account_chart_plane(
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
     tubes: &[UvRect],
+    regions: &[UvRect],
+    clear: &[UvRect],
     floor: SweepFloor<UvRect>,
 ) -> Result<Exhaustiveness, SsiError> {
     let (tally, _) = sweep_chart_plane(
@@ -1013,7 +1175,11 @@ pub(crate) fn account_chart_plane(
         plane_origin,
         plane_normal,
         floor,
-        SweepDuty::Account { tubes },
+        SweepDuty::Account {
+            tubes,
+            regions,
+            clear,
+        },
     )?;
     Ok(tally.receipt(floor.lane, floor.width()))
 }

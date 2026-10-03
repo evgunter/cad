@@ -53,3 +53,15 @@ Whether the final crossing should replace a last state that lies
 within some fraction of a step of it (as the closure path already does
 for a state essentially on the seed), or the fit should take the
 uneven chord some other way. Either is a stepper or fit choice.
+
+## The plane × NURBS lane (PR 3862)
+
+The boundary pass retired `push_boundary` on this lane: a branch ends at
+the crossing the pass certified, and `ssi/ends.rs`'s `close_at` lets a
+last marched state nearer that crossing than half its own step give way
+to it. The fixture above (as `m5_pr7_ssi.rs`'s
+`a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies`)
+certifies at every δ in the table at ε 1e-6, 1e-9 and 1e-12. What is
+left is the ℝ³ lane, whose `push_boundary` still appends the bisected
+slab crossing however close it lies to the last state; that lane's slab
+is itself in question (`ssi-r3-slab-is-not-geometry`).
