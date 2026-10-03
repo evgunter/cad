@@ -499,3 +499,8 @@ mod tests {
         the_row_reads_the_arcs_region::<Interval>("Interval");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[path = "spiric_arc_review.rs"]
+mod review;
