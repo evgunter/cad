@@ -3267,9 +3267,12 @@ class DocEdit:
 
         Refuses `set_declare_on_non_declaring` on a node that is
         neither a boolean nor a union, `unknown_node` for a node the
-        document does not hold, and the name checks an insert runs
+        document does not hold, the name checks an insert runs
         (`declare_names_missing_node`, `name_step_never_minted`,
-        `read_site_missing_node`)."""
+        `read_site_missing_node`), and the pair rule an insert asks:
+        `declared_site_not_an_operand` for a pair read at a node that
+        is not one of `node`'s operands, `declared_name_not_upstream`
+        for a name not minted before `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
@@ -3773,16 +3776,21 @@ class Doc:
         """
 
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
-        """Declare ONE inspected finding on the live boolean or union
-        `node`: its whole declared-pair list becomes that finding's
-        pair (the detect/declare protocol's declare arm). Raises
+        """ADD one inspected finding's pair to the declared pairs of the
+        live boolean or union `node`, keeping every pair it declares
+        already (the detect/declare protocol's declare arm, and the
+        door an `undeclared_coincidence` refusal's recourse names:
+        following each refusal with its `finding` converges). A pair on
+        the same two sides as one already declared replaces it. Raises
         EditError, typed: `set_declare_on_non_declaring` on a node
-        that is neither a boolean nor a union, `unknown_node`, and the
-        name checks an insert runs."""
+        that is neither a boolean nor a union, `unknown_node`,
+        `declared_site_not_an_operand` for a finding inspected between
+        other operands than `node`'s, and the name checks an insert
+        runs."""
 
     def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
-        """`declare` for a SET of findings, replacing `node`'s whole
-        declared-pair list — arity, not fusion. An empty list raises
+        """Set `node`'s whole declared-pair list to a SET of findings —
+        `DocEdit.set_declare`'s replace, where `declare` adds. An empty list raises
         EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
         the spelling that clears."""
     @property

@@ -939,14 +939,11 @@ impl Doc {
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// The declare doors' shared body: the kernel's own declare sugar
-    /// (`pncad::select::declare_all`) sets the findings as `node`'s
-    /// whole declared-pair list, and its acceptance — the new
-    /// document, its record and its (empty) maintenance — is taken up
-    /// whole through the swap point. Every `DeclareError` arm reaches
-    /// Python through the same `declare_err`.
-    /// Accept a declare door's edit through the `accept` swap point, or
-    /// raise its refusal.
+    /// The declare doors' shared tail: the kernel declare sugar's
+    /// acceptance — the new document, its record and its (empty)
+    /// maintenance — is taken up whole through the swap point, and
+    /// every `DeclareError` arm reaches Python through the same
+    /// `declare_err`.
     fn accept_declared(
         &mut self,
         py: Python<'_>,
@@ -1471,9 +1468,10 @@ impl Doc {
     }
 
     /// Declare a SET of inspected findings on the live boolean or union
-    /// `node`, replacing its whole declared-pair list — the many-pair
-    /// case (the boundary is fusion, not arity). Same contract as
-    /// `declare`; an EMPTY list refuses (`no_findings`) rather than
+    /// `node`, replacing its whole declared-pair list —
+    /// `DocEdit.set_declare`'s replace, where `declare` adds (the
+    /// boundary is fusion, not arity). Same refusals as `declare`; an
+    /// EMPTY list refuses (`no_findings`) rather than
     /// clearing silently — `DocEdit.set_declare(node, [])` is the
     /// spelling that clears.
     fn declare_all(
@@ -2787,10 +2785,7 @@ impl Node {
     /// `evaluate`, as it is at every other operand seat.
     #[staticmethod]
     #[pyo3(signature = (members, declare=Vec::new()))]
-    fn union(
-        members: Vec<NodeId>,
-        declare: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<Self> {
+    fn union(members: Vec<NodeId>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
                 members: members.iter().map(|m| m.0).collect(),
@@ -3695,10 +3690,7 @@ impl DocEdit {
     /// node that is not one of `node`'s operands,
     /// `declared_name_not_upstream` for a name not minted before `node`.
     #[staticmethod]
-    fn set_declare(
-        node: &NodeId,
-        findings: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<Self> {
+    fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::SetDeclare {
                 node: node.0,

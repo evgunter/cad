@@ -412,6 +412,32 @@ class TestDetectDeclareDoors(unittest.TestCase):
             evaluate(doc).value(fused)
         self.assertEqual(caught.exception.kind, "undeclared_coincidence")
 
+    def test_following_each_refusal_with_declare_converges(self):
+        """`Doc.declare` ADDS the refusal's finding to the union's
+        declared pairs: three slabs stacked as a stepped pyramid meet in
+        two resting contacts, the union refuses one at a time, and
+        declaring each refusal's own `finding` builds after exactly two
+        rounds. (A whole-list replace would trade one contact for the
+        other forever.)"""
+        doc = Doc()
+        low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
+        mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m))
+        top = slab(doc, (1 * m, 2 * m), (1 * m, 2 * m), (2 * m, 3 * m))
+        fused = doc.insert(Node.union([low, mid, top]))
+        rounds = 0
+        while True:
+            try:
+                body = evaluate(doc).value(fused).body()
+                break
+            except EvaluationError as refused:
+                self.assertEqual(refused.kind, "undeclared_coincidence")
+                rounds += 1
+                self.assertLessEqual(rounds, 2, "the refusals do not converge")
+                doc.declare(fused, refused.finding)
+        self.assertEqual(rounds, 2, "one refusal per contact")
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
+
     def test_declaring_on_a_node_that_joins_nothing_refuses_typed(self):
         doc, lower, upper = self.stacked()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
