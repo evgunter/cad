@@ -6761,3 +6761,4 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
   - Style: two panic helpers into one; the premise text hand-copied in about 9 places; `KeyFrom::miss` diverging inside a `Result`; dead `Result`s.
 - Fix lane `session_015ZRAnih51VcqL2q3r1aMjG` dispatched on the PR branch; it reports by PR body and comment. Reviewer and implementer archived (unit 1 cost about $64).
 - Nothing new on PR 3970.
+- 13:26 check-in: fix lane `session_015ZRAnih51VcqL2q3r1aMjG` is still running (mutation-testing the hardened sweeps: both red). PR 4029 head unchanged. Nothing new on PR 3970. The incoming main commit touching work/topo is an empty merge.
