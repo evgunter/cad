@@ -1148,6 +1148,17 @@ pub enum EulerOpError {
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
     },
+    /// [`Body::kev_describing`]: whether a killed half's image closes on
+    /// itself — the turn a general unsplice crosses it whole by — is
+    /// undecided at the door's band, so the joint the kill bridges
+    /// across it has no element to write. Raised in the plan phase, so
+    /// the body is untouched.
+    KillTurnEscalated {
+        /// The killed half-edge whose turn escalated.
+        half_edge: HalfEdgeKey,
+        /// The in-band/poisoned margin diagnostics.
+        diag: geom_core::Indeterminate,
+    },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
     /// half-edge to a face the site mint re-mints — one whose **pcurve
     /// rows are complete**, or complete but for the loops a null edge
@@ -1399,6 +1410,12 @@ impl EulerOpError {
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
+            Self::KillTurnEscalated { half_edge, diag } => format!(
+                "kev_describing: whether killed half-edge {half_edge:?}'s pcurve image meets \
+                 itself across its closed carrier is undecided: {}. Recourse: kill the edge at \
+                 a tolerance that decides its ends, or move the geometry",
+                diag.payload()
+            ),
             Self::PcurveMint { face, refusal } => format!(
                 "the operator would add a half-edge to face {face:?}, whose pcurve rows are \
                  complete, and cannot mint its row: {refusal}"
@@ -1636,6 +1653,15 @@ pub(crate) fn every_euler_op_error_once()
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::KillTurnEscalated {
+            half_edge: HalfEdgeKey::default(),
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_loop_continuity"),
                 terminal_sliver: false,
             },
         },
