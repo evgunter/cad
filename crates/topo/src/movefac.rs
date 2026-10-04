@@ -29,7 +29,7 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, S
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, RunExtent};
-use crate::live::require_key;
+use crate::live::{KeyFrom, link, linked, lookup, proven};
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
@@ -68,33 +68,31 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `shell`, its solid, or a
-    /// face/loop/half-edge/edge reached by the walk does not resolve;
-    /// [`EulerOpError::NotOwned`] if a face the walk reaches is not the
-    /// shell's (its `shell` is another, or the shell does not list it),
-    /// a loop a face lists names another face, or the face a mate's loop
-    /// names does not list that loop;
-    /// [`EulerOpError::LoopCycleBroken`] naming the loop if a cycle walk
-    /// fails to close or is not the loop's whole cycle: a member claims
-    /// another loop, or a half-edge that claims the loop is not walked,
-    /// an empty loop's claimants included;
-    /// [`EulerOpError::UnclaimedHalfEdge`] if a member's edge does not
-    /// claim it, and [`EulerOpError::NotSameEdge`] if the mate that edge
-    /// gives names another edge. All checks precede any mutation
-    /// (atomic).
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `shell` does not resolve. All checks
+    /// precede any mutation (atomic).
+    ///
+    /// # Panics
+    ///
+    /// Where the walk reaches a record that does not resolve, a face that
+    /// is not the shell's (either direction), a loop its face does not
+    /// own (either direction), or a cycle that is not its loop's whole
+    /// cycle: on a tier-1-valid body ownership is mutual and a loop's
+    /// `next` cycle is exactly the half-edges that claim it.
     pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         // ---- Preconditions + read-only component labeling. ----
-        let shell_data = self
-            .get_shell(shell)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell),
-            })?;
+        let shell_data =
+            lookup(&self.shells, shell, EntityId::Shell, KeyFrom::Arg("shell"))?.clone();
         let solid = shell_data.solid;
-        require_key(&self.solids, solid, EntityId::Solid)?;
+        linked(
+            &self.solids,
+            solid,
+            EntityId::Solid,
+            EntityId::Shell(shell),
+            "solid",
+        );
         // How many half-edges claim each loop. A walk is its loop's whole
         // cycle when every member claims the loop (`require_run_of`) and
         // it is as long as the loop's claim count: `RunExtent::Whole`'s
@@ -120,77 +118,90 @@ impl<T: Decide> Body<T> {
             }
             let label = count;
             count += 1;
+            // Every face pushed is resolved where it is found: a seed
+            // through the shell's list, a neighbour through its loop.
+            linked(
+                &self.faces,
+                seed,
+                EntityId::Face,
+                EntityId::Shell(shell),
+                "faces",
+            );
             let mut pending = vec![seed];
             component.insert(seed, label);
             while let Some(face_key) = pending.pop() {
-                let face = self
-                    .get_face(face_key)
-                    .cloned()
-                    .ok_or(EulerOpError::StaleKey {
-                        key: EntityId::Face(face_key),
-                    })?;
-                // Every face labelled is the shell's, in both directions:
-                // the move builds its lists from the shell's, so a face
+                let face = proven(&self.faces, face_key, EntityId::Face).clone();
+                // The move builds its lists from the shell's, so a face
                 // the walk glued on from outside them would join two
                 // components through a face it does not move.
-                if face.shell != shell || !listed.contains_key(face_key) {
-                    return Err(EulerOpError::NotOwned {
-                        child: EntityId::Face(face_key),
-                        owner: EntityId::Shell(shell),
-                    });
-                }
+                assert!(
+                    face.shell == shell && listed.contains_key(face_key),
+                    "movefac reached {face_key:?}, which is not shell {shell:?}'s in both \
+                     directions: on a tier-1-valid body a face's shell lists it and an edge's \
+                     two faces share a shell"
+                );
                 for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-                    let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
-                        key: EntityId::Loop(loop_key),
-                    })?;
-                    if loop_data.face != face_key {
-                        return Err(EulerOpError::NotOwned {
-                            child: EntityId::Loop(loop_key),
-                            owner: EntityId::Face(face_key),
-                        });
-                    }
-                    let broken = || EulerOpError::LoopCycleBroken { r#loop: loop_key };
-                    // A loop's whole cycle is the half-edges that claim it:
-                    // none, for an empty loop.
-                    let empty = matches!(loop_data.boundary, LoopBoundary::Empty { .. });
-                    if empty && claims.contains_key(loop_key) {
-                        return Err(broken());
-                    }
+                    let loop_data = linked(
+                        &self.loops,
+                        loop_key,
+                        EntityId::Loop,
+                        EntityId::Face(face_key),
+                        "loops",
+                    );
+                    assert!(
+                        loop_data.face == face_key,
+                        "{face_key:?} lists loop {loop_key:?}, which names face {:?}: on a \
+                         tier-1-valid body a face's loops name it",
+                        loop_data.face
+                    );
                     let LoopBoundary::Cycle { first } = loop_data.boundary else {
+                        assert!(
+                            !claims.contains_key(loop_key),
+                            "empty loop {loop_key:?} is claimed by a half-edge: on a \
+                             tier-1-valid body an empty loop has no half-edges"
+                        );
                         continue; // empty loop: glues only its vertex
                     };
-                    let cycle = self.loop_cycle(first).ok_or_else(broken)?;
+                    let cycle = self.loop_walk(first).closed("loop", first);
                     let run =
-                        self.require_run_of(cycle.iter().copied(), loop_key, RunExtent::Part, &[])?;
-                    if claims.get(loop_key) != Some(&run.len()) {
-                        return Err(broken());
-                    }
+                        self.require_run_of(cycle.iter().copied(), loop_key, RunExtent::Part, &[]);
+                    assert!(
+                        claims.get(loop_key) == Some(&run.len()),
+                        "loop {loop_key:?}'s cycle walk is not every half-edge that claims it: \
+                         on a tier-1-valid body a loop's next cycle is the half-edges that \
+                         claim it"
+                    );
                     for member in cycle {
-                        let mate_loop = self.proven_mate(member)?.mate_data.parent_loop;
-                        let neighbor = self
-                            .get_loop(mate_loop)
-                            .ok_or(EulerOpError::StaleKey {
-                                key: EntityId::Loop(mate_loop),
-                            })?
-                            .face;
-                        let neighbor_data =
-                            self.get_face(neighbor).ok_or(EulerOpError::StaleKey {
-                                key: EntityId::Face(neighbor),
-                            })?;
-                        if neighbor_data.outer != mate_loop
-                            && !neighbor_data.rings.contains(&mate_loop)
-                        {
-                            return Err(EulerOpError::NotOwned {
-                                child: EntityId::Loop(mate_loop),
-                                owner: EntityId::Face(neighbor),
-                            });
-                        }
+                        let mate =
+                            self.proven_mate(member, link(EntityId::Loop(loop_key), "cycle"))?;
+                        let mate_loop = mate.mate_data.parent_loop;
+                        let neighbor = linked(
+                            &self.loops,
+                            mate_loop,
+                            EntityId::Loop,
+                            EntityId::HalfEdge(mate.mate),
+                            "parent_loop",
+                        )
+                        .face;
+                        let neighbor_data = linked(
+                            &self.faces,
+                            neighbor,
+                            EntityId::Face,
+                            EntityId::Loop(mate_loop),
+                            "face",
+                        );
+                        assert!(
+                            neighbor_data.outer == mate_loop
+                                || neighbor_data.rings.contains(&mate_loop),
+                            "loop {mate_loop:?} names face {neighbor:?}, which does not list it: \
+                             on a tier-1-valid body a loop's face lists it"
+                        );
                         // A labelled neighbour carries this label. Only an
                         // earlier, finished walk could have given it another,
                         // and that walk popped `neighbor` and walked
                         // `mate_loop`, which `neighbor` lists (the check
                         // above). The mate claims `mate_loop`, so the
-                        // empty-loop proof above refused it were it `Empty`;
+                        // empty-loop proof above rules it out as `Empty`;
                         // it is a cycle, and the count proof equates its
                         // distinct members with all of its claimants, the
                         // mate among them. `proven_mate` is symmetric
@@ -205,7 +216,7 @@ impl<T: Decide> Body<T> {
                                 "movefac: the mate hop {member:?} -> {neighbor:?} (loop \
                                  {mate_loop:?}) reached label {reached} from {face_key:?} at \
                                  label {label}; the walk that labelled {neighbor:?} walked \
-                                 {mate_loop:?} whole, since the empty-loop proof refuses a \
+                                 {mate_loop:?} whole, since the empty-loop proof rules out a \
                                  claimed `Empty` loop and the count proof equates the cycle's \
                                  distinct members with its claimants, and `proven_mate` is \
                                  symmetric, so that walk hopped back to {face_key:?} and \
@@ -314,11 +325,15 @@ impl<T: Decide> Body<T> {
     /// All checks precede any mutation (atomic).
     /// [`EulerOpError::NoShellsNamed`] on an empty list;
     /// [`EulerOpError::ShellRepeated`] when a shell is named twice;
-    /// [`EulerOpError::StaleKey`] if a shell, its solid, or the solid's
-    /// own listing of it does not resolve;
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if a shell does not resolve;
     /// [`EulerOpError::ShellsAcrossSolids`] if the shells are not all in
     /// one solid; [`EulerOpError::SolidWouldEmpty`] if the list is every
     /// shell of that solid.
+    ///
+    /// # Panics
+    ///
+    /// Where a shell's solid does not resolve or does not list it: on a
+    /// tier-1-valid body ownership is mutual.
     pub fn move_shells_to_new_solid(
         &mut self,
         shells: &[ShellKey],
@@ -331,12 +346,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::NoShellsNamed);
         };
         let owner_of = |body: &Self, shell: ShellKey| -> Result<SolidKey, EulerOpError> {
-            Ok(body
-                .get_shell(shell)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Shell(shell),
-                })?
-                .solid)
+            Ok(lookup(&body.shells, shell, EntityId::Shell, KeyFrom::Arg("shells"))?.solid)
         };
         let source = owner_of(self, first)?;
         for (i, &shell) in shells.iter().enumerate() {
@@ -350,21 +360,21 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        let listed = self
-            .shells_of_solid(source)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Solid(source),
-            })?
-            .to_vec();
-        // A shell whose back-pointer names `source` but which `source`
-        // does not list is an ownership desync (tier 1's pass 7); the
-        // op refuses rather than building on it.
+        let listed = linked(
+            &self.solids,
+            source,
+            EntityId::Solid,
+            EntityId::Shell(first),
+            "solid",
+        )
+        .shells
+        .clone();
         for &shell in shells {
-            if !listed.contains(&shell) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Shell(shell),
-                });
-            }
+            assert!(
+                listed.contains(&shell),
+                "shell {shell:?} names solid {source:?}, which does not list it: on a \
+                 tier-1-valid body a shell's solid lists it"
+            );
         }
         if listed.iter().all(|s| shells.contains(s)) {
             return Err(EulerOpError::SolidWouldEmpty { solid: source });
@@ -423,27 +433,38 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `donor`, `keeper` or a shell
-    /// `donor` lists does not resolve. All checks precede any mutation
-    /// (atomic).
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `donor` or `keeper` does not resolve.
+    /// All checks precede any mutation (atomic).
+    ///
+    /// # Panics
+    ///
+    /// Where a shell `donor` lists does not resolve: on a tier-1-valid
+    /// body a solid's shells are live.
     pub(crate) fn fold_solid_into(
         &mut self,
         donor: SolidKey,
         keeper: SolidKey,
     ) -> Result<(), EulerOpError> {
-        let stale = |key| EulerOpError::StaleKey { key };
-        let moved = self
-            .shells_of_solid(donor)
-            .ok_or(stale(EntityId::Solid(donor)))?
-            .to_vec();
-        if self.get_solid(keeper).is_none() {
-            return Err(stale(EntityId::Solid(keeper)));
-        }
+        let moved = lookup(&self.solids, donor, EntityId::Solid, KeyFrom::Arg("donor"))?
+            .shells
+            .clone();
+        lookup(
+            &self.solids,
+            keeper,
+            EntityId::Solid,
+            KeyFrom::Arg("keeper"),
+        )?;
         if donor == keeper {
             return Ok(());
         }
-        if let Some(&shell) = moved.iter().find(|&&s| self.get_shell(s).is_none()) {
-            return Err(stale(EntityId::Shell(shell)));
+        for &shell in &moved {
+            linked(
+                &self.shells,
+                shell,
+                EntityId::Shell,
+                EntityId::Solid(donor),
+                "shells",
+            );
         }
 
         // ---- Mutation (infallible from here on). ----

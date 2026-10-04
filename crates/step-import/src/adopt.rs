@@ -102,9 +102,9 @@ fn designate_faces(
     solid: &SolidSpec,
     asm: &Assembled,
 ) -> Result<Vec<FaceKey>, StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -186,9 +186,9 @@ fn rotate_loop_firsts(
     asm: &Assembled,
     tol: Tol,
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -302,9 +302,9 @@ fn attach_surfaces(
     solid: &SolidSpec,
     face_keys: &[FaceKey],
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();

@@ -312,7 +312,7 @@ impl<T: Real> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if the face or a role loop does not
+    /// [`crate::BadArgument::Stale`] if the face or a role loop does not
     /// resolve; [`EulerOpError::SameLoop`] if the two role loops are
     /// one loop; [`EulerOpError::NullPairForeignLoop`] naming the first
     /// role loop, in declaration order, that is not the face's own. The
@@ -322,18 +322,20 @@ impl<T: Real> Body<T> {
         face: FaceKey,
         pair: NullFacePair,
     ) -> Result<(), EulerOpError> {
-        let Some(face_data) = self.faces.get(face) else {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Face(face),
-            });
-        };
+        let face_data = crate::live::lookup(
+            &self.faces,
+            face,
+            EntityId::Face,
+            crate::live::KeyFrom::Arg("face"),
+        )?;
         let [a, b] = pair.loops();
         for l in [a, b] {
-            if !self.loops.contains_key(l) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Loop(l),
-                });
-            }
+            crate::live::require_key(
+                &self.loops,
+                l,
+                EntityId::Loop,
+                crate::live::KeyFrom::Arg("pair"),
+            )?;
         }
         if a == b {
             return Err(EulerOpError::SameLoop { r#loop: a });

@@ -36,15 +36,19 @@
 //! construction sites so a new one of either reds, and no other file in
 //! `topo/src` builds a `Live` at all.
 //!
-//! # The other arenas
+//! # Where a key came from
 //!
-//! A plan phase that only needs to REFUSE a stale key — no proof to
-//! carry into a splice — calls [`require_key`], which lives here for
-//! the same reason `Live` does: one statement of what a liveness check
-//! is and which [`EntityId`] a failed one names.
+//! Every lookup in a plan phase says where its key came from
+//! ([`KeyFrom`]): an **argument** the caller passed, whose miss is the
+//! caller's typed refusal ([`BadArgument::Stale`]), or a **link** a
+//! record of the body holds, whose miss is a kernel bug — every public
+//! door keeps the body tier-1-valid, so a record's link resolves — and
+//! panics naming the record (D2 row 4). [`lookup`] is the one place
+//! that decision is made; [`require_key`], [`Body::require_live`] and
+//! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
-use crate::entity::{EntityId, HalfEdge, HalfEdgeKey};
-use crate::euler::EulerOpError;
+use crate::entity::{EntityId, GeomRef, HalfEdge, HalfEdgeKey};
+use crate::euler::{BadArgument, EulerOpError};
 use geom_core::Real;
 
 /// A [`HalfEdgeKey`] a lookup has returned — see the [module
@@ -76,59 +80,151 @@ impl Live {
     }
 }
 
-/// Requires a key to be live in its arena, refusing a stale one as the
-/// plan phase's typed error — the obligation [`Body::require_live`]
-/// carries for half-edges, for the arenas that have no proof token.
-///
-/// Only half-edges are spliced through a key the caller holds across a
-/// `&mut` call, so only they need a [`Live`] to carry the lookup
-/// forward; every other arena's plan phase wants the refusal and
-/// nothing else. One body for all of them, so the check and the
-/// [`EntityId`] it names cannot drift arena by arena.
+/// Where a key a plan phase resolves came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KeyFrom {
+    /// The caller passed it, as the argument `role` names.
+    Arg(&'static str),
+    /// A record of the body holds it: `holder`'s field `link`.
+    Link {
+        /// The record whose field holds the key.
+        holder: EntityId,
+        /// The field.
+        link: &'static str,
+    },
+}
+
+impl KeyFrom {
+    /// The refusal for `key` failing to resolve: the caller's
+    /// [`BadArgument::Stale`] for an argument, and for a link
+    /// [`dangling_link`]'s panic.
+    #[track_caller]
+    pub(crate) fn miss(self, key: EntityId) -> EulerOpError {
+        match self {
+            Self::Arg(role) => EulerOpError::Argument(BadArgument::Stale { role, key }),
+            Self::Link { holder, link } => dangling_link(holder, link, key),
+        }
+    }
+
+    /// [`KeyFrom::miss`] for a geometry key.
+    #[track_caller]
+    pub(crate) fn miss_geometry(self, key: GeomRef) -> EulerOpError {
+        match self {
+            Self::Arg(role) => EulerOpError::Argument(BadArgument::StaleGeometry { role, key }),
+            Self::Link { holder, link } => dangling_link(holder, link, key),
+        }
+    }
+}
+
+/// The panic for a link that does not resolve: `holder`'s field `link`
+/// names `key`. Every public door keeps the body tier-1-valid, and a
+/// tier-1-valid record names only live records, so only a kernel bug
+/// reaches it.
+#[track_caller]
+pub(crate) fn dangling_link(holder: EntityId, link: &str, key: impl core::fmt::Display) -> ! {
+    unreachable!(
+        "{holder}'s {link} names {key}, which does not resolve: every public door keeps the \
+         body tier-1-valid, and a tier-1-valid record names only live records"
+    )
+}
+
+/// [`KeyFrom::Link`]: `holder`'s field `link`.
+pub(crate) const fn link(holder: EntityId, link: &'static str) -> KeyFrom {
+    KeyFrom::Link { holder, link }
+}
+
+/// `key`'s record in `arena`, its miss answered as `from` says
+/// ([`KeyFrom::miss`]). The one lookup a plan phase resolves a key
+/// through.
+#[track_caller]
+pub(crate) fn lookup<K: slotmap::Key, V>(
+    arena: &slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> EntityId,
+    from: KeyFrom,
+) -> Result<&V, EulerOpError> {
+    arena.get(key).ok_or_else(|| from.miss(id(key)))
+}
+
+/// [`lookup`] for a link, which cannot miss: `holder`'s field `link`
+/// names `key`, and a miss panics naming them.
+#[track_caller]
+pub(crate) fn linked<'a, K: slotmap::Key, V>(
+    arena: &'a slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> EntityId,
+    holder: EntityId,
+    link: &'static str,
+) -> &'a V {
+    arena
+        .get(key)
+        .unwrap_or_else(|| dangling_link(holder, link, id(key)))
+}
+
+/// `key`'s record in `arena`, for a key this call already resolved,
+/// minted, or read out of a record it resolved: nothing removes a record
+/// during a plan, and a tier-1-valid record names only live records, so
+/// a miss is a kernel bug and panics.
+#[track_caller]
+pub(crate) fn proven<K: slotmap::Key, V>(
+    arena: &slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> EntityId,
+) -> &V {
+    arena.get(key).unwrap_or_else(|| {
+        unreachable!(
+            "{}, which this call resolved or read out of a record, does not resolve: \
+             nothing removes a record during a plan, and a tier-1-valid record names only \
+             live records",
+            id(key)
+        )
+    })
+}
+
+/// Requires a key to be live in its arena, answering a miss as `from`
+/// says — [`lookup`] for a plan phase that wants the refusal and not
+/// the record. Only half-edges are spliced through a key held across a
+/// `&mut` call, so only they carry a [`Live`] forward.
+#[track_caller]
 pub(crate) fn require_key<K: slotmap::Key, V>(
     arena: &slotmap::SlotMap<K, V>,
     key: K,
     id: fn(K) -> EntityId,
+    from: KeyFrom,
 ) -> Result<(), EulerOpError> {
-    if arena.contains_key(key) {
-        Ok(())
-    } else {
-        Err(EulerOpError::StaleKey { key: id(key) })
-    }
+    lookup(arena, key, id, from).map(|_| ())
 }
 
 impl<T: Real> Body<T> {
-    /// Requires a half-edge key to be live, refusing a stale one as the
-    /// plan phase's typed error.
+    /// Requires a half-edge key to be live, answering a miss as `from`
+    /// says ([`KeyFrom::miss`]).
     ///
     /// This is the plan-phase door: an operator that will splice through
-    /// a key it read out of the arena proves it here, **before any
-    /// mutation**, so the mutation phase below cannot fail midway
-    /// (atomicity).
-    pub(crate) fn require_live(&self, he: HalfEdgeKey) -> Result<Live, EulerOpError> {
-        Live::of(self, he).ok_or(EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(he),
-        })
+    /// a key proves it here, **before any mutation**, so the mutation
+    /// phase below cannot fail midway (atomicity).
+    #[track_caller]
+    pub(crate) fn require_live(
+        &self,
+        he: HalfEdgeKey,
+        from: KeyFrom,
+    ) -> Result<Live, EulerOpError> {
+        self.resolve_half_edge_live(he, from).map(|(live, _)| live)
     }
 
     /// [`Body::resolve_half_edge`] keeping the proof its lookup earns,
     /// for an operator that both reads a half-edge's fields and splices
     /// through the key itself.
     ///
-    /// The proof comes out of the same `Some` arm the fields do, so this
-    /// door looks up exactly once — an operator that resolved and then
-    /// required separately would carry a refusal its own resolve had
-    /// already made unreachable.
+    /// The proof comes out of the same lookup the fields do, so this
+    /// door looks up exactly once.
+    #[track_caller]
     pub(crate) fn resolve_half_edge_live(
         &self,
         he: HalfEdgeKey,
+        from: KeyFrom,
     ) -> Result<(Live, HalfEdge), EulerOpError> {
-        match self.half_edges.get(he) {
-            Some(data) => Ok((Live::new(he), data.clone())),
-            None => Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            }),
-        }
+        let data = lookup(&self.half_edges, he, EntityId::HalfEdge, from)?;
+        Ok((Live::new(he), data.clone()))
     }
 
     /// [`Body::loop_cycle`] with its members proven.

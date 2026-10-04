@@ -66,6 +66,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::live::{KeyFrom, dangling_link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
@@ -131,24 +132,19 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `face` does not resolve;
-    /// [`EulerOpError::StaleGeometry`] if a `Shared` key does not
-    /// resolve; [`EulerOpError::SenseContradictsChart`] if a spec on
-    /// the face's own chart states the other bit; then
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `face` does not resolve;
+    /// [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry) if a `Shared` key
+    /// does not resolve; [`EulerOpError::SenseContradictsChart`] if a
+    /// spec on the face's own chart states the other bit; then
     /// [`EulerOpError::RechartStrandsDescriptions`], then
-    /// [`EulerOpError::RechartUnvouched`] (`StaleKey` / `StaleGeometry`
-    /// where a key a walk over the edges follows does not resolve); then,
-    /// onto another chart, each of the face's loops walks and is exactly
-    /// the half-edges that claim it ([`EulerOpError::LoopCycleBroken`],
-    /// [`Body::face_cycles`]). The body is untouched on `Err`.
+    /// [`EulerOpError::RechartUnvouched`]. The body is untouched on
+    /// `Err`.
     pub fn set_face_surface(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
+        let face_data = lookup(&self.faces, face, EntityId::Face, KeyFrom::Arg("face"))?;
         let old = face_data.surface;
         let resolved =
             self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
@@ -164,7 +160,7 @@ impl<T: Decide> Body<T> {
         let dropped = if resolved.on_parent_chart {
             Vec::new()
         } else {
-            self.face_cycles(face)?
+            self.face_cycles(face)
         };
 
         // ---- Mutation (infallible from here on). ----
@@ -289,11 +285,12 @@ impl<T: Decide> Body<T> {
     ///
     /// `tol` builds a band ([`EulerOpError::Certification`]). Per chart
     /// in order, per face in order: the face resolves
-    /// ([`EulerOpError::StaleKey`]), was not listed before
+    /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale)), was not listed before
     /// ([`EulerOpError::FaceMovedTwice`]), a shared chart's key resolves
-    /// ([`EulerOpError::StaleGeometry`]) and the face states a sense its
-    /// chart admits ([`EulerOpError::SenseContradictsChart`]). Per
-    /// listed edge in order: it resolves (`StaleKey`), was not listed
+    /// ([`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry)) and the face
+    /// states a sense its chart admits
+    /// ([`EulerOpError::SenseContradictsChart`]). Per listed edge in
+    /// order: it resolves (`BadArgument::Stale`), was not listed
     /// before ([`EulerOpError::DuplicateRedescription`]), is not a null
     /// edge ([`EulerOpError::NullScaffoldCurve`]), its spec is
     /// adjacency-coherent on the moved charts
@@ -308,12 +305,7 @@ impl<T: Decide> Body<T> {
     /// order: its start vertex, then its edge's interior samples, lie on
     /// the plane, as does an empty loop's lone vertex
     /// ([`EulerOpError::RechartOffBoundary`] /
-    /// [`EulerOpError::RechartBoundaryEscalated`]). `StaleKey` /
-    /// `StaleGeometry` where a key a walk follows does not resolve, and
-    /// [`EulerOpError::LoopCycleBroken`] where a moved face's loop does
-    /// not walk or strays out of it. Then per moved face in order onto
-    /// another chart, each of its loops is exactly the half-edges that
-    /// claim it (`LoopCycleBroken`, [`Body::face_cycles`]).
+    /// [`EulerOpError::RechartBoundaryEscalated`]).
     ///
     /// # Errors
     ///
@@ -343,28 +335,24 @@ impl<T: Decide> Body<T> {
             Vec::with_capacity(redescriptions.len());
         for (edge, spec) in redescriptions {
             let edge = *edge;
-            let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?;
+            let edge_data = lookup(
+                &self.edges,
+                edge,
+                EntityId::Edge,
+                KeyFrom::Arg("redescriptions"),
+            )?;
             if written.iter().any(|&(e, ..)| e == edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             let curve_key = edge_data.curve;
-            if self
-                .get_curve_geom(curve_key)
-                .ok_or(EulerOpError::StaleGeometry {
-                    key: GeomRef::Curve(curve_key),
-                })?
-                .null_scaffold()
-                .is_some()
-            {
+            if self.edge_curve(edge, curve_key).null_scaffold().is_some() {
                 return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
             }
-            let sides = self.sides(edge, moved)?;
+            let sides = self.sides(edge, moved);
             if !sides.coherent_after(Named::of_spec(&spec.description)) {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
-            let (p_start, p_end) = self.edge_endpoints(edge)?;
+            let (p_start, p_end) = self.edge_endpoints(edge);
             let curve =
                 crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
                     .map_err(|refusal| match refusal {
@@ -383,7 +371,7 @@ impl<T: Decide> Body<T> {
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(self.edges.keys(), moved, false)?
+            .rechart_edges(self.edges.keys(), moved, false)
             .stranded
             .into_iter()
             .map(|(e, _)| e)
@@ -401,7 +389,7 @@ impl<T: Decide> Body<T> {
             .iter()
             .filter(|m| !m.on_parent_chart)
             .map(|m| self.face_cycles(m.face))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         // ---- Mutation (infallible from here on). ----
         let keys: Vec<SurfaceKey> = charts
@@ -459,11 +447,10 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// The door's per-face preconditions, in its order
-    /// ([`EulerOpError::StaleKey`], [`EulerOpError::FaceMovedTwice`],
-    /// [`EulerOpError::StaleGeometry`],
-    /// [`EulerOpError::SenseContradictsChart`]); then `StaleKey` /
-    /// `StaleGeometry` where a key the walk over the edges follows does
-    /// not resolve.
+    /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale),
+    /// [`EulerOpError::FaceMovedTwice`],
+    /// [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry),
+    /// [`EulerOpError::SenseContradictsChart`]).
     pub fn carried_redescriptions(
         &self,
         charts: &[Rechart<T>],
@@ -471,8 +458,8 @@ impl<T: Decide> Body<T> {
         let faces = self.plan_recharts(charts)?;
         let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let mut out = Vec::new();
-        for (edge, sides) in self.rechart_edges(self.edges.keys(), moved, true)?.carried {
-            out.push((edge, self.carried_spec(edge, sides, charts)?));
+        for (edge, sides) in self.rechart_edges(self.edges.keys(), moved, true).carried {
+            out.push((edge, self.carried_spec(edge, sides, charts)));
         }
         Ok(out)
     }
@@ -485,9 +472,7 @@ impl<T: Decide> Body<T> {
         for (index, chart) in charts.iter().enumerate() {
             for wearer in &chart.faces {
                 let face = wearer.face;
-                let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                })?;
+                let face_data = lookup(&self.faces, face, EntityId::Face, KeyFrom::Arg("charts"))?;
                 if faces.iter().any(|m| m.face == face) {
                     return Err(EulerOpError::FaceMovedTwice { face });
                 }
@@ -557,45 +542,36 @@ impl<T: Decide> Body<T> {
                 diag,
             }),
         };
-        let face = self.get_face(m.face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(m.face),
-        })?;
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let first = match self
-                .get_loop(lk)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Loop(lk),
-                })?
-                .boundary
-            {
+        let face = proven(&self.faces, m.face, EntityId::Face);
+        let face_id = EntityId::Face(m.face);
+        let loops = core::iter::once((face.outer, "outer"))
+            .chain(face.rings.iter().map(|&ring| (ring, "rings")));
+        for (lk, field) in loops {
+            let first = match linked(&self.loops, lk, EntityId::Loop, face_id, field).boundary {
                 LoopBoundary::Cycle { first } => first,
                 // A lone vertex bounds the face too.
                 LoopBoundary::Empty { vertex } => {
-                    on_plane(self.resolve_vertex_point(vertex)?, EntityId::Vertex(vertex))?;
+                    on_plane(
+                        self.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"),
+                        EntityId::Vertex(vertex),
+                    )?;
                     continue;
                 }
             };
-            for he in self.site_cycle_from(first, lk)? {
-                let he_data = self.resolve_half_edge(he)?;
+            for he in self.site_cycle_from(first, lk) {
+                let he_id = EntityId::HalfEdge(he);
+                let he_data = proven(&self.half_edges, he, EntityId::HalfEdge);
                 on_plane(
-                    self.resolve_vertex_point(he_data.start)?,
+                    self.linked_vertex_point(he_data.start, he_id, "start"),
                     EntityId::Vertex(he_data.start),
                 )?;
                 let edge = he_data.edge;
                 let curve = match written.iter().find(|(e, ..)| *e == edge) {
                     Some((.., curve)) => Some(curve),
                     None => {
-                        let curve_key = self
-                            .get_edge(edge)
-                            .ok_or(EulerOpError::StaleKey {
-                                key: EntityId::Edge(edge),
-                            })?
-                            .curve;
-                        self.get_curve_geom(curve_key)
-                            .ok_or(EulerOpError::StaleGeometry {
-                                key: GeomRef::Curve(curve_key),
-                            })?
-                            .certified()
+                        let curve_key =
+                            linked(&self.edges, edge, EntityId::Edge, he_id, "edge").curve;
+                        self.edge_curve(edge, curve_key).certified()
                     }
                 };
                 // A null edge has no carrier to sample; its endpoints
@@ -633,21 +609,15 @@ impl<T: Decide> Body<T> {
         edges: impl IntoIterator<Item = EdgeKey>,
         moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
         repoint: bool,
-    ) -> Result<RechartEdges, EulerOpError> {
+    ) -> RechartEdges {
         let mut out = RechartEdges::default();
         for edge_key in edges {
-            let edge = self.get_edge(edge_key).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge_key),
-            })?;
-            let named = Named::of(self.get_curve_geom(edge.curve).ok_or(
-                EulerOpError::StaleGeometry {
-                    key: GeomRef::Curve(edge.curve),
-                },
-            )?);
+            let edge = proven(&self.edges, edge_key, EntityId::Edge);
+            let named = Named::of(self.edge_curve(edge_key, edge.curve));
             if matches!(named, Named::Nothing) {
                 continue;
             }
-            let sides = self.sides(edge_key, &moved)?;
+            let sides = self.sides(edge_key, &moved);
             if sides.after == sides.before.map(Slot::Kept) {
                 continue;
             }
@@ -668,7 +638,7 @@ impl<T: Decide> Body<T> {
                 out.carried.push((edge_key, sides));
             }
         }
-        Ok(out)
+        out
     }
 
     /// **The keys-only re-chart refusals, one home for every door that
@@ -709,7 +679,7 @@ impl<T: Decide> Body<T> {
             stranded,
             unvouched,
             ..
-        } = self.rechart_edges(edges, |he, l, f| moves(he, l, f).then_some(after), false)?;
+        } = self.rechart_edges(edges, |he, l, f| moves(he, l, f).then_some(after), false);
         if !stranded.is_empty() {
             return Err(EulerOpError::RechartStrandsDescriptions {
                 door,
@@ -765,25 +735,15 @@ impl<T: Decide> Body<T> {
     /// faces go to: [`Body::carried_redescriptions`]' entry for it. A
     /// chart image is stated in its chart's coordinates, so it is left
     /// to be re-derived on a chart whose payload is not the old one's.
-    fn carried_spec(
-        &self,
-        edge: EdgeKey,
-        sides: Sides,
-        charts: &[Rechart<T>],
-    ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let curve_key = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .curve;
-        let mut spec = self
-            .get_curve_geom(curve_key)
-            .and_then(crate::CurveGeom::certified)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(curve_key),
-            })?
-            .restated_spec();
+    fn carried_spec(&self, edge: EdgeKey, sides: Sides, charts: &[Rechart<T>]) -> EdgeCurveSpec<T> {
+        let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
+        let Some(certified) = self.edge_curve(edge, curve_key).certified() else {
+            unreachable!(
+                "{edge:?} is carried, and `rechart_edges` carries only a certified edge \
+                 (it skips scaffold and null edges)"
+            )
+        };
+        let mut spec = certified.restated_spec();
         if let geom_brep::EdgeDescriptionSpec::Chart { surface, image, .. } = &mut spec.description
         {
             let same = match sides.repoint(*surface) {
@@ -796,47 +756,83 @@ impl<T: Decide> Body<T> {
                 *image = None;
             }
         }
-        Ok(spec)
+        spec
     }
 
     /// `edge`'s two faces (`he_plus`'s, then `he_minus`'s) across a
     /// re-chart: the surface each wears now, and the one it wears once
     /// `moved` has moved it.
+    /// `edge` is one the caller resolved.
     fn sides(
         &self,
         edge: EdgeKey,
         moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
-    ) -> Result<Sides, EulerOpError> {
-        let sides = crate::readback::edge_sides(self, edge)?;
-        let after = |side: crate::readback::EdgeSide| {
-            let r#loop = self.resolve_half_edge(side.half_edge)?.parent_loop;
-            Ok::<_, EulerOpError>(
-                moved(side.half_edge, r#loop, side.face).unwrap_or(Slot::Kept(side.surface)),
+    ) -> Sides {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        let side = |he: HalfEdgeKey, field: &'static str| {
+            let he_id = EntityId::HalfEdge(he);
+            let r#loop = linked(
+                &self.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(edge),
+                field,
+            )
+            .parent_loop;
+            let face = linked(&self.loops, r#loop, EntityId::Loop, he_id, "parent_loop").face;
+            let surface = linked(
+                &self.faces,
+                face,
+                EntityId::Face,
+                EntityId::Loop(r#loop),
+                "face",
+            )
+            .surface;
+            (
+                surface,
+                moved(he, r#loop, face).unwrap_or(Slot::Kept(surface)),
             )
         };
-        Ok(Sides {
-            before: [sides.plus.surface, sides.minus.surface],
-            after: [after(sides.plus)?, after(sides.minus)?],
-        })
+        let (plus, plus_after) = side(edge_data.he_plus, "he_plus");
+        let (minus, minus_after) = side(edge_data.he_minus, "he_minus");
+        Sides {
+            before: [plus, minus],
+            after: [plus_after, minus_after],
+        }
     }
 
     /// `edge`'s two endpoint points, `he_plus` forward order — the
     /// points every attach door certifies a description against.
-    fn edge_endpoints(&self, edge: EdgeKey) -> Result<(Point3<T>, Point3<T>), EulerOpError> {
-        let he_plus = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .he_plus;
-        let start = self.resolve_half_edge(he_plus)?.start;
-        let end = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(he_plus),
-        })?;
-        Ok((
-            self.resolve_vertex_point(start)?,
-            self.resolve_vertex_point(end)?,
-        ))
+    /// `edge` is one the caller resolved.
+    fn edge_endpoints(&self, edge: EdgeKey) -> (Point3<T>, Point3<T>) {
+        let he_plus = proven(&self.edges, edge, EntityId::Edge).he_plus;
+        let plus = linked(
+            &self.half_edges,
+            he_plus,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "he_plus",
+        );
+        let next = plus.next;
+        let end = linked(
+            &self.half_edges,
+            next,
+            EntityId::HalfEdge,
+            EntityId::HalfEdge(he_plus),
+            "next",
+        )
+        .start;
+        (
+            self.linked_vertex_point(plus.start, EntityId::HalfEdge(he_plus), "start"),
+            self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
+        )
+    }
+
+    /// The curve geometry `edge`'s `curve` field names.
+    #[track_caller]
+    fn edge_curve(&self, edge: EdgeKey, curve: CurveKey) -> &crate::CurveGeom<T> {
+        self.get_curve_geom(curve)
+            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
     }
 
     /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
@@ -863,12 +859,12 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `face` does not resolve. The body
-    /// is untouched on `Err`.
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `face` does not
+    /// resolve. The body is untouched on `Err`.
     pub fn set_face_sense(&mut self, face: FaceKey, sense: bool) -> Result<(), EulerOpError> {
-        let f = self.get_face_mut(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
+        let f = self
+            .get_face_mut(face)
+            .ok_or_else(|| KeyFrom::Arg("face").miss(EntityId::Face(face)))?;
         f.sense = sense;
         Ok(())
     }
@@ -910,9 +906,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
-    /// unresolvable topology/points;
-    /// [`EulerOpError::DescriptionNotAdjacent`] on an
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
+    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on an
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
     /// failed gate, whose plane × NURBS lane is the scalar's policy
@@ -930,7 +925,8 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let (p_start, p_end) = self.edge_endpoints(edge)?;
+        require_key(&self.edges, edge, EntityId::Edge, KeyFrom::Arg("edge"))?;
+        let (p_start, p_end) = self.edge_endpoints(edge);
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
@@ -975,9 +971,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
-    /// unresolvable topology or geometry;
-    /// [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
+    /// resolve; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
     /// carries no certified geometry to re-state; and whatever
     /// [`Body::set_edge_curve`] raises on the re-attachment.
     pub fn describe_at_rest(
@@ -989,17 +984,9 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let curve_key = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .curve;
+        let curve_key = lookup(&self.edges, edge, EntityId::Edge, KeyFrom::Arg("edge"))?.curve;
         let spec = self
-            .get_curve_geom(curve_key)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: crate::GeomRef::Curve(curve_key),
-            })?
+            .edge_curve(edge, curve_key)
             .certified()
             .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
             .restated_spec()
@@ -1016,7 +1003,8 @@ impl<T: Decide> Body<T> {
     /// rewires, as the door leaves it (none for [`Body::set_edge_curve`],
     /// whose description moves no key; the loops the kill unsplices for
     /// [`Body::kev_describing`]), and runs only where a null edge is
-    /// described. Every other loop is read as found.
+    /// described. Every other loop is read as found. Every edge in
+    /// `described` is one the caller resolved.
     ///
     /// Empty unless an edge in `described` is a null edge
     /// ([`crate::CurveGeom::NullScaffold`]): a certified edge's
@@ -1031,12 +1019,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
-    /// an edge, half, loop, face or surface does not resolve; what
-    /// `rewired` raises; [`EulerOpError::Certification`] where `tol`
-    /// builds no band; [`EulerOpError::LoopCycleBroken`] naming a loop,
-    /// of a face on a chart that mints, that does not walk as its own;
-    /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
+    /// What `rewired` raises; [`EulerOpError::Certification`] where
+    /// `tol` builds no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
     pub(crate) fn null_description_rows(
         &self,
@@ -1047,21 +1031,26 @@ impl<T: Decide> Body<T> {
         let mut halves: Vec<HalfEdgeKey> = Vec::with_capacity(2 * described.len());
         let mut touched: Vec<LoopKey> = Vec::new();
         for &(edge, _) in described {
-            let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?;
-            let pair = [edge_data.he_plus, edge_data.he_minus];
-            halves.extend(pair);
-            let is_null = self
-                .get_curve_geom(edge_data.curve)
-                .ok_or(EulerOpError::StaleGeometry {
-                    key: GeomRef::Curve(edge_data.curve),
-                })?
+            let edge_data = proven(&self.edges, edge, EntityId::Edge);
+            let pair = [
+                (edge_data.he_plus, "he_plus"),
+                (edge_data.he_minus, "he_minus"),
+            ];
+            halves.extend(pair.map(|(he, _)| he));
+            if self
+                .edge_curve(edge, edge_data.curve)
                 .null_scaffold()
-                .is_some();
-            if is_null {
-                for he in pair {
-                    touched.push(self.resolve_half_edge(he)?.parent_loop);
+                .is_some()
+            {
+                for (he, field) in pair {
+                    let he_data = linked(
+                        &self.half_edges,
+                        he,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(edge),
+                        field,
+                    );
+                    touched.push(he_data.parent_loop);
                 }
             }
         }
@@ -1132,19 +1121,18 @@ impl<T: Decide> Body<T> {
     /// [`require_description_adjacent`] for a spec about to describe
     /// `edge`, against the surfaces its two faces wear now. Pure — the
     /// plan-phase half of every door that re-describes an existing
-    /// edge.
+    /// edge. `edge` is one the caller resolved.
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
-    /// face does not resolve; [`EulerOpError::DescriptionNotAdjacent`]
-    /// when the description names surfaces that are not the edge's.
+    /// [`EulerOpError::DescriptionNotAdjacent`] when the description
+    /// names surfaces that are not the edge's.
     pub(crate) fn check_description_adjacent(
         &self,
         edge: EdgeKey,
         description: &geom_brep::EdgeDescriptionSpec<T>,
     ) -> Result<(), EulerOpError> {
-        let sides = self.sides(edge, |_, _, _| None)?;
+        let sides = self.sides(edge, |_, _, _| None);
         require_description_adjacent(Some(edge), description, sides.before.map(Slot::Kept))
     }
 
@@ -1154,25 +1142,16 @@ impl<T: Decide> Body<T> {
     /// `DescriptionNotAdjacent`. Exact: it compares keys and reads no
     /// coordinate.
     ///
-    /// # Errors
+    /// `edge` is one the caller resolved.
     ///
-    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
-    /// face does not resolve; [`EulerOpError::StaleGeometry`] when its
-    /// curve does not.
-    pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> Result<bool, EulerOpError> {
-        let curve = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .curve;
-        let stored = self
-            .get_curve_geom(curve)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: crate::GeomRef::Curve(curve),
-            })?;
-        let sides = self.sides(edge, |_, _, _| None)?;
-        Ok(Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept))
+    /// # Panics
+    ///
+    /// If `edge` or a record it links to does not resolve.
+    pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> bool {
+        let curve = proven(&self.edges, edge, EntityId::Edge).curve;
+        let stored = self.edge_curve(edge, curve);
+        let sides = self.sides(edge, |_, _, _| None);
+        Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept)
     }
 }
 

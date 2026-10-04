@@ -422,7 +422,7 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
 ) -> Option<Vec<HalfEdgeKey>> {
     match body.orbit_walk_reading_no_start(he, ValidatorSeal(())) {
         Walk::Closed(members) => Some(members),
-        Walk::Broken | Walk::Overrun => None,
+        Walk::Broken { .. } | Walk::Overrun => None,
     }
 }
 
@@ -8382,7 +8382,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                 }
             }
             // Broken: a stale link mid-cycle — pass 1 reported it.
-            Walk::Broken => {}
+            Walk::Broken { .. } => {}
             Walk::Overrun => {
                 errors.push(ValidationError::LoopCycleOverrun { loop_: loop_key });
             }
@@ -8527,7 +8527,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         match body.orbit_walk_reading_no_start(emanating, ValidatorSeal(())) {
             // Broken: a stale link or broken mate — passes 1/3 reported
             // the cause.
-            Walk::Broken => {}
+            Walk::Broken { .. } => {}
             Walk::Overrun => {
                 errors.push(ValidationError::VertexOrbitOverrun { vertex: vertex_key });
             }
@@ -10476,7 +10476,7 @@ mod tests {
 
     // ------------------------------------------------------------------
     // The PR 3 carry: two empty loops on ONE vertex, in one face — the
-    // state `kemr`'s EmptyAnchorsCollide defends against. Pass 5's
+    // state `kemr`'s empty-anchor proof panics on. Pass 5's
     // exclusive empty-loop ownership is the rule that catches it.
     // ------------------------------------------------------------------
 
