@@ -855,10 +855,11 @@ fn check_reads<P>(
 
 /// Which door an edit of a STANDING variable came through: the three
 /// carry-forward edits, which write one field of a definition and carry
-/// the rest untouched, and [`DocEdit::DefineVar`], which replaces the
+/// the rest untouched; [`DocEdit::DefineVar`], which replaces the
 /// definition whole and carries only the variable's identity, name and
-/// kind. The type keeps its carry-forward name for the three it was
-/// minted for; the `Definition` arm is the one door here that is not one.
+/// kind; and [`DocEdit::RenameVar`] and [`DocEdit::DeleteVar`], which
+/// touch no definition. The type keeps its carry-forward name for the
+/// three it was minted for.
 ///
 /// It exists so a refusal every such door shares can name the one the
 /// caller actually used ([`EditError::UnknownVar`]). A door over a
