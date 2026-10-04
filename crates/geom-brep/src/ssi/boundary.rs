@@ -348,16 +348,9 @@ impl Pass<'_> {
         (self.wall.knots_u().domain(), self.wall.knots_v().domain())
     }
 
-    /// The side's curve: a row of a clamped wall's net, verbatim. Every
-    /// `KnotVector` is clamped by construction, so no extraction beyond
-    /// the copy is needed.
+    /// The side's curve ([`side_row`]).
     fn curve(&self, side: ChartSide) -> Result<geom::NurbsCurve3<f64>, SsiError> {
-        let high = side.end == ChartEnd::High;
-        let row = match side.fixed {
-            ChartAxis::U => boundary_iso_u(self.wall, high),
-            ChartAxis::V => boundary_iso_v(self.wall, high),
-        };
-        row.map_err(|_| SsiError::UnsupportedCertificate {
+        side_row(self.wall, side).map_err(|_| SsiError::UnsupportedCertificate {
             what: "a NURBS wall's boundary row is not valid spline structure",
         })
     }
@@ -898,11 +891,30 @@ impl Pass<'_> {
     }
 }
 
+/// The curve along `side` of `wall`'s domain: a row of a clamped wall's
+/// net, verbatim. Every `KnotVector` is clamped by construction, so no
+/// extraction beyond the copy is needed.
+pub(crate) fn side_row<T: geom_core::Real>(
+    wall: &geom::NurbsSurface<T>,
+    side: ChartSide,
+) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {
+    let high = side.end == ChartEnd::High;
+    match side.fixed {
+        ChartAxis::U => boundary_iso_u(wall, high),
+        ChartAxis::V => boundary_iso_v(wall, high),
+    }
+}
+
 /// **Whether a side is clear of the plane** (the exact empty answer, Ev's
 /// #3862 rule): `φ` along it certified on one side of the plane, and the
 /// wall's slope across it, `across`, certified to move it further that
 /// way inward. The one test [`Pass::side_region`] decides a side by and
-/// [`side_stretch`] decides each piece of a stretch by.
+/// [`side_stretch`] decides each piece of a stretch by, each with
+/// `across` read over its own region beside the side: the pass over its
+/// rung's strip along the whole side, the side arm over the window cut
+/// to the piece. Either way a clear reading certifies no zero in that
+/// region, but the two regions differ, so the two can read one stretch
+/// differently.
 pub(crate) fn clears(side: ChartSide, side_of_plane: Option<bool>, across: Interval) -> bool {
     one_signed(across) && side_of_plane == Some(sign(across) == Some(inward(side.end) > 0.0))
 }
@@ -922,6 +934,19 @@ pub(crate) fn cut_along(side: ChartSide, r: UvRect, t: (f64, f64)) -> UvRect {
         ChartAxis::U => UvRect { u: r.u, v: t },
         ChartAxis::V => UvRect { u: t, v: r.v },
     }
+}
+
+/// Piece `k` of `along` cut into `count` equal pieces, the last ending
+/// at `along.1` exactly: the schedule a stretch and a strip are read on.
+fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
+    let t = |i: u32| {
+        if i == count {
+            along.1
+        } else {
+            along.0 + (along.1 - along.0) * f64::from(i) / f64::from(count)
+        }
+    };
+    (t(k), t(k + 1))
 }
 
 /// A stretch of a side as the boundary pass reads it ([`read_stretch`]).
@@ -956,17 +981,10 @@ pub(crate) fn read_stretch<T: CertifiedBounds>(
     let (a, b) = along(side, r);
     let across_u = side.fixed == ChartAxis::U;
     let count = 1u32 << STRIP_PIECES_LOG2;
-    let t = |i: u32| {
-        if i == count {
-            b
-        } else {
-            a + (b - a) * f64::from(i) / f64::from(count)
-        }
-    };
     let mut sup = 0.0_f64;
     let mut pieces = Vec::with_capacity(count as usize);
     for k in 0..count {
-        let piece = (t(k), t(k + 1));
+        let piece = nth_piece((a, b), count, k);
         let phi = reader.over(piece);
         let m = magnitude(phi);
         if !m.is_finite() {
@@ -1131,12 +1149,7 @@ fn strip_reach<T: CertifiedBounds>(
         let count = 1u32 << j;
         let mut bound = (0.0_f64, 0.0_f64);
         for k in 0..count {
-            let t = |i: u32| along.0 + (along.1 - along.0) * f64::from(i) / f64::from(count);
-            let piece = if k + 1 == count {
-                (t(k), along.1)
-            } else {
-                (t(k), t(k + 1))
-            };
+            let piece = nth_piece(along, count, k);
             let piece = if along_u {
                 UvRect {
                     u: strip.u,

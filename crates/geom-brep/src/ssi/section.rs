@@ -202,24 +202,16 @@ impl Pieces {
         Some(Self { pieces })
     }
 
-    /// The plane distance `φ = h/W` over the whole curve, enclosed: the
-    /// hull of its Bernstein ratios `h_i/W_i` (every weight positive).
+    /// The plane distance `φ = h/W` over the whole curve, enclosed
+    /// ([`ratio_hull`]).
     fn distance(&self) -> Interval {
-        self.pieces
-            .iter()
-            .flat_map(|(_, hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
-            .reduce(Interval::hull)
-            .unwrap_or_else(Interval::refused)
+        ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
     }
 
     /// The plane distance over `[a, b]`, enclosed as [`Pieces::distance`]
     /// encloses the whole curve's, from the pieces cut to it.
     fn distance_over(&self, a: f64, b: f64) -> Interval {
-        self.over(a, b)
-            .iter()
-            .flat_map(|(hc, wc, _)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
-            .reduce(Interval::hull)
-            .unwrap_or_else(Interval::refused)
+        ratio_hull(self.over(a, b).iter().map(|(hc, wc, _)| (hc, wc)))
     }
 
     /// For each piece overlapping `[a, b]`: the Bernstein coefficients
@@ -248,9 +240,20 @@ impl Pieces {
     }
 }
 
+/// The hull of the Bernstein ratios `h_i/W_i` of pieces (every weight
+/// positive): an enclosure of `φ = h/W` over them.
+fn ratio_hull<'a>(pieces: impl Iterator<Item = (&'a Vec<Interval>, &'a Vec<Interval>)>) -> Interval {
+    pieces
+        .flat_map(|(hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
+        .reduce(Interval::hull)
+        .unwrap_or_else(Interval::refused)
+}
+
 /// **A side's plane distance, read as [`boundary_section`] reads it**,
-/// over any stretch of the side: the one reader the boundary pass and
-/// limb 3's side arm share, so the two doors read one input.
+/// over any stretch of the side: the side's Bernstein pieces
+/// ([`Pieces::enclosed`], the arithmetic [`boundary_section`] reads a
+/// whole side by), cut to the stretch. Limb 3's side arm reads a side
+/// through it, so the two doors read one input.
 pub(crate) struct SectionReader {
     pieces: Pieces,
 }

@@ -373,21 +373,17 @@ fn on_side(r: UvRect, domain: UvRect, side: ChartSide) -> bool {
     edge_at(side, r) == edge_at(side, domain)
 }
 
-/// The boundary pass's reader of `φ` along each side of the wall's
-/// domain, in [`SIDES`] order: the side's row of the net, its control
-/// points enclosed ([`SectionReader`]); `None` where the row or its
+/// The reader of `φ` along each side of the wall's domain, in [`SIDES`]
+/// order: the boundary pass's row of the net for that side
+/// ([`super::boundary::side_row`]), its control points enclosed
+/// ([`SectionReader`]); `None` where the row or its
 /// Bernstein form is refused, and that side holds no piece.
 fn side_readers<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     (n, p0): ([Interval; 3], [Interval; 3]),
 ) -> [Option<SectionReader>; 4] {
     SIDES.map(|side| {
-        let high = side.end == ChartEnd::High;
-        let row = match side.fixed {
-            ChartAxis::U => crate::nurbs_iso::boundary_iso_u(boxes.surface(), high),
-            ChartAxis::V => crate::nurbs_iso::boundary_iso_v(boxes.surface(), high),
-        }
-        .ok()?;
+        let row = super::boundary::side_row(boxes.surface(), side).ok()?;
         let control: Vec<[Interval; 3]> = row
             .control()
             .iter()
