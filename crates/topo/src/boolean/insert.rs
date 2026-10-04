@@ -946,12 +946,16 @@ fn mint_directed<T: Decide>(
     // vertex, past those hung in its corner.
     let site = match walk {
         Some(w) => {
-            // The half arriving at the corner the strut splices into.
-            let (at, arrival) = match w.holder {
-                Some((half, _)) => (body.proven_half_edge_end(half), half),
-                None => (vertex, body.proven_mate(sectors[w.lo.0].he, Proven).mate),
+            // The first half past the arrival at the corner the strut
+            // splices into, starting at `at`: the holder's end by
+            // construction, and at `vertex` by a proven orbit step.
+            let (at, first) = match w.holder {
+                Some((half, _)) => (
+                    body.proven_half_edge_end(half),
+                    proven(&body.half_edges, half, EntityId::HalfEdge).next,
+                ),
+                None => (vertex, orbit_step_at(body, vertex, sectors[w.lo.0].he)),
             };
-            let first = proven(&body.half_edges, arrival, EntityId::HalfEdge).next;
             Some((
                 at,
                 strut_anchor(body, (operand, at), sectors, first, w.lo, hung, band)?,
