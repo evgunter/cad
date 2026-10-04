@@ -471,6 +471,8 @@ fn sym_9_what_each_retry_recovers() {
 /// numeric under the new one, with and without the ladder alike
 /// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
 /// ladder's own six and every other document's row do not move.
+/// Measured by a probe binding each variable under its old name-hash
+/// symbol, which restores 156 and 162: the move is the order alone.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against

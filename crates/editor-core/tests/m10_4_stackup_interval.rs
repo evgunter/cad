@@ -240,12 +240,24 @@ fn plate_spaced(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, radius)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, None)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, depth)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, None)),
     });
+    // Annotated by their own door: a declare mints from its definition,
+    // so plates declared with different laws would carry different
+    // variable and node ids, and a drive of one would read as foreign to
+    // the other — which is not what the rows comparing them are about.
+    for (n, law) in [("hole_r", radius), ("depth", depth)] {
+        if law.is_some() {
+            r.push(DocEdit::SetVarDistribution {
+                var: name(n).into(),
+                distribution: law,
+            });
+        }
+    }
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
@@ -491,10 +503,17 @@ fn the_two_hole_plate_stackup() {
         "{rendered}"
     );
 
-    // The goldening form prints a sensitivity's nodes by full id, never
-    // the tag and never a spoken node.
+    // The goldening form prints a sensitivity's nodes and its variable
+    // by full id, never the tag and never a spoken node or name. The
+    // row is found by its variable: rows sort by id, not by name.
+    let hole_r = var(&doc, "hole_r");
     let mut unliftable = report.clone();
-    unliftable.per_param[0].sensitivity = SensitivityOutcome::Unliftable {
+    unliftable
+        .per_param
+        .iter_mut()
+        .find(|p| p.param == hole_r)
+        .expect("hole_r has a row")
+        .sensitivity = SensitivityOutcome::Unliftable {
         node: measure,
         refusal: LiftRefusal::PinnedSection {
             section: assertion,
@@ -504,14 +523,16 @@ fn the_two_hole_plate_stackup() {
     let golden = unliftable.serialize();
     assert!(
         golden.contains(&format!(
-            "sensitivity=unliftable at node {}: hole_r feeds the section of node {}, which \
-             stays f64",
+            "sensitivity=unliftable at node {}: variable {} feeds the section of node {}, \
+             which stays f64",
             measure.full(),
+            hole_r.full(),
             assertion.full()
         )),
         "{golden}"
     );
     assert!(!golden.contains("Measure "), "{golden}");
+    assert!(!golden.contains("hole_r"), "{golden}");
 
     // The nominal: the plate's own formula, 2·0.30 − 2·0.2.
     assert!(
