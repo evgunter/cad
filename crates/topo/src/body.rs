@@ -1644,48 +1644,6 @@ impl<T: Real> Body<T> {
         face
     }
 
-    /// The end vertex of `he` (`start(next(he))`) for a half-edge this
-    /// call resolved or read out of a record: its `next` is a link, and
-    /// a miss panics naming it.
-    #[track_caller]
-    pub(crate) fn half_edge_end_linked(&self, he: HalfEdgeKey) -> VertexKey {
-        let next = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).next;
-        crate::live::linked(
-            &self.half_edges,
-            next,
-            EntityId::HalfEdge,
-            EntityId::HalfEdge(he),
-            "next",
-        )
-        .start
-    }
-
-    /// The members of every cycle bounding `face` (outer loop, then its
-    /// rings, each in `next` order), for a face this call resolved or
-    /// read out of a record: each loop is a link of the face and each
-    /// walk closes, so a miss panics naming the record or the hop.
-    #[track_caller]
-    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
-        let data = crate::live::proven(&self.faces, face, EntityId::Face);
-        let loops = core::iter::once(("outer", data.outer))
-            .chain(data.rings.iter().map(|&ring| ("rings", ring)));
-        let mut out = Vec::new();
-        for (field, r#loop) in loops {
-            let boundary = crate::live::linked(
-                &self.loops,
-                r#loop,
-                EntityId::Loop,
-                EntityId::Face(face),
-                field,
-            )
-            .boundary;
-            if let crate::entity::LoopBoundary::Cycle { first } = boundary {
-                out.extend(self.loop_walk(first).closed("loop", first));
-            }
-        }
-        out
-    }
-
     /// The edges meeting `vertex`, each ONCE — or `None` where the
     /// vertex key is stale, its stored [`Vertex::emanating`] starts at
     /// another vertex, or its orbit does not walk

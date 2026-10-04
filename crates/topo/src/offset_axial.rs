@@ -557,7 +557,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             "he_plus",
         )
         .start;
-        let end = body.half_edge_end_linked(edge_data.he_plus);
+        let end = body.proven_half_edge_end(edge_data.he_plus);
         let (p_start, p_end) = (
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),

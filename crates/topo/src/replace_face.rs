@@ -1620,7 +1620,7 @@ fn cone_v_range<T: Decide>(
 /// at the door, and the walk from it reads links, so a miss panics
 /// naming the record ([`Body::face_cycles_linked`]).
 #[track_caller]
-fn group_boundary<T: Real>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
+fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
     let mut out: Vec<EdgeKey> = Vec::new();
     for &face in group {
         for he in body.face_cycles_linked(face) {
@@ -1659,7 +1659,7 @@ fn plan_edge<T: Decide>(
         "he_plus",
     )
     .start;
-    let end = body.half_edge_end_linked(he_plus);
+    let end = body.proven_half_edge_end(he_plus);
     let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
         return Err(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
@@ -2288,7 +2288,7 @@ fn plan_reanchors<T: Decide>(
             "he_plus",
         )
         .start;
-        let end = body.half_edge_end_linked(he_plus);
+        let end = body.proven_half_edge_end(he_plus);
         let at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
         let (new_start, new_end) = (at(start), at(end));
         if new_start.is_none() && new_end.is_none() {

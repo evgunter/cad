@@ -2124,14 +2124,19 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
 
 /// The loops of `face` — a face of the body, an arena member or a key
 /// its door resolved — outer first, each with its cycle
-/// ([`loop_rows`]), a loop whose boundary is a lone vertex left out.
+/// ([`loop_rows`]; empty for a loop whose boundary is a lone vertex).
+/// The one walk of a face's cycles: [`face_loop_cycles`],
+/// [`Body::face_cycles_linked`] and [`Body::face_cycles`] all read it.
 ///
 /// # Panics
 ///
 /// Where `face`, a loop its record names, or a loop's walk does not
 /// resolve.
 #[track_caller]
-fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
+pub(crate) fn face_loop_walks<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
     let data = proven(&body.faces, face, EntityId::Face);
     core::iter::once((data.outer, "outer"))
         .chain(data.rings.iter().map(|&ring| (ring, "rings")))
@@ -2139,6 +2144,14 @@ fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, V
             let _ = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
             (lk, loop_rows(body, lk))
         })
+        .collect()
+}
+
+/// [`face_loop_walks`], a loop whose boundary is a lone vertex left out.
+#[track_caller]
+fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
+    face_loop_walks(body, face)
+        .into_iter()
         .filter(|(_, cycle)| !cycle.is_empty())
         .collect()
 }

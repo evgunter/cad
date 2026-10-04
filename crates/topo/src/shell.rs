@@ -1874,7 +1874,7 @@ fn canonicalize_chart<T: Decide>(
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor) {
         // Whether `he` ends at a valence-one tip, which `kev` kills; a
         // far vertex whose valence cannot be read refuses.
-        let tip = |body: &Body<T>, he: HeKey| valence(body, body.half_edge_end_linked(he)) == 1;
+        let tip = |body: &Body<T>, he: HeKey| valence(body, body.proven_half_edge_end(he)) == 1;
         if tip(body, he1) {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
@@ -2426,7 +2426,7 @@ struct PlanarFace<T: Real> {
 /// footprint. Every face is read off the arena, so its records are
 /// links and a miss panics naming one.
 #[track_caller]
-fn planar_faces<T: Real>(
+fn planar_faces<T: geom_core::Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
@@ -2545,7 +2545,10 @@ fn footprints_may_overlap<T: Decide>(
 /// off the arena: the walk reads links, so a miss panics naming the
 /// record.
 #[track_caller]
-fn face_boundary_points<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<geom_core::Point3<T>> {
+fn face_boundary_points<T: geom_core::Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Vec<geom_core::Point3<T>> {
     body.face_cycles_linked(face)
         .into_iter()
         .map(|he| {

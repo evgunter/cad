@@ -247,7 +247,7 @@ use crate::euler::{
     RunExtent, require_halves, shared_loop,
 };
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{Arg, Live, link, linked, lookup, proven, require_key};
+use crate::live::{Arg, Live, link, linked, lookup, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
@@ -1518,21 +1518,25 @@ impl<T: Decide> Body<T> {
     /// whole.
     #[track_caller]
     pub(crate) fn face_cycles(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
-        let face_data = proven(&self.faces, face, EntityId::Face);
         let mut halves = Vec::new();
-        for (r#loop, field) in core::iter::once((face_data.outer, "outer"))
-            .chain(face_data.rings.iter().map(|&r| (r, "rings")))
-        {
-            let _ = linked(
-                &self.loops,
-                r#loop,
-                EntityId::Loop,
-                EntityId::Face(face),
-                field,
-            );
-            halves.extend(self.whole_cycle(r#loop));
+        for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+            self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[]);
+            halves.extend(cycle);
         }
         halves
+    }
+
+    /// [`Body::face_cycles`] without the whole-loop proof: the members of
+    /// every cycle bounding `face`, outer loop then rings, each in `next`
+    /// order, for a face this call resolved or read out of a record. The
+    /// walk is [`crate::pcurves::face_loop_walks`], so a miss panics as
+    /// that walk does.
+    #[track_caller]
+    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
+        crate::pcurves::face_loop_walks(self, face)
+            .into_iter()
+            .flat_map(|(_, cycle)| cycle)
+            .collect()
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve
