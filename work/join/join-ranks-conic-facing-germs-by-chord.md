@@ -103,11 +103,8 @@ the face, and the chord paired them with the true partners further
 along the walk. Once a chord takes the arc its pairing names, that pair
 refused `RingHomingAmbiguous`.
 
-PR 3985 adds a filter in front of the ranking above: `partners`
-rejects a conic pair when another site of the same locus lies strictly
-between them along the near germ's walk (`walk_passes`,
-`bool_join_walk_site` / `bool_join_walk_order`), so such a pair is
-never a candidate, whatever the order the ranking would give it.
-`loose_partners` shares `partners`. Rows:
-`crates/sweep/tests/four_crossings_on_one_section_circle.rs` (a slab
-crossing one section circle four times) goes red with the filter off.
+Under the ranking above that pair is not taken, and the chord takes
+the arc the right pair's germs leave along. `crates/sweep/tests/four_crossings_on_one_section_circle.rs`
+(a slab crossing one section circle four times, the germs' neighbour
+along the walk farther by chord) holds the ranking and the arc
+together; it is red under a chord ranking.

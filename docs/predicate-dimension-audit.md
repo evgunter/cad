@@ -436,7 +436,6 @@ which is what actually moves the number.
 | boolean/join.rs (`nearer_along`, through `turned_past`) | bool_join_arc_travel | the same distance read from the incumbent partner's site: which of two sites in one half-turn the germ reaches first | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs (`rotational_sense`) | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
-| boolean/join.rs (`walk_passes`) | bool_join_walk_site / bool_join_walk_order | a third site's distance to either end of a conic pair (m); the sweep angle about the conic's centre to the pair's far end less the one to the third site, in the near germ's sense (rad), levered by the near site's distance from the centre | m | OK (REACH) |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
 | boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |

@@ -1,7 +1,7 @@
 ---
 id: the-walk-order-is-spelled-twice
 kind: issue
-title: The order along a section conic is spelled twice: the boolean's walk_passes reads a sweep angle about the centre, the split's conic_pairs a parameter walk, tied by prose
+title: The order along a section conic is spelled twice: the boolean's partner ranking reads the side of an axis plane, the split's conic_pairs a parameter walk
 status: open
 opened: 2026-10-03
 ---
@@ -17,19 +17,20 @@ into both lanes' pairing.
 Two lanes pair the crossings of one section conic by their order
 along it, and each spells that order its own way:
 
-- the boolean's `walk_passes` (`crates/topo/src/boolean/join.rs:1622`)
-  reads the sweep angle about the conic's centre from the near site,
-  in the near germ's sense (`bool_join_walk_order`), and rejects a
-  facing pair when a third site of the locus lies strictly between;
+- the boolean's partner ranking (`crates/topo/src/boolean/join.rs`
+  `germ_arm` and `nearer_along`, through `turned_past`): a germ's
+  partners in the half-turn it runs into come first, and within one
+  half-turn the one on the near side of the incumbent's axis plane
+  (`bool_join_arc_ahead`, `bool_join_arc_travel`);
 - the split's `conic_pairs` (`crates/topo/src/splitting/join.rs:464`)
   sorts the crossings along the walk coordinate `w = ±θ`, the conic's
   eccentric anomaly, by `sort_along` with an arc-length gap
   (`crates/topo/src/splitting/join.rs:519`).
 
-The angle about the centre and the eccentric anomaly order the points
-of an ellipse the same way, so the two agree; nothing but the comment
-at `crates/topo/src/boolean/join.rs:1024` ("the order
-`splitting::join`'s `conic_pairs` pairs by") says so.
+Both orders are the order along the conic, so they agree; nothing
+holds them against each other. (PR 3985 first added a third spelling,
+a walk filter in the boolean's `partners`; JOIN's ranking made it
+redundant on every row, and it was removed before merging.)
 
 ## Done when
 

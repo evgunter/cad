@@ -26,13 +26,18 @@ the origin:
 
 (The shipped bar, `crates/sweep/tests/snowman.rs:624`, builds at ×1.)
 
-`find_match` ranks the facing partners that survive the walk filter by
-chord length, `decide("bool_join_nearest", Margin::of(dist − bd))`
-(`crates/topo/src/boolean/join.rs:949`; its loose-end twin at `:1760`):
-a difference of two lengths in metres, unlevered. Two candidates
+`find_match` orders the pairs its germs have each ranked, half-turn
+first and then by chord length, `decide("bool_join_nearest",
+Margin::of(cand.chord − best.chord))` (`nearer`,
+`crates/topo/src/boolean/join.rs:977`): a difference of two lengths in metres, unlevered. Two candidates
 whose chords differ by a fixed fraction of the body's size tie within
 the band once the body is small enough, so the door a pose stops at
 depends on its scale.
+
+The refusals above were measured with the chord ranking that JOIN's
+PR 4008 replaced (half-turn, then the turn along the conic); the
+scale dependence of the pair ORDER remains, the poses are not
+re-measured.
 
 ## Done when
 

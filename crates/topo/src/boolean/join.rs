@@ -1204,32 +1204,6 @@ fn partners<T: Decide>(
     if !germs_face_each_other(frame, &rga, &ega, p_c, p_e, band)? {
         return Ok(None);
     }
-    // On a conic the two germs face each other along one of the two
-    // arcs between their sites, and the pair is a segment only if no
-    // other site of the locus lies on that arc: consecutive along the
-    // walk, the order `splitting::join`'s `conic_pairs` pairs by. Chord
-    // length cannot say it: on a circle crossed four times the nearest
-    // site by chord can be the far one along the walk.
-    if let Some((center, _)) = frame {
-        for other in open {
-            for &(g, used) in &other.a {
-                if g.a_locus != rga.a_locus || g.b_locus != rga.b_locus {
-                    continue;
-                }
-                // A used germ's half may be gone once its segment is
-                // joined; its site is then no longer a site of this
-                // locus's unjoined part.
-                let p = match red.a.half_edge_start_point(g.he) {
-                    Some(p) => p,
-                    None if used => continue,
-                    None => return Err(desync("germ site has no point")),
-                };
-                if walk_passes(center, &rga, p_c, p_e, p, band)? {
-                    return Ok(None);
-                }
-            }
-        }
-    }
     // The B side at the SAME slots — mirror checks, not freedom:
     // shared-germ loci and the anti-correlation theorem make
     // disagreement a kernel bug, refused loudly.
@@ -1812,51 +1786,6 @@ pub(super) fn cs_pair_frame<T: Decide>(
             "germ pair's section refused at match time",
         )),
     }
-}
-
-/// Whether the site `p` lies strictly inside the arc of a conic germ
-/// locus that leaves `p_c` along `germ.dir` and ends at `p_e`: the
-/// sweep angle about `center` from `p_c` in the germ's own sense, to `p`
-/// short of the one to `p_e` (**`bool_join_walk_order`**, the angle
-/// levered by `|p_c − center|`). A site coincident with either end
-/// (`bool_join_walk_site`, its distance) is not inside. The angle about
-/// the centre is monotone along a circle or an ellipse, so the order is
-/// the walk's.
-fn walk_passes<T: Decide>(
-    center: geom_core::Point3<T>,
-    germ: &HalfGerm<T>,
-    p_c: geom_core::Point3<T>,
-    p_e: geom_core::Point3<T>,
-    p: geom_core::Point3<T>,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    for end in [p_c, p_e] {
-        if decide("bool_join_walk_site", Margin::of((p - end).norm()), band).map_err(escalate)?
-            == Sign::Zero
-        {
-            return Ok(false);
-        }
-    }
-    // The germ's own turn about the centre: the section plane's normal,
-    // signed by the sense the germ leaves `p_c` in (the facing test
-    // decided the sense is not zero).
-    let v_c = p_c - center;
-    let turn = v_c.cross(germ.dir);
-    let turn = turn / turn.norm();
-    let sweep = |q: geom_core::Point3<T>| {
-        let v = q - center;
-        turn.dot(v_c.cross(v))
-            .atan2(v_c.dot(v))
-            .reduce_periodic(T::tau())
-    };
-    Ok(decide(
-        "bool_join_walk_order",
-        Margin::levered(sweep(p_e) - sweep(p), v_c.norm()),
-        band,
-    )
-    .map_err(escalate)?
-        == Sign::Positive)
 }
 
 /// Mutual germ facing along the germ LOCUS (M5 PR 9 fix pass, dev 4).

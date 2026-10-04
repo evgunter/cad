@@ -10,21 +10,14 @@
 //! `120°` is shorter than the one from `−40°` to `60°` that the germs at
 //! `−40°` and `60°` face along.
 //!
-//! The join's matcher rejects a facing conic pair when another site of
-//! the same locus lies strictly between them along the near germ's walk
-//! (`boolean::join`'s `walk_passes`: `bool_join_walk_site`, a third
-//! site's distance to either end, and `bool_join_walk_order`, its sweep
-//! angle about the centre against the far end's). Without it the
-//! chord-nearest pair is taken and the join refuses at the ring it
-//! leaves on the ball's face.
-//!
-//! `bool_join_walk_site` answers `Zero` on every call for the pair's own
-//! two germs (each is a site of its own locus, at distance exactly
-//! zero), so that branch runs in every row. Another record's germ at an
-//! end's site reaches it too — a coincident copy, not between the two
-//! ends, so the pair stands:
-//! `run_walls_built::revolved_runs_build_one_wall_each` reaches it and
-//! builds every wall.
+//! The join's matcher ranks each germ's facing partners along the conic
+//! — the half-turn the partner lies in, then the turn that reaches it
+//! (`boolean::join`'s `nearer_along`, `bool_join_arc_travel`) — so the
+//! partner it takes is the neighbour along the walk, and each chord
+//! then takes the arc the paired germs leave along (`chord_join`'s
+//! `arc_leaving`). A ranking by chord would pair across the walk here,
+//! and a chord that asked the divided face for its arc would find no
+//! window on this tilted section: the row is red under either.
 //!
 //! The ball is the canonical full revolve about `y`, and the same ball
 //! with its pole turned off every axis; the turn moves no point of the
@@ -89,9 +82,7 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// **A slab across four crossings that straddle the circle's lowest
 /// point builds under every boolean, at the slab's closed form**, on the
-/// `y`-poled ball and on one turned off every axis. Disable either rung
-/// of the walk check and the row refuses at the ring the chord-nearest
-/// pairing leaves.
+/// `y`-poled ball and on one turned off every axis.
 #[test]
 fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
     let ball_volume = 4.0 / 3.0 * PI;
