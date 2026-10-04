@@ -89,10 +89,9 @@ use crate::entity::SolidKey;
 ///
 /// # Errors
 ///
-/// [`BooleanError`] — the transplant's own refusals: `JoinDesync` when
-/// `src` is not a well-formed single-solid body, `GraftRecertify` when
-/// a transplanted edge description does not re-certify against the
-/// destination's surfaces.
+/// [`BooleanError::JoinDesync`] when `src` is not a well-formed
+/// single-solid body; [`graft_disjoint_all`]'s refusals otherwise, with
+/// `dst` deep-unchanged.
 pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -102,10 +101,15 @@ pub fn graft_disjoint<T: geom_core::Decide>(
             what: "graft source is not a well-formed single-solid body",
         });
     }
-    let mut keys = graft_disjoint_all(dst, src)?;
-    keys.pop().ok_or(BooleanError::JoinDesync {
-        what: "graft source is not a well-formed single-solid body",
-    })
+    let keys = graft_disjoint_all(dst, src)?;
+    let [key] = keys[..] else {
+        unreachable!(
+            "a committed graft mints one solid per source solid, and the source was \
+             checked to hold exactly one; it minted {} (kernel bug)",
+            keys.len()
+        )
+    };
+    Ok(key)
 }
 
 /// Grafts EVERY solid of `src` into `dst`, each as a new solid,
@@ -142,11 +146,11 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// re-certification that is the only site raising that variant. Only
 /// the in-crate `Bridge::Recertify` path (the booleans') can.
 ///
-/// The failure STATE is unchanged and is what a caller must plan for:
-/// the destination solids are minted before the transplant, and the
-/// remap writes as it goes, so a `JoinDesync` raised mid-transplant
-/// leaves `dst` partially written — a failed graft's destination is
-/// spent, never resumable.
+/// **Every refusal leaves `dst` deep-unchanged.** The transplant runs
+/// on a staged clone of `dst` and is committed only once it has
+/// succeeded in full — the shape `Body::merge_coplanar_faces` stages
+/// in — so a caller keeps the destination it had, and no refusal
+/// leaves a body tier-1-invalid.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -240,8 +244,8 @@ impl GraftKeys {
 ///
 /// # Errors
 ///
-/// Exactly [`graft_disjoint_all`]'s, including its spent-destination
-/// failure state.
+/// Exactly [`graft_disjoint_all`]'s, with `dst` deep-unchanged on
+/// every one. The returned keys name entities of `dst` as committed.
 pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -251,15 +255,39 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
             what: "graft source holds no solid to graft",
         });
     }
+    #[cfg(debug_assertions)]
+    let before = dst.arena_counts();
+    let mut stage = dst.clone();
     let (map, targets) = crate::boolean::combine::graft_solids_minted(
-        dst,
+        &mut stage,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
+    dst.adopt(stage);
+    #[cfg(debug_assertions)]
+    dst.assert_euler_postcondition(before, graft_delta(src), "graft_disjoint_all_keyed");
     Ok(GraftKeys {
         solids: targets,
         map,
     })
+}
+
+/// A graft's arena shift: one fresh entity per live source entity, a
+/// minted solid per source solid included (the dead-on-arrival keys it
+/// mints for dead record payloads are removed at once).
+#[cfg(debug_assertions)]
+fn graft_delta<T: geom_core::Decide>(src: &Body<T>) -> crate::euler::ArenaDelta {
+    let c = src.arena_counts();
+    let n = |x: usize| isize::try_from(x).unwrap_or(isize::MAX);
+    crate::euler::ArenaDelta {
+        solids: n(c.solids),
+        shells: n(c.shells),
+        faces: n(c.faces),
+        loops: n(c.loops),
+        half_edges: n(c.half_edges),
+        edges: n(c.edges),
+        vertices: n(c.vertices),
+    }
 }
 
 /// Direct rows for this door (R1 MINOR-2): the integration coverage
@@ -364,6 +392,69 @@ mod tests {
                     .all(|(_, face)| face.surface != *k),
                 "a transplanted surface key collided with the destination's"
             );
+        }
+    }
+
+    /// Sources torn so the transplant refuses only after it has begun
+    /// writing: a half-edge whose `next` dangles refuses in the
+    /// cross-reference pass, after every arena has been copied; a solid
+    /// listing a dead shell refuses at the shell attachment, the last
+    /// fallible step, after the minted solids exist. A public consumer
+    /// cannot build either (every public door keeps tier 1, and tier 1
+    /// vouches for both references), so the tear takes `pub(crate)`
+    /// reach: these stand for whatever a kernel bug elsewhere leaves.
+    fn torn_sources() -> [(&'static str, Body<f64>); 2] {
+        let mut next = cube();
+        let he = next.half_edges.iter().next().unwrap().0;
+        next.get_half_edge_mut(he).unwrap().next = crate::entity::HalfEdgeKey::default();
+        let mut shell = cube();
+        let solid = shell.solids().next().unwrap().0;
+        shell
+            .get_solid_mut(solid)
+            .unwrap()
+            .shells
+            .push(crate::entity::ShellKey::default());
+        [
+            ("a dangling `next` (cross-reference pass)", next),
+            ("a dead shell in the solid's list (attachment)", shell),
+        ]
+    }
+
+    /// **Atomicity, at every graft door.** A refusal raised after the
+    /// transplant has started leaves the destination deep-unchanged —
+    /// every row, every provenance record, every arena's next key — and
+    /// so still tier-1 valid. A destination written before the refusal
+    /// would differ from its snapshot and fail tier 1 (an empty minted
+    /// solid is `SolidWithoutShells`).
+    #[test]
+    fn a_refused_graft_leaves_the_destination_deep_unchanged() {
+        type Door = fn(&mut Body<f64>, &Body<f64>) -> Result<(), crate::boolean::BooleanError>;
+        let doors: [(&str, Door); 3] = [
+            ("graft_disjoint", |d, s| graft_disjoint(d, s).map(drop)),
+            ("graft_disjoint_all", |d, s| {
+                crate::instance::graft_disjoint_all(d, s).map(drop)
+            }),
+            ("graft_disjoint_all_keyed", |d, s| {
+                graft_disjoint_all_keyed(d, s).map(drop)
+            }),
+        ];
+        for (door, graft) in doors {
+            for (tear, src) in torn_sources() {
+                let mut dst = cube();
+                let before = deep_snapshot(&dst);
+                let err = graft(&mut dst, &src).expect_err("a torn source refuses");
+                assert!(
+                    format!("{err:?}").contains("JoinDesync"),
+                    "{door}, {tear}: {err:?}"
+                );
+                assert_eq!(
+                    deep_snapshot(&dst),
+                    before,
+                    "{door}, {tear}: the refused graft wrote the destination (tier 1 now: {:?})",
+                    crate::validate(&dst),
+                );
+                assert_eq!(crate::validate(&dst), Ok(()), "{door}, {tear}");
+            }
         }
     }
 
