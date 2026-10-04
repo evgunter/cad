@@ -6663,3 +6663,17 @@ step-import. The torn-body conversion follows it, split by door family.
 PR 3970 round 4: B's report is in (`design-kef-B-r4.md`): 2 = tier 1 (likely); 3 = caller states (likely,
 close; a `Carry` argument is acceptable); 1 = direct (sure), with the scope widened to the curves/surfaces
 arenas. Waiting on A.
+
+## PR 3970 round 4 in (2026-10-04 ~07:00)
+
+Both reports are saved (`design-kef-A-r4.md`, `design-kef-B-r4.md`).
+- 1: both sure, go direct to privacy. B widens the scope to the curves and surfaces arenas.
+- 2: both likely, tier 1. A moved because of 1 = B.
+- 3: split. A says the twin derives; B says the caller states it, and accepts a `Carry` named argument.
+  - The open point is whether Ev's PR 2527 "no default" covered the describing door's unlisted edges.
+  - A found `kev_describing` re-certifies unlisted members today.
+- A's off-question finding: "no chart yet" is spelled as a poisoned NURBS net, which tier 3 reads. This is for the
+  privacy unit's brief.
+
+Posting the combined verbatim comment via `gh api` was denied by the auto-mode classifier. Per the denial I did
+not re-post it by another route; I put the summary to Ev in chat instead.
