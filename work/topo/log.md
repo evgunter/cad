@@ -6716,3 +6716,4 @@ C6: closing S70 is correct (its Gates defer exactly to S14(b)). I applied the tr
 - NOTE-2: the perf row is marked design (a D1 sweep-placement question, to go to Ev) and the pre-existing `Recertify`
   O(E^2) is noted.
 Merge on green. The reviewer is archived.
+- 09:30: probe lane `session_01TQ5SmsWUzFBBnFaP2pXr4c` dispatched. Read-only. It measures tier 3 right after the kill-kept mixed merges (`kef`/`kef_minting`) and wrapping-loop re-anchors (`kev`/`kemr`), the claim both re-anchor designers left unchecked. Its result goes into PR 4024 as evidence.
