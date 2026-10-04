@@ -6143,7 +6143,9 @@ mod tests {
         let unlowered = crate::Expr::named(width.clone(), crate::Dimension::Length);
         let refused = super::door(&doc, tol, |new, _| {
             let node = new.nodes.get_mut(&extrude).expect("the extrude is live");
-            *node.expr_mut(crate::node::SlotId::Distance).expect("a distance slot") = unlowered;
+            *node
+                .expr_mut(crate::node::SlotId::Distance)
+                .expect("a distance slot") = unlowered;
             Ok(())
         })
         .map(|_| ())
