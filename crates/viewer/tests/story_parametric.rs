@@ -212,7 +212,7 @@ fn the_parametric_living_walk() {
     // by `DocEdit::SetVarValue`, which carries an existing
     // declaration forward and says so: `EditError::UnknownVar`, naming
     // the variable and the one recourse both doors render
-    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
+    // (`editor_core::edit::UNKNOWN_VAR_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
     let taper_var = common::var_of(session.committed_doc(), taper.as_str());

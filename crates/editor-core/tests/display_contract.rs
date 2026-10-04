@@ -3390,9 +3390,9 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             InlineError::VarNameConflict { name: name.clone() }.to_string(),
         ),
         (
-            "SeedError::UnknownParam",
-            SeedError::UnknownParam {
-                param: spoken.clone(),
+            "SeedError::UnknownVar",
+            SeedError::UnknownVar {
+                var: spoken.clone(),
             }
             .to_string(),
         ),

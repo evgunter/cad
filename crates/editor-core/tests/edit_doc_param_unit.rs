@@ -319,7 +319,7 @@ fn the_unit_door_refuses_typed() {
     let notation = refuse("nonesuch", mm()).to_string();
     assert!(
         notation.contains("a notation edit")
-            && notation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+            && notation.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "the sentence names the notation door and keeps its recourse: {notation:?}"
     );
     let value = apply(
@@ -334,8 +334,7 @@ fn the_unit_door_refuses_typed() {
     .expect_err("the value door refuses the same undeclared name")
     .to_string();
     assert!(
-        value.contains("a value edit")
-            && value.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+        value.contains("a value edit") && value.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "and the value door names itself, with the same recourse: {value:?}"
     );
     assert_ne!(

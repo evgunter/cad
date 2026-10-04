@@ -668,8 +668,8 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
     let deleted = step(&renamed, DocEdit::DeleteVar { var: w.into() }).doc;
     match seed_env::<geom_core::Dual64, _>(&deleted, deleted.var_env(), w) {
-        Err(editor_core::analysis::SeedError::UnknownParam { param }) => {
-            assert_eq!(param.id(), w);
+        Err(editor_core::analysis::SeedError::UnknownVar { var }) => {
+            assert_eq!(var.id(), w);
         }
         other => panic!("a seed on a deleted variable refuses, got {other:?}"),
     }

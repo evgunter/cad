@@ -29,7 +29,7 @@ use pncad::workspace::WorkspaceError;
 // added to `pncad`'s root — the ruling `pncad`'s own crate docs state
 // for a name the facade does not carry, and the same one this crate's
 // `bvh` and `Rgba8` edges cite.
-use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+use editor_core::edit::UNKNOWN_VAR_RECOURSE;
 
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
@@ -265,7 +265,7 @@ pub enum Refusal {
     /// putting back the pre-check the door already refuses — so what
     /// is converged is what the
     /// user must DO: this arm renders the same recourse the door
-    /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
+    /// renders — [`editor_core::edit::UNKNOWN_VAR_RECOURSE`], its
     /// one home — over the same fact. What stays apart is
     /// the frame, and it has to: the door's sentence is about an edit
     /// that was refused, and a drag has no edit behind it, so a
@@ -795,7 +795,7 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(var) => {
                 write!(
                     f,
-                    "variable {var} is not in this document — {UNDECLARED_PARAM_RECOURSE}"
+                    "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"
                 )
             }
             Self::ParamNotANumber { var } => {

@@ -298,9 +298,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileLaneReplay(Flipped)",
     "ProfileLaneReplay(None)",
     "ProfilePieces",
-    "Seed/CountParam",
+    "Seed/CountVar",
     "Seed/TangentUnrepresentable",
-    "Seed/UnknownParam",
+    "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
     "ShellOpenKind",
@@ -2940,18 +2940,18 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     ];
     let seed = [
         (
-            "UnknownParam",
-            SeedError::UnknownParam {
-                param: editor_core::SpokenVar::new(
+            "UnknownVar",
+            SeedError::UnknownVar {
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
         ),
         (
-            "CountParam",
-            SeedError::CountParam {
-                param: editor_core::SpokenVar::new(
+            "CountVar",
+            SeedError::CountVar {
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("n")),
                 ),
@@ -2960,7 +2960,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
-                param: editor_core::SpokenVar::new(
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("width")),
                 ),

@@ -788,8 +788,8 @@ mod tests {
                 },
             },
             C::Seed => K::Seed {
-                source: crate::SeedError::UnknownParam {
-                    param: crate::SpokenVar::new(crate::VarId(1), None),
+                source: crate::SeedError::UnknownVar {
+                    var: crate::SpokenVar::new(crate::VarId(1), None),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {

@@ -1814,8 +1814,8 @@ pub fn param_box_error_tag(err: &ParamBoxError) -> &'static str {
 /// of [`NodeErrorKind::Seed`].
 pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
-        SeedError::UnknownParam { .. } => "unknown_param",
-        SeedError::CountParam { .. } => "count_param",
+        SeedError::UnknownVar { .. } => "unknown_param",
+        SeedError::CountVar { .. } => "count_param",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }

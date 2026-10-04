@@ -595,41 +595,41 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeedError {
     /// The seed names a variable the document does not hold.
-    UnknownParam {
+    UnknownVar {
         /// The unmatched variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The seed names a `Count` variable. Structural parameters are
     /// fixed under any error analysis (E11.3): there is no derivative
     /// axis to seed, and refusing is the typed spelling of that.
-    CountParam {
+    CountVar {
         /// The structural variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The evaluation scalar carries no tangent channel — a seeded
     /// `f64` (or `Interval`) evaluation would be a sensitivity question
     /// with the seed silently dropped, so it refuses instead.
     TangentUnrepresentable {
         /// The variable that was asked for.
-        param: SpokenVar,
+        var: SpokenVar,
     },
 }
 
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam { param } => write!(
+            Self::UnknownVar { var } => write!(
                 f,
-                "the seed names {param}, which is not a variable of this document"
+                "the seed names {var}, which is not a variable of this document"
             ),
-            Self::CountParam { param } => write!(
+            Self::CountVar { var } => write!(
                 f,
-                "the seed names {param}, a Count parameter — structural parameters are fixed \
+                "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
             ),
-            Self::TangentUnrepresentable { param } => write!(
+            Self::TangentUnrepresentable { var } => write!(
                 f,
-                "parameter {param} is seeded and this evaluation scalar carries no tangent \
+                "parameter {var} is seeded and this evaluation scalar carries no tangent \
                  channel — a sensitivity pass needs a dual"
             ),
         }
@@ -665,20 +665,20 @@ pub fn seed_env<T: SeedScalar, P>(
 ) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
     match doc.free(seed) {
-        None => Err(SeedError::UnknownParam { param: spoken }),
-        Some(FreeVar::Count { .. }) => Err(SeedError::CountParam { param: spoken }),
+        None => Err(SeedError::UnknownVar { var: spoken }),
+        Some(FreeVar::Count { .. }) => Err(SeedError::CountVar { var: spoken }),
         Some(FreeVar::Continuous { .. }) => {
             // Both environment doors bind every document parameter, so
             // a continuous document parameter always has a continuous
-            // binding; answering `UnknownParam` on a broken pairing (a
+            // binding; answering `UnknownVar` on a broken pairing (a
             // caller's env built from a different document) is
             // fail-honest, never a wrong number.
             let Some(crate::expr::ParamValue::Continuous { value, .. }) =
                 env.bindings.get_mut(&seed)
             else {
-                return Err(SeedError::UnknownParam { param: spoken });
+                return Err(SeedError::UnknownVar { var: spoken });
             };
-            *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { param: spoken })?;
+            *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { var: spoken })?;
             Ok(env)
         }
     }

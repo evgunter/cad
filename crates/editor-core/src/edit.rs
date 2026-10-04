@@ -40,10 +40,13 @@ use geom_core::Tol;
 /// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
 /// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
 /// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
-/// which replaces its definition, and the carry-forward doors, each
+/// which replaces its definition, the carry-forward doors, each
 /// moving ONE field of a free variable and keeping the rest
-/// (`SetVarValue`, `SetVarUnit`, `SetVarDistribution`;
-/// [`CarryForwardDoor`] names them in a refusal). The explicit repairs
+/// (`SetVarValue`, `SetVarUnit`, `SetVarDistribution`), `RenameVar`,
+/// which gives or clears its name and moves no reader, and
+/// `DeleteVar`, which removes it and leaves its readers unresolved
+/// (VR7); [`CarryForwardDoor`] names each door after the declare in a
+/// refusal. The explicit repairs
 /// and the document's
 /// presentation state: `Rebind`, the ONLY name repair — the
 /// automatic-rebinding policy menu is empty by ratified decision
@@ -863,21 +866,24 @@ impl core::fmt::Display for CarryForwardDoor {
     }
 }
 
-/// **The one recourse for a parameter name that does not exist**, and
-/// the only home of its wording.
+/// **The one recourse for a variable the document does not hold**,
+/// and the only home of its wording: a deleted one, or an address that
+/// names none.
 ///
-/// One mistake reaches two doors. Typing an undeclared name into the
-/// value field reaches a carry-forward edit, which refuses
-/// [`EditError::UnknownVar`]; dragging that parameter's row
-/// is a lookup with no edit behind it, and the viewer refuses
+/// One mistake reaches two doors. Typing into the value field of a
+/// variable the document no longer holds reaches a carry-forward edit,
+/// which refuses [`EditError::UnknownVar`]; dragging that variable's
+/// row is a lookup with no edit behind it, and the viewer refuses
 /// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
 /// second reader of this const and the only one outside this crate).
 /// The two are converged on the RECOURSE and not on the sentence,
 /// because a drag has no refused edit to report and a sentence that
 /// borrowed the door's frame would report a refusal of something
 /// nobody attempted. What is converged is what the user must DO, so
-/// it is written once here and rendered twice.
-pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
+/// it is written once here and rendered twice. It is not "declare it":
+/// a declare mints a new variable, which nothing addressed by the old
+/// id reads.
+pub const UNKNOWN_VAR_RECOURSE: &str = "pick a variable the document holds";
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -1907,6 +1913,9 @@ macro_rules! held_node {
 const HELD_NODE: &str = held_node!();
 /// The recourse of a name whose node is not live.
 const NAME_A_HELD_ENTITY: &str = concat!("name an entity of ", held_node!());
+/// The recourse of a name no variable holds: declaring it gives the
+/// name a variable, and the leaf lowers to it.
+const DECLARE_THE_NAME: &str = "declare it first";
 /// What an unknown name can read instead.
 const OR_A_DECLARED_PARAM: &str = ", or read a declared variable";
 /// The recourse of a reader of a variable the document does not hold.
@@ -2506,10 +2515,7 @@ impl EditError {
                     "no variable is named {name} (read by {}'s payload expression)",
                     node
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("{UNDECLARED_PARAM_RECOURSE}{OR_A_DECLARED_PARAM}"),
-                )
+                tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
             }
             Self::PayloadVarKind {
                 var,
@@ -2580,10 +2586,7 @@ impl EditError {
                     node,
                     slot.label()
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("{UNDECLARED_PARAM_RECOURSE}{OR_A_DECLARED_PARAM}"),
-                )
+                tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
             }
             Self::SlotVarKind {
                 var,
@@ -2619,7 +2622,7 @@ impl EditError {
                     format_args!("define it as a count, or give it a quantity's dimension"),
                 )
             }
-            // The recourse is `UNDECLARED_PARAM_RECOURSE`, which the
+            // The recourse is `UNKNOWN_VAR_RECOURSE`, which the
             // viewer's `Refusal::NoSuchParam` renders too; the const's
             // own doc says why the two doors converge there.
             Self::UnknownVar { var, door } => {
@@ -2628,7 +2631,7 @@ impl EditError {
                     "{var} is not a variable of this document, so {door} has nothing to \
                      act on"
                 )?;
-                tail.recourse(f, format_args!("{UNDECLARED_PARAM_RECOURSE}"))
+                tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
             }
             Self::VarNameTaken { name, holder } => {
                 write!(

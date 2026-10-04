@@ -285,7 +285,7 @@ fn a_seed_at_f64_refuses_every_node_typed() {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: spoken(&doc, "hole_r")
+                var: spoken(&doc, "hole_r")
             }
         );
     });
@@ -300,8 +300,8 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     every_node_refuses_seed(&unknown, |e| {
         assert_eq!(
             *e,
-            SeedError::UnknownParam {
-                param: spoken(&doc, "nope")
+            SeedError::UnknownVar {
+                var: spoken(&doc, "nope")
             }
         );
     });
@@ -309,8 +309,8 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     every_node_refuses_seed(&count, |e| {
         assert_eq!(
             *e,
-            SeedError::CountParam {
-                param: spoken(&doc, "n")
+            SeedError::CountVar {
+                var: spoken(&doc, "n")
             }
         );
     });
@@ -319,14 +319,14 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     // scalar that would have refused the tangent.
     assert_eq!(
         seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "nope")).err(),
-        Some(SeedError::UnknownParam {
-            param: spoken(&doc, "nope")
+        Some(SeedError::UnknownVar {
+            var: spoken(&doc, "nope")
         })
     );
     assert_eq!(
         seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "w")).err(),
         Some(SeedError::TangentUnrepresentable {
-            param: spoken(&doc, "w")
+            var: spoken(&doc, "w")
         })
     );
 }
@@ -612,7 +612,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: spoken(&doc, "depth")
+                var: spoken(&doc, "depth")
             }
         );
     });

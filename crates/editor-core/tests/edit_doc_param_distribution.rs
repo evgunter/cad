@@ -425,7 +425,7 @@ fn the_annotation_door_refuses_typed() {
     let annotation = refuse("nonesuch", Some(sigma())).to_string();
     assert!(
         annotation.contains("an annotation edit")
-            && annotation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+            && annotation.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "the sentence names the annotation door and keeps its recourse: {annotation:?}"
     );
     for other in [

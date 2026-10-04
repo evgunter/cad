@@ -834,7 +834,7 @@ fn refusals_render_as_sentences() {
     // the typed route and the dragged route name the same thing to do.
     // Asserted against the CONST both renderings read, so the clause
     // cannot come back as a second literal without this row reddening.
-    let recourse = editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+    let recourse = editor_core::edit::UNKNOWN_VAR_RECOURSE;
     assert!(
         edit.to_string().contains(recourse) && lookup.to_string().contains(recourse),
         "typed {edit}\ndragged {lookup}"
