@@ -2069,8 +2069,9 @@ impl EditError {
     /// **This refusal with every node it names spoken again from
     /// `doc`, a later version of the document it was raised in**
     /// ([`SpokenNode::respoken`], whose rule and soundness argument
-    /// this follows), so a label changed since the door refused is the
-    /// one it says.
+    /// this follows), and each variable it names
+    /// ([`crate::spoken::SpokenVar::respoken`]), so a label or a name
+    /// changed since the door refused is the one it says.
     ///
     /// **`doc` must be a version of the document whose door raised
     /// this refusal.** The refusal carries no [`crate::DocumentId`] to
@@ -2082,7 +2083,8 @@ impl EditError {
     /// **An arm whose sentence is about the state the door saw stays
     /// as raised**: [`EditError::LabelUnchanged`] (about the label the
     /// node held, which said with a later one would claim a label the
-    /// refused edit never offered), [`EditError::NodeIdCollides`]
+    /// refused edit never offered), [`EditError::VarNameUnchanged`]
+    /// (the same, of a variable's name), [`EditError::NodeIdCollides`]
     /// (about an id the log already held, which spoken from a version
     /// holding it would name that node as the insert's), and the arms
     /// that say a node is not live — said from a version that holds it
@@ -2112,26 +2114,7 @@ impl EditError {
                 name: _,
                 slot: _,
             }
-            | Self::SlotVarKind {
-                node,
-                var: _,
-                slot: _,
-                declared: _,
-                referenced: _,
-            }
-            | Self::SlotUnresolvedVar {
-                node,
-                var: _,
-                slot: _,
-            }
             | Self::PayloadUnknownVarName { node, name: _ }
-            | Self::PayloadVarKind {
-                node,
-                var: _,
-                declared: _,
-                referenced: _,
-            }
-            | Self::PayloadUnresolvedVar { node, var: _ }
             | Self::MeasureMalformed { node, fault: _ }
             | Self::PathOffTree {
                 node,
@@ -2162,6 +2145,52 @@ impl EditError {
             | Self::UpdateOnNonInstance { node }
             | Self::PinUnchanged { node, pin: _ } => {
                 *node = node.respoken(doc);
+            }
+            Self::SlotVarKind {
+                node,
+                var,
+                slot: _,
+                declared: _,
+                referenced: _,
+            }
+            | Self::SlotUnresolvedVar { node, var, slot: _ }
+            | Self::PayloadVarKind {
+                node,
+                var,
+                declared: _,
+                referenced: _,
+            }
+            | Self::PayloadUnresolvedVar { node, var } => {
+                *node = node.respoken(doc);
+                *var = var.respoken(doc);
+            }
+            Self::ContinuousVarCannotBeCount { var }
+            | Self::VarNameTaken {
+                name: _,
+                holder: var,
+            }
+            | Self::AnonymousVarUnread { var }
+            | Self::DeleteAnonymousVar { var }
+            | Self::VarKindFixed {
+                var,
+                kind: _,
+                offered: _,
+            }
+            | Self::VarCountHasNoUnit { var }
+            | Self::VarCountHasNoDistribution { var }
+            | Self::VarUnitMismatch {
+                var,
+                unit: _,
+                declared: _,
+            }
+            | Self::VarValueKindMismatch {
+                var,
+                declared: _,
+                offered: _,
+            }
+            | Self::NonFiniteVar { var, field: _ }
+            | Self::InvalidDistribution { var, fault: _ } => {
+                *var = var.respoken(doc);
             }
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
@@ -2245,6 +2274,7 @@ impl EditError {
             }
             Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
+            | Self::VarNameUnchanged { var: _ }
             | Self::NodeIdCollides { id: _ }
             | Self::UnknownNode { id: _ }
             | Self::UnresolvedInput { input: _ }
@@ -2259,33 +2289,9 @@ impl EditError {
             }
             | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
             | Self::NotStructuralSlot { slot: _ }
-            | Self::ContinuousVarCannotBeCount { var: _ }
             | Self::UnknownVar { var: _, door: _ }
-            | Self::VarNameTaken { name: _, holder: _ }
             | Self::VarIdCollides { id: _ }
-            | Self::VarNameUnchanged { var: _ }
-            | Self::AnonymousVarUnread { var: _ }
-            | Self::DeleteAnonymousVar { var: _ }
-            | Self::VarKindFixed {
-                var: _,
-                kind: _,
-                offered: _,
-            }
-            | Self::VarCountHasNoUnit { var: _ }
-            | Self::VarCountHasNoDistribution { var: _ }
-            | Self::VarUnitMismatch {
-                var: _,
-                unit: _,
-                declared: _,
-            }
-            | Self::VarValueKindMismatch {
-                var: _,
-                declared: _,
-                offered: _,
-            }
             | Self::Dimension(_)
-            | Self::NonFiniteVar { var: _, field: _ }
-            | Self::InvalidDistribution { var: _, fault: _ }
             | Self::RebindKindMismatch { from: _, to: _ }
             | Self::EmptyWitnessBulk
             | Self::EvaluationOfAnotherDocument {

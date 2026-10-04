@@ -1849,10 +1849,7 @@ fn write_expr(expr: &Expr, names: Names<'_, '_>, out: &mut String) {
         // the parser does not read: such text names no variable.
         K::Var(var) => match names(*var) {
             Some(name) => out.push_str(name.as_str()),
-            None => {
-                out.push('#');
-                out.push_str(&var.full().to_string());
-            }
+            None => out.push_str(&var.to_string()),
         },
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),

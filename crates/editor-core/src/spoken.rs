@@ -102,10 +102,12 @@ impl StepId {
     }
 }
 
-/// The bare tag, spelled as a node's is.
+/// `#` and every bit, `#3fa9c1d2a0b1c3d4`: the one spelling of a
+/// variable with no name, the text [`crate::unparse`] writes for its
+/// reader.
 impl fmt::Display for crate::var::VarId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write_tag(f, self.0)
+        write!(f, "#{}", self.full())
     }
 }
 
@@ -118,7 +120,8 @@ impl crate::var::VarId {
 }
 
 /// **A variable as a person reads it** (VARIABLES-DESIGN VR2): its
-/// name (`w`), or `variable 3fa9c1d2a0b1` when it has none. Built by
+/// name (`w`), or `#3fa9c1d2a0b1c3d4` when it has none (the
+/// [`crate::var::VarId`] spelling, which a formula's reader shares). Built by
 /// [`Doc::spoken_var`] from the document that holds the variable;
 /// refusals carry it the way they carry a [`SpokenNode`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,13 +148,28 @@ impl SpokenVar {
     pub fn name(&self) -> Option<&crate::doc::VarName> {
         self.name.as_ref()
     }
+
+    /// This variable spoken again from `doc`, a later version of the
+    /// document it was spoken from: under the name `doc` holds for it
+    /// now (none, after a clear), or as it was said when `doc` does not
+    /// hold it — a deleted variable, or one a refused declare would
+    /// have minted. An id names one variable within a document's
+    /// history, as [`SpokenNode::respoken`] says of a node.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        if doc.var(self.id).is_some() {
+            doc.spoken_var(self.id)
+        } else {
+            self.clone()
+        }
+    }
 }
 
 impl fmt::Display for SpokenVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.name {
             Some(name) => write!(f, "{name}"),
-            None => write!(f, "variable {}", self.id),
+            None => write!(f, "{}", self.id),
         }
     }
 }
@@ -427,11 +445,7 @@ impl HeldNodes {
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
         Self {
             nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
-            vars: self
-                .vars
-                .iter()
-                .map(|var| doc.spoken_var(var.id()))
-                .collect(),
+            vars: self.vars.iter().map(|var| var.respoken(doc)).collect(),
         }
     }
 }
@@ -557,41 +571,29 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// **A formula's text, its readers said**: text [`crate::unparse`]
-    /// wrote with no names writes each reader `#<16 hex>`, and this
-    /// speaker says each such reader by the name its document holds,
-    /// leaving the ones it holds none for. A refusal kept by an
-    /// evaluation memo holds such text, so a rename — which recomputes
+    /// **A formula, its readers said**: `expr` unparsed with each
+    /// reader written by the name this speaker's document holds for it,
+    /// and `#<16 hex>` where it holds none (or the speaker has no
+    /// document). A refusal kept by an evaluation memo holds the
+    /// formula as an [`crate::Expr`], so a rename — which recomputes
     /// nothing — still reads in the sentence.
     #[must_use]
-    pub fn formula(self, text: &str) -> String {
-        let Some(doc) = self.doc else {
-            return text.to_owned();
+    pub fn formula(self, expr: &crate::expr::Expr) -> String {
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        let names: Vec<(crate::var::VarId, crate::doc::VarName)> = match self.doc {
+            None => Vec::new(),
+            Some(doc) => reads
+                .into_iter()
+                .filter_map(|(id, _)| doc.speak_var(id).map(|name| (id, name)))
+                .collect(),
         };
-        let mut out = String::with_capacity(text.len());
-        let mut rest = text;
-        while let Some(at) = rest.find('#') {
-            out.push_str(&rest[..at]);
-            let tail = &rest[at + 1..];
-            let hex = tail
-                .get(..16)
-                .filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
-            match hex
-                .and_then(|h| u64::from_str_radix(h, 16).ok())
-                .and_then(|bits| doc.speak_var(crate::var::VarId(bits)))
-            {
-                Some(name) => {
-                    out.push_str(name.as_str());
-                    rest = &tail[16..];
-                }
-                None => {
-                    out.push('#');
-                    rest = tail;
-                }
-            }
-        }
-        out.push_str(rest);
-        out
+        crate::expr::unparse(expr, &|id| {
+            names
+                .iter()
+                .find(|(held, _)| *held == id)
+                .map(|(_, name)| name)
+        })
     }
 
     /// The name `name`, its minting node said: `face name minted by

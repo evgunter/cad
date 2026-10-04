@@ -342,6 +342,16 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
         E::PartNameReachesRemainder { node: n, name, .. } => (
             id(n),
             none(),
@@ -657,6 +667,16 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         E::AnonymousVarCrossesCut { var } => (
             none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
             none(),
             none(),
             text(&var.to_string()),

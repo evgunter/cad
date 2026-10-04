@@ -398,7 +398,7 @@ fn r1_annulus_end_to_end() {
                         v.decisions()
                     );
                     if scale == 1.0 || name == "TIER OFF" {
-                        println!("{}", v.render(&analyzed));
+                        println!("{}", v.render(&doc, &analyzed));
                     }
                     let stack = editor_core::stackup::stackup(
                         &doc, measure, &analyzed, &v, None, false, None, tol,

@@ -565,7 +565,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             entry.name,
             budget.basis,
             mass.basis.word(),
-            mass.render()
+            mass.render(&entry.doc)
         );
         let unresolved = mass
             .unresolved
@@ -576,13 +576,13 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             "{}: unresolved mass {unresolved} exceeds the recorded budget {}\n{}",
             entry.name,
             budget.unresolved,
-            mass.render()
+            mass.render(&entry.doc)
         );
         assert!(
             !verdict.certified().is_empty(),
             "{}: nothing certified, so no assertion was checked anywhere\n{}",
             entry.name,
-            mass.render()
+            mass.render(&entry.doc)
         );
 
         // Then the assertions, leaf by leaf.
@@ -776,9 +776,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // The band fixture is a `min_clearance` document (its measure is
     // the neck's), so it takes the numeric lane — see
     // [`drive_registered`].
-    let verdict =
-        drive_registered(&band_placement(), &analyzed, Tol::witness()).expect("the nominal builds");
-    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render();
+    let band = band_placement();
+    let verdict = drive_registered(&band, &analyzed, Tol::witness()).expect("the nominal builds");
+    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"

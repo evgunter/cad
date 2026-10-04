@@ -111,12 +111,12 @@ impl<T: Decide> SteppedOperands<T> {
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
                 Held::Whole => StepTurns::Whole,
-                Held::Turns(held) => StepTurns::Within(within_turn(authored, positive, held)),
+                Held::Turns(held) => within_turn(authored, positive, held),
                 Held::Beyond => StepTurns::Unresolved,
             },
         };
         Err(NodeErrorKind::FullRangeStep {
-            step: crate::expr::unparse(authored, &|_| None),
+            step: authored.clone(),
             evaluated: authored.literal_value().is_none().then_some(seen.margin),
             turns,
         })
@@ -164,8 +164,9 @@ fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
 /// `authored`, `held` turns nearer zero, in the grammar a user types:
 /// a literal as one literal in its own unit, anything else less (or,
 /// for a negative step, plus) the turns in degrees. Either lands
-/// every copy where `authored` does, up to rounding.
-fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
+/// every copy where `authored` does, up to rounding. A formula the
+/// expression bound refuses is [`StepTurns::Over`].
+fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
     let sign = if positive { 1.0 } else { -1.0 };
     let literal = authored.literal_value().zip(
         authored
@@ -185,32 +186,20 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
             }
         }),
     };
-    within.map_or_else(
-        |_| {
-            let op = if positive { '-' } else { '+' };
-            format!(
-                "{} {op} {} deg",
-                crate::expr::unparse(authored, &|_| None),
-                360 * held
-            )
-        },
-        |e| crate::expr::unparse(&e, &|_| None),
-    )
+    within.map_or(StepTurns::Over(held), StepTurns::Within)
 }
 
 /// `authored`, negated, in the grammar a user types: a literal's own
 /// value negated (a zero stays `0.0`), anything else under a unary
 /// minus. Either evaluates to the exact negation, so the direction it
-/// spells steps the copies where the negative spacing did.
-fn negated(authored: &Expr) -> String {
-    let flipped = match authored.literal_value() {
+/// spells steps the copies where the negative spacing did. `None`
+/// when the expression bound refuses the negation.
+fn negated(authored: &Expr) -> Option<Expr> {
+    match authored.literal_value() {
         Some(v) => Expr::literal(-v + 0.0, authored.dim()),
         None => Expr::neg(authored.clone()),
-    };
-    flipped.map_or_else(
-        |_| format!("-({})", crate::expr::unparse(authored, &|_| None)),
-        |e| crate::expr::unparse(&e, &|_| None),
-    )
+    }
+    .ok()
 }
 
 /// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or

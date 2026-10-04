@@ -470,7 +470,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
             tol,
         )
         .expect("the link builds");
-        println!("== link, real study, {label}:\n{}", v.render(&analyzed));
+        println!(
+            "== link, real study, {label}:\n{}",
+            v.render(&doc, &analyzed)
+        );
     }
 
     // The ceiling, both ways.

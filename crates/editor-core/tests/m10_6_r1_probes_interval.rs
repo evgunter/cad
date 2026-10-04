@@ -555,7 +555,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         "the ε-scaled box certifies"
     );
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     let mut seen = Vec::new();
     for leaf in verdict.certified() {
         let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
@@ -866,7 +866,7 @@ fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
     )
     .expect("the f64 witness builds: no engine runs at a point scalar");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     let unresolved = budget.unresolved.clone().expect("priced");
     assert!(unresolved > 0.0, "the refused leaf is priced: {unresolved}");
     assert!(verdict.certified().is_empty());
@@ -896,7 +896,7 @@ fn a_wide_box_overruns_a_zero_budget() {
     )
     .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     assert!(budget.unresolved.clone().expect("priced") > 0.0);
 }
 
@@ -963,8 +963,8 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     }
     let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("mixed:\n{}\n{}", budget.render(), budget.serialize());
-    assert!(budget.render().contains("FORCED, not priced: lift"));
+    eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
+    assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
     // Now a band-only box that the drive must SPLIT: a starved split on
     // a band axis prices nothing, typed.
     let mut sub = BTreeMap::new();
@@ -1115,7 +1115,7 @@ fn the_bracket_walk_through_the_public_doors() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
-    eprintln!("== drive\n{}", verdict.render(&analyzed));
+    eprintln!("== drive\n{}", verdict.render(&doc, &analyzed));
     assert!(
         !verdict.certified().is_empty(),
         "the bracket certifies at ε/64"
@@ -1229,7 +1229,7 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== budget");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     assert_eq!(budget.basis, MassBasis::Priced);
 
     // The same bracket with a BAND on the offset: the budget reads
@@ -1247,7 +1247,7 @@ fn the_bracket_walk_through_the_public_doors() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("== band budget\n{}", budget.render());
+    eprintln!("== band budget\n{}", budget.render(&doc));
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
     assert!(monte_carlo(&doc, &analyzed, &McConfig::default(), tol).is_err());
     if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {

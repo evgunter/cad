@@ -362,7 +362,7 @@ fn analysis_is_keyed_by_var_id() {
     let lawed_box = analyzed_box(&lawed, &AnalysisPolicy::default());
     let mut widest_v = 0.0_f64;
     for i in 0..16 {
-        let draws = sample_offsets(&lawed_box, &McConfig::default(), i).unwrap();
+        let draws = sample_offsets(&lawed, &lawed_box, &McConfig::default(), i).unwrap();
         assert_eq!(draws.keys().copied().collect::<Vec<_>>(), both);
         assert!(draws[&w].abs() < 1e-2, "w draws its own normal: {draws:?}");
         assert!(draws[&v].abs() <= 2.0, "v its own uniform: {draws:?}");

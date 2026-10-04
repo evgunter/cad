@@ -503,7 +503,7 @@ fn r1_e2e_bracket_study() {
                     .or_insert(0usize) += 1;
             }
             println!("   refusals: {classes:?}");
-            println!("{}", MassBudget::of(v.accounting(), &analyzed).render());
+            println!("{}", MassBudget::of(v.accounting(), &analyzed).render(&doc));
             if dials.enabled {
                 let fails = failures(&doc, ParamBox::of(&analyzed), dials, tol);
                 for f in fails.iter().take(3) {

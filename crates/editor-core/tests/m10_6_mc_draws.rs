@@ -134,7 +134,7 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
     let values: Vec<f64> = (0..SAMPLES)
         .map(|i| {
             let offsets =
-                sample_offsets(&analyzed, &config, i).expect("a normal law is sampleable");
+                sample_offsets(&doc, &analyzed, &config, i).expect("a normal law is sampleable");
             assert_eq!(offsets.len(), 1, "one varying parameter, one offset");
             NOMINAL + offsets[&doc.var_named("x").expect("declared")]
         })
@@ -159,11 +159,11 @@ fn a_samples_draw_depends_on_its_index_alone() {
     let x = doc.var_named("x").expect("declared");
 
     let ascending: Vec<f64> = (0..8)
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let descending: Vec<f64> = (0..8)
         .rev()
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let mut descending = descending;
     descending.reverse();
@@ -191,7 +191,7 @@ fn a_band_refuses_at_the_draw_door_as_it_does_at_the_run() {
     let config = McConfig::default();
     assert!(
         matches!(
-            sample_offsets(&analyzed, &config, 0),
+            sample_offsets(&doc, &analyzed, &config, 0),
             Err(McRefusal::BandHasNoMeasure(_))
         ),
         "a band has no shape to draw from, at either door"

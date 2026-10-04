@@ -844,14 +844,17 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+                reversed: [-1.0, 0.0, 0.0]
+                    .map(|v| crate::expr::Expr::literal(v, crate::expr::Dimension::Scalar).ok()),
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: "400 deg".to_owned(),
+                step: crate::expr::Expr::angle_in(400.0, quantity::DEG).expect("a literal angle"),
                 evaluated: None,
-                turns: crate::StepTurns::Within("40 deg".to_owned()),
+                turns: crate::StepTurns::Within(
+                    crate::expr::Expr::angle_in(40.0, quantity::DEG).expect("a literal angle"),
+                ),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {

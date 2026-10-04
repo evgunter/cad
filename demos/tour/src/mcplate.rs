@@ -48,7 +48,7 @@
 //! # The claim the picture makes, and how it is checked
 //!
 //! Not "samples from the same laws" — **this run's samples**. Each
-//! one comes from `mc::sample_offsets(analyzed, config, i)`, the door
+//! one comes from `mc::sample_offsets(doc, analyzed, config, i)`, the door
 //! `work/props`'s
 //! `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` asked
 //! for, and the cell then holds itself to it: it summarizes its own
@@ -180,7 +180,7 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
     (0..samples)
         .map(|i| {
             let offsets =
-                sample_offsets(&analyzed, config, i).expect("the study's laws are sampleable");
+                sample_offsets(&base.doc, &analyzed, config, i).expect("the study's laws are sampleable");
             let mut doc: ProfileDoc = base.doc.clone();
             for (var, value) in &nominal {
                 let offset = offsets[var];

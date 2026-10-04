@@ -1048,7 +1048,11 @@ pub fn var_env_over<T: AxisScalar, P>(
 }
 
 /// Why a mass could not be computed.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Equality is the variable's identity alone: the spoken form is how
+/// the refusal names it, and a rename moves no mass, so it moves no
+/// equality either (the [`AnalyzedBox`] rule).
+#[derive(Debug, Clone)]
 pub enum MeasureUnavailable {
     /// The parameter carries a [`Band`](Distribution::Band): limits
     /// without a shape. "I know the limits but not the shape" is real
@@ -1059,6 +1063,28 @@ pub enum MeasureUnavailable {
         /// The variable whose band blocked the pricing.
         param: SpokenVar,
     },
+}
+
+impl PartialEq for MeasureUnavailable {
+    fn eq(&self, other: &Self) -> bool {
+        let (Self::BandHasNoMeasure { param: a }, Self::BandHasNoMeasure { param: b }) =
+            (self, other);
+        a.id() == b.id()
+    }
+}
+
+impl MeasureUnavailable {
+    /// This refusal with its variable spoken again from `doc`, a later
+    /// version of the document it was raised over
+    /// ([`SpokenVar::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &crate::doc::Doc<P>) -> Self {
+        match self {
+            Self::BandHasNoMeasure { param } => Self::BandHasNoMeasure {
+                param: param.respoken(doc),
+            },
+        }
+    }
 }
 
 impl core::fmt::Display for MeasureUnavailable {

@@ -555,7 +555,7 @@ fn driver(
         // typed, which is the entry's own state.
         let outcome = match pair_pass(doc, &anchor, &pass)? {
             Some((node, refusal)) => SensitivityOutcome::Unliftable { node, refusal },
-            None => read_pass(&pass, measure, &chamber),
+            None => read_pass(doc, &pass, measure, &chamber),
         };
         Ok(Sensitivity {
             document: doc.id(),
@@ -616,6 +616,7 @@ fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver
 /// want that; this one is the report's advisory column and has to tell
 /// a forfeit from a fault.
 fn nominal_of(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     id: RecipeNodeId,
 ) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
@@ -632,20 +633,22 @@ fn nominal_of(
                 ),
             )),
         },
-        Err(standing) => Err(no_measure(ev, standing)),
+        Err(standing) => Err(no_measure(doc, ev, standing)),
     }
 }
 
 /// The refusal for a measure node with no value, rendered with the
-/// node it came from: a failed measure's own error, a poisoned one's
-/// failed ancestor's, and otherwise the standing.
+/// node it came from: a failed measure's own error, spoken from `doc`
+/// (a formula it carries reads by name), a poisoned one's failed
+/// ancestor's, and otherwise the standing.
 fn no_measure<T: geom_core::Decide>(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     standing: NodeStanding,
 ) -> (RecipeNodeId, String) {
     ev.node_error(standing.node()).map_or_else(
         || (standing.node(), standing.to_string()),
-        |e| (e.node, e.kind.to_string()),
+        |e| (e.node, e.kind_spoken(doc)),
     )
 }
 
@@ -654,6 +657,7 @@ fn no_measure<T: geom_core::Decide>(
 /// measure names) — the one ladder every reader of a measure payload
 /// takes.
 fn measure_of<T: geom_core::Decide + Copy>(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Result<T, (RecipeNodeId, String)> {
@@ -683,7 +687,7 @@ fn measure_of<T: geom_core::Decide + Copy>(
                 ),
             )),
         },
-        Err(standing) => Err(no_measure(ev, standing)),
+        Err(standing) => Err(no_measure(doc, ev, standing)),
     }
 }
 
@@ -696,11 +700,12 @@ fn measure_of<T: geom_core::Decide + Copy>(
 /// driver lane — E9's explicit reading of derivative-channel
 /// degradation. It consults no ε and decides no topology.
 fn read_pass(
+    doc: &Doc<ProfileProgram>,
     pass: &Evaluation<Dual64>,
     measure: RecipeNodeId,
     chamber: &Chamber,
 ) -> SensitivityOutcome {
-    match measure_of(pass, measure) {
+    match measure_of(doc, pass, measure) {
         Ok(value) => {
             let tangent = value.deriv;
             if tangent.is_finite() {
@@ -1177,59 +1182,74 @@ pub enum Unavailable {
     /// E9 forfeiture: the parameter's tangent degraded at the nominal.
     TangentDegraded {
         /// The variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The parameter's pass could not read the measure (its doors
     /// refused).
     MeasureRefused {
         /// The variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
     Unliftable {
         /// The variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The parameter carries a [`crate::Distribution::Band`]: limits
     /// without a shape have no σ, and a partial RSS is still a lie
     /// (E5) — so the RSS names it and refuses whole.
     BandHasNoMeasure {
         /// The variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
 }
 
 impl Unavailable {
     /// The blocked variable.
-    pub fn param(&self) -> &SpokenVar {
+    pub fn var(&self) -> &SpokenVar {
         match self {
-            Self::TangentDegraded { param }
-            | Self::MeasureRefused { param }
-            | Self::Unliftable { param }
-            | Self::BandHasNoMeasure { param } => param,
+            Self::TangentDegraded { var }
+            | Self::MeasureRefused { var }
+            | Self::Unliftable { var }
+            | Self::BandHasNoMeasure { var } => var,
         }
+    }
+
+    /// This blocker with its variable spoken again from `doc`, a later
+    /// version of the document the stackup was taken of
+    /// ([`SpokenVar::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        let mut again = self.clone();
+        match &mut again {
+            Self::TangentDegraded { var }
+            | Self::MeasureRefused { var }
+            | Self::Unliftable { var }
+            | Self::BandHasNoMeasure { var } => *var = var.respoken(doc),
+        }
+        again
     }
 }
 
 impl core::fmt::Display for Unavailable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::TangentDegraded { param } => write!(
+            Self::TangentDegraded { var } => write!(
                 f,
-                "parameter {param}'s tangent degraded at the nominal (E9: forfeits its \
+                "parameter {var}'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { param } => {
-                write!(f, "parameter {param}'s pass could not read the measure")
+            Self::MeasureRefused { var } => {
+                write!(f, "parameter {var}'s pass could not read the measure")
             }
-            Self::Unliftable { param } => write!(
+            Self::Unliftable { var } => write!(
                 f,
-                "parameter {param}'s seed could not reach the measure: the lift refused typed"
+                "parameter {var}'s seed could not reach the measure: the lift refused typed"
             ),
-            Self::BandHasNoMeasure { param } => write!(
+            Self::BandHasNoMeasure { var } => write!(
                 f,
-                "parameter {param} carries a band: worst-case limits with no shape have \
+                "parameter {var} carries a band: worst-case limits with no shape have \
                  no σ, and a partial RSS is still a lie"
             ),
         }
@@ -1414,7 +1434,7 @@ impl Stackup {
                 ),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().id().full()),
+                    Err(u) => format!("unavailable:{}", u.var().id().full()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1435,7 +1455,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().id().full().to_string())
+                        .map(|b| b.var().id().full().to_string())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1517,7 +1537,7 @@ impl Stackup {
             }
         }
         let _ = writeln!(s, "  ADVISORY, never gating:");
-        let _ = write!(s, "{}", render_rss(&self.rss));
+        let _ = write!(s, "{}", render_rss(&self.rss, doc));
         for row in &self.per_param {
             let _ = writeln!(
                 s,
@@ -1530,21 +1550,21 @@ impl Stackup {
                 ),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
-                    Err(u) => format!("[{u}]"),
+                    Err(u) => format!("[{}]", u.respoken(doc)),
                 }
             );
         }
         let _ = write!(
             s,
             "{}",
-            crate::report::MassBudget::of(&self.coverage, analyzed).render()
+            crate::report::MassBudget::of(&self.coverage, analyzed).render(doc)
         );
         s
     }
 }
 
 /// The human form's rss row; under a refused column, a count and then
-/// one line per blocker.
+/// one line per blocker, each blocker's variable spoken from `doc`.
 ///
 /// The boundary between blockers is the line break, not punctuation a
 /// blocker's sentence may itself write. No [`Unavailable`] arm writes
@@ -1553,7 +1573,7 @@ impl Stackup {
 /// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
 /// a blocker frames is the document's, not the arm's; what a name may
 /// contain is the declaration door's to decide.
-fn render_rss(rss: &Rss) -> String {
+fn render_rss<P>(rss: &Rss, doc: &Doc<P>) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     match rss {
@@ -1576,7 +1596,7 @@ fn render_rss(rss: &Rss) -> String {
                 }
             );
             for b in blockers {
-                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{b}");
+                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{}", b.respoken(doc));
             }
         }
     }
@@ -1849,7 +1869,7 @@ pub fn stackup(
     // A measure that FAILED for any other reason is still fatal here:
     // `measure_of`'s other error arms mean the node did not evaluate,
     // which is a broken report and not a forfeited column.
-    let nominal = match nominal_of(&anchor, measure) {
+    let nominal = match nominal_of(doc, &anchor, measure) {
         Ok(n) => n,
         Err((node, cause)) => {
             return Err(StackupRefusal::MeasureRefusedAtNominal {
@@ -1879,7 +1899,10 @@ pub fn stackup(
     let mut sum_sq = 0.0_f64;
     for entry in entries {
         let param = entry.param;
-        let spoken = analyzed.spoken(param);
+        // Spoken from `doc`, not the box: a box taken before a rename
+        // compares equal after it, and the row says the name `doc`
+        // holds now.
+        let spoken = doc.spoken_var(param);
         // Every entry names a continuous parameter of `doc`, and the
         // ForeignBox check above made `analyzed` span exactly those;
         // an axis missing here is a broken pairing, refused as one.
@@ -1890,13 +1913,15 @@ pub fn stackup(
             .ok_or(StackupRefusal::ForeignBox)?;
         let derivative = match &entry.outcome {
             SensitivityOutcome::Derivative { value, chamber } => Ok((*value, chamber)),
-            SensitivityOutcome::TangentDegraded { .. } => {
-                Err(Unavailable::TangentDegraded { param: spoken })
-            }
-            SensitivityOutcome::MeasureRefused { .. } => {
-                Err(Unavailable::MeasureRefused { param: spoken })
-            }
-            SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable { param: spoken }),
+            SensitivityOutcome::TangentDegraded { .. } => Err(Unavailable::TangentDegraded {
+                var: spoken.clone(),
+            }),
+            SensitivityOutcome::MeasureRefused { .. } => Err(Unavailable::MeasureRefused {
+                var: spoken.clone(),
+            }),
+            SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable {
+                var: spoken.clone(),
+            }),
         };
         let contribution = derivative
             .as_ref()
@@ -1919,10 +1944,8 @@ pub fn stackup(
                 if let Err(why) = derivative {
                     blockers.push(why.clone());
                 }
-                if let Err(MeasureUnavailable::BandHasNoMeasure { param }) = sigma {
-                    blockers.push(Unavailable::BandHasNoMeasure {
-                        param: param.clone(),
-                    });
+                if let Err(MeasureUnavailable::BandHasNoMeasure { .. }) = sigma {
+                    blockers.push(Unavailable::BandHasNoMeasure { var: spoken });
                 }
             }
         }
@@ -2123,16 +2146,10 @@ mod tests {
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
         let param = crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static(param)));
         let all = vec![
-            Unavailable::TangentDegraded {
-                param: param.clone(),
-            },
-            Unavailable::MeasureRefused {
-                param: param.clone(),
-            },
-            Unavailable::Unliftable {
-                param: param.clone(),
-            },
-            Unavailable::BandHasNoMeasure { param },
+            Unavailable::TangentDegraded { var: param.clone() },
+            Unavailable::MeasureRefused { var: param.clone() },
+            Unavailable::Unliftable { var: param.clone() },
+            Unavailable::BandHasNoMeasure { var: param },
         ];
         let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
         made.sort();
@@ -2166,9 +2183,12 @@ mod tests {
     fn a_refused_rss_splits_back_into_its_blockers() {
         let mut blockers = every_arm("width");
         blockers.extend(every_arm("depth"));
-        let rendered = render_rss(&Rss::UnavailableBecause {
-            blockers: blockers.clone(),
-        });
+        let rendered = render_rss(
+            &Rss::UnavailableBecause {
+                blockers: blockers.clone(),
+            },
+            &no_vars(),
+        );
         let mut lines = rendered.lines();
         assert_eq!(
             lines.next(),
@@ -2187,15 +2207,24 @@ mod tests {
 
     #[test]
     fn a_single_blocker_is_counted_in_the_singular() {
-        let rendered = render_rss(&Rss::UnavailableBecause {
-            blockers: vec![Unavailable::Unliftable {
-                param: crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static("w"))),
-            }],
-        });
+        let rendered = render_rss(
+            &Rss::UnavailableBecause {
+                blockers: vec![Unavailable::Unliftable {
+                    var: crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static("w"))),
+                }],
+            },
+            &no_vars(),
+        );
         assert_eq!(
             rendered,
             "    rss UNAVAILABLE — 1 blocker:\n      - parameter w's seed could not reach the \
              measure: the lift refused typed\n"
         );
+    }
+
+    /// A document holding no variable, so a blocker is said as it was
+    /// spoken.
+    fn no_vars() -> crate::doc::Doc<crate::program::ProfileProgram> {
+        crate::doc::Doc::empty_derived("stackup-render-rows", geom_core::Tol::witness())
     }
 }

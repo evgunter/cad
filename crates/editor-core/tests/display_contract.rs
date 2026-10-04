@@ -1186,7 +1186,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
             },
             vec![
-                "variable 000000000007 is not in the document's mint log",
+                "#0000000000070000 is not in the document's mint log",
                 "never minted",
             ],
         ),
@@ -1195,7 +1195,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
             },
             vec![
-                "variable 000000000007 has no name and nothing reads it",
+                "#0000000000070000 has no name and nothing reads it",
                 "one something reads",
             ],
         ),
@@ -1209,7 +1209,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 name: VarName::from_static("width"),
             },
             vec![
-                "the name width is attached to variable 000000000007",
+                "the name width is attached to variable #0000000000070000",
                 "not live",
             ],
         ),
@@ -1219,7 +1219,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 a: editor_core::VarId(tagged(7)),
                 b: editor_core::VarId(tagged(8)),
             },
-            vec!["width is held by two variables, 000000000007 and 000000000008"],
+            vec!["width is held by two variables, #0000000000070000 and #0000000000080000"],
         ),
         (
             SnapshotError::SlotDimension {
@@ -1246,7 +1246,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::VarId(tagged(7)),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads variable 000000000007",
+                "Extrude \"base plate\" (000000000005) reads variable #0000000000070000",
                 "never minted",
             ],
         ),
@@ -3020,7 +3020,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
             },
             vec![
-                "nothing reading variable 000000000007",
+                "nothing reading #0000000000070000",
                 "went with its last reader",
             ],
         ),
@@ -3466,7 +3466,7 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
         (
             "Unavailable::TangentDegraded",
             Unavailable::TangentDegraded {
-                param: spoken.clone(),
+                var: spoken.clone(),
             }
             .to_string(),
         ),

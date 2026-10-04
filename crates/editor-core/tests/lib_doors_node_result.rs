@@ -521,7 +521,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "variable 000000000007",
+                "variable #0000000000070000",
                 "has no binding",
                 "point the reader at a live variable",
             ],

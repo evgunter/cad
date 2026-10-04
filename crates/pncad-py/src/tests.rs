@@ -5189,6 +5189,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
+            "inline_error_tag",
             "instance_body_name_referenced",
             "instance_consumed",
             "mate_frame_crosses",
@@ -5203,6 +5204,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unknown_node",
             "unplaceable_frame",
             "unplaced",
+            "unresolved_var_crosses_cut",
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
@@ -6010,6 +6012,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "severed_gauge",
+            "split_error_tag",
             "split_pin",
             "torn_group",
             "two_anchors",
@@ -6017,6 +6020,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unknown_cut_node",
             "unplaceable_root",
             "unplaced_alone",
+            "unresolved_var_crosses_cut",
             "would_start_placing",
         ],
         delegates: &[],
@@ -6469,6 +6473,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // document of unplaced material alone leaves empty.
     ("unplaced", 4),
     ("unreadable", 2),
+    // One fact at the two doors that cross a document seam: a split's
+    // part and an inline's host would have to point a reader at a
+    // variable its document no longer holds (VR7).
+    ("unresolved_var_crosses_cut", 2),
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),

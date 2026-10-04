@@ -614,6 +614,16 @@ pub enum SplitError {
         /// A cut node reading it.
         node: SpokenNode,
     },
+    /// A cut node reads a variable this document no longer holds (a
+    /// deleted one: VR7 leaves its readers unresolved, which is legal
+    /// document state). The part could not hold the reader either way:
+    /// it declares the variables the cut reads, and there is none.
+    UnresolvedVarCrossesCut {
+        /// The variable, by its id: this document holds no name for it.
+        var: SpokenVar,
+        /// A cut node reading it.
+        node: SpokenNode,
+    },
     /// A name inside a CUT node's payload derives from a node that is
     /// not itself cut — the part document could not express the
     /// reference (a part has no name for its consumer's entities, and
@@ -888,6 +898,15 @@ impl core::fmt::Display for SplitError {
                  would have to hold it under a name nobody gave it. {}",
                 Recourse("name it (RenameVar), then split")
             ),
+            Self::UnresolvedVarCrossesCut { var, node } => write!(
+                f,
+                "split: {node}, which is cut, reads {var}, which this document no longer \
+                 holds, so the part has no variable to read. {}",
+                Recourse(&format!(
+                    "repoint {node}'s reader at a variable this document holds, or remove the \
+                     reader, then split"
+                ))
+            ),
             Self::PartNameReachesRemainder {
                 node,
                 name,
@@ -1093,6 +1112,15 @@ pub enum InlineError {
         /// The variable, spoken from the referenced document.
         var: SpokenVar,
     },
+    /// The referenced document's spliced recipe reads a variable that
+    /// document no longer holds (a deleted one, legal there by VR7):
+    /// the host has no variable to point the reader at.
+    UnresolvedVarCrossesCut {
+        /// The variable, by its id, spoken from the referenced document.
+        var: SpokenVar,
+        /// A node of the referenced document reading it.
+        node: SpokenNode,
+    },
     /// The instance sits off the world's origin — on a gauge, or at
     /// an offset — and the referenced document has a root that is not
     /// itself an instance: plain recipe geometry sits on no gauge, so
@@ -1279,6 +1307,16 @@ impl core::fmt::Display for InlineError {
                 "inline: the referenced document reads {var}, which has no name, and this \
                  document would have to hold it under a name nobody gave it. {}",
                 Recourse("name it in the referenced document (RenameVar), then inline")
+            ),
+            Self::UnresolvedVarCrossesCut { var, node } => write!(
+                f,
+                "inline: {node} in the referenced document reads {var}, which that document \
+                 no longer holds, so this document has no variable to point the reader at. {}",
+                Recourse(&format!(
+                    "in the referenced document, repoint {node}'s reader at a variable it holds \
+                     or remove the reader, point this instance at that version \
+                     (UpdateReference), then inline"
+                ))
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
@@ -2739,11 +2777,17 @@ pub fn split(
     if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
+    // A cut reader of a variable the parent no longer holds has
+    // nothing to be re-pointed at, and refuses here, at this door.
+    if let Some((&id, &node)) = cut_refs.iter().find(|(id, _)| doc.var(**id).is_none()) {
+        return Err(SplitError::UnresolvedVarCrossesCut {
+            var: doc.spoken_var(id),
+            node: doc.spoken(node),
+        });
+    }
     // Declared in the PARENT's declaration order, so the part lists its
     // variables as the parent's author did. Each carried reader is
-    // re-pointed at the part's own minted id. A reader of a variable
-    // the parent no longer holds stays unresolved, and the part's
-    // insert door refuses it.
+    // re-pointed at the part's own minted id.
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
     for id in doc
         .var_order()
@@ -2751,7 +2795,9 @@ pub fn split(
         .copied()
         .filter(|id| cut_refs.contains_key(id))
     {
-        let Some(var) = doc.var(id) else { continue };
+        let Some(var) = doc.var(id) else {
+            unreachable!("a cut reader of a variable the parent does not hold refused above")
+        };
         let Some(name) = doc.var_name(id) else {
             return Err(SplitError::AnonymousVarCrossesCut {
                 var: doc.spoken_var(id),
@@ -3380,6 +3426,20 @@ pub fn inline(
     // PART's declaration order, so the host lists the part's variables
     // as the part's author declared them. Each carried reader is
     // re-pointed at the host's id for its variable.
+    // A spliced reader of a variable the part no longer holds has
+    // nothing to be re-pointed at, and refuses here, at this door.
+    for &id in part.order() {
+        let Some(node) = part.node(id) else { continue };
+        if let Some(var) = node_var_reads(node)
+            .into_iter()
+            .find(|&var| part.var(var).is_none())
+        {
+            return Err(InlineError::UnresolvedVarCrossesCut {
+                var: part.spoken_var(var),
+                node: part.spoken(id),
+            });
+        }
+    }
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
     for &id in part.var_order() {
         let Some(var) = part.var(id) else { continue };

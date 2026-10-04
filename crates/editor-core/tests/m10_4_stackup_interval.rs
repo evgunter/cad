@@ -717,7 +717,7 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
-            let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.param().id()).collect();
+            let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.var().id()).collect();
             // Declaration order: the plate declares `hole_r` first.
             let want = vec![var(&doc, "hole_r"), var(&doc, "depth")];
             assert_eq!(named, want, "{blockers:?}");
@@ -849,14 +849,14 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     assert_eq!(
         row.contribution,
         Err(Unavailable::TangentDegraded {
-            param: spoken(&doc, "t")
+            var: spoken(&doc, "t")
         })
     );
     assert_eq!(
         report.rss,
         Rss::UnavailableBecause {
             blockers: vec![Unavailable::TangentDegraded {
-                param: spoken(&doc, "t")
+                var: spoken(&doc, "t")
             }]
         }
     );
@@ -1664,7 +1664,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     assert_eq!(
         row.contribution,
         Err(Unavailable::Unliftable {
-            param: spoken(&doc, "w")
+            var: spoken(&doc, "w")
         })
     );
     assert!(row.chamber_span.is_none());
@@ -1672,7 +1672,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
         report.rss,
         Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: spoken(&doc, "w")
+                var: spoken(&doc, "w")
             }]
         }
     );

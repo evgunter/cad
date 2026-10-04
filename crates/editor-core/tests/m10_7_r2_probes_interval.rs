@@ -255,7 +255,7 @@ fn r2_end_to_end_bracket_study() {
                         v.receipt(),
                         v.decisions()
                     );
-                    println!("{}", v.render(&analyzed));
+                    println!("{}", v.render(&doc, &analyzed));
                     let stack = editor_core::stackup::stackup(
                         &doc, measure, &analyzed, &v, None, false, None, tol,
                     );

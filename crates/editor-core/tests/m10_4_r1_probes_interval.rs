@@ -863,7 +863,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
             assert_eq!(
                 blockers[0],
                 Unavailable::BandHasNoMeasure {
-                    param: doc.spoken_var(doc.var_named("h2").expect("declared"))
+                    var: doc.spoken_var(doc.var_named("h2").expect("declared"))
                 }
             );
         }

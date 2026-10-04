@@ -53,7 +53,8 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, AnonymousVarCrossesCut, PartNameReachesRemainder,
+        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
     ];
@@ -62,7 +63,8 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnplaceableFrame, MatePlaced, Unplaced,
+        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName, Edit,
@@ -149,6 +151,13 @@ fn split_refusals() -> Vec<SplitError> {
             ),
             node: s(4, "Extrude"),
         },
+        SplitError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
+        },
         SplitError::PartNameReachesRemainder {
             node: s(5, "Extrude"),
             name: name(),
@@ -213,6 +222,13 @@ fn inline_refusals() -> Vec<InlineError> {
                 editor_core::VarId(test_utils::refusal::tagged(9)),
                 None,
             ),
+        },
+        InlineError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
         },
         InlineError::UnplaceableFrame {
             root: s(3, "Extrude"),

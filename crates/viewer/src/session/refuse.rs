@@ -426,9 +426,10 @@ pub enum Refusal {
 }
 
 impl Refusal {
-    /// **This refusal with every node it names spoken again from
-    /// `doc`** — a later version of the document it was raised in, so
-    /// a label changed since the raise is the one it says. The rule
+    /// **This refusal with every node and variable it names spoken
+    /// again from `doc`** — a later version of the document it was
+    /// raised in, so a label or a name changed since the raise is the
+    /// one it says. The rule
     /// and why it is sound are [`SpokenNode::respoken`]'s; it is why a
     /// document an `Open` or a `New` replaced is never `doc` here
     /// (`frame::batch_refusal`).
@@ -450,9 +451,23 @@ impl Refusal {
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
             Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
-            unspoken @ (Self::DrivenByExpression { .. }
-            | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
+            Self::DrivenByExpression {
+                node,
+                slot,
+                params,
+                current,
+                notation,
+            } => Self::DrivenByExpression {
+                node,
+                slot,
+                params: params.iter().map(|var| var.respoken(doc)).collect(),
+                current,
+                notation,
+            },
+            Self::ParamNotANumber { var } => Self::ParamNotANumber {
+                var: var.respoken(doc),
+            },
+            unspoken @ (Self::NoSuchParam(_)
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
