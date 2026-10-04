@@ -589,29 +589,29 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let first = real.next();
         let last = real.next_back().or(first);
         let corrupt = || BooleanError::corrupt_at(piercing, vertex);
-        // `strut`: the site is an empty fan, so `mev_null` splices the
-        // null edge as a spike [he_plus, he_minus] into one corner: a
+        // `strut_corner`: the site is an empty fan, so `mev_null` splices
+        // the null edge as a spike [he_plus, he_minus] into this corner: a
         // run holding every real edge of the orbit, which leaves the In
         // side strictly inside the one physical sector before `first`,
         // or a run of bisectors alone, inside the sector before `after`.
-        let (site, strut) = match (first, last) {
+        let (site, strut_corner) = match (first, last) {
             (Some(first), Some(last)) => {
                 match piercing_body
                     .run_site(first.he, last.he)
                     .ok_or_else(corrupt)?
                 {
-                    site @ RunSite::Fan { .. } => (site.mev_site(), false),
-                    site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true),
+                    site @ RunSite::Fan { .. } => (site.mev_site(), None),
+                    site @ RunSite::WholeOrbit { corner } => (site.mev_site(), Some(corner)),
                 }
             }
             _ => {
-                let after = entries[(run.0 + run.1) % n];
+                let after = entries[(run.0 + run.1) % n].he;
                 (
                     MevSite::Fan {
-                        he1: after.he,
-                        he2: after.he,
+                        he1: after,
+                        he2: after,
                     },
-                    true,
+                    Some(after),
                 )
             }
         };
@@ -624,28 +624,35 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // exactly when he_minus (copy → old) faces the start germ. The
         // mint side follows, keeping the body's scaffold attribute and
         // the record one datum.
-        let start_on_plus = if strut {
-            let MevSite::Fan { he2: corner, .. } = site else {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a pierce run's site is not a fan",
-                });
-            };
-            let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
-            let arrival = piercing_body
-                .get_half_edge(corner_half.prev)
-                .ok_or_else(corrupt)?
-                .edge;
-            let germ = |t: usize, (cells, dir): Germ<T>| (t, cells, dir);
-            super::insert::strut_faces_first(
-                piercing_body,
-                (piercing, &sectors),
-                (arrival, corner_half.edge),
-                germ((run.0 + n - 1) % n, start_germ),
-                germ((run.0 + run.1 - 1) % n, end_germ),
-                band,
-            )?
-        } else {
-            true
+        let start_on_plus = match strut_corner {
+            None => true,
+            Some(corner) => {
+                let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
+                let arrival = piercing_body
+                    .get_half_edge(corner_half.prev)
+                    .ok_or_else(corrupt)?
+                    .edge;
+                let germ = |t: usize, (cells, dir): Germ<T>| (t, cells, dir);
+                let facing = super::insert::strut_faces_first(
+                    piercing_body,
+                    (piercing, &sectors),
+                    (arrival, corner_half.edge),
+                    germ((run.0 + n - 1) % n, start_germ),
+                    germ((run.0 + run.1 - 1) % n, end_germ),
+                    band,
+                )?;
+                // At a closed edge's lone vertex with a germ along it the
+                // edge names no half. No row reaches the pose (a section
+                // along a closed piercing edge puts the whole edge on the
+                // pierced face), so no answer here is checked: refused.
+                // An answer needs a row that reaches it, with an oracle
+                // independent of the facing rule.
+                facing.ok_or_else(|| BooleanError::CurvedBooleanUnsupported {
+                    operand: pierced_op,
+                    face: contact.face,
+                    kind: pierced_kind(pierced_body, contact.face),
+                })?
+            }
         };
         let side = if start_on_plus {
             NewVertexSide::Above
@@ -673,7 +680,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             at_vertex: vertex,
             edge: created.edge,
             attr,
-            dangling: strut,
+            dangling: strut_corner.is_some(),
             germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         run_edges.push(rec);

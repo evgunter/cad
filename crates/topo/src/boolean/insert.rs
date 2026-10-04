@@ -918,14 +918,19 @@ fn mint_directed<T: Decide>(
             body.orbit_step(sectors[gf.0].he).ok_or_else(corrupt)?
         };
         let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
-        Some(strut_faces_first(
+        let facing = strut_faces_first(
             body,
             (operand, sectors),
             (arrival, departure),
             (gf.0, gf.2, gf.3),
             (gt.0, gt.2, gt.3),
             band,
-        )?)
+        )?;
+        // At a closed edge's lone vertex the walk orders the germs.
+        Some(match facing {
+            Some(first) => first,
+            None => walk_faces_first(body, sectors, (gf.0, gf.3), (gt.0, gt.3), band)?,
+        })
     } else {
         None
     };
@@ -1076,7 +1081,9 @@ fn strut_anchor<T: Decide>(
 }
 
 /// Whether cut `p` comes before cut `q` walking forward through their
-/// one physical sector (`None`: the two lie along one direction).
+/// one physical sector (`None`: the two lie along one direction). Two
+/// cuts in one entry are ordered by [`walks_after`], which agrees with
+/// the strut order there ([`walk_faces_first`]).
 fn precedes<T: Decide>(
     sectors: &[BoolSector<T>],
     p: Cut<T>,
@@ -1141,8 +1148,8 @@ enum StrutFacing {
 /// classification mints: refused. A germ inside a face casts none
 /// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
 /// edge's lone vertex the edge key cannot say which end a germ along it
-/// runs from ([`StrutFacing::ClosedEdge`]); [`strut_faces_first`] then
-/// orders the germs by the walk.
+/// runs from ([`StrutFacing::ClosedEdge`]); each caller of
+/// [`strut_faces_first`] states what it does then.
 fn strut_facing(
     arrival: EdgeKey,
     departure: EdgeKey,
@@ -1183,10 +1190,12 @@ fn strut_facing(
 /// first walking from its arrival edge toward its departure. A germ
 /// along one of those edges of `operand`'s own solid names its half
 /// structurally ([`strut_facing`]): an angular reading would meet it
-/// exactly on its bound. Otherwise the germs' entries order them, both
-/// pieces of the corner's one physical sector ([`precedes`]), and two
-/// germs in one entry are ordered by their directions
-/// ([`strut_order`]).
+/// exactly on its bound. Otherwise the walk orders the germs
+/// ([`walk_faces_first`]).
+///
+/// `None` at a closed edge's lone vertex with a germ along it
+/// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
+/// each caller states what it does then.
 pub(super) fn strut_faces_first<T: Decide>(
     body: &Body<T>,
     (operand, sectors): (Operand, &[BoolSector<T>]),
@@ -1194,27 +1203,50 @@ pub(super) fn strut_faces_first<T: Decide>(
     first: (usize, Cells, Vec3<T>),
     second: (usize, Cells, Vec3<T>),
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<bool>, BooleanError> {
     match strut_facing(
         arrival,
         departure,
         own_locus_edge(operand, first.1),
         own_locus_edge(operand, second.1),
     )? {
-        StrutFacing::PlusFirst => return Ok(true),
-        StrutFacing::MinusFirst => return Ok(false),
-        StrutFacing::Unnamed | StrutFacing::ClosedEdge => {}
+        StrutFacing::PlusFirst => Ok(Some(true)),
+        StrutFacing::MinusFirst => Ok(Some(false)),
+        StrutFacing::ClosedEdge => Ok(None),
+        StrutFacing::Unnamed => walk_faces_first(
+            body,
+            sectors,
+            (first.0, first.2),
+            (second.0, second.2),
+            band,
+        )
+        .map(Some),
     }
+}
+
+/// Whether the corner meets germ `first` before `second`, walking its
+/// one physical sector from the arrival edge: germs in different
+/// entries by their entries ([`precedes`]), two in one entry by their
+/// directions ([`strut_order`]). Inside one entry the two orderings
+/// agree, since `build_sectors` bisects every sector of a half-turn or
+/// more and both then read the sign of `(g0 × g1)·n` at the entry's
+/// arm; `precedes` keeps [`walks_after`] there for the shared-vertex
+/// cuts, which have no arrival edge to anchor on.
+fn walk_faces_first<T: Decide>(
+    body: &Body<T>,
+    sectors: &[BoolSector<T>],
+    first: Cut<T>,
+    second: Cut<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
     if first.0 != second.0 {
-        return Ok(
-            precedes(sectors, (first.0, first.2), (second.0, second.2), band)? == Some(true),
-        );
+        return Ok(precedes(sectors, first, second, band)? == Some(true));
     }
     let s = &sectors[first.0];
     strut_order(
         anchor_dir(body, s.he)?,
         s.normal.vec(),
-        (first.2, second.2),
+        (first.1, second.1),
         s.arm,
         band,
     )
@@ -1234,13 +1266,15 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// half-turn is the nearer. Within one half-turn the nearer germ is the
 /// one the other follows clockwise, `(g0 × g1)·n < 0`
 /// (`bool_strut_order`). Both readings are sines levered at `arm`, the
-/// shorter of the two sectors' bounding chords: the distance at that
+/// germs' entry's bounding chord: the distance at that
 /// arm from one direction's line, so they are linear in the spacing
 /// at every angle, where a cosine is flat beside 0 and π. That is
 /// `splitting::containment`'s doctrine for angular windows: decided as
 /// distances, never as an angle. A decided zero, of a side whose
 /// direction sense is in band or of two germs along one direction,
-/// refuses: nothing orders the germs.
+/// refuses: nothing orders the germs. A strut's two germs in one entry
+/// are its only comparands, where it agrees with [`precedes`]
+/// ([`walk_faces_first`]).
 fn strut_order<T: Decide>(
     e_dir: Vec3<T>,
     normal: Vec3<T>,
