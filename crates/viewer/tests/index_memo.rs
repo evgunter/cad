@@ -99,9 +99,9 @@ struct Edit {
 }
 
 impl Edit {
-    /// The write as the session's op spells it.
-    fn op(&self) -> SessionOp {
-        set_slot(self.node, self.slot, &self.expr)
+    /// The write as the session's op spells it, against `doc`'s names.
+    fn op(&self, doc: &ProfileDoc) -> SessionOp {
+        set_slot(doc, self.node, self.slot, &self.expr)
     }
 }
 
@@ -682,7 +682,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     }
     steps.push(opened);
     for (step, edit) in edits {
-        let outcome = session.perform(edit.op());
+        let outcome = session.perform(edit.op(session.committed_doc()));
         assert!(
             outcome.refusal.is_none(),
             "{name}: edit {step} refused: {:?}",
@@ -810,7 +810,7 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
         for (landing, ask) in asked.iter().enumerate() {
             if landing > 0 {
                 let op = ops[landing - 1].clone().expect("an edit");
-                let outcome = session.perform(op.op());
+                let outcome = session.perform(op.op(session.committed_doc()));
                 assert!(
                     outcome.refusal.is_none(),
                     "{name}: landing {landing} refused"
@@ -905,7 +905,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",
@@ -1028,7 +1028,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",

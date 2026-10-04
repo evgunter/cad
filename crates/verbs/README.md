@@ -412,7 +412,7 @@ measurement masquerading as structure. The row is pinned by
 - **VS-Q4 — `ParamSource` representation.** The token is a canonical
   injective ENCODING of the lowered expression — `Arc<[u8]>`, a scope
   prefix, then a tag byte per AST node, operands in child order,
-  literals as `f64` bits, parameters by name — minted deterministically
+  literals as `f64` bits, variable readers by minted id (VR8) — minted deterministically
   by `editor-core`, `Eq`-compared by the kernel, inverted upstairs for
   diagnosis. It is not an index into an interning table: an interner's
   ids are facts about a run, and the memo serves bodies minted by an

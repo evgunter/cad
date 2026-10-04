@@ -2222,7 +2222,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
     let steps = lifted
-        .resolve(&ParamEnv::<f64>::default(), 0)
+        .resolve(&VarEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
     let replayed = pncad::profile::replay(&steps, Tol::witness())
         .expect("the lifted program replays")
@@ -2548,7 +2548,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     use pncad::document::{BooleanOp, FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+        radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
@@ -2658,7 +2658,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             &[pncad::select::GeomPred::SurfaceKind(
                 pncad::select::SurfaceKindSet::just(pncad::prelude::SurfaceKind::Cylinder),
             )],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the surface-kind atom is exact");
@@ -4604,7 +4604,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer "what does this slot say right now" for a slot driven by
 ///   a parameter or by arithmetic. `Expr::literal_value` answers only
 ///   for a bare literal, so without them a consumer holding the
-///   curated `Expr` + `ParamEnv` pair had no door from an expression
+///   curated `Expr` + `VarEnv` pair had no door from an expression
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
@@ -4719,7 +4719,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   carry a curated `HitTestError`, a prelude-curated
 ///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
-///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `seed_env`, `std_deviation`, `sensitivities`,
@@ -4848,7 +4848,7 @@ const NOT_CARRIED: [&str; 93] = [
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
-    "param_env_over",
+    "var_env_over",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",

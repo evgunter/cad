@@ -50,7 +50,7 @@ fn wall(
         panic!("an extrude's operand is a profile");
     };
     let piece = program
-        .pieces(&doc.param_env::<f64>(), Tol::witness())
+        .pieces(&doc.var_env::<f64>(), Tol::witness())
         .expect("the profile replays")
         .edge(loop_index, segment)
         .expect("the position is the profile's");
@@ -476,14 +476,14 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
-        radius: pncad::document::Expr::param(hole_r.clone(), Dimension::Length),
+        radius: pncad::document::Expr::named(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::SetParam {
-        name: hole_r,
+        var: common::var_of(session.committed_doc(), hole_r.as_str()),
         value: viewer::props::SlotValue::Continuous(0.0),
     };
     let outcome = session.perform(op.clone());

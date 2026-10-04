@@ -546,6 +546,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
     }
+    // Three or more runs: step 3 would hang their ring struts in run
+    // order, which nothing has checked against their angular order.
+    if runs.len() > 2 {
+        return Err(BooleanError::PierceRunsUnordered {
+            operand: piercing,
+            vertex,
+            runs: runs.len(),
+        });
+    }
 
     // Piercing-side null edges, one per run (PR 2's insertion pattern).
     // Germ facings (F9 data): the run's two boundary transitions are
@@ -741,33 +750,79 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         face: contact.face,
         ring_vertex: w,
     });
-    // (3) one ring null-edge strut per piercing-side run. Side labels
-    // are DERIVED sense data (PR 5.5, join module docs): the pierced
-    // solid's sense at each germ is the negation of the piercing
-    // solid's (the cross-solid anti-correlation theorem), so the half
-    // facing the run's start germ (piercing UP) is the pierced DOWN
-    // half — he_minus, starting at the created copy = `above_end`.
+    // (3) one ring null-edge strut per piercing-side run, hung at the
+    // ring vertex. With one run either half may face either germ. With
+    // two, the half leaving the ring vertex faces the run's germ that
+    // the walk clockwise about the pierced face's outward normal meets
+    // first from the other run's start germ
+    // ([`super::insert::strut_order`]), except in an intersection,
+    // where it faces the start germ. That exception is MEASURED, not
+    // derived: the walk reads the end germ in 169 of 340 two-run
+    // poses per operand order. There the walk's facing refuses all
+    // 169 `SelfLoopEdge`, and this one builds 69 and refuses 100
+    // `JoinDesync` (`join_pierce_strut_facing.rs` holds the built
+    // ones). No reading of the germs' geometry yet says why
+    // (`work/join/the-intersection-ring-facing-is-measured-not-derived.md`).
+    // Side labels are DERIVED sense data (PR 5.5, join module docs):
+    // the half facing the run's start germ is the pierced DOWN half,
+    // the one starting at `above_end`, so the copy is the below end
+    // exactly when the half leaving the ring vertex faces it.
+    let sides = (0..runs.len())
+        .map(|i| {
+            let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
+            // Two runs at most (refused above): the other run is `1 - i`.
+            let leaving_faces_start = match runs.len() {
+                1 => false,
+                _ if op == BooleanOp::Intersect => true,
+                _ => super::insert::strut_order(
+                    run_germs[1 - i].0.1,
+                    n_pierced.vec(),
+                    (start, end),
+                    sectors[(runs[i].0 + n - 1) % n].arm,
+                    band,
+                )?,
+            };
+            Ok(if leaving_faces_start {
+                NewVertexSide::Below
+            } else {
+                NewVertexSide::Above
+            })
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for (run_edge, &(start_germ, end_germ)) in run_edges.iter().zip(&run_germs) {
+    for ((run_edge, &(start_germ, end_germ)), &side) in run_edges.iter().zip(&run_germs).zip(&sides)
+    {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
         };
-        let created = pierced_body.mev_null(site, NewVertexSide::Above)?;
+        let created = pierced_body.mev_null(site, side)?;
         ring_anchor.get_or_insert(created.he_plus);
+        let (attr, down, up) = match side {
+            NewVertexSide::Above => (
+                NullEdge {
+                    below_end: w,
+                    above_end: created.vertex,
+                },
+                created.he_minus,
+                created.he_plus,
+            ),
+            NewVertexSide::Below => (
+                NullEdge {
+                    below_end: created.vertex,
+                    above_end: w,
+                },
+                created.he_plus,
+                created.he_minus,
+            ),
+        };
         let rec = BoolNullEdgeRecord {
             operand: pierced,
             at_vertex: w,
             edge: created.edge,
-            attr: NullEdge {
-                below_end: w,
-                above_end: created.vertex,
-            },
+            attr,
             dangling: true,
-            germs: [
-                half_germ(created.he_minus, start_germ),
-                half_germ(created.he_plus, end_germ),
-            ],
+            germs: [half_germ(down, start_germ), half_germ(up, end_germ)],
         };
         out.edges.push(rec);
         let (a_edge, b_edge, site) = match piercing {

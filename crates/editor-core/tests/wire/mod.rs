@@ -107,6 +107,25 @@ pub fn wire_undeclare(wire: &mut serde_json::Value, name: &str) {
     assert_eq!(order.len(), before - 1, "and its place in the order");
 }
 
+/// The variable `name` removed from a saved snapshot AND from its mint
+/// log, so its readers read an id the document never minted — the
+/// file-only fault ([`wire_undeclare`] alone leaves them a deleted
+/// variable's readers, which is legal).
+///
+/// # Panics
+///
+/// As [`wire_undeclare`]'s, and when the log does not hold the id.
+pub fn wire_unmint(wire: &mut serde_json::Value, name: &str) {
+    let id: u64 = wire_var_key(wire, name).parse().expect("an id key");
+    wire_undeclare(wire, name);
+    let log = wire["snapshot"]["mint"]["log"]
+        .as_array_mut()
+        .expect("the mint log is a list");
+    let before = log.len();
+    log.retain(|entry| *entry != serde_json::json!({ "var": id }));
+    assert_eq!(log.len(), before - 1, "and its mint log entry");
+}
+
 /// The continuous variable `name` retyped in a saved snapshot, from
 /// `from` to `to`, its kind and display unit moved with it so the
 /// document is broken in exactly one way: the pairing between the

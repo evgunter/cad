@@ -99,7 +99,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::param(VarName::from_static("fins"), Dimension::Count),
+        expr: Expr::named(VarName::from_static("fins"), Dimension::Count),
     });
     CorpusDoc {
         name: "heat_sink_fins",

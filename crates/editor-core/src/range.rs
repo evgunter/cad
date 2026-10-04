@@ -708,7 +708,7 @@ pub fn derive(
                 &DocEdit::SetParam {
                     node: *node,
                     slot: *slot,
-                    expr: Expr::param(name, dim),
+                    expr: Expr::var(var, dim),
                 },
                 tol,
             )?;

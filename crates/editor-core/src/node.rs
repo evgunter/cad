@@ -1282,69 +1282,55 @@ pub enum PartSelect {
 /// the key writes nothing at all for those, so no existing document's
 /// content key moves.
 pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
-    match node {
-        Node::Measure { expr, .. } => {
-            let mut leaves = Vec::new();
-            expr.value_leaves(&mut leaves);
-            Some(leaves)
-        }
-        Node::Assertion { bound, .. } => Some(vec![bound]),
-        Node::Datum(_)
-        | Node::Profile(_)
-        | Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Union { .. }
-        | Node::Transform { .. }
-        | Node::Pattern { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
-        | Node::Mate { .. } => None,
-    }
+    expr_table!(node, value_leaves, Some, _rows => None)
 }
 
-/// [`payload_exprs`], exclusive: the same expressions in the same order.
-pub(crate) fn payload_exprs_mut<P>(node: &mut Node<P>) -> Option<Vec<&mut Expr>> {
-    match node {
-        Node::Measure { expr, .. } => {
-            let mut leaves = Vec::new();
-            expr.value_leaves_mut(&mut leaves);
-            Some(leaves)
+/// **THE expression table of a node, borrow-generic**: the two payload
+/// carriers' expressions ([`payload_exprs`]) each passed through
+/// `$wrap`, and every other node bound to `$rest` and answered by
+/// `$other` (its slot rows, or nothing). One text, so the
+/// readers [`payload_exprs`], [`Node::exprs`] and [`Node::exprs_mut`] cannot
+/// come to disagree about which node carries what: a node's slot table
+/// lists no row for the two payload carriers (`node_rows`' last arm),
+/// and this table lists no payload for any other node.
+macro_rules! expr_table {
+    ($node:expr, $leaves:ident, $wrap:expr, $rest:ident => $other:expr) => {{
+        match $node {
+            Node::Measure { expr, refs: _ } => {
+                let mut leaves = Vec::new();
+                expr.$leaves(&mut leaves);
+                $wrap(leaves)
+            }
+            Node::Assertion {
+                measure: _,
+                bound,
+                dir: _,
+            } => $wrap(vec![bound]),
+            $rest @ (Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
+            | Node::Mate { .. }) => $other,
         }
-        Node::Assertion { bound, .. } => Some(vec![bound]),
-        Node::Datum(_)
-        | Node::Profile(_)
-        | Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Union { .. }
-        | Node::Transform { .. }
-        | Node::Pattern { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
-        | Node::Mate { .. } => None,
-    }
+    }};
 }
+use expr_table;
 
 /// **An entity reference: a name, and the node it is read at.**
 ///
@@ -3278,15 +3264,41 @@ pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Vec<DeclaredPai
 impl<P: crate::ProfilePayload> Node<P> {
     row_readers!(pub(crate) node_rows -> SlotId);
 
+    /// **Every expression this node carries**: its slot rows, or a
+    /// payload carrier's expressions ([`payload_exprs`]) — the one walk
+    /// the edit door lowers and checks, a document's read queries ask,
+    /// and a split or an inline re-points readers through.
+    ///
+    /// **Its edge**: a placement-rule node's count under a rule that
+    /// takes none (`CountMismatch`) is held by no slot and no payload,
+    /// and this walk does not reach it. No document holds one: the
+    /// edit door refuses it (`EditError::PlacementRuleMismatch`) and so
+    /// does the load door (`PlacementRuleFault::CountSpelling`), so no
+    /// stored reader is there to lower, check or re-point.
+    pub(crate) fn exprs(&self) -> Vec<&Expr> {
+        expr_table!(self, value_leaves, core::convert::identity, rest => rest
+            .rows()
+            .into_iter()
+            .map(|(_, e)| e)
+            .collect())
+    }
+
+    /// [`Node::exprs`], exclusive: the same expressions in the same
+    /// order.
+    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut Expr> {
+        expr_table!(self, value_leaves_mut, core::convert::identity, rest => rest
+            .rows_mut()
+            .into_iter()
+            .map(|(_, e)| e)
+            .collect())
+    }
+
     /// Reads every literal's display unit as its dimension's canonical
     /// one, in the slots and in the expressions no slot addresses
     /// ([`payload_exprs`]): what [`Node::bit_eq`] sees, as a value that
     /// serializes (D6: the display unit is never identity).
     pub(crate) fn erase_display_units(&mut self) {
-        for (_, expr) in self.rows_mut() {
-            expr.erase_display_units();
-        }
-        for expr in payload_exprs_mut(self).into_iter().flatten() {
+        for expr in self.exprs_mut() {
             expr.erase_display_units();
         }
     }

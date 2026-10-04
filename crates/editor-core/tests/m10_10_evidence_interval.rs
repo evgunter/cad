@@ -754,7 +754,7 @@ fn m10_10_the_plates_real_study_driven_whole() {
             shown += 1;
         }
     }
-    println!("{}", verdict.render(&analyzed));
+    println!("{}", verdict.render(&doc, &analyzed));
     match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => println!("   stackup OK:\n{}", report.render(&doc, &analyzed)),
         Err(e) => println!("   stackup refused: {e}"),
