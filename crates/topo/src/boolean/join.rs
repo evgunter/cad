@@ -123,7 +123,7 @@
 //! All pair records register up front, and [`section_segments`]
 //! matches them: it repeatedly takes the nearest valid match in
 //! deterministic scan order until quiescent (each match consumes its
-//! germs, which changes what is nearest for the rest). The criterion
+//! germs, so the next round ranks only the germs still free). The criterion
 //! reads only record data — loci, senses, site points, section
 //! frames — none of which the surgery changes, so the segments are
 //! decided before any chord is minted, and the declared-REST zip

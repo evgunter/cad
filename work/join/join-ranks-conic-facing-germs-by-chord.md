@@ -2,11 +2,12 @@
 id: join-ranks-conic-facing-germs-by-chord
 kind: issue
 title: The join's find_match and loose_partners rank conic-facing germs by chord, and the rotational facing test accepts germs back to back across a gap
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [JOIN-1, rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity]
+closed: 2026-10-04
 ---
 
 

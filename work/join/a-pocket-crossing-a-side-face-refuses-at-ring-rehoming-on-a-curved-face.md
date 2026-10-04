@@ -2,11 +2,12 @@
 id: a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face
 kind: issue
 title: A D pocket whose wall crosses the block's side face refuses SectionInvariant at ring re-homing on a curved face, an ordinary pocket in join-internal words
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [JOIN-3, blind-d-pocket-subtract-refuses-with-join-internal-words]
+closed: 2026-10-04
 ---
 
 
