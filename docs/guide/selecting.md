@@ -95,7 +95,7 @@ let (next, ground) = insert(
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let params = doc.param_env::<f64>();
+let params = doc.var_env::<f64>();
 let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
 let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
 

@@ -4603,15 +4603,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let sides = topo::readback::edge_sides(body, edge).map_err(|what| match what {
-        topo::DanglingRef::Entity(EntityId::Edge(_)) => {
-            not_intact(EntityId::Edge(edge), "an edge awaiting its description")
-        }
-        _ => not_intact(
-            EntityId::Edge(edge),
-            "the two faces a described edge separates, or their surfaces",
-        ),
-    })?;
+    let sides = topo::readback::edge_sides(body, edge)
+        .map_err(|_| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
     let (p0, p1) = {

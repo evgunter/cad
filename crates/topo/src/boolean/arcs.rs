@@ -4,9 +4,9 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
-use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, VertexKey};
+use crate::live::{linked, proven};
 use crate::validate::decide;
 
 /// One circle arc [`arcs_along`] found: the edge, the vertex it arrives
@@ -24,36 +24,34 @@ pub(super) struct ArcStep<T: geom_core::Real> {
 /// body leaving one vertex along one tangent on one circle would
 /// overlap, so a caller reads more than one arc as a refusal.
 ///
-/// The outer error is corruption (an unwalkable orbit); the inner one
-/// is the alignment's escalation: a tangent in band of `dir` is
-/// neither along it nor off it.
+/// The error is the alignment's escalation: a tangent in band of `dir`
+/// is neither along it nor off it.
+///
+/// # Panics
+///
+/// Where `u`, a vertex the caller read out of `body`, has an orbit that
+/// does not walk, or a record on it does not resolve (D2 row 4).
+#[track_caller]
 pub(super) fn arcs_along<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     dir: Vec3<T>,
     band: Band,
-) -> Result<Result<Vec<ArcStep<T>>, Indeterminate>, BooleanError> {
-    let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let orbit = body
-        .vertex_orbit_of(u)
-        .ok_or_else(|| corrupt("arc lookup: vertex orbit not walkable"))?;
+) -> Result<Vec<ArcStep<T>>, Indeterminate> {
+    let orbit = body.vertex_orbit_linked(u);
     let d = dir.normalize();
     let mut found: Vec<ArcStep<T>> = Vec::new();
     for he in orbit {
-        let Some(to) = body.half_edge_end(he) else {
-            return Err(corrupt("arc lookup: orbit half has no end"));
-        };
-        let e = body
-            .get_half_edge(he)
-            .ok_or_else(|| corrupt("arc lookup: orbit half no longer resolves"))?
-            .edge;
-        let edge = body
-            .get_edge(e)
-            .ok_or_else(|| corrupt("arc lookup: orbit edge no longer resolves"))?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let to = body.proven_half_edge_end(he);
+        let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        let edge = linked(
+            &body.edges,
+            e,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let Some(curve) = body.edge_curve_linked(e, edge).certified() else {
             continue;
         };
         let geom::Curve3::Circle { radius, .. } = *curve.carrier() else {
@@ -79,11 +77,9 @@ pub(super) fn arcs_along<T: Decide>(
         ) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative | Sign::Zero) => continue,
-            Err(diag) => return Ok(Err(diag)),
+            Err(diag) => return Err(diag),
         }
-        if let Err(diag) = off {
-            return Ok(Err(diag));
-        }
+        off?;
         if found.iter().all(|f| f.edge != e) {
             found.push(ArcStep {
                 edge: e,
@@ -92,7 +88,7 @@ pub(super) fn arcs_along<T: Decide>(
             });
         }
     }
-    Ok(Ok(found))
+    Ok(found)
 }
 
 /// **What [`arcs_along`] escalates on.** An arc it rules out by one
@@ -123,13 +119,11 @@ mod rows {
         );
         let p = y
             .vertex_points()
-            .find(|(_, q)| {
-                (q.expect("an untorn sheet") - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12
-            })
+            .find(|(_, q)| (*q - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12)
             .map(|(k, _)| k)
             .expect("the sheet's corner");
         let tilt = (band.zero() + band.escalate()) / 2.0;
-        let arcs = |dir: Vec3<f64>| arcs_along(&y, p, dir, band).expect("a walkable orbit");
+        let arcs = |dir: Vec3<f64>| arcs_along(&y, p, dir, band);
         // Backward, its offset in band: decided backward.
         assert_eq!(
             arcs(Vec3::new(0.0, -1.0, tilt)).map(|a| a.len()),

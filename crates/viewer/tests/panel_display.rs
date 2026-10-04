@@ -706,7 +706,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let row = |session: &DocSession| {
         props::param_rows(session.doc())
             .into_iter()
-            .find(|row| row.name == name)
+            .find(|row| row.label.name() == Some(&name))
             .expect("the parameter row")
     };
 
@@ -727,7 +727,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     // A value edit through the panel's own door: the number moves, the
     // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::of(before.dimension, from_written(60.0, unit))
             .expect("a finite angle is a value"),
     });
@@ -758,7 +758,7 @@ fn a_count_parameter_has_no_written_unit() {
     );
     let row = props::param_rows(&doc)
         .into_iter()
-        .find(|row| row.name == name)
+        .find(|row| row.label.name() == Some(&name))
         .expect("the parameter row");
     assert_eq!(row.unit, None);
     assert_eq!(
@@ -799,7 +799,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             Node::Extrude {
                 profile,
-                distance: Expr::param(name.clone(), Dimension::Length),
+                distance: Expr::named(name.clone(), Dimension::Length),
                 side: ExtrudeSide::Along,
             },
             tol,
@@ -807,7 +807,9 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let outcome = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Param { name },
+            target: BoundsTarget::Param {
+                var: common::var_of(session.committed_doc(), name.as_str()),
+            },
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         let reading = session.bounds().expect("a probe landed").clone();
@@ -884,7 +886,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let writing = |name: &'static str| {
         let row = rows
             .iter()
-            .find(|row| row.name == VarName::from_static(name))
+            .find(|row| row.label.name() == Some(&VarName::from_static(name)))
             .expect("the parameter row");
         FieldWriting::of(row.dimension, row.unit, Notation::DEFAULT)
     };

@@ -53,7 +53,7 @@ const R: f64 = 0.125;
 const T: f64 = 0.03125;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(VarName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A cube of side 1 at `cx`, with every edge blended by `radius`.

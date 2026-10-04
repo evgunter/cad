@@ -73,7 +73,7 @@ fn verdicts(
     pick: impl Fn(Point3<f64>) -> bool,
 ) -> Vec<(Point3<f64>, SolidContainment)> {
     body.vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .filter(|p| pick(*p))
         .map(|p| {
             (
@@ -215,7 +215,6 @@ fn probe_g_a_post_through_the_container_is_the_reverse_ordering_s_interference()
     let (bottom, top) = (end_face(0.0), end_face(10.0));
     let mut records = ContactRecords::default();
     for (v, p) in body.vertex_points() {
-        let p = p.unwrap();
         if !coords_in(p, &[2.0, 8.0, 0.0, 10.0]) || !(1.9..8.1).contains(&p.x) {
             continue;
         }

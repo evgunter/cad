@@ -126,12 +126,14 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
             },
         )?;
         // Re-key the hole's handles into the result body (the graft's
-        // bridge is the ONLY bridge; a miss is graft corruption).
-        let desync = |_| RevolveError::VoidInsertion {
-            loop_index: li,
-            source: topo::VoidInsertError::Corrupt {
-                what: "hole handle missing from the void graft bridge",
-            },
+        // bridge is the ONLY bridge, total over the cavity's live
+        // entities, and these handles are the hole body's own).
+        let bridged = |what: &str| -> ! {
+            unreachable!(
+                "the hole's {what} handle is missing from the void graft bridge: the bridge is \
+                 total over the cavity's live entities, and the handle is one the hole build \
+                 minted"
+            )
         };
         let n = segs.len();
         let RevolvedKind::Full {
@@ -146,17 +148,20 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
         let mut mer_c = vec![None; n];
         for j in 0..n {
             if let Some(f) = hole_walls[0][j] {
-                walls_c[j] = Some(inserted.face(f).ok_or(()).map_err(desync)?);
+                walls_c[j] = Some(inserted.face(f).unwrap_or_else(|| bridged("wall")));
             }
             if let Some(e) = hole.rims[0][j] {
-                rims_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+                rims_c[j] = Some(inserted.edge(e).unwrap_or_else(|| bridged("rim")));
             }
             if let Some(e) = hole_mer[0][j] {
-                mer_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+                mer_c[j] = Some(inserted.edge(e).unwrap_or_else(|| bridged("meridian")));
             }
         }
-        out.cavities
-            .push(inserted.shell(hole.shell).ok_or(()).map_err(desync)?);
+        out.cavities.push(
+            inserted
+                .shell(hole.shell)
+                .unwrap_or_else(|| bridged("shell")),
+        );
         out.bands.push(super::bands_of(&walls_c, &col.members));
         out.rims.push(rims_c);
         out.poles.push(vec![None; n]);

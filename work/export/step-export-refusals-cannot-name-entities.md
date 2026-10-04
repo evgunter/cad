@@ -30,3 +30,8 @@ distinction), so `CurvedShellClassification` would misname a
 placeholder — `printable_carrier` spells the literal today.
 
 Signed: (EXCH orchestrator)
+
+**2026-10-04.** `StepImportError::VertexWithoutPoint` is deleted: a
+vertex whose point key does not resolve is a torn body, and
+`Body::vertex_points` panics naming it (D2 row 4). The "two
+vocabularies" datum above no longer has its step-import half.

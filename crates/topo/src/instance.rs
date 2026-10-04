@@ -89,16 +89,20 @@ use crate::entity::SolidKey;
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] when `src` is not a well-formed
-/// single-solid body; [`graft_disjoint_all`]'s refusals otherwise, with
-/// `dst` deep-unchanged.
+/// [`BooleanError::JoinDesync`] when `src` does not hold exactly one
+/// solid; [`graft_disjoint_all`]'s refusals otherwise, with `dst`
+/// deep-unchanged.
+///
+/// # Panics
+///
+/// As [`graft_disjoint_all`].
 pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<SolidKey, BooleanError> {
     if src.solids().count() != 1 {
         return Err(BooleanError::JoinDesync {
-            what: "graft source is not a well-formed single-solid body",
+            what: "graft source does not hold exactly one solid",
         });
     }
     let keys = graft_disjoint_all(dst, src)?;
@@ -137,19 +141,23 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] — when `src` holds no solid, when a
-/// solid has no provenance, or when a source-internal reference does
-/// not resolve during the remap. **`GraftRecertify` is not among them
-/// at this door**, and the distinction is load-bearing rather than
-/// pedantic: this door bridges with `combine::Bridge::RemapKeys`, whose
-/// arm carries each certificate verbatim and never reaches the
-/// re-certification that is the only site raising that variant. Only
-/// the in-crate `Bridge::Recertify` path (the booleans') can.
+/// [`BooleanError::JoinDesync`] when `src` holds no solid. **That is
+/// the only refusal at this door**: it bridges with
+/// `combine::Bridge::RemapKeys`, whose arm carries each certificate
+/// verbatim and never reaches the re-certification that is the only
+/// site raising `GraftRecertify`. Only the in-crate `Bridge::Recertify`
+/// path (the booleans') can.
 ///
-/// **Every refusal leaves `dst` deep-unchanged.** The transplant runs
-/// into a fresh staging body and is committed into `dst` only once it
-/// has succeeded in full, so a caller keeps the destination it had and
-/// no refusal leaves a body tier-1-invalid.
+/// # Panics
+///
+/// Where a record of `src` names something `src` does not hold, or a
+/// solid of it carries no provenance, naming it (D2 row 4): `src` is a
+/// body every public door keeps tier-1-valid.
+///
+/// **Every refusal and every such panic leaves `dst` deep-unchanged.**
+/// The transplant runs into a fresh staging body and is committed into
+/// `dst` only once it has succeeded in full, so a caller keeps the
+/// destination it had and no refusal leaves a body tier-1-invalid.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -392,39 +400,58 @@ mod tests {
         }
     }
 
-    /// Sources torn so the transplant refuses only after it has begun
-    /// writing: a half-edge whose `next` dangles refuses in the
-    /// cross-reference pass, after every arena has been copied; a solid
-    /// listing a dead shell refuses at the shell attachment, the last
-    /// fallible step, after the minted solids exist. A public consumer
-    /// cannot build either (every public door keeps tier 1, and tier 1
-    /// vouches for both references), so the tear takes `pub(crate)`
-    /// reach: these stand for whatever a kernel bug elsewhere leaves.
-    fn torn_sources() -> [(&'static str, Body<f64>); 2] {
+    /// Sources torn so the transplant meets the tear only after it has
+    /// begun writing its stage: a half-edge whose `next` dangles, met in
+    /// the cross-reference pass after every arena has been copied; a
+    /// solid listing a dead shell, met at the shell attachment, the
+    /// transplant's last step, after the minted solids exist. A public
+    /// consumer cannot build either (every public door keeps tier 1, and
+    /// tier 1 vouches for both references), so the tear takes
+    /// `pub(crate)` reach: these stand for whatever a kernel bug
+    /// elsewhere leaves. Each comes with the record its panic names.
+    fn torn_sources() -> [(&'static str, Body<f64>, String); 2] {
+        use crate::entity::{EntityId, HalfEdgeKey, ShellKey};
         let mut next = cube();
         let he = next.half_edges.iter().next().unwrap().0;
-        next.get_half_edge_mut(he).unwrap().next = crate::entity::HalfEdgeKey::default();
+        next.get_half_edge_mut(he).unwrap().next = HalfEdgeKey::default();
         let mut shell = cube();
         let solid = shell.solids().next().unwrap().0;
         shell
             .get_solid_mut(solid)
             .unwrap()
             .shells
-            .push(crate::entity::ShellKey::default());
+            .push(ShellKey::default());
         [
-            ("a dangling `next` (cross-reference pass)", next),
-            ("a dead shell in the solid's list (attachment)", shell),
+            (
+                "a dangling `next` (cross-reference pass)",
+                next,
+                format!(
+                    "{}'s next names {}",
+                    EntityId::HalfEdge(he),
+                    EntityId::HalfEdge(HalfEdgeKey::default())
+                ),
+            ),
+            (
+                "a dead shell in the solid's list (attachment)",
+                shell,
+                format!(
+                    "{}'s shells names {}",
+                    EntityId::Solid(solid),
+                    EntityId::Shell(ShellKey::default())
+                ),
+            ),
         ]
     }
 
-    /// **Atomicity, at every graft door.** A refusal raised after the
-    /// transplant has started leaves the destination deep-unchanged —
-    /// every row, every provenance record, every arena's next key — and
-    /// so still tier-1 valid. A destination written before the refusal
-    /// would differ from its snapshot and fail tier 1 (an empty minted
-    /// solid is `SolidWithoutShells`).
+    /// **A torn source panics naming the record, at every graft door,
+    /// and the destination is deep-unchanged** — every row, every
+    /// provenance record, every arena's next key — and so still tier-1
+    /// valid. The panic fires inside the stage, after the transplant has
+    /// begun writing it; a destination written before it would differ
+    /// from its snapshot and fail tier 1 (an empty minted solid is
+    /// `SolidWithoutShells`).
     #[test]
-    fn a_refused_graft_leaves_the_destination_deep_unchanged() {
+    fn a_torn_source_panics_with_the_destination_deep_unchanged() {
         type Door = fn(&mut Body<f64>, &Body<f64>) -> Result<(), crate::boolean::BooleanError>;
         let doors: [(&str, Door); 3] = [
             ("graft_disjoint", |d, s| graft_disjoint(d, s).map(drop)),
@@ -436,18 +463,23 @@ mod tests {
             }),
         ];
         for (door, graft) in doors {
-            for (tear, src) in torn_sources() {
+            for (tear, src, names) in torn_sources() {
                 let mut dst = cube();
                 let before = deep_snapshot(&dst);
-                let err = graft(&mut dst, &src).expect_err("a torn source refuses");
-                assert!(
-                    format!("{err:?}").contains("JoinDesync"),
-                    "{door}, {tear}: {err:?}"
-                );
+                let report =
+                    crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+                        let _ = graft(&mut dst, &src);
+                    }));
+                for fragment in [names.as_str(), crate::live::NAMES_ONLY_LIVE] {
+                    assert!(
+                        report.contains(fragment),
+                        "{door}, {tear}: want {fragment:?} in: {report}"
+                    );
+                }
                 assert_eq!(
                     deep_snapshot(&dst),
                     before,
-                    "{door}, {tear}: the refused graft wrote the destination (tier 1 now: {:?})",
+                    "{door}, {tear}: the panicking graft wrote the destination (tier 1 now: {:?})",
                     crate::validate(&dst),
                 );
                 assert_eq!(crate::validate(&dst), Ok(()), "{door}, {tear}");

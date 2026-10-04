@@ -86,7 +86,6 @@ fn band_radial_err(body: &Body<f64>, f: FaceKey) -> f64 {
         if !body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f)) {
             continue;
         }
-        let p = p.unwrap();
         let d = p - *origin;
         let along = d.dot(*axis);
         let rad = (d - *axis * along).norm();

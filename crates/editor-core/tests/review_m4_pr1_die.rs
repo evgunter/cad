@@ -25,7 +25,7 @@ struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -182,7 +182,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -241,7 +241,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -312,8 +312,8 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
         assert_eq!(mapped, mn.inputs(), "inputs of {t_id:?}→{m_id:?}");
         assert_eq!(tn.slots(), mn.slots());
         for slot in tn.slots() {
-            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.param_env()).unwrap();
-            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.param_env()).unwrap();
+            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.var_env()).unwrap();
+            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.var_env()).unwrap();
             assert_eq!(tv.to_bits(), mv.to_bits(), "slot {slot:?} of {t_id:?}");
         }
     }

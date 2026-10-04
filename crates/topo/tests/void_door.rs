@@ -359,22 +359,32 @@ fn two_destinations_each_take_their_own_cavity() {
     );
 }
 
-/// **A destination count that does not match the cavity's solid count
-/// refuses typed**, before any mutation — the door never guesses which
-/// solid a cavity belongs in.
+/// **A destination count that does not match the cavity's solid count,
+/// or a cavity of no solid, refuses typed**, before any mutation — the
+/// door never guesses which solid a cavity belongs in.
 #[test]
 fn a_wrong_destination_arity_refuses_typed() {
     let (mut dst, cavity) = outer_and_cavity();
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
     let before = reading(&dst);
+    let count = |destinations, cavity_solids| VoidInsertError::SolidCount {
+        destinations,
+        cavity_solids,
+    };
 
     // Two destinations for one cavity solid.
     let e = topo::insert_voids(&mut dst, &[solid, solid], cavity.clone(), &evidence).unwrap_err();
-    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
+    assert_eq!(e, count(2, 1), "{e}");
 
     // None at all.
     let e = topo::insert_voids(&mut dst, &[], cavity, &evidence).unwrap_err();
-    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
-    assert_eq!(reading(&dst), before, "the body is untouched on both");
+    assert_eq!(e, count(0, 1), "{e}");
+
+    // A cavity of no solid, under no destination: the counts agree and
+    // still nothing would be inserted.
+    let empty = VoidEvidence::default();
+    let e = topo::insert_voids(&mut dst, &[], topo::Body::new(), &empty).unwrap_err();
+    assert_eq!(e, count(0, 0), "{e}");
+    assert_eq!(reading(&dst), before, "the body is untouched on all three");
 }

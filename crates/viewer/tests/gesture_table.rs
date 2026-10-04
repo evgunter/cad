@@ -33,7 +33,7 @@
 //! the union of the ops in those five assertion sites. That union is 19
 //! of the 24 refusals. The five with no external witness are
 //! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
-//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`] and
+//! [`SessionOp::SetSlotUnit`], [`SessionOp::DeclareVar`] and
 //! [`SessionOp::AddMate`]; for those, `expected` is the only place the
 //! answer is written down rather than a check on a written answer.
 //! That is strictly more than the dispatch recorded before the table
@@ -95,7 +95,7 @@ use std::collections::BTreeSet;
 use common::{len, len3, scl3};
 use pncad::document::{
     Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
-    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarName,
+    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 49;
+const OP_COUNT: usize = 51;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -172,6 +172,9 @@ fn alignment() -> Alignment {
 /// on WHICH refusal it gives, not on succeeding.
 pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
     let param = VarName::from_static("thickness");
+    // A variable no fixture holds: every op carrying it is refused
+    // before it looks, or refused by the door for the absence.
+    let var = VarId(0x7468_6963_6b6e);
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -202,18 +205,18 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             text: "1.0 m".to_owned(),
         },
         SessionOp::SetParam {
-            name: param.clone(),
+            var,
             value: SlotValue::Continuous(0.02),
         },
         SessionOp::SetParamUnit {
-            name: param.clone(),
+            var,
             unit: MM.def(),
         },
         SessionOp::SetParamText {
-            name: param.clone(),
+            var,
             text: "5 mm".to_owned(),
         },
-        SessionOp::CreateParam {
+        SessionOp::DeclareVar {
             name: param.clone(),
             value: FreeVar::continuous(Dimension::Length, 0.005),
         },
@@ -221,9 +224,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             node,
             slot: SlotId::Distance,
         },
-        SessionOp::BeginParamGesture {
-            name: param.clone(),
-        },
+        SessionOp::BeginParamGesture { var },
         SessionOp::PreviewGesture {
             node,
             slot: SlotId::Distance,
@@ -233,11 +234,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             node,
             slot: SlotId::Distance,
         },
-        SessionOp::PreviewParamGesture {
-            name: param.clone(),
-            value: 0.01,
-        },
-        SessionOp::CommitParamGesture { name: param },
+        SessionOp::PreviewParamGesture { var, value: 0.01 },
+        SessionOp::CommitParamGesture { var },
         SessionOp::CancelGesture,
         SessionOp::Undo,
         SessionOp::Redo,
@@ -355,6 +353,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             .expect("adding a datum creates a node"),
             label: pncad::document::Label::new("Datum frame 1").expect("a label"),
         },
+        SessionOp::RenameVar {
+            var,
+            name: Some(VarName::from_static("depth")),
+        },
+        SessionOp::DeleteVar { var },
     ]
 }
 
@@ -371,7 +374,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSlotUnit { .. } => (5, false),
         SessionOp::SetSlotExpression { .. } => (6, false),
         SessionOp::SetParam { .. } => (7, false),
-        SessionOp::CreateParam { .. } => (8, false),
+        SessionOp::DeclareVar { .. } => (8, false),
         // The two doors that OPEN a value gesture. Permitted by this
         // table and refused anyway, by `g1::Slot::begin` — rule 1,
         // held once for both gestures and off the very state this
@@ -442,6 +445,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // and a labelled creation is a creation.
         SessionOp::SetLabel { .. } => (47, false),
         SessionOp::CreateLabelled { .. } => (48, false),
+        // A variable's rename and delete are document edits, fenced
+        // for `SetParam`'s reason.
+        SessionOp::RenameVar { .. } => (49, false),
+        SessionOp::DeleteVar { .. } => (50, false),
     }
 }
 
@@ -544,7 +551,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = VarName::from_static("no_such_parameter");
+    let undeclared = VarId(0x6e6f_7375_6368);
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -564,9 +571,7 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
         node: second,
         slot: SlotId::Distance,
     };
-    let missing = SessionOp::BeginParamGesture {
-        name: undeclared.clone(),
-    };
+    let missing = SessionOp::BeginParamGesture { var: undeclared };
 
     // With nothing in flight, each door answers for its own target.
     assert!(
@@ -579,7 +584,7 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     assert!(
         matches!(
             session.perform(missing.clone()).refusal,
-            Some(Refusal::NoSuchParam(ref name)) if *name == undeclared
+            Some(Refusal::NoSuchParam(var)) if var == undeclared
         ),
         "a drag on an undeclared parameter is refused by the lookup"
     );
@@ -858,7 +863,9 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -967,8 +974,8 @@ fn sample_names() -> Vec<GestureName> {
             node: RecipeNodeId(4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarName::from_static("h"))),
-        GestureName::Value(ValueGestureName::Param(VarName::from_static("w"))),
+        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
+        GestureName::Value(ValueGestureName::Param(VarId(0x77))),
         GestureName::FreeMove(FreeMoveName {
             instance: RecipeNodeId(3),
         }),
@@ -1131,7 +1138,7 @@ fn a_names_cancel_is_its_own_drags() {
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarName::from_static("h"))),
+        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1463,7 +1470,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -1641,7 +1650,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let param = VarName::from_static("thickness");
     assert!(
         session
-            .perform(SessionOp::CreateParam {
+            .perform(SessionOp::DeclareVar {
                 name: param.clone(),
                 value: FreeVar::continuous(Dimension::Length, 0.004),
             })
@@ -1687,6 +1696,7 @@ fn committed_distance(
 fn a_drag_on_another_field_cannot_steer_the_open_one() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
+    let var = common::var_of(session.committed_doc(), param.as_str());
 
     // The drag that is open, moved once so it has a value to land.
     assert!(
@@ -1749,26 +1759,19 @@ fn a_drag_on_another_field_cannot_steer_the_open_one() {
     // The parameter door, the same three ops in the other spelling.
     assert!(matches!(
         session
-            .perform(SessionOp::BeginParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::BeginParamGesture { var })
             .refusal,
         Some(Refusal::GestureInFlight)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewParamGesture {
-                name: param.clone(),
-                value: 0.012,
-            })
+            .perform(SessionOp::PreviewParamGesture { var, value: 0.012 })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::CommitParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::CommitParamGesture { var })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
@@ -2093,13 +2096,14 @@ fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     let param = VarName::from_static("thickness");
     assert!(
         session
-            .perform(SessionOp::CreateParam {
+            .perform(SessionOp::DeclareVar {
                 name: param.clone(),
                 value: FreeVar::continuous(Dimension::Length, 0.004),
             })
             .refusal
             .is_none()
     );
+    let var = common::var_of(session.committed_doc(), param.as_str());
     strand_the_distance_drag(&mut session, extrude);
 
     // The parameter row is drawn whatever the selection's standing is
@@ -2108,31 +2112,24 @@ fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     assert!(
         viewer::props::param_rows(session.doc())
             .iter()
-            .any(|row| row.name == param),
+            .any(|row| row.var == var),
         "the parameter the reader drags next is on the panel"
     );
     assert!(matches!(
         session
-            .perform(SessionOp::BeginParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::BeginParamGesture { var })
             .refusal,
         Some(Refusal::GestureInFlight)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewParamGesture {
-                name: param.clone(),
-                value: 0.012,
-            })
+            .perform(SessionOp::PreviewParamGesture { var, value: 0.012 })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::CommitParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::CommitParamGesture { var })
             .refusal,
         Some(Refusal::WrongGesture)
     ));

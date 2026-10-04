@@ -28,7 +28,7 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// A parameter bound over `[lo, hi]` — the shape `param_env_over` binds.
+/// A parameter bound over `[lo, hi]` — the shape `var_env_over` binds.
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
     Sym::param(
         ParamSymbol::new(test_utils::symbol_id(name)),

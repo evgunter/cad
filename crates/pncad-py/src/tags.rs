@@ -151,9 +151,8 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError,
-    NamingError, NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
-    RimShare,
+    EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError, NamingError,
+    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -544,9 +543,8 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
 
 /// The stable tag for an edit refusal.
 ///
-/// Its four param-ref words are the same four
-/// [`snapshot_error_tag`] mints, pinned by
-/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`:
+/// Its variable-kind words are the ones [`snapshot_error_tag`] mints,
+/// pinned by `tests::the_edit_and_snapshot_maps_agree_on_the_var_read_words`:
 /// the arms they follow carry one convention across the two doors
 /// (stated on `editor_core::EditError`), so the words do too.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
@@ -577,28 +575,34 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
             "structural_slot_needs_structural_edit"
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
-        EditError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
-        EditError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
-        EditError::PayloadUnknownDocParam { .. } => "payload_unknown_doc_param",
-        EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
+        EditError::SlotUnknownVarName { .. } => "slot_unknown_var_name",
+        EditError::SlotVarKind { .. } => "slot_var_kind",
+        EditError::PayloadUnknownVarName { .. } => "payload_unknown_var_name",
+        EditError::PayloadVarKind { .. } => "payload_var_kind",
+        EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
+        EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
+        EditError::NameLeafWritten { .. } => "name_leaf_written",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
         EditError::AssertionDimension { .. } => "assertion_dimension",
-        EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
+        EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
         EditError::VarNameTaken { .. } => "var_name_taken",
         EditError::VarIdCollides { .. } => "var_id_collides",
+        EditError::VarNameUnchanged { .. } => "var_name_unchanged",
+        EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
+        EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
         EditError::VarKindFixed { .. } => "var_kind_fixed",
-        EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
-        EditError::DocParamCountHasNoUnit { .. } => "doc_param_count_has_no_unit",
-        EditError::DocParamCountHasNoDistribution { .. } => "doc_param_count_has_no_distribution",
-        EditError::DocParamUnitMismatch { .. } => "doc_param_unit_mismatch",
+        EditError::VarValueKindMismatch { .. } => "var_value_kind_mismatch",
+        EditError::VarCountHasNoUnit { .. } => "var_count_has_no_unit",
+        EditError::VarCountHasNoDistribution { .. } => "var_count_has_no_distribution",
+        EditError::VarUnitMismatch { .. } => "var_unit_mismatch",
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
         EditError::NameStepNeverMinted { .. } => "name_step_never_minted",
         EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
-        EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
+        EditError::NonFiniteVar { .. } => "non_finite_var",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
         EditError::RebindTargetMissingNode { .. } => "rebind_target_missing_node",
         EditError::RebindUnknownName { .. } => "rebind_unknown_name",
@@ -680,7 +684,7 @@ pub fn distribution_kind_tag(dist: &Distribution) -> &'static str {
 /// Python `Distribution` constructor raises it directly, and the edit
 /// door's `invalid_distribution` refusal carries the same fault, so a
 /// caller reads the same word whichever door refused. `non_finite` is
-/// the arm the edit door re-routes to `non_finite_doc_param` — the
+/// the arm the edit door re-routes to `non_finite_var` — the
 /// document layer folds a non-finite offset into the document-wide
 /// non-finite class — so the two doors agree on the fault and differ
 /// on where the document puts it, which is the kernel's own split and
@@ -1272,26 +1276,32 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
         EditError::NotStructuralSlot { .. } => None,
-        EditError::SlotUnknownDocParam { .. } => None,
-        EditError::PayloadUnknownDocParam { .. } => None,
-        EditError::PayloadDocParamDimension { .. } => None,
+        EditError::SlotUnknownVarName { .. } => None,
+        EditError::PayloadUnknownVarName { .. } => None,
+        EditError::PayloadVarKind { .. } => None,
         EditError::AssertionTarget { .. } => None,
         EditError::AssertionDimension { .. } => None,
-        EditError::SlotDocParamDimension { .. } => None,
-        EditError::ContinuousParamCannotBeCount { .. } => None,
+        EditError::SlotVarKind { .. } => None,
+        EditError::ContinuousVarCannotBeCount { .. } => None,
         EditError::UnknownVar { .. } => None,
         EditError::VarNameTaken { .. } => None,
         EditError::VarIdCollides { .. } => None,
+        EditError::SlotUnresolvedVar { .. } => None,
+        EditError::PayloadUnresolvedVar { .. } => None,
+        EditError::NameLeafWritten { .. } => None,
+        EditError::VarNameUnchanged { .. } => None,
+        EditError::AnonymousVarUnread { .. } => None,
+        EditError::DeleteAnonymousVar { .. } => None,
         EditError::VarKindFixed { .. } => None,
-        EditError::DocParamValueKindMismatch { .. } => None,
-        EditError::DocParamCountHasNoUnit { .. } => None,
-        EditError::DocParamCountHasNoDistribution { .. } => None,
-        EditError::DocParamUnitMismatch { .. } => None,
+        EditError::VarValueKindMismatch { .. } => None,
+        EditError::VarCountHasNoUnit { .. } => None,
+        EditError::VarCountHasNoDistribution { .. } => None,
+        EditError::VarUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
         EditError::NameStepNeverMinted { .. } => None,
         EditError::ReadSiteMissingNode { .. } => None,
-        EditError::NonFiniteDocParam { .. } => None,
+        EditError::NonFiniteVar { .. } => None,
         EditError::RebindTargetMissingNode { .. } => None,
         EditError::RebindUnknownName { .. } => None,
         EditError::RebindKindMismatch { .. } => None,
@@ -1604,7 +1614,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
-        BooleanErrorKind::CorruptOperand => "corrupt_operand",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
@@ -1773,7 +1782,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRimNotExpressible { .. } => "open_face_rim_not_expressible",
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
-        ShellError::Corrupt { .. } => "corrupt",
         ShellError::Pcurve { .. } => "pcurve",
         ShellError::NotValid { .. } => "not_valid",
     }
@@ -1806,8 +1814,8 @@ pub fn param_box_error_tag(err: &ParamBoxError) -> &'static str {
 /// of [`NodeErrorKind::Seed`].
 pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
-        SeedError::UnknownParam { .. } => "unknown_param",
-        SeedError::CountParam { .. } => "count_param",
+        SeedError::UnknownVar { .. } => "unknown_param",
+        SeedError::CountVar { .. } => "count_param",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }
@@ -1956,9 +1964,8 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// names and counts the snapshot door owns; the word is what the
 /// persistence door carries out.
 ///
-/// Its four param-ref words are the same four [`edit_error_tag`]
-/// mints, pinned by
-/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`.
+/// Its variable-kind words are the ones [`edit_error_tag`] mints,
+/// pinned by `tests::the_edit_and_snapshot_maps_agree_on_the_var_read_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
@@ -1976,14 +1983,14 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarKind { .. } => "var_kind",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
-        SnapshotError::VarUnnamed { .. } => "var_unnamed",
         SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
-        SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
-        SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
-        SnapshotError::PayloadUnknownDocParam { .. } => "payload_unknown_doc_param",
-        SnapshotError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
+        SnapshotError::NamedReaderInSnapshot { .. } => "named_reader_in_snapshot",
+        SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
+        SnapshotError::SlotVarKind { .. } => "slot_var_kind",
+        SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
+        SnapshotError::AnonymousVarUnread { .. } => "anonymous_var_unread",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit
@@ -2075,14 +2082,11 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Every arm but one is reachable through
+/// branchable discriminant. Every arm is reachable through
 /// `import_step` on some input, unlike [`workspace_error_tag`]'s door
 /// — a caller distinguishing a malformed file from an unsupported
 /// entity from a tier refusal has no other way to do it, because the
-/// id and line live in prose. The exception is `vertex_without_point`,
-/// which announces a corrupt-body state whose reachability the
-/// declaration resolver cannot prove either way; it exists so that
-/// resolver refuses rather than miscounts. The arm COUNT is not
+/// id and line live in prose. The arm COUNT is not
 /// written here: it is `TAG_INVENTORY`'s row for this function, which
 /// is derived from this file rather than remembered.
 ///
@@ -2102,7 +2106,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
         StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
-        StepImportError::VertexWithoutPoint { .. } => "vertex_without_point",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -2304,8 +2307,9 @@ pub fn parse_error_tag(err: &ParseError) -> &'static str {
 /// at the end of the evaluation, rather than at the operation.
 pub fn eval_error_tag(err: &EvalError) -> &'static str {
     match err {
-        EvalError::UnknownParam(_) => "unknown_param",
-        EvalError::ParamDimensionMismatch { .. } => "param_dimension_mismatch",
+        EvalError::UnresolvedVar { .. } => "unresolved_var",
+        EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
+        EvalError::UnloweredName { .. } => "unlowered_name",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
         EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
         EvalError::CountOverflow => "count_overflow",
@@ -2503,7 +2507,9 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        SplitError::UncutParamReference { .. } => "uncut_param_reference",
+        SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
+        SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
@@ -2529,7 +2535,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
-        InlineError::ParamConflict { .. } => "param_conflict",
+        InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
+        InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",
         InlineError::Unplaced { .. } => "unplaced",
@@ -2556,28 +2564,14 @@ pub fn update_error_tag(err: &UpdateError) -> &'static str {
 /// The stable tag for the KERNEL half of a read-back refusal — the
 /// carrier read itself, once a name has resolved.
 ///
-/// `Dangling` has two lanes kernel-side and gets one tag per lane,
-/// because they are different facts about the model: a topological
-/// key that does not resolve is a stale or foreign handle
-/// (`dangling_entity`), while a geometry key reached FROM a live
-/// entity that does not resolve is a dangling reference inside the
-/// body (`dangling_geometry`). Which invariant broke is what a caller
-/// branches on, so it belongs in the tag rather than only in the
-/// prose. The kernel's own `Display` still states which lookup came
-/// back empty, and that prose is the exception's message.
-///
-/// The match is over `DanglingRef`'s arms, not `..`, so a third lane
-/// added kernel-side stops this crate compiling — the same
-/// drift alarm the outer arms get from `ReadbackError` not being
-/// `#[non_exhaustive]`.
+/// `dangling_entity` is the caller's stale or foreign handle; a key a
+/// live record names always resolves kernel-side (D2 row 4), so it is
+/// the one dangling tag. The match is exhaustive, not `..`, so an arm
+/// added kernel-side stops this crate compiling — the drift alarm
+/// `ReadbackError` not being `#[non_exhaustive]` gives.
 pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
     match err {
-        ReadbackError::Dangling {
-            what: DanglingRef::Entity(_),
-        } => "dangling_entity",
-        ReadbackError::Dangling {
-            what: DanglingRef::Geometry(_),
-        } => "dangling_geometry",
+        ReadbackError::Dangling { .. } => "dangling_entity",
         ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
         ReadbackError::NoCarrier => "no_carrier",
     }
@@ -3259,6 +3253,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::LabelDropped { .. } => "label_dropped",
+        Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }
 

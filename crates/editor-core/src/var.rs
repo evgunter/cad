@@ -15,8 +15,8 @@ use crate::expr::Dimension;
 /// chain ([`crate::Mint`]) by `DeclareVar`, never reused (a deleted
 /// variable's id stays in the mint log), never positional.
 ///
-/// Its `Display` is the 12-hex tag a node's is; [`VarId::full`] gives
-/// every bit.
+/// Its `Display` is `#` and every bit (`#3fa9c1d2a0b1c3d4`), the text
+/// a nameless reader unparses to; [`VarId::full`] gives the bits alone.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]

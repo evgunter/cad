@@ -138,8 +138,9 @@ use super::{
     VfContact, VvContact,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::live::{linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
@@ -863,7 +864,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     decls: &BooleanDeclarations,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let events = event_pairs(red)?;
+    let events = event_pairs(red);
     let pairs = section_pairs(
         a,
         b,
@@ -1061,21 +1062,19 @@ impl PairVerdict {
     }
 }
 
-/// Does the face carry a lone-vertex loop?
-fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> Result<bool, BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "section certificate: a face loop is lost",
-    };
-    let fd = body.get_face(face).ok_or_else(corrupt)?;
-    for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        if matches!(
-            body.get_loop(l).ok_or_else(corrupt)?.boundary,
-            LoopBoundary::Empty { .. }
-        ) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+/// Does the face, which the caller read out of `body`, carry a
+/// lone-vertex loop?
+#[track_caller]
+fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
+    let fd = proven(&body.faces, face, EntityId::Face);
+    core::iter::once(fd.outer)
+        .chain(fd.rings.iter().copied())
+        .any(|l| {
+            matches!(
+                linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary,
+                LoopBoundary::Empty { .. }
+            )
+        })
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
@@ -1142,21 +1141,16 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 /// pair's refusal. The reach — the ball about the two boxes' overlap,
 /// which pivots and levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for a face whose loops do
-/// not resolve.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
-) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
+) -> Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal> {
     use super::section_cert::{Refusal, Side, certify, classify};
-    if has_lone_vertex(a, fa.face)? || has_lone_vertex(b, fb.face)? {
-        return Ok(Err(Refusal::LoneVertex));
+    if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
+        return Err(Refusal::LoneVertex);
     }
     let (box_a, box_b) = (&fa.bbox, &fb.bbox);
     let (lo, hi) = (
@@ -1176,7 +1170,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         radius: T::from_f64((hi - lo).norm() * 0.5),
     };
     let section = classify(&fa.surface, &fb.surface, reach, band);
-    Ok(certify(
+    certify(
         &section,
         evented,
         |side| {
@@ -1192,7 +1186,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(b, fb.face, &fb.surface, p, band),
             ]
         },
-    ))
+    )
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -1212,42 +1206,30 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
 
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for a loop, cycle or
-/// half-edge that does not resolve, and the edge box's own errors.
+/// `face` is one the caller read out of `body`.
+#[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     region: &bvh::Aabb,
     pad: f64,
-) -> Result<bool, BooleanError> {
-    let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let fd = body
-        .get_face(face)
-        .ok_or(corrupt("face boundary: the face is lost"))?;
-    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let l = body
-            .get_loop(lk)
-            .ok_or(corrupt("face boundary: a face loop is lost"))?;
+) -> bool {
+    let fd = proven(&body.faces, face, EntityId::Face);
+    for (lk, field) in
+        core::iter::once((fd.outer, "outer")).chain(fd.rings.iter().map(|&r| (r, "rings")))
+    {
+        let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
         let LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
-        for he in body
-            .loop_cycle(first)
-            .ok_or(corrupt("face boundary: an unwalkable loop"))?
-        {
-            let ek = body
-                .get_half_edge(he)
-                .ok_or(corrupt("face boundary: a half-edge is lost"))?
-                .edge;
-            if boxes::edge_box(body, ek, pad)?.overlaps(region) {
-                return Ok(true);
+        for he in body.loop_walk(first).closed("loop", first) {
+            let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            if boxes::edge_box(body, ek, pad).overlaps(region) {
+                return true;
             }
         }
     }
-    Ok(false)
+    false
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B
@@ -1256,10 +1238,6 @@ fn face_boundary_meets<T: Decide + Bounds>(
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
 /// `stop` the walk returns at the first refusing pair.
-///
-/// # Errors
-///
-/// [`pair_verdict`]'s.
 #[allow(clippy::too_many_arguments)]
 fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
@@ -1270,7 +1248,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
-) -> Result<Vec<PairVerdict>, BooleanError> {
+) -> Vec<PairVerdict> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
     let mut out = Vec::new();
     for fa in a_rows {
@@ -1278,7 +1256,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -1289,11 +1267,11 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
                 verdict,
             });
             if stop && refused {
-                return Ok(out);
+                return out;
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
@@ -1317,7 +1295,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let (a_rows, b_rows) = (face_rows(a, band)?, face_rows(b, band)?);
-    walk_pairs(
+    Ok(walk_pairs(
         (a, &a_rows),
         (b, &b_rows),
         band,
@@ -1326,7 +1304,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
-    )
+    ))
 }
 
 /// **The pairs a section walk answers without their section**, one per
@@ -1424,7 +1402,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let decls = BooleanDeclarations::default();
     let red =
         super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
-    let events = event_pairs(&red)?;
+    let events = event_pairs(&red);
     section_pairs(
         a,
         b,
@@ -1498,11 +1476,9 @@ fn ball_against_plane<T: Decide>(
 /// the scaffolding's choice (the side each null edge's new vertex
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
-fn event_pairs<T: Real>(
-    red: &BooleanReduction<T>,
-) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
-    let a_faces = faces_by_vertex(&red.a)?;
-    let b_faces = faces_by_vertex(&red.b)?;
+fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
+    let a_faces = faces_by_vertex(&red.a);
+    let b_faces = faces_by_vertex(&red.b);
     let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
     let around = |operand: Operand, v: VertexKey| {
         let m = match operand {
@@ -1536,30 +1512,27 @@ fn event_pairs<T: Real>(
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
-fn faces_by_vertex<T: Real>(
-    body: &Body<T>,
-) -> Result<BTreeMap<VertexKey, Vec<FaceKey>>, BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "interior-loop guard: a reduction operand is not walkable",
-    };
+fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {
         for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             // A lone-vertex loop's vertex bounds the face as much as a
             // cycle's do.
-            let vertices = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
-                LoopBoundary::Empty { vertex } => vec![vertex],
-                LoopBoundary::Cycle { first } => body
-                    .loop_cycle(first)
-                    .ok_or_else(corrupt)?
-                    .into_iter()
-                    .map(|he| body.get_half_edge(he).map(|h| h.start).ok_or_else(corrupt))
-                    .collect::<Result<Vec<_>, _>>()?,
-            };
+            let vertices =
+                match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary
+                {
+                    LoopBoundary::Empty { vertex } => vec![vertex],
+                    LoopBoundary::Cycle { first } => body
+                        .loop_walk(first)
+                        .closed("loop", first)
+                        .into_iter()
+                        .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
+                        .collect(),
+                };
             for v in vertices {
                 let faces = out.entry(v).or_default();
                 if !faces.contains(&face) {
@@ -1568,7 +1541,7 @@ fn faces_by_vertex<T: Real>(
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// The graft map as sorted-order row vectors (naming emission).
@@ -3107,7 +3080,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match ball_against_plane(center, radius, origin, normal, band) {
                                 Ok(read) => read,
                                 Err(diag) => {
-                                    if faces()?.is_some() {
+                                    if faces().is_some() {
                                         return Err(esc(SphereQuestion::AgainstPlane)(diag));
                                     }
                                     continue;
@@ -3120,7 +3093,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             // the circle the carrier cuts: certified
                             // apart from this face, they pose no escape
                             // through it.
-                            NonzeroSign::Positive if group.is_none() && faces()?.is_none() => {}
+                            NonzeroSign::Positive if group.is_none() && faces().is_none() => {}
                             NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -3132,7 +3105,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
                                 let circle_box = centred_box(foot, rho, pad);
-                                if face_boundary_meets(y, yf, &circle_box, pad)? {
+                                if face_boundary_meets(y, yf, &circle_box, pad) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
                                         face,
@@ -3237,7 +3210,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         ) {
                             Ok(gap) => gap,
                             Err(diag) => {
-                                if faces()?.is_some() {
+                                if faces().is_some() {
                                     return Err(esc(SphereQuestion::Apart)(diag));
                                 }
                                 continue;
@@ -3278,7 +3251,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        if faces()?.is_some() {
+                                        if faces().is_some() {
                                             return Err(BooleanError::SpheresMeet {
                                                 operand: x_is,
                                                 face,
@@ -3287,7 +3260,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         }
                                         continue;
                                     }
-                                    Some(verdict @ Refused::Negative { .. }) => match faces()? {
+                                    Some(verdict @ Refused::Negative { .. }) => match faces() {
                                         None => {}
                                         Some(SectionRefusal::Loop) => {
                                             return Err(BooleanError::SpheresMeet {
@@ -3408,17 +3381,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
 /// pairs on the no-event path. `None` when every pair clears, else the first
 /// pair's refusal, which is the cause.
-///
-/// # Errors
-///
-/// [`walk_pairs`]'.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
     (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
-) -> Result<Option<SectionRefusal>, BooleanError> {
+) -> Option<SectionRefusal> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -3430,7 +3399,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
-        )?,
+        ),
         Operand::B => walk_pairs(
             (y, [y_row]),
             (x, on_sphere),
@@ -3440,9 +3409,9 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
-        )?,
+        ),
     };
-    Ok(pairs.into_iter().find_map(|p| p.verdict.err()))
+    pairs.into_iter().find_map(|p| p.verdict.err())
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -3669,9 +3638,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
-                        voids::VoidInsertError::Corrupt { what } => {
-                            BooleanError::JoinDesync { what }
-                        }
+                        voids::VoidInsertError::StaleSolid { .. }
+                        | voids::VoidInsertError::SolidCount { .. } => unreachable!(
+                            "the void fallback grafts a one-solid B carve into the one solid \
+                             of the A carve it holds: {e:?}"
+                        ),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }

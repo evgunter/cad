@@ -177,7 +177,9 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Certify {
             site: "blend face pcurves",
-            source: topo::PcurveMintError::Corrupt,
+            source: topo::PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
         },
         BlendError::Op {
             site: "strut mev",

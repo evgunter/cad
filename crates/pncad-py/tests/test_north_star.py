@@ -439,7 +439,7 @@ class TestPlateParam(unittest.TestCase):
                 )
             )
         self.assertEqual(
-            ctx.exception.variant, "doc_param_value_kind_mismatch"
+            ctx.exception.variant, "var_value_kind_mismatch"
         )
 
     def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):
@@ -4377,8 +4377,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [
                 "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
-                "delete_node", "fold",
-                "insert_node", "promote", "rebind", "set_declare",
+                "delete_node", "delete_var", "fold",
+                "insert_node", "promote", "rebind", "rename_var",
+                "set_declare",
                 "set_extrude_side",
                 "set_gauge", "set_label", "set_members", "set_offset",
                 "set_param", "set_program", "set_roots",

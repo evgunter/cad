@@ -31,7 +31,7 @@ const D: f64 = 0.1;
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));

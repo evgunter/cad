@@ -48,7 +48,8 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Face, FaceKey};
+use crate::entity::{EntityId, Face, FaceKey, LoopBoundary};
+use crate::live::{linked, proven};
 use crate::replace_face::ReplaceFaceError;
 
 pub use geom_brep::Nappe;
@@ -68,21 +69,25 @@ pub use geom_brep::Nappe;
 /// [`ReplaceFaceError::NappeStraddles`] when the face's corners do not
 /// all stand strictly on one side of its apex (module docs).
 /// [`ReplaceFaceError::Escalated`] when either extreme lands in the
-/// ambiguity band, [`ReplaceFaceError::Corrupt`] on a key that does not
+/// ambiguity band, [`ReplaceFaceError::StaleFace`] when `face` does not
 /// resolve.
+///
+/// # Panics
+///
+/// On a torn body — the face's surface, a loop, a walk or a corner's
+/// point that does not resolve — naming the record (D2 row 4).
 pub fn face_nappe<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, ReplaceFaceError<T>> {
-    let data = body.get_face(face).ok_or(ReplaceFaceError::Corrupt)?;
-    let surface = body
-        .get_surface(data.surface)
-        .ok_or(ReplaceFaceError::Corrupt)?;
-    let Surface::Cone { apex, axis, .. } = surface else {
+    let data = body
+        .get_face(face)
+        .ok_or(ReplaceFaceError::StaleFace { face })?;
+    let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
         return Ok(Nappe::Opening);
     };
-    let (station_min, station_max) = corner_stations(body, data, *apex, *axis)?;
+    let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
     let esc = |source| ReplaceFaceError::Escalated { source };
     let lo = decide("offset_nappe", Margin::of(station_min), band).map_err(esc)?;
     let hi = decide("offset_nappe", Margin::of(station_max), band).map_err(esc)?;
@@ -114,6 +119,10 @@ pub fn face_nappe<T: Decide>(
 /// [`face_nappe`]'s, plus [`ReplaceFaceError::NappeStraddles`] naming
 /// the first member that disagrees with the group's answer.
 /// [`ReplaceFaceError::EmptyGroup`] for an empty group.
+///
+/// # Panics
+///
+/// [`face_nappe`]'s.
 pub fn group_nappe<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -126,14 +135,14 @@ pub fn group_nappe<T: Decide>(
             None => agreed = Some(here),
             Some(first) if first == here => {}
             Some(_) => {
-                let data = body.get_face(face).ok_or(ReplaceFaceError::Corrupt)?;
-                let surface = body
-                    .get_surface(data.surface)
-                    .ok_or(ReplaceFaceError::Corrupt)?;
-                let Surface::Cone { apex, axis, .. } = surface else {
-                    return Err(ReplaceFaceError::Corrupt);
+                // `face_nappe` resolved this face and answered `Mirror`
+                // or `Opening` against another member's other answer,
+                // and only a cone has two.
+                let data = proven(&body.faces, face, EntityId::Face);
+                let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
+                    unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
                 };
-                let (station_min, station_max) = corner_stations(body, data, *apex, *axis)?;
+                let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
                 return Err(ReplaceFaceError::NappeStraddles {
                     face,
                     station_min,
@@ -148,34 +157,47 @@ pub fn group_nappe<T: Decide>(
 }
 
 /// `face`'s extreme corner stations `(min, max)` on the cone
-/// `(apex, axis)`.
+/// `(apex, axis)`: every half-edge's start, and an empty loop's lone
+/// vertex, so a face (whose outer loop is a cycle or holds a vertex)
+/// always has one.
 ///
 /// The comparison picks WHICH station is metered and decides nothing:
 /// the extremes bound every corner, so their two verdicts carry the
 /// whole set's.
+#[track_caller]
 fn corner_stations<T: Decide>(
     body: &Body<T>,
+    face: FaceKey,
     data: &Face,
     apex: Point3<T>,
     axis: Vec3<T>,
-) -> Result<(T, T), ReplaceFaceError<T>> {
-    let mut window: Option<(T, T)> = None;
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } =
-            body.get_loop(lk).ok_or(ReplaceFaceError::Corrupt)?.boundary
-        else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or(ReplaceFaceError::Corrupt)? {
-            let p = body
-                .half_edge_start_point(he)
-                .ok_or(ReplaceFaceError::Corrupt)?;
-            let h = (p - apex).dot(axis);
-            window = Some(match window {
-                None => (h, h),
-                Some((a, b)) => (a.min(h), b.max(h)),
-            });
+) -> (T, T) {
+    let station = |p: Point3<T>| (p - apex).dot(axis);
+    let mut stations: Vec<T> = Vec::new();
+    let loops =
+        core::iter::once(("outer", data.outer)).chain(data.rings.iter().map(|&l| ("rings", l)));
+    for (field, lk) in loops {
+        match linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary {
+            LoopBoundary::Empty { vertex } => {
+                stations.push(station(body.linked_vertex_point(
+                    vertex,
+                    EntityId::Loop(lk),
+                    "boundary",
+                )));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_walk(first).closed("loop", first) {
+                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                    let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
+                    stations.push(station(p));
+                }
+            }
         }
     }
-    window.ok_or(ReplaceFaceError::Corrupt)
+    let Some(&first) = stations.first() else {
+        unreachable!("{face:?}'s outer loop holds a vertex or a cycle, so it has a corner")
+    };
+    stations
+        .iter()
+        .fold((first, first), |(a, b), &h| (a.min(h), b.max(h)))
 }

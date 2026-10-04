@@ -115,7 +115,7 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: bp,
-                distance: Expr::param(VarName::from_static("t"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("t"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

@@ -90,7 +90,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: pattern,
         slot: SlotId::Count,
-        expr: Expr::param(VarName::from_static("fins"), Dimension::Count),
+        expr: Expr::named(VarName::from_static("fins"), Dimension::Count),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every

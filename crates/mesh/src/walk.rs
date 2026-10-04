@@ -1972,7 +1972,7 @@ mod tests {
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
             vids.insert(vk, u32::try_from(positions.len()).unwrap());
-            positions.push(p.unwrap());
+            positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords = crate::chords::compute_chords(

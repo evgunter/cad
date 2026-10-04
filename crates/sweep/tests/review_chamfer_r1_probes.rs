@@ -77,7 +77,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 /// `validate_geometric`'s internals; a single flipped sense bit or a
 /// wrongly-folded chart normal reddens it.
 fn assert_every_face_outward(body: &Body<f64>) {
-    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p.unwrap()).collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let interior = Point3::new(
         pts.iter().map(|p| p.x).sum::<f64>() / n,

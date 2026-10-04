@@ -238,7 +238,7 @@ fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
         let hits: Vec<VertexKey> = body
             .vertex_points()
             .filter(|(_, p)| {
-                let p = p.unwrap();
+                let p = *p;
                 (p.x - corner.0).abs() < 1e-12
                     && (p.y - corner.1).abs() < 1e-12
                     && (p.z - 1.0).abs() < 1e-12

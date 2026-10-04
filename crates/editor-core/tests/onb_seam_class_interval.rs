@@ -292,7 +292,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         input: solid,
         placement: editor_core::placement::Step::Rigid {
             translation: [
-                Expr::param(
+                Expr::named(
                     VarName::new("place").expect("a valid parameter name"),
                     Dimension::Length,
                 ),
