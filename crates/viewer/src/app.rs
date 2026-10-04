@@ -3693,7 +3693,7 @@ mod properties_pane_tests {
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
         let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
-        let verdict = format!("variable {var} is no longer declared");
+        let verdict = format!("{var} is no longer declared");
         let mut with = painted_with(Selection::Param(var));
         let mut without = painted_with(Selection::None);
         assert!(
