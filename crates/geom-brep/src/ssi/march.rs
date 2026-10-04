@@ -1090,6 +1090,7 @@ where
                         break;
                     }
                     h *= 0.5;
+                    super::system::REACH_HALVINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     bound = StepBound::Curvature;
                     if h * speed < band.zero() {
                         break;
@@ -1103,6 +1104,7 @@ where
             }
         };
 
+        super::system::MARCH_STEPS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         longest_step = Real::max(longest_step, h_meters);
         // The stepper must be able to move at this tolerance.
         match decide("ssi_step_progress", Margin::of(h_meters), band) {

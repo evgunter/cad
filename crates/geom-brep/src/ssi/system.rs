@@ -301,6 +301,16 @@ pub(crate) struct ParametricPairR4<'a> {
     pub b: Chart<'a>,
 }
 
+thread_local! {
+    static LIFTED: std::cell::RefCell<Option<(usize, NurbsSurface<Interval>)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// PROBE telemetry: reach-rung enclosure calls, march steps, halvings.
+pub static REACH_CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static REACH_HALVINGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static MARCH_STEPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 impl LocalSystem<3, 4> for ParametricPairR4<'_> {
     fn reach_bound(&self, x: &[f64; 4], d1: &[f64; 4], h: f64) -> f64 {
         let (Chart::Plane { du, dv, .. }, Chart::Nurbs(wall)) = (&self.a, &self.b) else {
@@ -318,8 +328,19 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         let (ru, rv) = (1.1 * h * d1[2].abs(), 1.1 * h * d1[3].abs());
         let iu = Interval::from_bounds((x[2] - ru).max(ud.0), (x[2] + ru).min(ud.1));
         let iv = Interval::from_bounds((x[3] - rv).max(vd.0), (x[3] + rv).min(vd.1));
-        let lifted = wall.map_scalar(Interval::point);
-        let j = lifted.ders(iu, iv);
+        if std::env::var_os("SSI_PROBE_NO_REACH").is_some() {
+            return f64::INFINITY;
+        }
+        REACH_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        // PROBE: the lifted wall, cached per wall by address.
+        let key = std::ptr::from_ref::<NurbsSurface<f64>>(wall) as usize;
+        let j = LIFTED.with(|c| {
+            let mut c = c.borrow_mut();
+            if c.as_ref().is_none_or(|(k, _)| *k != key) {
+                *c = Some((key, wall.map_scalar(Interval::point)));
+            }
+            c.as_ref().map(|(_, l)| l.ders(iu, iv)).unwrap_or_else(|| unreachable!())
+        });
         let ni = Vec3::new(Interval::point(n.x), Interval::point(n.y), Interval::point(n.z));
         let fu = ni.dot(j.du);
         let fv = ni.dot(j.dv);

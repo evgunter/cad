@@ -498,6 +498,15 @@ fn path_dist(p: [f64; 2], path: &[[f64; 2]]) -> f64 {
 
 // ---------- run ----------
 
+pub fn counters_take() -> (usize, usize, usize) {
+    use std::sync::atomic::Ordering::Relaxed;
+    (
+        ssi::MARCH_STEPS.swap(0, Relaxed),
+        ssi::REACH_HALVINGS.swap(0, Relaxed),
+        ssi::REACH_CALLS.swap(0, Relaxed),
+    )
+}
+
 fn plane() -> Surface<f64> {
     Surface::Plane {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -534,6 +543,8 @@ fn check(name: &str, s: &NurbsSurface<f64>, tr: &Truth, eps: f64) -> (String, bo
     let t0 = Instant::now();
     let r = ssi::plane_nurbs_ssi(&plane(), s, dom(), band);
     let dt = t0.elapsed().as_secs_f64();
+    let (st, hv, rc) = counters_take();
+    println!("    COUNT {name} ε {eps:.0e}: steps {st} halvings {hv} reach-calls {rc} {dt:.2}s");
     let out = match r {
         Err(e) => {
             return (
@@ -764,7 +775,11 @@ fn probe_bend_single_detail() {
         let s = spline_wall(&f, &ku, 4, 1);
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            match ssi::plane_nurbs_ssi(&plane(), &s, dom(), band) {
+            let t0 = Instant::now();
+            let r = ssi::plane_nurbs_ssi(&plane(), &s, dom(), band);
+            let (st, hv, rc) = counters_take();
+            println!("    COUNT β={beta} ε {eps:e}: steps {st} halvings {hv} reach-calls {rc} {:.2}s", t0.elapsed().as_secs_f64());
+            match r {
                 Ok(o) => println!(
                     "β={beta} ε {eps:e}: Ok {} branch(es), samples {:?}",
                     o.branches.len(),
@@ -789,7 +804,11 @@ fn probe_hyperbola_fit_short_detail() {
         let s = wall(&f, 2, 2, &VARIANTS[0]);
         for eps in [1e-6, 1e-9] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            match ssi::plane_nurbs_ssi(&plane(), &s, dom(), band) {
+            let t0 = Instant::now();
+            let r = ssi::plane_nurbs_ssi(&plane(), &s, dom(), band);
+            let (st, hv, rc) = counters_take();
+            println!("    COUNT c={c:e} ε {eps:e}: steps {st} halvings {hv} reach-calls {rc} {:.2}s", t0.elapsed().as_secs_f64());
+            match r {
                 Ok(o) => println!("c={c:e} ε {eps:e}: Ok {}", o.branches.len()),
                 Err(e) => println!("c={c:e} ε {eps:e}: {e:?}\n    {}", e.render(Reading::Build)),
             }
@@ -834,6 +853,46 @@ fn probe_flat_wall_chart_bends_after_a_knot() {
         for eps in [1e-6, 1e-9, 1e-12] {
             let (row, _) = check(&label, &s, &tr, eps);
             println!("{row}");
+        }
+    }
+}
+
+/// PROBE (round 3): the semicircle of radius `r·Kε` cut by `z = ½`,
+/// as `m5_pr7_ssi::half_cylinder`; prints the refusal at each radius.
+#[test]
+fn probe_semicircle_radii() {
+    let eps = 1e-9;
+    let band = Band::new(eps, 10.0 * eps).unwrap();
+    let k_eps = band.escalate();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.5),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for rk in [1.0, 1.1, 1.25, 1.4, 1.5, 2.0, 3.0, 5.0, 10.0] {
+        let r = rk * k_eps;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for (x, y, w) in [(0.0, -r, 1.0), (r, -r, s), (r, 0.0, 1.0), (r, r, s), (0.0, r, 1.0)] {
+            for z in [0.0, 1.0] {
+                control.push(Point3::new(x, y, z));
+                weights.push(w);
+            }
+        }
+        let wall = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, band);
+        let (st, hv, rc) = counters_take();
+        match out {
+            Ok(o) => println!("SEMI r={rk}Kε: Ok {} (steps {st} halvings {hv} reach {rc})", o.branches.len()),
+            Err(e) => println!("SEMI r={rk}Kε: {} (steps {st} halvings {hv} reach {rc})", err_name(&e)),
         }
     }
 }

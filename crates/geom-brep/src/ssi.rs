@@ -151,6 +151,7 @@ pub use march::{
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
 pub use refine::{RefineStop, RefusedRound, RoundMargin};
+pub use system::{MARCH_STEPS, REACH_CALLS, REACH_HALVINGS};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
