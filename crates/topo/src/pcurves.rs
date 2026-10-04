@@ -273,7 +273,8 @@
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
-//! kill ops. These are primitives, and they are what the stale-row
+//! kill ops other than [`crate::Body::kev_describing`] (above). These
+//! are primitives, and they are what the stale-row
 //! consequence below is about. A kill that takes the last null edge
 //! off a loop leaves the rows that loop missed while it was held open
 //! missing: `kemr`, `kev` and `kef` take no `Tol` to mint with, and
@@ -3145,14 +3146,18 @@ pub(crate) fn site_rows<T: Decide>(
                 let of = body.get_half_edge(he).ok_or(ItemFail::Corrupt)?.edge;
                 let SiteCarriers::Described(described) = curves else {
                     unreachable!(
-                        "site_rows: a plan names a described half only beside the curves its \
-                         description installs"
+                        "site_rows: a Described half under non-Described carriers; \
+                         `Body::null_description_rows` is the one constructor of \
+                         `SiteHalf::Described`, and it plans under \
+                         `SiteCarriers::Described` alone"
                     )
                 };
                 let Some(&(_, edge)) = described.iter().find(|(e, _)| *e == of) else {
                     unreachable!(
-                        "site_rows: a plan names a half Described only where its edge is one the \
-                         door describes"
+                        "site_rows: a Described half whose edge the carriers do not list; \
+                         `Body::null_description_rows` marks a half Described only when it is \
+                         a half of one of `described`'s edges, and passes that same slice as \
+                         the carriers"
                     )
                 };
                 let (t0, t1) = edge.params();

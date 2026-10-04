@@ -4408,66 +4408,6 @@ mod tests {
     // kev_describing: a listed null member's first description
     // ------------------------------------------------------------------
 
-    /// What `kev_describing` is handed to re-describe.
-    type Listing = Vec<(EdgeKey, EdgeCurveSpec<f64>)>;
-
-    /// The minted cylinder wall over `[0.2, 1.4] x [0, 1]` with its
-    /// bottom rim split at the ruling `u = 0.8`, a strut up the ruling
-    /// to `v = 0.5` and a null strut at its tip: the wall missing the
-    /// null edge's two rows. Returns the body, the wall, the half that
-    /// kills the strut toward its tip, and the kill's listing (the
-    /// null edge, with the ruling line between its merged ends).
-    fn null_member_on_the_wall() -> (Body<f64>, FaceKey, HalfEdgeKey, Listing) {
-        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
-        let tol = Tol::witness();
-        let frame = CylFrame::canonical(1.0);
-        let mut body = Body::<f64>::new();
-        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
-        let rim = body
-            .edges()
-            .map(|(e, _)| e)
-            .find(|&e| {
-                let c = body
-                    .get_curve_geom(body.get_edge(e).unwrap().curve)
-                    .and_then(crate::CurveGeom::certified)
-                    .unwrap();
-                matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
-            })
-            .unwrap();
-        let m = body.split_edge(rim, 0.8, tol).unwrap().vertex;
-        let leaving = |body: &Body<f64>, v: VertexKey| {
-            let f = body.get_face(face).unwrap();
-            let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
-                unreachable!("the wall's outer loop is a cycle")
-            };
-            body.loop_cycle(first)
-                .unwrap()
-                .into_iter()
-                .find(|&h| body.get_half_edge(h).unwrap().start == v)
-                .unwrap()
-        };
-        let he = leaving(&body, m);
-        let strut = body
-            .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(0.8, 0.5), tol)
-            .unwrap();
-        let he = leaving(&body, strut.vertex);
-        let null = body
-            .mev_null(
-                MevSite::Fan { he1: he, he2: he },
-                crate::NewVertexSide::Above,
-            )
-            .unwrap();
-        let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {
-            strut.he_plus
-        } else {
-            strut.he_minus
-        };
-        let members = body.kev_merged_members(toward_tip).unwrap();
-        assert_eq!(members.len(), 1, "the tip's fan is the null edge alone");
-        let line = EdgeCurveSpec::line_between(members[0].start, members[0].end);
-        (body, face, toward_tip, vec![(null.edge, line)])
-    }
-
     /// **The re-mint is planned before the kill mutates.** The wall's
     /// far side has lost its curve entry, which neither the kill's plan
     /// nor its gate reads; the null member's re-mint reads the wall
@@ -4475,7 +4415,8 @@ mod tests {
     /// unchanged, every pcurve row included.
     #[test]
     fn a_refused_null_member_re_mint_leaves_the_body_untouched() {
-        let (mut body, face, toward_tip, listed) = null_member_on_the_wall();
+        let (mut body, face, _, toward_tip, listed) =
+            crate::test_support_fixtures::kill_under_a_null_strut(Tol::witness());
         let side = body
             .edges()
             .find(|(_, e)| {
