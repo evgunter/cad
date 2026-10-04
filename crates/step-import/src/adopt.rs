@@ -626,7 +626,10 @@ fn adopt_edges(
                     adopted = true;
                     break;
                 }
-                Err(refusal) => attempts.push(AdoptionAttempt { candidate, refusal }),
+                Err(refusal) => attempts.push(AdoptionAttempt {
+                    candidate,
+                    refusal: refusal.from_driver(),
+                }),
             }
         }
         if !adopted {

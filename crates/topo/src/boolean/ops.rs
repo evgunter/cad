@@ -553,7 +553,7 @@ fn one_solid<T: Decide + crate::props::AtRestPolicy>(
     }
     super::reduce::gate_operand(body, operand, band, tol)?;
     let mut flat = body.clone();
-    flat.merge_all_solids().map_err(BooleanError::Euler)?;
+    flat.merge_all_solids()?;
     Ok(std::borrow::Cow::Owned(flat))
 }
 
