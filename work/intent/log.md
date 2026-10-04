@@ -109,7 +109,7 @@ The union and the rulings made at adjudication:
 The viewer's "param" vocabulary keeps its names until it is moved in one
 piece (`viewer-param-vocabulary-names-a-variable`). Two more items were
 filed: the Python classes, and `range.rs`'s synthetic name. An
-independent verifier session checked the fix pass (VERIFIER).
+independent verifier session checked the fix pass: 8 of 9 mutants red and every probe held; the one survivor, the door post-condition, got its row in a second pass.
 
 `variables-replace-the-parameter-table` is closed. The spec is in
 `docs/doc-ledger/intent-vars-1-spec.md`. `no-dimensioned-literal-in-a-slot`
