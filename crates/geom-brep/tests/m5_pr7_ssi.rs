@@ -3788,34 +3788,17 @@ fn a_rational_walls_corner_and_side_in_band_answer_a_region_only_where_coinciden
     }
 }
 
-/// Whether `e` is the certificate's own limit on a fitted branch: a limb
-/// refused or too close to call, or such a refusal that refinement could
-/// not answer.
-fn certificate_limit(e: &SsiError) -> bool {
-    match e {
-        SsiError::CertificateLimb { .. } | SsiError::CertificateEscalated { .. } => true,
-        SsiError::RefinementExhausted { refusal, .. } => certificate_limit(refusal),
-        _ => false,
-    }
-}
-
-/// **A rational wall's plane three ε off its edge traces the edge-long
-/// branch, and meets the certificate's limit there as it does
-/// mid-wall.** On [`rational_walls`] and the two mixed-weight squares
-/// of [`weighted_wall`], the plane `x = 3ε` lies within the band along
-/// the `u = 0` side, but no rung certifies its locus within ε of it, so
-/// no region is reported and the metre-long branch along the edge is
-/// traced. Each wall's answer there is of the kind the plane `x = 1 mm`
-/// gets mid-wall: the branch, or a refusal by the certificate's limit
-/// on a metre-long rational carrier, never a boundary refusal. The
-/// centre-weight-9 biquadratic's pcurve bends in its chart where its
-/// carrier is nearly straight, so its march takes few samples and the
-/// carrier is refined where limb 2 refuses: it certifies at ε 1e-6 and
-/// 1e-9 and meets the limit at 1e-12, past which the remedy is the
-/// wall's own boundary iso-curve as the carrier
-/// (`work/ssi/ssi-a-near-side-locus-could-take-the-walls-own-iso-curve.md`).
+/// **A rational wall's plane three ε off its edge traces and certifies
+/// the edge-long branch, as the plane a millimetre in does mid-wall.**
+/// On [`rational_walls`] and the two mixed-weight squares of
+/// [`weighted_wall`], the plane `x = 3ε` lies within the band along the
+/// `u = 0` side, but no rung certifies its locus within ε of it, so no
+/// region is reported and the metre-long branch along the edge is
+/// traced. Refined where limbs 1 and 2 refuse it, every wall's carrier
+/// certifies there and mid-wall at ε 1e-6, 1e-9 and 1e-12: one branch,
+/// a metre long, never a boundary refusal.
 #[test]
-fn a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit() {
+fn a_rational_walls_plane_three_eps_off_its_edge_certifies_as_mid_wall() {
     let eps = band().zero();
     let mut walls = Vec::from(rational_walls());
     walls.push((
@@ -3831,19 +3814,9 @@ fn a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit() {
         let at = format!("{name}, the plane 3ε off its edge at ε {eps:e}");
         let edge = run(3.0 * eps);
         let mid = run(1.0e-3);
-        if name.contains("weight 9") && eps >= 1.0e-9 {
-            assert!(edge.is_ok(), "{at}: refined, it certifies: {edge:?}");
-        }
-        match (&edge, &mid) {
-            (Ok(_), Ok(_)) => {
-                let (_, span) = one_branch(&at, edge);
-                assert!((span - 1.0).abs() < 1.0e-6, "{at}: spans {span:e}");
-            }
-            (Err(e), Err(m)) => assert!(
-                certificate_limit(e) && certificate_limit(m),
-                "{at}: the certificate's limit at the edge and mid-wall: {e:?}; {m:?}"
-            ),
-            _ => panic!("{at}: the edge and mid-wall answers differ: {edge:?}; {mid:?}"),
+        for (r, what) in [(edge, at.clone()), (mid, format!("{name}, mid-wall"))] {
+            let (_, span) = one_branch(&what, r);
+            assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
         }
     }
 }
