@@ -62,18 +62,20 @@ banding.
 
 ## Closed by (`ssi/banded-fit`, PR 4023)
 
-`lsq::factor_banded` / `BandedLu` is the no-pivot Doolittle restricted
+`crates/geom/src/curves/banded.rs` (crate-private, reached only
+through `Collocation`) is the no-pivot Doolittle restricted
 to each row's window (`n · width` storage, `O(n · width²)` factor), with
 the dense solve's dropped `±0 · x` terms applied in summary in the
 substitutions, so the control points are bit-identical to
-`solve_square`'s. The first-nonzero property is checked
-(`LsqError::BandShape`), and a window off its diagonal refuses at the
-pivot the dense elimination would name. `Collocation` carries one
+`solve_square`'s, NaN payloads included. The first-nonzero property is
+checked (`LsqError::BandShape`), a window off its diagonal refuses at
+the pivot the dense elimination would name, and a non-finite factor
+entry refuses. `Collocation` carries one
 factorisation; `interpolate_on` solves against it, and `fit_branch`
-factors once for the carrier and both pcurves. Identity is pinned by
-`lsq::tests::banded_lu_reproduces_the_dense_solve_bit_for_bit` (clamped,
-rational, unclamped) and `fit::tests::the_banded_fit_reproduces_the_dense_solve_bit_for_bit`,
-and was measured at n = 184, 1030, 2000 and 5787 in release. The fit at
+factors once for the carrier and both pcurves. Identity is pinned by `banded::tests` (clamped, rational, unclamped,
+negated, bidiagonal, a fuzz) and by `fit::tests`, including a slow row
+at n = 4000; it was measured at n = 184, 1030, 2000 and 5787 in
+release. The fit at
 n = 5787 drops from 377 s to 1.5 ms; the SSI suite at ε 1e-12 from 428 s
 to 76 s. Sibling filed:
 `the-approximation-refit-solves-banded-normal-equations-densely`.
