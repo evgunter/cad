@@ -25,8 +25,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
-    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProductError,
-    ProfileDoc, RecipeNodeId, Severity, SourceFinding, enforce_checks, run_checks, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc,
+    RecipeNodeId, Severity, enforce_checks, run_checks, subject_body,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -338,10 +338,11 @@ fn in_band_shell_escalates_typed_never_guessed() {
 /// The void side of the same decision: a 3 m box holding a unit-square
 /// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
 /// `V/A` is negative and in band, so its role does not read, and the
-/// at-rest gate refuses the solid naming that shell (check 10's
-/// `ShellRoleUndecided`) — a solid whose shells cannot be wound is not
-/// passed on to the checks window. The refusal carries the escalation,
-/// and a margin on a side the decision accepts ends valued at `|m|/K`.
+/// Boolean door's result gate (tier 3) refuses the union naming that
+/// shell (check 10's `ShellRoleUndecided`): a solid whose shells cannot
+/// be wound is not built, so the checks run stops at the failed root.
+/// The refusal carries the escalation, and a margin on a side the
+/// decision accepts ends valued at `|m|/K`.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
@@ -376,21 +377,19 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             declare: Vec::new(),
         },
     );
-    let refused = run_checks(&doc, &run(&doc), &ChecksConfig::default(), tol)
-        .expect_err("the at-rest gate refuses a solid whose cavity has no role");
-    let ChecksError::Product {
-        refusal: Some(refusal),
-    } = &refused
+    let ev = run(&doc);
+    let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
+        .expect_err("the door refuses a solid whose cavity has no role");
+    assert!(
+        matches!(&refused, ChecksError::Root(editor_core::NodeStanding::Failed { node }) if *node == root),
+        "expected the failed root, got: {refused:?}"
+    );
+    let failed = ev.node_error(root).expect("the root's refusal");
+    let editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { errors }) =
+        &failed.kind
     else {
-        panic!("expected the product's refusal, got: {refused:?}");
+        panic!("expected the door's result gate, got: {failed:?}");
     };
-    let ProductError::RootInvalid { findings } = refusal.error() else {
-        panic!("expected the root's validity findings, got: {refused:?}");
-    };
-    let [SourceFinding { node, errors, .. }] = findings.as_slice() else {
-        panic!("expected one source, got: {findings:?}");
-    };
-    assert_eq!(*node, root);
     let [
         error @ ValidationError::ShellRoleUndecided {
             error: ShellClassifyError::Escalated { source: ind, .. },
