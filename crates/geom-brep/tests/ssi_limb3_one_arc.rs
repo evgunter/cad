@@ -406,7 +406,9 @@ fn refuses_by_its_tube(
 ) {
     match got {
         Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. }) => {}
-        Err(e @ geom_brep::PlaneNurbsRefusal::Escalated { .. }) if eps() < DEFAULT_EPS => {
+        Err(e @ geom_brep::PlaneNurbsRefusal::Escalated { .. })
+            if eps() < geom_core::tolerance::DEFAULT_EPS =>
+        {
             vacuity::stood_down(at, &format!("an earlier limb escalated: {e}"));
         }
         other => panic!("{at}: {other:?}"),
