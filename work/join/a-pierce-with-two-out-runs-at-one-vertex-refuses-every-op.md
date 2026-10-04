@@ -2,10 +2,11 @@
 id: a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op
 kind: issue
 title: A vertex-on-face pierce with two Out runs at one vertex refuses every op; its ring struts are faced by a hard-coded rule
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
+closed: 2026-10-04
 ---
 
 
