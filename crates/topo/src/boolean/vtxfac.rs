@@ -546,6 +546,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
     }
+    // Three or more runs: step 3 would hang their ring struts in run
+    // order, which nothing has checked against their angular order.
+    if runs.len() > 2 {
+        return Err(BooleanError::PierceRunsUnordered {
+            operand: piercing,
+            vertex,
+            runs: runs.len(),
+        });
+    }
 
     // Piercing-side null edges, one per run (PR 2's insertion pattern).
     // Germ facings (F9 data): the run's two boundary transitions are
@@ -742,25 +751,27 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         ring_vertex: w,
     });
     // (3) one ring null-edge strut per piercing-side run, hung at the
-    // ring vertex. With several runs, the half leaving the ring vertex
-    // faces the run's germ that the walk clockwise about the pierced
-    // face's outward normal meets first from another run
-    // ([`super::insert::strut_order`]); with one, either half may face
-    // either germ. Where the op keeps both In sides it faces the start
-    // germ, so the ring's In face passes a copy per run, as the
-    // piercing vertex's In face passes that vertex once per run.
+    // ring vertex. With one run either half may face either germ. With
+    // two, the half leaving the ring vertex faces the run's germ that
+    // the walk clockwise about the pierced face's outward normal meets
+    // first from the other run's start germ
+    // ([`super::insert::strut_order`]), except in an intersection,
+    // where it faces the start germ. That exception is MEASURED, not
+    // derived: the walk reads the end germ in about half the
+    // two-run poses, where the walk's facing refuses `SelfLoopEdge`
+    // and this one builds (`join_pierce_strut_facing.rs`), and no
+    // reading of the germs' geometry yet says why
+    // (`work/join/the-intersection-ring-facing-is-measured-not-derived.md`).
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end
     // exactly when the half leaving the ring vertex faces it.
-    let both_in = super::finish::kept_side(op, piercing) == SideCode::In
-        && super::finish::kept_side(op, pierced) == SideCode::In;
     let sides = (0..runs.len())
         .map(|i| {
             let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
             let leaving_faces_start = match runs.len() {
                 1 => false,
-                _ if both_in => true,
+                _ if op == BooleanOp::Intersect => true,
                 k => super::insert::strut_order(
                     run_germs[(i + 1) % k].0.1,
                     n_pierced.vec(),

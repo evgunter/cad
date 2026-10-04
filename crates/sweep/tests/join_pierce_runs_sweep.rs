@@ -16,7 +16,7 @@
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, mass_properties};
 
 use crate::common::differential::outcome;
 
@@ -74,33 +74,43 @@ fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
     [u, w, m]
 }
 
-/// The cube `V + a·u + b·w + c·m`, `(a, b, c)` over `lo + [0, SIDE]³`:
-/// `lo = (−2, −2, 0)` puts `V` inside the near face, `(0, −2, 0)` on
+/// The cube `v + a·u + b·w + c·m`, `(a, b, c)` over `lo + [0, SIDE]³`:
+/// `lo = (−2, −2, 0)` puts `v` inside the near face, `(0, −2, 0)` on
 /// its edge along `w`, `(0, 0, 0)` at its corner.
-fn cube(f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
+fn cube_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
     let [u, w, m] = f;
     fixtures::mapped_cube::<f64>(
         move |x, y, z| {
             let (a, b, c) = (lo[0] + SIDE * x, lo[1] + SIDE * y, lo[2] + SIDE * z);
             Point3::new(
-                V[0] + a * u[0] + b * w[0] + c * m[0],
-                V[1] + a * u[1] + b * w[1] + c * m[1],
-                V[2] + a * u[2] + b * w[2] + c * m[2],
+                v[0] + a * u[0] + b * w[0] + c * m[0],
+                v[1] + a * u[1] + b * w[1] + c * m[1],
+                v[2] + a * u[2] + b * w[2] + c * m[2],
             )
         },
         tol(),
     )
 }
 
-/// The cube's six half-spaces `n·x ≤ d`.
-fn cube_planes(f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
+/// [`cube_at`] the L-prism's corner `V`.
+fn cube(f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
+    cube_at(V, f, lo)
+}
+
+/// [`cube_at`]'s six half-spaces `n·x ≤ d`.
+fn cube_planes_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
     let mut out = Vec::new();
     for (axis, &dir) in f.iter().enumerate() {
-        let base = dot(dir, V);
+        let base = dot(dir, v);
         out.push((dir.map(|c| -c), -(base + lo[axis])));
         out.push((dir, base + lo[axis] + SIDE));
     }
     out
+}
+
+/// [`cube_planes_at`] the L-prism's corner `V`.
+fn cube_planes(f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
+    cube_planes_at(V, f, lo)
 }
 
 /// The volume of `{x : n·x ≤ d for every plane}`, bounded and convex:
@@ -196,45 +206,139 @@ type Op = fn(
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
-#[test]
-#[ignore = "differential battery; run with --ignored --nocapture"]
-fn pierce_runs_battery() {
+/// The placements: `v` inside the near face, on its edge along `w`
+/// (four turns about the face normal), at its corner (four turns).
+const PLACEMENTS: [(&str, [f64; 3], &[f64]); 3] = [
+    ("face", [-2.0, -2.0, 0.0], &[0.0]),
+    ("edge", [0.0, -2.0, 0.0], &[0.0, 1.0, 2.2, 4.0]),
+    ("corner", [0.0, 0.0, 0.0], &[0.0, 1.0, 2.2, 4.0]),
+];
+
+/// The grid's direction `(i, j)`: 12 turns about z by 7 elevations.
+fn direction(i: u32, j: u32) -> [f64; 3] {
+    let theta = std::f64::consts::TAU * (f64::from(i) + 0.37) / 12.0;
+    let phi = (f64::from(j) - 3.0) * 0.4 + 0.05;
+    [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()]
+}
+
+/// Every op in both orders at one pose: `(tag, result, want)`.
+fn pose_runs(
+    (place, lo): (&str, [f64; 3]),
+    (i, j, psi): (u32, u32, f64),
+) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
     let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
     let va = mass_properties(&prism, tol()).unwrap().volume;
     let vb = SIDE * SIDE * SIDE;
     let decls = BooleanDeclarations::default();
-    let placements: [(&str, [f64; 3], &[f64]); 3] = [
-        ("face", [-2.0, -2.0, 0.0], &[0.0]),
-        ("edge", [0.0, -2.0, 0.0], &[0.0, 1.0, 2.2, 4.0]),
-        ("corner", [0.0, 0.0, 0.0], &[0.0, 1.0, 2.2, 4.0]),
-    ];
-    for (place, lo, psis) in placements {
+    let f = frame(direction(i, j), psi);
+    let b = cube(f, lo);
+    let common = shared(&cube_planes(f, lo));
+    let mut out = Vec::new();
+    for (order, x, y, vx) in [("pc", &prism, &b, va), ("cp", &b, &prism, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vx - common),
+        ];
+        for (op, run, want) in ops {
+            let tag = format!("{place} i={i} j={j} psi={psi} {order} {op}");
+            out.push((tag, run(x, y, &decls, tol()), want));
+        }
+    }
+    out
+}
+
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn pierce_runs_battery() {
+    for (place, lo, psis) in PLACEMENTS {
         for i in 0..12 {
             for j in 0..7 {
-                let theta = std::f64::consts::TAU * (f64::from(i) + 0.37) / 12.0;
-                let phi = (f64::from(j) - 3.0) * 0.4 + 0.05;
-                let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
                 for &psi in psis {
-                    let f = frame(m, psi);
-                    let b = cube(f, lo);
-                    let common = shared(&cube_planes(f, lo));
-                    for (order, x, y, vx) in [("pc", &prism, &b, va), ("cp", &b, &prism, vb)] {
-                        let ops: [(&str, Op, f64); 3] = [
-                            ("U", topo::union_with, va + vb - common),
-                            ("I", topo::intersect_with, common),
-                            ("S", topo::subtract_with, vx - common),
-                        ];
-                        for (op, run, want) in ops {
-                            println!(
-                                "{place} i={i} j={j} psi={psi} {order} {op}: {}",
-                                outcome(run(x, y, &decls, tol()), want, tol())
-                            );
-                        }
+                    for (tag, r, want) in pose_runs((place, lo), (i, j, psi)) {
+                        println!("{tag}: {}", outcome(r, want, tol()));
                     }
                 }
             }
         }
     }
+}
+
+/// Where the pierce point `v` holds several vertices in a built body:
+/// none, if they share one point and no face runs through two of them
+/// (a face meeting two is where the pierce weld joins them), else the
+/// finding.
+fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
+    let at_v: Vec<_> = body
+        .vertex_points()
+        .filter(|(_, p)| p.as_ref().is_ok_and(|p| [p.x, p.y, p.z] == V))
+        .map(|(k, _)| k)
+        .collect();
+    let point = |k| body.get_vertex(k).unwrap().point;
+    if at_v.iter().any(|&k| point(k) != point(at_v[0])) {
+        return Some(format!(
+            "the vertices at v do not share one point: {at_v:?}"
+        ));
+    }
+    for (face, f) in body.faces() {
+        let mut met = Vec::new();
+        for &l in std::iter::once(&f.outer).chain(&f.rings) {
+            if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
+                for he in body.loop_cycle(first).unwrap() {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    if at_v.contains(&v) && !met.contains(&v) {
+                        met.push(v);
+                    }
+                }
+            }
+        }
+        if met.len() > 1 {
+            return Some(format!("face {face:?} runs through two vertices at v"));
+        }
+    }
+    None
+}
+
+/// **The sweep's guard**, over a committed subset of
+/// [`pierce_runs_battery`]: every direction of the face placement (the
+/// pierce lane, where the two-run families live) and every third
+/// direction of the edge and corner placements at their first turn. No
+/// pose ships a body that is not `SOUND` by [`outcome`], and in the
+/// face placement every body holds `v` as one vertex wherever a face
+/// meets it. Refusals pass: the residue is the filed rows'.
+#[test]
+fn the_sweep_subset_ships_no_bad_body() {
+    let mut bad = Vec::new();
+    for (place, lo, psis) in PLACEMENTS {
+        let every = if place == "face" { 1 } else { 3 };
+        for i in (0..12).step_by(every) {
+            for j in 0..7 {
+                for (tag, r, want) in pose_runs((place, lo), (i, j, psis[0])) {
+                    let finding = match &r {
+                        Ok(res) if place == "face" => {
+                            res.body().and_then(|bb| pierce_point_finding(&bb.body))
+                        }
+                        _ => None,
+                    };
+                    let line = outcome(r, want, tol());
+                    if line.starts_with("OK") && !line.starts_with("OK SOUND")
+                        || line.starts_with("EMPTY WRONG")
+                    {
+                        bad.push(format!("{tag}: {line}"));
+                    }
+                    if let Some(finding) = finding {
+                        bad.push(format!("{tag}: {finding}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} bad lines:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// The oracle against the kernel-free closed form the strut-facing row
@@ -266,4 +370,156 @@ fn the_sweep_oracle_reads_the_prism() {
         (all - 3.0).abs() < 1e-9,
         "a cube around the prism holds it whole: {all}"
     );
+}
+
+/// The shallow prism (a reflex corner of about 200° at
+/// `(2, 0.6, 1)`) as two convex pieces, each by its half-spaces.
+fn shallow_pieces() -> Vec<Vec<([f64; 3], f64)>> {
+    let pieces: [&[(f64, f64)]; 2] = [
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 0.6), (0.0, 1.0)],
+        &[(2.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6)],
+    ];
+    pieces
+        .iter()
+        .map(|poly| {
+            let n = poly.len();
+            let mut planes: Vec<([f64; 3], f64)> = (0..n)
+                .map(|i| {
+                    let (p, q) = (poly[i], poly[(i + 1) % n]);
+                    let out = [q.1 - p.1, p.0 - q.0, 0.0];
+                    (out, out[0] * p.0 + out[1] * p.1)
+                })
+                .collect();
+            planes.push(([0.0, 0.0, 1.0], 1.0));
+            planes.push(([0.0, 0.0, -1.0], 0.0));
+            planes
+        })
+        .collect()
+}
+
+/// The least distance from `p` to segment `[s0, s1]`.
+fn point_segment_distance(p: [f64; 3], (s0, s1): ([f64; 3], [f64; 3])) -> f64 {
+    let d = [s1[0] - s0[0], s1[1] - s0[1], s1[2] - s0[2]];
+    let r = [p[0] - s0[0], p[1] - s0[1], p[2] - s0[2]];
+    let t = (dot(r, d) / dot(d, d)).clamp(0.0, 1.0);
+    let gap = [0, 1, 2].map(|k| r[k] - d[k] * t);
+    dot(gap, gap).sqrt()
+}
+
+/// The least distance between segments `[a0, a1]` and `[b0, b1]`.
+fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
+    let sub = |p: [f64; 3], q: [f64; 3]| [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
+    let (d1, d2, r) = (sub(a.1, a.0), sub(b.1, b.0), sub(a.0, b.0));
+    let (aa, ee, f) = (dot(d1, d1), dot(d2, d2), dot(d2, r));
+    let (c, bb) = (dot(d1, r), dot(d1, d2));
+    let denom = aa * ee - bb * bb;
+    let mut sc = if denom > 0.0 {
+        ((bb * f - c * ee) / denom).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let mut tc = (bb * sc + f) / ee;
+    if tc < 0.0 {
+        tc = 0.0;
+        sc = (-c / aa).clamp(0.0, 1.0);
+    } else if tc > 1.0 {
+        tc = 1.0;
+        sc = ((bb - c) / aa).clamp(0.0, 1.0);
+    }
+    let pa = [0, 1, 2].map(|t| a.0[t] + d1[t] * sc);
+    let pb = [0, 1, 2].map(|t| b.0[t] + d2[t] * tc);
+    let gap = sub(pa, pb);
+    dot(gap, gap).sqrt()
+}
+
+/// **A near-tangent two-run pierce builds right where the census reads
+/// an overlap that is not there.** The shallow prism's reflex corner on
+/// a cube whose face plane lies 1e-7 rad off the corner's edge toward
+/// `(4, 1)` (review r1's `shallow200 nt e0 a3 d1e-7`). Prism ∪ cube and
+/// prism ∖ cube build at the clipping oracle's volume, with tier 2 and
+/// the certificate, and no two edges of the body come within the band:
+/// edges that share no end point lie farther apart than it, and edges
+/// that share one part by more than it at the shorter one's far end,
+/// read here by segment distance, not by the census. Tier 3′ is not asserted:
+/// its edge-edge lane reads the section edge from `v` and the prism's
+/// edge piece near `(4, 1)` as an overlap, because it reads their line
+/// offset at the long edge's start, which lies on the short edge's line
+/// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+#[test]
+fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
+    let v = [2.0, 0.6, 1.0];
+    let e = unit([2.0, 0.4, 0.0]);
+    let [p1, p2, _] = frame(e, 0.0);
+    let al = std::f64::consts::TAU * 3.25 / 16.0;
+    let m = unit([0, 1, 2].map(|t| p1[t] * al.cos() + p2[t] * al.sin() + e[t] * 1e-7));
+    let f = frame(m, 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6), (0.0, 1.0)];
+    let prism = fixtures::prism::<f64>(&profile, 1.0, tol()).body;
+    let cube = cube_at(v, f, lo);
+    let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
+    let common: f64 = shallow_pieces()
+        .into_iter()
+        .map(|mut planes| {
+            planes.extend(cube_planes_at(v, f, lo));
+            convex_volume(&planes)
+        })
+        .sum();
+    let (va, vb) = (vol(&prism), SIDE * SIDE * SIDE);
+    let band = tol().eps() * tol().get().k;
+    let ops: [(&str, Op, f64); 2] = [
+        ("union", topo::union_with, va + vb - common),
+        ("subtract", topo::subtract_with, va - common),
+    ];
+    for (op, run, want) in ops {
+        let Ok(BooleanResult::Body(bb)) =
+            run(&prism, &cube, &BooleanDeclarations::default(), tol())
+        else {
+            panic!("{op}: the near-tangent pose did not build");
+        };
+        assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{op}: tier 2");
+        assert!(
+            topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
+            "{op}: the certificate"
+        );
+        let got = vol(&bb.body);
+        assert!((got - want).abs() < 1e-9, "{op}: volume {got}, want {want}");
+        let ends: Vec<_> = bb
+            .body
+            .edges()
+            .map(|(_, ed)| {
+                let p = |he| {
+                    let k = bb.body.get_half_edge(he).unwrap().start;
+                    let p = topo::readback::vertex_point_ref(&bb.body, k).unwrap();
+                    [p.x, p.y, p.z]
+                };
+                (p(ed.he_plus), p(ed.he_minus))
+            })
+            .collect();
+        let len = |(a, b): ([f64; 3], [f64; 3])| {
+            let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+            dot(d, d).sqrt()
+        };
+        for (i, &g1) in ends.iter().enumerate() {
+            for &g2 in &ends[i + 1..] {
+                let shared = [g1.0, g1.1].into_iter().find(|p| [g2.0, g2.1].contains(p));
+                let gap = match shared {
+                    None => segment_distance(g1, g2),
+                    Some(p) => {
+                        let (short, long) = if len(g1) <= len(g2) {
+                            (g1, g2)
+                        } else {
+                            (g2, g1)
+                        };
+                        let far = if short.0 == p { short.1 } else { short.0 };
+                        point_segment_distance(far, long)
+                    }
+                };
+                assert!(
+                    gap > band,
+                    "{op}: edges {g1:?} and {g2:?} come within {gap:e} of each other"
+                );
+            }
+        }
+    }
 }
