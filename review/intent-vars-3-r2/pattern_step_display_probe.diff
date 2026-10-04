@@ -1,0 +1,27 @@
+diff --git a/crates/editor-core/tests/pattern_spacing_and_step.rs b/crates/editor-core/tests/pattern_spacing_and_step.rs
+index d67e4661..20f3bf17 100644
+--- a/crates/editor-core/tests/pattern_spacing_and_step.rs
++++ b/crates/editor-core/tests/pattern_spacing_and_step.rs
+@@ -474,3 +474,22 @@ fn the_refusals_carry_their_values() {
+         "the authored direction, negated"
+     );
+ }
++
++#[test]
++fn r2_probe_plain_display_of_a_memoized_step_refusal() {
++    let th = VarName::from_static("th");
++    let params = BTreeMap::from([(th.clone(), Dimension::Angle)]);
++    let expr = parse_expr("th", &params).unwrap();
++    let built = driven(5, circular(expr), (&th, f64::to_radians(760.0)));
++    let ev = eval::<f64>(&built.doc);
++    let Some(NodeResult::Failed(e)) = ev.result(built.node) else { panic!() };
++    eprintln!("R2 kind.to_string(): {}", e.kind);
++    eprintln!("R2 spoken(doc):      {}", e.spoken(&built.doc));
++    let renamed = editor_core::apply(
++        &built.doc,
++        &editor_core::DocEdit::RenameVar { var: th.clone().into(), name: Some(VarName::from_static("phi")) },
++        geom_core::Tol::witness(),
++        &editor_core::RefusingReach,
++    ).unwrap().doc;
++    eprintln!("R2 after rename, spoken(renamed): {}", e.spoken(&renamed));
++}
