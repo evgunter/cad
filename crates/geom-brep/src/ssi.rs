@@ -3253,6 +3253,16 @@ mod ending_tests {
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
+            (
+                "refinement exhausted, step budget, floor",
+                super::STEP_BUDGET_FLOOR_RECOURSE,
+                super::STEP_BUDGET_FLOOR_RECOURSE,
+            ),
+            (
+                "refinement exhausted, step budget, size",
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+            ),
         ] {
             assert_eq!(
                 ending_of(name),
