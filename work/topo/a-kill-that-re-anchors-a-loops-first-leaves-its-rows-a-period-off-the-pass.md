@@ -176,3 +176,38 @@ Before building, read the probe of `validate_pcurves` after each kill that
 keeps rows (report on `analysis/probe/topo-kill-rows-tier3`). It measures
 how many of today's mixed merges are tier-3-loud, which is the regression
 the build has to remove.
+
+## Evidence: the probe (2026-10-04)
+
+The report is `probe-report.md` on `analysis/probe/topo-kill-rows-tier3`, base
+`0edbbecb`. It measures complete periodic faces right after the outermost kill
+door, on f64 bodies only.
+
+**Mixed merges are tier-3-loud: confirmed.** In sweep's `ci` profile:
+
+| door | (i) byte-equal | (ii) whole-loop shift | (iii) mixed | pass refuses |
+|---|---|---|---|---|
+| `kef` | 13, clean | 0 | 8, `LoopDiscontinuity` | 0 |
+| `kef_minting` | 6,277, clean | 168, clean | 1,633, all `LoopDiscontinuity` (1,419 introduced by the kill, 214 already loud) | 1, tier-3 clean |
+| `kev` | 592, clean | 0 | 0 | 0 |
+| `kemr` | 73, clean | 0 | 0 | 0 |
+
+- No mixed case is tier-3-clean.
+- Of the 1,427 mixed faces the kill introduced:
+  - 1,319 jump at the lift junction `c→b`;
+  - **93 jump at an old closure joint left mid-loop by `kef`'s unconditional `first := next(m)`** (`euler_kill.rs:1625`), on wrapping loops;
+  - 8 jump by a whole torus period in v;
+  - 7 have an in-band lever (a sub-band-radius cylinder).
+- `kev` met no wrapping loop. `kemr` met 3 faces with two wrapping loops each, all clean.
+
+The build has to take every (iii) to (i). The 168 (ii) shifts become (i) under R
+too, since no stored byte then depends on `first`.
+
+**Off-question rows filed:**
+- `the-pass-refuses-a-tier-3-clean-loop-anchored-past-a-pole-slit`: the pass and
+  tier 3 read a zero-lever pole joint differently, so the pass's verdict depends
+  on `first`. R's reset marker is where it is decided.
+- `pin-branch-meters-the-joint-arm-as-a-length-and-skips-an-in-band-shift`.
+
+**Sequencing:** build after PR 4029 (the `EulerOpError` conversion) merges.
+Both touch `euler_kill.rs`.

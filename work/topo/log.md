@@ -6737,3 +6737,14 @@ The row stays open as the build row. It will be dispatched after the probe repor
 
 Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; the seven-day rate window shows a warning, so dispatch frugally). The probe re-run has no report yet. Nothing new on PR 3970.
 - 11:06: **PR 4024 merged** at `76803eae5a` (CI green on `d720e3c47a`); unsubscribed. C4's seam sentence is now the joint-element form.
+
+## 11:46 check-in (2026-10-04)
+
+- **Probe report in** (`analysis/probe/topo-kill-rows-tier3`); the re-run session is archived.
+  - It confirms that mixed `kef` merges are tier-3-loud: 1,633 `kef_minting` and 8 `kef` faces, every one `LoopDiscontinuity`, none clean.
+  - 93 of them are the old closure joint left mid-loop by `kef`'s unconditional re-anchor.
+  - Evidence added to the re-anchor build row. Filed `the-pass-refuses-a-tier-3-clean-loop-anchored-past-a-pole-slit` (P3, M; snowman cap `LoopNotClosed`) and `pin-branch-meters-the-joint-arm-as-a-length-and-skips-an-in-band-shift` (P4, E; 0 live hits).
+  - The `kemr` "artifact" was the first probe's own wrapper.
+- The R build waits for PR 4029 (both touch `euler_kill.rs`).
+- **Unit 1 opened PR 4029** (about 9k lines, 58 files; every deleted variant's site converted; drivers through `from_driver()`; 11 + 8 editor-core chains closed; no goldens moved). Subscribed. Reviewer `session_01Th9v8RURstDac57y6oVuRv` dispatched; it posts its verdict as a PR comment.
+- Nothing new on PR 3970.
