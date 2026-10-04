@@ -128,6 +128,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// and twelve vertices, every name a `FromA`/`FromB` lineage — and
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
+///
+/// **`kitchen_sink` moved when a vertex pair crossing four times began
+/// minting its struts before its fans** (`boolean::insert`), alone: two
+/// faces and two crossing vertices of its split swap arena keys. Every
+/// name, every body and the persisted text are unchanged.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xaeb22275f9fa495e),
     ("corner_table", 0xe29a7605d42b6b99),
@@ -137,7 +142,7 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0xa5eff96f7c11f8a8),
     ("nested_islands_106_depth2", 0xd1fb7c2e0b16cbe9),
     ("declared_tangency", 0x9669c31771c92a49),
-    ("kitchen_sink", 0xa9d24c08f3bb6efd),
+    ("kitchen_sink", 0x54919e8f3157f563),
     ("cut_cylinder", 0x41db119290263bed),
     ("measured_web", 0x7f05cba25971d021),
     ("boss_union", 0x2c43ee7d87cb6d6d),
