@@ -77,7 +77,7 @@ fn poison_cap(a: &mut Body<f64>, origin: impl FnOnce(Point3<f64>) -> Point3<f64>
     };
     // Lifts both refusals: a plane whose offset datum is not finite is
     // the row's premise, and no edge certifies against it.
-    a.set_face_surface_stranding_for_tests(top, surface)
+    a.set_face_surface_unvouched_for_tests(top, surface)
         .unwrap();
     top
 }

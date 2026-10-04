@@ -66,7 +66,7 @@ use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::Body;
 use crate::contact::BooleanCoincidence;
 use crate::entity::HalfEdgeKey;
-use crate::euler::MevSite;
+use crate::euler::{MevSite, RunSite};
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -591,93 +591,82 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
         let last = real.next_back().or(first);
-        // `strut`: the site is an empty fan, so `mev_null` splices the
-        // null edge as a spike [he_plus, he_minus] into one corner.
-        let (site, strut) = match (first, last) {
+        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
+        // `strut_corner`: the site is an empty fan, so `mev_null` splices
+        // the null edge as a spike [he_plus, he_minus] into this corner: a
+        // run holding every real edge of the orbit, which leaves the In
+        // side strictly inside the one physical sector before `first`,
+        // or a run of bisectors alone, inside the sector before `after`.
+        let (site, strut_corner) = match (first, last) {
             (Some(first), Some(last)) => {
-                let mate = piercing_body
-                    .mate(last.he)
-                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
-                let he2 = piercing_body
-                    .get_half_edge(mate)
-                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?
-                    .next;
-                // A run holding every real edge of the orbit leaves the
-                // In side strictly inside one physical sector, the one
-                // before `first`: `he2` comes back round to `first.he`,
-                // and the empty fan is a strut spliced before it.
-                (MevSite::Fan { he1: first.he, he2 }, he2 == first.he)
+                match piercing_body
+                    .run_site(first.he, last.he)
+                    .ok_or_else(corrupt)?
+                {
+                    site @ RunSite::Fan { .. } => (site.mev_site(), None),
+                    site @ RunSite::WholeOrbit { corner } => (site.mev_site(), Some(corner)),
+                }
             }
             _ => {
-                let after = entries[(run.0 + run.1) % n];
+                let after = entries[(run.0 + run.1) % n].he;
                 (
                     MevSite::Fan {
-                        he1: after.he,
-                        he2: after.he,
+                        he1: after,
+                        he2: after,
                     },
-                    true,
+                    Some(after),
                 )
             }
         };
         // Sense theorem (join module docs): the half facing the run's
         // START germ (forward code Out) is the UP half, starting at
         // `below_end`. A fan puts he_plus (old → copy) at the start
-        // germ's cut, so the copy is the above end. A strut's spike
-        // faces its start germ with he_minus (copy → old), so the copy
-        // is the below end — the mint side follows, keeping the body's
-        // scaffold attribute and the record one datum.
-        //
-        // Where a germ runs along an edge of the piercing solid, the
-        // half beside that edge faces it (`insert::strut_facing`, the
-        // one rule both strut minters read): a strut whose halves face
-        // that way round, he_plus toward its START germ, takes the fan's
-        // side. The side follows the facing, exactly as for a fan. With
-        // both germs inside faces the strut keeps the default above.
-        // At a closed edge's lone vertex with a germ along that edge,
-        // the edge cannot say which half faces it and this minter has
-        // no geometric reading of its own: refused typed. No row
-        // reaches it — a pierce whose section runs along a closed
-        // piercing edge puts that whole edge on the pierced face.
-        let MevSite::Fan { he2: corner, .. } = site else {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a pierce run's site is not a fan",
-            });
+        // germ's cut, so the copy is the above end. A strut faces its
+        // germs by the one facing rule ([`super::insert::strut_faces_first`]),
+        // and the side follows the facing: the copy is the below end
+        // exactly when he_minus (copy → old) faces the start germ. The
+        // mint side follows, keeping the body's scaffold attribute and
+        // the record one datum.
+        let start_on_plus = match strut_corner {
+            None => true,
+            Some(corner) => {
+                let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
+                let arrival = piercing_body
+                    .get_half_edge(corner_half.prev)
+                    .ok_or_else(corrupt)?
+                    .edge;
+                let germ = |t: usize, (cells, dir): Germ<T>| (t, cells, dir);
+                let facing = super::insert::strut_faces_first(
+                    piercing_body,
+                    (piercing, &sectors),
+                    (arrival, corner_half.edge),
+                    germ((run.0 + n - 1) % n, start_germ),
+                    germ((run.0 + run.1 - 1) % n, end_germ),
+                    band,
+                )?;
+                // At a closed edge's lone vertex with a germ along it the
+                // edge names no half. No row reaches the pose (a section
+                // along a closed piercing edge puts the whole edge on the
+                // pierced face), so no answer here is checked: refused.
+                // An answer needs a row that reaches it, with an oracle
+                // independent of the facing rule.
+                facing.ok_or_else(|| BooleanError::CurvedBooleanUnsupported {
+                    operand: pierced_op,
+                    face: contact.face,
+                    kind: pierced_kind(pierced_body, contact.face),
+                })?
+            }
         };
-        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
-        let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
-        let departure = corner_half.edge;
-        let arrival = piercing_body
-            .get_half_edge(corner_half.prev)
-            .ok_or_else(corrupt)?
-            .edge;
-        let facing = if strut {
-            super::insert::strut_facing(
-                arrival,
-                departure,
-                super::insert::own_locus_edge(piercing, start_germ.0),
-                super::insert::own_locus_edge(piercing, end_germ.0),
-            )?
-        } else {
-            super::insert::StrutFacing::Unnamed
-        };
-        if facing == super::insert::StrutFacing::ClosedEdge {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand: pierced_op,
-                face: contact.face,
-                kind: pierced_kind(pierced_body, contact.face),
-            });
-        }
-        let start_on_arrival = facing == super::insert::StrutFacing::PlusFirst;
-        let side = if strut && !start_on_arrival {
-            NewVertexSide::Below
-        } else {
+        let side = if start_on_plus {
             NewVertexSide::Above
+        } else {
+            NewVertexSide::Below
         };
         let created = piercing_body.mev_null(site, side)?;
-        let (start_he, end_he) = if strut && !start_on_arrival {
-            (created.he_minus, created.he_plus)
-        } else {
+        let (start_he, end_he) = if start_on_plus {
             (created.he_plus, created.he_minus)
+        } else {
+            (created.he_minus, created.he_plus)
         };
         let attr = match side {
             NewVertexSide::Below => NullEdge {
@@ -694,7 +683,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             at_vertex: vertex,
             edge: created.edge,
             attr,
-            dangling: strut,
+            dangling: strut_corner.is_some(),
             germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         run_edges.push(rec);

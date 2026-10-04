@@ -207,7 +207,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RechartUnvouched`].
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     #[doc(hidden)]
-    pub fn set_face_surface_stranding_for_tests(
+    pub fn set_face_surface_unvouched_for_tests(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
@@ -1637,7 +1637,7 @@ mod tests {
     /// **The keys-only door refuses the swap it used to strand.** A
     /// swap of the top cap onto a fresh key leaves its four edges'
     /// `Intersection`s naming the key the cap left: the door names all
-    /// four and writes nothing. The stranding door returns `Ok` on the
+    /// four and writes nothing. The unvouched door returns `Ok` on the
     /// same swap, and tier 3 reports exactly those four at rest.
     #[test]
     fn a_swap_that_strands_an_edge_refuses_naming_every_one_and_writes_nothing() {
@@ -1654,7 +1654,7 @@ mod tests {
         let mut stranded = body.clone();
         // Lifts RechartStrandsDescriptions: the stranded state tier 3 reports at rest is the row.
         stranded
-            .set_face_surface_stranding_for_tests(top, swap())
+            .set_face_surface_unvouched_for_tests(top, swap())
             .unwrap();
         let errs = validate_geometric(&stranded, tol()).unwrap_err();
         let at_rest: Vec<EdgeKey> = errs
@@ -1861,7 +1861,7 @@ mod tests {
             let mut unvouched = body.clone();
             // Lifts RechartUnvouched: tier 3's verdict on the membrane off its own boundary is the row.
             unvouched
-                .set_face_surface_stranding_for_tests(membrane, plain.clone())
+                .set_face_surface_unvouched_for_tests(membrane, plain.clone())
                 .unwrap();
             let at_rest = kinds(&unvouched);
             assert!(

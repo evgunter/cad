@@ -516,6 +516,47 @@ pub enum MevSite {
     },
 }
 
+/// Where the null edge moving one orbit run to a new vertex lands
+/// ([`Body::run_site`]), the one reading of a run's fan end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RunSite {
+    /// The run `he1 .. he2` (exclusive) is a proper part of the orbit:
+    /// `mev(Fan { he1, he2 })` moves it, and `he_plus` runs from the
+    /// old vertex along the run's first cut.
+    Fan {
+        /// The run's first half-edge.
+        he1: HalfEdgeKey,
+        /// The orbit successor of the run's last half-edge.
+        he2: HalfEdgeKey,
+    },
+    /// The run holds every half-edge of the orbit, so what it excludes
+    /// lies inside the one corner it does not cross, between the
+    /// arrival `prev(corner)` and the departure `corner` (the run's
+    /// first half-edge). Moving the whole run would leave the old
+    /// vertex bare, so the null edge is the strut
+    /// `mev(Fan { corner, corner })` splices into that corner: the old
+    /// vertex keeps the run, and the strut's tip stands for the
+    /// excluded side. Walked the other way round the orbit the same
+    /// run is empty, and its strut is this one.
+    WholeOrbit {
+        /// The corner's departure half-edge, the run's first.
+        corner: HalfEdgeKey,
+    },
+}
+
+impl RunSite {
+    /// The [`MevSite`] that builds this null edge.
+    pub(crate) fn mev_site(self) -> MevSite {
+        match self {
+            Self::Fan { he1, he2 } => MevSite::Fan { he1, he2 },
+            Self::WholeOrbit { corner } => MevSite::Fan {
+                he1: corner,
+                he2: corner,
+            },
+        }
+    }
+}
+
 /// Where [`Body::mef`] acts: the site addressing for "make edge, face".
 ///
 /// Same design as [`MevSite`]: the degenerate lone-vertex case is a
