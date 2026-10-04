@@ -6695,3 +6695,10 @@ B proposed an image plus an integer joint element, with the lift derived. Round 
 corrected its kill formula; B kept it, made `first` the accessor origin, and adopted A's anchor analysis as the
 fallback. They converged. PR 4024 edits C4's seam sentence (Ev's ratified text) as the question; fork-log row 65
 holds the recommendation half. Before either answer lands, one probe should confirm the mixed-merge LoopDiscontinuity.
+
+## 08:25 check-in (2026-10-04)
+
+The graft staging is PR 4022. Its lane reports topo 2542/2542 and sweep 2040/2040; it filed two rows (the assembly
+door-sweep cost, and the pcurves refusal leaving the cache partly cleared) and closed S70 as "decided with S14(b)".
+The reviewer, session_013YHgGeDQKi9BwPZKkrnBsg, is asked in particular whether closing S70 is legitimate and
+whether review_d18's -121 lines drop coverage. The implementer is archived. No Ev reply on 3970 or 4024.
