@@ -106,7 +106,9 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Resolve {
                     slot: SlotId::Distance,
-                    source: EvalError::UnknownParam(param()),
+                    source: EvalError::UnresolvedVar {
+                        var: pncad::document::VarId(tagged(7)),
+                    },
                 }),
             },
         ),
@@ -245,11 +247,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SlotVarKind",
             EditError::SlotVarKind {
-                name: param(),
+                var: spoken_var(),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
+            },
+        ),
+        (
+            "SlotUnresolvedVar",
+            EditError::SlotUnresolvedVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
             },
         ),
         (
@@ -262,10 +272,17 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "PayloadVarKind",
             EditError::PayloadVarKind {
-                name: param(),
+                var: spoken_var(),
                 node: s(5, "Measure"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
+            },
+        ),
+        (
+            "PayloadUnresolvedVar",
+            EditError::PayloadUnresolvedVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                node: s(5, "Measure"),
             },
         ),
         (
@@ -311,6 +328,22 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::VarNameTaken {
                 name: param(),
                 holder: spoken_var(),
+            },
+        ),
+        (
+            "VarNameUnchanged",
+            EditError::VarNameUnchanged { var: spoken_var() },
+        ),
+        (
+            "AnonymousVarUnread",
+            EditError::AnonymousVarUnread {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+            },
+        ),
+        (
+            "DeleteAnonymousVar",
+            EditError::DeleteAnonymousVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
             },
         ),
         (

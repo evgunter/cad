@@ -87,7 +87,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 
 fn set_depth(session: &mut DocSession, metres: f64) {
     let outcome = session.perform(SessionOp::SetParam {
-        name: depth_param(),
+        var: crate::common::var_of(session.committed_doc(), depth_param().as_str()),
         value: SlotValue::Continuous(metres),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -96,7 +96,7 @@ fn set_depth(session: &mut DocSession, metres: f64) {
 fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
     match props::param_rows(doc)
         .into_iter()
-        .find(|row| row.name == depth_param())
+        .find(|row| row.label.name() == Some(&depth_param()))
         .expect("the fixture declares r1_depth")
         .value
     {

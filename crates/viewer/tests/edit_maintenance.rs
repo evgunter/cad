@@ -483,7 +483,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::SetParam {
-        name: hole_r,
+        var: common::var_of(session.committed_doc(), hole_r.as_str()),
         value: viewer::props::SlotValue::Continuous(0.0),
     };
     let outcome = session.perform(op.clone());

@@ -3515,7 +3515,7 @@ mod properties_pane_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Axis3, RecipeNodeId, SlotId, VarName};
+    use pncad::document::{Axis3, RecipeNodeId, SlotId};
 
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
@@ -3692,8 +3692,9 @@ mod properties_pane_tests {
     /// "select a feature" prompt, and nothing else.
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let verdict = "parameter nope is no longer declared";
-        let mut with = painted_with(Selection::Param(VarName::from_static("nope")));
+        let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
+        let verdict = format!("variable {var} is no longer declared");
+        let mut with = painted_with(Selection::Param(var));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),

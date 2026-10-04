@@ -17,7 +17,7 @@
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
     Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram, RecipeNodeId, Said,
-    SlotId, Speaker, SpokenNode, ValuePayload, VarName, held_by,
+    SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -231,8 +231,9 @@ pub enum Refusal {
         node: RecipeNodeId,
         /// The slot.
         slot: SlotId,
-        /// The document parameters the driving expression reads.
-        params: Vec<VarName>,
+        /// The variables the driving expression reads, each as the
+        /// document spoke it at the refusal.
+        params: Vec<SpokenVar>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
         /// The working notation the affordance reads `current` in —
@@ -247,21 +248,22 @@ pub enum Refusal {
         /// The slot named.
         slot: SlotId,
     },
-    /// No document parameter by that name.
+    /// No document parameter with that id.
     ///
     /// A LOOKUP's not-found arm, never a pre-check: the two sites that
     /// raise it need the declaration itself — its dimension to open a
     /// gesture, its value and unit to seed a range probe — and neither
     /// commits an edit, so no door below refuses on their behalf. The
-    /// value door does refuse an undeclared name, and says so in
-    /// editor-core's words ([`EditError::UnknownVar`], reached
-    /// through [`Self::Edit`]).
+    /// value door does refuse a variable the document does not hold,
+    /// and says so in editor-core's words ([`EditError::UnknownVar`],
+    /// reached through [`Self::Edit`]).
     ///
     /// **One mistake reaches two sentences, and that is decided rather
-    /// than left.** Typing an undeclared name into the value field
-    /// goes to the edit door; dragging its row comes here. The two
-    /// cannot be made one refusal without putting back the pre-check
-    /// the door already refuses — so what is converged is what the
+    /// than left.** Typing into the value field of a variable the
+    /// document no longer holds goes to the edit door; dragging its
+    /// row comes here. The two cannot be made one refusal without
+    /// putting back the pre-check the door already refuses — so what
+    /// is converged is what the
     /// user must DO: this arm renders the same recourse the door
     /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
     /// one home — over the same fact. What stays apart is
@@ -269,7 +271,7 @@ pub enum Refusal {
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
-    NoSuchParam(VarName),
+    NoSuchParam(VarId),
     /// A parameter's value field was given text that is not a number.
     ///
     /// **A document parameter holds a number, not an expression** —
@@ -285,21 +287,7 @@ pub enum Refusal {
     /// refusal the parser already made.
     ParamNotANumber {
         /// The parameter whose field was typed into.
-        name: VarName,
-    },
-    /// The CREATE door was asked for a name that is already declared.
-    ///
-    /// `DocEdit::DeclareVar` refuses a taken name too
-    /// (`EditError::VarNameTaken`); this refusal is the session's
-    /// reading of it ahead of the door — see
-    /// [`super::SessionOp::CreateParam`]. The payload carries the
-    /// existing declaration's dimension so the offer can name what
-    /// already stands there.
-    ParamExists {
-        /// The name, as asked for.
-        name: VarName,
-        /// The dimension the existing declaration carries.
-        dimension: Dimension,
+        var: SpokenVar,
     },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
@@ -465,7 +453,6 @@ impl Refusal {
             unspoken @ (Self::DrivenByExpression { .. }
             | Self::NoSuchParam(_)
             | Self::ParamNotANumber { .. }
-            | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -492,7 +479,6 @@ impl Refusal {
             | Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
             | Self::ParamNotANumber { .. }
-            | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -534,7 +520,6 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
             | Self::ParamNotANumber { .. }
-            | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -673,7 +658,7 @@ impl Refusal {
     /// ([`props::computed_text`], in the working `notation` and
     /// carrying its symbol), so the two never show one number two ways.
     pub fn affordance(
-        params: &[VarName],
+        params: &[SpokenVar],
         slot: SlotId,
         current: Option<SlotValue>,
         notation: Notation,
@@ -681,7 +666,7 @@ impl Refusal {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(VarName::as_str).collect();
+            let names: Vec<String> = params.iter().map(SpokenVar::to_string).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
@@ -693,11 +678,14 @@ impl Refusal {
         }
     }
 
-    /// The already-declared sentence, and its one home. The status
-    /// line renders it through [`Refusal::ParamExists`], and the add-
-    /// parameter form shows the same sentence BEFORE the click — one
-    /// composition, so the pre-click notice and the refusal cannot
-    /// drift apart.
+    /// The already-declared sentence, and its one home: the add-
+    /// parameter form's notice BEFORE the click, which offers the
+    /// standing parameter's row in place of the Create button. A click
+    /// that reaches the door anyway is refused by the declare itself
+    /// (`EditError::VarNameTaken`, through [`Refusal::Edit`]); the
+    /// notice is an offer the form makes from the document it reads,
+    /// with the standing declaration's dimension, which the door's
+    /// refusal does not carry.
     ///
     /// The dimension is named through its OWN `Display`, which is the
     /// one home of the dimension-in-prose rule (`Dimension`'s impl in
@@ -789,23 +777,18 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "{node} has no {} slot", slot.label())
             }
-            Self::NoSuchParam(name) => {
+            Self::NoSuchParam(var) => {
                 write!(
                     f,
-                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.as_str()
+                    "variable {var} is not in this document — {UNDECLARED_PARAM_RECOURSE}"
                 )
             }
-            Self::ParamNotANumber { name } => {
+            Self::ParamNotANumber { var } => {
                 write!(
                     f,
-                    "parameter {} holds a number, not an expression — write a number, with a \
-                     unit if you want one (50 mm)",
-                    name.as_str()
+                    "parameter {var} holds a number, not an expression — write a number, with a \
+                     unit if you want one (50 mm)"
                 )
-            }
-            Self::ParamExists { name, dimension } => {
-                write!(f, "{}", Self::exists_wording(name, *dimension))
             }
             Self::EmptyName => {
                 write!(
