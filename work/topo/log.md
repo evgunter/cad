@@ -6772,3 +6772,4 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
 
   The V-notch row now answers `Ok`; it stays open, since the result shape was not checked. Fix lane archived (about $14). **Unit 2 dispatched** (`session_01Joyxfo4vH93BpLf9DyUbqC`): readback `DanglingRef`, `PcurveMint::Corrupt`, `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `corrupt_at`, the graft's `JoinDesync` / `VoidInsertError::Corrupt` split, and `TornLoop`'s `Result`. The R build waits for it, because both touch `pcurves.rs` and the rate window shows a warning.
 - 14:50 check-in: unit 2 (`session_01Joyxfo4vH93BpLf9DyUbqC`) is still working on `topo/remaining-torn-body-refusals-unreachable` with sub-lanes; no PR yet; about $49 spent. Nothing new on PR 3970. No topo commits incoming.
+- 15:52 check-in: unit 2 is still running (merging its sub-lane branches, e.g. `lane-c-boolean-graft`); no PR yet; about $83 spent. Nothing new on PR 3970. No topo commits incoming.
