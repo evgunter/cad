@@ -1,0 +1,10 @@
+none: 
+nocross: strut_facing::a_crossed_pinch_names_the_faces_it_merged strut_facing::a_wide_run_builds_in_every_op runs_sweep::a_pinch_no_kept_face_can_cross_refuses_typed strut_facing::two_out_runs_at_the_corner_build_in_every_op strut_facing::two_edge_runs_build_in_every_op 
+notwo: strut_facing::a_crossed_pinch_names_the_faces_it_merged strut_facing::a_wide_run_builds_in_every_op strut_facing::two_out_runs_at_the_corner_build_in_every_op 
+noone: strut_facing::two_edge_runs_build_in_every_op 
+interstart: strut_facing::a_crossed_pinch_names_the_faces_it_merged strut_facing::a_wide_run_builds_in_every_op 
+outercross: runs_sweep::a_pinch_no_kept_face_can_cross_refuses_typed 
+single: 
+anysurf: strut_facing::a_crossed_pinch_names_the_faces_it_merged runs_sweep::a_pinch_no_kept_face_can_cross_refuses_typed strut_facing::a_wide_run_builds_in_every_op strut_facing::two_out_runs_at_the_corner_build_in_every_op 
+noB: 
+lastsite: 

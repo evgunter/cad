@@ -1,0 +1,114 @@
+diff --git a/crates/topo/src/boolean/vtxfac.rs b/crates/topo/src/boolean/vtxfac.rs
+index ad1f5d227..03bb41e76 100644
+--- a/crates/topo/src/boolean/vtxfac.rs
++++ b/crates/topo/src/boolean/vtxfac.rs
+@@ -762,6 +762,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+             // Two runs at most (refused above): the other run is `1 - i`.
+             let leaving_faces_start = match runs.len() {
+                 1 => false,
++                _ if op == BooleanOp::Intersect
++                    && std::env::var("R1_MUT").is_ok_and(|m| m == "interstart") =>
++                {
++                    true
++                }
+                 _ => super::insert::strut_order(
+                     run_germs[1 - i].0.1,
+                     n_pierced.vec(),
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index e1b8ae643..a387323ac 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -215,10 +215,17 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+         .map(|&(a, _)| Ok(section_cycle(body, outer(body, a)?)?.len()))
+         .sum::<Result<usize, BooleanError>>()?;
+     let mut absorbed = Vec::new();
++    let r1m = std::env::var("R1_MUT").unwrap_or_default();
++    if r1m == "nocross" {
++        return Ok(absorbed);
++    }
++    let mut r1pass = 0usize;
+     'pass: for _ in 0..=pairs {
++        r1pass += 1;
+         // Each vertex's root and, per vertex, its corners already fused.
+         let mut root: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+         let mut fused: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
++        let mut r1direct: BTreeSet<(VertexKey, VertexKey)> = BTreeSet::new();
+         let find = |root: &BTreeMap<VertexKey, VertexKey>, mut v: VertexKey| {
+             while let Some(&up) = root.get(&v) {
+                 v = up;
+@@ -239,6 +246,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                 let (ra, rb) = (find(&root, a), find(&root, b));
+                 if ra != rb {
+                     root.insert(rb, ra);
++                    r1direct.insert((a, b));
+                     fused.entry(a).or_default().push(ob[j]);
+                     fused.entry(b).or_default().push(rs[j]);
+                     continue;
+@@ -253,6 +261,9 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                         break;
+                     }
+                 }
++                if std::env::var("R1_LOG").is_ok() {
++                    eprintln!("R1LOG split pass={r1pass} chain={} same_side={:?} crossing={:?}", !r1direct.contains(&(a, b)), fresh.map(|f| f.0 == a), absorbed.last());
++                }
+                 let Some((v, new)) = fresh else {
+                     return Err(BooleanError::PinchUncrossed { vertex: a });
+                 };
+@@ -260,6 +271,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                     Some(bs) => {
+                         vmap.insert(new, bs);
+                     }
++                    None if r1m == "noB" => {}
+                     None => {
+                         for bs in vmap.values_mut() {
+                             if bs.contains(&v) {
+@@ -268,6 +280,9 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                         }
+                     }
+                 }
++                if r1m == "single" {
++                    return Ok(absorbed);
++                }
+                 continue 'pass;
+             }
+         }
+@@ -327,7 +342,9 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+     };
+     let surface_of = |f: FaceKey| body.get_face(f).map(|d| d.surface);
+     let mut site = None;
++    let r1rev = std::env::var("R1_MUT").is_ok_and(|m| m == "lastsite");
+     'search: for i in 0..n {
++        let i = if r1rev { n - 1 - i } else { i };
+         let (l, face) = face_of(orbit[i])?;
+         if sections.contains(&face) {
+             continue;
+@@ -338,14 +355,16 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             }
+             let (lj, fj) = face_of(orbit[j])?;
+             let outer = |f: FaceKey, l: LoopKey| body.get_face(f).is_some_and(|d| d.outer == l);
+-            let crossing = if lj == l && !outer(face, l) {
++            let r1m = std::env::var("R1_MUT").unwrap_or_default();
++            let crossing = if lj == l && (!outer(face, l) || r1m == "outercross") && r1m != "noone" {
+                 Some(Crossing::OneLoop)
+-            } else if fj != face
++            } else if r1m != "notwo"
++                && fj != face
+                 && !sections.contains(&fj)
+                 && outer(face, l)
+                 && outer(fj, lj)
+                 && surface_of(fj).is_some()
+-                && surface_of(fj) == surface_of(face)
++                && (surface_of(fj) == surface_of(face) || r1m == "anysurf")
+             {
+                 Some(Crossing::TwoFaces)
+             } else {
+@@ -360,6 +379,9 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+     let Some((he1, he2, crossing)) = site else {
+         return Ok(None);
+     };
++    if std::env::var("R1_LOG").is_ok() {
++        eprintln!("R1LOG site kind={} ms={} n={n}", match crossing { Crossing::OneLoop => "ring", Crossing::TwoFaces => "two" }, ms.len());
++    }
+     let p =
+         crate::readback::vertex_point(body, v).map_err(|_| corr("a pinch vertex has no point"))?;
+     let made = body.mev(
