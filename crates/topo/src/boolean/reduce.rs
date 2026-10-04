@@ -880,7 +880,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             let mut meets = false;
             'pairs: for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
                 for &(ey, by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
-                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band)? {
+                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band) {
                         meets = true;
                         break 'pairs;
                     }
@@ -956,7 +956,7 @@ fn edges_share_a_curve<T: Decide>(
     by: &bvh::Aabb,
     pad: f64,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> bool {
     // Both edges are ones the scan read out of their operands.
     let sampled = |body: &Body<T>, key: EdgeKey| {
         let edge = crate::live::proven(&body.edges, key, EntityId::Edge);
@@ -990,9 +990,7 @@ fn edges_share_a_curve<T: Decide>(
             run(bx.min_y, bx.max_y, by.min_y, by.max_y),
             run(bx.min_z, bx.max_z, by.min_z, by.max_z),
         ];
-        return Ok(
-            runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad)
-        );
+        return runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad);
     };
     let zero = |m: T| {
         !matches!(
@@ -1013,10 +1011,10 @@ fn edges_share_a_curve<T: Decide>(
             .copied()
             .filter(|&p| on(&cx, p) && on(&cy, p))
             .collect();
-    Ok(shared
+    shared
         .iter()
         .enumerate()
-        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm()))))
+        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm())))
 }
 
 /// One sweep direction: every edge (fragment) of `x` against the faces

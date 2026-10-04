@@ -859,7 +859,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     decls: &BooleanDeclarations,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let events = event_pairs(red)?;
+    let events = event_pairs(red);
     let pairs = section_pairs(
         a,
         b,
@@ -1136,20 +1136,16 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 /// pair's refusal. The reach — the ball about the two boxes' overlap,
 /// which pivots and levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
-///
-/// # Errors
-///
-/// The section certificate's own refusals.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
-) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
+) -> Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal> {
     use super::section_cert::{Refusal, Side, certify, classify};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
-        return Ok(Err(Refusal::LoneVertex));
+        return Err(Refusal::LoneVertex);
     }
     let (box_a, box_b) = (&fa.bbox, &fb.bbox);
     let (lo, hi) = (
@@ -1169,7 +1165,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         radius: T::from_f64((hi - lo).norm() * 0.5),
     };
     let section = classify(&fa.surface, &fb.surface, reach, band);
-    Ok(certify(
+    certify(
         &section,
         evented,
         |side| {
@@ -1185,7 +1181,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(b, fb.face, &fb.surface, p, band),
             ]
         },
-    ))
+    )
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -1214,14 +1210,10 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let l = linked(
-            &body.loops,
-            lk,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "loop",
-        );
+    for (lk, field) in
+        core::iter::once((fd.outer, "outer")).chain(fd.rings.iter().map(|&r| (r, "rings")))
+    {
+        let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
         let LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
@@ -1263,7 +1255,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -1409,7 +1401,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let decls = BooleanDeclarations::default();
     let red =
         super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
-    let events = event_pairs(&red)?;
+    let events = event_pairs(&red);
     section_pairs(
         a,
         b,
@@ -1483,9 +1475,7 @@ fn ball_against_plane<T: Decide>(
 /// the scaffolding's choice (the side each null edge's new vertex
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
-fn event_pairs<T: Real>(
-    red: &BooleanReduction<T>,
-) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
+fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
     let a_faces = faces_by_vertex(&red.a);
     let b_faces = faces_by_vertex(&red.b);
     let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
@@ -1521,7 +1511,7 @@ fn event_pairs<T: Real>(
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
