@@ -3,7 +3,7 @@
 //! `(0, 0, 0.5)` with normal `(sin 0.3, 0, cos 0.3)`), its lower part,
 //! against a ring torus whose tube comes near the cut's `Ellipse` rim.
 //! Along an ellipse the torus's implicit is a trigonometric polynomial of
-//! degree four (`topo::boolean::ellipse_roots`, "Against a torus"), and
+//! degree four (`topo::boolean::ellipse_torus`, "Against a torus"), and
 //! the crossing layer must decide the rim against the torus face by its
 //! certified roots wherever the rim's arc enclosure cannot clear it.
 //!

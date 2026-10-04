@@ -2407,18 +2407,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    (
-        "circle_cylinder.rs",
-        "-",
-        "BooleanDecision::ArcCylinderRoots",
-        2,
-    ),
-    (
-        "circle_sphere.rs",
-        "-",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2427,16 +2415,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcSphereRoots",
-        1,
+        2,
     ),
     (
         "finish.rs",

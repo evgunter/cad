@@ -72,10 +72,9 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
-mod circle_cylinder;
 mod circle_roots;
-mod circle_sphere;
 mod circle_torus;
+mod conic_quadric;
 pub(crate) mod combine;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
@@ -85,7 +84,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
-mod ellipse_roots;
+mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -1602,8 +1601,8 @@ pub enum BooleanError {
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
     /// and an ELLIPSE crossing any of the three, whose
     /// crossing parameters come from the certified root lanes (the line
-    /// quadratics and quartic, `boolean::circle_roots`' doors and
-    /// `boolean::ellipse_roots`) and whose landing point the chart trim
+    /// quadratics and quartic, and `boolean::circle_roots`' doors) and
+    /// whose landing point the chart trim
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a cone face or a conic
     /// against one, an undeclared on-carrier
