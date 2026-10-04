@@ -6612,3 +6612,16 @@ Answered on the PR: in shipped builds it is a kernel bug, except S14's refused-g
 misuse. The arenas are pub(crate), there is no Body deserializer, step-import validates tiers 1-3, and the test
 tear helpers are cfg(test)/test-features (gated). If S14 is closed by staging, Torn always means a kernel bug and
 the D2 sentence drops its aside. Noted the D9 MUST-panic alternative. Awaiting Ev's ruling.
+
+## PR 4016 merged; next unit (2026-10-04 06:20)
+
+The row-drop walks merged as `0bae21e6ad`. The fix at `5cd2dfdf55` met every ruled item. A site mint's plan refuses
+a loop that does not walk as its own (`kef_refuses_at_every_half_edge_of_a_diverted_sheet`). The fuzz guard
+seeds the sheet with diverting seeds. The paired next+parent_loop tear is stated in `loop_cycle_of`'s doc and
+pinned (`a_diversion_paired_with_a_parent_loop_tear_passes_the_proof`), and recorded on the P4 residue row.
+The stale docs are fixed, and the shell/band/hone filings cite file:line. CI was green; the fix lane is archived.
+
+Dispatched `a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass` (P3, M) to
+session_01S8KTUqDStHBaoKW1H8uxX2 on `topo/re-anchored-loop-rows-match-the-pass`. Its question is whether the
+defect is (a) the kill keeping rows, or (b) the pass deriving rows from an arbitrary `first`. It must stop and
+report if that turns out to be a real design fork.
