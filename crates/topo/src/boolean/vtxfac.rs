@@ -742,28 +742,51 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         ring_vertex: w,
     });
     // (3) one ring null-edge strut per piercing-side run, each hung
-    // at the ring vertex. The copy takes the Out side (`above_end`),
-    // but for one case. The piercing vertex keeps every In run, so with
-    // several runs its In section face passes it once per run, and the
-    // zip fuses each vertex of a seam once. Where the op keeps both
-    // operands' In side, that face is zipped to the ring's In face,
-    // which must then pass a vertex per run: the copies take the In
-    // side and the ring vertex the Out.
+    // at the ring vertex, its copy at the far end. Which half of a
+    // strut faces which of its run's germs: with one run, either, as
+    // the ring's one corner holds both. With several, each strut lies
+    // in its run's Out wedge of the pierced face, and the half leaving
+    // the ring vertex has on its left, about the face's outward normal,
+    // the wedge's germ that the walk clockwise from another run meets
+    // first ([`super::insert::strut_order`]); no other run's germ lies
+    // in the wedge, so any of them starts the walk. Where the op keeps
+    // both operands' In side the half leaving the ring vertex faces
+    // the start germ, whichever way the walk reads: the piercing
+    // vertex's In face passes it once per run, and the ring's In face
+    // it is zipped to must then pass a copy per run. The Out side,
+    // where the walk's reading would show, is discarded there.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the pierced solid's sense at each germ is the negation of the
     // piercing solid's (the cross-solid anti-correlation theorem), so
     // the half facing the run's start germ (piercing UP) is the pierced
-    // DOWN half, the one starting at `above_end`.
-    let copies_in = runs.len() > 1
-        && super::finish::kept_side(op, piercing) == SideCode::In
+    // DOWN half, the one starting at `above_end`: where the half
+    // leaving the ring vertex faces it, the copy is the below end.
+    let both_in = super::finish::kept_side(op, piercing) == SideCode::In
         && super::finish::kept_side(op, pierced) == SideCode::In;
-    let side = if copies_in {
-        NewVertexSide::Below
-    } else {
-        NewVertexSide::Above
-    };
+    let sides = (0..runs.len())
+        .map(|i| {
+            let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
+            let leaving_faces_start = match runs.len() {
+                1 => false,
+                _ if both_in => true,
+                k => super::insert::strut_order(
+                    run_germs[(i + 1) % k].0.1,
+                    n_pierced.vec(),
+                    (start, end),
+                    sectors[(runs[i].0 + n - 1) % n].arm,
+                    band,
+                )?,
+            };
+            Ok(if leaving_faces_start {
+                NewVertexSide::Below
+            } else {
+                NewVertexSide::Above
+            })
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for (run_edge, &(start_germ, end_germ)) in run_edges.iter().zip(&run_germs) {
+    for ((run_edge, &(start_germ, end_germ)), &side) in run_edges.iter().zip(&run_germs).zip(&sides)
+    {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },

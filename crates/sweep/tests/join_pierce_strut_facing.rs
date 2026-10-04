@@ -54,6 +54,10 @@ const SIDE: f64 = 4.0;
 const BARE: [f64; 3] = [1.0, 1.3, -0.7];
 /// The tilts at which the −z edge reads Out too: two Out runs.
 const TWO_RUNS: [[f64; 3]; 3] = [[1.0, 1.3, 0.7], [1.0, 1.3, 0.4], [1.2, 1.0, 0.3]];
+/// Two Out runs, the second the x = 1 face's bisector and the −z edge.
+const WIDE_RUN: [[f64; 3]; 2] = [[2.0, 0.4, 1.0], [1.0, 0.2, 0.5]];
+/// Two Out runs, the +x edge alone and the +y edge alone.
+const EDGE_RUNS: [[f64; 3]; 3] = [[-1.0, -0.9, -1.3], [-1.0, -0.6, -1.2], [-0.8, -0.7, -1.0]];
 
 fn tol() -> Tol {
     Tol::witness()
@@ -138,11 +142,12 @@ type Op = fn(
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
-/// Builds every op in both operand orders. Each body is `SOUND` by
-/// [`outcome`] (tiers 2 and 3′, the certificate, a legal operand, its
-/// volume), passes tier 3, holds the prism's cut by the plane to 1e-9,
-/// and has one vertex at `V`.
-fn assert_pose_builds(pose: &str, m: [f64; 3]) {
+/// Builds every op in both operand orders but those `refused` names.
+/// Each body is `SOUND` by [`outcome`] (tiers 2 and 3′, the
+/// certificate, a legal operand, its volume), passes tier 3, holds the
+/// prism's cut by the plane to 1e-9, and has one vertex at `V`. Each
+/// refused op refuses typed in both orders.
+fn assert_pose(pose: &str, m: [f64; 3], refused: &[&str]) {
     let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
     let cube = cube_beyond(m);
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
@@ -159,6 +164,11 @@ fn assert_pose_builds(pose: &str, m: [f64; 3]) {
         ];
         for (op, run, want) in ops {
             let what = format!("{pose}: {order} {op}");
+            if refused.contains(&op) {
+                let r = run(x, y, &decls, tol());
+                assert!(r.is_err(), "{what}: {}", outcome(r, want, tol()));
+                continue;
+            }
             let line = outcome(run(x, y, &decls, tol()), want, tol());
             assert!(line.starts_with("OK SOUND"), "{what}: {line}");
             let Ok(BooleanResult::Body(bb)) = run(x, y, &decls, tol()) else {
@@ -188,21 +198,42 @@ fn assert_pose_builds(pose: &str, m: [f64; 3]) {
 /// arrival edge meets first, so `he_plus` faces it.
 #[test]
 fn a_bare_bisector_strut_faces_its_start_germ_with_he_plus() {
-    assert_pose_builds("bare", BARE);
+    assert_pose("bare", BARE, &[]);
 }
 
 /// The whole-orbit run: the start germ is the one the walk meets last,
 /// so `he_minus` faces it.
 #[test]
 fn a_whole_orbit_strut_faces_its_start_germ_with_he_minus() {
-    assert_pose_builds("whole orbit", BARE.map(|c| -c));
+    assert_pose("whole orbit", BARE.map(|c| -c), &[]);
 }
 
-/// Two Out runs at the corner, at each tilt.
+/// Two Out runs at the corner, the bisector alone and the −z edge
+/// alone: every op builds.
 #[test]
 fn two_out_runs_at_the_corner_build_in_every_op() {
     for m in TWO_RUNS {
-        assert_pose_builds(&format!("two runs {m:?}"), m);
+        assert_pose(&format!("two runs {m:?}"), m, &[]);
+    }
+}
+
+/// The −z edge's run holding the x = 1 face's bisector too, tilted far
+/// toward x: the union and the difference build, and the intersection
+/// still refuses (`a-pierce-whose-wide-run-pinches-its-intersection-refuses`).
+#[test]
+fn a_wide_run_builds_its_union_and_difference() {
+    for m in WIDE_RUN {
+        assert_pose(&format!("wide run {m:?}"), m, &["intersect"]);
+    }
+}
+
+/// The +x and +y edges alone read Out, two fans: the union and the
+/// intersection build, and the difference, which pinches, still
+/// refuses (`a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`).
+#[test]
+fn two_edge_runs_build_their_union_and_intersection() {
+    for m in EDGE_RUNS {
+        assert_pose(&format!("edge runs {m:?}"), m, &["subtract"]);
     }
 }
 
@@ -210,14 +241,19 @@ fn two_out_runs_at_the_corner_build_in_every_op() {
 /// one plane from either side.
 #[test]
 fn opposite_poses_split_the_prism() {
-    for m in TWO_RUNS.into_iter().chain([BARE]) {
+    for m in TWO_RUNS
+        .into_iter()
+        .chain(WIDE_RUN)
+        .chain(EDGE_RUNS)
+        .chain([BARE])
+    {
         let (a, b) = (prism_beyond(m), prism_beyond(m.map(|c| -c)));
         assert!(
             (a + b - 3.0).abs() < 1e-12,
             "{m:?}: {a} + {b} is not the prism's 3"
         );
         assert!(
-            a > 0.5 && b > 0.5,
+            a > 0.1 && b > 0.1,
             "{m:?}: both cuts are substantial: {a}, {b}"
         );
     }
