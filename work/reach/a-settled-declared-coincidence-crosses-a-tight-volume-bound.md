@@ -86,3 +86,29 @@ encloses, and only there. Possible shapes, each to be weighed:
 
 Measure each against the MAJ-1 fixture, the rounded stack and the
 duplicate-declaration attack above before choosing.
+
+## Measured again on PR 3977 (the confirm reads each plane off its loops)
+
+PR 3977 re-derives the backstop's confirming margin about a corner of
+each body, with every planar face's flux taken off its own loops
+(`quad_lane::planar_face_about`: the loop fanned from one of its
+points, so the faces sum to a closed surface's volume). On this
+fixture the glued face's loop points stand off its carrier inside the
+band, and that standoff times the face's area moves the re-derived
+volume by ~8e-11 m³ at ε = 1e-9 (the result ∪ reads
+13.58715574282784 against the walk's 13.587155742749397), some 17× the
+gap. Taken off the stored plane instead, the same face moved it by
+−7.85e-11. The crossing the backstop is asked to confirm is smaller
+than the representation's own ambiguity, so which crossing confirms
+follows the standoff's sign:
+
+| pose, θ | ∪ | ∩ | A ∖ B |
+|---|---|---|---|
+| standing, +1.2ε | refuses at 1e-9 and 1e-6, builds at 1e-12 (unchanged) | empty | 13.5 |
+| sunk, −1.2ε and −2ε | 13.5 | builds within the gap at all three ε (main: refuses) | refuses at all three ε (main: builds at 1e-12) |
+
+The PR 3844 attacks were re-run on that tree at 1e-9, 1e-6 and 1e-12:
+the MAJ-1 plate refuses every planted component down to a 2.7e-17 m³
+cube at 1 mm scale, with or without declarations; the rounded stack's
+thickened ∩ passes at no δ; declarations, duplicated or not, no longer
+reach the backstop (`gate_volume_backstop` takes none).

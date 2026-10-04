@@ -997,12 +997,12 @@ fn rederived<T: Decide>(
 ///
 /// The value enclosed is the divergence sum about `c` over the stored
 /// geometry: each closed-form face's flux about `c` from its surface and
-/// loops lifted exactly and moved by `−c` (a plane through its stored
-/// origin, its loops projected onto it: `quad_lane::planar_face_about`),
-/// and each quadrature face's enclosure as its lane returned it, less
-/// `c · A⃗`. It differs from the walk's own target, the sum about the
-/// world origin, only by the stored vertices' in-band distances from
-/// their planes. Taken about a point of the body, no closed-form face's
+/// loops lifted exactly and moved by `−c` (a plane by its loops fanned
+/// from one of their points: `quad_lane::planar_face_about`), and each
+/// quadrature face's enclosure as its lane returned it, less `c · A⃗`.
+/// A plane's fan reads no carrier origin, so the planar faces sum to the
+/// volume of the closed surface their loops bound, whatever in-band
+/// distance the stored vertices stand off their planes. Taken about a point of the body, no closed-form face's
 /// width is scaled by the body's distance from the world origin; a
 /// quadrature face keeps the width it was measured with, and says so.
 /// A walk with no faces, or a quadrature face whose vector area has no

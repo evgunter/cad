@@ -19,9 +19,15 @@
 //!
 //! A crossing refuses wherever the interval margin certifies it. Each
 //! row pins the verdict measured at ε = 1e-9, 1e-6 and 1e-12: the sunk
-//! intersect refuses at all three, and the standing union and the sunk
-//! `A ∖ B` (13.5 m³ bodies, whose sums round coarser) refuse down to
-//! 1e-9 and build within the gap at 1e-12.
+//! `A ∖ B` refuses at all three, the standing union refuses down to 1e-9
+//! and builds within the gap at 1e-12, and the sunk intersect builds
+//! within the gap at all three. The margin that confirms a crossing is
+//! re-derived with each planar face read off its own loops
+//! (`props::rederive`), and the glued face's loop points stand off its
+//! carrier inside the band: that standoff times the face's area
+//! (~8e-11 m³ at 1e-9, some 17× the gap) moves the re-derived volume by
+//! as much as the crossing itself, so which crossing confirms follows
+//! the standoff's sign, not the bound's.
 //!
 //! Sunk at `±2ε` every op reads as it does at `±1.2ε`.
 //!
@@ -84,9 +90,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
     let wedge = |h: f64| phi.sin() * h;
     let (standing, sunk) = ((1.0, 0.0, -1.0), (0.5, 0.5, 1.0));
     let (rest, cont) = (BooleanCoincidence::REST, BooleanCoincidence::Continuation);
-    let (union_cap, cap, floor) = (
+    let (union_cap, floor) = (
         "vol(A ∪ B) ≤ vol(A) + vol(B)",
-        "vol(A ∩ B) ≤ vol(B)",
         "vol(A ∖ B) ≥ vol(A) − vol(B)",
     );
     // (pose, θ over ε, (height, depth, the wedge face's facing), class,
@@ -135,8 +140,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             cont,
             [
                 Builds(block_volume),
-                Crosses(cap, wedge(0.5), 1e-12),
-                Crosses(floor, block_volume - wedge(0.5), 1e-9),
+                Builds(wedge(0.5)),
+                Crosses(floor, block_volume - wedge(0.5), 1e-12),
                 Builds(0.0),
             ],
         ),
@@ -159,8 +164,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             cont,
             [
                 Builds(block_volume),
-                Crosses(cap, wedge(0.5), 1e-12),
-                Crosses(floor, block_volume - wedge(0.5), 1e-9),
+                Builds(wedge(0.5)),
+                Crosses(floor, block_volume - wedge(0.5), 1e-12),
                 Builds(0.0),
             ],
         ),

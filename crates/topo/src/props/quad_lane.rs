@@ -187,8 +187,8 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         return about_centre(flux, area);
     }
     let surface = surface.map_scalar(Interval::from_certified);
-    if let Surface::Plane { origin, normal, .. } = surface {
-        return Ok((planar_face_about(origin, normal, &loops, centre)?, true));
+    if let Surface::Plane { .. } = surface {
+        return Ok((planar_face_about(&loops, centre)?, true));
     }
     let moved_loops = loops
         .iter()
@@ -353,22 +353,24 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
 }
 
 /// A planar face's flux about `centre` and its area, at the interval
-/// scalar: `((origin − centre)·n)(n·A⃗)/(n·n)`, the face's vector area
-/// `A⃗` projected on its plane's normal and taken at the plane's distance
-/// from `centre`.
+/// scalar: `(anchor − centre)·A⃗`, with `A⃗` the face's vector area summed
+/// about `anchor`, the first point of its loops.
 ///
-/// It is the flux, about `centre`, of the face's loops projected onto the
-/// stored plane. Summed over a closed body it differs from the walk's
-/// `Σ origin · A⃗` by `Σ (origin − centre) · A⃗⊥`, the component of each
-/// face's `A⃗` off its stored normal, which is of order `A·δ` for
-/// vertices `δ` off their
-/// planes. `A⃗` is summed about a vertex of the face's own (it does not
-/// depend on that point), so its width is the face's own size; the
-/// product is as small as `centre` is near the plane, which `rederive`
-/// arranges by taking a corner of the body's own loop points.
+/// It is the exact flux, about `centre`, of each loop fanned from
+/// `anchor` (a point `x` of the fan has `(x − anchor)` in its tangent
+/// plane, so `x·n` integrates to `anchor·A⃗`). The fans of neighbouring
+/// faces meet on their shared edges, so summed over a closed body they
+/// bound a closed surface, and the sum is that surface's volume wherever
+/// the loops' points stand off their stored planes. A flux taken off the
+/// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
+/// closed surface's: a glued face whose points stand `δ` off its carrier
+/// misses `δ` times its area, which crossed the oracle on the door's
+/// settled-residue fixture (`tests/door_backstop_settled_residue.rs`).
+/// `anchor` is a point of the face, so the width is the body's own size
+/// times `A⃗`'s; the product is as small as `centre` is near the face,
+/// which `rederive` arranges by taking a corner of the body's own loop
+/// points. The carrier's origin is never read.
 fn planar_face_about(
-    origin: Point3<Interval>,
-    normal: geom_core::Vec3<Interval>,
     loops: &[Vec<LoopEdge<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
@@ -384,7 +386,7 @@ fn planar_face_about(
         va = va + loop_vector_area(edges, anchor)?;
     }
     Ok(FaceContribution {
-        flux: (origin - centre).dot(normal) * normal.dot(va) / normal.dot(normal),
+        flux: (anchor - centre).dot(va),
         area: va.norm(),
     })
 }
