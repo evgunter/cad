@@ -461,7 +461,7 @@ fn distinct_keys(
     let described = body.get_surface(kb).unwrap().clone();
     // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
     let fresh = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             b,
             FaceSurface::New {
                 surface: described,
@@ -564,7 +564,7 @@ fn pair_with_no_live_faces_mints_no_record() {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
             // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
-            body.set_face_surface_stranding_for_tests(
+            body.set_face_surface_unvouched_for_tests(
                 f,
                 FaceSurface::New {
                     surface: described,
@@ -1043,7 +1043,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         // Walls 0 and 1 are the run; wall 2 goes onto a key of its own.
         let sense = body.get_face(walls[2]).unwrap().sense;
         // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             walls[2],
             FaceSurface::New {
                 surface: described.clone(),
@@ -1054,7 +1054,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         topo::mint_pcurves(&mut body, tol).unwrap();
         let sense = body.get_face(walls[i]).unwrap().sense;
         // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             walls[i],
             FaceSurface::New {
                 surface: described,

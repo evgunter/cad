@@ -312,7 +312,7 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         .map(|(k, _)| k)
         .expect("the brick has an x = 3 face");
     // Lifts RechartStrandsDescriptions: a relabel is exactly what the operand gate's box arithmetic sees.
-    b.set_face_surface_stranding_for_tests(
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface,
