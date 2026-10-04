@@ -250,7 +250,7 @@
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other
-//! ([`crate::Body::drop_face_rows`]), which is what makes its own
+//! ([`crate::Body::face_cycles`]), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
@@ -2002,7 +2002,8 @@ pub(crate) enum LoopRows {
     /// ([`crate::LoopBoundary::Empty`]): there is nothing to walk and
     /// nothing wrong. It holds no half-edge, so it holds no row.
     NoCycle,
-    /// The loop record or its cycle did not resolve — tier 1's
+    /// The loop record or its cycle did not resolve, or the cycle
+    /// strayed into a half-edge that does not claim the loop — tier 1's
     /// corruption, which each caller reports in its own vocabulary.
     Corrupt,
 }
@@ -2019,6 +2020,13 @@ pub(crate) enum LoopRows {
 /// one cycle. Two spellings of it would be two answers to "which rows
 /// does this loop have", and a door and the validator disagreeing
 /// about that is exactly the defect neither could see.
+///
+/// The walk is [`crate::Body::loop_cycle_of`]: a member that does not
+/// claim `r#loop` makes the loop [`LoopRows::Corrupt`], so a torn
+/// `next` cannot hand another loop's rows to this one's reader. A walk
+/// that closes short of a member it should reach is not caught here;
+/// a door that moves or re-charts the whole loop proves that too
+/// ([`crate::Body::whole_cycle`]).
 pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows {
     let Some(loop_data) = body.get_loop(r#loop) else {
         return LoopRows::Corrupt;
@@ -2026,7 +2034,7 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows 
     let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
         return LoopRows::NoCycle;
     };
-    match body.loop_cycle(first) {
+    match body.loop_cycle_of(first, r#loop) {
         Some(cycle) => LoopRows::Cycle(cycle),
         None => LoopRows::Corrupt,
     }
@@ -4581,7 +4589,7 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "re-charts a face in place, which changes what every row the face stores is \
              ABOUT while changing no key: the rows are kept across a swap onto the same \
-             chart (`Body::same_chart`) and dropped on any other (`Body::drop_face_rows`). \
+             chart (`Body::same_chart`) and dropped on any other (`Body::face_cycles`). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \

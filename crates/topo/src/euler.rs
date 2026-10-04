@@ -2311,8 +2311,8 @@ impl<T: Decide> Body<T> {
     /// pcurve rows, for both sites: the loops the new halves join, their
     /// faces and those faces' surfaces resolve (`StaleKey` /
     /// `StaleGeometry`); then, only where the site mint selects one of
-    /// those faces, the loops the surgery rewires walk
-    /// ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
+    /// those faces, the loops the surgery rewires walk, every member
+    /// claiming its loop ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
     /// `StaleGeometry`), and each face's row plan is minted
     /// ([`EulerOpError::PcurveMint`]).
     ///
@@ -2525,8 +2525,9 @@ impl<T: Decide> Body<T> {
     /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
     /// the face's surface resolve; then, only where the site mint
-    /// selects that face, the old loop's cycle from `he1` walks
-    /// ([`EulerOpError::LoopCycleBroken`]), the new face's chart
+    /// selects that face, the old loop's cycle from `he1` walks, every
+    /// member claiming the loop ([`EulerOpError::LoopCycleBroken`]),
+    /// the new face's chart
     /// resolves (`StaleGeometry`), and the two faces' row plans are
     /// minted ([`EulerOpError::PcurveMint`]).
     ///
@@ -3539,9 +3540,10 @@ impl<T: Decide> Body<T> {
     /// Proves the run a plan's cycle walk took from `from` and moves
     /// out of it, before it mutates: every member claims `from`, so the
     /// move takes nothing out of a third loop; and for a
-    /// [`RunExtent::Whole`] run, whose loop the plan removes, no
-    /// half-edge but the run and `killed` claims `from`, so none is left
-    /// naming a dead loop. Refuses [`EulerOpError::LoopCycleBroken`]
+    /// [`RunExtent::Whole`] run, whose loop the plan removes or moves
+    /// whole, no half-edge but the run and `killed` claims `from`, so
+    /// none is left naming a dead loop or carrying a row the move does
+    /// not dispose of. Refuses [`EulerOpError::LoopCycleBroken`]
     /// naming `from` otherwise. Returns the run as a set.
     ///
     /// The walk steps `next` and reads no `parent_loop`, so a torn
@@ -3561,7 +3563,7 @@ impl<T: Decide> Body<T> {
         let broken = EulerOpError::LoopCycleBroken { r#loop: from };
         let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
         for member in members {
-            if self.half_edges.get(member).map(|data| data.parent_loop) != Some(from) {
+            if !self.claims(member, from) {
                 return Err(broken);
             }
             run.insert(member, ());
@@ -4447,13 +4449,16 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// The half-edges of `he`'s loop in `next` order from `he` itself.
+    /// The half-edges of `r#loop` in `next` order from its member `he`,
+    /// every one claiming the loop ([`Body::loop_cycle_of`]).
+    /// [`EulerOpError::LoopCycleBroken`] naming the loop where the walk
+    /// does not close or strays out of it.
     pub(crate) fn site_cycle_from(
         &self,
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
-        self.loop_cycle(he)
+        self.loop_cycle_of(he, r#loop)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop })
     }
 
@@ -4497,13 +4502,29 @@ impl<T: Decide> Body<T> {
     }
 
     /// The half-edges of `r#loop` in `next` order from its `first`, as
-    /// the surgery finds them (empty for an empty loop).
+    /// the surgery finds them (empty for an empty loop): the one rows
+    /// walk ([`crate::pcurves::loop_rows`]), every member claiming the
+    /// loop. [`EulerOpError::LoopCycleBroken`] naming the loop where the
+    /// walk does not close or strays out of it.
     pub(crate) fn site_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
         match crate::pcurves::loop_rows(self, r#loop) {
             crate::pcurves::LoopRows::Cycle(cycle) => Ok(cycle),
             crate::pcurves::LoopRows::NoCycle => Ok(Vec::new()),
             crate::pcurves::LoopRows::Corrupt => Err(EulerOpError::LoopCycleBroken { r#loop }),
         }
+    }
+
+    /// [`Body::site_cycle`] proven to be every half-edge that claims
+    /// `r#loop` ([`Body::require_run_of`], [`RunExtent::Whole`]): the
+    /// members a door carries or drops rows for when it moves the loop
+    /// to another face or re-charts the face it is on. A walk closed
+    /// short of a member would leave that member's row stated in the
+    /// chart its loop left. [`EulerOpError::LoopCycleBroken`] naming the
+    /// loop otherwise. The proof reads the whole half-edge arena.
+    pub(crate) fn whole_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
+        let cycle = self.site_cycle(r#loop)?;
+        self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[])?;
+        Ok(cycle)
     }
 
     /// Mints `mef`'s new loop and face (in that order — part of `mef`'s
@@ -4728,7 +4749,8 @@ impl Clearing<'_> {
 pub(crate) enum RunExtent {
     /// Part of the loop, which keeps the rest.
     Part,
-    /// All of the loop but the halves the plan kills: the loop dies.
+    /// All of the loop but the halves the plan kills: the loop dies, or
+    /// moves to another face whole ([`Body::whole_cycle`]).
     Whole,
 }
 

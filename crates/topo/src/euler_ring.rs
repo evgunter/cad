@@ -400,6 +400,8 @@ struct KfmrhPlan<T: geom_core::Real> {
     /// one.
     cross_shell: bool,
     ring: LoopKey,
+    /// Every half-edge of the ring, proven ([`Body::whole_cycle`]).
+    ring_halves: Vec<HalfEdgeKey>,
     rows: Vec<SiteRows<T>>,
 }
 
@@ -722,7 +724,8 @@ impl<T: Decide> Body<T> {
     /// states them: the target loop, its face and the face's surface
     /// resolve (`StaleKey` / `StaleGeometry`); then, only where the
     /// site mint selects that face, the target's cycle from its anchor
-    /// walks ([`EulerOpError::LoopCycleBroken`]), and the face's row
+    /// walks with every member claiming the target loop
+    /// ([`EulerOpError::LoopCycleBroken`]), and the face's row
     /// plan is minted ([`EulerOpError::PcurveMint`]). Chord sugar:
     /// [`Body::mekr_chord`].
     ///
@@ -876,8 +879,10 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
     /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
     /// shell and the shared solid resolve (`StaleKey`) — the fusion
-    /// writes through both; the demoted loop walks
-    /// ([`EulerOpError::LoopCycleBroken`]); no loop but the demoted one
+    /// writes through both; the demoted loop's walk closes and is
+    /// exactly the half-edges that claim it
+    /// ([`EulerOpError::LoopCycleBroken`], [`Body::whole_cycle`]); no
+    /// loop but the demoted one
     /// names `f2`, then no shell but the one that drops it lists it (in
     /// the same-shell form the shared one, in the fusion form `f2`'s own,
     /// which dies), then, fusion form only, no face outside `f2`'s
@@ -986,7 +991,7 @@ impl<T: Decide> Body<T> {
             }
             require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
-        let ring_halves = self.site_cycle(ring)?;
+        let ring_halves = self.whole_cycle(ring)?;
         // Nothing the kill keeps names `f2`, or, in the fusion form,
         // `f2`'s shell: the ring re-homes onto `f1`, the shell that
         // drops `f2` is `f1`'s in the same-shell form and dies in the
@@ -1050,6 +1055,7 @@ impl<T: Decide> Body<T> {
             s2_data,
             cross_shell,
             ring,
+            ring_halves,
             rows,
         })
     }
@@ -1065,6 +1071,7 @@ impl<T: Decide> Body<T> {
             s2_data,
             cross_shell,
             ring,
+            ring_halves,
             rows,
         } = plan;
         let f2_shell = f2_data.shell;
@@ -1078,7 +1085,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kfmrh: `f1` resolved in the plan phase")
         };
         face.rings.push(ring);
-        self.drop_rows_on_chart_change(ring, f2_data.surface, f1_surface);
+        self.drop_rows_on_chart_change(ring_halves, f2_data.surface, f1_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
@@ -1205,8 +1212,10 @@ impl<T: Decide> Body<T> {
     /// The ring resolves ([`EulerOpError::StaleKey`]); its face
     /// resolves (`StaleKey`); it is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]); `to_face` resolves (`StaleKey`);
-    /// both faces lie in one shell ([`EulerOpError::CrossShell`]); the
-    /// ring walks ([`EulerOpError::LoopCycleBroken`]); then, where
+    /// both faces lie in one shell ([`EulerOpError::CrossShell`]); where
+    /// the faces differ, the ring's walk closes and is exactly the
+    /// half-edges that claim it ([`EulerOpError::LoopCycleBroken`],
+    /// [`Body::whole_cycle`]); then, where
     /// `to_face`'s key is not the ring's face's, no edge of the ring is
     /// stranded ([`EulerOpError::RechartStrandsDescriptions`], every one
     /// named, in cycle order) and every certified one names that key
@@ -1284,10 +1293,10 @@ impl<T: Decide> Body<T> {
                 f2: to_face,
             });
         }
-        let rows = if from_face == to_face {
-            Vec::new()
+        let (ring_halves, rows) = if from_face == to_face {
+            (Vec::new(), Vec::new())
         } else {
-            let ring_halves = self.site_cycle(ring)?;
+            let ring_halves = self.whole_cycle(ring)?;
             self.vouch_move(
                 RechartDoor::RingMove,
                 to_face,
@@ -1297,13 +1306,14 @@ impl<T: Decide> Body<T> {
                 self.same_chart(from_surface, to_surface),
                 None,
             )?;
-            self.plan_moved_rows(
+            let rows = self.plan_moved_rows(
                 &ring_halves,
                 self.same_chart(from_surface, to_surface),
                 to_face,
                 |body| body.site_face_receiving(to_face, &ring_halves),
                 tol,
-            )?
+            )?;
+            (ring_halves, rows)
         };
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
@@ -1322,17 +1332,17 @@ impl<T: Decide> Body<T> {
             l.face = to_face;
             self.drop_null_face_records_naming(ring);
         }
-        self.drop_rows_on_chart_change(ring, from_surface, to_surface);
+        self.drop_rows_on_chart_change(ring_halves, from_surface, to_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
         Ok(())
     }
 
-    /// The loop-re-parenting doors' chart decision, and the walk it
-    /// governs: drops every stored row of `r#loop` when the loop's
-    /// new face is on a different CHART from its old one, and touches
-    /// nothing when it is not. [`Body::drop_face_rows`] is the same
-    /// answer for a face re-charted in place, where one chart decision
-    /// covers every loop the face has.
+    /// The loop-re-parenting doors' chart decision: drops the stored
+    /// row of every half-edge in `halves`, a moved loop's members, when
+    /// the loop's new face is on a different CHART from its old one,
+    /// and touches nothing when it is not. [`Body::face_cycles`] is
+    /// the same answer for a face re-charted in place, where one chart
+    /// decision covers every loop the face has.
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1347,44 +1357,27 @@ impl<T: Decide> Body<T> {
     /// decision is taken here once, for the two doors that move a
     /// whole loop between existing faces ([`Body::kfmrh`],
     /// [`Body::ring_move`]); [`Body::mfkrh`] takes it with its spec
-    /// ([`Body::resolve_face_surface`]) and runs
-    /// [`Body::drop_loop_rows`]; the two doors that move a RUN of one
-    /// ([`Body::mef`]'s chord surgery, [`Body::kef`]'s unsplice) take
-    /// it at their own sites, over the run their plan phase holds.
+    /// ([`Body::resolve_face_surface`]) and drops the same list; the
+    /// two doors that move a RUN of one ([`Body::mef`]'s chord surgery,
+    /// [`Body::kef`]'s unsplice) take it at their own sites, over the
+    /// run their plan phase holds.
     ///
-    /// **What it drops is what the validator would read.** The rows
-    /// removed are exactly the rows the face's own walk attributes to
-    /// this loop — both walks are
-    /// [`crate::pcurves::loop_rows`], the one per-loop rows walk — so
-    /// the door and [`crate::pcurves::validate_pcurves`] never
-    /// disagree about which rows a face has. A row on a half-edge that
-    /// walk does not reach is reachable from no face at all: the
-    /// module docs' dead-key case, which no door disposes of.
-    ///
-    /// Infallible, so it sits in a door's mutation phase: a loop whose
-    /// boundary is not a cycle has no half-edge to carry a row, and a
-    /// cycle that does not walk is tier-1 corruption the body arrived
-    /// with and the validator reports.
+    /// **What it drops is what the validator would read.** `halves` is
+    /// the plan's [`Body::whole_cycle`]: the one per-loop rows walk
+    /// ([`crate::pcurves::loop_rows`]) that
+    /// [`crate::pcurves::validate_pcurves`] reads the face with, proven
+    /// in the plan to be every half-edge that claims the loop and none
+    /// that does not. The drop walks nothing, so it is infallible and
+    /// sits in the door's mutation phase.
     pub(crate) fn drop_rows_on_chart_change(
         &mut self,
-        r#loop: LoopKey,
+        halves: Vec<HalfEdgeKey>,
         from: SurfaceKey,
         to: SurfaceKey,
     ) {
         if !self.same_chart(from, to) {
-            self.drop_loop_rows(r#loop);
+            self.drop_rows(halves);
         }
-    }
-
-    /// Drops every stored row of `r#loop`, deriving nothing: the walk
-    /// [`Body::drop_rows_on_chart_change`] runs once the chart has
-    /// changed, for a door that decided that in its plan phase
-    /// ([`Body::mfkrh`]).
-    pub(crate) fn drop_loop_rows(&mut self, r#loop: LoopKey) {
-        let crate::pcurves::LoopRows::Cycle(cycle) = crate::pcurves::loop_rows(self, r#loop) else {
-            return;
-        };
-        self.drop_rows(cycle);
     }
 
     /// **The site mint of a door that moves a loop or run onto a
@@ -1493,9 +1486,11 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// [`Body::drop_rows_on_chart_change`] for a whole FACE: the same
-    /// answer where the chart moves under every row at once rather
-    /// than the rows moving to another chart.
+    /// The rows a face re-charted in place drops: every half-edge of
+    /// every loop of `face`, outer then rings, each loop proven whole
+    /// ([`Body::whole_cycle`]). [`Body::drop_rows_on_chart_change`]'s
+    /// answer for a whole FACE, taken in the setter's plan phase and
+    /// handed to [`Body::drop_rows`] in its mutation phase.
     ///
     /// A surface setter re-charts a face in place — no loop moves, no
     /// key changes, and every row the face stores is suddenly a curve
@@ -1509,32 +1504,32 @@ impl<T: Decide> Body<T> {
     /// arrives from a face of its own; a face re-charted in place has
     /// ONE pair of keys for all of its rows, and its setter compares
     /// them where both still resolve — before any orphan sweep can
-    /// take the old key out of the arena. So this door takes no keys
-    /// and reads no surface: it is the face's walk handed to
-    /// [`Body::drop_rows`], and the sentence that decided it lives
-    /// with the two keys.
+    /// take the old key out of the arena. So this reads no surface.
     ///
-    /// The face's rows are its loops' rows — the outer loop and every
-    /// ring — and the walk that says which those are is
-    /// [`crate::pcurves::stored_rows`], the walk
+    /// The face's rows are its loops' rows, and each loop's walk is
+    /// [`crate::pcurves::loop_rows`], the walk
     /// [`crate::pcurves::validate_pcurves`] reads the same face with.
     /// One walk is what makes "the rows the door removed" and "the rows
     /// the validator would have read" the same set by construction
-    /// rather than by agreement.
+    /// rather than by agreement; the whole proof is what makes it every
+    /// row the face holds, so none is left stated in the chart it left.
     ///
-    /// Infallible on the same terms as the loop door: a loop whose
-    /// boundary is not a cycle has no half-edge to carry a row, and a
-    /// cycle that does not walk is tier-1 corruption the body arrived
-    /// with and the validator reports.
-    pub(crate) fn drop_face_rows(&mut self, face: FaceKey) {
-        let Some(face_data) = self.get_face(face) else {
-            unreachable!(
-                "drop_face_rows: `face` is the caller's own resolved face, and a mutation \
-                 phase does not kill it"
-            )
-        };
-        let loops = crate::pcurves::stored_rows(self, face_data).loops;
-        self.drop_rows(loops.into_iter().filter_map(|(_, cycle)| cycle).flatten());
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] where the face or one of its loops
+    /// does not resolve; [`EulerOpError::LoopCycleBroken`] naming the
+    /// first loop whose walk does not close, strays out of it, or
+    /// misses a half-edge that claims it.
+    pub(crate) fn face_cycles(&self, face: FaceKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
+        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Face(face),
+        })?;
+        let mut halves = Vec::new();
+        for r#loop in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+            require_key(&self.loops, r#loop, EntityId::Loop)?;
+            halves.extend(self.whole_cycle(r#loop)?);
+        }
+        Ok(halves)
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

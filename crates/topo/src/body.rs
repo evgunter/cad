@@ -107,8 +107,9 @@ pub(crate) enum Walk {
     /// walk order, starting with the start itself.
     Closed(Vec<HalfEdgeKey>),
     /// A link failed to resolve mid-walk (stale key, or a mate that
-    /// does not exist), or an orbit walk reached a half-edge that does
-    /// not start at its first member's vertex.
+    /// does not exist), an orbit walk reached a half-edge that does
+    /// not start at its first member's vertex, or a claimed loop walk
+    /// ([`Body::loop_cycle_of`]) one that does not claim its loop.
     Broken,
     /// Every link resolved but the walk did not return to its start
     /// within the arena-length bound.
@@ -1436,6 +1437,38 @@ impl<T: Real> Body<T> {
             Walk::Closed(members) => Some(members),
             Walk::Broken | Walk::Overrun => None,
         }
+    }
+
+    /// [`Body::loop_cycle`] proven to stay in `r#loop`: `None` also
+    /// where a member, `he` included, does not claim `r#loop`
+    /// ([`Body::claims`]), so a torn `next` that strays into another
+    /// loop does not hand that loop's half-edges to a reader of this
+    /// one. A `Some` can still close short of a member that claims the
+    /// loop; [`Body::require_run_of`]'s `Whole` proof is the one that
+    /// sees that.
+    pub(crate) fn loop_cycle_of(
+        &self,
+        he: HalfEdgeKey,
+        r#loop: LoopKey,
+    ) -> Option<Vec<HalfEdgeKey>> {
+        if !self.claims(he, r#loop) {
+            return None;
+        }
+        let walk = self.bounded_walk(he, |body, member| {
+            let next = body.half_edges.get(member)?.next;
+            body.claims(next, r#loop).then_some(next)
+        });
+        match walk {
+            Walk::Closed(members) => Some(members),
+            Walk::Broken | Walk::Overrun => None,
+        }
+    }
+
+    /// Whether `he` resolves and its `parent_loop` is `r#loop`.
+    pub(crate) fn claims(&self, he: HalfEdgeKey, r#loop: LoopKey) -> bool {
+        self.half_edges
+            .get(he)
+            .is_some_and(|data| data.parent_loop == r#loop)
     }
 
     /// The orbit of half-edges starting at `he`'s start vertex, walked

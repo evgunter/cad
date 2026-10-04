@@ -700,7 +700,7 @@ fn kemr_splices_twice_on_the_ring_bridge_once_on_a_strut_and_never_on_a_closed_f
 /// the shape a slotmap key laundered across arenas actually takes).
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(debug_assertions, allow(dead_code))] // a dev build plants `ANCHOR_TEARS` only
-enum Tear {
+pub(crate) enum Tear {
     NextDangling,
     PrevDangling,
     NextForeign,
@@ -745,7 +745,12 @@ const TEARS: [Tear; 9] = [
     Tear::EmanatingDangling,
 ];
 
-fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead: HalfEdgeKey) {
+pub(crate) fn plant(
+    body: &mut Body<f64>,
+    tear: Tear,
+    rng: &mut test_utils::fuzz::Rng,
+    dead: HalfEdgeKey,
+) {
     use crate::entity::{EdgeKey, LoopKey, VertexKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
@@ -986,14 +991,14 @@ const CALLS: &str = "operator calls";
 ///
 /// Untorn, they are also the valid bodies the kill anchors' over-refusal
 /// row sweeps ([`valid_fixtures_never_refuse_a_kill_anchor`]).
-const FIXTURES: [(&str, BuildFixture); 3] = [
+pub(crate) const FIXTURES: [(&str, BuildFixture); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
     ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
 ];
 
 /// How a [`FIXTURES`] entry builds its body.
-type BuildFixture = fn(Tol) -> Body<f64>;
+pub(crate) type BuildFixture = fn(Tol) -> Body<f64>;
 
 /// A segment and a circle, the bodies whose kills empty a loop, each
 /// beside a lone vertex: another loop's `Empty` vertex, for a kill's
