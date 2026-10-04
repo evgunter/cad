@@ -1434,7 +1434,12 @@ impl<T: Decide> Body<T> {
         if moved.is_empty() || stand {
             return Ok(Vec::new());
         }
-        self.plan_site_mint_of([Ok(rows_from)], |body, _| Ok(vec![site(body)?]), None, tol)
+        self.plan_site_mint_of(
+            [Ok(rows_from)],
+            |body, _| Ok(vec![site(body)?]),
+            crate::pcurves::SiteCarriers::Existing,
+            tol,
+        )
     }
 
     /// `face` as a door leaves it that moves the loop `halves` walk onto
