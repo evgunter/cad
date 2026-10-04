@@ -66,15 +66,11 @@ body now panics naming the record (D2 row 4). `StaleKey`,
 
 - A dangling `prev` panics in `live::linked` / `live::proven`
   (`crates/topo/src/live.rs`), naming the holder, its link and the key.
-- A dangling `next` panics at the walk. `Walk::closed`
-  (`crates/topo/src/body.rs`) names the hop that broke (`Walk::Broken
-  { at }`); `movefac`, `merge_faces::outermost_survivor` and the
-  re-chart door's walk (`attach.rs`, through `site_cycle_from`) and
-  `mef`'s plan read through it or through `site_cycle_from` /
-  `site_cycle` (`euler.rs`), which panic naming the loop and the first
-  half-edge. `kef` (`euler_kill.rs`, `loop_cycle_live(he)`), `kemr`
-  (`euler_ring.rs`, `loop_cycle_live(he1)`) and `mekr`'s
-  `ring_cycle` (`euler_ring.rs`) panic naming the loop and the walk's
-  first half-edge, not the hop: `loop_cycle_live` returns `Option`
-  and drops `at`. That is a message's precision, not a second answer
-  to one state, so it is not this row's question.
+- A dangling `next` panics at the walk, naming the hop that broke
+  (`Walk::closed`, `crates/topo/src/body.rs`: `Walk::Broken { at }`).
+  `mef`'s plan, `movefac` and `merge_faces::outermost_survivor` read
+  through it directly; `kef` (`euler_kill.rs`), `kemr` and `mekr`'s
+  `ring_cycle` (`euler_ring.rs`) through `Body::loop_cycle_live`
+  (`live.rs`), which closes through it; the re-chart door's walk
+  (`attach.rs`) through `site_cycle_from` (`euler.rs`), which panics
+  naming the loop and the walk's first half-edge.
