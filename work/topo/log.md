@@ -6718,3 +6718,9 @@ C6: closing S70 is correct (its Gates defer exactly to S14(b)). I applied the tr
 Merge on green. The reviewer is archived.
 - 09:30: probe lane `session_01TQ5SmsWUzFBBnFaP2pXr4c` dispatched. Read-only. It measures tier 3 right after the kill-kept mixed merges (`kef`/`kef_minting`) and wrapping-loop re-anchors (`kev`/`kemr`), the claim both re-anchor designers left unchecked. Its result goes into PR 4024 as evidence.
 - 09:47: **PR 4022 merged** at `23be564d1c` (CI green on `d65dcd3065`); unsubscribed. The stale-key row is unblocked (`blocked_on: []`, `status: dispatched`; `design` dropped, since Ev ruled). Torn-body conversion **unit 1 dispatched** (`session_013Lqym7SaJPyuPeoq8fkd3b`): `EulerOpError` with the `KeyFrom` lookup, `Argument(BadArgument)`, the torn variants made `unreachable!`, `reports_tier1_corruption` deleted, the drivers' `From` mapping, and the review_d18 sweeps and corrupt-input job inverted for these doors. Unit 2 (readback `DanglingRef::Geometry`, `PcurveMint::Corrupt`, shell, `ReplaceFaceError`, the boolean's `corrupt_at`, the graft's `JoinDesync` and `VoidInsertError::Corrupt`) follows.
+
+## 10:21 check-in (2026-10-04)
+
+- The first probe (`session_01TQ5SmsWUzFBBnFaP2pXr4c`) finished, but its report was only its final message, which this session has no tool to read. The session summary shows only fragments: "pole-skip margin bug (azimuth-free joint, zero lever)", "old-closure-joint re-anchor risk (432 faces at kef)", and "probe artifact (kemr wrapper)". I archived it and re-dispatched as `session_01J4BMEARWkSt9esBpr9dwhR`. The report is now pushed as `probe-report.md` on `analysis/probe/topo-kill-rows-tier3`, and the re-run must confirm or refute those three fragments. **Lesson:** a cloud lane that does not open a PR must deliver its report through a pushed file.
+- Unit 1 (`session_013Lqym7SaJPyuPeoq8fkd3b`) is running; no PR yet.
+- Nothing new on PR 3970 or PR 4024. No topo commits incoming on main.
