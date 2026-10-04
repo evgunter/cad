@@ -2,10 +2,13 @@
 id: volume-door-reads-a-tiny-valid-boolean-result-wrong
 kind: issue
 title: mass_properties misreads a valid boolean result's volume by ~1e-15 m³ on a 10 m-span body, so tier 3 calls a 6e-19 m³ sliver NegativeVolume
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
+pr: 3977
+branch: reach/check7-interval
+closed: 2026-10-04
 ---
 
 
@@ -55,3 +58,7 @@ unpadded `f64` sum. They could refuse only on what that re-derivation
 certifies, as the backstop does. That would cure the reading whatever
 the origin's distance; recentring the sum is still the cure for the
 measurement.
+
+## Closed
+
+PR 3977 (REACH). Check 7 now reads the volume sign off an interval re-derivation: every walk is recentred about the body's least corner, planar faces are taken as fans from their own loop points, and quadrature, NURBS and Approx faces are carried by −c. So a 6e-19 m³ sliver reads its sign certified, and inside-out bodies that main refused stay refused at every distance. The validator decides both signs. A sign it cannot certify refuses typed (`VolumeSignUnresolved`, `ShellRoleUndecided`), and the side at infinity reads through the scalar's lane.

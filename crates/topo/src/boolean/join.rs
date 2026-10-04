@@ -146,7 +146,6 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, Chords, CutOutcome, JoinLane, SegmentCurve, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::{RunClosing, TornLoop};
 use crate::null::NullFacePair;
@@ -2283,15 +2282,14 @@ fn ring_run_ccw<T: Decide>(
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|torn| match torn {
-            TornLoop::Dangling(what) => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
-            }
-            TornLoop::Unclaimed { he, edge } => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::UnclaimedHalfEdge {
-                    he,
-                    edge,
-                }))
-            }
+            TornLoop::Dangling(what) => unreachable!(
+                "the ring-run walk from {h1:?} meets {what:?}, which does not resolve: the run's \
+                 keys are links of a body every door keeps tier-1-valid"
+            ),
+            TornLoop::Unclaimed { he, edge } => unreachable!(
+                "the ring-run walk meets {he:?}, whose edge {edge:?} does not claim it: on a \
+                 tier-1-valid body the edge <-> half-edge bijection holds"
+            ),
             TornLoop::Unclosed => desync("ring-run arc did not close"),
         })?
         // The operand gate refuses a spiric or spline carrier and no
@@ -2462,7 +2460,7 @@ fn cut_pair<T: Decide>(
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
-fn resolve_roles_geometric<T: Decide>(
+fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other_pristine: &Body<T>,
     face: FaceKey,

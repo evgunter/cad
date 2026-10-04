@@ -106,14 +106,51 @@ pub(crate) enum Walk {
     /// The walk returned to its starting half-edge; the members are in
     /// walk order, starting with the start itself.
     Closed(Vec<HalfEdgeKey>),
-    /// A link failed to resolve mid-walk (stale key, or a mate that
-    /// does not exist), an orbit walk reached a half-edge that does
-    /// not start at its first member's vertex, or a claimed loop walk
-    /// ([`Body::loop_cycle_of`]) one that does not claim its loop.
-    Broken,
+    /// The step from `at` failed: a link did not resolve (stale key, or
+    /// a mate that does not exist), an orbit walk reached a half-edge
+    /// that does not start at its first member's vertex, or a claimed
+    /// loop walk ([`Body::loop_cycle_of`]) one that does not claim its
+    /// loop. `at` is the walk's first key where that key itself does
+    /// not resolve.
+    Broken {
+        /// The member whose step failed.
+        at: HalfEdgeKey,
+    },
     /// Every link resolved but the walk did not return to its start
     /// within the arena-length bound.
     Overrun,
+}
+
+/// The premise a walk that does not close breaks: every such panic
+/// names it ([`Walk::closed`]), and the rows that drive a torn body
+/// match on it.
+pub(crate) const WALKS_CLOSE: &str =
+    "every public door keeps the body tier-1-valid, where every such walk closes";
+
+/// The premise a loop walk that strays from its loop's claimants breaks.
+pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
+    "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
+
+impl Walk {
+    /// The members of a walk a tier-1-valid body closes: the `what` walk
+    /// from `first`, which every public door keeps closing (each `next`
+    /// and mate resolves, an orbit stays at its vertex, and a cycle is no
+    /// longer than its arena), so a walk that does not is a kernel bug
+    /// and panics naming the hop.
+    #[track_caller]
+    pub(crate) fn closed(self, what: &str, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+        match self {
+            Self::Closed(members) => members,
+            Self::Broken { at } => unreachable!(
+                "the {what} walk from {first:?} breaks at {at:?}: its step from there does not \
+                 resolve or leaves the walk, and {WALKS_CLOSE}"
+            ),
+            Self::Overrun => unreachable!(
+                "the {what} walk from {first:?} does not close within the half-edge arena's \
+                 length, and {WALKS_CLOSE}"
+            ),
+        }
+    }
 }
 
 /// A manifold B-rep body: topology arenas (scalar-free) plus geometry
@@ -1111,8 +1148,8 @@ impl<T: Real> Body<T> {
     ///   `offset_together::scope_of_moves` names the caller's own
     ///   stale face key on hop 1 and the body's incoherence on hop 2;
     ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
-    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
-    ///   `EntityId::Shell` on hop 2.
+    ///   a typed refusal for the caller's face on hop 1 and a panic
+    ///   for a face's shell that does not resolve on hop 2.
     ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
     /// - **A caller still using the intermediate shell key.**
@@ -1435,7 +1472,7 @@ impl<T: Real> Body<T> {
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1465,7 +1502,7 @@ impl<T: Real> Body<T> {
         });
         match walk {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1500,7 +1537,7 @@ impl<T: Real> Body<T> {
     pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.orbit_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1612,7 +1649,7 @@ impl<T: Real> Body<T> {
     /// `Closed` walk is proven to stay at `first`'s vertex.
     pub(crate) fn orbit_walk(&self, first: HalfEdgeKey) -> Walk {
         let Some(origin) = self.half_edges.get(first).map(|half_edge| half_edge.start) else {
-            return Walk::Broken;
+            return Walk::Broken { at: first };
         };
         self.bounded_walk(first, |body, he| {
             let next = body.orbit_step(he)?;
@@ -1675,17 +1712,17 @@ impl<T: Real> Body<T> {
         step: impl Fn(&Self, HalfEdgeKey) -> Option<HalfEdgeKey>,
     ) -> Walk {
         if !self.half_edges.contains_key(first) {
-            return Walk::Broken;
+            return Walk::Broken { at: first };
         }
         let cap = self.half_edges.len();
         let mut members = vec![first];
         let mut current = first;
         loop {
             let Some(next) = step(self, current) else {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             };
             if !self.half_edges.contains_key(next) {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             }
             if next == first {
                 return Walk::Closed(members);

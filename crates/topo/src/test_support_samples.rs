@@ -1065,6 +1065,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "SolidOuterShells".to_owned(),
         ValidationError::SolidOuterShells { solid, outer: 2 },
     ));
+    s.push((
+        "VolumeSignUnresolved".to_owned(),
+        ValidationError::VolumeSignUnresolved { solid },
+    ));
+    s.push((
+        "ShellRoleUndecided".to_owned(),
+        ValidationError::ShellRoleUndecided {
+            solid,
+            error: crate::ShellClassifyError::Straddles {
+                shell: ShellKey::default(),
+            },
+        },
+    ));
 
     // Tier 3′: the census.
     for contact in census_contacts() {

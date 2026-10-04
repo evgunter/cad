@@ -505,56 +505,6 @@ pub(crate) fn through_the_scalpel<R>(
     }
 }
 
-/// Asserts that `kill` refuses exactly `expected` and leaves `body`
-/// deep-unchanged. The kill runs inside a surgery scope: a debug build's
-/// tier-1 postcondition would otherwise answer an `Ok` on a torn body
-/// first, whatever the kill wrote. An `Ok` fails naming the anchor
-/// faults the kill wrote, those [`kill_anchor_faults`] reads after it and
-/// not before.
-pub(crate) fn assert_kill_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    kill: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    assert_torn_op_refuses(body, expected, "kill", kill);
-}
-
-/// [`assert_kill_refuses`] for a make operator, which a torn input can
-/// carry to the same anchor faults.
-pub(crate) fn assert_make_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    make: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    assert_torn_op_refuses(body, expected, "make", make);
-}
-
-fn assert_torn_op_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    what: &str,
-    op: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    let before = deep_snapshot(body);
-    let faults_before = kill_anchor_faults(body);
-    let mut scope = body.begin_surgery();
-    let got = op(&mut scope).map(|_| ());
-    drop(scope);
-    match got {
-        Ok(()) => {
-            let written: Vec<_> = kill_anchor_faults(body)
-                .into_iter()
-                .filter(|fault| !faults_before.contains(fault))
-                .collect();
-            panic!("expected {expected:?}; the {what} returned Ok, writing {written:?}");
-        }
-        Err(err) => {
-            assert_eq!(&err, expected);
-            assert_eq!(deep_snapshot(body), before, "body changed on Err");
-        }
-    }
-}
-
 /// A distinct-per-index placeholder coordinate (`u32` round trip keeps
 /// the cast lossless; fixture sizes are tiny).
 fn index_coord(i: usize) -> f64 {

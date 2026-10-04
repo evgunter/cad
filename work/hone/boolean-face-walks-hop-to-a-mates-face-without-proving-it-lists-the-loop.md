@@ -17,8 +17,8 @@ Three face walks in the boolean lane step from a member half-edge to
 its mate through `Body::mate`, read the mate's `parent_loop`, and take
 that loop's `face` as the face across the edge. None proves that the
 face lists the loop (its `outer` or one of its `rings`), nor that the
-mate's own `edge` is the member's (`Body::proven_mate`'s
-`NotSameEdge`):
+mate's own `edge` is the member's (`Body::proven_mate`'s same-edge
+assertion):
 
 - **`boolean::rest::patch_faces`** (`crates/topo/src/boolean/rest.rs`):
   the region flood (`assigned`, `region`, `queue`). A mate loop torn to
