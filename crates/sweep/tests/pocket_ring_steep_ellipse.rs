@@ -465,6 +465,9 @@ fn u_plate_battery() {
     }
 }
 
+/// One gating run: the op, the operand order and what it must do.
+type Run = (&'static str, &'static str, Want);
+
 /// What a gating run must do.
 #[derive(Clone, Copy, Debug)]
 enum Want {
@@ -545,7 +548,7 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
             ("I", "BA", w),
         ]
     };
-    let quads: Vec<(f64, [f64; 4], f64, Vec<(&str, &str, Want)>)> = vec![
+    let quads: Vec<(f64, [f64; 4], f64, Vec<Run>)> = vec![
         (
             6.0,
             [200.0, 230.0, 300.0, 120.0],

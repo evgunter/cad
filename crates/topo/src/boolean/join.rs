@@ -1084,6 +1084,10 @@ fn rotational_sense<T: Decide>(
     .map_err(malformed)
 }
 
+/// A germ's nearest partner so far, with the scan position it was met
+/// at and the match it names.
+type Met<T> = (usize, Reach<T>, (Slot, Slot));
+
 /// The nearer of the incumbent `best` and `cand` under `nearer`; the
 /// incumbent keeps a tie (deterministic scan order, D9).
 fn keep_nearer<T, M>(
@@ -1133,8 +1137,7 @@ fn find_match<T: Decide>(
     // Each germ's nearest partner along its own line, kept with the scan
     // position it was met at; then the nearest of those, met in scan
     // order, so an exact tie goes to the pair scanned first.
-    let mut own: std::collections::BTreeMap<Slot, (usize, Reach<T>, (Slot, Slot))> =
-        std::collections::BTreeMap::new();
+    let mut own: std::collections::BTreeMap<Slot, Met<T>> = std::collections::BTreeMap::new();
     let mut at = 0;
     for (cand, rec) in open.iter().enumerate() {
         for (entry, e) in open.iter().enumerate() {
