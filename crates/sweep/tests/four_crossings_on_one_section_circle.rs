@@ -34,22 +34,24 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
-use sweep::test_support::{brick, revolved_about_y};
-use topo::{Body, BooleanOp};
+use sweep::test_support::{brick, finished, revolved_about_y};
+use topo::{AtRestBody, BooleanOp};
 
 /// The unit ball at the origin, poles on world `y`, turned by `turn`
 /// radians about `axis` through its centre.
-fn ball(axis: Vec3<f64>, turn: f64) -> Body<f64> {
+fn ball(axis: Vec3<f64>, turn: f64) -> AtRestBody<f64> {
     let b = revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
         Tol::witness(),
     );
-    if turn == 0.0 {
-        return b;
-    }
-    let t = Affine3::rotation_about_axis(Point3::origin(), axis, turn);
-    topo::transform_rigid(&b, &t, Tol::witness()).expect("a rigid pose")
+    let b = if turn == 0.0 {
+        b
+    } else {
+        let t = Affine3::rotation_about_axis(Point3::origin(), axis, turn);
+        topo::transform_rigid(&b, &t, Tol::witness()).expect("a rigid pose")
+    };
+    finished("the ball", b, Tol::witness())
 }
 
 /// The unit ball's share of `x > c, z_a < z < z_b`.
@@ -69,7 +71,7 @@ fn slab_share(c: f64, za: f64, zb: f64) -> f64 {
     h / 3.0 * (seg(za) + seg(zb) + inner)
 }
 
-fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn run(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
     let out = match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -94,7 +96,11 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
             rho * deg_a.to_radians().sin(),
             rho * deg_b.to_radians().sin(),
         );
-        let slab: Body<f64> = brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness());
+        let slab = finished(
+            "the slab",
+            brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+            Tol::witness(),
+        );
         let slab_volume = (3.0 - c) * 6.0 * (zb - za);
         let shared = slab_share(c, za, zb);
         for (pole, b) in [
@@ -158,7 +164,11 @@ fn four_crossings_above_the_centre_stop_at_the_sphere_ring() {
         rho * 10f64.to_radians().sin(),
         rho * 70f64.to_radians().sin(),
     );
-    let slab: Body<f64> = brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness());
+    let slab = finished(
+        "the slab",
+        brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+        Tol::witness(),
+    );
     for (pole, b) in [
         ("y-poled", ball(Vec3::unit_z(), 0.0)),
         ("turned", ball(Vec3::new(0.4, 0.1, 0.9), 1.3)),

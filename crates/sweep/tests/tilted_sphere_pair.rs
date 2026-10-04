@@ -26,17 +26,18 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp};
+use sweep::test_support::{finished, revolved_about_y};
+use topo::{AtRestBody, Body, BooleanOp};
 
 /// A ball of radius `r` centred at `c`, poles on world `y`.
-fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
+fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let b = revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
         Tol::witness(),
     );
-    topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap()
+    let b = topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap();
+    finished("the ball", b, Tol::witness())
 }
 
 fn ball_volume(r: f64) -> f64 {
@@ -84,8 +85,8 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 
 fn run(
     op: BooleanOp,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
 ) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
@@ -96,7 +97,14 @@ fn run(
 
 /// `a ∪ b`, `a ∩ b`, `a ∖ b` and `b ∖ a`, each a body against its
 /// closed form from the operands' volumes and the shared volume.
-fn assert_every_op(pose: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, shared: f64) {
+fn assert_every_op(
+    pose: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    va: f64,
+    vb: f64,
+    shared: f64,
+) {
     for (label, op, x, y, expected) in [
         ("A ∪ B", BooleanOp::Union, a, b, va + vb - shared),
         ("A ∩ B", BooleanOp::Intersect, a, b, shared),
@@ -155,7 +163,7 @@ fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
 fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
     use geom_core::{Bounds, Interval};
-    let ball_iv = |c: Vec3<f64>| -> Body<Interval> {
+    let ball_iv = |c: Vec3<f64>| -> AtRestBody<Interval> {
         let b = sweep::test_support::revolved_about_y_at::<Interval>(
             vec![
                 (Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
@@ -165,7 +173,8 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             Tol::witness(),
         );
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
-        topo::transform_rigid(&b, &Affine3::translation(to), Tol::witness()).unwrap()
+        let b = topo::transform_rigid(&b, &Affine3::translation(to), Tol::witness()).unwrap();
+        finished("the ball", b, Tol::witness())
     };
     let (a, b) = (ball_iv(BASE), ball_iv(BASE + Vec3::new(1.4, 0.0, 0.0)));
     let lens = lens_volume(1.0, 1.0, 1.4);
@@ -265,7 +274,11 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
         ("the box mirrored", (-2.0, 0.0), cap / 2.0),
         ("a box face holding the whole section", (-2.0, 2.0), cap),
     ] {
-        let a = sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), z, Tol::witness());
+        let a = finished(
+            "the box",
+            sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), z, Tol::witness()),
+            Tol::witness(),
+        );
         assert_every_op(
             pose,
             &a,
@@ -289,7 +302,11 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
 /// it red; a change that moves the frontier does, either way.
 #[test]
 fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
-    let cube = sweep::test_support::cube::<f64>(1.0, Tol::witness());
+    let cube = finished(
+        "the cube",
+        sweep::test_support::cube::<f64>(1.0, Tol::witness()),
+        Tol::witness(),
+    );
     let pip = ball(0.3, Vec3::new(0.5, 0.5, 1.0));
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let e = run(op, &cube, &pip)

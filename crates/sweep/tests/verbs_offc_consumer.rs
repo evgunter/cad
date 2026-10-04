@@ -42,6 +42,7 @@ use sweep::ExtrudeSide;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{Body, FaceKey, FaceSurface};
 
 use crate::common;
@@ -193,7 +194,9 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
 #[test]
 fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // Control: two overlapping boxes union through the gate.
-    topo::union(&unit_box(), &moved_box(), Tol::witness())
+    let tol = Tol::witness();
+    let moved = finished("the moved box", moved_box(), tol);
+    topo::union(&finished("the unit box", unit_box(), tol), &moved, tol)
         .expect("two planar boxes union through the gate");
 
     // The same box with its top face carrying an approximating
@@ -201,8 +204,12 @@ fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // described as the offset of that patch pulled back by `d`.
     let (a, face) = box_with_approx_cap(0.05, MINT_TARGET);
 
-    let e = topo::union(&a, &moved_box(), Tol::witness())
-        .expect_err("an Approx operand is unsupported-kind for the boolean gate");
+    let e = topo::union(
+        &finished("the approx-capped box", a.clone(), tol),
+        &moved,
+        tol,
+    )
+    .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(
         matches!(
             e,

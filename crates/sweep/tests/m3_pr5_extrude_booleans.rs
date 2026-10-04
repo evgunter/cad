@@ -14,13 +14,14 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{
-    Body, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate,
+    AtRestBody, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate,
     validate_closed,
 };
 
-fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
+fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(x0, y0),
         Point2::new(x0 + side, y0),
@@ -34,7 +35,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(
+    let slab = extrude(
         &validated,
         Extrusion::Distance {
             depth: height,
@@ -43,7 +44,8 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the slab", slab, Tol::witness())
 }
 
 /// The two-brick trace on extrude-built operands: all three ops, tier
@@ -54,7 +56,7 @@ fn extruded_two_bricks_all_ops() {
     let b = slab(1.0, 1.0, 2.0, 1.0, 2.0); // [1,3]³
     for (op, volume) in [
         (
-            topo::intersect as fn(&Body<f64>, &Body<f64>, Tol) -> _,
+            topo::intersect as fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> _,
             1.0_f64,
         ),
         (union, 15.0),

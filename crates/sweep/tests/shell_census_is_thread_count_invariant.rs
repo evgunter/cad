@@ -13,6 +13,7 @@
 use crate::common::cavity::{brick, rod};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol};
+use sweep::test_support::finished;
 use topo::{Body, BooleanResult, BooleanResultKind};
 
 /// **A brick with a rod-shaped cavity strictly inside it**: one solid,
@@ -25,14 +26,22 @@ use topo::{Body, BooleanResult, BooleanResultKind};
 /// an extruded bulge's is too, and the boolean engine refuses a lofted
 /// operand outright (`CurvedEdgeUnsupported`).
 fn voided_rod() -> Body<f64> {
-    let a = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0));
-    let b = rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0);
+    let a = finished(
+        "the brick",
+        brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0)),
+        Tol::witness(),
+    );
+    let b = finished(
+        "the rod",
+        rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0),
+        Tol::witness(),
+    );
     let BooleanResult::Body(bb) = topo::subtract(&a, &b, Tol::witness()).expect("the cut runs")
     else {
         panic!("a rod strictly inside the brick leaves a voided body")
     };
     assert_eq!(bb.kind, BooleanResultKind::Voided);
-    bb.body
+    bb.body.into_body()
 }
 
 /// **`voided_rod`'s verdicts as a SORTED multiset.** A digest that

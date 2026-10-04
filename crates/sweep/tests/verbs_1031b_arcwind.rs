@@ -14,6 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, Surface};
 
@@ -225,7 +226,10 @@ fn the_re_posed_cup_is_the_same_cup() {
 #[test]
 fn the_boolean_on_the_cup_builds_and_balances() {
     let tol = Tol::witness();
-    let (cup, cut) = (teapot_cup(tol), cutter(tol));
+    let (cup, cut) = (
+        finished("the cup", teapot_cup(tol), tol),
+        finished("the cutter", cutter(tol), tol),
+    );
     let measure = |what: &str, out: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
         let out = out.unwrap_or_else(|e| panic!("cup {what}: refused {e:?}"));
         let topo::BooleanResult::Body(out) = out else {

@@ -36,9 +36,11 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError};
+use pncad::topo::{
+    AtRestBody, Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError,
+};
 
-use crate::booleans::try_subtract;
+use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
 use crate::{SceneBody, Stop, View};
 
@@ -177,9 +179,9 @@ fn glyph_t<S: Scalar>(tol: Tol) -> Glyph<S> {
 /// A glyph's tool: its outline on `plane`, which lies [`DEPTH`] inside
 /// the face being engraved, extruded 2·[`DEPTH`] along the plane's
 /// normal so the tool straddles that face.
-fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol) -> Body<S> {
+fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol) -> AtRestBody<S> {
     let profile = validated(plane, vec![outline], tol).expect("a glyph validates");
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(2.0 * DEPTH),
@@ -188,7 +190,8 @@ fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol)
         tol,
     )
     .expect("extrude a glyph")
-    .body
+    .body;
+    finished("a glyph's tool", body, tol)
 }
 
 /// The xy sketch plane at height `z`.
@@ -200,7 +203,7 @@ fn level<S: Scalar>(z: f64) -> SketchPlane<S> {
 pub struct Cut<S: Scalar> {
     /// The cylinder, then the cylinder after each glyph's pocket, in
     /// [`lettering`] order.
-    pub stages: Vec<Body<S>>,
+    pub stages: Vec<AtRestBody<S>>,
     /// The half on the section normal's side: it carries the
     /// engraved cap.
     pub above: Body<S>,
@@ -232,7 +235,7 @@ pub fn build<S: Scalar>(tol: Tol) -> Cut<S> {
     )
     .expect("extrude cylinder")
     .body;
-    let mut stages = vec![cylinder];
+    let mut stages = vec![finished("the cylinder", cylinder, tol)];
     for g in lettering::<S>(tol) {
         let last = stages.last().expect("the cylinder is the first stage");
         let pocketed = match try_subtract(last, &tool(level(H - DEPTH), g.outline, tol), tol) {
@@ -301,7 +304,7 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
 /// The pockets against their closed forms: what each subtraction
 /// removed from the closed-form cylinder volume is its glyph's area ×
 /// [`DEPTH`]. Returns the pockets' closed-form total and the narration.
-fn pocket_narration(stages: &[Body<f64>], tol: Tol) -> (f64, String) {
+fn pocket_narration(stages: &[AtRestBody<f64>], tol: Tol) -> (f64, String) {
     let volume = |b: &Body<f64>| {
         let m = pncad::topo::mass_properties(b, tol).expect("the engraved cylinder measures");
         assert_eq!(
@@ -358,7 +361,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // since REACH's conic rung (PR 3805); the C on the lower half's face
     // then stops at the containment probe
     // (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
-    let below = &cut.below;
+    let below = &finished("the lower half", cut.below.clone(), tol);
     let c = tool(section(), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",
@@ -386,7 +389,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // rung (PR 3805), and is held to the scene's own oracle: its pocket
     // removes the glyph's area × DEPTH from the half, inside the
     // certified bracket, at tier 3. The scene still engraves the cap.
-    let above = &cut.above;
+    let above = &finished("the upper half", cut.above.clone(), tol);
     let glyph = glyph_u::<f64>(tol);
     let removed = glyph.area * DEPTH;
     let u = tool(section(), glyph.outline, tol);
@@ -407,6 +410,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // either half's round cap after the cut — C, U, T, a square and a
     // disc, at depths 0.02, 0.05 and 0.2.
     let (bare_above, _) = tilted_cut(&cut.stages[0], tol);
+    let bare_above = finished("the bare upper half", bare_above, tol);
     let c_cap = tool(level(H - DEPTH), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",

@@ -18,6 +18,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
+/// `body` finished for the boolean doors (the panic names the
+/// validator's findings where it does not finish).
+fn fin(body: &topo::Body<f64>) -> topo::AtRestBody<f64> {
+    sweep::test_support::finished("an operand", body.clone(), tol())
+}
+
 /// The closed-form area of a bulge loop (CCW, positive bulge = an arc
 /// bulging out of the loop).
 fn bulge_area(v: &[((f64, f64), f64)]) -> f64 {
@@ -91,19 +97,27 @@ fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint
         };
         println!(
             "R2P {label} {order} union {} | {path}",
-            outcome(topo::union_with(x, y, &d, tol()), vx + vy, tol())
+            outcome(
+                topo::union_with(&fin(x), &fin(y), &d, tol()),
+                vx + vy,
+                tol()
+            )
         );
         println!(
             "R2P {label} {order} sub {}",
-            outcome(topo::subtract_with(x, y, &d, tol()), vx, tol())
+            outcome(topo::subtract_with(&fin(x), &fin(y), &d, tol()), vx, tol())
         );
         println!(
             "R2P {label} {order} rsub {}",
-            outcome(topo::subtract_with(y, x, &d2, tol()), vy, tol())
+            outcome(topo::subtract_with(&fin(y), &fin(x), &d2, tol()), vy, tol())
         );
         println!(
             "R2P {label} {order} meet {}",
-            outcome(topo::intersect_with(x, y, &d, tol()), 0.0, tol())
+            outcome(
+                topo::intersect_with(&fin(x), &fin(y), &d, tol()),
+                0.0,
+                tol()
+            )
         );
     }
 }
@@ -418,7 +432,7 @@ fn builds_paired(label: &str, x: &Body<f64>, y: &Body<f64>, want: f64) {
         ),
         "{label}: the join pairs every germ, got {join:?}"
     );
-    let line = outcome(topo::union_with(x, y, &d, tol()), want, tol());
+    let line = outcome(topo::union_with(&fin(x), &fin(y), &d, tol()), want, tol());
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
 
@@ -486,7 +500,7 @@ fn an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier() {
         let d = declared(x, y);
         assert!(d.is_ok(), "{order}: declarations: {d:?}");
         let d = d.unwrap_or_default();
-        let got = topo::union_with(x, y, &d, tol());
+        let got = topo::union_with(&fin(x), &fin(y), &d, tol());
         assert!(
             matches!(
                 got,

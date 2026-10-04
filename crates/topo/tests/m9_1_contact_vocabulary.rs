@@ -12,18 +12,27 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanCoincidence, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties, union_with,
+    AtRestBody, Body, BooleanCoincidence, BooleanError, BooleanResult, ContactClass,
+    FacePairDeclaration, mass_properties, union_with,
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
-fn stacked() -> (Body<f64>, Body<f64>) {
+fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let tol = Tol::witness();
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
-        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        finished(
+            "the lower brick",
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "the upper brick",
+            brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+            tol,
+        ),
     )
 }
 
@@ -134,8 +143,16 @@ fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     // Full-face stacked plates: the mate is a pure REST contact, so
     // the declared-REST lane runs and verifies every declared pair.
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "the lower plate",
+        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "the upper plate",
+        brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let cap_of = |body: &Body<f64>, z: f64| -> topo::FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {

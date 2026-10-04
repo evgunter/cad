@@ -7,24 +7,24 @@
 
 use crate::common;
 
-use common::{brick, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::{Decide, Tol};
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, subtract_with, union_with, validate_closed,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract_with, union_with,
+    validate_closed, validate_pseudomanifold,
 };
 
 type BoolOp<T> = fn(
-    &Body<T>,
-    &Body<T>,
+    &AtRestBody<T>,
+    &AtRestBody<T>,
     &topo::BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<T>, BooleanError>;
 
 fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     op: BoolOp<T>,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
     match op(
         a,
@@ -43,14 +43,21 @@ fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> Vec<(&'static str, BooleanBody<T>)> {
     let t = Tol::witness();
-    let slab = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), t);
+    let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, t), t);
+    let slab = block("slab", (0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let notched = run(
         subtract_with,
         &slab,
-        &brick::<T>((1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0), t),
+        &block("first notch", (1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0)),
     );
-    let cube = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), t);
-    let wedge = |z0| prism_z::<T>(&[(1.0, 1.0), (-1.0, 0.2), (0.2, -1.0)], z0, 2.0, t).body;
+    let cube = block("cube", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let wedge = |z0| {
+        finished(
+            "wedge",
+            prism_z::<T>(&[(1.0, 1.0), (-1.0, 0.2), (0.2, -1.0)], z0, 2.0, t).body,
+            t,
+        )
+    };
     let ell = prism_z::<T>(
         &[
             (0.0, 0.0),
@@ -65,6 +72,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
         t,
     )
     .body;
+    let ell = finished("ell", ell, t);
     vec![
         // The notch's reflex edge (1, 1, z) is cut by a second notch:
         // two quarters pinched along it.
@@ -73,7 +81,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
             run(
                 subtract_with,
                 &notched.body,
-                &brick::<T>((-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0), t),
+                &block("second notch", (-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0)),
             ),
         ),
         // The same over z in [0.5, 1] only.
@@ -82,7 +90,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
             run(
                 subtract_with,
                 &notched.body,
-                &brick::<T>((-1.0, 1.0), (1.0, 3.0), (0.5, 2.0), t),
+                &block("upper notch", (-1.0, 1.0), (1.0, 3.0), (0.5, 2.0)),
             ),
         ),
         // A wedge whose edge runs along the cube's convex edge (1, 1, z).
@@ -97,7 +105,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
             run(
                 union_with,
                 &ell,
-                &brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), t),
+                &block("kissing cube", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
             ),
         ),
     ]

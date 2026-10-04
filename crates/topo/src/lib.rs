@@ -296,6 +296,25 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// `body` finished for a door that takes finished bodies (the
+    /// boolean's): through the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
+    ///
+    /// # Panics
+    ///
+    /// Naming `what` and the validator's findings, where the gate
+    /// refuses it — a fixture that is not a finished body.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn finished<T: crate::AtRestPolicy>(
+        what: &str,
+        body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> crate::AtRestBody<T> {
+        T::gate_at_rest_kept(body, tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    }
+
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum GraftBridge {
@@ -376,6 +395,22 @@ pub mod test_support {
         crate::boolean::join_refusal(op, a, b, decls, tol)
     }
 
+    /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —
+    /// for a body below tier 3, which no boolean door takes, so the
+    /// gate's own reading of it stays measurable
+    /// (`boolean::maximal_faces_gate`).
+    ///
+    /// # Errors
+    ///
+    /// The gate's refusal.
+    pub fn maximal_faces_gate(
+        body: &Body<f64>,
+        operand: crate::Operand,
+        tol: geom_core::Tol,
+    ) -> Result<(), crate::BooleanError> {
+        crate::boolean::maximal_faces_gate(body, operand, tol)
+    }
+
     /// The join's section segments of `op`: the pair-record count and
     /// each segment's two germ sites (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
@@ -385,8 +420,8 @@ pub mod test_support {
     /// The reduction's refusal, or the matcher's.
     pub fn boolean_segment_sites(
         op: crate::BooleanOp,
-        a: &Body<f64>,
-        b: &Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         tol: geom_core::Tol,
     ) -> Result<Option<crate::boolean::SegmentSites>, crate::BooleanError> {
         crate::boolean::section_segment_sites(op, a, b, tol)

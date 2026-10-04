@@ -36,7 +36,8 @@ use crate::common::differential::{clip_convex, disc_clip_area, outcome};
 use crate::common::germ_pair::cyl;
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, ball, drum_lower};
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use topo::{Body, BooleanError, BooleanOp};
+use sweep::test_support::finished;
+use topo::{AtRestBody, BooleanError, BooleanOp};
 
 const R: f64 = 0.5;
 
@@ -244,9 +245,9 @@ fn poses() -> Vec<Pose> {
 }
 
 impl Pose {
-    fn operands(&self) -> (Body<f64>, Body<f64>) {
+    fn operands(&self) -> (AtRestBody<f64>, AtRestBody<f64>) {
         let a = match self.drum.cut {
-            None => cyl(R, self.drum.z1),
+            None => finished("the cylinder", cyl(R, self.drum.z1), Tol::witness()),
             Some(_) => drum_lower(),
         };
         let mut b = ball(self.big, self.c);
@@ -256,7 +257,8 @@ impl Pose {
                 Vec3::new(1.0, 2.0, 3.0).normalize(),
                 self.spin,
             );
-            b = topo::transform_rigid(&b, &turn, Tol::witness()).unwrap();
+            let turned = topo::transform_rigid(&b, &turn, Tol::witness()).unwrap();
+            b = finished("the turned ball", turned, Tol::witness());
         }
         (a, b)
     }
@@ -290,8 +292,8 @@ fn runs(va: f64, vb: f64, vi: f64) -> [(&'static str, BooleanOp, bool, f64); 6] 
 
 fn run(
     op: BooleanOp,
-    x: &Body<f64>,
-    y: &Body<f64>,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
 ) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let tol = Tol::witness();
     match op {

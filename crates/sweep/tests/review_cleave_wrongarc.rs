@@ -16,7 +16,7 @@
 use crate::common::bores::turned_cylinder;
 use crate::common::cavity::brick;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::{bored_cylinder, cylinder_of_arcs_at};
+use sweep::test_support::{bored_cylinder, cylinder_of_arcs_at, finished};
 use topo::Body;
 use topo::splitting::{SplitPart, SplitPlane, split};
 
@@ -347,9 +347,13 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
         ((-0.25, 0.25), (0.4, 2.0), (-1.0, 3.5)),
     ];
     for turn in [0.0, -2.0] {
-        let cyl = turned_cylinder(turn, h);
+        let cyl = finished("the turned cylinder", turned_cylinder(turn, h), tol());
         for (sx, sy, sz) in slabs {
-            let slab = brick(Point3::new(sx.0, sy.0, sz.0), Point3::new(sx.1, sy.1, sz.1));
+            let slab = finished(
+                "the slab",
+                brick(Point3::new(sx.0, sy.0, sz.0), Point3::new(sx.1, sy.1, sz.1)),
+                tol(),
+            );
             let body = match topo::subtract(&cyl, &slab, tol()) {
                 Ok(r) => match r.body() {
                     Some(b) => b.body.clone(),

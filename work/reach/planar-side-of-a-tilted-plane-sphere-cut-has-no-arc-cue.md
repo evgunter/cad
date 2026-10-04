@@ -80,3 +80,14 @@ quarter-cap closed forms (`c` the cap beyond `x = 0.5`), every op:
 Rows: `crates/sweep/tests/tilted_sphere_pair.rs`,
 `a_plane_tilted_against_the_balls_chart_builds_under_every_boolean` and
 `a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read`.
+
+## 2026-10-03 — a second reading, from PR 3987's dual review (REACH)
+
+The review's end-to-end probe (lane `reach-dual3987-r1`,
+`probes/review3987_e2e.rs` on `analysis/reach-dual/3987-r1`) cuts a box
+by a ball revolved about `y` (`ball_y`) under a 0.7 rad skew rotation:
+with the ball's polar axis tilted against the cut face, the op refuses
+`SectionNotPolar` (`crates/topo/src/chord_join.rs`), typed, as it does
+on main. With the pole normal to the cut face every op builds and
+matches the closed-form cap volume. Whether it is this item's site or a
+neighbour of it is not established.

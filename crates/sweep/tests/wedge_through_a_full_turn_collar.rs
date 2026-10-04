@@ -19,8 +19,8 @@
 use core::f64::consts::PI;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp};
+use sweep::test_support::{finished, revolved_about_y};
+use topo::{AtRestBody, BooleanOp};
 
 /// The rectangle `ρ ∈ [r0, r1]`, `y ∈ [y0, y1]` in the profile plane.
 fn rect(r0: f64, r1: f64, y0: f64, y1: f64) -> Vec<(Point2<f64>, f64)> {
@@ -32,7 +32,7 @@ fn rect(r0: f64, r1: f64, y0: f64, y1: f64) -> Vec<(Point2<f64>, f64)> {
     ]
 }
 
-fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn run(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let out = match op {
         BooleanOp::Union => topo::boolean::union(a, b, tol),
@@ -47,8 +47,9 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 /// The collar, and its volume.
-fn collar() -> (Body<f64>, f64) {
+fn collar() -> (AtRestBody<f64>, f64) {
     let collar = revolved_about_y(rect(0.5, 1.5, 1.0, 2.0), Revolution::Full, Tol::witness());
+    let collar = finished("the collar", collar, Tol::witness());
     (collar, PI * (1.5f64.powi(2) - 0.5f64.powi(2)))
 }
 
@@ -56,14 +57,18 @@ fn collar() -> (Body<f64>, f64) {
 /// collar under ∪, ∩, collar ∖ wedge and wedge ∖ collar, each held to
 /// tiers 2 and 3 and to the closed form.
 fn assert_wedge(
-    collar: &Body<f64>,
+    collar: &AtRestBody<f64>,
     vc: f64,
     (r0, r1): (f64, f64),
     (y0, y1): (f64, f64),
     angle: f64,
 ) {
     let tol = Tol::witness();
-    let wedge = revolved_about_y(rect(r0, r1, y0, y1), Revolution::Partial(angle), tol);
+    let wedge = finished(
+        "the wedge",
+        revolved_about_y(rect(r0, r1, y0, y1), Revolution::Partial(angle), tol),
+        tol,
+    );
     let vw = angle / 2.0 * (r1 * r1 - r0 * r0) * (y1 - y0);
     let (a, b) = (r0.max(0.5), r1.min(1.5));
     let (c, d) = (y0.max(1.0), y1.min(2.0));

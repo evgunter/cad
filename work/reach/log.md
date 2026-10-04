@@ -797,4 +797,12 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **The merge with JOIN (PR 4008).** After it, JOIN's chord ranking superseded the walk-order filter, so the filter pinned nothing. Ruling (a) removed it, with its rows. Main's `wall_region` and `ChordJoiner::fragments`, which only fed the retired window, went with it.
 - **Verification.** Two independent verifier sessions found it VERIFIED, the second on the final head. The head mints every chord main mints (26,499 in the suites, 10,830 in the tour). All four mutants are killed. Every ε red is red on main too: the four torn-body rows, the steep ellipse at 1e-6, and the arc loft at 1e-12.
 - **Also in this sync.** The two items filed for the steep-ellipse 1e-6 red, one by this lane and one by #3977's, are folded into the one on main.
+## 2026-10-04 — the boolean door takes finished bodies (PR 3987)
+
+- **The change.** The boolean doors take `&AtRestBody<T>`, and `ops::gate` is the one result gate (tier 3 via `T::gate_at_rest_kept`) at every site that builds a `BooleanBody`. A sub-tier-3 operand refuses where it is finished, naming its own entities. The editor finishes each operand once at the seat. The census half is parked on `boolean-door-runs-the-census-over-its-result`. The seat's second tier-3 run is filed as `the-evaluator-carries-kept-bodies`.
+- **Review.** The dual review froze at `b8eb4dd0eb` and both reviews came back NOT-MERGEABLE-AS-IS. Both raised the merge order ahead of #3977 (the contact9 row red at 1e-12). Only R2 raised that an inside-out operand at a dual ships its complement, a regression from main. That enters the tally.
+- **Fix pass 1.** At duals the door runs main's operand gate and `validate::inside_out_solids` (`reduce::gate_unverdicted_operand`) and main's structural result gate. The public `boolean_reduce` doors take `&AtRestBody`. **Delta review:** APPROVE-WITH-FIXES, 0/2/5, the dual MAJOR closed by execution.
+- **The last pass.** It restored the public `NonMaximalFaces`/`CoplanarNeighbours` rows and pinned the public reduction with compile-fail doctests and a dual row. Then it merged main after #3977.
+- **Verification.** An independent verifier session found the pass VERIFIED. Mutants MA, MC and MD go red on the rows stated. The workspace runs 11651/11651 at 1e-9, 1e-6 and 1e-12. Main's new door callers refuse nothing main built.
+- **Its notes.** The nightly dev-probe k-lint count is 104 on both trees against the current base, not 100; `k-lint-reads-the-boolean-doors-tier-3-at-probe` is updated.
 — (REACH orchestrator)

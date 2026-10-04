@@ -51,11 +51,17 @@ use sweep::ExtrudeSide;
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this family has no join arm")
 }
 
 /// Asserts that the refusal of the direct pose and of its re-posed twin

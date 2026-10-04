@@ -23,24 +23,22 @@ use pncad::authoring::{p3, polygon, validated};
 use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanResultKind};
+use pncad::topo::{AtRestBody, BooleanResultKind};
 
-use crate::booleans::{Verdict, check, describe, expect_seamed};
+use crate::booleans::{Verdict, check, describe, expect_seamed, finished};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::{OrthoFrame, Tol};
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
-/// a rectangle on a z-offset xy sketch plane extruded up.
-pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<S> {
+/// a rectangle on a z-offset xy sketch plane extruded up, finished as
+/// a boolean operand.
+pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<S> {
     let lp =
         polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol).expect("slab rectangle");
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![lp], tol).expect("slab profile validation");
-    // Raw extrude output IS boolean-consumable since PR 5's
-    // extrude-operand description remap (proven by the PR 5.5 review's
-    // die e2e).
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(z.1 - z.0),
@@ -49,7 +47,8 @@ pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) ->
         tol,
     )
     .expect("extrude slab")
-    .body
+    .body;
+    finished("slab", body, tol)
 }
 
 // ---------------------------------------------------------------
@@ -74,7 +73,7 @@ pub(crate) fn die<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) 
     let four = [(n, n), (n, p), (p, n), (p, p)].to_vec();
     let five = [(n, n), (n, p), (p, n), (p, p), (z, z)].to_vec();
     let six = [(n, n), (n, z), (n, p), (p, n), (p, z), (p, p)].to_vec();
-    type PipBox<S> = fn((f64, f64), (f64, f64), Tol) -> Body<S>;
+    type PipBox<S> = fn((f64, f64), (f64, f64), Tol) -> AtRestBody<S>;
     let px: PipBox<S> = |a, b, tol| slab(IN, a, b, tol);
     let nx: PipBox<S> = |a, b, tol| slab(OUT, a, b, tol);
     let py: PipBox<S> = |a, b, tol| slab(a, IN, b, tol);
@@ -130,7 +129,7 @@ const TOP_Z: (f64, f64) = (1.4, 1.7);
 const LEG_HALF: f64 = 0.13;
 
 /// A leg centered at `(cx, cy)`, floor to `z_top`.
-fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
+fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> AtRestBody<S> {
     slab(
         (cx - LEG_HALF, cx + LEG_HALF),
         (cy - LEG_HALF, cy + LEG_HALF),
@@ -157,7 +156,7 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
 /// refuses at the coincidence door — rung (b), value equality never
 /// classifies — and the narration says so.
 pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) {
-    let top: Body<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
+    let top: AtRestBody<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
 
     // Attempt 1: exact-coplanar touching, leg inset under the top.
@@ -275,8 +274,8 @@ pub fn voidbox_narration(tol: Tol) {
 /// narration stays in the f64-only wrapper above — the STEP writer is
 /// f64 by design).
 pub(crate) fn voidbox<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
-    let outer: Body<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), tol);
-    let inner: Body<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol);
+    let outer: AtRestBody<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), tol);
+    let inner: AtRestBody<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol);
     match check(crate::booleans::try_subtract(&outer, &inner, tol), 7.0, tol) {
         Verdict::Good(b, _) => {
             assert_eq!(b.kind, BooleanResultKind::Voided);
@@ -315,7 +314,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "die",
                 [0.88, 0.86, 0.80],
-                die_bb.body,
+                die_bb.body.into_body(),
                 die_bb.contacts,
             )],
         },
@@ -352,7 +351,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "table",
                 [0.62, 0.45, 0.28],
-                table_bb.body,
+                table_bb.body.into_body(),
                 table_bb.contacts,
             )],
         },

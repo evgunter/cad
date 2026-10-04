@@ -73,7 +73,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
-use sweep::test_support::cube;
+use sweep::test_support::{cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
 use test_utils::vacuity::Exposure;
@@ -121,29 +121,26 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
-    let out = boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .ok()?;
-    Some(out.body()?.body.clone())
+    realized_or_none(BooleanOp::Subtract, a, b)
 }
 
 fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+    realized_or_none(BooleanOp::Union, a, b)
+}
+
+/// `op` on the finished `a` and `b`, or `None` where it refuses or
+/// leaves nothing.
+fn realized_or_none(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
     let out = boolean_op_with(
-        BooleanOp::Union,
-        a,
-        b,
+        op,
+        &finished("operand A", a.clone(), Tol::witness()),
+        &finished("operand B", b.clone(), Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
     .ok()?;
-    Some(out.body()?.body.clone())
+    Some(out.body()?.body.clone().into_body())
 }
 
 /// The corpus: bodies whose provenance is deliberately varied —
