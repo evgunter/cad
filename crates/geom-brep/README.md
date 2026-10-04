@@ -86,8 +86,8 @@ side of the wall's domain within ε of the locus, by that side's
 certified reach (the instrument C3's `Side` regions read), with the
 rest of its boundary of one certified sign. That piece meets the slice
 through every knot two boxes share and the slices through both ends of
-the carrier, an end counting where the carrier's end lies within ε of
-the locus along its slice or one beside it, so the arc spans the
+the carrier, an end counting where a zero of the locus is certified within ε of
+the carrier's end, on its slice or on one beside it, so the arc spans the
 carrier (chart edges walked in runs of one sign or monotone, ℝ³ faces
 by Krawczyk). A
 rung whose chain is a graph but not one arc gives way to a narrower one.
