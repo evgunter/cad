@@ -1906,7 +1906,7 @@ pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> 
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
-/// lowest axis index, bisected at its midpoint.
+/// earliest-declared variable, bisected at its midpoint.
 ///
 /// # Errors
 ///
@@ -1993,7 +1993,7 @@ fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, Measure
 /// the fold instead of rounding to a bit-exact zero).
 fn tail(analyzed: &AnalyzedBox) -> Result<f64, MeasureUnavailable> {
     let mut out = 0.0;
-    for &name in analyzed.params().keys() {
+    for (name, _) in analyzed.in_order() {
         let t = match analyzed.axis_tail_mass(name) {
             Some(r) => r?,
             None => 0.0,
@@ -2048,7 +2048,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, box_.order()))),
         ..lane_opts()
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
@@ -2073,12 +2073,12 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 
-/// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in id
-/// order, every bit of the id and floats as exact bits.
+/// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in
+/// declaration order, every bit of the id and floats as exact bits.
 pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
-    for (name, axis) in b.axes() {
+    for (name, axis) in b.order().iter().filter_map(|n| Some((n, b.get(*n)?))) {
         let (lo, hi) = axis.span();
         let _ = write!(
             s,

@@ -74,16 +74,36 @@ pub mod source;
 pub mod tightness;
 pub mod vacuity;
 
-/// **A test's parameter id, from the text it names the parameter by**:
-/// the bytes of `name` folded by FNV-1a. A document mints its variables'
-/// ids; a test of the symbolic tier has no document, and naming its
-/// parameters `"x"` and `"y"` is what keeps the row readable. One name
-/// is one id, so two occurrences spelled alike are one symbol.
+/// **A test's parameter id, from the text it names the parameter by.**
+/// A document mints its variables' ids; a test of the symbolic tier has
+/// no document, and naming its parameters `"x"` and `"y"` is what keeps
+/// the row readable. One name is one id, so two occurrences spelled
+/// alike are one symbol.
+///
+/// The fold is the one `ParamSymbol::of(name)` used before symbols were
+/// keyed by a minted id (a 128-bit FNV over a tag word and the name's
+/// bytes, truncated), so every symbolic-tier row keeps the symbol ORDER
+/// it was measured under: that tier's reach depends on the order its
+/// symbols sort in, and a test fixture is no place to move it.
 #[must_use]
 pub fn symbol_id(name: &str) -> u64 {
-    name.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
-        (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
-    })
+    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
+    let word = |h: u128, w: u64| {
+        w.to_le_bytes()
+            .iter()
+            .fold(h, |h, &b| (h ^ u128::from(b)).wrapping_mul(PRIME))
+    };
+    let h = name
+        .bytes()
+        .fold(word(OFFSET, 0x5359_4d5f_5041_5241), |h, b| {
+            word(h, u64::from(b))
+        });
+    let h = if h == 0 { OFFSET } else { h };
+    // Truncation is the fold's definition: the low 64 bits.
+    #[allow(clippy::cast_possible_truncation)]
+    let low = h as u64;
+    low
 }
 
 /// Declares the source paths a randomized or otherwise expensive suite is

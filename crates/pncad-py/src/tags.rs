@@ -1974,6 +1974,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
         SnapshotError::VarUnnamed { .. } => "var_unnamed",
+        SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",

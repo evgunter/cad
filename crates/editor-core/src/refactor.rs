@@ -2707,15 +2707,20 @@ pub fn split(
     if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
-    // Declared in the PARENT's id order, so the part's ids follow the
-    // parent's variables rather than their names' spelling. The
-    // reference was validated against this table, so each variable
-    // exists; a miss would refuse at the insert below.
+    // Declared in the PARENT's declaration order, so the part lists its
+    // variables as the parent's author did rather than by their names'
+    // spelling. The reference was validated against this table, so each
+    // variable exists; a miss would refuse at the insert below.
     let carried: std::collections::BTreeSet<crate::var::VarId> = cut_refs
         .keys()
         .filter_map(|param| doc.var_named(param.as_str()))
         .collect();
-    for id in carried {
+    for id in doc
+        .var_order()
+        .iter()
+        .copied()
+        .filter(|id| carried.contains(id))
+    {
         let (Some(var), Some(name)) = (doc.var(id), doc.var_name(id)) else {
             continue;
         };
@@ -3341,8 +3346,12 @@ pub fn inline(
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
     // Parameters merge only when they already agree bit for bit; a
     // disagreeing shared name refuses (no silent pick).
-    for (id, name) in part.var_names() {
-        let Some(var) = part.var(*id) else { continue };
+    // In the PART's declaration order, so the host lists the part's
+    // variables as the part's author declared them.
+    for id in part.var_order() {
+        let (Some(var), Some(name)) = (part.var(*id), part.var_name(*id)) else {
+            continue;
+        };
         match doc.var_named(name.as_str()).and_then(|held| doc.var(held)) {
             Some(existing) if existing.bit_eq(var) => {}
             Some(_) => {

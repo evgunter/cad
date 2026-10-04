@@ -1485,8 +1485,9 @@ impl Doc {
     #[getter]
     fn params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
-        for (id, name) in self.inner.var_names() {
-            if let Some(param) = self.inner.free(*id) {
+        // In declaration order: the dict's own order is the document's.
+        for (id, param) in self.inner.free_vars() {
+            if let Some(name) = self.inner.var_name(id) {
                 out.set_item(ParamName(name.clone()), DocParam(param.clone()))?;
             }
         }

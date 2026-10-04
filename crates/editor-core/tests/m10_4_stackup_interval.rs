@@ -718,8 +718,8 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
             let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.param().id()).collect();
-            let mut want = vec![var(&doc, "depth"), var(&doc, "hole_r")];
-            want.sort_unstable();
+            // Declaration order: the plate declares `hole_r` first.
+            let want = vec![var(&doc, "hole_r"), var(&doc, "depth")];
             assert_eq!(named, want, "{blockers:?}");
             assert!(
                 blockers

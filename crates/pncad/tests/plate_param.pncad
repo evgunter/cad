@@ -616,6 +616,9 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
     "var_names": {
       "16300829493895992422": "hole_r"
     },
+    "var_order": [
+      16300829493895992422
+    ],
     "epsilon": 1e-9,
     "witnesses": {},
     "metadata": {},

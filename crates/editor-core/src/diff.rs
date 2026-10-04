@@ -24,9 +24,10 @@ pub struct DocDiff {
     /// Node-level changes in document order: `self`'s nodes as `self`
     /// orders them, then the added ones as `other` orders them.
     pub nodes: Vec<NodeChange>,
-    /// Variables added, removed, or whose definition changed,
-    /// ascending by id. A name is not a definition: a variable whose
-    /// name alone moved is not here (VR2).
+    /// Variables added, removed, or whose definition changed — `self`'s
+    /// as `self` declared them, then the added ones as `other` declared
+    /// them, as [`Self::nodes`] is ordered. A name is not a definition:
+    /// a variable whose name alone moved is not here (VR2).
     pub vars: Vec<VarId>,
     /// Whether the two insertion orders differ (reorder is not an
     /// edit in v1, but the diff reports it rather than assuming).
@@ -83,20 +84,24 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                 nodes.push(NodeChange::Added(id));
             }
         }
-        let mut vars: Vec<VarId> = self
-            .vars
+        let vars: Vec<VarId> = self
+            .var_order
             .iter()
-            .filter(|(id, var)| !other.vars.get(id).is_some_and(|theirs| theirs.bit_eq(var)))
-            .map(|(&id, _)| id)
+            .filter(|id| {
+                let ours = self.vars.get(id);
+                !other
+                    .vars
+                    .get(id)
+                    .is_some_and(|theirs| ours.is_some_and(|var| theirs.bit_eq(var)))
+            })
             .chain(
                 other
-                    .vars
-                    .keys()
-                    .filter(|id| !self.vars.contains_key(id))
-                    .copied(),
+                    .var_order
+                    .iter()
+                    .filter(|id| !self.vars.contains_key(id)),
             )
+            .copied()
             .collect();
-        vars.sort_unstable();
         let witness_moved = |id: &RecipeNodeId| self.witnesses.get(id) != other.witnesses.get(id);
         let label_moved = |id: &RecipeNodeId| self.labels.get(id) != other.labels.get(id);
         let mut witnesses: Vec<RecipeNodeId> = Vec::new();

@@ -497,6 +497,15 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             return Some(SnapshotError::VarUnnamed { var: id });
         }
     }
+    // The declaration order is a permutation of the table: every live
+    // variable once, and nothing else.
+    let listed: std::collections::BTreeSet<VarId> = snapshot.var_order.iter().copied().collect();
+    if listed.len() != snapshot.var_order.len()
+        || listed.len() != snapshot.vars.len()
+        || !snapshot.vars.keys().all(|id| listed.contains(id))
+    {
+        return Some(SnapshotError::VarOrderMismatch);
+    }
     let mut held: std::collections::BTreeMap<&VarName, VarId> = std::collections::BTreeMap::new();
     for (&id, name) in &snapshot.var_names {
         if !snapshot.vars.contains_key(&id) {
@@ -925,6 +934,9 @@ pub enum SnapshotError {
         /// The variable.
         var: SpokenVar,
     },
+    /// The variables' declaration order is not a permutation of the
+    /// variable table (a missing, repeated or dead id).
+    VarOrderMismatch,
     /// A variable with no name. Readers read names in this build and no
     /// door can clear one, so nothing could read it.
     VarUnnamed {
@@ -1286,6 +1298,9 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} is not in the document's mint log — the document never \
                  minted it"
+            ),
+            Self::VarOrderMismatch => f.write_str(
+                "the variables' declaration order does not list every variable exactly once",
             ),
             Self::VarUnnamed { var } => write!(
                 f,
@@ -1912,6 +1927,7 @@ mod tests {
             VarKind,
             VarNotMinted,
             VarUnnamed,
+            VarOrderMismatch,
             NameOnMissingVar,
             VarNameTwice,
             SlotDimension,
@@ -1947,6 +1963,7 @@ mod tests {
             SnapshotError::VarKind { .. }
             | SnapshotError::VarNotMinted { .. }
             | SnapshotError::VarUnnamed { .. }
+            | SnapshotError::VarOrderMismatch
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
@@ -2062,6 +2079,7 @@ mod tests {
             SnapshotError::VarUnnamed {
                 var: crate::VarId(7),
             },
+            SnapshotError::VarOrderMismatch,
             SnapshotError::NameOnMissingVar {
                 var: crate::VarId(7),
                 name: VarName::from_static("w"),

@@ -646,13 +646,13 @@ impl AnalyzedBox {
 
 #[pymethods]
 impl AnalyzedBox {
-    /// Every axis name, in the box's own order.
+    /// Every axis name, in the box's own order — the document's
+    /// declaration order.
     #[getter]
     fn names(&self) -> Vec<super::doc::ParamName> {
         self.0
-            .params()
-            .keys()
-            .filter_map(|&id| self.name_of(id))
+            .in_order()
+            .filter_map(|(id, _)| self.name_of(id))
             .collect()
     }
 

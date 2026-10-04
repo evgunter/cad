@@ -316,44 +316,6 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// **The order to declare `n` variables of one kind in, so that their
-/// ids sort as their intended order does**: entry `i` is the index (in
-/// that intended order) of the variable the `i`-th declare should
-/// state.
-///
-/// A declare mints its id from the document's chain and the variable's
-/// kind alone, so the ids `n` declares of one kind will draw here are
-/// fixed by `doc` before any of them is stated — read off a probe copy.
-/// The analysis keys its axes, its Monte-Carlo draws and its split
-/// ties by id, so a cell measured under one order of its variables
-/// keeps that order only if their ids keep it.
-pub(crate) fn id_ordered(doc: &ProfileDoc, n: usize, dim: Dimension, tol: Tol) -> Vec<usize> {
-    let mut probe = doc.clone();
-    let ids: Vec<_> = (0..n)
-        .map(|i| {
-            let name = VarName::new(format!("order_probe_{i}")).expect("one identifier");
-            let applied = apply(
-                &probe,
-                &DocEdit::DeclareVar {
-                    name,
-                    def: pncad::document::VarDef::Free(FreeVar::continuous(dim, 0.0)),
-                },
-                tol,
-                &RefusingReach,
-            )
-            .expect("the probe declares");
-            probe = applied.doc;
-            applied
-                .record
-                .minted_var
-                .expect("a declare mints a variable")
-        })
-        .collect();
-    ids.iter()
-        .map(|id| ids.iter().filter(|other| *other < id).count())
-        .collect()
-}
-
 fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
@@ -413,14 +375,10 @@ pub fn gallery_document(tol: Tol) -> ProfileDoc {
 pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     assert!(links >= 1, "a chain has at least one link");
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-chain"), tol);
-    // Declared so the joints' ids sort in their names' order
-    // ([`id_ordered`]): the analysis keys its axes, its draws and its
-    // split ties by id, and the cells below were measured with joint 1
-    // first.
-    for k in id_ordered(&doc, links, Dimension::Angle, tol) {
+    for k in 1..=links {
         declare(
             &mut doc,
-            joint_name(k + 1),
+            joint_name(k),
             0.0,
             Distribution::Normal { sigma: joint_sigma },
             tol,

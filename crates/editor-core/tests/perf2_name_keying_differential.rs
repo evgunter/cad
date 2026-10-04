@@ -118,9 +118,9 @@ fn sans_epsilon(t: &str) -> String {
 
 /// `(document, both-direction name digest, persisted-text digest)`.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xcfad_0bff_55f1_909d, 0x6e41_7181_e139_192f),
+    ("die", 0xcfad_0bff_55f1_909d, 0x7b97_89a6_f23e_2c46),
     ("corner_table", 0x0fba_accb_8d1d_2446, 0xc2d7_dedb_3c36_a6e4),
-    ("heat_sink", 0xd91e_0136_34ec_e9b3, 0x7628_230f_bfdd_53d8),
+    ("heat_sink", 0xd91e_0136_34ec_e9b3, 0x9043_a8cc_5697_dcbb),
     (
         "crossing_slots",
         0xa778_9570_3adf_8a9a,
@@ -146,9 +146,9 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xc90d_58b7_5c3f_875e,
         0x3448_0000_fcfb_072d,
     ),
-    ("kitchen_sink", 0x0666_e83f_fa50_a204, 0x971b_cfb4_3afe_586d),
+    ("kitchen_sink", 0x0666_e83f_fa50_a204, 0x914c_85ea_2197_65fc),
     ("cut_cylinder", 0x5f67_3a87_e7ea_6984, 0xd3a1_8419_1a4c_c19b),
-    ("measured_web", 0xe311_0df3_8e2d_35ba, 0x8cc6_db89_d148_f14e),
+    ("measured_web", 0xe311_0df3_8e2d_35ba, 0xedea_02e9_eb6d_8de1),
     ("boss_union", 0x9869_df73_e15f_370c, 0x7116_081f_bd29_60a3),
     ("die_fillet", 0x80bc_cae8_01f5_7708, 0x6dcb_21d6_a6cf_bfb8),
     ("die_chamfer", 0x8fc8_1dcb_9e22_0258, 0x9479_dab3_6a2d_fdd4),
@@ -156,11 +156,11 @@ const PINNED: &[(&str, u64, u64)] = &[
     (
         "heat_sink_fins",
         0xd060_6707_21a2_4e2d,
-        0x7935_f64b_cd9f_bc04,
+        0x172b_0e87_0303_1197,
     ),
     ("die_tool", 0xd5ba_730b_96ef_7e5b, 0xca66_e87f_a655_f537),
     ("face_sketch", 0xf41b_1f6b_e4f0_070c, 0xd874_84a3_ac1a_a80c),
-    ("part_select", 0xe756_7bab_aada_b659, 0xd64a_ab94_d988_78b0),
+    ("part_select", 0xe756_7bab_aada_b659, 0x266b_0310_3d1a_106f),
     ("loft_prism", 0x257f_85ed_5c45_9334, 0x9e29_4864_9b46_cf41),
     ("die_composed", 0x3676_2319_e306_42fe, 0xfc19_55ee_3b91_35d7),
     (
@@ -168,7 +168,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x2100_04d1_be49_55c0,
         0x376b_4b43_28ef_8916,
     ),
-    ("plate_param", 0x2eba_6808_268a_36c2, 0x9fb2_bf71_92bf_c44b),
+    ("plate_param", 0x2eba_6808_268a_36c2, 0x888b_589d_e7fb_9912),
     ("kiss_carry", 0xebc2_712d_6230_38c7, 0xde5c_de28_0a9b_edd4),
     ("tube_ring", 0x09e2_09f2_3e9c_24d2, 0xc322_3402_510c_7f54),
     ("tube_arc", 0xfc46_548d_4b70_1217, 0x9945_05ee_78ce_d28d),

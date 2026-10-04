@@ -511,9 +511,10 @@ pub struct Violation {
 /// on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamWitness {
-    /// Per parameter, the OFFSET from the document's nominal (the
-    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]).
-    pub offsets: BTreeMap<VarId, f64>,
+    /// Per variable, the OFFSET from the document's nominal (the
+    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]),
+    /// in the document's declaration order.
+    pub offsets: Vec<(VarId, f64)>,
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -2155,7 +2156,7 @@ fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
 /// else about the query changes — which is the whole content of "an
 /// accelerator only".
 fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
-    ParamBox::from_axes(
+    ParamBox::from_axes_in(
         box_.axes()
             .iter()
             .map(|(name, axis)| {
@@ -2172,6 +2173,7 @@ fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
                 (*name, collapsed.unwrap_or(*axis))
             })
             .collect(),
+        box_.order(),
     )
 }
 
@@ -3204,9 +3206,9 @@ fn split(pair: CellPair, x: &Window, y: &Window) -> Option<(CellPair, CellPair)>
 fn witness_point(leaf: &ParamBox) -> ParamWitness {
     ParamWitness {
         offsets: leaf
-            .axes()
+            .order()
             .iter()
-            .map(|(&name, axis)| (name, axis.midpoint()))
+            .filter_map(|&name| Some((name, leaf.get(name)?.midpoint())))
             .collect(),
     }
 }
@@ -3256,7 +3258,7 @@ fn verify_witness(
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
         resolver: resolver.cloned(),
         ..lane_opts()
     };

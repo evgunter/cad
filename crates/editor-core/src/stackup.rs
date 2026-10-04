@@ -523,7 +523,7 @@ fn driver(
         pair_record(doc, handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
     }
 
-    // The variables, in id order (deterministic in both schedules).
+    // The variables, in declaration order (deterministic in both schedules).
     let names: Vec<VarId> = continuous_params(doc).collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
@@ -1067,7 +1067,7 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 // ------------------------------------------------- the verdict's tie
 
-/// The document's continuous free variables, in id order — the entry
+/// The document's continuous free variables, in declaration order — the entry
 /// set of every driver call.
 fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
     doc.free_vars()
@@ -1980,13 +1980,14 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes(
+    let nominal_box = ParamBox::from_axes_in(
         verdict
             .root()
             .axes()
             .keys()
             .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
+        verdict.root().order(),
     );
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the

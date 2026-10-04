@@ -4823,6 +4823,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
+            new.var_order.push(id);
             EditRecord {
                 minted: None,
                 minted_var: Some(id),

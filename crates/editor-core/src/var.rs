@@ -72,7 +72,6 @@ impl core::fmt::Display for VarKind {
 /// **A variable's definition** (VR3). A free variable is a value, its
 /// written unit and optionally a distribution.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum VarDef {
     /// A free variable.
     Free(FreeVar),

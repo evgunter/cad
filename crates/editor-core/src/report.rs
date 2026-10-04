@@ -66,7 +66,7 @@ pub enum MassBasis {
     /// report that called them "priced" would be claiming a shape
     /// nobody stated.
     Forced {
-        /// Every band-carrying variable, in id order — by identity, so
+        /// Every band-carrying variable, in declaration order — by identity, so
         /// a rename moves no basis ([`Self::sentence`] speaks them).
         by: Vec<VarId>,
     },
@@ -154,12 +154,23 @@ pub struct MassBudget {
 
 impl PartialEq for MassBudget {
     fn eq(&self, other: &Self) -> bool {
-        self.certified == other.certified
-            && self.unresolved == other.unresolved
-            && self.refused == other.refused
-            && self.tail == other.tail
-            && self.containment == other.containment
-            && self.basis == other.basis
+        // Exhaustive, so a field added to the budget must say whether it
+        // is identity; the spoken forms are not (a rename moves no mass).
+        let Self {
+            certified,
+            unresolved,
+            refused,
+            tail,
+            containment,
+            basis,
+            spoken: _,
+        } = self;
+        *certified == other.certified
+            && *unresolved == other.unresolved
+            && *refused == other.refused
+            && *tail == other.tail
+            && *containment == other.containment
+            && *basis == other.basis
     }
 }
 

@@ -449,7 +449,7 @@ pub fn monte_carlo(
         // door a point-scalar replay over a parameter value has, and
         // the MC lane uses it rather than a second binding path.
         let opts = EvalOptions {
-            param_box: Some(Arc::new(ParamBox::from_axes(axes))),
+            param_box: Some(Arc::new(ParamBox::from_axes_in(axes, analyzed.order()))),
             ..lane_opts()
         };
         let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

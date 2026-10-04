@@ -99,6 +99,12 @@ pub fn wire_undeclare(wire: &mut serde_json::Value, name: &str) {
         .as_object_mut()
         .expect("the variables are a map");
     assert!(vars.remove(&id).is_some(), "and the variable");
+    let order = wire["snapshot"]["var_order"]
+        .as_array_mut()
+        .expect("the declaration order is a list");
+    let before = order.len();
+    order.retain(|listed| *listed != serde_json::json!(id.parse::<u64>().expect("an id key")));
+    assert_eq!(order.len(), before - 1, "and its place in the order");
 }
 
 /// The continuous variable `name` retyped in a saved snapshot, from

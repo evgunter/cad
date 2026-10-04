@@ -361,9 +361,12 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
-    let mut both = vec![depth(&theirs), depth(&mine)];
-    both.sort_unstable();
-    assert_eq!(d.vars, both, "one variable under two minted ids");
+    // `self`'s as `self` declared them, then `other`'s added ones.
+    assert_eq!(
+        d.vars,
+        vec![depth(&theirs), depth(&mine)],
+        "one variable under two minted ids"
+    );
     assert_eq!(
         theirs.doc.var_scope(),
         mine.doc.var_scope(),

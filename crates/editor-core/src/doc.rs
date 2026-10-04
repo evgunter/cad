@@ -826,6 +826,15 @@ pub struct Doc<P> {
         with = "crate::persist::strict::var_names"
     )]
     pub(crate) var_names: BTreeMap<VarId, VarName>,
+    /// **The variables' declaration order** — `order`'s twin for the
+    /// variable table. Ids are digest output, so their numeric order
+    /// means nothing to an author; this is the one author-meaningful
+    /// order of the document's variables, and every lane that lists or
+    /// tie-breaks variables reads it ([`Self::free_vars`]). A
+    /// permutation of `vars`' keys (the load door checks it). Absent
+    /// from the wire while empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) var_order: Vec<VarId>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -964,6 +973,7 @@ impl<P> Doc<P> {
             roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
+            var_order: Vec::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
@@ -1121,15 +1131,22 @@ impl<P> Doc<P> {
         self.vars.get(&id).and_then(Var::free)
     }
 
-    /// **The document's free variables, in id order** — the ONE
-    /// iteration base every lane reads (the evaluation environment, the
-    /// analysis box, the interval and seed doors, the drive), so no two
-    /// lanes can disagree on which variables there are. A name is read
-    /// off it with [`Self::var_name`] where a lane needs one.
+    /// **The document's free variables, in DECLARATION order** — the
+    /// ONE iteration base every lane reads (the evaluation environment,
+    /// the analysis box and the order its axes are listed, drawn and
+    /// tie-broken in, the interval and seed doors, the drive, the
+    /// stackup), so no two lanes can disagree on which variables there
+    /// are or in what order. A name is read off it with
+    /// [`Self::var_name`] where a lane needs one.
     pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
-        self.vars
+        self.var_order
             .iter()
-            .filter_map(|(&id, var)| Some((id, var.free()?)))
+            .filter_map(|&id| Some((id, self.vars.get(&id)?.free()?)))
+    }
+
+    /// The variables in declaration order ([`Self::free_vars`]'s base).
+    pub fn var_order(&self) -> &[VarId] {
+        &self.var_order
     }
 
     /// The name the document holds for `id`, if any.
@@ -1392,6 +1409,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .is_some_and(|theirs| node.bit_eq(theirs))
             })
             && self.var_names == other.var_names
+            && self.var_order == other.var_order
             && self.vars.len() == other.vars.len()
             && self.vars.iter().all(|(id, var)| {
                 other

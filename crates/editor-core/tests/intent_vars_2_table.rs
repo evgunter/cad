@@ -455,3 +455,55 @@ fn an_unnamed_variable_refuses_at_load() {
     let doc = twins();
     assert_eq!(var, id(&doc, "v"));
 }
+
+/// `VarOrderMismatch`: a declaration order that drops a variable.
+#[test]
+fn a_declaration_order_missing_a_variable_refuses_at_load() {
+    let err = load_doctored(|snap, w, _| {
+        let order = snap["var_order"].as_array_mut().expect("the order");
+        let before = order.len();
+        order.retain(|id| id != &serde_json::json!(w.0));
+        assert_eq!(order.len(), before - 1, "w was listed");
+    });
+    assert_eq!(err, PersistError::Snapshot(SnapshotError::VarOrderMismatch));
+}
+
+/// **The document's variables have ONE order, the author's**: the
+/// declaration order, which every lane lists, draws and tie-breaks in.
+/// The twins' ids sort AGAINST their declaration (the first declare of
+/// a kind from an empty chain draws the larger id — asserted, so the
+/// row cannot pass by an id order that happens to agree), and every
+/// lane still says `w` first.
+#[test]
+fn every_lane_reads_the_declaration_order_not_the_id_order() {
+    let (doc, measure) = measured_twins();
+    let (w, v) = (id(&doc, "w"), id(&doc, "v"));
+    assert!(w > v, "the fixture's ids sort against its declarations");
+    assert_eq!(doc.var_order(), &[w, v]);
+    assert_eq!(
+        doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
+        vec![w, v]
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    assert_eq!(
+        analyzed.varying().map(|(id, _)| id).collect::<Vec<_>>(),
+        vec![w, v]
+    );
+    let root = ParamBox::of(&analyzed);
+    assert_eq!(
+        root.varying().map(|(id, _, _)| id).collect::<Vec<_>>(),
+        vec![w, v]
+    );
+    // Equal laws, so equal relative widths: the tie goes to the
+    // earlier-declared variable, never to the lower id.
+    assert_eq!(root.split_axis(&root), Some(w));
+    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
+    assert_eq!(
+        entries.iter().map(|e| e.param).collect::<Vec<_>>(),
+        vec![w, v]
+    );
+    // And the order survives a save.
+    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let back = load(&text, Tol::witness()).unwrap().doc;
+    assert_eq!(back.var_order(), &[w, v]);
+}

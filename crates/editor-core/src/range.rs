@@ -353,7 +353,7 @@ impl CertifiedRange {
     }
 
     /// **The condition this answer holds under**: the parameters whose
-    /// declared distribution the derivation cleared, in id order, so
+    /// declared distribution the derivation cleared, in declaration order, so
     /// the drive had one axis. Every one of them is at its nominal for
     /// the whole certificate, and empty means the document declared no
     /// other spread to drop.
@@ -581,7 +581,7 @@ pub struct DerivedRange {
     /// The field's value in the input document, bit for bit.
     pub nominal: f64,
     /// The parameters whose declared distribution this derivation
-    /// CLEARED, in id order — the condition the answer holds under
+    /// CLEARED, in declaration order — the condition the answer holds under
     /// ([`CertifiedRange::pinned`]).
     pub pinned: Vec<VarId>,
 }

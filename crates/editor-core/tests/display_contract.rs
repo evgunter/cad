@@ -1042,6 +1042,7 @@ test_utils::f6_variants! {
         VarKind,
         VarNotMinted,
         VarUnnamed,
+        VarOrderMismatch,
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
@@ -1194,6 +1195,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::VarId(tagged(7)),
             },
             vec!["variable 000000000007 has no name", "read by its name"],
+        ),
+        (
+            SnapshotError::VarOrderMismatch,
+            vec!["declaration order", "exactly once"],
         ),
         (
             SnapshotError::NameOnMissingVar {

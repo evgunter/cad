@@ -915,8 +915,9 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         Rss::UnavailableBecause { blockers } => blockers.iter().map(|b| b.param().id()).collect(),
         other => panic!("{other:?}"),
     };
+    // In declaration order, the order every lane lists variables in.
     let mut want = vec![var(&doc, "h"), var(&doc, "u")];
-    want.sort_unstable();
+    want.sort_by_key(|id| doc.var_order().iter().position(|v| v == id));
     assert_eq!(blockers, want);
     for p in &report.per_param {
         assert!(p.contribution.is_err(), "{:?}", p.param);
@@ -1233,7 +1234,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
                     param: doc.spoken_var(var(&doc, "u")),
                 },
             ];
-            want.sort_by_key(|b| b.param().id());
+            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.param().id()));
             assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),

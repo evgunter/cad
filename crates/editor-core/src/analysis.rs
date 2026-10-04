@@ -192,6 +192,11 @@ impl AnalyzedParam {
 #[derive(Debug, Clone, Default)]
 pub struct AnalyzedBox {
     params: BTreeMap<VarId, AnalyzedParam>,
+    /// The axes in the document's DECLARATION order
+    /// ([`crate::Doc::free_vars`]): the order they are listed, drawn and
+    /// tie-broken in. Ids are digest output, so their numeric order
+    /// means nothing to an author.
+    order: Vec<VarId>,
     /// Each axis's variable as the document it was taken of speaks it,
     /// for the refusals that name one. Not part of the box's identity.
     spoken: BTreeMap<VarId, SpokenVar>,
@@ -199,7 +204,14 @@ pub struct AnalyzedBox {
 
 impl PartialEq for AnalyzedBox {
     fn eq(&self, other: &Self) -> bool {
-        self.params == other.params
+        // Exhaustive, so a field added to the box must say whether it
+        // is identity; the spoken forms are not.
+        let Self {
+            params,
+            order,
+            spoken: _,
+        } = self;
+        *params == other.params && *order == other.order
     }
 }
 
@@ -222,13 +234,22 @@ impl AnalyzedBox {
             .unwrap_or_else(|| SpokenVar::new(var, None))
     }
 
-    /// The axes that actually vary — the box's non-degenerate
-    /// dimensions.
-    pub fn varying(&self) -> impl Iterator<Item = (VarId, &AnalyzedParam)> {
-        self.params
+    /// The axes in declaration order.
+    pub fn order(&self) -> &[VarId] {
+        &self.order
+    }
+
+    /// Every axis, in declaration order.
+    pub fn in_order(&self) -> impl Iterator<Item = (VarId, &AnalyzedParam)> {
+        self.order
             .iter()
-            .filter(|(_, p)| !p.offsets.is_fixed())
-            .map(|(&id, p)| (id, p))
+            .filter_map(|&id| Some((id, self.params.get(&id)?)))
+    }
+
+    /// The axes that actually vary — the box's non-degenerate
+    /// dimensions — in declaration order.
+    pub fn varying(&self) -> impl Iterator<Item = (VarId, &AnalyzedParam)> {
+        self.in_order().filter(|(_, p)| !p.offsets.is_fixed())
     }
 
     /// The tail mass of ONE named axis: what this box's own interval
@@ -352,7 +373,16 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
         })
         .collect();
     let spoken = params.keys().map(|&id| (id, doc.spoken_var(id))).collect();
-    AnalyzedBox { params, spoken }
+    let order = doc
+        .free_vars()
+        .map(|(id, _)| id)
+        .filter(|id| params.contains_key(id))
+        .collect();
+    AnalyzedBox {
+        params,
+        order,
+        spoken,
+    }
 }
 
 /// **A scalar that can carry a parameter-box axis** — the door INTO the
@@ -719,7 +749,8 @@ impl BoxAxis {
 }
 
 /// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
-/// document parameter, in name order. Derived, never stored.
+/// document variable, listed in the analyzed box's DECLARATION order
+/// (its split tie-break reads that order). Derived, never stored.
 ///
 /// The root box is [`ParamBox::of`] an analyzed box; every other box is
 /// a [`ParamBox::split`] descendant of one. `Count` parameters are not
@@ -727,6 +758,9 @@ impl BoxAxis {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ParamBox {
     axes: BTreeMap<VarId, BoxAxis>,
+    /// The axes in declaration order — [`AnalyzedBox::order`], carried
+    /// to every split descendant.
+    order: Vec<VarId>,
 }
 
 /// A box that cannot be turned into an environment.
@@ -788,14 +822,38 @@ impl ParamBox {
                 (id, axis)
             })
             .collect();
-        Self { axes }
+        Self {
+            axes,
+            order: analyzed.order().to_vec(),
+        }
     }
 
     /// A box from explicit axes — the door for a box that is not a
     /// [`Self::split`] descendant of an analyzed box (the driver's
-    /// degenerate midpoint box, for one).
+    /// degenerate midpoint box, for one). Its axes are ordered as
+    /// `order` lists them; an axis `order` leaves out follows, by id.
+    pub fn from_axes_in(axes: BTreeMap<VarId, BoxAxis>, order: &[VarId]) -> Self {
+        let mut listed: Vec<VarId> = order
+            .iter()
+            .copied()
+            .filter(|id| axes.contains_key(id))
+            .collect();
+        listed.extend(axes.keys().copied().filter(|id| !order.contains(id)));
+        Self {
+            axes,
+            order: listed,
+        }
+    }
+
+    /// [`Self::from_axes_in`] with no order given: the axes by id. For a
+    /// box of one axis, or one whose split order does not matter.
     pub fn from_axes(axes: BTreeMap<VarId, BoxAxis>) -> Self {
-        Self { axes }
+        Self::from_axes_in(axes, &[])
+    }
+
+    /// The axes in declaration order.
+    pub fn order(&self) -> &[VarId] {
+        &self.order
     }
 
     /// The axes, by variable.
@@ -808,18 +866,23 @@ impl ParamBox {
         self.axes.get(&var)
     }
 
-    /// The axes that vary — the box's non-degenerate dimensions.
-    pub fn varying(&self) -> impl Iterator<Item = (VarId, f64, f64)> {
-        self.axes.iter().filter_map(|(&n, a)| match *a {
-            BoxAxis::Fixed => None,
-            BoxAxis::Varying { lo, hi } => Some((n, lo, hi)),
-        })
+    /// The axes that vary — the box's non-degenerate dimensions — in
+    /// declaration order.
+    pub fn varying(&self) -> impl Iterator<Item = (VarId, f64, f64)> + '_ {
+        self.order
+            .iter()
+            .filter_map(|&n| match *self.axes.get(&n)? {
+                BoxAxis::Fixed => None,
+                BoxAxis::Varying { lo, hi } => Some((n, lo, hi)),
+            })
     }
 
     /// The DETERMINISTIC split axis (D9): the varying axis of greatest
     /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// lowest axis index — which is id order, the order every box
-    /// iterates in. `None` when nothing varies.
+    /// EARLIEST-DECLARED variable — the order every box iterates in. Not
+    /// the lowest id: an id is digest output, and an order an author
+    /// cannot see is not one a study should depend on. `None` when
+    /// nothing varies.
     ///
     /// Relative rather than absolute because axes carry different
     /// dimensions and different spreads: a 10 mm band and a 0.01°
