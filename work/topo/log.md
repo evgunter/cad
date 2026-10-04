@@ -6817,3 +6817,4 @@ Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and
   - **Probe re-run: every kill-kept complete periodic face in sweep ci is byte-equal and tier-3-clean** (`kef` 21, `kef_minting` 8,102, `kev` 592, `kemr` 73; previously 1,641 mixed). The snowman refusal is gone.
 
   Subscribed. Reviewer `session_01KiZYQJiYUBLPTVuYdBx6zs` dispatched: deck-group laws, kill sums including the `kev_describing` turn (D9), tier-3 acceptance looseness, `first`-independence, the `revert` involution, readers missed, staging honesty. The implementer is already on part 2 and its status says "checking CI before merge"; it may self-merge before review. If so, the review is fixed forward.
+- 21:37: PR 4037 `test` job red on `b076ce4b` (nextest exit 100; logs unreachable from here, annotations do not name the test). Left to the implementer, which is live and watching its CI. The reviewer also runs the suite.
