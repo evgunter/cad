@@ -434,8 +434,10 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 
 /// **A near-tangent two-run pierce builds right where the census reads
 /// an overlap that is not there.** The shallow prism's reflex corner on
-/// a cube whose face plane lies 1e-7 rad off the corner's edge toward
-/// `(4, 1)` (review r1's `shallow200 nt e0 a3 d1e-7`). Prism ∪ cube and
+/// a cube whose face plane lies ten bands off the corner's edge toward
+/// `(4, 1)` (1e-7 rad at the default ε: review r1's
+/// `shallow200 nt e0 a3 d1e-7`; scaled with the band so that the pose
+/// is the same at every ε). Prism ∪ cube and
 /// prism ∖ cube build at the clipping oracle's volume, with tier 2 and
 /// the certificate, and no two edges of the body come within the band:
 /// edges that share no end point lie farther apart than it, and edges
@@ -451,7 +453,9 @@ fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
     let e = unit([2.0, 0.4, 0.0]);
     let [p1, p2, _] = frame(e, 0.0);
     let al = std::f64::consts::TAU * 3.25 / 16.0;
-    let m = unit([0, 1, 2].map(|t| p1[t] * al.cos() + p2[t] * al.sin() + e[t] * 1e-7));
+    let band = tol().eps() * tol().get().k;
+    let tilt = 10.0 * band;
+    let m = unit([0, 1, 2].map(|t| p1[t] * al.cos() + p2[t] * al.sin() + e[t] * tilt));
     let f = frame(m, 0.0);
     let lo = [-2.0, -2.0, 0.0];
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6), (0.0, 1.0)];
@@ -466,7 +470,6 @@ fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
         })
         .sum();
     let (va, vb) = (vol(&prism), SIDE * SIDE * SIDE);
-    let band = tol().eps() * tol().get().k;
     let ops: [(&str, Op, f64); 2] = [
         ("union", topo::union_with, va + vb - common),
         ("subtract", topo::subtract_with, va - common),
