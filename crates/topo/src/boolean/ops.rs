@@ -3690,7 +3690,9 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         struct Hit<T> {
             s: T,
             vertex: Option<VertexKey>,
-            split: Option<(EdgeKey, T)>,
+            /// The arc, the root's parameter, whether the parameter
+            /// rises along the arc's edge, and the arc's radius.
+            split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
         for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
@@ -3748,11 +3750,9 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         ));
                     }
                 };
-                let (lo_t, hi_t) =
-                    match sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? {
-                        Sign::Positive => (t0, t1),
-                        _ => (t1, t0),
-                    };
+                let rising =
+                    sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? == Sign::Positive;
+                let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
                 for theta in thetas {
                     let into = |end: T| Margin::levered(theta - end, cr);
                     let (from_lo, to_hi) = (
@@ -3796,7 +3796,7 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     hits.push(Hit {
                         s: latitude(p),
                         vertex,
-                        split: vertex.is_none().then_some((edge, theta)),
+                        split: vertex.is_none().then_some((edge, theta, rising, cr)),
                     });
                 }
             }
@@ -3834,20 +3834,32 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let (Some(below), Some(over)) = (below, over) else {
             return Err(refuse("the cut's meridian leaves the sphere face through no boundary"));
         };
-        if let (Some((e1, _)), Some((e2, _))) = (below.split, over.split)
-            && e1 == e2
-        {
-            return Err(refuse("the cut's meridian enters and leaves through one boundary arc"));
-        }
         let (below_split, below_vertex) = (below.split, below.vertex);
         let (over_split, over_vertex) = (over.split, over.vertex);
-        let mut end = |split: Option<(EdgeKey, T)>, vertex: Option<VertexKey>| match (split, vertex) {
+        let mut end = |split: Option<(EdgeKey, T, bool, T)>, vertex: Option<VertexKey>| match (
+            split, vertex,
+        ) {
             (_, Some(v)) => Ok(v),
-            (Some((edge, theta)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
+            (Some((edge, theta, _, _)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
             (None, None) => Err(corrupt("cut-in: a boundary hit with neither vertex nor arc")),
         };
-        let v_lo = end(below_split, below_vertex)?;
-        let v_hi = end(over_split, over_vertex)?;
+        // Two ends on one arc: the split keeps the arc's key on its
+        // first child, so the end farther along the arc's parameter is
+        // split first and the nearer one still lies on the key.
+        let below_first = match (below_split, over_split) {
+            (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
+                let along = if rising { lo - hi } else { hi - lo };
+                sign("bool_sphere_cut_span", Margin::levered(along, arm))? == Sign::Positive
+            }
+            _ => true,
+        };
+        let (v_lo, v_hi) = if below_first {
+            let v_lo = end(below_split, below_vertex)?;
+            (v_lo, end(over_split, over_vertex)?)
+        } else {
+            let v_hi = end(over_split, over_vertex)?;
+            (end(below_split, below_vertex)?, v_hi)
+        };
         // The two ends' half-edges in the face's one loop.
         let fd = proven(&body.faces, cut.face, EntityId::Face);
         let mut ends = [None, None];
