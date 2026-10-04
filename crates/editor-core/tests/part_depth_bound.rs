@@ -398,7 +398,13 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A document instantiating `first` and `second` — each a reference

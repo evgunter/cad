@@ -58,7 +58,7 @@ use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
 use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
-use crate::euler::MevSite;
+use crate::euler::{MevSite, RunSite};
 use crate::null::{NewVertexSide, NullEdge};
 
 /// Output of one vertex-pair insertion.
@@ -83,10 +83,11 @@ fn insert_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
+    contacts: &super::ContactRecords,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let mut plans = [plan_null_pairs(
-        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, band,
+        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, contacts, band,
     )?];
     let orbits = [(a_sectors, b_sectors)];
     reconcile_shared(&mut plans, &orbits, a_body, b_body, band)?;
@@ -177,6 +178,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
+    contacts: &super::ContactRecords,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
     // A-major order: `pair_search` mints records in it, and an edge-edge
@@ -235,10 +237,24 @@ pub(super) fn plan_null_pairs<T: Decide>(
         .iter()
         .zip(&raw)
         .map(|(r, w)| {
-            Ok((
-                super::sectors::germ_locus(a_body, &a_sectors[r.a], w.sa)?,
-                super::sectors::germ_locus(b_body, &b_sectors[r.b], w.sb)?,
-            ))
+            super::sectors::germ_loci(
+                super::sectors::GermSide {
+                    body: a_body,
+                    operand: Operand::A,
+                    site: contact.a,
+                    sector: &a_sectors[r.a],
+                    read: w.sa,
+                },
+                super::sectors::GermSide {
+                    body: b_body,
+                    operand: Operand::B,
+                    site: contact.b,
+                    sector: &b_sectors[r.b],
+                    read: w.sb,
+                },
+                contacts,
+                band,
+            )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
 
@@ -255,21 +271,22 @@ pub(super) fn plan_null_pairs<T: Decide>(
         // direction is chosen.
         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        // A germ along an edge of BOTH solids runs along that common
-        // edge: its two flankers may be coplanar (an edge-edge germ is
-        // the pair of the two solids' own fold flankers), so the planes'
-        // intersection is not its direction; the A flanker's bound read
-        // On is.
-        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => {
-                let s = &a_sectors[r.a];
-                let bound = if raw[i].sa.0 == SideCode::On {
-                    s.start
-                } else {
-                    s.end
-                };
-                Ok(bound.normalize())
+        // A germ along an edge runs along it: its two flankers may be
+        // coplanar (an edge-edge germ is the pair of the two solids' own
+        // fold flankers) or tangent (a germ only tangent to the other
+        // solid's edge), so the planes' intersection is not its
+        // direction; the bound read On is, the A flanker's where both
+        // solids hold the edge.
+        let on_bound = |s: &BoolSector<T>, read: (SideCode, SideCode)| {
+            if read.0 == SideCode::On {
+                s.start.normalize()
+            } else {
+                s.end.normalize()
             }
+        };
+        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
+            (super::Locus::OnEdge(_), _) => Ok(on_bound(&a_sectors[r.a], raw[i].sa)),
+            (_, super::Locus::OnEdge(_)) => Ok(on_bound(&b_sectors[r.b], raw[i].sb)),
             _ => record_germ_dir(
                 a_body,
                 b_body,
@@ -843,14 +860,10 @@ fn mint_directed<T: Decide>(
     // dangling strut's two halves splice consecutively into the loop
     // as [he_plus, he_minus]; interleaved (crossing) chords at
     // multi-germ corner sites wall pending pairs off, so the half the
-    // loop walk meets FIRST (he_plus) must face the right germ. A germ
-    // along an edge of this solid names it structurally
-    // ([`strut_facing`]); otherwise the half meeting the loop first
-    // faces the germ angularly nearest the splice corner's arrival
-    // edge, measured inside the sector ([`strut_order`]). Senses
-    // follow the facing by the sense theorem, so only the splice order
-    // moves. Run direction is untouched (a strut's reverse run spans
-    // the whole orbit).
+    // loop walk meets FIRST (he_plus) must face the right germ
+    // ([`strut_faces_first`]). Senses follow the facing by the sense
+    // theorem, so only the splice order moves. Run direction is
+    // untouched (a strut's reverse run spans the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
     let corrupt = || BooleanError::corrupt_at(operand, vertex);
     // A strut at a shared vertex: its germs in walk order, and the
@@ -902,39 +915,26 @@ fn mint_directed<T: Decide>(
         let departure_he = if run.shared {
             sectors[next_edge_bound(sectors, gf.0)].he
         } else {
-            let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
-            body.get_half_edge(mate).ok_or_else(corrupt)?.next
+            body.orbit_step(sectors[gf.0].he).ok_or_else(corrupt)?
         };
         let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
-        // A germ inside a face, or along a closed edge at its lone
-        // vertex, falls through to the angular reading below.
-        match strut_facing(
-            arrival,
-            departure,
-            own_locus_edge(operand, gf.2),
-            own_locus_edge(operand, gt.2),
-        )? {
-            StrutFacing::PlusFirst => Some(true),
-            StrutFacing::MinusFirst => Some(false),
-            StrutFacing::Unnamed | StrutFacing::ClosedEdge => None,
-        }
+        let facing = strut_faces_first(
+            body,
+            (operand, sectors),
+            (arrival, departure),
+            (gf.0, gf.2, gf.3),
+            (gt.0, gt.2, gt.3),
+            band,
+        )?;
+        // At a closed edge's lone vertex the walk orders the germs.
+        Some(match facing {
+            Some(first) => first,
+            None => walk_faces_first(body, sectors, (gf.0, gf.3), (gt.0, gt.3), band)?,
+        })
     } else {
         None
     };
-    let spike_from_first = if let Some(first) = structural {
-        first
-    } else if empty {
-        let s = &sectors[gf.0];
-        strut_order(
-            anchor_dir(body, s.he)?,
-            s.normal.vec(),
-            (gf.3, gt.3),
-            s.arm.min(sectors[gt.0].arm),
-            band,
-        )?
-    } else {
-        false
-    };
+    let spike_from_first = structural.unwrap_or(false);
     let (from, to, side, closing) = (gf.0, gt.0, gf.1.0, gt.1.1);
     // F12 guard 2: the closing germ must approach the run with the
     // run's own side as its entry code.
@@ -1060,10 +1060,6 @@ fn strut_anchor<T: Decide>(
     band: Band,
 ) -> Result<HalfEdgeKey, BooleanError> {
     let corrupt = || BooleanError::corrupt_at(operand, vertex);
-    let successor = |he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
-        let mate = body.mate(he).ok_or_else(corrupt)?;
-        Ok(body.get_half_edge(mate).ok_or_else(corrupt)?.next)
-    };
     let mut he = first;
     while let Some(at) = hung
         .struts
@@ -1072,7 +1068,7 @@ fn strut_anchor<T: Decide>(
         .map(|h| h.lower)
     {
         match precedes(sectors, at, germ, band)? {
-            Some(true) => he = successor(he)?,
+            Some(true) => he = body.orbit_step(he).ok_or_else(corrupt)?,
             Some(false) => break,
             None => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -1085,7 +1081,9 @@ fn strut_anchor<T: Decide>(
 }
 
 /// Whether cut `p` comes before cut `q` walking forward through their
-/// one physical sector (`None`: the two lie along one direction).
+/// one physical sector (`None`: the two lie along one direction). Two
+/// cuts in one entry are ordered by [`walks_after`], which agrees with
+/// the strut order there ([`walk_faces_first`]).
 fn precedes<T: Decide>(
     sectors: &[BoolSector<T>],
     p: Cut<T>,
@@ -1111,7 +1109,7 @@ fn precedes<T: Decide>(
 
 /// The edge of `operand`'s own solid a germ runs along, if its locus
 /// there is `OnEdge`.
-pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeKey> {
+fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeKey> {
     match (operand, loci) {
         (Operand::A, (super::Locus::OnEdge(e), _)) | (Operand::B, (_, super::Locus::OnEdge(e))) => {
             Some(e)
@@ -1123,7 +1121,7 @@ pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeK
 /// What a strut's corner edges say about which half faces which germ
 /// ([`strut_facing`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum StrutFacing {
+enum StrutFacing {
     /// `he_plus` faces the first germ and `he_minus` the second.
     PlusFirst,
     /// `he_minus` faces the first germ and `he_plus` the second.
@@ -1150,9 +1148,9 @@ pub(super) enum StrutFacing {
 /// classification mints: refused. A germ inside a face casts none
 /// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
 /// edge's lone vertex the edge key cannot say which end a germ along it
-/// runs from ([`StrutFacing::ClosedEdge`]); each caller states what it
-/// does then.
-pub(super) fn strut_facing(
+/// runs from ([`StrutFacing::ClosedEdge`]); each caller of
+/// [`strut_faces_first`] states what it does then.
+fn strut_facing(
     arrival: EdgeKey,
     departure: EdgeKey,
     first: Option<EdgeKey>,
@@ -1185,6 +1183,75 @@ pub(super) fn strut_facing(
     Ok(facing)
 }
 
+/// **Whether a strut's `he_plus` faces its `first` germ**, the one
+/// facing rule both strut minters read. `he_plus` lies beside the
+/// splice corner's `arrival` edge and `he_minus` beside its
+/// `departure` edge, so `he_plus` faces the germ the corner meets
+/// first walking from its arrival edge toward its departure. A germ
+/// along one of those edges of `operand`'s own solid names its half
+/// structurally ([`strut_facing`]): an angular reading would meet it
+/// exactly on its bound. Otherwise the walk orders the germs
+/// ([`walk_faces_first`]).
+///
+/// `None` at a closed edge's lone vertex with a germ along it
+/// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
+/// each caller states what it does then.
+pub(super) fn strut_faces_first<T: Decide>(
+    body: &Body<T>,
+    (operand, sectors): (Operand, &[BoolSector<T>]),
+    (arrival, departure): (EdgeKey, EdgeKey),
+    first: (usize, Cells, Vec3<T>),
+    second: (usize, Cells, Vec3<T>),
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    match strut_facing(
+        arrival,
+        departure,
+        own_locus_edge(operand, first.1),
+        own_locus_edge(operand, second.1),
+    )? {
+        StrutFacing::PlusFirst => Ok(Some(true)),
+        StrutFacing::MinusFirst => Ok(Some(false)),
+        StrutFacing::ClosedEdge => Ok(None),
+        StrutFacing::Unnamed => walk_faces_first(
+            body,
+            sectors,
+            (first.0, first.2),
+            (second.0, second.2),
+            band,
+        )
+        .map(Some),
+    }
+}
+
+/// Whether the corner meets germ `first` before `second`, walking its
+/// one physical sector from the arrival edge: germs in different
+/// entries by their entries ([`precedes`]), two in one entry by their
+/// directions ([`strut_order`]). Inside one entry the two orderings
+/// agree, since `build_sectors` bisects every sector of a half-turn or
+/// more and both then read the sign of `(g0 × g1)·n` at the entry's
+/// arm; `precedes` keeps [`walks_after`] there for the shared-vertex
+/// cuts, which have no arrival edge to anchor on.
+fn walk_faces_first<T: Decide>(
+    body: &Body<T>,
+    sectors: &[BoolSector<T>],
+    first: Cut<T>,
+    second: Cut<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if first.0 != second.0 {
+        return Ok(precedes(sectors, first, second, band)? == Some(true));
+    }
+    let s = &sectors[first.0];
+    strut_order(
+        anchor_dir(body, s.he)?,
+        s.normal.vec(),
+        (first.1, second.1),
+        s.arm,
+        band,
+    )
+}
+
 /// **Whether the strut half met first faces the first germ**: whether
 /// `germs.0` lies angularly nearer than `germs.1` to the splice
 /// corner's arrival edge `e_dir`, measured inside the sector, which
@@ -1199,13 +1266,15 @@ pub(super) fn strut_facing(
 /// half-turn is the nearer. Within one half-turn the nearer germ is the
 /// one the other follows clockwise, `(g0 × g1)·n < 0`
 /// (`bool_strut_order`). Both readings are sines levered at `arm`, the
-/// shorter of the two sectors' bounding chords: the distance at that
+/// germs' entry's bounding chord: the distance at that
 /// arm from one direction's line, so they are linear in the spacing
 /// at every angle, where a cosine is flat beside 0 and π. That is
 /// `splitting::containment`'s doctrine for angular windows: decided as
 /// distances, never as an angle. A decided zero, of a side whose
 /// direction sense is in band or of two germs along one direction,
-/// refuses: nothing orders the germs.
+/// refuses: nothing orders the germs. A strut's two germs in one entry
+/// are its only comparands, where it agrees with [`precedes`]
+/// ([`walk_faces_first`]).
 fn strut_order<T: Decide>(
     e_dir: Vec3<T>,
     normal: Vec3<T>,
@@ -1227,9 +1296,7 @@ fn strut_order<T: Decide>(
         return Ok(far1);
     }
     let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
-    match crate::validate::decide_nonzero_reported("bool_strut_order", order, band)
-        .map_err(refuse)?
-    {
+    match crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)? {
         NonzeroSign::Negative => Ok(true),
         NonzeroSign::Positive => Ok(false),
     }
@@ -1369,8 +1436,9 @@ fn germ_dir<T: Decide>(
     }
 }
 
-/// Whether the forward run `from → to` would swallow the entire orbit
-/// (a nonempty fan whose orbit successor wraps to its first member).
+/// Whether the forward run `from → to` is [`RunSite::WholeOrbit`], which
+/// the planner mints as its reverse: the empty run whose strut is the
+/// same null edge.
 fn run_degenerates<T: Decide>(
     body: &Body<T>,
     sectors: &[BoolSector<T>],
@@ -1381,18 +1449,12 @@ fn run_degenerates<T: Decide>(
     let Some((&first, &last)) = hes.first().zip(hes.last()) else {
         return Ok(false); // empty fan: a valid strut
     };
-    let mate = body
-        .mate(last)
+    let site = body
+        .run_site(first, last)
         .ok_or(BooleanError::ClassificationInvariant {
             what: "run edge without a mate",
         })?;
-    let successor = body
-        .get_half_edge(mate)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "run edge mate no longer resolves",
-        })?
-        .next;
-    Ok(successor == first)
+    Ok(matches!(site, RunSite::WholeOrbit { .. }))
 }
 
 /// The real edge bounds crossed walking the entry chain forward from
@@ -1455,38 +1517,27 @@ fn mint_run<T: Decide>(
     anchor: Option<HalfEdgeKey>,
 ) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
     let hes = run_fan(sectors, from, to)?;
-    let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
-        let mate = body
-            .mate(he)
-            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
-        Ok(body
-            .get_half_edge(mate)
-            .ok_or(BooleanError::corrupt_at(operand, vertex))?
-            .next)
-    };
-    let (site, dangling) = if hes.is_empty() {
+    let corrupt = || BooleanError::corrupt_at(operand, vertex);
+    let (site, dangling) = match (hes.first(), hes.last()) {
+        (Some(&first), Some(&last)) => match body.run_site(first, last).ok_or_else(corrupt)? {
+            site @ RunSite::Fan { .. } => (site.mev_site(), false),
+            // The planner mints a whole-orbit run as its reverse, the
+            // empty run whose strut this is ([`run_degenerates`]), so
+            // reaching one here is a run-selection bug.
+            RunSite::WholeOrbit { .. } => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "null-edge run spans the entire vertex orbit",
+                });
+            }
+        },
         // The dangling strut, inside `from`'s physical sector.
-        let he = match anchor {
-            Some(he) => he,
-            None => successor(body, sectors[from].he)?,
-        };
-        (MevSite::Fan { he1: he, he2: he }, true)
-    } else {
-        let first = hes[0];
-        let last = *hes.last().unwrap_or(&first);
-        // he2 at execution time: current orbit successor of the run's
-        // last half-edge (PR 2's pattern — robust against prior
-        // splices).
-        let he2 = successor(body, last)?;
-        if he2 == first {
-            // The run would swallow the whole orbit — the complementary
-            // germ must bound it (kernel bug in run selection, loudly:
-            // mev would silently degrade this site to a strut).
-            return Err(BooleanError::ClassificationInvariant {
-                what: "null-edge run spans the entire vertex orbit",
-            });
+        _ => {
+            let he = match anchor {
+                Some(he) => he,
+                None => body.orbit_step(sectors[from].he).ok_or_else(corrupt)?,
+            };
+            (MevSite::Fan { he1: he, he2: he }, true)
         }
-        (MevSite::Fan { he1: first, he2 }, false)
     };
     // The copy takes the run; its side is the run's side (F3-derived).
     let new_side = match run_side {
@@ -1502,11 +1553,10 @@ fn mint_run<T: Decide>(
     // the half FACING a germ is UP (starts at `below_end`) iff that
     // germ's own forward-wedge code is Out. Non-dangling: he_plus
     // (old → new) faces the from-germ whose forward code is the run
-    // side, so `created` is the below end exactly for In-runs.
-    // Dangling struts in the default spike order swap the facing
-    // (he_minus at the from-germ), so the SIDE swaps with it; the
-    // angular `spike_from_first` order restores the non-dangling
-    // facing. The attribute is derived sense data, never a mint-slot
+    // side, so `created` is the below end exactly for In-runs. A
+    // dangling strut whose he_minus faces the from-germ
+    // (`spike_from_first` false) swaps the SIDE with the facing. The
+    // attribute is derived sense data, never a mint-slot
     // echo; the mint side follows so the body's scaffold attribute and
     // the pipeline record stay one datum.
     let attr_side = match (new_side, dangling && !spike_from_first) {
@@ -1539,10 +1589,8 @@ fn mint_run<T: Decide>(
     // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
     // from-germ cut and he_minus at the to-germ cut; a strut's spike
     // splices [he_plus, he_minus] into one corner, and which germ the
-    // loop-first half (he_plus) faces is the angular spike order
-    // decided at the mint site (`spike_from_first`; the default — the
-    // corner walk arriving through the to-germ — was pinned
-    // empirically by the joining fixtures).
+    // loop-first half (he_plus) faces is decided at the mint site
+    // ([`strut_faces_first`]).
     let germs = if dangling && !spike_from_first {
         [germ(0, created.he_minus), germ(1, created.he_plus)]
     } else {
@@ -1650,6 +1698,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1664,6 +1713,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1708,6 +1758,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1794,6 +1845,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .expect_err("nothing orders the struts' germs");

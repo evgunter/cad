@@ -9,9 +9,8 @@
 //! runs this row at every ε row and the widened split must certify at
 //! each. The floor is MEASURED by the ladder row below, not inferred
 //! from DOCM-1's extrude floor: at the default ε the split of a
-//! widened box escalates at ε/10 and the union of its halves at ε/16,
-//! and every rung from ε/32 down certifies; the assertion row sits two
-//! rungs under that floor.
+//! widened box escalates at ε/10, and every rung from ε/16 down
+//! certifies; the assertion row sits two rungs under that floor.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -22,8 +21,8 @@ use crate::corpus;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Node,
-    ParamName, PartSelect, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, UnitSym, ValuePayload,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, FreeVar, Node,
+    PartSelect, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, UnitSym, ValuePayload, VarName,
     apply, evaluate,
 };
 use geom_core::{Bounds, Decide, Interval, SymBudget, Tol};
@@ -64,8 +63,8 @@ fn widened_document(width: f64) -> ProfileDoc {
     apply(
         &cd.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static(corpus::part_select::H),
-            value: DocParam::Continuous {
+            name: VarName::from_static(corpus::part_select::H),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -166,9 +165,8 @@ enum Rung {
 /// (DOCM-1's measurement of record); the SPLIT of that box does not:
 /// at ε/10 its section-edge carrier certification against the mapped
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
-/// few parts per million over the band's zero); at ε/16 the split
-/// certifies and the UNION of the two halves escalates
-/// (`point_in_loop_arm`); ε/32 and every narrower rung certify. Each
+/// few parts per million over the band's zero); ε/16 and every
+/// narrower rung certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -176,7 +174,6 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
     let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
-    let union = node_where(&doc, |n| matches!(n, Node::Boolean { .. }));
     let ladder: [(u32, Rung); 8] = [
         (
             10,
@@ -185,13 +182,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
                 predicate: "carrier_matches_mapped_source",
             },
         ),
-        (
-            16,
-            Rung::Escalates {
-                node: union,
-                predicate: "point_in_loop_arm",
-            },
-        ),
+        (16, Rung::Green),
         (32, Rung::Green),
         (64, Rung::Green),
         (128, Rung::Green),

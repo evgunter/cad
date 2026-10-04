@@ -15,8 +15,8 @@
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Dimension, Expr, LoopProgram, ParamName, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget,
+    Dimension, Expr, LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    VarName,
 };
 
 fn point(x: f64, y: f64) -> ProgramTarget {
@@ -169,7 +169,7 @@ fn exprs() -> Exprs {
             Expr::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
-        Expr::param(ParamName::from_static("width"), Dimension::Length),
+        Expr::param(VarName::from_static("width"), Dimension::Length),
     )
     .unwrap();
     let angle = Expr::atan2(len(1.0), len(2.0)).unwrap();

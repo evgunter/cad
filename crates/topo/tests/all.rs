@@ -121,6 +121,8 @@ mod graft_disjoint;
 mod h14_census_deferrals;
 #[path = "hollow_island.rs"]
 mod hollow_island;
+#[path = "inside_out_operand.rs"]
+mod inside_out_operand;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]
@@ -129,6 +131,8 @@ mod issue86_double_subtract;
 mod issue93_nested_islands;
 #[path = "join1_r2_topo_probes.rs"]
 mod join1_r2_topo_probes;
+#[path = "join_pierce_strut_facing.rs"]
+mod join_pierce_strut_facing;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
@@ -189,6 +193,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "neighbours_across_a_closed_edge.rs"]
+mod neighbours_across_a_closed_edge;
 #[path = "on_verdict.rs"]
 mod on_verdict;
 #[path = "props_sphere_cap_door.rs"]

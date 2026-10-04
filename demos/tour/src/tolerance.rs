@@ -292,7 +292,7 @@ fn cut_wall(tol: Tol) {
         1,
         "the holes cut from the blank, the web read off the cut part's bore walls, \
          over 1e-9 of the study",
-        stackup(&doc, measure, &analyzed, &verdict, None, true, tol).map_err(|r| match r {
+        stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
             StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
             other => Err(Box::new(other)),
         }),
@@ -355,7 +355,7 @@ fn real_study(tol: Tol) {
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
@@ -597,7 +597,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -812,7 +812,7 @@ fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
         let span = |n: &'static str| match leaf
             .box_
             .axes()
-            .get(&pncad::document::ParamName::from_static(n))
+            .get(&pncad::document::VarName::from_static(n))
         {
             Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
             _ => (0.0, 0.0),

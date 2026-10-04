@@ -99,6 +99,7 @@ pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
+pub(crate) use ops::{boundary_edges, describe_edges};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -130,13 +131,15 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
-pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, ConsumedExtent, carrier_eq};
+pub use carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
+};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
@@ -660,6 +663,41 @@ pub(crate) fn unreadable_extent(face: rest::PairFace) -> BooleanError {
 /// ([`carrier_eq::CarrierEqError::Unsettled`]), read under `class`.
 pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> BooleanError {
     BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
+}
+
+/// The Boolean's refusal of an undeclared coincidence between `pair`:
+/// the coincidence itself where the measure read
+/// ([`readable_coincidence`]).
+pub(crate) fn undeclared_coincidence(
+    coincidence: CoincidenceMeasure,
+    pair: [(Operand, FaceKey); 2],
+    relation: PlaneRelation,
+) -> BooleanError {
+    match readable_coincidence(coincidence, pair) {
+        Ok(read) => BooleanError::UndeclaredCoincidence {
+            diag: read.reported(),
+            pair,
+            relation,
+        },
+        Err(poisoned) => poisoned,
+    }
+}
+
+/// A coincidence measure between `pair` as the Boolean reads it: the
+/// measure, where it read zero or undecided, and
+/// [`BooleanError::PoisonedCarrierDatum`] where a datum it compares is
+/// not finite. Every door of the Boolean that reads a
+/// [`CoincidenceMeasure`] takes poison through here.
+pub(crate) fn readable_coincidence(
+    coincidence: CoincidenceMeasure,
+    pair: [(Operand, FaceKey); 2],
+) -> Result<CoincidenceMeasure, BooleanError> {
+    match coincidence {
+        CoincidenceMeasure::Unreadable(diag) => {
+            Err(BooleanError::PoisonedCarrierDatum { pair, diag })
+        }
+        read @ (CoincidenceMeasure::Zero { .. } | CoincidenceMeasure::Undecided(_)) => Ok(read),
+    }
 }
 
 /// A face tagged with the operand it belongs to, ordered A before B;
@@ -1211,6 +1249,16 @@ pub enum Locus {
     OnEdge(crate::entity::EdgeKey),
 }
 
+impl Locus {
+    /// The edge a germ along an edge lies on; `None` inside a face.
+    pub fn edge(self) -> Option<crate::entity::EdgeKey> {
+        match self {
+            Self::OnEdge(e) => Some(e),
+            Self::InFace(_) => None,
+        }
+    }
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
@@ -1340,20 +1388,17 @@ pub struct PierceRingRecord {
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
 /// distance between them): `true` decided zero, `false` decided apart,
 /// the escalation when the band cannot say. A distance has no negative
-/// side, so a negative verdict is the codomain's contradiction and
-/// escalates as an invalid margin.
+/// side: a magnitude.
 pub(crate) fn one_vertex<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    match crate::validate::decide("bool_contact_vertex", geom_core::Margin::norm3(p - q), band)? {
-        geom_core::Sign::Zero => Ok(true),
-        geom_core::Sign::Positive => Ok(false),
-        geom_core::Sign::Negative => {
-            Err(crate::invalid_margin::invalid(band, "bool_contact_vertex"))
-        }
-    }
+    let distance = geom_core::Margin::norm3(p - q);
+    Ok(
+        geom_core::k_stats::decide_magnitude("bool_contact_vertex", distance, band)?
+            == geom_core::k_stats::Magnitude::Zero,
+    )
 }
 
 /// The result of [`boolean_reduce`]: both operands' annotated clones
@@ -1484,6 +1529,13 @@ pub enum Corruption {
         /// The vertex.
         vertex: VertexKey,
     },
+    /// This edge's sides or extent could not be read.
+    Edge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The lookup that came back empty.
+        absence: crate::readback::CarrierAbsence,
+    },
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -1570,13 +1622,13 @@ pub enum BooleanError {
     /// edge cannot be cleared against a curved face, and the curved
     /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// and an ELLIPSE crossing a cylinder wall or a sphere, whose
+    /// and an ELLIPSE crossing any of the three, whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, `boolean::circle_roots`' doors and
     /// `boolean::ellipse_roots`) and whose landing point the chart trim
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a cone face or a conic
-    /// against one, an ellipse near a torus, an undeclared on-carrier
+    /// against one, an undeclared on-carrier
     /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
@@ -1620,6 +1672,19 @@ pub enum BooleanError {
         /// The edge.
         edge: EdgeKey,
     },
+    /// **Two edges along one germ whose identity no rule decides.**
+    /// Where both operands' edges leave a vertex pair along the germ and
+    /// the reduction paired their far ends, the join reads them as one
+    /// segment only for lines and circles, which meet a line or circle
+    /// tangent to them at the site nowhere else. A conic or spline can
+    /// meet such a partner again, so the paired ends do not make the two
+    /// edges one, and nothing here reads whether they are.
+    GermEdgeCarrierUnsupported {
+        /// The operand whose edge is neither a line nor a circle.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+    },
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
     /// chord, a circle or ellipse arc on its conic — and has no crossing
@@ -1643,6 +1708,19 @@ pub enum BooleanError {
         operand: Operand,
         /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
+    },
+    /// An operand holds an inside-out solid: tier 3's check 7 decides
+    /// its signed volume definitely negative
+    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
+    /// complement of the region they enclose. Such a body is not a
+    /// finished solid (`docs/DESIGN.md` D1, tier 3), and the Boolean
+    /// refuses it before any classification reads it, rather than
+    /// answering for the complement.
+    InsideOutOperand {
+        /// The offending operand.
+        operand: Operand,
+        /// Its first inside-out solid, in arena order.
+        solid: SolidKey,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -1721,6 +1799,19 @@ pub enum BooleanError {
         /// or [`PlaneRelation::SameOpposite`], never `Distinct`) —
         /// the relation a declaration of this pair would assert.
         relation: PlaneRelation,
+    },
+    /// A surface datum two faces are compared on is not finite (NaN or
+    /// ±∞): poisoned input, which no declaration and no move of the
+    /// parts reads. Both faces are operand faces, stored and read at
+    /// rest, so the refusal is the kernel's or the file's the operand
+    /// came from, as tier 3's [`ValidationError::PoisonedSurfaceDatum`]
+    /// reads the same datum.
+    PoisonedCarrierDatum {
+        /// The face pair compared, each face with its operand: a face of
+        /// each, or two neighbours of one at the maximal-faces gate.
+        pair: [(Operand, FaceKey); 2],
+        /// The datum's predicate, with its poisoned margin.
+        diag: Indeterminate,
     },
     /// A declared coincidence contradicts the geometry (the declared
     /// pair's carriers are definitely distinct) — the recipe's intent
@@ -2094,8 +2185,9 @@ pub enum BooleanError {
     /// **Two sphere faces of the two solids meet** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), or their spheres
-    /// cross and the section certificate certifies the circle they cross
+    /// the smaller inside the larger (a decided zero), at a touch the
+    /// section certificate does not certify off either face, or their
+    /// spheres cross and the certificate certifies the circle they cross
     /// in inside both faces (its R-loop). Whatever the faces share lies
     /// off every edge, so the join's sphere-pair arm (the radical plane,
     /// `join::bool_connect`) had no chord to run. A crossing whose circle
@@ -2103,6 +2195,9 @@ pub enum BooleanError {
     /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
     /// the decided refusal of [`SphereQuestion::Nested`], and ends as
     /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// One sphere touching the other on one carrier is not asked when
+    /// every face of it is a verified `Rest` against the other face:
+    /// such a pair touches without overlapping (`ops::Exempt::Rest`).
     SpheresMeet {
         /// The operand whose sphere face the scan stopped at.
         operand: Operand,
@@ -2402,10 +2497,14 @@ pub enum BooleanErrorKind {
     CurvedEdgeUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
+    /// [`BooleanError::GermEdgeCarrierUnsupported`].
+    GermEdgeCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
     ArcLoopContainmentUnsupported,
     /// [`BooleanError::ScaffoldingOperand`].
     ScaffoldingOperand,
+    /// [`BooleanError::InsideOutOperand`].
+    InsideOutOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -2418,6 +2517,8 @@ pub enum BooleanErrorKind {
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
     UndeclaredCoincidence,
+    /// [`BooleanError::PoisonedCarrierDatum`].
+    PoisonedCarrierDatum,
     /// [`BooleanError::DeclarationContradicted`].
     DeclarationContradicted,
     /// [`BooleanError::ContactContradicted`].
@@ -2613,16 +2714,19 @@ impl BooleanError {
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
+            Self::GermEdgeCarrierUnsupported { .. } => BooleanErrorKind::GermEdgeCarrierUnsupported,
             Self::ArcLoopContainmentUnsupported { .. } => {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
+            Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
             Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
+            Self::PoisonedCarrierDatum { .. } => BooleanErrorKind::PoisonedCarrierDatum,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
             Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
             Self::ContinuationContradicted { .. } => BooleanErrorKind::ContinuationContradicted,
@@ -2740,6 +2844,11 @@ impl core::fmt::Display for Corruption {
                 f,
                 "the neighbourhood of vertex {vertex:?} could not be walked"
             ),
+            Self::Edge { edge, absence } => write!(
+                f,
+                "edge {edge:?} could not be read: {}",
+                crate::readback::ReadbackError::from(*absence)
+            ),
         }
     }
 }
@@ -2812,6 +2921,14 @@ impl core::fmt::Display for BooleanError {
                  Recourse: move the parts so that edge does not meet the other solid",
                 operand_word(*operand),
             ),
+            Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
+                f,
+                "an edge of each solid runs from one shared point to another, and the \
+                 Boolean can tell whether two such edges are one curve only when both \
+                 are lines or circles; the {} operand's is not. Recourse: move the \
+                 parts so those edges do not run together",
+                operand_word(*operand),
+            ),
             // No operand is named, for the same reason as above: some
             // raise sites carry the operand of the edge being placed, not
             // of the face whose loop has no walk.
@@ -2827,6 +2944,13 @@ impl core::fmt::Display for BooleanError {
                 "the {} operand is not a finished solid: it still carries what an edit \
                  left behind, such as a strut or an empty loop, so the Boolean refuses \
                  it. Recourse: finish that edit first",
+                operand_word(*operand),
+            ),
+            Self::InsideOutOperand { operand, .. } => write!(
+                f,
+                "the {} operand is inside-out: its faces point into its material, so it \
+                 encloses negative volume and the Boolean refuses it. Recourse: build it \
+                 with its faces pointing outward, or revert it",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -2955,28 +3079,20 @@ impl core::fmt::Display for BooleanError {
                 offset.ending()
             ),
             Self::UndeclaredCoincidence { diag, .. } => {
-                f.write_str(
-                    "a face of the first operand and a face of the second coincide, or nearly (",
-                )?;
-                // The rung-4 definite arm synthesizes `MarginKind::Invalid`
-                // for a decided-zero offset (plane_eq keeps the decision
-                // machinery); rendering that payload verbatim would claim a
-                // poisoned margin on clean geometry. Say the honest thing
-                // instead: the measure is definitely zero (S6 review,
-                // MAJOR-1).
-                if diag.margin.is_invalid() {
-                    f.write_str(
-                        "the coincidence measure is exactly zero — the geometry coincides",
-                    )?;
-                } else {
-                    write!(f, "{}", diag.payload())?;
-                }
                 write!(
                     f,
-                    "), and the Boolean never assumes that touching faces are the same \
-                     face. Recourse: {COINCIDENCE_RECOURSE}"
+                    "a face of the first operand and a face of the second coincide, or nearly \
+                     ({}), and the Boolean never assumes that touching faces are the same face. \
+                     Recourse: {COINCIDENCE_RECOURSE}",
+                    diag.payload()
                 )
             }
+            Self::PoisonedCarrierDatum { .. } => write!(
+                f,
+                "a surface datum two faces of the operands are compared on is not finite, so \
+                 the faces describe no shape to compare. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             // The fact, where the carrier ladder found one; otherwise
             // the one reason true at every site. Never the margin
             // payload. The faces are the first and second operands'
@@ -3364,7 +3480,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     validate_declarations(a_operand, b_operand, decls)?;
     let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -3419,7 +3535,7 @@ pub fn sweep_records(
 ) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut a = a_operand.clone();
@@ -3480,6 +3596,35 @@ pub(crate) fn through_the_join(
     )
 }
 
+/// **The join's own refusal** of `op` under `decls`: what its matching
+/// or its surgery refuses on the reduction, before the declared-REST
+/// door may take it over. `None` where the join connects, or where the
+/// reduction leaves no null pair to join. Test vocabulary
+/// (`topo::test_support`): a declared union that builds while its join
+/// refuses was built by the zip.
+///
+/// # Errors
+///
+/// The reduction's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn join_refusal(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &BooleanDeclarations,
+    tol: Tol,
+) -> Result<Option<BooleanError>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    if red.null_pairs.is_empty() {
+        return Ok(None);
+    }
+    red.enter_join_surgery();
+    let connected = join::bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    Ok(connected.err())
+}
+
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -3503,7 +3648,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -3564,6 +3709,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3580,6 +3726,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3672,7 +3819,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .iter()
         .map(|(c, a_sectors, b_sectors, records, raw, _)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -3946,13 +4093,14 @@ fn verify_one_carrier_declaration<T: Decide>(
         }
         Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(class, diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
-        Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
-            Err(BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, fa), (Operand::B, fb)],
-                relation,
-            })
-        }
+        Err(carrier_eq::CarrierEqError::Undeclared {
+            coincidence,
+            relation,
+        }) => Err(undeclared_coincidence(
+            coincidence,
+            [(Operand::A, fa), (Operand::B, fb)],
+            relation,
+        )),
     }
 }
 
@@ -4138,8 +4286,15 @@ fn verify_tangency_declaration<T: Decide>(
         }
         // One carrier, geometrically: the diag keeps the predicate that
         // measured it and its value, and the fact names the finding.
-        Ok(Err(carrier_eq::CarrierEqError::Undeclared { diag, .. })) => {
-            return Err(claim.contradicted_by(fa, fb, Some(Contradiction::OneCarrier), diag, None));
+        Ok(Err(carrier_eq::CarrierEqError::Undeclared { coincidence, .. })) => {
+            let read = readable_coincidence(coincidence, [(Operand::A, fa), (Operand::B, fb)])?;
+            return Err(claim.contradicted_by(
+                fa,
+                fb,
+                Some(Contradiction::OneCarrier),
+                read.reported(),
+                None,
+            ));
         }
         Ok(Err(carrier_eq::CarrierEqError::Escalated { rung, diag })) => {
             return Err(BooleanError::plane_identity(
@@ -4974,6 +5129,60 @@ mod tests {
         );
     }
 
+    /// **A declared tangency's conformal screen refuses a carrier datum
+    /// that is not finite as poison**, not as the one carrier that
+    /// contradicts the claim: two stacked bricks' caps on `z = 1`, the
+    /// lower one re-charted parallel through `z = +∞`.
+    #[test]
+    fn the_tangency_screen_refuses_an_infinite_offset_as_poison() {
+        let tol = geom_core::Tol::witness();
+        let mut a = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let b = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol);
+        let cap = |body: &Body<f64>, sign: f64| {
+            let hits: Vec<FaceKey> = crate::query::all_faces(body)
+                .into_iter()
+                .filter(|&f| {
+                    matches!(face_carrier(body, f), Some(CarrierDesc::Plane { origin, normal })
+                        if (origin.z - 1.0).abs() < 1e-12 && normal.z * sign > 0.5)
+                })
+                .collect();
+            let [f] = hits[..] else {
+                panic!("expected one cap on z = 1, got {hits:?}");
+            };
+            f
+        };
+        let (fa, fb) = (cap(&a, 1.0), cap(&b, -1.0));
+        let face = a.get_face(fa).unwrap();
+        let Some(geom::Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }) = a.get_surface(face.surface).cloned()
+        else {
+            panic!("the cap is planar");
+        };
+        let surface = crate::euler::FaceSurface::New {
+            surface: geom::Surface::Plane {
+                origin: Point3::new(origin.x, origin.y, f64::INFINITY),
+                normal,
+                u_ref,
+            },
+            sense: face.sense,
+        };
+        // Lifts both refusals: a cap whose offset datum is infinite is
+        // the row's premise, and no edge certifies against it.
+        a.set_face_surface_unvouched_for_tests(fa, surface).unwrap();
+        let band = Band::linear(tol).unwrap();
+        let err = verify_tangency_declaration(&a, fa, &b, fb, Tangency::Contact, band)
+            .map(|_| ())
+            .expect_err("the screen reads no carrier through an infinite offset");
+        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
+            panic!("the screen refuses the poisoned datum: {err:?}");
+        };
+        assert_eq!(pair, [(Operand::A, fa), (Operand::B, fb)]);
+        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+    }
+
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
     /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
@@ -5009,36 +5218,47 @@ mod tests {
                 "{msg}"
             );
         }
-        // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
-        // exactly-on refusal (Invalid margin, as synthesized) and the
-        // in-band refusal (Value margin) — one message, one recourse.
-        // Payload for the R3 fields: a null-key pair (the message
-        // renders neither keys nor relation — the typed payload is
-        // the document layer's to name).
+        // The undeclared arm, in every shape rung 4 produces: a
+        // decided zero with its decided margin, an in-band margin, and
+        // a poisoned one — one message, one recourse, and the margin
+        // the measure read as the payload. Payload for the R3 fields: a
+        // null-key pair (the message renders neither keys nor relation
+        // — the typed payload is the document layer's to name).
         let pair = [
             (Operand::A, FaceKey::default()),
             (Operand::B, FaceKey::default()),
         ];
-        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (coincidence, says) in [
+            (
+                carrier_eq::CoincidenceMeasure::Zero {
+                    predicate: "bool_plane_offset",
+                    decided: geom_brep::recourse::Classified {
+                        margin: MarginDiag::value(2.5e-10),
+                        band,
+                    },
+                },
+                "lies within the zero band",
+            ),
+            (
+                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::value(5e-9))),
+                "lies inside the ambiguity band",
+            ),
+            (
+                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::INVALID)),
+                "margin is invalid",
+            ),
+        ] {
             let msg = BooleanError::UndeclaredCoincidence {
-                diag: diag(margin),
+                diag: coincidence.reported(),
                 pair,
                 relation: PlaneRelation::SameOpposite,
             }
             .to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+            assert!(msg.contains(says), "{coincidence:?}: {msg}");
+            assert!(!msg.contains("exactly zero"), "{coincidence:?}: {msg}");
         }
-        // The synthesized-Invalid definite arm renders the honest
-        // statement, never the poisoned-margin text (S6 review,
-        // MAJOR-1).
-        let msg = BooleanError::UndeclaredCoincidence {
-            diag: diag(MarginDiag::INVALID),
-            pair,
-            relation: PlaneRelation::SameOpposite,
-        }
-        .to_string();
-        assert!(msg.contains("exactly zero"), "{msg}");
-        assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
     /// The non-finite chord arm gives the cause and a recourse that can
@@ -5213,6 +5433,10 @@ mod tests {
                 operand: Operand::A,
                 edge,
             },
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
                 cause: crate::splitting::Uncrossable {
@@ -5226,6 +5450,10 @@ mod tests {
                 errors: vec![ValidationError::ScaffoldingStrutVertex {
                     vertex: VertexKey::default(),
                 }],
+            },
+            BooleanError::InsideOutOperand {
+                operand: Operand::B,
+                solid: SolidKey::default(),
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
@@ -5443,14 +5671,17 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
+                BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
+                BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
                 BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
+                BooleanErrorKind::PoisonedCarrierDatum => "PoisonedCarrierDatum",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",

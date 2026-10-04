@@ -131,8 +131,8 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId,
+    Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, VarName,
 };
 use geom_core::{Sign, Tol};
 
@@ -147,8 +147,8 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.
@@ -169,7 +169,7 @@ fn box_of(axis: &'static str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -363,6 +363,7 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -736,7 +737,7 @@ fn the_answer_is_deterministic_across_repeats() {
 struct GapIncreasing;
 
 impl MonotoneOracle for GapIncreasing {
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, param: &VarName) -> Option<Sign> {
         (param == &name("gap")).then_some(Sign::Positive)
     }
 }
@@ -758,6 +759,7 @@ fn gap_run(
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
     clearance_with(doc, &box_of("gap"), sa, sb, &q)
 }
@@ -806,6 +808,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
     let on = clearance_with(
         &doc,

@@ -268,6 +268,8 @@ pub enum NodeErrorClass {
     PlacementRefused,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
     MateFaceUnresolved,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameUnevaluated`].
+    MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -461,6 +463,7 @@ impl NodeErrorClass {
             MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
             MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
             MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
+            MateFault::FrameUnevaluated { .. } => Self::MateFrameUnevaluated,
         }
     }
 
@@ -627,6 +630,7 @@ mod tests {
         Unplaced,
         PlacementRefused,
         MateFaceUnresolved,
+        MateFrameUnevaluated,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -723,7 +727,7 @@ mod tests {
     /// run time rather than passing as a census row.
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
-        use crate::{EvalError, ParamName, SlotId};
+        use crate::{EvalError, SlotId, VarName};
         let n = RecipeNodeId;
         match class {
             C::Expr => K::Expr {
@@ -780,17 +784,17 @@ mod tests {
             },
             C::ParamBox => K::ParamBox {
                 source: crate::ParamBoxError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                    param: VarName::from_static("width"),
                 },
             },
             C::Seed => K::Seed {
                 source: crate::SeedError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                    param: VarName::from_static("width"),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {
                 section: n(3),
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
@@ -1116,6 +1120,16 @@ mod tests {
                     face: crate::FaceName::new(name()).expect("a face name"),
                     refusal: crate::FacePoseRefusal::NoSuchName,
                 }),
+            }),
+            C::MateFrameUnevaluated => mate(crate::MateFault::FrameUnevaluated {
+                mate: n(9),
+                side: crate::MateSide::B,
+                refusal: Box::new(
+                    K::DegenerateDirection {
+                        role: crate::eval::TRANSFORM_AXIS_ROLE,
+                    }
+                    .into(),
+                ),
             }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

@@ -155,7 +155,7 @@ pub(crate) struct LaneEnv<'a, T> {
     /// build path). Consulted by the one place the lift cannot reach:
     /// a C6/D9-pinned section refuses a seed it would otherwise embed
     /// as a constant ([`section_of`]).
-    pub seed: Option<&'a crate::doc::ParamName>,
+    pub seed: Option<&'a crate::doc::VarName>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -174,9 +174,9 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
     /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5): every instance's pose relative to its group root, and
-    /// every mate's role.
-    pub poses: &'a crate::mate::SolvedPoses,
+    /// D-5) at its scalar: every instance's pose relative to its group
+    /// root, and every mate's role.
+    pub poses: &'a crate::mate::SolvedPoses<T>,
     /// The nodes whose inputs lie in two spaces, each naming the
     /// unplaced group it would compare (`mate::solve::spaces_of`).
     pub across: &'a std::collections::BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
@@ -211,7 +211,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar,
+        + super::SectionScalar
+        + crate::mate::SolveScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -353,10 +354,10 @@ where
             }
             let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
                 .unwrap_or(crate::placement::Motion::Identity);
-            let pose = env.poses.pose(id).unwrap_or(crate::mate::solve::Pose {
-                left: None,
-                right: crate::placement::Frame::IDENTITY,
-            });
+            let pose = env
+                .poses
+                .pose(id)
+                .unwrap_or_else(crate::mate::solve::Pose::identity);
             let map = pose.compose_around(frame).non_identity();
             wire_instantiate_part(id, doc_ref, interface, map, env, tol)
         }
@@ -394,7 +395,7 @@ where
 pub(crate) fn instance_frame<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
-    poses: &crate::mate::SolvedPoses,
+    poses: &crate::mate::SolvedPoses<T>,
     env: &crate::expr::ParamEnv<T>,
     tol: Tol,
 ) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
@@ -439,7 +440,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar,
+        + super::SectionScalar
+        + crate::mate::SolveScalar,
 {
     let part = env
         .parts
@@ -5456,11 +5458,11 @@ mod place_tests {
         };
         // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let stamped = b
-            .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
+            .set_face_surface_unvouched_for_tests(faces[0], cylinder(0.25))
             .unwrap();
         // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let pending = b
-            .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
+            .set_face_surface_unvouched_for_tests(faces[1], cylinder(0.3))
             .unwrap();
         let axis = AxisSource::from_lowered(b"D");
         b.set_surface_axis_source(stamped, axis.clone()).unwrap();

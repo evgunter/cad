@@ -10,7 +10,7 @@
 
 use editor_core::{Dimension, DimensionError, Expr, parse_expr};
 
-fn no_params() -> std::collections::BTreeMap<editor_core::ParamName, Dimension> {
+fn no_params() -> std::collections::BTreeMap<editor_core::VarName, Dimension> {
     std::collections::BTreeMap::new()
 }
 

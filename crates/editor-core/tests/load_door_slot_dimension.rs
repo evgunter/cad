@@ -181,14 +181,14 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
 
 /// A one-extrude document whose distance is the PARAMETER `depth`,
 /// declared as a length.
-fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
-    let name = editor_core::ParamName::from_static("depth");
+fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
+    let name = editor_core::VarName::from_static("depth");
     let (doc, _, extrude) = doc();
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: editor_core::DocParam::continuous(Dimension::Length, 1.0),
+            value: editor_core::FreeVar::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -216,7 +216,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
 #[test]
 fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
-    let missing = editor_core::ParamName::from_static("nowhere");
+    let missing = editor_core::VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::SetParam {
@@ -272,7 +272,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: editor_core::DocParam::continuous(Dimension::Angle, 1.0),
+            value: editor_core::FreeVar::continuous(Dimension::Angle, 1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -13,17 +13,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ParamNameReason;
+use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
-    DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind, EvalError,
-    HitTestError, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide,
-    MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind,
-    NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault, ProgramFault,
-    ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
+    DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
+    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
+    StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -776,10 +776,10 @@ fn parse_error_display_names_its_content_not_its_struct() {
 }
 
 test_utils::f6_variants! {
-    /// `ParamNameReason`'s census — see [`NODE_PICK_ERROR`]. The
-    /// lexer's finding inside `ParamNameFault`, which is what
-    /// `ParamName::new` refuses with.
-    const PARAM_NAME_REASON: ParamNameReason = [
+    /// `VarNameReason`'s census — see [`NODE_PICK_ERROR`]. The
+    /// lexer's finding inside `VarNameFault`, which is what
+    /// `VarName::new` refuses with.
+    const PARAM_NAME_REASON: VarNameReason = [
         Blank,
         OutsideAlphabet,
         NotAnIdentifier,
@@ -791,33 +791,33 @@ test_utils::f6_variants! {
 #[test]
 fn param_name_reason_display_names_its_content_not_its_struct() {
     let cases = [
-        (ParamNameReason::Blank, vec!["blank", "one identifier"]),
+        (VarNameReason::Blank, vec!["blank", "one identifier"]),
         (
-            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+            VarNameReason::OutsideAlphabet { pos: 5, ch: '#' },
             vec!["byte 5", "'#'", "outside the expression alphabet"],
         ),
         (
-            ParamNameReason::NotAnIdentifier {
+            VarNameReason::NotAnIdentifier {
                 pos: 0,
                 found: "1".to_string(),
             },
             vec!["byte 0", "\"1\"", "not an identifier"],
         ),
         (
-            ParamNameReason::NotOneToken {
+            VarNameReason::NotOneToken {
                 pos: 1,
                 found: "+".to_string(),
             },
             vec!["byte 1", "\"+\"", "after the identifier"],
         ),
-        (ParamNameReason::Padded, vec!["padded", "whitespace"]),
+        (VarNameReason::Padded, vec!["padded", "whitespace"]),
     ];
     assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
     // The wrapper frames the reason after the quoted text, and quotes
     // for the parse door's reason: these are bytes an author typed.
-    let shown = editor_core::ParamNameFault {
+    let shown = editor_core::VarNameFault {
         offered: " width ".to_string(),
-        reason: ParamNameReason::Padded,
+        reason: VarNameReason::Padded,
     }
     .to_string();
     assert_f6(
@@ -839,7 +839,7 @@ fn param_name_reason_display_names_its_content_not_its_struct() {
 /// almost right.
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let dump_words = dimension_dump_words();
     let dumps = as_strs(&dump_words);
 
@@ -891,7 +891,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &EditError::DocParamValueKindMismatch {
             name: name.clone(),
             declared: Dimension::Length,
-            offered: DocParamValue::Count(2),
+            offered: FreeValue::Count(2),
         },
         &["is declared length"],
         &dumps,
@@ -1175,7 +1175,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotUnknownDocParam {
                 node: node(),
                 slot: SlotId::Radius,
-                name: ParamName::from_static("fillet"),
+                name: VarName::from_static("fillet"),
             },
             vec![
                 "Extrude \"base plate\" (000000000005): slot radius",
@@ -1187,7 +1187,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotDocParamDimension {
                 node: node(),
                 slot: SlotId::Distance,
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1196,7 +1196,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadUnknownDocParam {
                 node: held(5, "Measure"),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
             },
             vec![
                 "Measure 000000000005: its payload expression",
@@ -1207,7 +1207,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadDocParamDimension {
                 node: held(5, "Measure"),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1492,7 +1492,7 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 
     let node = || held(5, "Extrude");
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
@@ -1946,7 +1946,7 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         mate: RecipeNodeId(tagged(2)),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::Vanished,
+        why: RefusedRef::Vanished { by: None },
     });
     let shown = reference.to_string();
     assert!(
@@ -1954,37 +1954,76 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
     assert!(
-        shown.contains(
-            "no entity answers to it, in the product or at the node the mate reads it at"
-        ),
-        "a vanished name is one neither table answers to: {shown:?}"
+        shown.contains("no entity answers to it at the node the mate reads it at"),
+        "a vanished name is one the operand's table does not answer to: {shown:?}"
     );
 }
 
 /// The WHY clause of a mate-reference refusal says what the gate
-/// checked and no more: a name read below a root names the operand
-/// and the rule (a reference resolves against a root's own rows); a
-/// tie names its width. Every other row asserting these sentences
-/// compares against the impl, so this is their one home.
+/// checked and no more: a face placed again above its operand names
+/// the operand, the placer and the recourse; a face consumed on its
+/// way up names the consumer; a tie names its width. Every other row
+/// asserting these sentences compares against the impl, so this is
+/// their one home.
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let below = mint(MintRefusal::Reference {
+    let moved = mint(MintRefusal::Reference {
         mate: RecipeNodeId(tagged(2)),
         side: MateSide::B,
         name: Box::new(face_name()),
-        why: RefusedRef::ReadBelowARoot {
+        why: RefusedRef::MovedAbove {
             at: RecipeNodeId(tagged(5)),
+            by: RecipeNodeId(tagged(6)),
+            copies: false,
         },
     });
     assert_f6(
-        &below,
+        &moved,
         &[
             "mate 000000000002's b reference",
             "does not name a face of the product",
-            "it is read at node 000000000005, which is not a root of the product, and a reference \
-             resolves against a root's own rows",
+            "it is read at node 000000000005, but node 000000000006 places it again before the \
+             product holds it; re-pick the face on node 000000000006",
         ],
-        &["ReadBelowARoot", "Reference"],
+        &["MovedAbove", "Reference"],
+    );
+    assert!(
+        !moved.to_string().contains("naming the copy"),
+        "a placer that places no copies asks for no copy: {moved}"
+    );
+
+    let copied = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::MovedAbove {
+            at: RecipeNodeId(tagged(5)),
+            by: RecipeNodeId(tagged(6)),
+            copies: true,
+        },
+    });
+    assert_f6(
+        &copied,
+        &["re-pick the face on node 000000000006, naming the copy"],
+        &["MovedAbove", "Reference"],
+    );
+
+    let consumed = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::Vanished {
+            by: Some(RecipeNodeId(tagged(7))),
+        },
+    });
+    assert_f6(
+        &consumed,
+        &[
+            "mate 000000000002's b reference",
+            "node 000000000007 consumes it before the product holds it — it merges or cuts the \
+             face, or holds no face of it — so no one face carries it to the product",
+        ],
+        &["Vanished", "Reference"],
     );
 
     let tied = mint(MintRefusal::Reference {
@@ -2049,7 +2088,7 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         mate: RecipeNodeId(tagged(2)),
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
-        why: RefusedRef::Vanished,
+        why: RefusedRef::Vanished { by: None },
     });
     let shown = reference.to_string();
     assert!(
@@ -2061,7 +2100,7 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         mate: RecipeNodeId(tagged(2)),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::Vanished,
+        why: RefusedRef::Vanished { by: None },
     });
     let shown = face.to_string();
     assert!(
@@ -2125,7 +2164,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                 mate: RecipeNodeId(tagged(2)),
                 side: MateSide::A,
                 name: Box::new(face_name()),
-                why: RefusedRef::Vanished,
+                why: RefusedRef::Vanished { by: None },
             },
             MintRefusal::NoAtRestRecord {
                 mate: RecipeNodeId(tagged(5)),
@@ -2164,7 +2203,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     mate: RecipeNodeId(tagged(2)),
                     side: MateSide::A,
                     name: Box::new(face_name()),
-                    why: RefusedRef::Vanished,
+                    why: RefusedRef::Vanished { by: None },
                 },
             },
             CarriedRefusal {
@@ -3186,10 +3225,10 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
 
 /// **A parameter name renders without quotes at every door but parse.**
 ///
-/// [`ParamName`] is a `String` newtype, so a `{:?}` over it renders the
+/// [`VarName`] is a `String` newtype, so a `{:?}` over it renders the
 /// name plus `Debug`'s quotes: prose, but carrying a delimiter the
 /// sentence did not ask for, and the crate spelled it both ways. The
-/// rule is the one [`ParamName`]'s `Display` carries — a door that
+/// rule is the one [`VarName`]'s `Display` carries — a door that
 /// FRAMES the name in a sentence of its own ("parameter width is
 /// declared length") renders it bare, and the one door that echoes the
 /// bytes an author typed, [`ParseError::UnknownParam`], keeps the
@@ -3212,7 +3251,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         SeedError, SplitError,
     };
 
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let node = || held(5, "Extrude");
     let framed: Vec<(&str, String)> = vec![
         (
@@ -3318,7 +3357,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
 /// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
-fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
+fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &VarName) {
     let quoted = format!("{:?}", name.as_str());
     for (door, shown) in framed {
         assert!(
@@ -3339,7 +3378,7 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",
@@ -3367,7 +3406,7 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
 /// names, and the word before each spoken node must not be its kind.
 #[test]
 fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let rows: Vec<(EditError, Vec<SpokenNode>)> = vec![
         (
             EditError::AssertionDimension {

@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 25] {
+) -> [(&'static str, Py<PyAny>); 26] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -104,8 +104,8 @@ fn edit_fields(
         (
             "offered",
             num(payload.offered.map(|v| match v {
-                d::DocParamValue::Continuous(v) => infallible(v.into_pyobject(py)),
-                d::DocParamValue::Count(n) => infallible(n.into_pyobject(py)),
+                d::FreeValue::Continuous(v) => infallible(v.into_pyobject(py)),
+                d::FreeValue::Count(n) => infallible(n.into_pyobject(py)),
             })),
         ),
         (
@@ -116,6 +116,7 @@ fn edit_fields(
             "index",
             num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
         ),
+        ("side", word(payload.side)),
         (
             "path",
             opt(payload.path.map(|p| {
@@ -773,10 +774,10 @@ pub(crate) fn face_name_from_text(
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `profile` and `placement_step` are words of the alphabet with no
-/// slot to read back: the rest of each address holds an integer the
-/// word does not carry, so each refuses in its own sentence rather
-/// than as a misspelling.
+/// `profile`, `placement_step` and `mate_frame_step` are words of the
+/// alphabet with no slot to read back: the rest of each address holds
+/// an integer the word does not carry, so each refuses in its own
+/// sentence rather than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
         return Ok(slot);
@@ -791,6 +792,12 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`placement_step` addresses one expression of a later step of a transform's \
          placement, and the rest of that address — the step index and which component — \
          is an integer the word does not carry, so no slot word here writes at it"
+                .to_owned()
+        } else if word == "mate_frame_step" {
+            "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
+         rest of that address — the side, the step index and which component — is not \
+         carried by the word, so no slot word here writes at it: a parameter the \
+         expression reads moves it, or the mate is re-authored"
                 .to_owned()
         } else {
             format!(
@@ -3174,7 +3181,7 @@ impl Node {
 /// recipe vocabulary, meaningful in any document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ParamName(pub(crate) d::ParamName);
+pub(crate) struct ParamName(pub(crate) d::VarName);
 
 #[pymethods]
 impl ParamName {
@@ -3184,7 +3191,7 @@ impl ParamName {
     /// name, asked at the boundary that turns text into one.
     #[new]
     fn new(py: Python<'_>, name: &str) -> PyResult<Self> {
-        d::ParamName::new(name).map(Self).map_err(|fault| {
+        d::VarName::new(name).map(Self).map_err(|fault| {
             boundary_edit_err(py, BoundaryEdit::ParamName(&fault), fault.to_string())
         })
     }
@@ -3237,12 +3244,12 @@ fn continuous(
     distribution: Option<&super::analysis::Distribution>,
 ) -> PyResult<DocParam> {
     let Some(dist) = distribution else {
-        return Ok(DocParam(d::DocParam::continuous(dim, value)));
+        return Ok(DocParam(d::FreeVar::continuous(dim, value)));
     };
     if dist.dim != dim {
         return Err(super::analysis::dimension_mismatch(py, door, dim, dist.dim));
     }
-    Ok(DocParam(d::DocParam::continuous_with(
+    Ok(DocParam(d::FreeVar::continuous_with(
         dim, value, dist.inner,
     )))
 }
@@ -3270,7 +3277,7 @@ fn continuous(
 /// [`Self::distribution`] reads it back.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct DocParam(pub(crate) d::DocParam);
+pub(crate) struct DocParam(pub(crate) d::FreeVar);
 
 #[pymethods]
 impl DocParam {
@@ -3321,7 +3328,7 @@ impl DocParam {
     /// door, which is the reason to author through it.
     ///
     /// No `distribution`: the kernel's own notation doors carry none
-    /// (`DocParam::written_length` writes `distribution: None`), and
+    /// (`FreeVar::written_length` writes `distribution: None`), and
     /// this binding does not reach past them to build the payload by
     /// hand. A parameter that wants both is declared here and then
     /// annotated through `DocEdit.set_doc_param_distribution`,
@@ -3329,7 +3336,7 @@ impl DocParam {
     /// both at once and records the canonical metre row.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
-        Self(d::DocParam::written_length(value.0))
+        Self(d::FreeVar::written_length(value.0))
     }
 
     /// A continuous Angle parameter that remembers its notation —
@@ -3337,7 +3344,7 @@ impl DocParam {
     /// carrying no annotation for its reason.
     #[staticmethod]
     fn written_angle(value: &super::quantity::WrittenAngle) -> Self {
-        Self(d::DocParam::written_angle(value.0))
+        Self(d::FreeVar::written_angle(value.0))
     }
 
     /// A continuous dimensionless parameter, with an optional
@@ -3366,12 +3373,12 @@ impl DocParam {
     /// one on.
     #[staticmethod]
     fn count(value: i64) -> Self {
-        Self(d::DocParam::Count { value })
+        Self(d::FreeVar::Count { value })
     }
 
     /// This parameter's distribution, or `None` if it declared none.
     ///
-    /// The kernel's `DocParam::distribution` reader, carrying the
+    /// The kernel's `FreeVar::distribution` reader, carrying the
     /// parameter's own dimension across with it — which is where an
     /// annotation's dimension lives, since the annotation itself has
     /// none (E2: no separate dimension field to disagree with the
@@ -3402,13 +3409,13 @@ impl DocParam {
     #[getter]
     fn unit(&self) -> Option<&'static str> {
         match &self.0 {
-            d::DocParam::Continuous { display_unit, .. } => Some(display_unit.def().symbol()),
-            d::DocParam::Count { .. } => None,
+            d::FreeVar::Continuous { display_unit, .. } => Some(display_unit.def().symbol()),
+            d::FreeVar::Count { .. } => None,
         }
     }
 
     /// Rust's `PartialEq`, mirrored — which is IEEE comparison of the
-    /// stored value, NOT the bit comparison `DocParam::bit_eq` makes.
+    /// stored value, NOT the bit comparison `FreeVar::bit_eq` makes.
     /// Two spellings of zero are therefore the same parameter here
     /// and different parameters to `bit_eq`, exactly as in Rust; a
     /// NaN value (which the edit door refuses, so it never reaches a
@@ -3429,7 +3436,7 @@ impl DocParam {
         use std::hash::{Hash, Hasher};
         let mut h = std::hash::DefaultHasher::new();
         match &self.0 {
-            d::DocParam::Continuous {
+            d::FreeVar::Continuous {
                 dim,
                 value,
                 display_unit,
@@ -3443,7 +3450,7 @@ impl DocParam {
                 // hash: two parameters that `__eq__` calls different
                 // may collide, but two it calls equal may never hash
                 // apart, and leaving the unit out is the direction that
-                // costs nothing to close. (`DocParam::bit_eq` excludes
+                // costs nothing to close. (`FreeVar::bit_eq` excludes
                 // it — that comparator is D7 replay identity, where a
                 // notation is not part of what a document IS.)
                 display_unit.def().symbol().hash(&mut h);
@@ -3457,7 +3464,7 @@ impl DocParam {
                 // Python dict may not survive.
                 format!("{:?}", distribution.map(d::Distribution::fold_signed_zeros)).hash(&mut h);
             }
-            d::DocParam::Count { value } => {
+            d::FreeVar::Count { value } => {
                 1u8.hash(&mut h);
                 value.hash(&mut h);
             }
@@ -3471,13 +3478,13 @@ impl DocParam {
             // repr that hid a field two values can differ on would
             // print them identically. The dimensionless row's symbol is
             // empty, which reads as the absence it is.
-            d::DocParam::Continuous {
+            d::FreeVar::Continuous {
                 dim,
                 value,
                 display_unit,
                 distribution: None,
             } => format!("DocParam({dim:?} {value} {})", display_unit.def().symbol()),
-            d::DocParam::Continuous {
+            d::FreeVar::Continuous {
                 dim,
                 value,
                 display_unit,
@@ -3486,7 +3493,7 @@ impl DocParam {
                 "DocParam({dim:?} {value} {} {d:?})",
                 display_unit.def().symbol()
             ),
-            d::DocParam::Count { value } => format!("DocParam(Count {value})"),
+            d::FreeVar::Count { value } => format!("DocParam(Count {value})"),
         }
     }
 }
@@ -3510,32 +3517,32 @@ impl DocParam {
 /// number is in, and the parameter's own declaration is what rules.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct DocParamValue(pub(crate) d::DocParamValue);
+pub(crate) struct DocParamValue(pub(crate) d::FreeValue);
 
 #[pymethods]
 impl DocParamValue {
     /// A continuous value in Length units.
     #[staticmethod]
     fn length(value: &super::quantity::Length) -> Self {
-        Self(d::DocParamValue::Continuous(value.0.meters()))
+        Self(d::FreeValue::Continuous(value.0.meters()))
     }
 
     /// A continuous value in Angle units.
     #[staticmethod]
     fn angle(value: &super::quantity::Angle) -> Self {
-        Self(d::DocParamValue::Continuous(value.0.radians()))
+        Self(d::FreeValue::Continuous(value.0.radians()))
     }
 
     /// A dimensionless continuous value.
     #[staticmethod]
     fn scalar(value: f64) -> Self {
-        Self(d::DocParamValue::Continuous(value))
+        Self(d::FreeValue::Continuous(value))
     }
 
     /// An exact integer, for a `Count` parameter.
     #[staticmethod]
     fn count(value: i64) -> Self {
-        Self(d::DocParamValue::Count(value))
+        Self(d::FreeValue::Count(value))
     }
 
     /// Rust's `PartialEq`, mirrored — IEEE on the stored number, so

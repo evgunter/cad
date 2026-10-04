@@ -2,11 +2,11 @@
 id: mate-primitive-unit-variants-load-from-a-null-payload
 kind: issue
 title: A unit MatePrimitive variant loads from a second spelling, {"coaxial": null}, before and after deny_unknown_fields
-status: open
+status: parked
 opened: 2026-09-19
 priority: P0
 cost: E
-blocked_on: [a-face-frame-cannot-turn-its-roll]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -14,7 +14,7 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
+    Dimension, Doc, DocEdit, Expr, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };
 use geom_core::Tol;
 
@@ -137,8 +137,8 @@ struct Authored {
 
 fn depth_param() -> TEdit {
     TEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, 0.002),
+        name: VarName::from_static("pip_depth"),
+        value: FreeVar::continuous(Dimension::Length, 0.002),
     }
 }
 
@@ -182,7 +182,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -241,7 +241,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

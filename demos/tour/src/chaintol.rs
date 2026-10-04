@@ -10,33 +10,34 @@
 //!
 //! The certified scalar is its entire subject.
 //!
-//! # As built: the placed rows' loop continuity is the wall
+//! # As built: check 5's escape on the placed rows is the wall
 //!
 //! Since the extrude closes with the pcurve mint (PCERT, PRs 3759 and
 //! 3812), `transform_rigid` re-certifies every placed link's pcurve
-//! rows, and the loop walk compares two stored chart azimuths at every
-//! joint (`pcurve_loop_continuity`). Over a box both azimuths carry the
-//! link's rotation as opaque `atan2` atoms, so that margin's enclosure
-//! grows with the box, as does check 5's test of each row's chart box
-//! against its window. Those two now set the certifiable box at EVERY
-//! link count, the one-link chain included, well below the walls the
-//! rest of this header measured before the mint:
+//! rows. Over a box a row's stored azimuths carry the link's rotation
+//! as opaque `atan2` atoms, so two enclosures grow with the box: check
+//! 5's test of each row's chart box against its window
+//! (`pcurve_trim_containment`, deciding only an escape's positive
+//! part), and the loop walk's comparison of two azimuths at every joint
+//! (`pcurve_loop_continuity`). The first sets the certifiable box at
+//! EVERY link count, the one-link chain included, with the second about
+//! 5% further out, both well below the walls the rest of this header
+//! measured before the mint:
 //!
 //! | links | `Sym<Interval>`, first refusal over the whole study | widest box that certifies whole |
 //! |---|---|---|
-//! | 1 | `pcurve_loop_continuity` | `6.510e-7` of the study |
-//! | 2 | `pcurve_loop_continuity` | `2.216e-7` |
-//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `1.117e-7` |
-//! | 4 | `dihedral_arm` | `6.751e-8` |
+//! | 1 | `pcurve_loop_continuity` | `1.223e-6` of the study |
+//! | 2 | `pcurve_loop_continuity` | `4.244e-7` |
+//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `2.169e-7` |
+//! | 4 | `dihedral_arm` | `1.318e-7` |
 //!
 //! ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`], at the default ε.)
-//! Just above each fraction the first refusal is the placed rows'
-//! `pcurve_loop_continuity` or check 5's `pcurve_trim_containment`,
-//! both angular comparisons of a stored azimuth
-//! (`the_wall_is_the_placed_rows_angular_comparisons`). The
-//! tip's certified half-width is again one number past one link
-//! ([`crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS`]), because this
-//! margin grows with the same tip box the wedge's did.
+//! Over the whole study the first refusal is an evaluation-order fact;
+//! just above each fraction it is check 5 escalating
+//! (`the_wall_is_check_5s_escape_and_continuity_is_next`). The tip's
+//! certified half-width is no longer one number past one link: it rises
+//! with link count and flattens
+//! ([`crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]).
 //!
 //! **The follow-on that restates it** is
 //! `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`:
@@ -381,11 +382,11 @@ pub fn narration(tol: Tol) {
         // `3σ` is the analyzed box's half-width per joint and
         // `n(n+1)/2` is the tip's lever sum over the joints above it,
         // so `L · 3σ · f · n(n+1)/2` is how far the tip may move over
-        // the certified box. THAT is the quantity that is the same at
-        // every link count past one (`chain::CERTIFIED_TIP_OVER_PIN_RADIUS`
-        // of the pin radius; half of it before the pcurve mint) — and the
-        // ANGLE below is it divided by the fixed link length, which is
-        // why the angle looked like the invariant and is not one.
+        // the certified box. Before the pcurve mint THAT was the same at
+        // every link count past one (half the pin radius); since check
+        // 5's escape is the wall it rises and flattens
+        // (`chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`). The ANGLE
+        // below is it divided by the fixed link length.
         let lever: f64 = (links * (links + 1) / 2) as f64;
         let swing = 3.0 * JOINT_SIGMA * f * lever;
         println!(
@@ -399,7 +400,7 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `6.747e-5` at ε = 1e-6 against `6.751e-8` at
+    // with ε — MEASURED, `1.317e-4` at ε = 1e-6 against `1.318e-7` at
     // the default — because the wall is an enclosure escalating against
     // the band (the placed rows' angular comparisons since the extrude
     // closes with the pcurve mint), so the box is ε-relative. Before
@@ -426,7 +427,7 @@ pub fn narration(tol: Tol) {
         );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
-             number, and the box moves with ε (6.747e-5 at 1e-6, measured). No enclosure is \
+             number, and the box moves with ε (1.317e-4 at 1e-6, measured). No enclosure is \
              reported here; the cell's CI row measures the fraction at the default ε."
         );
         return;
@@ -458,13 +459,14 @@ pub fn narration(tol: Tol) {
     // together rather than the sentence alone.
     let tip = boxes.last().expect("a chain has a tip pin").1;
     println!(
-        "   the tip's is {:.4e} of the pin radius ({:.2} mm) — the invariant across link \
-         counts past one: `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` = {:.4e}. Since the \
-         extrude closes with the pcurve mint the placed rows' angular comparisons set it; \
-         before, the wedge did, at half the radius",
+        "   the tip's is {:.4e} of the pin radius ({:.2} mm): \
+         `chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS` = {:.4e} at {LINKS} links. Since \
+         check 5's escape on the placed rows is the wall it rises with link count and \
+         flattens; before the pcurve mint the wedge set it, at half the radius at every \
+         link count past one",
         tip / crate::chain::PIN_RADIUS,
         crate::chain::PIN_RADIUS * MM,
-        crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS
+        crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS[LINKS - 1]
     );
 
     // The row this unit answers asks one question: does the certified
@@ -681,7 +683,7 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     // last accepted probe, re-measured by
     // `the_published_certifiable_fractions_are_the_measured_ones`),
     // and 1.02× that width REFUSES
-    // (`the_wall_is_the_placed_rows_angular_comparisons`). What is ASSUMED is
+    // (`the_wall_is_check_5s_escape_and_continuity_is_next`). What is ASSUMED is
     // monotonicity BELOW the answer — that no narrower box refuses.
     //
     // For the wall there is an argument, not a guarantee: on the same
@@ -774,32 +776,38 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
-    /// **What BOUNDS the certifiable box is the placed rows' angular
-    /// comparisons**: `pcurve_loop_continuity`, or check 5's
-    /// `pcurve_trim_containment`, at every link count.
+    /// **What BOUNDS the certifiable box is check 5's escape**, at every
+    /// link count, with the loop walk's continuity the next wall out.
     ///
     /// Since the extrude closes with the pcurve mint, `transform_rigid`
-    /// re-certifies each placed link's pcurve rows, and the loop walk
-    /// compares two stored chart azimuths at every joint. Over a box both
-    /// carry the link's rotation as opaque `atan2` atoms, so the
-    /// continuity margin's enclosure grows with the box, and so does the
-    /// trim-containment test of each row's chart box against its window;
-    /// one of the two refuses first, far below the `dihedral_wedge` wall
-    /// this cell measured
-    /// before the mint (the follow-on that restates it:
-    /// `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`,
-    /// whose scratch measurement puts the wedge wall back at the
-    /// published `[1.0, 0.3702, 0.1851, 0.111]` once the angular
-    /// comparisons are restated). The question the box answers is asked
-    /// just above the wall: at `1.02×` and `1.10×` of each link count's
-    /// certifiable fraction, the first refusal is one of the two
-    /// escalating.
+    /// re-certifies each placed link's pcurve rows. Over a box both of a
+    /// row's stored azimuths carry the link's rotation as opaque `atan2`
+    /// atoms, so two enclosures grow with the box:
+    /// - check 5's `pcurve_trim_containment`, deciding only an escape's
+    ///   positive part, whose enclosure `[0, hi]` refuses once `hi`
+    ///   passes ε;
+    /// - the loop walk's `pcurve_loop_continuity`, a symmetric `±hi`
+    ///   that crosses ε about 5% further out.
+    ///
+    /// Both sit far below the `dihedral_wedge` wall this cell measured
+    /// before the mint. The follow-on that retires check 5 and restates
+    /// the joints is
+    /// `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`;
+    /// its scratch measurement puts the wedge wall back at the
+    /// published `[1.0, 0.3702, 0.1851, 0.111]`.
+    ///
+    /// Just above the wall, at `1.02×`, the first refusal is check 5
+    /// escalating. At `1.10×`, past the next wall, it is the continuity
+    /// enclosure, met first in evaluation order.
     #[test]
-    fn the_wall_is_the_placed_rows_angular_comparisons() {
+    fn the_wall_is_check_5s_escape_and_continuity_is_next() {
         let tol = Tol::witness();
         for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
             let links = i + 1;
-            for over in [1.02, 1.10] {
+            for (over, wall) in [
+                (1.02, "pcurve_trim_containment"),
+                (1.10, "pcurve_loop_continuity"),
+            ] {
                 let built = chain(links, JOINT_SIGMA * f * over, POSITION_BOUND, tol);
                 let row = sym_leaf(links, &built.doc);
                 assert!(
@@ -808,11 +816,9 @@ mod tests {
                 );
                 let first = row.first.expect("a refusing row names its first refusal");
                 assert!(
-                    first.contains("pcurve_loop_continuity")
-                        || first.contains("pcurve_trim_containment"),
-                    "the header says the WALL is the placed rows' angular comparisons \
-                     (`pcurve_loop_continuity`, `pcurve_trim_containment`); at {links} \
-                     links, {over}× the fraction, the first refusal was: {first}"
+                    first.contains(wall),
+                    "the header says the first refusal at {over}× the {links}-link fraction \
+                     is `{wall}`; it was: {first}"
                 );
                 assert!(
                     first.contains("cannot be classified"),
@@ -823,41 +829,47 @@ mod tests {
         }
     }
 
-    /// **The tip's certified box is one number at every link count
-    /// whose box the wall sets.**
+    /// **The tip's certified box rises with link count and flattens.**
     ///
-    /// This is the statement the fractions are spellings of. Before the
-    /// extrude closed with the pcurve mint the wall was `dihedral_wedge`
-    /// and the number was half the PIN RADIUS (a property of this
-    /// document's geometry, shown by doubling the radius); now the wall
-    /// is the placed rows' `pcurve_loop_continuity`, whose enclosure
-    /// grows with the same tip box, and the number is what
-    /// [`crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS`] pins until the
-    /// follow-on restates the loop decisions
-    /// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
-    ///
-    /// Two to four links, as before: the one-link chain's box sits a few
-    /// percent under the others' (its lever sum is 1, the joint's own).
+    /// Before the extrude closed with the pcurve mint the wall was
+    /// `dihedral_wedge`, and the tip's half-width was one number past one
+    /// link, half the pin radius. Since check 5's escape enclosure is the
+    /// wall it is not: the half-width over the pin radius rises at every
+    /// link count and each step is smaller than the last
+    /// ([`crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]). Both
+    /// the sequence and that trend are pinned, so a wall that went back
+    /// to one number, or one that stopped flattening, reds here.
     #[test]
-    fn the_certified_tip_box_is_one_number_past_one_link() {
+    fn the_certified_tip_box_rises_and_flattens_with_link_count() {
         let tol = Tol::witness();
-        let mut ratios = Vec::new();
-        for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate().skip(1) {
-            let links = i + 1;
-            let boxes = certified_pin_boxes(links, *f, tol);
-            let tip = boxes.last().expect("a chain has a tip pin").1;
-            ratios.push(tip / crate::chain::PIN_RADIUS);
-        }
-        let published = crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS;
+        let ratios: Vec<f64> = CERTIFIABLE_FRACTION_BY_LINKS
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                let boxes = certified_pin_boxes(i + 1, *f, tol);
+                boxes.last().expect("a chain has a tip pin").1 / crate::chain::PIN_RADIUS
+            })
+            .collect();
+        let published = crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS;
         let drifted = ratios
             .iter()
-            .any(|r| (r - published).abs() > 0.02 * published);
+            .zip(published)
+            .any(|(r, p)| (r - p).abs() > 0.02 * p);
         assert!(
             !drifted,
-            "chain::CERTIFIED_TIP_OVER_PIN_RADIUS is {published:e}; the certified tip \
-             half-width over the pin radius measures {ratios:?} at 2..{LINKS} links (ε = \
+            "chain::CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS is {published:?}; the certified \
+             tip half-width over the pin radius measures {ratios:?} at 1..{LINKS} links (ε = \
              {}). Re-baseline the constant and say in the PR what moved.",
             tol.eps()
+        );
+        let steps: Vec<f64> = ratios.windows(2).map(|w| w[1] - w[0]).collect();
+        assert!(
+            steps.iter().all(|d| *d > 0.0),
+            "the tip's half-width rises at every link count: {ratios:?}"
+        );
+        assert!(
+            steps.windows(2).all(|w| w[1] < w[0]),
+            "each step is smaller than the last: {ratios:?} (steps {steps:?})"
         );
     }
 
@@ -871,8 +883,8 @@ mod tests {
     /// any of them is a change in that claim.
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
-    /// the default — because the fractions move with ε: `6.751e-8` at
-    /// the default against `6.747e-5` at `1e-6`, measured (an
+    /// the default — because the fractions move with ε: `1.318e-7` at
+    /// the default against `1.317e-4` at `1e-6`, measured (an
     /// escalating wall, so ε-relative; before the pcurve mint the wall
     /// was the wedge and the fractions moved a few percent, for the
     /// reason the module header's "What sets the wall"

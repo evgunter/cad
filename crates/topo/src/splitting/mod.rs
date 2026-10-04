@@ -220,9 +220,9 @@ pub enum SplitReduceError {
     /// The plane may meet a face whose `(kind × plane)` arm of the C5
     /// dispatch table the split pipeline does not execute (`Plane`,
     /// `Cylinder` and `Cone` are; C12.1). "May meet": the face's padded
-    /// reach box, axis-aligned in world coordinates, is not certainly
-    /// on one side of the plane; a face behind a box that clears does
-    /// not refuse.
+    /// reach box, read in the plane's own frame so that it turns with
+    /// the body, is not certainly on one side of the plane; a face
+    /// behind a box that clears does not refuse.
     CurvedBooleanUnsupported {
         /// The offending face.
         face: FaceKey,

@@ -64,7 +64,7 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, SectionCase, SectionCtx,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, SectionCase, SectionCtx,
     SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
     vertex_point, wall_section,
 };
@@ -163,8 +163,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                     &mut red.body,
                     end,
                     half,
-                    JoinLane::Split(section),
-                    crate::chord_join::SegmentEdge::InPlane,
+                    crate::chord_join::Chords::Split(section),
                     tol,
                 )?;
                 joined[slot] = true;

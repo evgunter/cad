@@ -98,7 +98,7 @@ fn tilt_raised_cap(
         u_ref,
     };
     // Lifts RechartStrandsDescriptions: the tilted cap plane is the unit's tilt.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         cap,
         FaceSurface::New {
             surface: tilted,

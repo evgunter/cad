@@ -819,8 +819,9 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{
-        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox, ParamName,
-        Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, render_sensitivity, sensitivities,
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox,
+        Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, VarName, render_sensitivity,
+        sensitivities,
     };
 
     let doc = ProfileDoc::empty_derived("node-labels-analysis", Tol::witness());
@@ -847,7 +848,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{unknown_slot}"
     );
 
-    let not_a_measure = sensitivities(&doc, extrude, None, None, false, Tol::witness())
+    let not_a_measure = sensitivities(&doc, extrude, None, None, false, None, Tol::witness())
         .expect_err("an extrude is not a measure");
     assert_eq!(
         not_a_measure.to_string(),
@@ -856,12 +857,12 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 
     let pinned = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: VarName::new("w").expect("an identifier"),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: LiftRefusal::PinnedSection {
                 section: profile,
-                param: ParamName::new("w").expect("an identifier"),
+                param: VarName::new("w").expect("an identifier"),
             },
         },
     };
@@ -962,7 +963,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 #[test]
 #[should_panic(expected = "its node ids would name another document's nodes")]
 fn a_report_rendered_from_another_document_fails_loud() {
-    use editor_core::{ParamName, Sensitivity, SensitivityOutcome, render_sensitivity};
+    use editor_core::{Sensitivity, SensitivityOutcome, VarName, render_sensitivity};
     let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
     let (doc, [_, _, extrude]) = block(doc, 0.0);
     let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
@@ -973,12 +974,12 @@ fn a_report_rendered_from_another_document_fails_loud() {
     );
     let entry = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: VarName::new("w").expect("an identifier"),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: editor_core::LiftRefusal::PinnedSection {
                 section: extrude,
-                param: ParamName::new("w").expect("an identifier"),
+                param: VarName::new("w").expect("an identifier"),
             },
         },
     };

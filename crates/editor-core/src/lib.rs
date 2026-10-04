@@ -114,7 +114,7 @@ pub use checks::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamField, DocParamValue, ParamName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -151,12 +151,12 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
-    ClassAdmission, Coset, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateFrame,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
+    FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
-    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission, gauge_chain,
-    groups, head_face, member_of, member_reading, places, reading_edges,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach,
+    SolvedPoses, Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission,
+    gauge_chain, groups, head_face, member_of, member_reading, places, reading_edges,
     relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
@@ -190,7 +190,7 @@ pub use node::{
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
     TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
+pub use parse::{ParseError, VarNameFault, VarNameReason, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
@@ -201,8 +201,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
-    product, product_named, product_recorded,
+    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
+    own_spaces, product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,

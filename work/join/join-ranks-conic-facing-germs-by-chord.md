@@ -50,3 +50,14 @@ Both reviewers of PR 3845 noted that this item reads `find_match`'s
 candidate set without its `is_up` filter (`join.rs:700`), which may
 already exclude some back-to-back pairs; `loose_partners` has no such
 filter. A fix measures which of the two the hazard reaches first.
+
+## JOIN-3 (re-measure owed)
+
+The hazard above went red on the blind D pocket's ring-run winding
+(`Zero`). Since JOIN-3 the ring lane closes its run with the chord the
+join mints rather than the straight one, and the blind D builds from
+both faces, so the arc ranking's cost should be re-measured on that
+head. A second shape of the same ranking, unmeasured: sites on one
+conic where the true partner lies more than a half turn away along the
+arc, and another opposed-sense site past it, nearer by chord
+(`2r·sin(Δ/2)` falls past `Δ = π`).

@@ -589,6 +589,11 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # A document variable's name, free definition and value: Python
+    # spells them as the parameter classes.
+    "FreeValue": "DocParamValue",
+    "FreeVar": "DocParam",
+    "VarName": "ParamName",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -1058,9 +1063,9 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
     # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a `from_face` side's head face answered no pose
+    # arm publishes: why a face-based side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
+    # `readback`, `not_an_instance`, `no_part_face`). The
     # instance crosses as `MateFault.instance`, the face as
     # `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",
@@ -1068,12 +1073,11 @@ BOUND_AS = {
     # alone; the solve wraps it into `FaceRefusal` with the instance
     # and the face, which is the shape Python reads.
     "FacePoseRefusal": "MateFault.inner_variant",
-    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or the
-    # side's head face resolved at the solve. `MateFrame` is one Python
-    # class whose `variant` says which (`authored`, `from_face`); the
-    # authored vectors are its `origin`/`axis`/`reference`, so the
-    # inner struct is not a class of its own.
-    "AuthoredFrame": "MateFrame.variant",
+    # WHAT A MATE FRAME'S OFFSET IS WRITTEN IN: the part frame, or the
+    # side's head face resolved at the solve. `MateFrame.base` says
+    # which (`part`, `face`), so the two-arm enum is not a class of
+    # its own.
+    "FrameBase": "MateFrame.base",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -2301,21 +2305,21 @@ NOT_BOUND = {
     # RUST sentence can name the door rather than say "a carry-forward
     # edit" and leave a reader to work out which.
     "CarryForwardDoor": SHAPE,
-    # `DocParam::with_display_unit`'s `Err`: which of the two reasons a
+    # `FreeVar::with_display_unit`'s `Err`: which of the two reasons a
     # notation cannot be written. It is flattened because no Python
     # door answers in it — the binding's notation edit goes through
     # `Doc.apply`, where the kernel has already mapped these two to
     # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
-    # `DocParam::with_distribution`'s `Err`, flattened for
+    # `FreeVar::with_distribution`'s `Err`, flattened for
     # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
     # binding's annotation edit goes through `Doc.apply`, where the
     # kernel has already mapped these to
     # `doc_param_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
-    # `DocParam::first_non_finite`'s answer: WHICH float of a
+    # `FreeVar::first_non_finite`'s answer: WHICH float of a
     # continuous parameter is not a number — the nominal, or the
     # offset `DistributionField` names. It is `DistributionRefusal`'s
     # row one concept over and flattened for its reason: no Python
@@ -2422,6 +2426,11 @@ NOT_BOUND = {
     # the schedule ran out) rather than as values Python holds.
     "TargetUnreached": SHAPE,
     "VolumeEnclosure": SHAPE,
+    # `VolumeReading` is that same fork, number or bracket, named as
+    # one value for the Rust demos and rows. Python reads the number
+    # from the mass properties and the bracket from the refusal's
+    # `volume_lo`/`volume_hi`, as above.
+    "VolumeReading": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.
@@ -2739,6 +2748,8 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # One placing node on a `Member`'s chain: interior with it.
+    "Placing": INTERIOR,
     # The one thing `Frame::rotate_then_translate` refuses, and the
     # only thing `EditError::PlacementAxis` converts from — a type so
     # that no other node refusal can reach a caller wearing the axis's
@@ -2761,6 +2772,10 @@ NOT_BOUND = {
     # failure's tag word and prose, the checks refusal as
     # `product_unavailable` and the refusal's prose.
     "ProductRefusal": INTERIOR,
+    # What `ProductError::PlacedUnderTwoRoots` places twice — the input
+    # its recourse branches on. The sentence a Python caller reads
+    # already says which recourse; the kind behind it is interior.
+    "PlacedTwice": INTERIOR,
     # The one generic both wrappers above are spellings of; Python holds
     # neither, so it holds no instance of this either.
     "Refusal": INTERIOR,
@@ -3033,14 +3048,14 @@ NOT_BOUND = {
     # rule.
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
-    # `ParamNameFault` is what `ParamName::new` refuses with, and
-    # `ParamNameReason` the lexer's finding inside it. A Python caller
+    # `VarNameFault` is what `VarName::new` refuses with, and
+    # `VarNameReason` the lexer's finding inside it. A Python caller
     # holds a name as text until `ParamName(text)`, which is where the
     # binding calls the constructor and publishes the refusal as
     # `EditError.variant == "param_name_not_an_identifier"`; neither
     # type crosses, for `NotAFaceName`'s reason.
-    "ParamNameFault": SHAPE,
-    "ParamNameReason": SHAPE,
+    "VarNameFault": SHAPE,
+    "VarNameReason": SHAPE,
     # `Label` is a node's label as a validated text, and `LabelFault`
     # what `Label::new` refuses with. A Python caller holds a label as
     # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
@@ -3620,10 +3635,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
     "MateFault::SelfMate": "MateFault.variant",
     "MateFault::FaceUnresolved": "MateFault.variant",
-    # A mate frame's two arms cross as `MateFrame.variant`
-    # (`authored`, `from_face`); the constructor `MateFrame(...)` is
-    # the authored arm and `MateFrame.from_face()` the other.
-    "MateFrame::Authored": "MateFrame.variant",
+    "MateFault::FrameUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",
@@ -3704,7 +3716,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
     "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
@@ -3943,11 +3955,6 @@ MEMBERS_BOUND_AS = {
     # than by naming the arm — `bind_count_param`, `bind_instance_param`
     # and `bind_v_degree_param` all build this arm.
     "DocEdit::SetStructuralParam": "DocEdit.bind_count_param",
-    # The continuous arm is what the three dimensioned constructors
-    # mint; `Count` is the arm the namesake spells.
-    "DocParam::Continuous": "DocParam.length",
-    # As `DocParam` above, one rung down at the value.
-    "DocParamValue::Continuous": "DocParamValue.length",
     # THE RUST RUN'S OWN FIELDS, under a Python class that is a different
     # type: `pncad.pyi`'s `Evaluation` is the binding's captured
     # (document, evaluation) pair. Four of its ten fields carry names

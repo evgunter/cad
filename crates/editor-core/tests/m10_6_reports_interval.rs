@@ -28,16 +28,16 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    AssertionDir, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, MeasureExpr,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };
 use geom_core::Tol;
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The ε-scaled half-width the driver can certify over.
@@ -56,7 +56,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("place"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -160,6 +160,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -170,6 +171,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -223,6 +225,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -235,6 +238,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -258,6 +262,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &wider_verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -331,6 +336,7 @@ fn the_cache_serves_equal_keys_and_only_those() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");

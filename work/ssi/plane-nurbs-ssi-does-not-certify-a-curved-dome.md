@@ -241,3 +241,55 @@ follows:
 `a_seed_settled_off_the_walls_chart_is_no_branch` in
 `crates/geom-brep/tests/m5_pr7_ssi.rs` pins the outcomes for d = 1 and
 d = 2.
+
+**Cause 3 is split out** to `ssi-step-rungs-mix-state-and-carrier-units`,
+which carries its fix: every step rung reads the carrier in metres. With
+it in place, the table above moves as follows (d = 0.05–3; d = 3–4 on
+the oblique and zcut, and d = 4 on the tilt, refuse
+`WindowShortOfWall` at this domain):
+- The level loop takes 1030 samples at ε 1e-9 and certifies at every d;
+  at 1e-12 it refuses `FitSampleBudget` at 5787 (was 7505). At 1e-6 it
+  takes 184 (was 238).
+- Every other curved cut takes fewer samples, by up to 1.2×; at 1e-12
+  the tilt reads `FSB` 1413 / 1950 / 2616 / 3303 at d = 0.5 / 1 / 2 / 3
+  (was 1664 / 2329 / 3186 / 4073), and the oblique and zcut 1–5% fewer.
+- Two cuts that certified now escalate limb 2 in band: the tilt at
+  d = 2 and ε 1e-6, and the zcut at d = 2 and ε 1e-9. The old rung's
+  over-count was slack that hid cause 4 there; this is further evidence
+  for cause 4, not a cause of its own.
+
+**Where cause 4 bites** (PR 3968's review, measured on those two
+cuts): the worst fit-pair deviation sits at the branch end, at a
+parameter fraction of 0.001–0.009, not mid-branch. There `‖C⁗‖/κ³`,
+which the fit rung takes to be about 1, is far from it:
+- zcut d = 2, a parabola in closed form: 4 at the centre, 23 at the
+  ends;
+- tilt d = 2: about 57 at the maximum deviation, and about 400 near
+  t ≈ 0.04–0.08.
+
+`a_curved_domes_open_arc_meets_the_hull_limb_at_its_ends`
+(`crates/geom-brep/tests/m5_pr7_ssi.rs`) pins the zcut at ε 1e-9:
+certified at d = 1, limb 2 in band at d = 2. The tilt at d = 2 and
+1e-6 is pinned by `a_seed_settled_off_the_walls_chart_is_no_branch`.
+
+## Cause 4 answered by refinement (ssi/step-max-certify, 2026-10-03)
+
+`SSI_STEP_MAX` is retired. Where limb 1 or 2 refuses a fitted carrier,
+the gaps between samples that the refused spans meet are halved and
+the carrier refitted (`march::refine_by_certificate`). Measured on the
+four cuts above at d = 0–3 (d = 3 oblique and zcut refuse
+`WindowShortOfWall` at this domain), against main at 3cb7bc8:
+
+- **ε 1e-6:** every cut certifies. The tilt at d = 2 (`HS~` before)
+  certifies on 94 samples.
+- **ε 1e-9:** every cut certifies. The oblique at d = 0.5–2 (`OL~` and
+  `HS` before) takes 258 / 402 / 579 samples; the tilt at d = 1–3
+  (`HS`, `HS`, `OL~` before) 346 / 491 / 636; the zcut at d = 2 (`HS~`)
+  348, two more than the march's 346. The two limb-1 escalations listed
+  above as unexplained certify too: they were the same under-sampling.
+- **ε 1e-12:** unchanged, `FitSampleBudget` (cause 2) wherever it was.
+- A flat wall's cuts take 6 samples (33 to 46 before).
+
+`a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused` and
+`a_seed_settled_off_the_walls_chart_is_no_branch` pin the zcut and the
+tilt. Cause 2 remains, so the row stays open.

@@ -4543,7 +4543,7 @@ pub(crate) mod staleness_posture {
              which that pass skips entirely",
             ),
             (
-                "set_face_surface_stranding_for_tests",
+                "set_face_surface_unvouched_for_tests",
                 Transfers,
                 "the failure-injection twin of `set_face_surface`, whose rows it keeps and \
              drops on the same terms",
@@ -4636,6 +4636,11 @@ pub(crate) mod staleness_posture {
                 "plant_ring_face",
                 Neither,
                 "`mev_line`, `kemr` and `mef_chord`, every one of them already sorted above",
+            ),
+            (
+                "plant_disc_face",
+                Neither,
+                "`mev_line`, `kemr` and `mef`, every one of them already sorted above",
             ),
             (
                 "drill_hole",

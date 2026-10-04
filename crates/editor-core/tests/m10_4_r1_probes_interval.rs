@@ -23,17 +23,17 @@ use editor_core::stackup::{
     sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
@@ -51,8 +51,8 @@ fn uniform(half: f64) -> Distribution {
     }
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -361,8 +361,8 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
         }
     }
     // Schedule independence at the driver, on this document.
-    let seq = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
-    let par = sensitivities(&doc, m, None, None, true, Tol::witness()).expect("ok");
+    let seq = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
+    let par = sensitivities(&doc, m, None, None, true, None, Tol::witness()).expect("ok");
     assert_eq!(seq, par);
     assert_eq!(seq.len(), 2);
 }
@@ -491,6 +491,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&handed),
         Some(&verdict),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -507,6 +508,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         &verdict,
         Some(&handed),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -522,7 +524,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // drives anything), which is the proof that the certified chamber
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
-    let entries = sensitivities(&edited, m, Some(&handed), None, false, Tol::witness())
+    let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
         .expect("the pairing hook is satisfied by a fresh anchor");
     match entries
         .iter()
@@ -573,6 +575,7 @@ fn r1_another_documents_verdict_certifies_this_one() {
         &a_verdict,
         None,
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -584,7 +587,15 @@ fn r1_another_documents_verdict_certifies_this_one() {
         ),
         "A's verdict must not price B: {report:?}"
     );
-    let entries = sensitivities(&b_doc, b_m, None, Some(&a_verdict), false, Tol::witness());
+    let entries = sensitivities(
+        &b_doc,
+        b_m,
+        None,
+        Some(&a_verdict),
+        false,
+        None,
+        Tol::witness(),
+    );
     assert!(
         matches!(
             entries,
@@ -610,7 +621,8 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
         MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
             .expect("Scalar lattice max")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
         SensitivityOutcome::Derivative { value, .. } => {
             assert!(
@@ -635,7 +647,8 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
         MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
         "EVIDENCE-ONLY r1 0/0-value outcome: {:?}",
         entries[0].outcome
@@ -665,8 +678,17 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .expect("a certified arithmetic box");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("a certified arithmetic box");
     assert!(
         (report
             .nominal
@@ -789,7 +811,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(2.0 * half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     let s1 = (2.0 * half) / f64::sqrt(12.0);
     let s2 = (4.0 * half) / f64::sqrt(12.0);
     let want = (s1 * s1 + s2 * s2).sqrt();
@@ -814,7 +846,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
             assert_eq!(blockers.len(), 1, "{blockers:?}");
@@ -833,7 +875,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match report.rss {
         Rss::Advisory { sigma } => assert!(
             (sigma - s1).abs() <= 1e-9 * s1,
@@ -914,9 +966,19 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
         verdict.certified().len(),
         verdict.refused().len()
     );
-    let entries = sensitivities(&doc, m, None, Some(&verdict), false, Tol::witness()).expect("ok");
+    let entries =
+        sensitivities(&doc, m, None, Some(&verdict), false, None, Tol::witness()).expect("ok");
     println!("EVIDENCE-ONLY r1 ±0.1 sensitivities: {entries:?}");
-    let got = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
+    let got = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    );
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
@@ -929,7 +991,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
             };
             for name in ["h1", "h2"] {
                 let (lo, hi) = leaf
-                    .get(&ParamName::from_static(name))
+                    .get(&VarName::from_static(name))
                     .expect("the axis")
                     .span();
                 assert!(

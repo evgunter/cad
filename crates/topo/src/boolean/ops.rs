@@ -95,7 +95,11 @@
 //!   (`RestZipUnsupported` — e.g. ring-carrying contact patches,
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
-//!   `Join(UnpairedLooseEnds)` surfaces verbatim).
+//!   `Join(UnpairedLooseEnds)` surfaces verbatim). The ∩ and ∖ of a
+//!   pure REST contact leave no null pair, so they take the
+//!   no-crossings fallback, which keeps or drops whole shells; its
+//!   certificates answer a verified `Rest` pair as a touch
+//!   ([`Exempt::Rest`]).
 //! - **Four-germ vertex–vertex sites**: where a vertex of the other
 //!   operand coincides with a 315° reflex corner and its wall lies
 //!   flush on the corner's notch wall under a tilted cap, the vertex
@@ -110,7 +114,7 @@
 //!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -136,6 +140,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{decide, scaffolds_at_rest, validate, validate_closed};
@@ -517,7 +522,10 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let band = Band::linear(tol)?;
-    let (a, b) = (one_solid(a)?, one_solid(b)?);
+    let (a, b) = (
+        one_solid(a, Operand::A, band, tol)?,
+        one_solid(b, Operand::B, band, tol)?,
+    );
     let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
     if let BooleanResult::Body(r) = &mut result {
         let pad = super::boxes::sweep_pad(band);
@@ -530,11 +538,20 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
 /// one solid, else a clone with every shell under one solid (module
-/// docs, "Bodies in, bodies out").
-fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
+/// docs, "Bodies in, bodies out"). A body of several solids passes the
+/// operand gate first, while its solids are still its own: the merged
+/// clone's one solid would total their volumes, and a total hides an
+/// inside-out part.
+fn one_solid<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
     if body.solids().nth(1).is_none() {
         return Ok(std::borrow::Cow::Borrowed(body));
     }
+    super::reduce::gate_operand(body, operand, band, tol)?;
     let mut flat = body.clone();
     flat.merge_all_solids().map_err(BooleanError::Euler)?;
     Ok(std::borrow::Cow::Owned(flat))
@@ -594,7 +611,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(BooleanError::Merge)?;
+        .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
@@ -727,7 +744,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // sampled normal. Three outcomes:
         //
         // - **no escape**: the boundaries are certified disjoint
-        //   (sphere-involved pairs), so the vertex-probe fallback's
+        //   (sphere-involved pairs), or meet only across a verified
+        //   `Rest` pair, which touches without overlapping
+        //   ([`Exempt::Rest`]), so the vertex-probe fallback's
         //   whole-shell answer is sound — proceed.
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
@@ -739,10 +758,11 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   finds the section circles and the (Plane, Sphere) germ arm
         //   joins them exactly.
         // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
-        //   sphere faces meeting, tangency, boundary-grazing circles,
+        //   sphere faces meeting other than across a verified `Rest`,
+        //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
-        let recuts = sphere_extent_scan(a, b, band)?;
+        let recuts = sphere_extent_scan(a, b, &red.rest_contacts, band)?;
         if !recuts.is_empty() {
             if !recut {
                 return Err(BooleanError::ClassificationInvariant {
@@ -756,7 +776,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, band)?;
+        section_extent_pass(a, b, &red.rest_contacts, band)?;
         return fallback(op, &red, a, b, decls, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
@@ -850,7 +870,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b,
         band,
         SectionPath::Crossings,
-        |fa, fb| declares_pair(decls, fa, fb),
+        Exempt::Declared(decls),
         |fa, fb| events.contains(&(fa, fb)),
         true,
     )?;
@@ -1176,6 +1196,61 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     ))
 }
 
+/// The box of the ball about `c` of radius `r`, from their enclosures,
+/// padded by `pad`.
+fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
+    let r = r.hi();
+    bvh::Aabb {
+        min_x: c.x.lo() - r,
+        min_y: c.y.lo() - r,
+        min_z: c.z.lo() - r,
+        max_x: c.x.hi() + r,
+        max_y: c.y.hi() + r,
+        max_z: c.z.hi() + r,
+    }
+    .padded(pad)
+}
+
+/// **Whether a boundary edge of `face` may meet `region`**: some edge of
+/// one of its loops has a certified box, padded by `pad`, overlapping it.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a loop, cycle or
+/// half-edge that does not resolve, and the edge box's own errors.
+fn face_boundary_meets<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    region: &bvh::Aabb,
+    pad: f64,
+) -> Result<bool, BooleanError> {
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    let fd = body
+        .get_face(face)
+        .ok_or(corrupt("face boundary: the face is lost"))?;
+    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        let l = body
+            .get_loop(lk)
+            .ok_or(corrupt("face boundary: a face loop is lost"))?;
+        let LoopBoundary::Cycle { first } = l.boundary else {
+            continue;
+        };
+        for he in body
+            .loop_cycle(first)
+            .ok_or(corrupt("face boundary: an unwalkable loop"))?
+        {
+            let ek = body
+                .get_half_edge(he)
+                .ok_or(corrupt("face boundary: a half-edge is lost"))?
+                .edge;
+            if boxes::edge_box(body, ek, pad)?.overlaps(region) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// **The section certificate over pairs of rows**: every `(A row, B
 /// row)` pair whose certified boxes overlap and which `admit` takes, in
 /// the rows' order, each [`pair_verdict`]'s. `evented` says whether
@@ -1223,7 +1298,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
-/// whose certified boxes overlap and which `skip` does not exempt, in
+/// whose certified boxes overlap and which `exempt` does not answer, in
 /// arena order ([`walk_pairs`]). `evented` says whether the reduction
 /// recorded an event on the pair `(A face, B face)`. With `stop` the
 /// scan returns at the first refusing pair. `chart_boundary` is asked
@@ -1238,7 +1313,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     band: Band,
     path: SectionPath,
-    skip: impl Fn(FaceKey, FaceKey) -> bool,
+    exempt: Exempt<'_>,
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
@@ -1248,11 +1323,50 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (b, &b_rows),
         band,
         &mut ChartCache::default(),
-        |fa, fb| path.scope(&fa.surface, &fb.surface) && !skip(fa.face, fb.face),
+        |fa, fb| path.scope(&fa.surface, &fb.surface) && !exempt.answers(fa.face, fb.face),
         evented,
         |s| path.names(s),
         stop,
     )
+}
+
+/// **The pairs a section walk answers without their section**, one per
+/// path, each keyed to its exact `(A face, B face)` pair: a face
+/// exempted against one partner meets every other partner as any face
+/// does.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Exempt<'r> {
+    /// Every in-scope pair is classified: the test-support twins'
+    /// spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support"))]
+    Nothing,
+    /// The crossings path: a DECLARED pair, whose contact is the
+    /// verified carrier the declared rungs walk along its edges.
+    Declared(&'r BooleanDeclarations),
+    /// The no-crossings path: a `Rest` declaration the declaration door
+    /// verified one carrier with opposed senses (the reduction's
+    /// `rest_contacts`). Its section lies on the one carrier, where
+    /// each operand's material stands on its own side, so every point
+    /// the two faces share is a touch of the two boundaries and none is
+    /// a point of both interiors: the pair hides no overlap from the
+    /// vertex probe, whatever its section's component count. A
+    /// continuation puts both materials on one side and is not such a
+    /// pair; nor is a pair settled by a shared recipe source alone,
+    /// which the crossing layer's one-sided cover does not read, so no
+    /// such curved pair reaches this path.
+    Rest(&'r [(FaceKey, FaceKey)]),
+}
+
+impl Exempt<'_> {
+    /// Does this exemption answer the pair `(A face, B face)`?
+    pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
+        match self {
+            #[cfg(any(test, feature = "test-support"))]
+            Self::Nothing => false,
+            Self::Declared(decls) => declares_pair(decls, fa, fb),
+            Self::Rest(pairs) => pairs.contains(&(fa, fb)),
+        }
+    }
 }
 
 /// **The no-crossings path's section pass.** With no event anywhere,
@@ -1260,12 +1374,12 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// component, so each pair the vertex probe could not see into is
 /// either certified or refused here, typed as the fallback's extent
 /// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
-/// pair's curved face. Declarations exempt nothing on this path: with
-/// no crossings, a declared coincident pair is exactly what the vertex
-/// probe cannot decide.
+/// pair's curved face. A verified `Rest` pair (`rest`, [`Exempt::Rest`])
+/// is answered without its section.
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    rest: &[(FaceKey, FaceKey)],
     band: Band,
 ) -> Result<(), BooleanError> {
     let pairs = section_pairs(
@@ -1273,7 +1387,7 @@ fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b,
         band,
         SectionPath::Fallback,
-        |_, _| false,
+        Exempt::Rest(rest),
         |_, _| false,
         true,
     )?;
@@ -1317,15 +1431,17 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b,
         band,
         SectionPath::Crossings,
-        |_, _| false,
+        Exempt::Nothing,
         |fa, fb| events.contains(&(fa, fb)),
         false,
     )
 }
 
 /// **The no-crossings path's two certificates**, run as the path runs
-/// them before the vertex probe: the sphere extent scan, then — when
-/// it asks for no re-cut — the section pass. `Ok` with the number of
+/// them before the vertex probe on undeclared operands: the sphere
+/// extent scan, then — when it asks for no re-cut — the section pass.
+/// With no declaration there is no verified `Rest` pair, so both run
+/// with the empty list the op hands them. `Ok` with the number of
 /// re-cuts the scan asked for.
 ///
 /// # Errors
@@ -1338,9 +1454,10 @@ pub(crate) fn no_crossings_certificates(
     tol: Tol,
 ) -> Result<usize, BooleanError> {
     let band = Band::linear(tol)?;
-    let recuts = sphere_extent_scan(a, b, band)?;
+    let no_rest: &[(FaceKey, FaceKey)] = &[];
+    let recuts = sphere_extent_scan(a, b, no_rest, band)?;
     if recuts.is_empty() {
-        section_extent_pass(a, b, band)?;
+        section_extent_pass(a, b, no_rest, band)?;
     }
     Ok(recuts.len())
 }
@@ -1363,7 +1480,7 @@ fn ball_against_plane<T: Decide>(
     band: Band,
 ) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
     let s = (center - origin).dot(normal);
-    let sign = crate::validate::decide_nonzero_reported(
+    let sign = crate::validate::decide_nonzero(
         "bool_sphere_extent_gap",
         Margin::of(radius - s.abs()),
         band,
@@ -1564,12 +1681,12 @@ pub(super) fn merge_rows(
 /// direction
 /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 ///
-/// Complement operands: a reverted body's flux volume is NEGATIVE
-/// (its true set volume is infinite — the A∖B ≡ A∩revert(B) oracle
-/// route feeds such operands legitimately), so each bound applies
-/// only when its reference operand's volume is certified POSITIVE
-/// (bounded solid); against a complement the set bound is vacuous
-/// and is skipped, never misread as a violation.
+/// Each bound applies only when its reference operand's volume is
+/// certified POSITIVE (a bounded solid). The operand gate refuses an
+/// operand whose volume is definitely negative
+/// ([`BooleanError::InsideOutOperand`]), so what reaches here
+/// uncertified is an operand whose sign stayed open; against it the
+/// bound is skipped, never misread as a violation.
 ///
 /// # Dimension (audit F3, `docs/predicate-dimension-audit.md`)
 ///
@@ -1965,15 +2082,11 @@ fn bound_holds<'t, 'b, T: Decide>(
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
 /// TIME — the worklist is tracked lineage (the zips' surviving seam
-/// edges plus every boundary edge of a merge-kept face, whose
-/// adjacency the merge just rewrote), never a post-hoc scan of the
-/// body. Each worklist edge that still resolves is described from its
-/// two faces' surfaces (structural adjacency): definitely transverse ⇒
-/// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
-/// the must-carry rule over the edge ([`seam_must_carry`]) — the
-/// intrinsic `TangentIntersection` where the surfaces determine the
-/// locus, else the conventional description (D2's split); escalation
-/// refuses typed.
+/// edges plus every boundary edge of a face whose merge group the
+/// merge door SKIPPED), never a post-hoc scan of the body. The
+/// merge-kept faces' boundaries are the door's own: it re-describes
+/// them before it returns ([`Body::merge_coplanar_faces_declared`]).
+/// Each worklist edge is described by [`describe_edges`].
 pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
@@ -1981,55 +2094,137 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "description worklist edge not walkable",
-    };
+    let worklist = describe_worklist(body, seam_edges, merged)?;
+    describe_edges(body, worklist, &merged.skipped, band, tol).map_err(of_describe)
+}
+
+/// [`describe_minted_edges`]' worklist: the seam edges that survived
+/// the merge, then the skipped groups' faces' boundaries.
+fn describe_worklist<T: Real>(
+    body: &Body<T>,
+    seam_edges: &[crate::entity::EdgeKey],
+    merged: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Result<Vec<crate::entity::EdgeKey>, BooleanError> {
     let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
     for &e in seam_edges {
         if body.get_edge(e).is_some() {
             worklist.push(e); // merge may have consumed flush seam edges
         }
     }
-    // Merge-KEPT faces' boundaries (adjacency rewritten by the glue)
-    // AND SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue
-    // those groups' classification anticipated did NOT happen, so
-    // their in-plane cut edges may carry descriptions citing
-    // no-longer-adjacent surfaces — they must be re-checked against
-    // the ACTUAL adjacency below). A declared pair the door declined
-    // (a non-planar carrier) enters this worklist through the same
-    // field: its faces were left as the zip shipped them, and their
-    // boundaries are re-checked here for the same reason.
-    let group_faces = merged
-        .groups
-        .iter()
-        .map(|g| g.kept)
-        .chain(merged.skipped.iter().flat_map(|s| s.faces.iter().copied()));
-    for f in group_faces {
+    // SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue those
+    // groups' classification anticipated did NOT happen, so their
+    // in-plane cut edges may carry descriptions citing no-longer-
+    // adjacent surfaces — they must be re-checked against the ACTUAL
+    // adjacency). A declared pair the door declined (a non-planar
+    // carrier) enters this worklist through the same field: its faces
+    // were left as the zip shipped them, and their boundaries are
+    // re-checked here for the same reason.
+    let skipped = boundary_edges(
+        body,
+        merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
+    )
+    .ok_or(BooleanError::JoinDesync {
+        what: join_desync_text(EdgeDescribeFailure::NotWalkable),
+    })?;
+    worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
+    Ok(worklist)
+}
+
+/// Every boundary edge of each live face in `faces`, once, with the
+/// first listed face that holds it: outer loop then rings, each in
+/// cycle order. A face that no longer resolves contributes nothing;
+/// `None` when a loop of a live face does not walk.
+pub(crate) fn boundary_edges<T: Real>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+) -> Option<Vec<(FaceKey, crate::entity::EdgeKey)>> {
+    let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
+    let mut edges = Vec::new();
+    for f in faces {
         let Some(face) = body.get_face(f) else {
             continue;
         };
         for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary
-            else {
+            let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
                 continue;
             };
-            for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                worklist.push(body.get_half_edge(he).ok_or_else(corrupt)?.edge);
+            for he in body.loop_cycle(first)? {
+                let edge = body.get_half_edge(he)?.edge;
+                if seen.insert(edge) {
+                    edges.push((f, edge));
+                }
             }
         }
     }
+    Some(edges)
+}
+
+/// The boolean's words for what the describer could not do: a join
+/// desync, as its own description pass has always raised it.
+const fn join_desync_text(failure: EdgeDescribeFailure) -> &'static str {
+    match failure {
+        EdgeDescribeFailure::NotWalkable => "description worklist edge not walkable",
+        EdgeDescribeFailure::Intersection => "minted-edge description failed certification",
+        EdgeDescribeFailure::Tangency => "tangent-seam description failed certification",
+        EdgeDescribeFailure::NoConventionalLane => {
+            "stale CURVED smooth-seam description (no conventional re-description lane exists \
+             for this carrier kind)"
+        }
+        EdgeDescribeFailure::Arc => "stale arc description failed re-certification",
+        EdgeDescribeFailure::Line => "stale in-plane description failed re-certification",
+    }
+}
+
+/// The boolean's refusal for an edge its describer could not describe.
+pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
+    match refusal {
+        DescribeRefusal::Failed { failure, .. } => BooleanError::JoinDesync {
+            what: join_desync_text(failure),
+        },
+        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+    }
+}
+
+/// The boolean's refusal for a merge-door refusal: the door's
+/// re-description of its kept faces' boundaries refuses as the
+/// boolean's own description pass does ([`of_describe`]), and every
+/// other refusal is the output stage's.
+pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> BooleanError {
+    match refusal.kept_boundary() {
+        Some(described) => of_describe(described),
+        None => BooleanError::Merge(refusal),
+    }
+}
+
+/// Describes each worklist edge from its two faces' surfaces
+/// (structural adjacency): definitely transverse ⇒ `Intersection` with
+/// the chord-midpoint witness; definitely smooth ⇒ the must-carry rule
+/// over the edge ([`must_carry_reading`]) — the intrinsic
+/// `TangentIntersection` where the surfaces determine the locus, else
+/// the conventional description (D2's split); an undecided reading
+/// refuses typed. `skipped` is the merge stage's record of the groups
+/// it left unglued. The boolean's minted edges and the merge door's
+/// kept boundaries are both described here, and each door words the
+/// refusal as its own.
+pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    worklist: impl IntoIterator<Item = crate::entity::EdgeKey>,
+    skipped: &[crate::merge_faces::SkippedMerge],
+    band: Band,
+    tol: Tol,
+) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
     let recorded_skip = |f1: Option<crate::entity::FaceKey>, f2: Option<crate::entity::FaceKey>| {
         let (Some(f1), Some(f2)) = (f1, f2) else {
             return false;
         };
-        merged
-            .skipped
+        skipped
             .iter()
             .any(|s| s.faces.contains(&f1) && s.faces.contains(&f2))
     };
     for edge in worklist {
+        let corrupt = || DescribeRefusal::failed(edge, EdgeDescribeFailure::NotWalkable);
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let sides = crate::readback::edge_sides(body, edge).map_err(|_| corrupt())?;
         let (s1, s2) = sides.surfaces();
@@ -2052,11 +2247,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
         let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
-        match seam_class(surf1, surf2, witness, extent, band)? {
+        match seam_reading(surf1, surf2, witness, extent, band)
+            .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
+        {
             geom_brep::DihedralClass::Transverse => {
                 body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
-                    .map_err(|_| BooleanError::JoinDesync {
-                        what: "minted-edge description failed certification",
+                    .map_err(|_| {
+                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection)
                     })?;
             }
             geom_brep::DihedralClass::Smooth => {
@@ -2102,11 +2299,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
                 // over the edge, at the stations tier 3's must-carry arm
-                // re-reads (`seam_must_carry`).
+                // re-reads (`must_carry_reading`).
                 let mint_intrinsic = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
-                    seam_must_carry(surf1, surf2, c.carrier(), t0, t1, extent, band)?
+                    must_carry_reading(surf1, surf2, c.carrier(), t0, t1, extent, band).map_err(
+                        |(reading, diag)| DescribeRefusal::undecided(edge, reading, diag),
+                    )?
                 };
                 if mint_intrinsic {
                     // Mint the intrinsic tangency on the existing
@@ -2126,10 +2325,9 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol)
-                        .map_err(|_| BooleanError::JoinDesync {
-                            what: "tangent-seam description failed certification",
-                        })?;
+                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
+                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Tangency)
+                    })?;
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
@@ -2148,15 +2346,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                         let Some(spec) =
                             geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
                         else {
-                            return Err(BooleanError::JoinDesync {
-                                what: "stale CURVED smooth-seam description (no conventional \
-                                       re-description lane exists for this carrier kind)",
-                            });
+                            return Err(DescribeRefusal::failed(
+                                edge,
+                                EdgeDescribeFailure::NoConventionalLane,
+                            ));
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| BooleanError::JoinDesync {
-                                what: "stale arc description failed re-certification",
-                            })?;
+                            .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Arc))?;
                     } else {
                         body.set_edge_curve(
                             edge,
@@ -2164,9 +2360,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                                 .at_rest_in_chart(s1, false),
                             tol,
                         )
-                        .map_err(|_| BooleanError::JoinDesync {
-                            what: "stale in-plane description failed re-certification",
-                        })?;
+                        .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Line))?;
                     }
                 }
             }
@@ -2178,6 +2372,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
 /// **A seam edge of the result, as its re-description reads it**: the
 /// dihedral of its two surfaces at `witness` over `extent`, whose arm
 /// rung is the seam's own lever and whose reading is the seam's wedge.
+#[cfg(test)]
 pub(super) fn seam_class<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2185,13 +2380,37 @@ pub(super) fn seam_class<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band).map_err(|escalation| {
-        BooleanError::of_lever(
+    seam_reading(surf1, surf2, witness, extent, band)
+        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+}
+
+/// [`seam_class`]'s reading, unworded: the rung that could not decide
+/// and its diagnostics.
+fn seam_reading<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    witness: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
+    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
+        .map_err(|escalation| (DihedralReading::Lever(escalation.rung), escalation.diag))
+}
+
+/// The boolean's refusal for an undecided seam reading: the seam's
+/// first-order arm or wedge, by rung, or its second-order bend.
+pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
+    match reading {
+        DihedralReading::Lever(rung) => BooleanError::of_lever(
             super::LeverArm::Seam,
             super::DeclarationRead::Moot,
-            escalation,
-        )
-    })
+            geom_brep::LeverEscalation { rung, diag },
+        ),
+        DihedralReading::Bend => BooleanError::Escalated {
+            decision: BooleanDecision::SeamJet,
+            diag,
+        },
+    }
 }
 
 /// **A smooth seam edge of the result, one order down**: whether its
@@ -2212,6 +2431,7 @@ pub(super) fn seam_class<T: Decide>(
 ///   [`seam_class`] ends it, or its second-order bend
 ///   ([`BooleanDecision::SeamJet`]). Certifiable as neither, so never
 ///   folded into either description (D4 ¶3).
+#[cfg(test)]
 pub(super) fn seam_must_carry<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2221,22 +2441,30 @@ pub(super) fn seam_must_carry<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
+        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+}
+
+/// [`seam_must_carry`]'s verdict, unworded: an undecided station
+/// returns the reading that raised it and its diagnostics.
+fn must_carry_reading<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    extent: T,
+    band: Band,
+) -> Result<bool, (DihedralReading, Indeterminate)> {
     use geom_brep::{MustCarryEscalation, MustCarryVerdict};
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
         MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err(BooleanError::of_lever(
-                super::LeverArm::Seam,
-                super::DeclarationRead::Moot,
-                escalation,
-            ))
+            Err((DihedralReading::Lever(escalation.rung), escalation.diag))
         }
         MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
-            Err(BooleanError::Escalated {
-                decision: BooleanDecision::SeamJet,
-                diag,
-            })
+            Err((DihedralReading::Bend, diag))
         }
     }
 }
@@ -2739,7 +2967,8 @@ struct SphereRecut<T: Real> {
 /// - **Sphere**: a closed group's true extent is `center ± r`, so the
 ///   pairs it can meet are enumerable exactly, and an escape through a
 ///   plane face is repairable by a re-chart. Two spheres whose carriers
-///   cross are asked whether their FACES meet ([`sphere_faces_apart`]).
+///   cross or touch, and a sphere touching a plane's carrier, are asked
+///   whether their FACES meet ([`sphere_faces_apart`]).
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
@@ -2752,6 +2981,7 @@ struct SphereRecut<T: Real> {
 fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    rest: &[(FaceKey, FaceKey)],
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
     let esc = |question| {
@@ -2810,34 +3040,45 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // at that conclusion, and a trimmed group whose extent
             // clears everything gets its answer like any other.
             let group = closed_sphere_group(x, face, &charts);
-            let ball_box = bvh::Aabb {
-                min_x: center.x.lo() - radius.hi(),
-                min_y: center.y.lo() - radius.hi(),
-                min_z: center.z.lo() - radius.hi(),
-                max_x: center.x.hi() + radius.hi(),
-                max_y: center.y.hi() + radius.hi(),
-                max_z: center.z.hi() + radius.hi(),
-            }
-            .padded(pad);
+            let ball_box = centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
-            for (y_row, (yf, yfd)) in y_rows.iter().zip(y.faces()) {
+            for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "extent scan: face rows out of arena order",
                     });
                 }
+                // Whether the section certificate clears every face on
+                // this sphere against `yf` (`None`), else the first
+                // pair's refusal. A carrier margin decided zero is a
+                // touch, no event where this returns `None`; one in the
+                // band asks too, and the certificate, reading it
+                // undecided, refuses.
+                let mut faces = || {
+                    sphere_faces_apart(
+                        (x_is, x, x_rows),
+                        fd.surface,
+                        (y, y_row),
+                        band,
+                        &mut section_charts,
+                    )
+                };
                 match &y_row.surface {
                     &geom::Surface::Plane {
                         origin,
                         normal,
                         u_ref,
                     } => {
-                        // A tangency (a decided zero) is a touching
-                        // configuration the crossing layer cannot
-                        // represent: it refuses with its decided margin,
-                        // as its in-band twin does.
-                        let (side, s) = ball_against_plane(center, radius, origin, normal, band)
-                            .map_err(esc(SphereQuestion::AgainstPlane))?;
+                        let (side, s) =
+                            match ball_against_plane(center, radius, origin, normal, band) {
+                                Ok(read) => read,
+                                Err(diag) => {
+                                    if faces()?.is_some() {
+                                        return Err(esc(SphereQuestion::AgainstPlane)(diag));
+                                    }
+                                    continue;
+                                }
+                            };
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
@@ -2845,16 +3086,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             // the circle the carrier cuts: certified
                             // apart from this face, they pose no escape
                             // through it.
-                            NonzeroSign::Positive
-                                if group.is_none()
-                                    && sphere_faces_apart(
-                                        (x_is, x, x_rows),
-                                        fd.surface,
-                                        (y, y_row),
-                                        band,
-                                        &mut section_charts,
-                                    )?
-                                    .is_none() => {}
+                            NonzeroSign::Positive if group.is_none() && faces()?.is_none() => {}
                             NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -2865,47 +3097,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle_box = bvh::Aabb {
-                                    min_x: foot.x.lo() - rho.hi(),
-                                    min_y: foot.y.lo() - rho.hi(),
-                                    min_z: foot.z.lo() - rho.hi(),
-                                    max_x: foot.x.hi() + rho.hi(),
-                                    max_y: foot.y.hi() + rho.hi(),
-                                    max_z: foot.z.hi() + rho.hi(),
-                                }
-                                .padded(pad);
-                                let mut near_boundary = false;
-                                let mut walk = |lk| -> Result<(), BooleanError> {
-                                    let l = y.get_loop(lk).ok_or(
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: face loop lost",
-                                        },
-                                    )?;
-                                    let LoopBoundary::Cycle { first } = l.boundary else {
-                                        return Ok(());
-                                    };
-                                    for he in y.loop_cycle(first).ok_or(
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: unwalkable loop",
-                                        },
-                                    )? {
-                                        let ek = y
-                                            .get_half_edge(he)
-                                            .ok_or(BooleanError::ClassificationInvariant {
-                                                what: "extent scan: half-edge lost",
-                                            })?
-                                            .edge;
-                                        if boxes::edge_box(y, ek, pad)?.overlaps(&circle_box) {
-                                            near_boundary = true;
-                                        }
-                                    }
-                                    Ok(())
-                                };
-                                walk(yfd.outer)?;
-                                for &ring in &yfd.rings {
-                                    walk(ring)?;
-                                }
-                                if near_boundary {
+                                let circle_box = centred_box(foot, rho, pad);
+                                if face_boundary_meets(y, yf, &circle_box, pad)? {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
                                         face,
@@ -2983,19 +3176,40 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         radius: r2,
                         ..
                     } => {
+                        // Every face this sphere carries is a verified
+                        // `Rest` against `yf` ([`Exempt::Rest`]): the
+                        // carriers are one and every face of the pair
+                        // only touches, so nothing of it is the scan's.
+                        // The carrier's faces include `face`, so the
+                        // set is never empty.
+                        let rest_pair = |r: &FaceRow<T>| match x_is {
+                            Operand::A => Exempt::Rest(rest).answers(r.face, yf),
+                            Operand::B => Exempt::Rest(rest).answers(yf, r.face),
+                        };
+                        if x_rows.iter().filter(|r| r.key == fd.surface).all(rest_pair) {
+                            continue;
+                        }
                         let d = (c2 - center).norm();
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
                         // there is one a smaller tolerance decides apart.
-                        // It refuses as the question's in-band arm does,
-                        // with its decided margin.
-                        match crate::validate::decide_nonzero_reported(
+                        // Where the faces may meet at the touch, it refuses
+                        // as the question's in-band arm does, with its
+                        // decided margin.
+                        let gap = match crate::validate::decide_nonzero(
                             "bool_sphere_sphere_gap",
                             Margin::of(d - (radius + r2)),
                             band,
-                        )
-                        .map_err(esc(SphereQuestion::Apart))?
-                        {
+                        ) {
+                            Ok(gap) => gap,
+                            Err(diag) => {
+                                if faces()?.is_some() {
+                                    return Err(esc(SphereQuestion::Apart)(diag));
+                                }
+                                continue;
+                            }
+                        };
+                        match gap {
                             // Definitely separated.
                             NonzeroSign::Positive => {}
                             NonzeroSign::Negative => {
@@ -3019,7 +3233,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // other refusal of the certificate is
                                 // its own reason, raised as the pass
                                 // raises it. A touch (a decided zero)
-                                // refuses on the carriers.
+                                // refuses as spheres that meet where the
+                                // faces are not certified apart.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
@@ -3029,39 +3244,32 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        return Err(BooleanError::SpheresMeet {
-                                            operand: x_is,
-                                            face,
-                                            verdict,
-                                        });
-                                    }
-                                    Some(verdict @ Refused::Negative { .. }) => {
-                                        match sphere_faces_apart(
-                                            (x_is, x, x_rows),
-                                            fd.surface,
-                                            (y, y_row),
-                                            band,
-                                            &mut section_charts,
-                                        )? {
-                                            None => {}
-                                            Some(SectionRefusal::Loop) => {
-                                                return Err(BooleanError::SpheresMeet {
-                                                    operand: x_is,
-                                                    face,
-                                                    verdict,
-                                                });
-                                            }
-                                            Some(refusal) => {
-                                                return Err(
-                                                    BooleanError::FallbackExtentUnsupported {
-                                                        operand: x_is,
-                                                        face,
-                                                        what: refusal.what(),
-                                                    },
-                                                );
-                                            }
+                                        if faces()?.is_some() {
+                                            return Err(BooleanError::SpheresMeet {
+                                                operand: x_is,
+                                                face,
+                                                verdict,
+                                            });
                                         }
+                                        continue;
                                     }
+                                    Some(verdict @ Refused::Negative { .. }) => match faces()? {
+                                        None => {}
+                                        Some(SectionRefusal::Loop) => {
+                                            return Err(BooleanError::SpheresMeet {
+                                                operand: x_is,
+                                                face,
+                                                verdict,
+                                            });
+                                        }
+                                        Some(refusal) => {
+                                            return Err(BooleanError::FallbackExtentUnsupported {
+                                                operand: x_is,
+                                                face,
+                                                what: refusal.what(),
+                                            });
+                                        }
+                                    },
                                 }
                             }
                         }
@@ -3162,9 +3370,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// **Whether every face on `x`'s sphere `surface` is certified apart
-/// from `y`'s face `y_row`**, whose carrier the sphere crosses: the
-/// section certificate's walk ([`walk_pairs`]) over those pairs on the
-/// no-event path. `None` when every pair clears, else the first
+/// from `y`'s face `y_row`**, whose carrier the sphere crosses or
+/// touches: the section certificate's walk ([`walk_pairs`]) over those
+/// pairs on the no-event path. `None` when every pair clears, else the first
 /// pair's refusal, which is the cause.
 ///
 /// # Errors
@@ -3215,7 +3423,7 @@ pub(super) fn recut_lean<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), BooleanError> {
-    crate::validate::decide_nonzero_reported(
+    crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
         Margin::levered(axis.cross(align).norm(), radius),
         band,
@@ -3455,7 +3663,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let merged = body
                 .merge_coplanar_faces_declared(&declared_pairs, tol)
-                .map_err(BooleanError::Merge)?;
+                .map_err(of_merge)?;
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -3521,9 +3729,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     // result. A declared pair that held the absent operand's region
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
-    let merged = body
-        .merge_coplanar_faces(tol)
-        .map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces(tol).map_err(of_merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -4026,7 +4232,7 @@ mod tests {
         // poison box is never pruned) — `sweep`'s `s16_box_soundness`
         // pins both blockers, so the day one lifts is loud.
         let band = Band::linear(Tol::witness()).unwrap();
-        let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
+        let Err(err) = super::sphere_extent_scan(&a, &b, &[], band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
         };
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
@@ -4781,20 +4987,21 @@ mod tests {
         }
     }
 
-    /// **The rebuild's smooth arm decides through [`seam_must_carry`]
-    /// and spells no second-order reading of its own**, so the rows
-    /// above, which call the helper, speak for the boolean's seams: a
-    /// loop inlined back into `describe_minted_edges` reds here.
+    /// **The rebuild's smooth arm decides through [`must_carry_reading`]
+    /// — the verdict [`seam_must_carry`] words — and spells no
+    /// second-order reading of its own**, so the rows above, which call
+    /// the helper, speak for the boolean's seams: a loop inlined back
+    /// into `describe_edges` reds here.
     #[test]
     fn the_smooth_seam_arm_routes_through_the_must_carry_rule() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean/ops.rs");
         let source = test_utils::source::code_only(&std::fs::read_to_string(path).unwrap());
         let start = source
-            .find("fn describe_minted_edges")
+            .find("fn describe_edges")
             .expect("the rebuild's description pass");
         let body = &source[start..start + source[start..].find("\n}\n").expect("its end")];
         assert_eq!(
-            body.matches("seam_must_carry(").count(),
+            body.matches("must_carry_reading(").count(),
             1,
             "the smooth arm asks the rule once"
         );
@@ -4808,7 +5015,131 @@ mod tests {
         ] {
             assert!(
                 !body.contains(spelling),
-                "describe_minted_edges spells `{spelling}` beside the rule"
+                "describe_edges spells `{spelling}` beside the rule"
+            );
+        }
+    }
+
+    /// **The kept faces' boundaries are the merge door's, not this
+    /// worklist's.** For a merge outcome that kept one face and skipped
+    /// nothing, the boolean's description worklist over no seam edges
+    /// is empty: the door re-describes a kept face's boundary before it
+    /// returns, and the boolean does not describe it a second time.
+    #[test]
+    fn the_description_worklist_carries_no_kept_boundary() {
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let kept = prism.side_faces[0];
+        let mut merged = crate::merge_faces::MergeCoplanarOutcome::default();
+        merged.groups.push(crate::merge_faces::MergedGroup {
+            kept,
+            absorbed: Vec::new(),
+            killed_edges: Vec::new(),
+            rings_made: Vec::new(),
+            killed_vertices: Vec::new(),
+        });
+        assert_eq!(
+            super::boundary_edges(&prism.body, [kept]).map(|edges| edges.len()),
+            Some(4),
+            "the kept wall has four boundary edges for the worklist to leave out"
+        );
+        assert!(
+            matches!(super::describe_worklist(&prism.body, &[], &merged), Ok(w) if w.is_empty()),
+            "the boolean's worklist holds none of the kept face's boundary"
+        );
+    }
+
+    /// **A boundary edge both of whose sides are listed is walked once**,
+    /// so the describer is handed it once.
+    #[test]
+    fn a_boundary_edge_between_two_listed_faces_is_listed_once() {
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let faces = [prism.side_faces[0], prism.side_faces[1]];
+        let edges = super::boundary_edges(&prism.body, faces).expect("the walls' loops walk");
+        assert_eq!(
+            edges.len(),
+            7,
+            "two quads sharing one edge: 4 + 4 - 1 = {edges:?}"
+        );
+        assert_eq!(
+            edges.iter().filter(|&&(face, _)| face == faces[1]).count(),
+            3,
+            "the shared edge is listed with the first face that holds it"
+        );
+    }
+
+    /// **The door's refusal comes back to the boolean as the boolean's
+    /// own**: every refusal the describer can raise, worded by the merge
+    /// door and handed through `of_merge`, is the very `BooleanError`
+    /// the boolean's own description pass raises for it.
+    #[test]
+    fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
+        use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
+        let (mut body, kept, absorbed, strut) =
+            crate::merge_faces::kept_rows::wall_beside_a_leaning_neighbour(Tol::witness());
+        let surface = |face| body.get_face(face).unwrap().surface;
+        let pair = (surface(kept), surface(absorbed));
+        let refusal = body
+            .merge_coplanar_faces_declared(&[pair], Tol::witness())
+            .expect_err("the leaning neighbour's dihedral is in band at the kept face's edge");
+        let described = refusal
+            .kept_boundary()
+            .expect("the door's refusal is the describer's");
+        assert_eq!(
+            format!("{:?}", super::of_merge(refusal.clone())),
+            format!("{:?}", super::of_describe(described)),
+            "the live refusal passes through as the boolean's own"
+        );
+        let text = super::of_merge(refusal).to_string();
+        assert!(
+            text.contains("seam") && !text.contains("kept face"),
+            "the boolean words it as its own seam's: {text}"
+        );
+        let diag = match described {
+            DescribeRefusal::Undecided { diag, .. } => diag,
+            DescribeRefusal::Failed { .. } => panic!("the live refusal is undecided"),
+        };
+        let mut every = vec![
+            DescribeRefusal::undecided(
+                strut,
+                DihedralReading::Lever(geom_brep::LeverRung::Arm),
+                diag,
+            ),
+            DescribeRefusal::undecided(
+                strut,
+                DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                diag,
+            ),
+            DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
+        ];
+        for failure in [
+            EdgeDescribeFailure::NotWalkable,
+            EdgeDescribeFailure::Intersection,
+            EdgeDescribeFailure::Tangency,
+            EdgeDescribeFailure::NoConventionalLane,
+            EdgeDescribeFailure::Arc,
+            EdgeDescribeFailure::Line,
+        ] {
+            every.push(DescribeRefusal::failed(strut, failure));
+        }
+        for described in every {
+            let worded = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+                &[(kept, strut)],
+                described,
+            );
+            assert_eq!(
+                format!("{:?}", super::of_merge(worded)),
+                format!("{:?}", super::of_describe(described)),
+                "{described:?} passes through as the boolean's own"
             );
         }
     }

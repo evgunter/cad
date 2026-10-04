@@ -190,43 +190,43 @@ pub use editor_core::{
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
-// `ParamName` is a parameter's name — a string newtype admissible by
+// `VarName` is a parameter's name — a string newtype admissible by
 // construction (one identifier an expression reads back), whose
-// fallible constructor answers `ParamNameFault` — and
-// `DocParam` its declared dimension plus exact stored value: recipe
+// fallible constructor answers `VarNameFault` — and
+// `FreeVar` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`
-// takes both and `Expr::param` takes a `ParamName`, so without them
+// takes both and `Expr::param` takes a `VarName`, so without them
 // the parametric flagship (`plate_param`, guide §3.2) could not be
 // authored façade-only.
-// `DocParamValue` is the value half of one, and the reason it is
+// `FreeValue` is the value half of one, and the reason it is
 // curated is the door it opens: `DocEdit::SetDocParamValue` writes a
 // new number into an already-declared parameter and carries the whole
 // declaration — dimension AND distribution — forward. Rebuilding a
-// `DocParam` from `(dim, value)` to move a value is the natural
+// `FreeVar` from `(dim, value)` to move a value is the natural
 // spelling and it silently DELETES an annotation, because
 // `SetDocParam` is create-or-replace; a façade that curated only the
 // deleting door would be handing every caller that trap.
-// `UnitSym` is the display-unit CODE a `DocParam::Continuous` carries
+// `UnitSym` is the display-unit CODE a `FreeVar::Continuous` carries
 // beside its dimension — the notation the parameter was authored in.
 // It rides here for `Distribution`'s reason: the field is `pub`, so a
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
-// `DisplayUnitRefusal` is what `DocParam::with_display_unit` answers
+// `DisplayUnitRefusal` is what `FreeVar::with_display_unit` answers
 // when a notation cannot be written — the same `VerbKind` rule: it is
-// that door's `Err`, and a consumer calling the door on a `DocParam`
+// that door's `Err`, and a consumer calling the door on a `FreeVar`
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
-// `DocParam::with_distribution`.
+// `FreeVar::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
-    ParamNameReason, UnitSym,
+    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, VarName, VarNameFault,
+    VarNameReason,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
-// doors. It rides on `DocParam::Continuous`, so a façade that can
+// doors. It rides on `FreeVar::Continuous`, so a façade that can
 // author a parameter but not annotate one could not express an
 // error-analysis document at all; `DistributionFault` is what
 // `EditError::InvalidDistribution` and `PersistError::Distribution`
@@ -340,8 +340,8 @@ pub use editor_core::ContentBits;
 // group's own space, which a `Product` carries beside the world for
 // the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, RootFault,
-    SourceFinding, own_spaces, product, product_recorded,
+    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    RootFault, SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -365,8 +365,9 @@ pub use editor_core::{
 };
 
 // Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s — each an
-// `AuthoredFrame` or the head's own face — a `MatePrimitive`, an
+// authored payload (`Alignment` over two `MateFrame`s — each a
+// `FrameBase`, the part frame or the head's own face, composed with an
+// offset `Placement` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
@@ -397,17 +398,17 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck,
-    PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
+    PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
     UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
     member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
     solve_document,
 };
-/// Why a mate's `FromFace` frame did not resolve to a pose, which
+/// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
 ///
-/// A `FromFace` frame ([`MateFrame::FromFace`]) names no face: it
+/// A face base ([`MateFrame::from_face`]) names no face: it
 /// takes the canonical pose of the face its side's head names in the
 /// mated part ([`head_face`]) as the side's frame, read through the
 /// mated part's own evaluation (`MateReach::face_pose`, whose refusal

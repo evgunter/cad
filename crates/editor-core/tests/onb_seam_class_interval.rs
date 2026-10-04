@@ -38,8 +38,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{ClearanceVerdict, Selection, clearance};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId,
+    Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, VarName,
 };
 use geom::Surface;
 use geom_brep::newell_plane;
@@ -62,7 +62,7 @@ fn half() -> f64 {
 fn box_of(axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        ParamName::new(axis).expect("a valid parameter name"),
+        VarName::new(axis).expect("a valid parameter name"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -73,8 +73,8 @@ fn box_of(axis: &str) -> ParamBox {
 
 fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(axis).expect("a valid parameter name"),
-        value: DocParam::Continuous {
+        name: VarName::new(axis).expect("a valid parameter name"),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -293,7 +293,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         placement: editor_core::placement::Step::Rigid {
             translation: [
                 Expr::param(
-                    ParamName::new("place").expect("a valid parameter name"),
+                    VarName::new("place").expect("a valid parameter name"),
                     Dimension::Length,
                 ),
                 len(0.0),
