@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-30
 priority: P3
 cost: M
+design: true
+needs_ev: true
 ---
 
 Found by the fix pass of `a-null-edge-that-is-killed-leaves-its-face-half-minted`
@@ -117,3 +119,56 @@ The options:
   the pass's, as the measurement shows every producer already does. The
   site-mint contract ("the pass's byte for byte") stays a claim about
   the minting doors.
+
+## The question
+
+Two designers weighed this, blind, then were each shown the other's report,
+and converged on one recommendation.
+
+**The premise, as corrected.**
+- A loop whose rows all stand one whole period over is not a defect: tier 3
+  admits it, and `revert` relies on it. No reader depends on that gauge.
+- The real defect is a `kef` merge of two loops lifted separately. That
+  leaves a mid-loop jump, a latent `LoopDiscontinuity` (the mixed cases),
+  which only the producers' closing re-mint hides.
+- The text that gives `first` its row meaning (`entity.rs`, `revert.rs`,
+  PR 2573) is agent-written.
+
+**Recommended final state (R).**
+- A row is an **image** (the edge's certified chart curve, a function of
+  the edge and the chart alone) plus the half-edge's **joint element**: the
+  integer carrying its image onto the end of the half-edge before it, or a
+  reset marker at a pole or apex.
+- A loop's lift is derived by summing elements from `first`. Readers get one
+  lift accessor, and `first` stays where that accessor starts, but no stored
+  byte depends on it.
+- **Every kill stays keys-only and exact.** The new joint's element is the
+  sum of the two elements adjacent to the killed edge at that vertex,
+  because the killed edge's halves share one image on one chart:
+  - `kef`: e(prev(m)→m) + e(he→next(he));
+  - `kemr`: one such sum per side;
+  - `kev`'s strut: e(prev(he)→he) + e(m→next(m)).
+- **"The pass's rows, byte for byte" becomes true at every door**, `revert`
+  included (it inverts the elements), with no new refusal. The witness rows
+  go green as written.
+- **The site mint shrinks to the joints a door creates.** That closes
+  `euler-site-mint-re-walks-the-rewired-loop-on-every-op` as a property.
+- **Spline charts closed in u:** make the iso lane gauge-free too, or leave
+  the drop there.
+- **The link primitive should take the element** (`link(from, to, element)`)
+  in the module that PR 3970's ruled part creates.
+
+**Ratified text it changes:** one sentence of C4 (`crates/geom-brep/README.md`),
+the seam's "two chart images (u = α and u = α + 2π)", which becomes "one
+image, two joint elements". This PR makes that edit.
+
+**Fallback (if the representation change is not wanted).** Keep `first` as
+the lift origin and drop the byte contract for tier 3's "valid lift from
+`first`":
+- `kev` keeps the anchor unless its half dies;
+- `kemr` keeps today's rule, with one residual (a wrapping parent split
+  across sides of different winding);
+- keys-only `kef` refuses on a complete periodic face, and its twin re-walks.
+
+Before either lands, run one probe: `validate_pcurves` after each mixed
+`kef_minting`, to confirm the `LoopDiscontinuity`.
