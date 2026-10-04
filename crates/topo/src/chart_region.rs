@@ -2423,7 +2423,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = image.and_then(|image| body.pcurve(he).map(|cache| (cache, image)));
+        let cache = body.pcurve(he).zip(image);
         let entry = if let Some((cache, image)) = cache {
             let (t0, t1) = cache.params();
             pcurve_entry(&image, t0, t1, forward).map_err(refuse)?

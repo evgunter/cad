@@ -567,7 +567,9 @@ impl<T: Decide> Body<T> {
         // side's, `e(he1) · e(next(he2))`.
         let elements: Vec<Option<JointElement>> = [(ring_ends, he2), (old_ends, he1)]
             .into_iter()
-            .filter_map(|(ends, into)| ends.map(|(first, _)| self.bridged_joint(&[into, first.key()])))
+            .filter_map(|(ends, into)| {
+                ends.map(|(first, _)| self.bridged_joint(&[into, first.key()]))
+            })
             .collect();
         let links: Vec<(Live, Live)> = [ring_ends, old_ends]
             .into_iter()
@@ -1661,8 +1663,7 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target_loop, certified);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
@@ -1754,8 +1755,7 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target_loop, certified);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Splice: … prev(target) → he_plus → he_minus → target … (the
         // strut shape, re-created; inverse of kemr's ring-side-empty
         // case).
@@ -1764,7 +1764,14 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(he_minus, target_live, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus), rows);
+        self.mekr_finish(
+            target_loop,
+            ring,
+            face_key,
+            (u, w),
+            (he_plus, he_minus),
+            rows,
+        );
 
         Ok(MekrResult {
             edge,
@@ -1848,7 +1855,14 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(he_minus, he_plus, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus), rows);
+        self.mekr_finish(
+            target,
+            ring_loop,
+            face_key,
+            (u, w),
+            (he_plus, he_minus),
+            rows,
+        );
 
         Ok(MekrResult {
             edge,

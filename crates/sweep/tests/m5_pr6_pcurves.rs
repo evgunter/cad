@@ -204,7 +204,8 @@ fn a_seam_edge_carries_one_image_and_two_joint_elements_on_one_surface() {
         );
         let lift = body.loop_lift(lp).unwrap();
         let x = |he| {
-            let Pcurve::Harmonic { p0, .. } = lift.iter().find(|r| r.half_edge == he).unwrap().pcurve
+            let Pcurve::Harmonic { p0, .. } =
+                lift.iter().find(|r| r.half_edge == he).unwrap().pcurve
             else {
                 panic!("the minting lane stores closed-form images")
             };

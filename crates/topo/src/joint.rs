@@ -86,7 +86,11 @@ impl Deck {
     #[must_use]
     pub fn compose(self, rhs: Self) -> Self {
         let carry = i32::from(self.twin && rhs.twin);
-        let v = if self.twin { self.v - rhs.v } else { self.v + rhs.v };
+        let v = if self.twin {
+            self.v - rhs.v
+        } else {
+            self.v + rhs.v
+        };
         Self {
             u: self.u + rhs.u + carry,
             v,
@@ -136,7 +140,8 @@ impl Deck {
             false => image.clone(),
         };
         if self.v != 0 {
-            out = crate::pcurves::shift_polar_branch(&out, T::from_f64(f64::from(self.v)), T::tau());
+            out =
+                crate::pcurves::shift_polar_branch(&out, T::from_f64(f64::from(self.v)), T::tau());
         }
         if self.u != 0 {
             out = out.shift_branch(T::from_f64(f64::from(self.u)), u_period(surface));
@@ -315,7 +320,11 @@ mod tests {
             ..Deck::IDENTITY
         };
         assert_eq!(sigma.compose(sigma), tu, "σ² = T_u");
-        assert_eq!(sigma.compose(tv), tv.inverse().compose(sigma), "σ T_v = T_v⁻¹ σ");
+        assert_eq!(
+            sigma.compose(tv),
+            tv.inverse().compose(sigma),
+            "σ T_v = T_v⁻¹ σ"
+        );
         for a in all() {
             assert_eq!(a.compose(Deck::IDENTITY), a);
             assert_eq!(Deck::IDENTITY.compose(a), a);

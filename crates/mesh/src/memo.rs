@@ -759,7 +759,11 @@ impl FaceInputs {
             // a loop with no lift.
             let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
                 .loop_lift(lk)
-                .map(|rows| rows.into_iter().map(|row| (row.half_edge, row.pcurve)).collect())
+                .map(|rows| {
+                    rows.into_iter()
+                        .map(|row| (row.half_edge, row.pcurve))
+                        .collect()
+                })
                 .unwrap_or_default();
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {

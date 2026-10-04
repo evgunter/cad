@@ -987,7 +987,8 @@ impl<T: Decide> Body<T> {
             let band = geom_core::Band::linear(tol).map_err(|e| EulerOpError::Certification {
                 error: geom_brep::CertifyError::Band(e),
             })?;
-            plan.turns = [plan.he, plan.m].map(|half| crate::pcurves::turn_element(self, half, band));
+            plan.turns =
+                [plan.he, plan.m].map(|half| crate::pcurves::turn_element(self, half, band));
         }
         let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
             .iter()
@@ -1157,7 +1158,11 @@ impl<T: Decide> Body<T> {
         };
         // A null edge is a point: crossing one of its halves whole moves
         // nothing.
-        let turns = if self.edge_curve_linked(edge, &edge_data).null_scaffold().is_some() {
+        let turns = if self
+            .edge_curve_linked(edge, edge_data)
+            .null_scaffold()
+            .is_some()
+        {
             [Some(JointElement::IDENTITY); 2]
         } else {
             [None; 2]
@@ -1378,8 +1383,10 @@ impl<T: Decide> Body<T> {
         }
         // Unsplice (derived as mev's exact inverse — module docs), then
         // the loop anchors the plan proved.
-        let elements =
-            unsplice.elements([he, m, b.key(), d.key()].map(|half| self.joint(half)), turns);
+        let elements = unsplice.elements(
+            [he, m, b.key(), d.key()].map(|half| self.joint(half)),
+            turns,
+        );
         for ((from, to), element) in unsplice.links([a, b, c, d]).into_iter().zip(elements) {
             self.link_half_edges(from, to, element);
         }

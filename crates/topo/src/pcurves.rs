@@ -3781,10 +3781,8 @@ fn decide_joint<T: Decide>(
                 continue;
             }
         };
-        let mut shifted = cand.shift_branch(
-            T::from_f64(f64::from(ku)),
-            u_period.unwrap_or_else(T::zero),
-        );
+        let mut shifted =
+            cand.shift_branch(T::from_f64(f64::from(ku)), u_period.unwrap_or_else(T::zero));
         let mut kv = 0;
         if let Some(polar) = v_arm {
             let ry = shifted.eval(entry_t).y;
@@ -3857,7 +3855,15 @@ pub(crate) fn turn_element<T: Decide>(
         (t1, t0)
     };
     let entry = image.eval(entry_t);
-    decide_joint(chart, image, exit_t, entry, chart_u_period(&surface, band), band).ok()
+    decide_joint(
+        chart,
+        image,
+        exit_t,
+        entry,
+        chart_u_period(&surface, band),
+        band,
+    )
+    .ok()
 }
 
 /// **Whether `entry` meets `prev`** across a joint: the azimuth gap
@@ -4428,9 +4434,9 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 // A stored element is read only between two stored
                 // images: across a gap the chain is carried as the walk
                 // would carry it, by the element decided there.
-                let stored = body
-                    .joint(he)
-                    .filter(|_| body.pcurve(he).is_some() && body.pcurve(cycle[(i + n - 1) % n]).is_some());
+                let stored = body.joint(he).filter(|_| {
+                    body.pcurve(he).is_some() && body.pcurve(cycle[(i + n - 1) % n]).is_some()
+                });
                 let read = match (stored, decided) {
                     (Some(stored), Ok(element)) if stored == element => Ok(stored),
                     // Another element can carry the same two points only
@@ -5744,14 +5750,9 @@ mod pole_slit_tests {
             )
             .unwrap();
         // The cap runs the rim with `u` increasing, seen from above.
-        let cap_loop = body
-            .get_half_edge(first_arc.he_plus)
-            .unwrap()
-            .parent_loop;
+        let cap_loop = body.get_half_edge(first_arc.he_plus).unwrap().parent_loop;
         assert_eq!(
-            body.get_half_edge(second_arc.he_plus)
-                .unwrap()
-                .parent_loop,
+            body.get_half_edge(second_arc.he_plus).unwrap().parent_loop,
             cap_loop,
             "both rim arcs run forward around the cap"
         );
@@ -5824,7 +5825,10 @@ mod pole_slit_tests {
             .iter()
             .filter(|&&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
             .count();
-        assert_eq!(pole_joints, 1, "the slit's turn at the pole is the one reset");
+        assert_eq!(
+            pole_joints, 1,
+            "the slit's turn at the pole is the one reset"
+        );
         let minted = rows(&body, &members);
         for &anchor in &members {
             body.get_loop_mut(cap_loop).unwrap().boundary = LoopBoundary::Cycle { first: anchor };

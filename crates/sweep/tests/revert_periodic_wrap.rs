@@ -23,7 +23,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{PI, TAU};
+use core::f64::consts::PI;
 
 use core::mem::{Discriminant, discriminant};
 
@@ -139,7 +139,11 @@ fn assert_reverted(label: &str, body: &Body<f64>) {
         "{label}: a reverted body bounds the complement and nothing else fails"
     );
     assert_eq!(rows(&reverted), rows(body), "{label}: no image moves");
-    assert_eq!(anchors(&reverted), anchors(body), "{label}: no anchor moves");
+    assert_eq!(
+        anchors(&reverted),
+        anchors(body),
+        "{label}: no anchor moves"
+    );
     for (he, data) in body.half_edges() {
         assert_eq!(
             reverted.joint(he),
@@ -211,10 +215,7 @@ fn periodic_charts_whose_loops_wind_nothing_report_only_the_complement() {
         ("drum cavity", door_cavity(&collinear_cap_drum(), 0.05)),
         ("half drum", half_drum()),
     ] {
-        assert!(
-            wrapping_loops(&body).is_empty(),
-            "{label}: no loop winds"
-        );
+        assert!(wrapping_loops(&body).is_empty(), "{label}: no loop winds");
         assert!(!rows(&body).is_empty(), "{label}: the fixture carries rows");
         assert_reverted(label, &body);
     }

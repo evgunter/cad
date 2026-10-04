@@ -847,11 +847,8 @@ pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
 /// ([`crate::Body::loop_lift`]), and whether the loop traverses it
 /// FORWARD (the `he_plus` side, so the certified span runs `t₀ → t₁`).
 /// `None` for a half-edge of a loop with no lift.
-pub(crate) type WindowStep<'a, T> = Option<(
-    &'a geom_brep::PcurveCache<T>,
-    geom_brep::Pcurve<T>,
-    bool,
-)>;
+pub(crate) type WindowStep<'a, T> =
+    Option<(&'a geom_brep::PcurveCache<T>, geom_brep::Pcurve<T>, bool)>;
 
 /// **A torus face's chart window, from its boundary's stored certified
 /// pcurves — the ONE walk, for every lane.**

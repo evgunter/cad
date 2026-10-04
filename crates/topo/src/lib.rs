@@ -674,7 +674,6 @@ pub mod transform;
 pub mod validate;
 
 pub use body::Body;
-pub use joint::{Deck, JointElement};
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
@@ -692,6 +691,7 @@ pub use boolean::{
     lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
     subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
+pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.

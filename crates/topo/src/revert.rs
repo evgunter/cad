@@ -320,7 +320,12 @@ impl<T: Real> Body<T> {
         let new_joints: Vec<(HalfEdgeKey, Option<crate::JointElement>)> = self
             .half_edges
             .iter()
-            .map(|(he_key, he)| (he_key, self.joint(he.next).map(crate::JointElement::inverse)))
+            .map(|(he_key, he)| {
+                (
+                    he_key,
+                    self.joint(he.next).map(crate::JointElement::inverse),
+                )
+            })
             .collect();
 
         // ---- The map (infallible from here on). ----
