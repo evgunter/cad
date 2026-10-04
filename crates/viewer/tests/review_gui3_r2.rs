@@ -86,7 +86,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             extrude,
             pncad::document::Step::Rigid {
                 translation: [
-                    Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
+                    Expr::mul(Expr::named(width_param(), Dimension::Length), scl(2.0))
                         .expect("length * scalar is a length"),
                     len(0.0),
                     len(0.0),
@@ -538,6 +538,10 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     );
 
     // Write an expression over the document parameter into it.
+    let width = session.committed_doc().spoken_var(crate::common::var_of(
+        session.committed_doc(),
+        width_param().as_str(),
+    ));
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,
         slot: SlotId::Distance,
@@ -548,7 +552,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         driver(&session),
         SlotDriver::Expression {
-            params: vec![width_param()]
+            params: vec![width.clone()]
         },
         "the slot is now driven, and says by what"
     );
@@ -575,7 +579,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
             ..
         }) => {
             assert_eq!((node, slot), (extrude, SlotId::Distance));
-            assert_eq!(params, vec![width_param()]);
+            assert_eq!(params, vec![width.clone()]);
             assert_eq!(current, Some(SlotValue::Continuous(0.015)));
         }
         other => panic!("expected the driven refusal, got {other:?}"),
@@ -583,11 +587,11 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(session.history().len(), states, "a refusal mints nothing");
 
     // And the navigation half closes the loop.
-    session.perform(SessionOp::Select(Selection::Param(width_param())));
+    session.perform(SessionOp::Select(Selection::Param(width.id())));
     assert!(
         session
             .perform(SessionOp::SetParam {
-                name: width_param(),
+                var: width.id(),
                 value: SlotValue::Continuous(0.010),
             })
             .refusal

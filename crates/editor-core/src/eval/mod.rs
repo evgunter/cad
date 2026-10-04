@@ -1259,14 +1259,18 @@ pub mod entity_door {
 
 /// How the copies of a circular pattern whose step is a turn or more
 /// would land ([`NodeErrorKind::FullRangeStep`]).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StepTurns {
     /// The step is a whole number of turns at tolerance, so every
     /// copy lands on the master.
     Whole,
     /// The angle within one turn that lands every copy where the step
-    /// does, up to rounding, spelled as a user writes it.
-    Within(String),
+    /// does, up to rounding: the authored step less its whole turns,
+    /// as a formula the speaker says ([`crate::spoken::Speaker::formula`]).
+    Within(crate::expr::Expr),
+    /// The step holds this many whole turns, and the formula less them
+    /// is one the expression bound refuses (it would nest too deep).
+    Over(u64),
     /// The step holds more whole turns than its value resolves.
     Unresolved,
 }
@@ -1613,10 +1617,12 @@ pub enum NodeErrorKind {
         /// The spacing as the classifier saw it, in metres, for the
         /// sentence only.
         spacing: geom_core::MarginDiag,
-        /// The authored direction negated, each component spelled as
-        /// a user writes it: with the spacing made positive, it builds
-        /// the same copies.
-        reversed: [String; 3],
+        /// The authored direction negated, each component a formula
+        /// the speaker says ([`crate::spoken::Speaker::formula`]): with
+        /// the spacing made positive, it builds the same copies. `None`
+        /// for a component whose negation the expression bound refuses
+        /// (it would nest too deep).
+        reversed: [Option<crate::expr::Expr>; 3],
     },
     /// A linear pattern's spacing is zero at tolerance, so every copy
     /// would land on the master.
@@ -1627,8 +1633,9 @@ pub enum NodeErrorKind {
     /// A circular pattern's step reaches a full turn at tolerance, or
     /// passes it.
     FullRangeStep {
-        /// The step as authored.
-        step: String,
+        /// The step as authored, said as `NegativeSpacing::reversed`
+        /// is.
+        step: crate::expr::Expr,
         /// What the step evaluated to, in radians, when it is not a
         /// literal (a literal's text already says), for the sentence
         /// only.
@@ -2517,14 +2524,20 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "pattern count {count} is not at least 1")
             }
             Self::NegativeSpacing { spacing, reversed } => {
-                let [x, y, z] = reversed;
                 write!(
                     f,
                     "the pattern spacing evaluated to {spacing} m, below zero, and a spacing is \
                      a size: which way the copies step is the direction's to say, not a sign's. \
                      Recourse: make the spacing evaluate positive (its sign comes from whatever \
-                     drives it) and point the direction the other way, ({x}, {y}, {z})"
-                )
+                     drives it) and point the direction the other way"
+                )?;
+                match reversed {
+                    [Some(x), Some(y), Some(z)] => {
+                        let [x, y, z] = [x, y, z].map(|e| by.formula(e));
+                        write!(f, ", ({x}, {y}, {z})")
+                    }
+                    _ => Ok(()),
+                }
             }
             Self::DegenerateSpacing => f.write_str(
                 "the pattern spacing is zero at tolerance, so every copy would land on the \
@@ -2541,7 +2554,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 evaluated,
                 turns,
             } => {
-                write!(f, "the pattern step {step}")?;
+                write!(f, "the pattern step {}", by.formula(step))?;
                 if let Some(radians) = evaluated {
                     write!(f, ", which evaluated to {radians} rad,")?;
                 }
@@ -2562,14 +2575,23 @@ impl crate::spoken::Say for NodeErrorKind {
                     StepTurns::Within(within) if evaluated.is_some() => write!(
                         f,
                         " is past a full turn, and a step is an angle within one. Recourse: \
-                         make it evaluate within one turn; {within} does, and places every copy \
-                         where this does, up to rounding"
+                         make it evaluate within one turn; {} does, and places every copy \
+                         where this does, up to rounding",
+                        by.formula(within)
                     ),
                     StepTurns::Within(within) => write!(
                         f,
                         " is past a full turn, and a step is an angle within one. Recourse: \
-                         write it as {within}, which places every copy where this does, up to \
-                         rounding"
+                         write it as {}, which places every copy where this does, up to \
+                         rounding",
+                        by.formula(within)
+                    ),
+                    StepTurns::Over(held) => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         make it {} deg nearer zero, which places every copy where this does, \
+                         up to rounding",
+                        360 * u128::from(*held)
                     ),
                     StepTurns::Unresolved => write!(
                         f,
@@ -2964,6 +2986,15 @@ impl NodeError {
     pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
         failed_line(self.node, &self.kind, crate::spoken::Speaker::of(doc))
     }
+
+    /// **The kind's prose alone, spoken from `doc`**: each node and
+    /// each formula's reader as `doc` holds them now. What a consumer
+    /// that names the node itself quotes as the cause, in place of the
+    /// kind's documentless `Display`, which writes a reader `#<16 hex>`.
+    #[must_use]
+    pub fn kind_spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc)).to_string()
+    }
 }
 
 /// The [`NodeError`] rendering where no document is at hand: each node
@@ -3205,13 +3236,15 @@ pub(crate) mod leaf {
                 };
                 let ev: Evaluation<geom_core::Interval> =
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
-                read_leaf(&ev, want, |v| v)
+                read_leaf(doc, &ev, want, |v| v)
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
-                    read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
+                    read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
+                        v.value
+                    })
                 });
                 out
             }
@@ -3222,6 +3255,7 @@ pub(crate) mod leaf {
     /// takes the lane scalar down to the numeric channel, which is where
     /// every number a consumer sees is quoted from.
     fn read_leaf<T: EvalScalar + geom_core::CertifiedEnclosure>(
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
         ev: &Evaluation<T>,
         want: LeafRequest,
         project: impl Fn(T) -> geom_core::Interval,
@@ -3255,7 +3289,7 @@ pub(crate) mod leaf {
                 },
                 Err(standing) => Err(ev.node_error(id).map_or_else(
                     || (id, standing.to_string()),
-                    |e| (e.node, e.kind.to_string()),
+                    |e| (e.node, e.kind_spoken(doc)),
                 )),
             });
         }
@@ -3811,8 +3845,8 @@ where
     // evaluated over that box" a fact about the run rather than about
     // each call site.
     let env = match opts.param_box.as_deref() {
-        None => doc.param_env::<T>(),
-        Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
+        None => doc.var_env::<T>(),
+        Some(b) => match crate::analysis::var_env_over::<T, _>(doc, b) {
             Ok(env) => env,
             Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
         },
@@ -3831,7 +3865,7 @@ where
     // The NOMINAL environment, built beside the lane one and carried
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
-    let nominal_env = doc.param_env::<f64>();
+    let nominal_env = doc.var_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -4161,7 +4195,7 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 /// lookup, and the op wiring.
 fn eval_node<T>(
     doc: &Doc<ProfileProgram>,
-    env: &crate::expr::ParamEnv<T>,
+    env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
@@ -4731,7 +4765,7 @@ mod tag {
         ///
         /// * A COUNT slot writes no nominal word. [`crate::expr::eval_count`]
         ///   reads the document's exact `Count` binding at every
-        ///   scalar and [`crate::analysis::param_env_over`] widens
+        ///   scalar and [`crate::analysis::var_env_over`] widens
         ///   only `Continuous` parameters, so a count's lane word IS
         ///   its nominal.
         /// * A `Profile` node has no slots here at all — its program
@@ -6292,20 +6326,20 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
         }
         K::Value(e) => {
             h.write_tag(tag::measure_expr::VALUE);
-            // The value leaf's literal BITS and parameter names — the
-            // same two facts `Expr::bit_eq` compares, so two leaves
-            // that are bit-equal hash equal and no others do.
+            // The value leaf's literal BITS and the variables it reads
+            // — the same two facts `Expr::bit_eq` compares, so two
+            // leaves that are bit-equal hash equal and no others do.
             let mut bits = Vec::new();
             e.literal_bits(&mut bits);
             h.write_u64(bits.len() as u64);
             for b in bits {
                 h.write_u64(b);
             }
-            let mut params = Vec::new();
-            e.param_refs(&mut params);
-            h.write_u64(params.len() as u64);
-            for (name, dim) in params {
-                h.write_str(name.as_str());
+            let mut reads = Vec::new();
+            e.var_reads(&mut reads);
+            h.write_u64(reads.len() as u64);
+            for (var, dim) in reads {
+                h.write_u64(var.0);
                 h.write_tag(dimension_tag(dim));
             }
         }

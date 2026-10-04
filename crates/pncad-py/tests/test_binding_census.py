@@ -594,6 +594,9 @@ BOUND_AS = {
     "FreeValue": "DocParamValue",
     "FreeVar": "DocParam",
     "VarName": "ParamName",
+    # A variable's identity is Python's `Var`, the handle `Doc.var`
+    # and `Doc.vars` answer.
+    "VarId": "Var",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -724,16 +727,6 @@ BOUND_AS = {
     # `Denotation` and `ReadbackError` are spelled identically and are
     # accounted by rule 1, not here. They left the `gap` roster at
     # LIB-B-READBACK, which closed the family that chartered them.
-    #
-    # `DanglingRef` is `ReadbackError::Dangling`'s payload and crosses
-    # as `ReadbackError.variant`, the way `RootFault` crosses as
-    # `EditError.variant`: its two arms ARE the two tags —
-    # `dangling_entity` for a topological key that does not resolve,
-    # `dangling_geometry` for a geometry key reached from a live
-    # entity that does not — because which lookup came back empty is
-    # what a caller branches on. Python has no class for the payload
-    # and needs none; the tag carries the whole of it.
-    "DanglingRef": "ReadbackError.variant",
     "denotation": "Evaluation.denotation",
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
@@ -769,7 +762,7 @@ BOUND_AS = {
     # target has no constructor in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
     # pairing cannot be mis-asserted. The carrier-projection rule reads
-    # out the same way it did for `DanglingRef` above: a payload's
+    # out the same way it does for `RootFault` below: a payload's
     # category follows what its CARRIER does at the crossing, the
     # carrier here is the door's `targets` argument, and that argument
     # crosses holding `NodePick`s.
@@ -777,9 +770,8 @@ BOUND_AS = {
     "pick_face": "Evaluation.pick_face",
     # `MeshPickError` is `NodePickError::Index`'s payload, and it
     # crosses by the same rule and at a different spelling from
-    # `DanglingRef`'s. `ReadbackError`'s arm had no word of its own, so
-    # its payload's two arms BECAME the carrier's two tags. This
-    # carrier's arm does: `mesh_index` says which door's invariant
+    # `RootFault`'s. `EditError::Roots` has no word of its own, so its
+    # payload's arms ARE the carrier's tags. This carrier's arm does: `mesh_index` says which door's invariant
     # broke, and a caller branching on the standing ladder needs it to
     # stay put. So the payload's discriminant arrives BESIDE the
     # carrier's rather than in place of it, at `index_variant`, `None`
@@ -910,7 +902,7 @@ BOUND_AS = {
     # were true when written: the arms differed only in PROSE, so
     # there was no Python shape to point at. There is one now, and it
     # is a word per arm — twenty-two for `RevolveError`, forty-two for
-    # `BooleanError`, twenty-two for `ShellError` — minted by an
+    # `BooleanError`, twenty-three for `ShellError` — minted by an
     # exhaustive match, so a kernel arm added without a word stops the
     # bindings compiling. What still has no Python spelling is the
     # arm's FIELDS, and that is the payload question, tracked
@@ -1181,7 +1173,7 @@ BOUND_AS = {
     # evaluation holds the name tables, and the document decides
     # whether a stored name's minting node is still in the recipe at
     # all. Python's `Evaluation` IS that pair — it captures the
-    # document at `evaluate`, beside the `ParamEnv` it already captured
+    # document at `evaluate`, beside the `VarEnv` it already captured
     # for `select_where`, and for the identical reason stated there:
     # the answer must be as of the document the evaluation is OF, and
     # threading a doc back in per query would let the two drift (the
@@ -1196,7 +1188,7 @@ BOUND_AS = {
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
-    # theirs — the `DanglingRef` reading, on a carrier that is a VALUE
+    # theirs — the `RootFault` reading, on a carrier that is a VALUE
     # rather than a refusal.
     #
     # The two enums are one attribute between them, and the merge is
@@ -1650,9 +1642,9 @@ FAMILIES: dict[str, str] = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS — and for
-#:   `DanglingRef`, the `Dangling` arm's payload, whose two arms are
-#:   the two `dangling_*` tags;
+#:   because the two doors refuse different CALLS; `EditError.variant`
+#:   for `RootFault`, the `Roots` arm's payload, whose four arms are
+#:   the four `root_*` tags;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -1954,7 +1946,7 @@ FAMILIES: dict[str, str] = {
 #: Two things the binding gained that the charter did not name.
 #: `RunCtx` is a PAIR in Rust and Python's `Evaluation` became that
 #: pair — it now captures the document at `evaluate` beside the
-#: `ParamEnv` it already captured, so a caller cannot ask an
+#: `VarEnv` it already captured, so a caller cannot ask an
 #: evaluation about a document it is not of. And the door is
 #: EVALUATION-WIDE where `denotation` is node-scoped: `resolve`
 #: answers which node carries a name, so it resolves names
@@ -2093,7 +2085,7 @@ FAMILIES: dict[str, str] = {
 #: `EvalError` — and closing it moved NINE, because the three could
 #: not be reached without the four the roster filed under `G1`
 #: (`Expr`, `ParseError`, `parse_expr`, `unparse`) plus the
-#: environment (`ParamEnv`) and the second refusal class. That is the
+#: environment (`VarEnv`) and the second refusal class. That is the
 #: measurement the closing paid for and the one worth keeping: **the
 #: entries an id owns are not always the entries a unit must move.**
 #: A read door needs the value it reads, and the census had split
@@ -2104,7 +2096,7 @@ FAMILIES: dict[str, str] = {
 #:
 #: `Expr`, `ParseError` and `EvalError` are top-level names in
 #: `pncad.pyi`; `parse_expr`, `eval` and `eval_count` are `BOUND_AS`
-#: `Doc` methods and `unparse` is `Expr.text`; `ParamEnv` is
+#: `Doc` methods and `unparse` is `Expr.text`; `VarEnv` is
 #: `INTERIOR`, corrected from a `gap` it should never have been (see
 #: its entry). The positive form is `tests/test_expressions.py`.
 #:
@@ -2300,9 +2292,7 @@ NOT_BOUND = {
     # has none. Python reads a refusal's variable as the name its
     # message and payload carry.
     "SpokenVar": SHAPE,
-    "Var": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "VarId": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarKind": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -2332,14 +2322,14 @@ NOT_BOUND = {
     # notation cannot be written. It is flattened because no Python
     # door answers in it — the binding's notation edit goes through
     # `Doc.apply`, where the kernel has already mapped these two to
-    # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
+    # `var_count_has_no_unit` and `var_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
     # `FreeVar::with_distribution`'s `Err`, flattened for
     # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
     # binding's annotation edit goes through `Doc.apply`, where the
     # kernel has already mapped these to
-    # `doc_param_count_has_no_distribution` and to the distribution
+    # `var_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
     # `FreeVar::first_non_finite`'s answer: WHICH float of a
@@ -2347,7 +2337,7 @@ NOT_BOUND = {
     # offset `DistributionField` names. It is `DistributionRefusal`'s
     # row one concept over and flattened for its reason: no Python
     # door answers in it. Both refusals that carry it cross as their
-    # own tags (`non_finite_doc_param`, `PersistError.site`'s
+    # own tags (`non_finite_var`, `PersistError.site`'s
     # sentence), and those are the words a caller branches on.
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
@@ -2428,13 +2418,10 @@ NOT_BOUND = {
     # the keys themselves and for exactly their reason: a Python
     # caller holds opaque NAME text and never a key, so a sum over
     # keys has nothing to project either. What the sums' arms say
-    # DOES reach Python, at the two doors where the arm is the answer
-    # rather than the site: `ReadbackError.variant` is
-    # `dangling_entity` or `dangling_geometry`, which is which of the
-    # two came back empty (`DanglingRef` is the `BOUND_AS` entry that
-    # records it), and `ValidationFinding.entity_kind` is which KIND of
-    # carrier a census refusal's entity subject is. Both project the
-    # discriminant and neither projects the key, which is why this row
+    # DOES reach Python, at the one door where the arm is the answer
+    # rather than the site: `ValidationFinding.entity_kind` is which
+    # KIND of carrier a census refusal's entity subject is. It projects
+    # the discriminant and not the key, which is why this row
     # does not move: the sum is still a sum over things Python cannot
     # hold.
     "EntityId": SHAPE,
@@ -2619,11 +2606,11 @@ NOT_BOUND = {
     "BlendKind": INTERIOR,
     # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
     # prelude-carried `BlendError` is matchable THROUGH the prelude.
-    # `INTERIOR` by the rule the two CUR3/CUR4 cases together settle:
-    # **a payload's category follows what its CARRIER does at the
-    # crossing.** `ReadbackError` projects its arms as tags, so CUR3's
-    # `DanglingRef` is in `BOUND_AS` at `ReadbackError.variant` and its
-    # arms ARE two tags. `BlendError` projects no arms at all —
+    # `INTERIOR` by the rule the `RootFault` and CUR4 cases together
+    # settle: **a payload's category follows what its CARRIER does at
+    # the crossing.** `EditError` projects its arms as tags, so
+    # `RootFault` is in `BOUND_AS` at `EditError.variant` and its arms
+    # ARE four tags. `BlendError` projects no arms at all —
     # `node_error_tag` reads the VERB, so the whole refusal arrives as
     # one `fillet`/`chamfer` tag plus the kernel's `Display` prose — so
     # there is no tag to split, none to pin, and nothing for a Python
@@ -2890,7 +2877,7 @@ NOT_BOUND = {
     # builds the environment from the document it is a method on. Two
     # doors, both of them holding one internally, neither handing it
     # to Python — which is what `behind-a-door` means.
-    "ParamEnv": INTERIOR,
+    "VarEnv": INTERIOR,
     "Profile": INTERIOR,
     # What an `AuthoredStep` is made of: the value-erased shape of a
     # step. Python holds the handle whole and never takes it apart.
@@ -3285,7 +3272,7 @@ NOT_BOUND = {
     # The FIVE G1 entries left with them, and that is the decay rule
     # rather than a re-assignment: `Expr`, `ParseError`, `parse_expr`
     # and `unparse` are names Python now spells, and a `gap:` entry
-    # Python binds is stale whatever id it cites. `ParamEnv` moved
+    # Python binds is stale whatever id it cites. `VarEnv` moved
     # for the OTHER reason — it is `INTERIOR` now, below, because
     # both doors that take one build it from the document in hand.
     # **G1 is not closed by any of that**, and it did not stop being
@@ -3527,6 +3514,7 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::LabelDropped": "Maintenance.variant",
+    "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3550,29 +3538,35 @@ MEMBERS_BOUND_AS = {
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
     "EditError::NotStructuralSlot": "EditError.variant",
-    "EditError::PayloadUnknownDocParam": "EditError.variant",
-    "EditError::PayloadDocParamDimension": "EditError.variant",
+    "EditError::PayloadUnknownVarName": "EditError.variant",
+    "EditError::PayloadVarKind": "EditError.variant",
     "EditError::MeasureMalformed": "EditError.variant",
     "EditError::AssertionTarget": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
-    "EditError::SlotUnknownDocParam": "EditError.variant",
-    "EditError::SlotDocParamDimension": "EditError.variant",
-    "EditError::ContinuousParamCannotBeCount": "EditError.variant",
+    "EditError::SlotUnknownVarName": "EditError.variant",
+    "EditError::SlotVarKind": "EditError.variant",
+    "EditError::ContinuousVarCannotBeCount": "EditError.variant",
     "EditError::UnknownVar": "EditError.variant",
     "EditError::VarNameTaken": "EditError.variant",
+    "EditError::VarNameUnchanged": "EditError.variant",
+    "EditError::AnonymousVarUnread": "EditError.variant",
+    "EditError::DeleteAnonymousVar": "EditError.variant",
+    "EditError::SlotUnresolvedVar": "EditError.variant",
+    "EditError::PayloadUnresolvedVar": "EditError.variant",
+    "EditError::NameLeafWritten": "EditError.variant",
     "EditError::VarIdCollides": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
-    "EditError::DocParamValueKindMismatch": "EditError.variant",
-    "EditError::DocParamCountHasNoUnit": "EditError.variant",
-    "EditError::DocParamCountHasNoDistribution": "EditError.variant",
-    "EditError::DocParamUnitMismatch": "EditError.variant",
+    "EditError::VarValueKindMismatch": "EditError.variant",
+    "EditError::VarCountHasNoUnit": "EditError.variant",
+    "EditError::VarCountHasNoDistribution": "EditError.variant",
+    "EditError::VarUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
     "EditError::DeclaredSiteNotAnOperand": "EditError.variant",
     "EditError::DeclaredNameNotUpstream": "EditError.variant",
     "EditError::ReadSiteMissingNode": "EditError.variant",
-    "EditError::NonFiniteDocParam": "EditError.variant",
+    "EditError::NonFiniteVar": "EditError.variant",
     "EditError::InvalidDistribution": "EditError.variant",
     "EditError::RebindTargetMissingNode": "EditError.variant",
     "EditError::RebindUnknownName": "EditError.variant",
@@ -3618,8 +3612,9 @@ MEMBERS_BOUND_AS = {
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::LabelUnchanged": "EditError.variant",
-    "EvalError::UnknownParam": "EvalError.variant",
-    "EvalError::ParamDimensionMismatch": "EvalError.variant",
+    "EvalError::UnresolvedVar": "EvalError.variant",
+    "EvalError::VarKindMismatch": "EvalError.variant",
+    "EvalError::UnloweredName": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
     "EvalError::ContinuousExprInCountEval": "EvalError.variant",
     "EvalError::CountOverflow": "EvalError.variant",
@@ -3637,7 +3632,9 @@ MEMBERS_BOUND_AS = {
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
-    "InlineError::ParamConflict": "InlineError.variant",
+    "InlineError::VarNameConflict": "InlineError.variant",
+    "InlineError::AnonymousVarCrossesCut": "InlineError.variant",
+    "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",
     "InlineError::Unplaced": "InlineError.variant",
@@ -3783,7 +3780,9 @@ MEMBERS_BOUND_AS = {
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
-    "SplitError::UncutParamReference": "SplitError.variant",
+    "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::AnonymousVarCrossesCut": "SplitError.variant",
+    "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
@@ -3802,7 +3801,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
     "StepImportError::DeclarationUnresolved": "StepImportError.variant",
-    "StepImportError::VertexWithoutPoint": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",

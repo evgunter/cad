@@ -2,7 +2,8 @@
 id: shell-corrupt-refusal-ends-in-a-kernel-bug-tag
 kind: issue
 title: topo: ShellError::Corrupt and ReplaceFaceError::Corrupt end in a '(kernel bug)' tag, not the shared kernel-defect ending
-status: open
+status: closed
+closed: 2026-10-04
 opened: 2026-09-28
 ---
 
@@ -25,3 +26,9 @@ The ending has one home now, `geom_core::KERNEL_DEFECT_ENDING`
 
 Replace each tag with ". {KERNEL_DEFECT_ENDING}" (the stage prefix is
 `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`'s).
+
+## Closed 2026-10-04 (`lane-b-shell-replace`)
+
+Both variants are deleted. Every site that raised them read a record of the
+body or a key the verb minted, so each now panics naming the record (D2
+row 4); no `Display` text remains to end.

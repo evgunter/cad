@@ -27,8 +27,8 @@ use test_utils::refusal::tagged;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ParamEnv,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate, select,
+    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select,
     select_where,
 };
 
@@ -350,7 +350,7 @@ fn l_shaped_extrude_cut_across_both_legs_names_its_chords_by_their_ends() {
 fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
-    let params = ParamEnv::default();
+    let params = VarEnv::default();
     // The chords of a cap crossed twice: `[SectionEdge, Fragment(Ends)]`.
     let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).path([
         SegPat::tag(SegTag::SectionEdge),

@@ -1227,7 +1227,8 @@ impl Maintenance {
             d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
             d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
             d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
-            d::Maintenance::StrandedAppearance { .. } => None,
+            d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
 
@@ -1244,7 +1245,9 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::OffsetCleared { .. } | d::Maintenance::LabelDropped { .. } => Ok(None),
+            d::Maintenance::OffsetCleared { .. }
+            | d::Maintenance::LabelDropped { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
     }
 
@@ -1257,7 +1260,8 @@ impl Maintenance {
             }
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::LabelDropped { .. } => None,
+            | d::Maintenance::LabelDropped { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
 

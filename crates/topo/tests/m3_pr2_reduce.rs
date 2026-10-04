@@ -64,7 +64,7 @@ const MIRRORED: &[(f64, f64)] = &[
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<VertexKey> {
     body.vertex_points()
         .filter(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)

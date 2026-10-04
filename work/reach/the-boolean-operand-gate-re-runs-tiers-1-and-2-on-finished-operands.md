@@ -17,9 +17,9 @@ operand reaches it only with `AtRestOutcome::Validated`: tier 3 passed,
 tiers 1 and 2 with it. `reduce::gate_operand_pairs`
 (`crates/topo/src/boolean/reduce.rs`) still runs
 `validate::closed_by_tier` on both operands at every reduction (the
-public door's, and the re-cut's re-entry), refusing `CorruptOperand` /
-`ScaffoldingOperand`. Against a `Validated` operand those refusals are
-unreachable and the pass is a second payment of tiers 1–2 per operand
+public door's, and the re-cut's re-entry), panicking on a tier-1
+finding and refusing `ScaffoldingOperand` on a tier-2 one. Against a
+`Validated` operand neither is reachable and the pass is a second payment of tiers 1–2 per operand
 per op, against DESIGN's "pays that gate once, at the door that built
 it". At a dual (`NotRunAtThisScalar`) it is the only structural check
 the operand gets.

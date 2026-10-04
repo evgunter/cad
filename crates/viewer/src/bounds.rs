@@ -54,9 +54,9 @@
 //! a door this module cannot open for itself:
 //!
 //! * **A widened binding reaches evaluation as one.**
-//!   `editor_core::analysis::param_env_over` binds an axis as
+//!   `editor_core::analysis::var_env_over` binds an axis as
 //!   `nominal + [lo, hi]` in the scalar's own arithmetic, where
-//!   `Doc::param_env` binds `T::from_f64` of the nominal alone and
+//!   `Doc::var_env` binds `T::from_f64` of the nominal alone and
 //!   every binding is therefore degenerate.
 //! * **A node SLOT has a name to widen.**
 //!   `editor_core::range::RangeField::Slot` names one, and the

@@ -336,18 +336,18 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
         expr = self.doc.parse_expr("width / 2.0")
         with self.assertRaises(EvalError) as caught:
             Doc("empty").eval(expr)
-        self.assertEqual(caught.exception.variant, "unknown_param")
+        self.assertEqual(caught.exception.variant, "unlowered_name")
         self.assertEqual(caught.exception.name, "width")
 
     def test_a_redeclared_parameter_says_both_dimensions(self):
-        """The expression's reference recorded a length; this document
-        declares the same name as a count."""
+        """The expression reads `width` as a length; this document holds
+        the same name as a count."""
         expr = self.doc.parse_expr("width")
         counts = Doc("counts")
         counts.apply(DocEdit.declare_var(ParamName("width"), DocParam.count(3)))
         with self.assertRaises(EvalError) as caught:
             counts.eval(expr)
-        self.assertEqual(caught.exception.variant, "param_dimension_mismatch")
+        self.assertEqual(caught.exception.variant, "var_kind_mismatch")
         self.assertEqual(caught.exception.name, "width")
         self.assertEqual(caught.exception.expected, "length")
         self.assertEqual(caught.exception.found, "count")

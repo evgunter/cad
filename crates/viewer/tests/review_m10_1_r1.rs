@@ -25,7 +25,7 @@ fn annotated_session() -> (DocSession, VarName, Distribution) {
     let mut session = DocSession::inline(doc, tol);
     let name = VarName::from_static("bore_r");
     let dist = Distribution::Normal { sigma: 5e-6 };
-    let outcome = session.perform(SessionOp::CreateParam {
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: name.clone(),
         value: FreeVar::continuous_with(Dimension::Length, 0.004, dist),
     });
@@ -56,7 +56,7 @@ fn create_param_carries_an_annotation() {
 fn a_panel_value_edit_keeps_the_distribution() {
     let (mut session, name, dist) = annotated_session();
     let outcome = session.perform(SessionOp::SetParam {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::Continuous(0.005),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -84,14 +84,18 @@ fn a_panel_value_edit_keeps_the_distribution() {
 #[test]
 fn a_param_drag_gesture_keeps_the_distribution() {
     let (mut session, name, dist) = annotated_session();
-    let outcome = session.perform(SessionOp::BeginParamGesture { name: name.clone() });
+    let outcome = session.perform(SessionOp::BeginParamGesture {
+        var: common::var_of(session.committed_doc(), name.as_str()),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let outcome = session.perform(SessionOp::PreviewParamGesture {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: 0.006,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
+    let outcome = session.perform(SessionOp::CommitParamGesture {
+        var: common::var_of(session.committed_doc(), name.as_str()),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let got = distribution_of(&session, &name).expect("the annotation survived the gesture");
     assert!(got.bit_eq(&dist));

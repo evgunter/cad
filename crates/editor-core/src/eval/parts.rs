@@ -634,14 +634,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             resolver: self.resolver.map(Arc::clone),
             profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
-            // is a set of THIS document's parameter names, and a
-            // referenced document is a different document with its own
-            // names (AQ4 — v1 instantiation takes no arguments). A box
-            // that crossed the seam would either name nothing there or,
-            // worse, collide by name with an unrelated parameter.
+            // is keyed by THIS document's variable ids, and a referenced
+            // document is a different document with its own variables
+            // (AQ4 — v1 instantiation takes no arguments). A box that
+            // crossed the seam would name nothing there: an id is minted
+            // by one document's chain and read by no other.
             param_box: None,
-            // NOT inherited, by the same argument: a seed is a name of
-            // THIS document's parameters. A part's geometry is constant
+            // NOT inherited, by the same argument: a seed is one of THIS
+            // document's variable ids. A part's geometry is constant
             // with respect to them (AQ4 — v1 instantiation takes no
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.

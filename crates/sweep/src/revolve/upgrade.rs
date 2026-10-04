@@ -40,8 +40,8 @@ struct EdgeData<T: Real> {
 /// live half-edge holds on a tier-1-valid body.
 #[track_caller]
 fn vertex_point<T: Real>(body: &Body<T>, vertex: topo::VertexKey) -> Point3<T> {
-    topo::readback::vertex_point_ref(body, vertex).unwrap_or_else(|what| {
-        unreachable!("vertex {vertex:?}, held by a live half-edge, does not resolve: {what:?}")
+    topo::readback::vertex_point(body, vertex).unwrap_or_else(|_| {
+        unreachable!("vertex {vertex:?}, held by a live half-edge, does not resolve")
     })
 }
 

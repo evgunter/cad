@@ -626,6 +626,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetVarValue { .. } => "SetVarValue",
         DocEdit::SetVarUnit { .. } => "SetVarUnit",
         DocEdit::SetVarDistribution { .. } => "SetVarDistribution",
+        DocEdit::RenameVar { .. } => "RenameVar",
+        DocEdit::DeleteVar { .. } => "DeleteVar",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",

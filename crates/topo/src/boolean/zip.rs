@@ -98,6 +98,14 @@ pub(super) enum Joint {
     },
     /// Across one loop (`mef`, which divides the face).
     Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
+    /// Across one ring of `face`: the `mef` divides the hole, and the
+    /// face it divides off is a hole too, so `kfmrh` returns it to
+    /// `face` as a ring: two holes meeting at the vertex.
+    Hole {
+        face: FaceKey,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    },
 }
 
 /// **Fuses two coincident vertices**: a zero-length edge between them at
@@ -105,7 +113,8 @@ pub(super) enum Joint {
 /// the pair bitwise coincident), collapsed by a `kev` that keeps the
 /// merged fan's carriers, each re-certified at the kept vertex under the
 /// run's band. Returns the fusion `(dead, kept)` and, for a chord, the
-/// face it divided off; `desync` names a joint that no longer resolves.
+/// face it divided off (a hole's goes back to its face as a ring);
+/// `desync` names a joint that no longer resolves.
 pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     joint: Joint,
@@ -114,13 +123,17 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<((VertexKey, VertexKey), Option<FaceKey>), BooleanError> {
     let carrier = EdgeCurveSpec::self_loop_circle_at(p);
+    let hole_face = match joint {
+        Joint::Hole { face, .. } => Some(face),
+        _ => None,
+    };
     let (he, made) = match joint {
         Joint::Loops { target, ring } => (
             body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?
                 .he_plus,
             None,
         ),
-        Joint::Chord { he1, he2 } => {
+        Joint::Chord { he1, he2 } | Joint::Hole { he1, he2, .. } => {
             let made = body.mef(
                 MefSite::Chords { he1, he2 },
                 carrier,
@@ -130,6 +143,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
             (made.he_plus, Some(made.face))
         }
     };
+    let hole = hole_face.zip(made);
     let kept = body
         .get_half_edge(he)
         .ok_or_else(|| desync("a joint half-edge no longer resolves"))?
@@ -138,6 +152,10 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
         .half_edge_end(he)
         .ok_or_else(|| desync("a joint half-edge has no end"))?;
     body.kev_describing(he, &[], tol)?;
+    if let Some((face, divided)) = hole {
+        body.kfmrh_minting(face, divided, tol)?;
+        return Ok(((dead, kept), None));
+    }
     Ok(((dead, kept), made))
 }
 

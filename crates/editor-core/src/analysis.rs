@@ -407,7 +407,7 @@ pub trait AxisScalar: geom_core::Real {
     fn axis(lo: f64, hi: f64) -> Option<Self>;
 
     /// The same axis, with the VARIABLE'S IDENTITY in hand — the door
-    /// [`param_env_over`] calls (E12).
+    /// [`var_env_over`] calls (E12).
     ///
     /// The default DELEGATES to [`AxisScalar::axis`] and discards the
     /// id, so every existing scalar is unaffected by this seam: `f64`,
@@ -595,41 +595,41 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeedError {
     /// The seed names a variable the document does not hold.
-    UnknownParam {
+    UnknownVar {
         /// The unmatched variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The seed names a `Count` variable. Structural parameters are
     /// fixed under any error analysis (E11.3): there is no derivative
     /// axis to seed, and refusing is the typed spelling of that.
-    CountParam {
+    CountVar {
         /// The structural variable.
-        param: SpokenVar,
+        var: SpokenVar,
     },
     /// The evaluation scalar carries no tangent channel — a seeded
     /// `f64` (or `Interval`) evaluation would be a sensitivity question
     /// with the seed silently dropped, so it refuses instead.
     TangentUnrepresentable {
         /// The variable that was asked for.
-        param: SpokenVar,
+        var: SpokenVar,
     },
 }
 
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam { param } => write!(
+            Self::UnknownVar { var } => write!(
                 f,
-                "the seed names {param}, which is not a variable of this document"
+                "the seed names {var}, which is not a variable of this document"
             ),
-            Self::CountParam { param } => write!(
+            Self::CountVar { var } => write!(
                 f,
-                "the seed names {param}, a Count parameter — structural parameters are fixed \
+                "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
             ),
-            Self::TangentUnrepresentable { param } => write!(
+            Self::TangentUnrepresentable { var } => write!(
                 f,
-                "parameter {param} is seeded and this evaluation scalar carries no tangent \
+                "parameter {var} is seeded and this evaluation scalar carries no tangent \
                  channel — a sensitivity pass needs a dual"
             ),
         }
@@ -641,8 +641,8 @@ impl core::fmt::Display for SeedError {
 /// other binding — unseeded parameters and, through `T::from_f64`,
 /// every literal — keeps tangent zero by construction.
 ///
-/// The environment is whichever door built it ([`crate::Doc::param_env`]
-/// or [`param_env_over`]), so seeding composes with the parameter box
+/// The environment is whichever door built it ([`crate::Doc::var_env`]
+/// or [`var_env_over`]), so seeding composes with the parameter box
 /// by doing nothing besides the one tangent write. **One seed per
 /// environment is the caller's obligation, not this door's check**
 /// (E4: n parameters ⇒ n independent passes): an environment records
@@ -660,26 +660,25 @@ impl core::fmt::Display for SeedError {
 /// per-scalar capability refusal comes only after the name is real.
 pub fn seed_env<T: SeedScalar, P>(
     doc: &Doc<P>,
-    mut env: crate::expr::ParamEnv<T>,
+    mut env: crate::expr::VarEnv<T>,
     seed: VarId,
-) -> Result<crate::expr::ParamEnv<T>, SeedError> {
+) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
     match doc.free(seed) {
-        None => Err(SeedError::UnknownParam { param: spoken }),
-        Some(FreeVar::Count { .. }) => Err(SeedError::CountParam { param: spoken }),
+        None => Err(SeedError::UnknownVar { var: spoken }),
+        Some(FreeVar::Count { .. }) => Err(SeedError::CountVar { var: spoken }),
         Some(FreeVar::Continuous { .. }) => {
             // Both environment doors bind every document parameter, so
             // a continuous document parameter always has a continuous
-            // binding; answering `UnknownParam` on a broken pairing (a
+            // binding; answering `UnknownVar` on a broken pairing (a
             // caller's env built from a different document) is
             // fail-honest, never a wrong number.
-            let Some(crate::expr::ParamValue::Continuous { value, .. }) = doc
-                .var_name(seed)
-                .and_then(|name| env.bindings.get_mut(name))
+            let Some(crate::expr::ParamValue::Continuous { value, .. }) =
+                env.bindings.get_mut(&seed)
             else {
-                return Err(SeedError::UnknownParam { param: spoken });
+                return Err(SeedError::UnknownVar { var: spoken });
             };
-            *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { param: spoken })?;
+            *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { var: spoken })?;
             Ok(env)
         }
     }
@@ -1000,7 +999,7 @@ impl ParamBox {
 ///
 /// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
 /// arithmetic so the enclosure rounds outward; `Count` parameters bind
-/// exactly as [`Doc::param_env`] binds them (they are structural, never
+/// exactly as [`Doc::var_env`] binds them (they are structural, never
 /// axes). A parameter the box does not name binds its nominal.
 ///
 /// # Errors
@@ -1008,10 +1007,10 @@ impl ParamBox {
 /// [`ParamBoxError::UnknownParam`] when the box names a parameter the
 /// document does not have; [`ParamBoxError::AxisUnrepresentable`] when
 /// `T` cannot carry a widened axis.
-pub fn param_env_over<T: AxisScalar, P>(
+pub fn var_env_over<T: AxisScalar, P>(
     doc: &Doc<P>,
     box_: &ParamBox,
-) -> Result<crate::expr::ParamEnv<T>, ParamBoxError> {
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
     for &id in box_.axes.keys() {
         if !matches!(doc.free(id), Some(FreeVar::Continuous { .. })) {
             return Err(ParamBoxError::UnknownParam {
@@ -1021,11 +1020,8 @@ pub fn param_env_over<T: AxisScalar, P>(
     }
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
-        // Bound under its name, as `Doc::param_env` binds it: the two
-        // environment doors read one iteration base.
-        let Some(name) = doc.var_name(id) else {
-            continue;
-        };
+        // Bound by id, as `Doc::var_env` binds it: the two environment
+        // doors read one iteration base.
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);
@@ -1046,13 +1042,17 @@ pub fn param_env_over<T: AxisScalar, P>(
             }
             FreeVar::Count { value } => crate::expr::ParamValue::Count(value),
         };
-        bindings.insert(name.clone(), v);
+        bindings.insert(id, v);
     }
-    Ok(crate::expr::ParamEnv { bindings })
+    Ok(crate::expr::VarEnv { bindings })
 }
 
 /// Why a mass could not be computed.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Equality is the variable's identity alone: the spoken form is how
+/// the refusal names it, and a rename moves no mass, so it moves no
+/// equality either (the [`AnalyzedBox`] rule).
+#[derive(Debug, Clone)]
 pub enum MeasureUnavailable {
     /// The parameter carries a [`Band`](Distribution::Band): limits
     /// without a shape. "I know the limits but not the shape" is real
@@ -1063,6 +1063,28 @@ pub enum MeasureUnavailable {
         /// The variable whose band blocked the pricing.
         param: SpokenVar,
     },
+}
+
+impl PartialEq for MeasureUnavailable {
+    fn eq(&self, other: &Self) -> bool {
+        let (Self::BandHasNoMeasure { param: a }, Self::BandHasNoMeasure { param: b }) =
+            (self, other);
+        a.id() == b.id()
+    }
+}
+
+impl MeasureUnavailable {
+    /// This refusal with its variable spoken again from `doc`, a later
+    /// version of the document it was raised over
+    /// ([`SpokenVar::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &crate::doc::Doc<P>) -> Self {
+        match self {
+            Self::BandHasNoMeasure { param } => Self::BandHasNoMeasure {
+                param: param.respoken(doc),
+            },
+        }
+    }
 }
 
 impl core::fmt::Display for MeasureUnavailable {

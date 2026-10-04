@@ -2289,6 +2289,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetVarValue { .. }
         | DocEdit::SetVarUnit { .. }
         | DocEdit::SetVarDistribution { .. }
+        | DocEdit::RenameVar { .. }
+        | DocEdit::DeleteVar { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
@@ -2551,14 +2553,11 @@ fn structural_param_change(
             if expr_changed {
                 return Some((id, slot));
             }
-            // A changed Count doc-param the slot references.
+            // A changed Count variable the slot reads.
             if let Some(expr) = eb {
-                let mut refs = Vec::new();
-                expr.param_refs(&mut refs);
-                if refs.iter().any(|(name, _)| {
-                    new.var_named(name.as_str())
-                        .is_some_and(|id| changed_vars.contains(&id))
-                }) {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                if reads.iter().any(|(var, _)| changed_vars.contains(var)) {
                     return Some((id, slot));
                 }
             }

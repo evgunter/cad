@@ -926,7 +926,6 @@ fn section_sense<T: Decide>(
     band: geom_core::Band,
 ) -> Result<bool, SplitFinishError> {
     section_loops::loop_sense(body, l, normal, band).map_err(|fault| match fault {
-        section_loops::SenseFault::Torn => SplitFinishError::Corrupt,
         section_loops::SenseFault::Undecided(diag) => {
             SplitFinishError::SectionWindingUndecided { face, diag }
         }

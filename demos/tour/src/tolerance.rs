@@ -350,7 +350,7 @@ fn real_study(tol: Tol) {
     );
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
@@ -520,7 +520,10 @@ fn real_study(tol: Tol) {
                 "     the drive: {} certified, {} refused",
                 receipt.certified, receipt.refused
             );
-            println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
+            println!(
+                "{}",
+                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+            );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
                  study certifies (the module header carries the numbers). A refusal \
@@ -588,7 +591,7 @@ fn certified_study(tol: Tol) {
     } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &parallel(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
     // whole correction R1 forced (see the module header's finding on

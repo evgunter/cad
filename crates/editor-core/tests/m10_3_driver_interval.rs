@@ -57,7 +57,7 @@ use std::sync::Arc;
 use editor_core::UnitSym;
 use editor_core::VarId;
 use editor_core::analysis::{
-    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, param_env_over,
+    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, var_env_over,
 };
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
@@ -81,7 +81,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 fn uniform(w: f64) -> Distribution {
@@ -272,7 +272,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             axis: [
                 scl(0.0),
                 scl(0.0),
-                Expr::param(name("axis"), Dimension::Scalar),
+                Expr::named(name("axis"), Dimension::Scalar),
             ],
             angle: ang(0.0),
         },
@@ -294,8 +294,10 @@ fn the_parameter_door_widens_exactly_the_declared_axes() {
     let doc = two_param_plate(uniform(0.01), uniform(0.0));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let env = param_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
-    let ParamValue::Continuous { value: radius, .. } = env.bindings[&name("hole_r")] else {
+    let env = var_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
+    let ParamValue::Continuous { value: radius, .. } =
+        env.bindings[&doc.var_named("hole_r").expect("declared")]
+    else {
         panic!("hole_r is continuous")
     };
     // The nominal is added in the scalar's own arithmetic, so the
@@ -303,7 +305,9 @@ fn the_parameter_door_widens_exactly_the_declared_axes() {
     // most an ulp wider on each side, never narrower.
     assert!(radius.lo() <= 0.24 && 0.26 <= radius.hi());
     assert!(radius.hi() - radius.lo() <= 0.02 + 1e-12);
-    let ParamValue::Continuous { value: depth, .. } = env.bindings[&name("depth")] else {
+    let ParamValue::Continuous { value: depth, .. } =
+        env.bindings[&doc.var_named("depth").expect("declared")]
+    else {
         panic!("depth is continuous")
     };
     // A zero-width uniform is a FIXED axis and reaches the lane as the
@@ -318,7 +322,7 @@ fn a_widened_box_at_f64_refuses_loudly() {
     let doc = two_param_plate(uniform(0.01), uniform(0.01));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = Arc::new(ParamBox::of(&analyzed));
-    assert!(param_env_over::<f64, _>(&doc, &box_).is_err());
+    assert!(var_env_over::<f64, _>(&doc, &box_).is_err());
     let opts = EvalOptions {
         param_box: Some(box_),
         ..EvalOptions::default()

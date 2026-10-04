@@ -65,7 +65,7 @@ pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
 
 /// Every vertex point of `body`, in arena order.
 pub(crate) fn points(body: &Body<f64>) -> Vec<(VertexKey, Point3<f64>)> {
-    body.vertex_points().map(|(k, p)| (k, p.unwrap())).collect()
+    body.vertex_points().collect()
 }
 
 /// The bit pattern of a point — the only comparison that says
@@ -113,7 +113,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         if owners.vertex(k).expect("every vertex has an owning solid") != solid {
             continue;
         }
-        out.push(format!("vertex bits={:?}", bits(&p.unwrap())));
+        out.push(format!("vertex bits={:?}", bits(&p)));
     }
     out.sort();
     out

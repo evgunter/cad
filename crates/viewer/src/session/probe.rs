@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Dimension, Doc, DocEdit, Evaluation, FreeVar, PartReach, PartResolver, ProfileProgram,
-    RecipeNodeId, SlotId, VarName, apply,
+    RecipeNodeId, SlotId, VarId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -77,7 +77,7 @@ pub enum BoundsTarget {
     /// A document parameter.
     Param {
         /// The parameter.
-        name: VarName,
+        var: VarId,
     },
 }
 
@@ -198,9 +198,9 @@ fn probe_scale(
             // A count remembers none and steps by 1.
             Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
-        BoundsTarget::Param { name } => {
-            let Some(param) = doc.free_named(name.as_str()) else {
-                return Err(Refusal::NoSuchParam(name.clone()));
+        BoundsTarget::Param { var } => {
+            let Some(param) = doc.free(*var) else {
+                return Err(Refusal::NoSuchParam(*var));
             };
             // Same rule as a slot's: one of whatever unit the
             // field is WRITTEN in. A continuous parameter names the
@@ -241,15 +241,15 @@ fn probe_edit(
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),
-        BoundsTarget::Param { name } => {
+        BoundsTarget::Param { var } => {
             // The dimension is read off the DECLARATION only to
             // decide which `SlotValue` arm the sample becomes; the
             // edit itself carries a value and nothing else, so a
             // probe cannot disturb the parameter's declaration
             // (`props::param_edit`'s door).
-            let dimension = doc.free_named(name.as_str())?.dim();
+            let dimension = doc.free(*var)?.dim();
             Some(props::param_edit(
-                name.clone(),
+                *var,
                 SlotValue::of(dimension, value).ok()?,
             ))
         }

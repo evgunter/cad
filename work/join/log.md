@@ -523,3 +523,69 @@ the lane gets its own review. Verdict APPROVE-WITH-FIXES, 0/3/4.
 - `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times`
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4026 lands: a pierce with two Out runs builds
+
+`a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op` (P0) is
+closed.
+
+**What changed.**
+- The ring struts face their germs by the walk.
+- `kept_end` bookkeeping is fixed, and so is the seam guard.
+- A post-zip pierce weld welds one pierce's own copies.
+- `pinch_site`'s `Hole` chord welds with `kfmrh`.
+- ∩ faces the start germ: a measured rule, not a derived one. The row
+  `the-intersection-ring-facing-is-measured-not-derived` is filed to
+  derive it.
+- Three or more runs refuse typed (`PierceRunsUnordered`, a new Python
+  tag).
+
+**Measured.** On the row's tilts every op builds. Across both
+reviewers' batteries:
+- 0 SOUND→refusal;
+- about 2 000 refusal→SOUND;
+- 74 refusal→BAD: 72 escalated census bodies (main ships 139 of the
+  class) and 2 census false positives.
+
+**Review tier: DUAL, H / TRICKY (DR-78).** Five finish modules change
+(welds, seam guard, `kept_end`, an op-specific ∩ facing).
+- R1: APPROVE-WITH-FIXES, 1/4/4. R2: APPROVE-WITH-FIXES, 1/2/4.
+- Both MAJORs were near-tangent poses that main refused, newly built
+  with tier 3′ failing. The blinded coder found them bilateral, so the
+  tally is 0.
+- The fix pass root-caused R1's definite `EdgeEdgeOverlap` as a census
+  false positive. CONTACT's `ee_collinear_lane` reads the offset at the
+  long edge's start, so the verdict depends on arena order. Ruling (b):
+  it is filed on CONTACT and pinned by a census-independent row, and
+  `census.rs` is not touched under the hold.
+- A delta review (single FULL) on `f88ad91e`: APPROVE-WITH-FIXES, 0/3/4.
+  Its m1 is a class this PR newly certifies at 89 poses main refused:
+  two copies on one point carry edges that run within band for up to
+  0.6 of their length, and the census passes them through its parallel
+  arm. Filed P0 on CONTACT.
+
+**Filed.**
+- CONTACT:
+  - `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`
+  - `two-copies-of-a-pierce-carry-edges-that-run-within-the-band`
+  - `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`
+    (pre-existing)
+- JOIN:
+  - `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+    (P0)
+  - `a-pierce-whose-wide-run-pinches-its-intersection-refuses`
+  - `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`
+  - `a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane`
+  - `a-pierce-weld-refuses-where-its-copies-divide-a-kept-face`
+  - `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face`
+  - `ring-struts-of-three-or-more-runs-hang-in-run-order`
+  - `the-intersection-ring-facing-is-measured-not-derived`
+
+**Note for the near-tangent P0s.** Three classes of near-tangent body
+now ship on main where it once refused: escalated census, the census
+false positive, and in-band copy edges. Each was weighed and filed
+rather than refused, because each refusal would live in CONTACT's
+census or on D10's coincidence ground. They are the first thing to
+take up when the hold lifts.
+
+Signed (JOIN orchestrator).

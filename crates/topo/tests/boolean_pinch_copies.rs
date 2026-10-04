@@ -1,7 +1,12 @@
 //! Boolean results whose pieces pinch along one operand edge or at
-//! one operand vertex: the op's copies of that vertex do not reach
-//! rest as two touching vertices, and the result passes the
-//! pseudomanifold door with its own records (f64 and Interval).
+//! one operand vertex: on these poses the op's copies of that vertex
+//! do not reach rest as two touching vertices, and the result passes
+//! the pseudomanifold door with its own records (f64 and Interval).
+//!
+//! That is not universal: any two-run pierce whose copies no face of
+//! the result meets keeps them apart on their one point (the
+//! shared-point ruling, PR 3813; `boolean::finish::weld_pierce_copies`
+//! welds only copies a face meets).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -130,7 +135,7 @@ fn pinch_copies_do_not_reach_rest() {
     let at = |b: &Body<f64>, (x, y, z)| {
         b.vertex_points()
             .filter(|(_, p)| {
-                let p = p.unwrap();
+                let p = *p;
                 (p.x, p.y, p.z) == (x, y, z)
             })
             .count()

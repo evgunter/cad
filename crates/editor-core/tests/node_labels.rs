@@ -1142,7 +1142,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         value: fixture::len(0.0),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
-    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.param_env(), tol)
+    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)
         .expect_err("an extrude is not a datum");
     assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
     assert!(

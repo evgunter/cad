@@ -1255,7 +1255,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::param(k.clone(), Dimension::Count)),
+            select: PartSelect::Instance(Expr::named(k.clone(), Dimension::Count)),
         },
     );
     let a = in_part(base, base_body, CapEnd::End);

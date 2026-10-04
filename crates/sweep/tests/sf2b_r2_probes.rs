@@ -325,7 +325,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
     );
     let before: Vec<f64> = pot
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| p.z.atan2(p.x))
         .collect();
     let hollow = topo::shell(&pot, T, tol)
@@ -333,7 +333,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .body;
     let after: Vec<f64> = hollow
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .filter(|p| (p.x * p.x + p.z * p.z).sqrt() > 1e-12)
         .map(|p| p.z.atan2(p.x))
         .collect();
