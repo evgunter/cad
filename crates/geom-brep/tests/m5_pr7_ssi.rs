@@ -4210,11 +4210,43 @@ fn converging_wall() -> NurbsSurface<f64> {
 ///   the bottom and top sides, and every branch is a vertical segment
 ///   0.8 m long. The 41-column wall spends the cell budget at this cut.
 ///
-/// Every branch runs from the `v = 0` side to the `v = 1` side and
-/// stays on the segment between its ends. Every ε.
+/// Every branch runs from the `v = 0` side to the `v = 1` side, and at
+/// 200 samples its carrier lies on the true segment its first end is on,
+/// within the certificate's sup distance to the two surfaces over the
+/// sine of their angle there, twice: a carrier to another branch's
+/// crossing leaves that segment. Every ε.
 #[test]
 fn converging_crossings_certify_no_wrong_pairing() {
     let eps = band().zero();
+    // The true segment through a branch's first end: the graph's
+    // `x = ½ ± (k·y + δ)` on the side the end is on, the zigzag's
+    // vertical through the section's root `y(u) = 0.045` nearest it.
+    let graph_segment = |p: Point3<f64>, _: f64, _: &NurbsSurface<f64>| {
+        let s = (p.x - 0.5).signum();
+        (
+            Point3::new(0.5 + s * 0.05, 0.0, 0.0),
+            Point3::new(0.5 + s * 0.25, 1.0, 0.0),
+        )
+    };
+    let zigzag_segment = |_: Point3<f64>, u: f64, wall: &NurbsSurface<f64>| {
+        let f = |u: f64| wall.eval(u, 0.0).y - 0.045;
+        let (mut lo, mut hi) = (u - 1.0e-3, u + 1.0e-3);
+        assert!(
+            f(lo) * f(hi) < 0.0,
+            "FIXTURE: a root of the section within 1e-3 of {u}"
+        );
+        for _ in 0..80 {
+            let mid = 0.5 * (lo + hi);
+            if f(mid) * f(lo) > 0.0 {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let x = wall.eval(0.5 * (lo + hi), 0.0).x;
+        (Point3::new(x, 0.045, 0.0), Point3::new(x, 0.045, 0.8))
+    };
+    type Segment = fn(Point3<f64>, f64, &NurbsSurface<f64>) -> (Point3<f64>, Point3<f64>);
     let graph = (
         "the converging graph",
         Surface::Plane {
@@ -4229,6 +4261,7 @@ fn converging_crossings_certify_no_wrong_pairing() {
             extent: 1.0,
             floor_scale: 1.0,
         },
+        graph_segment as Segment,
     );
     let zigzag = (
         "the zigzag wall at y = 0.045",
@@ -4244,8 +4277,12 @@ fn converging_crossings_certify_no_wrong_pairing() {
             extent: 1.0,
             floor_scale: 1.0,
         },
+        zigzag_segment as Segment,
     );
-    for (what, plane, wall, dom) in [graph, zigzag] {
+    for (what, plane, wall, dom, segment) in [graph, zigzag] {
+        let Surface::Plane { normal, .. } = plane else {
+            unreachable!("both cuts are planes")
+        };
         let at = format!("{what} at ε {eps:e}");
         let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, band())
             .unwrap_or_else(|e| panic!("{at}: expected its branches, got {e}"));
@@ -4287,14 +4324,23 @@ fn converging_crossings_certify_no_wrong_pairing() {
                      its own far end {own:e}"
                 );
             }
-            for i in 0..=16 {
-                let t = b.params.0 + (b.params.1 - b.params.0) * f64::from(i) / 16.0;
+            let pcurve = b.pcurve_b.as_ref().expect("a wall pcurve");
+            let (a, z) = segment(p, pcurve.eval(b.params.0).x, &wall);
+            let sup = b.certificate.hull_sup;
+            for i in 0..=200 {
+                let t = b.params.0 + (b.params.1 - b.params.0) * f64::from(i) / 200.0;
                 let x = b.carrier.eval(t);
-                let s = (x - p).dot(q - p) / (own * own);
-                let off = (x - (p + (q - p) * s)).norm();
+                let s = ((x - a).dot(z - a) / (z - a).norm_squared()).clamp(0.0, 1.0);
+                let off = (x - (a + (z - a) * s)).norm();
+                let uv = pcurve.eval(t);
+                let jet = wall.ders(uv.x, uv.y);
+                let n_wall = jet.du.cross(jet.dv);
+                let sin = n_wall.cross(normal).norm() / (n_wall.norm() * normal.norm());
+                let bound = 2.0 * sup / sin;
                 assert!(
-                    off <= 1.0e-6 && (-1.0e-9..=1.0 + 1.0e-9).contains(&s),
-                    "{at}: branch {n} at {t} is {off:e} off its segment (s = {s})"
+                    off <= bound,
+                    "{at}: branch {n} at {t} is {off:e} off its true segment, the \
+                     certificate's bound {bound:e}"
                 );
             }
         }

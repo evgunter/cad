@@ -197,7 +197,8 @@ domain. Every root is settled onto both surfaces, or refuses
 `SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
 on this lane, and between them the simplest candidate is tried first:
 from a crossing, the Hermite cubic to the nearest crossing not yet
-used, through their tangents, one span exact at both ends. Where the
+used, through their tangents, one span exact at both ends, its two
+states taking the march's transversality decision. Where the
 certificate refuses it, a march runs from the crossing to the unused
 crossing on the side it leaves, the one nearest where its last step
 meets that side, its step capped at a fifth of the distance to the

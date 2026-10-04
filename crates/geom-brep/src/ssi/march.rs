@@ -863,6 +863,46 @@ pub(crate) trait TransversalityData<const N: usize> {
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
+/// **`ssi_transversality`** at the state `x`: the surfaces cross at a
+/// clear angle there, `sin θ · arm` in metres with the arm clamped to
+/// `extent`, `sigma` the state's σ_min reported beside it. The
+/// transversality on a pass.
+///
+/// # Errors
+///
+/// [`SsiError::TransversalityBand`] in the sliver band, and
+/// [`SsiError::Escalated`] where the arm or the transversality is
+/// undecided.
+pub(crate) fn decide_transversality<const N: usize>(
+    sys: &impl TransversalityData<N>,
+    x: &[f64; N],
+    sigma: f64,
+    extent: f64,
+    band: Band,
+) -> Result<f64, SsiError> {
+    let (n1, n2) = sys.normals(x);
+    let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+    let arm = Real::min(sys.lever_arm(x), extent);
+    decide_positive("ssi_transversality_arm", Margin::of(arm), band)
+        .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
+    let transversality = Margin::levered(sin_theta, arm);
+    // Zero is the sliver band: a tangential (or in-band tangential)
+    // contact along the candidate locus, C7's regime. `sin θ · arm` is a
+    // magnitude, so a definite negative cannot arise.
+    match decide_reported("ssi_transversality", transversality, band) {
+        Ok(decided) => match Refused::of(decided, band) {
+            Some(verdict) => Err(SsiError::TransversalityBand {
+                sin_theta,
+                arm,
+                sigma_min: sigma,
+                verdict,
+            }),
+            None => Ok(transversality.value()),
+        },
+        Err(diag) => Err(TraceDecision::Transversality.escalated(diag)),
+    }
+}
+
 /// March one branch from `seed` (module docs), no step longer than
 /// `cap`.
 ///
@@ -917,30 +957,9 @@ where
         }
 
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
-        let (n1, n2) = sys.normals(&x);
-        let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = Real::min(sys.lever_arm(&x), ctx.extent);
-        decide_positive("ssi_transversality_arm", Margin::of(arm), band)
-            .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-        let transversality = Margin::levered(sin_theta, arm);
-        if transversality.value() < min_transversality {
-            min_transversality = transversality.value();
-        }
-        // Zero is the sliver band: a tangential (or in-band tangential)
-        // contact along the candidate locus, C7's regime. `sin θ · arm`
-        // is a magnitude, so a definite negative cannot arise.
-        match decide_reported("ssi_transversality", transversality, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(SsiError::TransversalityBand {
-                        sin_theta,
-                        arm,
-                        sigma_min: sigma,
-                        verdict,
-                    });
-                }
-            }
-            Err(diag) => return Err(TraceDecision::Transversality.escalated(diag)),
+        let transversality = decide_transversality(sys, &x, sigma, ctx.extent, band)?;
+        if transversality < min_transversality {
+            min_transversality = transversality;
         }
 
         // ---- 3. the tangent, oriented along the march ----

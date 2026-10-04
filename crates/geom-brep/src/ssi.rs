@@ -1471,10 +1471,6 @@ pub struct SsiBranch {
     pub pcurve_a: Option<NurbsCurve2<f64>>,
     /// The second operand's pcurve, same contract.
     pub pcurve_b: Option<NurbsCurve2<f64>>,
-    /// The smallest transversality margin the candidate generator
-    /// read, in meters: over the march's states, or at a Hermite
-    /// candidate's two ends.
-    pub min_transversality: f64,
     /// The generator's step tolerance this carrier was marched at, in
     /// meters — the receipt that makes the tie observable rather than
     /// merely intended. Equal to the run band's coincidence threshold
@@ -2289,7 +2285,6 @@ fn finish_r3(
         witness,
         pcurve_a: None,
         pcurve_b: None,
-        min_transversality: trace.min_transversality,
         march_tol,
     })
 }
@@ -2498,7 +2493,7 @@ pub fn plane_nurbs_ssi(
         let RectEnd::Closed = trace.end else {
             continue;
         };
-        let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
+        let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
@@ -2665,7 +2660,7 @@ pub fn trace_plane_nurbs_uncertified(
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let (states, _, _) = ends.through_seed(state, &pass.crossings)?;
+    let (states, _) = ends.through_seed(state, &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
