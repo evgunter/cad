@@ -189,13 +189,10 @@ REGISTER=(
   # the question it asks.
   "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
   "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds panics) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
-  "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
   # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry
   # and the loop-re-parenting doors' drop all read it, and none of them
   # discards a boundary of its own.
-  "crates/topo/src/pcurves.rs|loop_rows||1|audited: the discarded variant is named and answered — a loop whose boundary is not a cycle returns the NoCycle answer, distinct from Corrupt, and it holds no half-edge, so it holds no pcurve row"
-  "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
