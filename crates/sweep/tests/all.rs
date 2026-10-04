@@ -640,6 +640,8 @@ mod join3_r2_r1copy;
 mod join3_review_r1;
 #[path = "join_pierce_runs_sweep.rs"]
 mod join_pierce_runs_sweep;
+#[path = "review_r2_vv_probes.rs"]
+mod review_r2_vv_probes;
 #[path = "join_pierce_strut_facing.rs"]
 mod join_pierce_strut_facing;
 #[path = "join_rc_probes.rs"]
