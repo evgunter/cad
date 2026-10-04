@@ -211,19 +211,17 @@ impl<'a> Ends<'a> {
             let Some((j, near)) = nearest else {
                 return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
             };
-            let branch = match self.hermite(a, crossings[j], near) {
-                Ok(branch) => {
-                    used[j] = true;
-                    branch
-                }
-                Err(hermite) => {
-                    let (b, branch) = self
-                        .marched(a, near, crossings, &used)
-                        .map_err(|march| neither(hermite, march))?;
-                    used[b] = true;
-                    branch
-                }
+            let _ = (j, near);
+            // PROBE: march first, uncapped; Hermite to the exit, else the march's states.
+            let probe_near = std::env::var("PROBE_CAP").ok().map_or(f64::INFINITY, |_| near);
+            let marched = self.march_from(a, probe_near, crossings, &used);
+            eprintln!("PROBE march: {:?}", marched.as_ref().map(|(b, s)| (*b, s.len())).map_err(|e| e.to_string()));
+            let (b, states) = marched?;
+            let branch = match self.hermite(a, crossings[b], distance(self.sys, &a.state, &crossings[b].state)) {
+                Ok(branch) => branch,
+                Err(_) => self.finish(&states, BranchEnd::Crossings { from: a.at, to: crossings[b].at })?,
             };
+            used[b] = true;
             out.push(branch);
         }
         Ok(out)
@@ -255,10 +253,10 @@ impl<'a> Ends<'a> {
         crossings: &[Crossing],
         used: &[bool],
     ) -> Result<(usize, Vec<[f64; 4]>), SsiError> {
-        let cap = Cap {
+        let cap = if near.is_finite() { Cap {
             metres: near / SHORT_BRANCH_STEPS as f64,
             kind: StepCap::Crossing,
-        };
+        } } else { Cap::NONE };
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
             1.0
