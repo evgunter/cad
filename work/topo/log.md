@@ -6605,3 +6605,10 @@ cloud lane on `topo/kill-refusal-row-drops-rows-companion`.
   require_run_of, the face_cycles links); state and pin the paired next+parent_loop tear limit; add file:line to
   the filings. Fix lane session_01C1yXhbRPCsVtVFui3nVKxn. Reviewer archived.
 - No Ev reply on 3970 or 4006.
+
+## PR 4006: Ev asked whether a torn body is reachable by input (2026-10-04 06:09)
+
+Answered on the PR: in shipped builds it is a kernel bug, except S14's refused-graft destination, which is caller
+misuse. The arenas are pub(crate), there is no Body deserializer, step-import validates tiers 1-3, and the test
+tear helpers are cfg(test)/test-features (gated). If S14 is closed by staging, Torn always means a kernel bug and
+the D2 sentence drops its aside. Noted the D9 MUST-panic alternative. Awaiting Ev's ruling.
