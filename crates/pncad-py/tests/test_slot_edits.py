@@ -102,17 +102,17 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         """What the door buys beyond a new number: a slot holding a
         PARAMETER REFERENCE is a named, editable quantity from then
         on, exactly as `bind_count_param` makes a structural one. One
-        `set_doc_param_value` afterwards moves the wall."""
+        `set_var_value` afterwards moves the wall."""
         doc = Doc()
         _box, hollow = self.cup(doc)
         inner = L - 2 * T
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
-        doc.apply(DocEdit.set_doc_param(ParamName("wall"), DocParam.length(T * m)))
+        doc.apply(DocEdit.declare_var(ParamName("wall"), DocParam.length(T * m)))
         doc.apply(DocEdit.set_param(hollow, "shell_thickness", doc.parse_expr("wall")))
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
-        doc.apply(DocEdit.set_doc_param_value(ParamName("wall"), DocParamValue.length(0.375 * m)))
+        doc.apply(DocEdit.set_var_value(ParamName("wall"), DocParamValue.length(0.375 * m)))
         thick = L - 2 * 0.375
         self.assertEqual(
             volume(doc, hollow), L * L * H - thick * thick * (H - 0.375)
@@ -182,7 +182,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         self.assertEqual(refusal.slot, "count")
         self.assertIsNone(refusal.node)
         # And the door that IS this slot's still works on the node.
-        doc.apply(DocEdit.set_doc_param(ParamName("copies"), DocParam.count(4)))
+        doc.apply(DocEdit.declare_var(ParamName("copies"), DocParam.count(4)))
         doc.apply(DocEdit.bind_count_param(pattern, ParamName("copies")))
 
     def test_a_parameter_reference_is_checked_at_the_edit_door(self):
@@ -192,7 +192,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         one does."""
         declared = Doc(seed="declares-the-wall")
         blank(declared)
-        declared.apply(DocEdit.set_doc_param(ParamName("wall"), DocParam.length(T * m)))
+        declared.apply(DocEdit.declare_var(ParamName("wall"), DocParam.length(T * m)))
         expr = declared.parse_expr("wall")
 
         doc = Doc(seed="declares-nothing")

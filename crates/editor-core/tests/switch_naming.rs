@@ -34,9 +34,9 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
     let x0e = || Expr::param(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("x0"),
-                value: FreeVar::continuous(Dimension::Length, x0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, x0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

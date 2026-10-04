@@ -16,9 +16,8 @@
 //! own doc says which stand outside it and what guards a new
 //! one):
 //! `InsertNode`, `DeleteNode`, `SetParam`,
-//! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `SetDocParamUnit`,
-//! `SetDocParamDistribution`, `Rebind`,
+//! `SetStructuralParam`, `SetExpression`, `DeclareVar`, `DefineVar`,
+//! `SetVarValue`, `SetVarUnit`, `SetVarDistribution`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -52,17 +51,15 @@ pub fn document() -> CorpusDoc {
     // Re-record the ambient ε (a structural edit; see module docs).
     let ambient = r.doc.epsilon();
     r.push(DocEdit::SetTolerance { eps: ambient });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("h"),
-        value: FreeVar::continuous(Dimension::Length, 1.0),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
     });
-    // The VALUE door, on the parameter the declaration above just
-    // made: it carries the declaration forward, so `h` keeps its
-    // dimension (and would keep a distribution) while the number
-    // moves. The document's state after this pair is the same
-    // document a single declaration at 1.25 would have produced.
-    r.push(DocEdit::SetDocParamValue {
-        name: VarName::from_static("h"),
+    // The VALUE door, on the variable the declare above just minted:
+    // it carries the definition forward, so `h` keeps its kind (and
+    // would keep a distribution) while the number moves.
+    r.push(DocEdit::SetVarValue {
+        var: VarName::from_static("h").into(),
         value: FreeValue::Continuous(1.25),
     });
     // The NOTATION door, the value door's mirror over the other field
@@ -71,25 +68,31 @@ pub fn document() -> CorpusDoc {
     // edit is invisible to `bit_eq` by ruling (`display_unit` is
     // presentation metadata), so the round-trip rows read it as the
     // same document and the FILE is where it has to survive.
-    r.push(DocEdit::SetDocParamUnit {
-        name: VarName::from_static("h"),
+    r.push(DocEdit::SetVarUnit {
+        var: VarName::from_static("h").into(),
         unit: UnitSym::from_def(&quantity::MM.def()),
     });
     // The ANNOTATION door, the third field of the same declaration:
     // `h` acquires an E1/E2 tolerance and keeps the millimetres the
-    // edit above wrote. Through create-or-replace this pair reverts
+    // edit above wrote. Through a whole definition this pair reverts
     // the notation, which is the trap the door removes; here the FILE
     // carries both, so the round-trip rows read them back together.
-    r.push(DocEdit::SetDocParamDistribution {
-        name: VarName::from_static("h"),
+    r.push(DocEdit::SetVarDistribution {
+        var: VarName::from_static("h").into(),
         distribution: Some(Distribution::Band {
             lo: -0.0001,
             hi: 0.0001,
         }),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("n"),
-        value: FreeVar::Count { value: 3 },
+        def: editor_core::VarDef::Free(FreeVar::Count { value: 2 }),
+    });
+    // The DEFINITION door: `n` keeps its identity, its name and its
+    // kind while its definition is replaced whole.
+    r.push(DocEdit::DefineVar {
+        var: VarName::from_static("n").into(),
+        def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),

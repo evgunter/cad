@@ -114,14 +114,14 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-slab"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let outer = LoopProgram::Chain(vec![
@@ -1130,14 +1130,14 @@ fn r1_own_document_web_and_flip() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-web"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (doc, xy) = insert(&doc, fixture::xy_frame());
@@ -1197,8 +1197,8 @@ fn r1_own_document_web_and_flip() {
     // r → 0.24: web = 0.5 − 0.48 = 0.02 < 0.05: Violated, both numbers.
     let d8 = push(
         &d7,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static("r"),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("r").into(),
             value: FreeValue::Continuous(0.24),
         },
     );

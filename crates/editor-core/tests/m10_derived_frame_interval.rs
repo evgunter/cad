@@ -56,9 +56,9 @@ fn eps() -> f64 {
 }
 
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static(name),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -66,7 +66,7 @@ fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
 }
 
@@ -372,7 +372,10 @@ fn measured_replay(
     };
 
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -743,7 +746,10 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &derived.spoken_var(*name).to_string(),
+        );
     }
     let n = SymRules::none();
     for (label, rules) in [

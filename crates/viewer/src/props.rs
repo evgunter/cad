@@ -41,8 +41,8 @@
 //! two facts move separately: [`param_edit`] writes a number into a
 //! standing declaration and cannot mention the notation, and
 //! [`param_unit_edit`] rewrites the notation and cannot mention the
-//! value. Each is a carry-forward edit — `DocEdit::SetDocParamValue`
-//! and `DocEdit::SetDocParamUnit` read the declaration off the
+//! value. Each is a carry-forward edit — `DocEdit::SetVarValue`
+//! and `DocEdit::SetVarUnit` read the declaration off the
 //! document and reuse it whole — so neither can drop the dimension or
 //! the distribution it never names.
 //!
@@ -112,7 +112,7 @@
 //! there.** A slot can be driven by an expression, so its text door is
 //! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
 //! parameter holds an `f64` and nothing else — there is no
-//! `SetDocParamExpression` — so its text door is
+//! `SetVarExpression` — so its text door is
 //! `SessionOp::SetParamText`, which takes a number and its notation
 //! (`50 mm`) and refuses every other expression by name.
 //!
@@ -910,16 +910,22 @@ pub struct ParamRow {
     /// Unlike [`SlotRow::unit`] there is no computed case: a
     /// parameter's notation rides with its DECLARATION, beside the
     /// dimension, so a continuous parameter always names one. It is
-    /// also why no value edit has to carry it — `SetDocParamValue`
+    /// also why no value edit has to carry it — `SetVarValue`
     /// leaves the declaration alone ([`param_edit`]) where a slot's
     /// literal has to be rebuilt around its unit.
     pub unit: Option<UnitDef>,
 }
 
-/// Every document parameter, name order.
+/// Every named free variable, name order.
 pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
-    doc.params()
+    let mut named: Vec<(&VarName, &FreeVar)> = doc
+        .var_names()
         .iter()
+        .filter_map(|(id, name)| Some((name, doc.free(*id)?)))
+        .collect();
+    named.sort_by(|a, b| a.0.cmp(b.0));
+    named
+        .into_iter()
         .map(|(name, param)| ParamRow {
             name: name.clone(),
             dimension: param.dim(),
@@ -1054,15 +1060,15 @@ pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) 
 /// other field of the declaration, and [`slot_unit_edit`]'s
 /// counterpart for a parameter.
 ///
-/// Unlike a slot's, this rebuilds nothing: `DocEdit::SetDocParamUnit`
+/// Unlike a slot's, this rebuilds nothing: `DocEdit::SetVarUnit`
 /// carries the declaration forward, so the dimension, the value and
 /// any distribution ride through without this function naming them.
 /// The refusals (an undeclared name, a `Count`, a unit that does not
 /// measure the declared dimension) belong to the edit door; this is
 /// the spelling, not a second validator.
 pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> {
-    DocEdit::SetDocParamUnit {
-        name,
+    DocEdit::SetVarUnit {
+        var: name.into(),
         unit: UnitSym::from_def(&unit),
     }
 }
@@ -1071,7 +1077,7 @@ pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> 
 /// parameter.
 ///
 /// The panel authors a number and nothing else, so it spells the edit
-/// that carries a number and nothing else: `SetDocParamValue` reads
+/// that carries a number and nothing else: `SetVarValue` reads
 /// the declaration off the document and keeps it — the dimension and
 /// any distribution alike. The panel is therefore structurally unable
 /// to delete an annotation it never mentions, rather than remembering
@@ -1080,8 +1086,8 @@ pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> 
 /// The refusals (an undeclared name, a kind mismatch) belong to the
 /// edit door; this is the spelling, not a second validator.
 pub fn param_edit(name: VarName, value: SlotValue) -> DocEdit<ProfileProgram> {
-    DocEdit::SetDocParamValue {
-        name,
+    DocEdit::SetVarValue {
+        var: name.into(),
         value: match value {
             SlotValue::Count(value) => FreeValue::Count(value),
             SlotValue::Continuous(value) => FreeValue::Continuous(value),
