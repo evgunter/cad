@@ -149,11 +149,11 @@ fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
 }
 
 /// A shape: its body, its corner, its convex pieces by half-spaces.
-pub struct Shape {
-    pub name: &'static str,
-    pub body: AtRestBody<f64>,
-    pub v: [f64; 3],
-    pub pieces: Vec<Vec<([f64; 3], f64)>>,
+struct Shape {
+    name: &'static str,
+    body: AtRestBody<f64>,
+    v: [f64; 3],
+    pieces: Vec<Vec<([f64; 3], f64)>>,
 }
 
 /// A convex CCW polygon's half-spaces, extruded over z ∈ [0, 1].
@@ -176,11 +176,7 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
-fn prism_shape(
-    name: &'static str,
-    profile: &[(f64, f64)],
-    pieces: &[&[(f64, f64)]],
-) -> Shape {
+fn prism_shape(name: &'static str, profile: &[(f64, f64)], pieces: &[&[(f64, f64)]]) -> Shape {
     Shape {
         name,
         body: finished(name, fixtures::prism::<f64>(profile, 1.0, tol()).body),
@@ -245,7 +241,7 @@ fn pyramid() -> Option<Shape> {
     })
 }
 
-pub fn shapes() -> Vec<Shape> {
+fn shapes() -> Vec<Shape> {
     let mut out = vec![
         prism_shape(
             "L270",
@@ -310,11 +306,15 @@ type Op = fn(
 
 /// Every op in both orders of `shape` against the cube in frame `f`
 /// at placement `lo`.
-pub fn runs(
+fn runs(
     shape: &Shape,
     f: [[f64; 3]; 3],
     lo: [f64; 3],
-) -> Vec<(String, Option<Result<BooleanResult<f64>, BooleanError>>, f64)> {
+) -> Vec<(
+    String,
+    Option<Result<BooleanResult<f64>, BooleanError>>,
+    f64,
+)> {
     let va: f64 = shape.pieces.iter().map(|p| convex_volume(p)).sum();
     let vb = SIDE * SIDE * SIDE;
     let planes = cube_planes_at(shape.v, f, lo);
@@ -337,9 +337,8 @@ pub fn runs(
             ("S", topo::subtract_with, vx - common),
         ];
         for (op, run, want) in ops {
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                run(x, y, &decls, tol())
-            }));
+            let r =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, &decls, tol())));
             out.push((format!("{order} {op}"), r.ok(), want));
         }
     }
@@ -485,7 +484,11 @@ fn join_vv_review_r1_tie_battery() {
             for k in 0..24 {
                 let theta = f64::from(k) * 15f64.to_radians() + 0.013;
                 for alpha in [-2.5, -1.9, -0.8, 0.6, 1.3, 2.4] {
-                    let f = if pi == 0 { edge_frame(1, theta, alpha) } else { edge_frame(0, theta, alpha) };
+                    let f = if pi == 0 {
+                        edge_frame(1, theta, alpha)
+                    } else {
+                        edge_frame(0, theta, alpha)
+                    };
                     emit(&shape, &format!("{place} theta={k} alpha={alpha}"), f, lo);
                 }
             }
@@ -522,8 +525,78 @@ fn join_vv_review_r1_hex_battery() {
             for k in 0..72 {
                 let ang = f64::from(k) * 5f64.to_radians() + 0.0007;
                 let f = base.map(|d| rotate(d, *axis, ang));
-                emit(&shape, &format!("corner hex axis={ai} k={k}"), f, [0.0, 0.0, 0.0]);
+                emit(
+                    &shape,
+                    &format!("corner hex axis={ai} k={k}"),
+                    f,
+                    [0.0, 0.0, 0.0],
+                );
             }
         }
+    }
+}
+
+/// One tilt pose in detail: `VV_TILT="<shape> <place> <base> <psi> <p>
+/// <t>"` (the tilt battery's tag), printing tier 3′'s findings.
+#[test]
+#[ignore = "detail probe: VV_TILT=\"<shape> <place> <base> <psi> <p> <t>\""]
+fn join_vv_review_r1_tilt_detail() {
+    let case = std::env::var("VV_TILT").expect("VV_TILT");
+    let w: Vec<&str> = case.split_whitespace().collect();
+    let bases: [[f64; 3]; 8] = [
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, -1.0],
+    ];
+    let perturb: [[f64; 3]; 2] = [[0.3, 0.7, 0.2], [-0.6, 0.1, 0.8]];
+    let shape = shapes().into_iter().find(|s| s.name == w[0]).unwrap();
+    let lo = PLACEMENTS.iter().find(|p| p.0 == w[1]).unwrap().1;
+    let base = bases[w[2].parse::<usize>().unwrap()];
+    let psi: f64 = w[3].parse().unwrap();
+    let p = perturb[w[4].parse::<usize>().unwrap()];
+    let t: f64 = w[5].parse().unwrap();
+    let m = [0, 1, 2].map(|k| unit(base)[k] + t * p[k]);
+    let f = frame(m, psi + t);
+    for (op, r, want) in runs(&shape, f, lo) {
+        let Some(r) = r else {
+            println!("{op}: PANIC");
+            continue;
+        };
+        if let Ok(BooleanResult::Body(bb)) = &r {
+            println!(
+                "{op} tier 3′: {:?}",
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            );
+        }
+        println!("{op} => {}", outcome(r, want, tol()));
+    }
+}
+
+/// **The F12 adjacency guard fires on six distinct germs.** The 343°
+/// notch's corner on the cube's edge (`edge i=3 j=0 psi=1` of the grid)
+/// crosses it six times. Traced (review r1, `CAD_TRACE`): A's walk order
+/// pairs `(0, 3) (2, 4) (5, 1)`, B reads them at positions `(2, 5)
+/// (0, 1) (4, 3)` of six: the matching is non-crossing (two simple
+/// links cannot interleave) but nested, so `(0, 3)` is not cyclically
+/// adjacent in B and every op in both orders refuses `PairingMismatch`,
+/// as on main. Non-crossing forces adjacency only at four crossings,
+/// so `insert`'s module docs' "the guard holds wherever the walk orders
+/// read distinct germs" does not hold at six. Pins the refusal: a
+/// fix that builds the nested pairing turns this red, as it should.
+#[test]
+fn a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs() {
+    let shape = shapes().into_iter().find(|s| s.name == "notch343").unwrap();
+    let f = frame(direction(3, 0), 1.0);
+    for (op, r, _) in runs(&shape, f, PLACEMENTS[0].1) {
+        assert!(
+            matches!(r, Some(Err(BooleanError::PairingMismatch { .. }))),
+            "{op}: {:?}",
+            r.map(|r| r.map(|_| ()))
+        );
     }
 }

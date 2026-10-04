@@ -640,14 +640,14 @@ mod join3_r2_r1copy;
 mod join3_review_r1;
 #[path = "join_pierce_runs_sweep.rs"]
 mod join_pierce_runs_sweep;
-#[path = "join_vv_review_r1_probes.rs"]
-mod join_vv_review_r1_probes;
 #[path = "join_pierce_strut_facing.rs"]
 mod join_pierce_strut_facing;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "join_reflex_wedge_probes.rs"]
 mod join_reflex_wedge_probes;
+#[path = "join_vv_review_r1_probes.rs"]
+mod join_vv_review_r1_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
