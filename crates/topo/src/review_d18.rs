@@ -3413,3 +3413,255 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
         );
     }
 }
+
+/// The read doors driven over a torn body: what each answered `Ok` for
+/// is counted under its own name, a typed refusal under [`REFUSED`] and
+/// a row-4 premise panic under [`PREMISE`]. A panic naming no premise
+/// fails, and so does a refusal of a key the sweep read out of the
+/// body as stale: such a key resolves, so the miss was a record's and
+/// had to panic (D2 row 4).
+#[cfg(not(debug_assertions))]
+const READ_DOORS: [&str; 9] = [
+    "face_pose",
+    "face_carrier_kind",
+    "edge_pose",
+    "edge_carrier_kind",
+    "edge_sides",
+    "vertex_point",
+    "vertex_points",
+    "rim_of",
+    "planar_loop_winding",
+];
+
+/// The read sweep's bodies: [`FIXTURES`], whose faces decline their
+/// geometry, and two that carry it — planar faces for the face doors,
+/// and a disc's circle for the rim door.
+#[cfg(not(debug_assertions))]
+const READ_FIXTURES: [(&str, BuildFixture); 5] = [
+    FIXTURES[0],
+    FIXTURES[1],
+    FIXTURES[2],
+    ("geometric_cube", |tol| {
+        crate::test_support_fixtures::geometric_cube::<f64>(tol).body
+    }),
+    ("disc on a prism", |tol| {
+        let square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)];
+        let mut prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let outer = prism.body.get_face(prism.top_face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = prism.body.get_loop(outer).unwrap().boundary else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        crate::test_support_fixtures::plant_disc_face(
+            &mut prism.body,
+            first,
+            Point3::new(2.0, 2.0, 1.0),
+            1.0,
+            tol,
+        );
+        prism.body
+    }),
+];
+
+/// One read off the torn `body`, judged as [`READ_DOORS`] says. `call`
+/// answers `Err` with the refusal's text for a refusal of the caller's
+/// key, `Ok(true)` for a door that answered and `Ok(false)` for any
+/// other typed refusal.
+#[cfg(not(debug_assertions))]
+fn judge_read(
+    capture: &PanicCapture,
+    census: &mut Exposure,
+    door: &str,
+    call: impl FnOnce() -> Result<bool, String>,
+) {
+    census.note(CALLS);
+    match capture.run(call) {
+        Ok(Ok(true)) => census.note(door),
+        Ok(Ok(false)) => census.note(REFUSED),
+        Ok(Err(stale)) => panic!(
+            "{door} refused a key the sweep read out of the body as the caller's stale \
+             key: {stale}"
+        ),
+        Err(report) if report.contains(ROW_FOUR) => census.note(PREMISE),
+        Err(report) => panic!("{door} panicked naming no row-4 premise: {report}"),
+    }
+}
+
+/// Every [`READ_DOORS`] door at every key of the torn `body`.
+#[cfg(not(debug_assertions))]
+fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
+    use crate::readback::{
+        ReadbackError, edge_carrier_kind, edge_pose, edge_sides, face_carrier_kind, face_pose,
+        vertex_point,
+    };
+    use geom_core::{Band, Vec3};
+    fn read<V>(answer: Result<V, ReadbackError>) -> Result<bool, String> {
+        match answer {
+            Ok(_) => Ok(true),
+            Err(e @ ReadbackError::Dangling { .. }) => Err(e.to_string()),
+            Err(ReadbackError::NoCanonicalFrame { .. } | ReadbackError::NoCarrier) => Ok(false),
+        }
+    }
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut census = Exposure::new("review_d18 read doors");
+    for door in READ_DOORS {
+        census.add(door, 0);
+    }
+    for (face, _) in body.faces() {
+        judge_read(capture, &mut census, "face_pose", || {
+            read(face_pose(body, face))
+        });
+        judge_read(capture, &mut census, "face_carrier_kind", || {
+            read(face_carrier_kind(body, face))
+        });
+    }
+    for (edge, _) in body.edges() {
+        judge_read(capture, &mut census, "edge_pose", || {
+            read(edge_pose(body, edge))
+        });
+        judge_read(capture, &mut census, "edge_carrier_kind", || {
+            read(edge_carrier_kind(body, edge))
+        });
+        judge_read(capture, &mut census, "edge_sides", || {
+            read(edge_sides(body, edge))
+        });
+        judge_read(
+            capture,
+            &mut census,
+            "rim_of",
+            || match crate::query::rim_of(body, edge) {
+                Ok(_) => Ok(true),
+                Err(e @ crate::query::RimError::Stale(_)) => Err(e.to_string()),
+                Err(_) => Ok(false),
+            },
+        );
+    }
+    for (vertex, _) in body.vertices() {
+        judge_read(capture, &mut census, "vertex_point", || {
+            read(vertex_point(body, vertex))
+        });
+    }
+    judge_read(capture, &mut census, "vertex_points", || {
+        body.vertex_points().for_each(drop);
+        Ok(true)
+    });
+    for (l, _) in body.loops() {
+        judge_read(capture, &mut census, "planar_loop_winding", || {
+            Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
+        });
+    }
+    census
+}
+
+/// The arenas a read-sweep removal tear drops one live record of,
+/// leaving every record that names it dangling.
+#[cfg(not(debug_assertions))]
+const REMOVALS: [&str; 8] = [
+    "half-edge",
+    "loop",
+    "face",
+    "edge",
+    "vertex",
+    "point",
+    "curve",
+    "surface",
+];
+
+/// Removes one live record of the `arena` [`REMOVALS`] names, drawn by
+/// `rng`; `false` where that arena is empty.
+#[cfg(not(debug_assertions))]
+fn remove_one(body: &mut Body<f64>, arena: &str, rng: &mut test_utils::fuzz::Rng) -> bool {
+    fn drop_one<K: slotmap::Key, V>(
+        map: &mut slotmap::SlotMap<K, V>,
+        rng: &mut test_utils::fuzz::Rng,
+    ) -> bool {
+        let keys: Vec<K> = map.keys().collect();
+        if keys.is_empty() {
+            return false;
+        }
+        map.remove(keys[(rng.next_u64() as usize) % keys.len()]);
+        true
+    }
+    match arena {
+        "half-edge" => drop_one(&mut body.half_edges, rng),
+        "loop" => drop_one(&mut body.loops, rng),
+        "face" => drop_one(&mut body.faces, rng),
+        "edge" => drop_one(&mut body.edges, rng),
+        "vertex" => drop_one(&mut body.vertices, rng),
+        "point" => drop_one(&mut body.points, rng),
+        "curve" => drop_one(&mut body.curves, rng),
+        "surface" => drop_one(&mut body.surfaces, rng),
+        other => unreachable!("no removal of {other}"),
+    }
+}
+
+/// **The read doors' half of the headline row**: randomly torn bodies,
+/// every read-back, rim and winding door over every key, and every read
+/// ends in an answer, a typed refusal that is not the caller's stale
+/// key, or a panic naming its row-4 premise ([`judge_read`]). An index
+/// panic, an unwrap, or a record miss answered as the caller's stale
+/// key fails the row. A counterexample search on the operator row's
+/// link tears and [`REMOVALS`] over [`READ_FIXTURES`], its seed logged and its count on
+/// `CAD_FUZZ_EFFORT`; every door is floored by name on an answer, and
+/// the sweep on a premise panic, so a pass that never reached a door
+/// or never met a tear reds.
+#[test]
+#[cfg(not(debug_assertions))]
+fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
+    use test_utils::fuzz;
+    let tol = Tol::witness();
+    let mut rng = fuzz::start("review_d18::torn_bodies_reads_row_four");
+    let trials = fuzz::scaled(3);
+    let mut census = Exposure::new("review_d18 torn read sweep");
+    let capture = PanicCapture::install();
+    for trial in 0..trials {
+        // Every link tear with a drawn removal beside it, and every
+        // removal with a drawn link tear beside it: a link tear dangles
+        // `next`, `prev` and `emanating`, a removal every record that
+        // names what it drops.
+        let mut plans = Vec::new();
+        for tear in TEARS {
+            plans.push((tear, REMOVALS[(rng.next_u64() as usize) % REMOVALS.len()]));
+        }
+        for arena in REMOVALS {
+            plans.push((TEARS[(rng.next_u64() as usize) % TEARS.len()], arena));
+        }
+        for (tear, arena) in plans {
+            for (_, build) in READ_FIXTURES {
+                let mut body = build(tol);
+                let dead = recycled_dead_half_edge(&mut body, tol);
+                for _ in 0..=trial {
+                    plant(&mut body, tear, &mut rng, dead);
+                }
+                if remove_one(&mut body, arena, &mut rng) {
+                    census.note(&format!("removed a {arena}"));
+                }
+                census.merge(&read_every_key(&body, &capture));
+            }
+        }
+    }
+    drop(capture);
+    census.report();
+    census.require_each(
+        &READ_DOORS,
+        1,
+        &format!(
+            "a read door never answered on a torn body — {}",
+            fuzz::replay()
+        ),
+    );
+    let removed: Vec<String> = REMOVALS.iter().map(|a| format!("removed a {a}")).collect();
+    let removed: Vec<&str> = removed.iter().map(String::as_str).collect();
+    census.require_each(
+        &removed,
+        1,
+        &format!("a removal never landed — {}", fuzz::replay()),
+    );
+    census.require_each(
+        &[PREMISE],
+        1,
+        &format!(
+            "no read met a tear, so the sweep proves nothing about record misses — {}",
+            fuzz::replay()
+        ),
+    );
+}
