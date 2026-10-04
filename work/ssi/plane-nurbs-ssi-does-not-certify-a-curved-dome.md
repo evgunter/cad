@@ -4,7 +4,7 @@ kind: issue
 title: ssi: plane × NURBS certifies a curved 3×3 quadratic dome at ε 1e-6 and 1e-9 but not at 1e-12, where the march asks the cubic fit for more samples than its budget; what changes is a design fork
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P2
 cost: H
 design: true
 ---
