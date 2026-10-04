@@ -6783,3 +6783,20 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
   - Judgement call: a boolean operand failing tier 1 panics.
 
   Subscribed. Reviewer `session_012e9PDZ66Hjts93xjCzuE2x` dispatched; the checks it was asked to make: operand-gate reachability (persist, py, step), legal states, atomicity, mutation, and whether any removed Python tag is ratified API. Side branches `lane-a-pcurve`, `lane-b-shell-replace` and `lane-c-boolean-graft` remain on origin, left for Ev.
+
+## 17:51 check-in (2026-10-04)
+
+**PR 4033 review: fix first, no blocking defect.**
+
+The reviewer found these sound: operand-gate reachability (arenas `pub(crate)`, `Body` not `Deserialize`, persist replays recipes, step-import gates tiers 1-3); the legal states; the three `else continue` conversions; `RunMissesEnd`; void-door order; mint derive-then-write; 30 argument/record sites; the step-import `VertexWithoutPoint` deletion. None of the removed Python tags appears in ratified text, so nothing waits for Ev.
+
+All findings adopted:
+1. The mint-atomicity sweep check is vacuous, because the fixtures carry no rows. Mutation shown green.
+2. The cleave strut row is only partly implemented: the `None`-holder arm takes an unproven `next(mate)`.
+3. The `ContainError` split is under-stated.
+4. Stale text in the py census test and two rows.
+5. `axial_frame` reads points outside its scope.
+6. The sectors null-edge `unreachable!` rests on unpinned VF/VV exclusivity.
+- Style: two byte-identical helpers; two `face_cycles` walks; the new orbit helper bypassed, with fallible and panicking twins; dead `Result`s; uneven conversion (`surface_of`, `merge_faces`, `props`, `chord_join`); panic labels.
+
+Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and implementer (about $93) archived. The seven-day rate warning has cleared (five-hour window, allowed). Nothing new on PR 3970.
