@@ -6488,3 +6488,10 @@ Merged main into the orchestration branch; no new notices. The test-door rename 
 92-site substitution, all suites green except two editor-core `c4_band` tests that need nextest's
 one-process mode and pass there. A cloud reviewer was dispatched (light review, E unit). The fan-split lane
 has no PR yet. PRs 3970 and 4006 are with Ev. Next check-in at 00:17 UTC.
+
+## PR 4005 merged (2026-10-04)
+
+The test-door rename merged as `7d2bf68522`. The reviewer's MAJOR finding: main had gained two callers of the
+old name (`boolean/reduce.rs`, `boolean/offer_rows.rs`). The lane fixed it by merging main and renaming both.
+The MINOR finding (row not closed) I fixed myself at `63eb19f82d`. CI was green on that head. Both sessions
+are archived.
