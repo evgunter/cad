@@ -1702,28 +1702,32 @@ impl<T: Real> Body<T> {
     }
 
     /// **Every live vertex with its point**, in vertex slot-index order
-    /// (deterministic per D9): the walk [`Body::vertices`], then
-    /// [`Body::get_vertex`]'s record, then [`Body::get_point`], made
-    /// once.
+    /// (deterministic per D9): [`Body::vertices`], then each record's
+    /// point through [`Body::get_point`], made once.
     ///
-    /// A vertex whose point key does not resolve is a torn body — a
-    /// record of the body names nothing — and its item is that refusal,
-    /// not a skipped vertex. Collect into `Result<Vec<_>, _>` to refuse
-    /// the whole read.
+    /// The vertex key is live by construction; only the point read can
+    /// fail. A vertex whose point key does not resolve is a torn body —
+    /// a record of the body names nothing — and its row carries that
+    /// refusal beside the key, rather than being skipped.
     ///
     /// # Errors
     ///
-    /// An item is [`DanglingRef::Geometry`](crate::readback::DanglingRef::Geometry)
-    /// naming the point key a live vertex holds and the point arena
+    /// A row's point is [`DanglingRef::Geometry`](crate::readback::DanglingRef::Geometry)
+    /// naming the point key the live vertex holds and the point arena
     /// does not.
     pub fn vertex_points(
         &self,
-    ) -> impl Iterator<Item = Result<(VertexKey, Point3<T>), crate::readback::DanglingRef>> + '_
+    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, crate::readback::DanglingRef>)> + '_
     {
         self.vertices.iter().map(|(k, v)| {
-            self.points.get(v.point).copied().map(|p| (k, p)).ok_or(
-                crate::readback::DanglingRef::Geometry(crate::entity::GeomRef::Point(v.point)),
-            )
+            let point =
+                self.points
+                    .get(v.point)
+                    .copied()
+                    .ok_or(crate::readback::DanglingRef::Geometry(
+                        crate::entity::GeomRef::Point(v.point),
+                    ));
+            (k, point)
         })
     }
 
@@ -2614,9 +2618,13 @@ mod tests {
         let read: Vec<_> = t
             .body
             .vertex_points()
-            .map(|r| r.map(|(k, p)| (k, p.to_array())))
-            .collect::<Result<_, _>>()
-            .expect("an untorn pillow reads every vertex");
+            .map(|(k, p)| {
+                (
+                    k,
+                    p.expect("an untorn pillow reads every vertex").to_array(),
+                )
+            })
+            .collect();
         assert_eq!(
             read,
             chain(&t.body),
@@ -2633,16 +2641,15 @@ mod tests {
             "the chain silently drops the torn vertex"
         );
         assert_eq!(
-            t.body.vertex_points().find_map(Result::err),
-            Some(crate::readback::DanglingRef::Geometry(
-                crate::entity::GeomRef::Point(dead)
-            )),
-            "the door names the dangling point key"
-        );
-        assert_eq!(
-            t.body.vertex_points().filter(Result::is_err).count(),
-            1,
-            "exactly the torn vertex refuses"
+            t.body
+                .vertex_points()
+                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
+                .collect::<Vec<_>>(),
+            vec![(
+                t.vertices[0],
+                crate::readback::DanglingRef::Geometry(crate::entity::GeomRef::Point(dead))
+            )],
+            "exactly the torn vertex refuses, naming itself and the dangling point key"
         );
     }
 

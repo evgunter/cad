@@ -83,11 +83,8 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                     b.get_curve_geom(e.curve)
                 );
             }
-            for (k, v) in b.vertices() {
-                println!(
-                    "[dump] {label}: vertex {k:?} point={:?}",
-                    b.get_point(v.point)
-                );
+            for (k, p) in b.vertex_points() {
+                println!("[dump] {label}: vertex {k:?} point={p:?}");
             }
             let n = &s.naming;
             println!(

@@ -278,11 +278,10 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
         body.faces().count(),
     );
     let mut coords: Vec<[u64; 3]> = body
-        .vertices()
-        .filter_map(|(k, _)| {
-            body.get_vertex(k)
-                .and_then(|v| body.get_point(v.point))
-                .map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
+        .vertex_points()
+        .map(|(_, p)| {
+            let p = p.unwrap();
+            [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
         })
         .collect();
     coords.sort_unstable();
