@@ -1701,6 +1701,32 @@ impl<T: Real> Body<T> {
         self.vertices.iter()
     }
 
+    /// **Every live vertex with its point**, in vertex slot-index order
+    /// (deterministic per D9): the walk [`Body::vertices`], then
+    /// [`Body::get_vertex`]'s record, then [`Body::get_point`], made
+    /// once.
+    ///
+    /// A vertex whose point key does not resolve is a torn body — a
+    /// record of the body names nothing — and its item is that refusal,
+    /// not a skipped vertex. Collect into `Result<Vec<_>, _>` to refuse
+    /// the whole read.
+    ///
+    /// # Errors
+    ///
+    /// An item is [`DanglingRef::Geometry`](crate::readback::DanglingRef::Geometry)
+    /// naming the point key a live vertex holds and the point arena
+    /// does not.
+    pub fn vertex_points(
+        &self,
+    ) -> impl Iterator<Item = Result<(VertexKey, Point3<T>), crate::readback::DanglingRef>> + '_
+    {
+        self.vertices.iter().map(|(k, v)| {
+            self.points.get(v.point).copied().map(|p| (k, p)).ok_or(
+                crate::readback::DanglingRef::Geometry(crate::entity::GeomRef::Point(v.point)),
+            )
+        })
+    }
+
     /// All points, in slot-index order (deterministic per D9).
     pub fn points(&self) -> impl Iterator<Item = (PointKey, &Point3<T>)> {
         self.points.iter()
@@ -2570,6 +2596,54 @@ mod tests {
         // And so does the projection the recipe layer reads.
         assert_eq!(body.point_source(point), None);
         assert_eq!(body.surface_source(surface), None);
+    }
+
+    /// The door against the chain it replaces, on the validator's own
+    /// point tear (`validate`'s `dangling_geometry_is_reported`): the
+    /// `filter_map` chain loses the torn vertex and reports a shorter
+    /// cloud; the door names the dangling key.
+    #[test]
+    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+        let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
+            b.vertices()
+                .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
+                .filter_map(|(k, v)| b.get_point(v.point).map(|p| (k, p.to_array())))
+                .collect()
+        };
+        let mut t = pillow(Tol::witness());
+        let read: Vec<_> = t
+            .body
+            .vertex_points()
+            .map(|r| r.map(|(k, p)| (k, p.to_array())))
+            .collect::<Result<_, _>>()
+            .expect("an untorn pillow reads every vertex");
+        assert_eq!(
+            read,
+            chain(&t.body),
+            "on a valid body the door yields exactly get_vertex/get_point's points"
+        );
+        assert_eq!(read.len(), t.vertices.len(), "one row per live vertex");
+
+        let dead = t.body.add_point(origin());
+        t.body.points.remove(dead);
+        t.body.get_vertex_mut(t.vertices[0]).unwrap().point = dead;
+        assert_eq!(
+            chain(&t.body).len(),
+            t.vertices.len() - 1,
+            "the chain silently drops the torn vertex"
+        );
+        assert_eq!(
+            t.body.vertex_points().find_map(Result::err),
+            Some(crate::readback::DanglingRef::Geometry(
+                crate::entity::GeomRef::Point(dead)
+            )),
+            "the door names the dangling point key"
+        );
+        assert_eq!(
+            t.body.vertex_points().filter(Result::is_err).count(),
+            1,
+            "exactly the torn vertex refuses"
+        );
     }
 
     #[test]
