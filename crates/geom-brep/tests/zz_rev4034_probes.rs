@@ -896,3 +896,64 @@ fn probe_semicircle_radii() {
         }
     }
 }
+
+/// PROBE (round 4): the arms witness and the straight close-crossings
+/// wall, with counts.
+#[test]
+fn probe_arms_and_close() {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.5),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let arms = |gap: f64, h: f64| {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let g2 = 2.0 * gap * gap;
+        let mut control = Vec::with_capacity(6);
+        for (x, y) in [(0.0, g2 - 2.0), (0.5, g2 + 2.0), (1.0, g2 - 2.0)] {
+            for j in 0..2 {
+                control.push(Point3::new(x, y + j as f64, j as f64 * h));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+    };
+    let close = |gap: f64, height: f64| {
+        let a = 0.5 - gap / 2.0;
+        let ab = a * (1.0 - a);
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::with_capacity(6);
+        for (x, y) in [(0.0, ab), (0.5, ab - 0.5), (1.0, ab)] {
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, height));
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.5, 0.0, 0.5),
+        half_extent: 3.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for eps in [1e-6, 1e-9] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for (name, s) in [
+            ("arms gap 1e-4", arms(1e-4, 1.0)),
+            ("arms gap 1e-3", arms(1e-3, 1.0)),
+            ("close straight gap 0.2", close(0.2, 1.0)),
+        ] {
+            let t0 = Instant::now();
+            let r = ssi::plane_nurbs_ssi(&plane, &s, dom, band);
+            let dt = t0.elapsed().as_secs_f64();
+            let (st, hv, rc) = counters_take();
+            match r {
+                Ok(o) => println!(
+                    "ARMS {name} ε {eps:e}: Ok samples {:?} steps {st} halvings {hv} reach {rc} {dt:.2}s",
+                    o.branches.iter().map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len())).collect::<Vec<_>>()
+                ),
+                Err(e) => println!("ARMS {name} ε {eps:e}: {} steps {st} halvings {hv} reach {rc} {dt:.2}s", err_name(&e)),
+            }
+        }
+    }
+}

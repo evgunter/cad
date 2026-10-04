@@ -937,6 +937,10 @@ where
     let mut steps = 0usize;
     let mut held = Held::default();
     let mut longest_step = 0.0f64;
+    // PROBE (restart): the next step starts at no more than twice the
+    // last accepted one, so the reach rung undoes one halving per step
+    // instead of starting from the diagonal each time.
+    let mut last_h: Option<f64> = None;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -1073,6 +1077,11 @@ where
                     .fold(h_quad, Real::min);
                 let h_cap = ctx.diagonal();
                 let mut h = Real::min(h_curve, h_cap);
+                if std::env::var_os("SSI_PROBE_RESTART").is_some()
+                    && let Some(last) = last_h
+                {
+                    h = Real::min(h, 2.0 * last);
+                }
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
                 let mut bound = if h_curve < h_cap {
@@ -1092,10 +1101,14 @@ where
                     h *= 0.5;
                     super::system::REACH_HALVINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     bound = StepBound::Curvature;
-                    if h * speed < band.zero() {
+                    // A step in the band refuses at the guard below
+                    // whatever the rung says: stop at the band's edge, so
+                    // the guard reads the step as undecided, not collapsed.
+                    if h * speed <= band.escalate() {
                         break;
                     }
                 }
+                last_h = Some(h);
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
