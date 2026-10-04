@@ -1460,12 +1460,10 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        topo::boolean::subtract(&slab, &ball, Tol::witness())
-            .expect("the die pip cuts")
-            .body()
-            .expect("a pip is a dent, not a void")
-            .body
-            .clone()
+        let slab = topo::test_support::finished("the die slab", slab, Tol::witness());
+        let ball = topo::test_support::finished("the die ball", ball, Tol::witness());
+        let cut = topo::boolean::subtract(&slab, &ball, Tol::witness()).expect("the die pip cuts");
+        (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {

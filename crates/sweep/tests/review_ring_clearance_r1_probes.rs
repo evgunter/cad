@@ -26,7 +26,8 @@ use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    ball_poled_y, ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+    ball_poled_y, ball_poled_z, bored_cylinder, boss, finished, prism, realized, revolved_about_y,
+    rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -45,19 +46,7 @@ fn repaired(up: bool) -> Body<f64> {
 
 /// `a ∖ b` through the public boolean door.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// The two faces of an edge.
@@ -331,8 +320,8 @@ fn r1_diag_cylinder_pierces() {
     let try_cut = |name: &str, a: &Body<f64>, ball: Body<f64>| {
         let r = boolean_op_with(
             BooleanOp::Subtract,
-            a,
-            &ball,
+            &finished(name, a.clone(), tol()),
+            &finished(name, ball, tol()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             tol(),

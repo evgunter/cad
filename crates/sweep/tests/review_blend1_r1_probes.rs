@@ -14,7 +14,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
-use sweep::test_support::{disc_of_arcs, extruded, sketch_from_axes};
+use sweep::test_support::{disc_of_arcs, extruded, finished, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -537,7 +537,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(tol())
             .unwrap();
-        extrude(
+        let base = extrude(
             &profile,
             Extrusion::Distance {
                 depth: 1.0,
@@ -546,7 +546,8 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
             tol(),
         )
         .unwrap()
-        .body
+        .body;
+        finished("the base", base, tol())
     };
     // The boss: a 0.5-radius cylinder standing on z = 1, its sketch
     // plane turned about x by an angle whose departure at the rim's
@@ -564,10 +565,14 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
         let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
-        let boss = extruded(
-            plane,
-            vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
-            1.0,
+        let boss = finished(
+            "the boss",
+            extruded(
+                plane,
+                vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
+                1.0,
+                tol(),
+            ),
             tol(),
         );
         let r = topo::boolean::union(&base, &boss, tol());

@@ -73,6 +73,7 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::props::AtRestOutcome;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -373,15 +374,14 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
 /// for a germ pair with no arm; [`BooleanError::CurvedBooleanUnsupported`]
 /// for a face whose surface key does not resolve.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::DeclaredPairs<T>,
     band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand(body, operand, band, tol)?;
+        gate_operand(body, operand)?;
     }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
@@ -417,21 +417,13 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 ///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
 ///    or spiric edge refuses [`BooleanError::CurvedEdgeUnsupported`]
 ///    wherever it sits;
-/// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
-///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
-///    definitely negative refuses [`BooleanError::InsideOutOperand`];
-///    one whose sign it leaves open passes, as check 7 passes it, and
-///    the volume backstop keeps its own refusal of a body it cannot
-///    measure.
 ///
-/// The subject of 3 is the solid: a body's total hides a sign, so a
-/// several-solid operand is gated here before it is read as one solid
-/// (`ops::one_solid`).
-pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
+/// Orientation is not read here: a `Validated` operand's tier-3 verdict
+/// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
+/// for an operand that carries no verdict.
+pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
-    band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     let (broken, scaffolding) = crate::validate::closed_by_tier(body);
     if let Some(first) = broken.first() {
@@ -448,6 +440,32 @@ pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
         });
     }
     gate_operand_edges(body, operand)?;
+    Ok(())
+}
+
+/// **The operand gate where no at-rest gate ran** — an operand whose
+/// scalar's policy answers [`AtRestOutcome::NotRunAtThisScalar`] (a
+/// dual) carries no verdict, so the door owes it what it owes every
+/// operand without the type: [`gate_operand`], then orientation —
+/// tier 3's check 7, per solid, at the scalar's lane
+/// ([`crate::AtRestPolicy::quad_lane`]). A solid it decides definitely
+/// negative refuses [`BooleanError::InsideOutOperand`]; one whose sign
+/// it leaves open passes, as check 7 passes it. A `Validated` operand
+/// passes untouched: its verdict already holds both.
+///
+/// The subject of the orientation read is the solid: a body's total
+/// hides a sign, so this runs before the pipeline reads a several-solid
+/// operand as one solid (`ops::one_solid`).
+pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &crate::AtRestBody<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    if body.outcome() == AtRestOutcome::Validated {
+        return Ok(());
+    }
+    gate_operand(body, operand)?;
     if let Some(&solid) =
         crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
     {
@@ -3891,6 +3909,7 @@ mod declaration_order_rows {
     };
     use crate::contact::{BooleanCoincidence, ContactClass};
     use crate::entity::VertexKey;
+    use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -4465,8 +4484,8 @@ mod declaration_order_rows {
 
     /// `a ∪ b` with the pair `(fa, fb)` declared as `class`.
     fn union_declared(
-        a: &crate::body::Body<f64>,
-        b: &crate::body::Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
         class: Option<BooleanCoincidence>,
     ) -> Result<(), BooleanError> {
@@ -4524,6 +4543,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, a, b, n) in poses {
+            let (a, b) = (finished(label, a, tol), finished(label, b, tol));
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
             let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
             assert_eq!(
@@ -4584,7 +4604,11 @@ mod declaration_order_rows {
         let band = Band::linear(tol).expect("the witness band");
         let phi = 5.0_f64.to_radians();
         let p = Point3::new(0.5, 0.2, 1.0);
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         let block_volume = 3.0 * 4.5;
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
@@ -4612,11 +4636,15 @@ mod declaration_order_rows {
                 geom_core::Vec3::new(1.0, 0.0, 0.0),
                 geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
             );
-            let wedge = mapped_cube::<f64>(
-                move |u, v, w| {
-                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
-                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
-                },
+            let wedge = finished(
+                label,
+                mapped_cube::<f64>(
+                    move |u, v, w| {
+                        let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                    },
+                    tol,
+                ),
                 tol,
             );
             let pair = (
@@ -4675,7 +4703,11 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         type Pose = (
             &'static str,
             crate::body::Body<f64>,
@@ -4708,6 +4740,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, wedge, facing, offered, other) in poses {
+            let wedge = finished(label, wedge, tol);
             let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
                 let hits: Vec<_> = wedge
                     .faces()
@@ -5501,14 +5534,17 @@ mod clearance_rows {
     }
 }
 
-/// **The operand gate panics on a broken body.** A tier-1 finding is
-/// not scaffolding an edit left behind but a body no public door
-/// leaves, so the gate panics naming the operand and tier 1's first
-/// finding, never refusing as [`BooleanError::ScaffoldingOperand`].
+/// **A broken body is a kernel bug at the operand gate.** A tier-1
+/// finding is not scaffolding an edit left behind: the at-rest gate
+/// refuses the torn body with tier 1's own findings, so it never
+/// finishes into an operand; and the operand gate, which runs on a body
+/// carried with no verdict, panics naming the operand and tier 1's
+/// first finding, never refusing as [`BooleanError::ScaffoldingOperand`].
 /// No public door tears a body, so the row tears one in-crate.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod operand_gate_rows {
+    use crate::AtRestBody;
     use crate::boolean::{BooleanOp, boolean_reduce};
     use crate::test_support_fixtures::brick;
     use geom_core::Tol;
@@ -5516,11 +5552,16 @@ mod operand_gate_rows {
     #[test]
     fn a_tier_one_broken_operand_panics_naming_it() {
         let tol = Tol::witness();
-        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let a = AtRestBody::validate(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol)
+            .expect("the untorn brick finishes");
         let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
         let vertex = b.vertices().next().expect("a vertex").0;
         b.vertex_provenance.remove(vertex);
         let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
+        let at_rest =
+            AtRestBody::validate(b.clone(), tol).expect_err("the torn body does not finish");
+        assert_eq!(at_rest, want, "the at-rest refusal is tier 1's own verdict");
+        let b = AtRestBody::not_run(b);
         let report = crate::surgery::tests::panic_message(|| {
             let _ = boolean_reduce(BooleanOp::Union, &a, &b, tol);
         });

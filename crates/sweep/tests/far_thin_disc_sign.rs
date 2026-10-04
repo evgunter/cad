@@ -8,7 +8,7 @@
 //! disc's volume `π r² h` and its membership, read off the construction.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use sweep::test_support::{brick, cylinder_of_arcs_at};
+use sweep::test_support::{brick, cylinder_of_arcs_at, finished};
 use topo::{
     Body, ShellRole, SolidContainment, ValidationError, classify_shells, intersect, point_in_solid,
     subtract, transform_rigid, validate_geometric,
@@ -138,7 +138,12 @@ fn a_box_less_a_far_thin_disc_is_a_valid_hollow() {
         (foot.z - a, foot.z + a),
         tol,
     );
-    let hollow = subtract(&boxy, &disc, tol).expect("the subtract answers");
+    let hollow = subtract(
+        &finished("the box", boxy, tol),
+        &finished("the disc", disc, tol),
+        tol,
+    )
+    .expect("the subtract answers");
     let body = &hollow.body().expect("a body").body;
     let shells: usize = body
         .solids()
@@ -162,12 +167,17 @@ fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
         let slab = brick::<f64>((-4e-3, 4e-3), (-4e-3, 4e-3), (0.0, h), tol);
         let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), tilt);
         let slab = transform_rigid(&slab, &tilt, tol).expect("the slab tilts");
-        intersect(&cylinder, &slab, tol)
-            .expect("the cut answers")
-            .body()
-            .expect("a body")
-            .body
-            .clone()
+        intersect(
+            &finished("the cylinder", cylinder, tol),
+            &finished("the slab", slab, tol),
+            tol,
+        )
+        .expect("the cut answers")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+        .into_body()
     });
     built.map_or_else(
         |_| {

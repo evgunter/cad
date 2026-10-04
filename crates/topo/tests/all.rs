@@ -217,6 +217,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "result_gate_sites.rs"]
+mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]

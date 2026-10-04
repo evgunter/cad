@@ -13,14 +13,17 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::flush::{declare_all, find_flush_candidates};
-use topo::{Body, BooleanError, BooleanResult, mass_properties, union_with};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties, union_with};
 
 /// The union of `a` and `b`, every flush pair the detector finds
 /// declared.
-fn declared_union(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
+fn declared_union(
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Result<AtRestBody<f64>, BooleanError> {
     let tol = Tol::witness();
     let decls = declare_all(&find_flush_candidates(a, b, tol).expect("the flush detector decides"));
     match union_with(a, b, &decls, tol)? {
@@ -31,13 +34,13 @@ fn declared_union(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanErro
 
 /// `a` = x 0..1, `b` = x 0.5..1.5, `c` = x 0.8..2, all over y 0..1 and
 /// z 0..1: each pair overlaps and is flush on the four y and z walls.
-fn trio() -> [Body<f64>; 3] {
+fn trio() -> [AtRestBody<f64>; 3] {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
     [
-        brick((0.0, 1.0), unit, unit, tol),
-        brick((0.5, 1.5), unit, unit, tol),
-        brick((0.8, 2.0), unit, unit, tol),
+        finished("a", brick((0.0, 1.0), unit, unit, tol), tol),
+        finished("b", brick((0.5, 1.5), unit, unit, tol), tol),
+        finished("c", brick((0.8, 2.0), unit, unit, tol), tol),
     ]
 }
 
@@ -85,7 +88,11 @@ fn every_member_order_of_a_flush_trio_fuses_to_the_accumulation() {
 fn an_uncut_lump_flush_inside_the_other_operand_takes_its_side_from_a_face() {
     let tol = Tol::witness();
     let [a, b, c] = trio();
-    let x: Body<f64> = brick((1.8, 2.5), (0.2, 0.8), (0.2, 0.8), tol);
+    let x = finished(
+        "x",
+        brick::<f64>((1.8, 2.5), (0.2, 0.8), (0.2, 0.8), tol),
+        tol,
+    );
     let BooleanResult::Body(bx) = topo::union(&b, &x, tol).expect("two disjoint blocks") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
@@ -123,12 +130,16 @@ fn a_non_convex_end_face_offers_only_a_certified_interior_point() {
         (1.0, 2.0),
         (0.0, 2.0),
     ];
-    let a = common::prism_z::<f64>(&l, 0.0, 1.0, tol).body;
-    let c = common::prism_z::<f64>(&l, 0.8, 2.0, tol).body;
+    let a = finished("a", common::prism_z::<f64>(&l, 0.0, 1.0, tol).body, tol);
+    let c = finished("c", common::prism_z::<f64>(&l, 0.8, 2.0, tol).body, tol);
     let ac = declared_union(&a, &c).expect("a ∪ c");
     for start in 0..l.len() {
         let profile: Vec<(f64, f64)> = l[start..].iter().chain(&l[..start]).copied().collect();
-        let b = common::prism_z::<f64>(&profile, 0.5, 1.5, tol).body;
+        let b = finished(
+            "b",
+            common::prism_z::<f64>(&profile, 0.5, 1.5, tol).body,
+            tol,
+        );
         let all = declared_union(&ac, &b)
             .unwrap_or_else(|e| panic!("profile from vertex {start}: {e:?}"));
         assert_valid_with_volume(&format!("profile from vertex {start}"), &all, 6.0);

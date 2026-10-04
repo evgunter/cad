@@ -117,8 +117,12 @@ fn prism_beyond(m: [f64; 3]) -> f64 {
 /// Builds every op in both operand orders and checks each body at tiers
 /// 2, 3 and 3′ and by volume against the prism's cut by the plane.
 fn assert_pose_builds(pose: &str, m: [f64; 3]) {
-    let prism = common::prism::<f64>(&PROFILE, 1.0, tol()).body;
-    let cube = cube_beyond(m);
+    let prism = common::finished(
+        "the prism",
+        common::prism::<f64>(&PROFILE, 1.0, tol()).body,
+        tol(),
+    );
+    let cube = common::finished("the cube", cube_beyond(m), tol());
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let decls = BooleanDeclarations::default();

@@ -28,8 +28,9 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
-use topo::{Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
+use topo::{AtRestBody, Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
 
 use crate::common::oracles;
 
@@ -74,7 +75,7 @@ fn subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
 }
 
 /// An axis-aligned cube of side `s` with its low corner at `(x0, y0, z0)`.
-fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> Body<f64> {
+fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(x0, y0),
         Point2::new(x0 + s, y0),
@@ -88,7 +89,7 @@ fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> Body<f64> {
     let v = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(
+    let cube = extrude(
         &v,
         Extrusion::Distance {
             depth: s,
@@ -97,7 +98,8 @@ fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the cube", cube, Tol::witness())
 }
 
 fn key_of(body: &Body<f64>, f: FaceKey) -> topo::SurfaceKey {
@@ -178,7 +180,8 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     );
 
     let cube = cube_at(0.5, -0.5, 0.5, 1.0);
-    let r = union(&ex.body, &cube, t).expect("the extrusion is maximal-faced as built");
+    let prism = finished("the subdivided prism", ex.body.clone(), t);
+    let r = union(&prism, &cube, t).expect("the extrusion is maximal-faced as built");
     let body = &r.body().expect("non-empty").body;
     assert_eq!(validate_closed(body), Ok(()), "tier 2");
     // [0,2]²×[0,2] plus the half of the cube outside it.
@@ -244,7 +247,8 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
             merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
             "{rev:?}: nothing left for the structural rung to merge"
         );
-        let u = union(&r.body, &cube, t)
+        let revolved = finished("the subdivided revolve", r.body.clone(), t);
+        let u = union(&revolved, &cube, t)
             .unwrap_or_else(|e| panic!("{rev:?}: the revolve is maximal-faced as built: {e:?}"));
         let body = &u.body().expect("non-empty").body;
         assert_eq!(validate_closed(body), Ok(()), "{rev:?}: tier 2");
@@ -273,7 +277,8 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     assert_eq!(topo::validate_geometric(&l.body, t), Ok(()), "tier 3");
     let mut m = l.body.clone();
     assert!(m.merge_coplanar_faces(t).unwrap().groups.is_empty());
-    let err = union(&l.body, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();
+    let loft = finished("the subdivided loft", l.body.clone(), t);
+    let err = union(&loft, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();
     assert!(
         !matches!(err, BooleanError::NonMaximalFaces { .. }),
         "refused before the gate: {err:?}"
@@ -356,7 +361,8 @@ fn subdivided_rim_blends_as_one_band_as_built() {
     );
     // And the result is a maximal-faced operand: the boolean's gates —
     // F7's among them — pass it, and a disjoint union adds the cube.
-    let u = union(&f.body, &cube_at(5.0, 5.0, 5.0, 1.0), t).expect("the band is maximal");
+    let filleted = finished("the filleted prism", f.body.clone(), t);
+    let u = union(&filleted, &cube_at(5.0, 5.0, 5.0, 1.0), t).expect("the band is maximal");
     let got = volume(&u.body().expect("non-empty").body, t);
     assert!(
         (got - (want + 1.0)).abs() <= 1e-12 * want,

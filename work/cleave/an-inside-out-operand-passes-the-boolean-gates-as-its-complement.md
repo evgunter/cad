@@ -55,3 +55,20 @@ pays that gate once" (Ev, PR 3870). `boolean::reduce::gate_operand`
 reads check 7 per solid and refuses `BooleanError::InsideOutOperand`;
 the ∖/∩/∪ refusals and a counterclockwise control are pinned in
 `crates/topo/tests/inside_out_operand.rs`.
+
+## 2026-10-03 — the read runs only where no verdict rides the operand (REACH)
+
+`boolean-door-adopts-the-finished-body-type` types the boolean's
+operands (`&AtRestBody`), as this item's measurement anticipated
+("typed operands retire that read"). At a certifying scalar an
+inside-out body refuses where it is finished: `AtRestBody::validate`
+reports tier 3's `NegativeVolume` on each inside-out solid, so it never
+reaches the door. A dual's policy runs no at-rest gate, so its operand
+carries no verdict (`AtRestOutcome::NotRunAtThisScalar`), and the door
+reads check 7 itself for it: `reduce::gate_unverdicted_operand` runs
+`gate_operand` and `validate::inside_out_solids` per solid before
+`one_solid` merges, refusing `BooleanError::InsideOutOperand` as this
+item's fix did at every scalar. `crates/topo/tests/inside_out_operand.rs`
+pins the refusal at the at-rest gate (per solid, the inside-out part
+beside an ordinary one), the door's refusal at `Dual64` in every op and
+both orders, and the counterclockwise control through every op.

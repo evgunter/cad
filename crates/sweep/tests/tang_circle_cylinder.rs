@@ -27,6 +27,7 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 
@@ -85,6 +86,10 @@ fn segment(a: f64) -> f64 {
 
 fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
     let tol = Tol::witness();
+    let (a, b) = (
+        &finished("operand A", a.clone(), tol),
+        &finished("operand B", b.clone(), tol),
+    );
     let out = match op {
         BooleanOp::Union => topo::union(a, b, tol),
         BooleanOp::Intersect => topo::intersect(a, b, tol),
@@ -94,7 +99,8 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
         .body()
         .unwrap_or_else(|| panic!("{op:?} came back empty"))
         .body
-        .clone())
+        .clone()
+        .into_body())
 }
 
 /// The datum a refusal past the crossing layer does not carry: how many
