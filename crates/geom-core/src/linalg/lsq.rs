@@ -276,11 +276,27 @@ pub fn solve_square(a: &[Vec<f64>], b: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, Lsq
             lu[i * n + j] = *v;
         }
     }
+    // PROBE (design-fork fit budget): the same Doolittle, with every
+    // loop restricted to the structural nonzeros. `lo[i]` is row i's
+    // first nonzero column; U's row q is zero past `hu[q]`, the running
+    // max of the rows' last nonzero columns. Skipped terms are exact
+    // `0 * x`. Requires `lo` ascending (true of a collocation matrix).
+    let mut lo = vec![0usize; n];
+    let mut hu = vec![0usize; n];
+    let mut run = 0usize;
+    for (i, row) in a.iter().enumerate() {
+        lo[i] = row.iter().position(|v| *v != 0.0).unwrap_or(i).min(i);
+        let last = row.iter().rposition(|v| *v != 0.0).unwrap_or(i).max(i);
+        run = run.max(last);
+        hu[i] = run;
+    }
+    let mono = lo.windows(2).all(|w| w[0] <= w[1]);
     for i in 0..n {
-        // U row i (columns i..n): subtract the L·U prefix, ascending q.
-        for j in i..n {
+        let jmax = if mono { hu[i] } else { n - 1 };
+        for j in i..=jmax {
             let mut s = lu[i * n + j];
-            for q in 0..i {
+            let q0 = if mono { lo[i] } else { 0 };
+            for q in q0..i {
                 s -= lu[i * n + q] * lu[q * n + j];
             }
             lu[i * n + j] = s;
@@ -292,29 +308,33 @@ pub fn solve_square(a: &[Vec<f64>], b: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, Lsq
                 pivot,
             });
         }
-        // L column i (rows i+1..n).
         for r in (i + 1)..n {
+            if mono && lo[r] > i {
+                break;
+            }
             let mut s = lu[r * n + i];
-            for q in 0..i {
+            let q0 = if mono { lo[r] } else { 0 };
+            for q in q0..i {
                 s -= lu[r * n + q] * lu[q * n + i];
             }
             lu[r * n + i] = s / pivot;
         }
     }
-
-    // L·y = b (forward, unit diagonal), U·x = y (backward), per column.
     let mut x: Vec<Vec<f64>> = b.to_vec();
     for c in 0..k {
         for i in 0..n {
             let mut s = x[i][c];
-            for q in 0..i {
+            let q0 = if mono { lo[i] } else { 0 };
+            for q in q0..i {
                 s -= lu[i * n + q] * x[q][c];
             }
             x[i][c] = s;
         }
         for i in (0..n).rev() {
             let mut s = x[i][c];
-            for q in (i + 1)..n {
+            let qe = if mono { hu[i] } else { n - 1 };
+            for q in (i + 1)..=qe.max(i) {
+                if q > qe { break; }
                 s -= lu[i * n + q] * x[q][c];
             }
             x[i][c] = s / lu[i * n + i];
