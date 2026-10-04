@@ -118,6 +118,13 @@ the above — land it as planned. Park each row the hold covers
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
 
+- 2026-10-03 — Read the #3990 hold. SSI's open rows, its two live lanes (`ssi/limb3-one-arc`, `ssi/step-max-certify`) and the held PR 3983 are plane × NURBS marching and certification inside `geom-brep`; none uses the node vocabulary, document parameters, placement, declared contact or `Measure`/`Assertion` (the rigid-map rows rotate geometry in tests, not a document `Transform`). Nothing parked; the program continues. (SSI orchestrator)
+
+- 2026-10-03 — **Limb 3 banked a second arc as accounted: P1, reachable on main.** On the ℝ³ cylinder × sphere lane, a slab cutting the circle into a long arc (11°..355°) and a short arc (5°..11°) returns Ok with one branch: the short arc's seed lands in the long arc's end box, so it is skipped, and accounting banks its cells. Root cause: limb 3 proved only one solution per slice, C2 deferred a disjoint component to C3, and C3 counted tube cells as proved. On the chart lane, open arcs can't be lost on main (every boundary crossing starts or ends a march), but the hermite-first fold of PR 3983 loses one there. Fix: PR 3999 (`ssi/limb3-one-arc`), which counts the boundary zeros of each banked box cut to the searched region and links consecutive boxes; it adds the `SsiError::TubeNotOneArc` refusal. Rows `limb-3-tube-banks-a-second-arc-as-accounted` (P1, closed by 3999) and `limb3-at-rest-proves-the-graph-not-the-arc` (open). The lane's README draft narrowed C2 to "the graph alone at rest". That retires half of Ev's ratified CURVED-DESIGN OQ2 ("the C2.3 uniqueness tube is required for every fitted `Intersection` at rest", #85, c0c74ea9b3), so the sentence comes out. The at-rest gap is recorded as a defect against that text; its options go to designers. Review tier: **dual** (concurrent pair, class H, on frozen head `7a59515b38`). Reason: a new certificate argument (counting boundary zeros, Krawczyk on faces) whose failure is silent topology loss. (SSI orchestrator)
+
+- 2026-10-03 — **`SSI_STEP_MAX` is replaced by refinement by certificate: PR 3998** (`ssi/step-max-certify`), answering Ev's question on 3862. Steps come from the curvature rungs, capped by the domain diagonal and `|AB|/5`. Where limb 1 or 2 refuses, the refused gaps are halved until the band stop or the fit budget, then refit and recertified. Across the suite, samples fall 4–7% and more branches certify (1e-9: 123 → 145). The cost at 1e-12 is 101 s → 657 s, dominated by the dense collocation solve (filed on flux). Review tier: **single FULL** on `548592de4e`. Reason: a loop around the certificate whose failure modes are a stale verdict or non-termination, but the certificate itself does not change. 3998 and 3999 share `certify.rs`, `ends.rs` and the C3 README, so 3999 (the P1) merges first and 3998 merges main after. (SSI orchestrator)
+
+- 2026-10-03 — **A second P1: limb 3 at rest certifies an edge that joins two arcs.** The 3999 lane measured it: a declared carrier on the fold wall (c = 800ε, β ≤ ε) certifies Ok through `plane_nurbs_limbs`, but the locus is two separate arcs. At rest the certificate proves the graph only. Ev ruled the opposite (CURVED-DESIGN OQ2, #85, c0c74ea9b3: the tube is required at rest). Requiring the one-arc proof there refuses 9 band-flush edges. Row: `limb3-at-rest-proves-the-graph-not-the-arc` (P1). This is a design fork. Designers dispatched concurrently against PR 3999's head, under protocol 26db1af89e; blinding byte 96 is on `analysis/design-fork/limb3-at-rest`. 3999 stays scoped to the banked lanes and merges without waiting on the fork. (SSI orchestrator)
 ## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
 
 Ev ratified DESIGN.md D10 on PR #3990, and the ruling
@@ -130,3 +137,31 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+- 2026-10-03 — **PR 3998 merged** (0f409ea569): `SSI_STEP_MAX` is gone; refinement by certificate in `ssi/refine.rs`. The single FULL review (on 548592de4e) was APPROVE-WITH-FIXES with no false pass; it re-certified every refined branch bit-identically. One fix pass, read by the orchestrator:
+  - Each refused gap is halved with its neighbours, bounding rounds at about half the budget; the reviewer's stand-in had taken 1196 rounds.
+  - A NaN or invalid margin is not located.
+  - `RefinementExhausted` names its stop.
+  - `StepBound::Cap` names its own lane's cap and lever.
+  - `STEP_SCALE`'s domain clause is corrected (a larger domain is what helps).
+  - The uncertified door's doc tells the truth.
+  - New rows pin `Both`, `TubeLadderEmpty` from a marched door, and `retirement_breadth`.
+
+  The SSI suite at 1e-12 now takes 368 s (657 s before the pass; 101 s with the cap). The weight-9 rational row is still 444 s, which is the dense collocation solve filed on flux. Filed: `the-march-domain-diagonal-mixes-state-units-on-the-chart-lane` (P3) and `the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule`. Main was red on `bounds_census` for REACH's `ops::centred_box` (from #3978); I ported REACH's own roster line from #3976 into 3998 and commented on the PR. (SSI orchestrator)
+
+- 2026-10-03 — **Limb-3-at-rest fork: the designers converged after four rounds.**
+  - Round 1 split: the boundary count plus a side-cover arm, against the section theorem.
+  - Round 2 crossed.
+  - Round 3 named the question beneath (a claim on the window against a claim on the carrier) and found that #3999's count leaves the carrier's end slices unchecked. That is reachable at rest only; the searches' ends are certified crossings.
+  - Round 4 settled it on a fixture: a correct branch leaving through a side parallel to its slices is refused by the section theorem at every rung and certified by the count plus end slices.
+
+  Converged: per-window count or side cover (`strip_reach` as one shared door), plus knot and end-slice coverage, at every door, with `Banked` retired. OQ2 stands; C2's proof sentence changes, so it goes to Ev as an `[ev]` PR once 3999 lands. Probes are on `analysis/design-fork/limb3-at-rest-{a,b}`. Both designers name carrier-to-locus placement (2·residual/margin, up to 10⁴ε on correct shallow carriers) as a separate D4 question, not raised. (SSI orchestrator)
+
+- 2026-10-04 — **PR 3999 merged** (031b4ade4c): limb 3 proves the one arc where a search banks the tube (`ssi/one_arc.rs`; `certify_branch(…, Lane)`; `TubeNotOneArc { rungs, cause }`), closing the P1 `limb-3-tube-banks-a-second-arc-as-accounted`.
+  - **Dual review:** DR-72, concurrent, class H. Both reviewers APPROVE-WITH-FIXES; neither found a soundness hole in about 320 adversarial runs. The only MAJOR (the chart lane's proof had no guarding row) was bilateral, so there is no tally candidate.
+  - **Fix pass:** a row for every soundness arm; refusal causes split; one lane door; the cylinder gradient made exact for a non-unit axis.
+  - **Independent verifier** (`analysis/ssi-verify/3999`): mutants 1–9 red; it refuted the lane's claim that mutant 10 (the edge depth cut) was equivalent, using a C0 kink wall. Those kink rows landed, and all 12 mutants are red.
+  - **Merge with 3998:** refinement certifies through the lane door, and a limb-3 refusal is never located. The edge walk's slope strip was narrowed after a twisted wall refused at 1e-12.
+  - **Filed:** `chart-point-signs-are-f64-evaluations` (P3).
+- 2026-10-04 — **`[ev]` PR 4012 opened** for the limb-3-at-rest fork: C2's proof sentence gains a side-cover arm and end-slice coverage at every door. The work row is `needs_ev`, `spec`, with its Done-when; fork-log row 63 records the recommendation half. The build lands on that branch after Ev rules.
+- 2026-10-04 — **PR 3983 (Hermite-first) resumed**, now that limb 3 proves one arc. The lane merges main (3968, 3998, 3999), certifies the Hermite through `Lane::Chart`, pins the fold with a row that goes red without the chart lane's proof, fixes m1–m3 and strengthens the converging row. Review tier: the orchestrator's read of the fix delta plus a delta review, since the earlier review was a BLOCK. (SSI orchestrator)

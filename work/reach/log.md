@@ -758,3 +758,20 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **The fix pass.** It deleted the touch-ball guard (`boundary_clear_of`) and its bound rather than pinning them. The argument: on a silent pair, any loop inside both faces would put an edge within the margin of the other carrier, which the crossing layer records or refuses (premise S). The new row pins the touch at the centre of every loop its margin admits.
 - **Verification.** An independent verifier session found the pass VERIFIED: all five touch and event mutants are red, and the hole and tilt rows are red on the old head and green now. Its notes: S is shown by execution, not by proof, and no body-level row reaches an evented touch. After main's `decide_nonzero` rename, the lane merged main and re-ran the battery and mutants; all three ε are green.
 — (REACH orchestrator)
+
+## 2026-10-03 — a declared Rest mate answers ∩ and both differences (PR 3980)
+
+- **The change.** On the no-crossings path, a declared cylindrical, torus or ball-in-cavity `Rest` mate now answers ∩ and both differences in closed form, where it used to refuse `FallbackExtentUnsupported`. One `Exempt` type holds both the declared-pair and the verified-`Rest` rules. It reads only `rest_contacts`, so an undeclared or merely shared-recipe pair cannot enter.
+- **Review.** A dual review, frozen at `5a5c62365b`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR. Bilaterally they found the exemption's per-pair key and the sphere arm's guards unpinned.
+- **The fix pass.** It narrowed the exemption to verified `Rest` pairs and made the sphere rule all-faces. It pinned both with an undeclared-sphere row and a buried-pebble row; five mutants turn red. Two older findings went to items: the undersized shaft, and the equator in the hole.
+- **Verification.** An independent verifier session found the pass VERIFIED. It could build no undeclared or shared-recipe pair that reaches the exemption, and the suites ran 6912/6912 at all three ε.
+- **Also in this sync.** The slow set's two stale `rigid_map_near_eps_plane_nurbs` entries now carry the names #3964 gave those rows.
+— (REACH orchestrator)
+
+## 2026-10-04 — the planar crossing lane refuses a curved carrier typed (PR 3984)
+
+- **The change.** `plane_crossing_lane` answers conic, line, or unlaned. The sweep's planar and curved arms refuse a spiric or spline carrier typed, where a curved carrier used to read as a line. This is the latent defect the NURBS fork found. The operand edge gate stays. Its deletion, which the fork's convergence calls for once the silent sites are typed, is filed as `delete-the-boolean-operand-edge-gate` (P1), carrying the measurements from one attempt.
+- **Review.** It was a dual review frozen at `8abb6e7931`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR. One reviewer's first session stalled on a permission denial, and a fresh session replaced it. Its prompt differed only in clarifications.
+- **The fix pass.** The last pass added spiric rows, which the M5 and M6 mutants turn red. It gave the unreachable variant one recourse text, rewrote the gate's stated reason, and filed the join's residue sites.
+- **Verification.** An independent verifier session found the pass VERIFIED. The gate-deletion attempt is exactly reverted, the five mutants are red, and the suites ran 7177/7177 at all three ε.
+— (REACH orchestrator)
