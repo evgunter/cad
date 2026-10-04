@@ -6677,3 +6677,13 @@ Both reports are saved (`design-kef-A-r4.md`, `design-kef-B-r4.md`).
 
 Posting the combined verbatim comment via `gh api` was denied by the auto-mode classifier. Per the denial I did
 not re-post it by another route; I put the summary to Ev in chat instead.
+
+## 07:22 check-in (2026-10-04): re-anchor rows is a design fork
+
+PR 4021 (the re-anchored rows unit) stopped at the witness as briefed. (b), a first-independent anchor, moves the
+class and adds an in-band seam decision, so the answer is (a); how (a) treats the keys-only kills is a fork
+(PR 2527 keys-only, the unconditional re-anchor, ~4,000 `kef_minting` calls that every producer re-mints after).
+Merged 4021 as `f4a478cb3a` (two ignored witness rows and the row text only, CI green) to keep the witness.
+The fork is dispatched: blinding byte 81 (Fable=A, Opus=B) on `analysis/design-fork/topo-kill-re-anchor-rows`,
+brief `/home/user/topo-orch/design-reanchor-problem.md` (no candidates; the designers are told not to read 4021's
+body or the row).
