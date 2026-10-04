@@ -802,3 +802,82 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
         "the corpus's Probe evaluation moved"
     );
 }
+
+/// **The corpus's geometry, with every id masked**: per document, each
+/// node's outcome and its points' bits, the nodes sorted by what they
+/// hold rather than by id. Every other digest in this file feeds
+/// `id.0`, so a change to how ids are minted moves it with no point
+/// moving; this one moves only when an outcome or a point does.
+///
+/// It is the guard INTENT-VARS-1 PR 3's "geometry did not move" claim
+/// rested on: readers moved from names to ids, every id moved with the
+/// preimages, and this number — taken on main before the change and on
+/// the branch after it — did not.
+fn id_free_corpus_digest() -> (u64, u64) {
+    type Nodes = std::collections::BTreeMap<u64, (String, Vec<[u64; 3]>)>;
+    let mut docs: Vec<(String, Nodes)> = Vec::new();
+    let mut fixture = Digest::new();
+    walk::<f64>(|seen| match seen {
+        Seen::Fixture(i) => fixture.u64(i as u64),
+        Seen::FixtureLoop { vertices, .. } => fixture.u64(vertices as u64),
+        Seen::FixtureVertex { x, y, sweep, .. } => {
+            for c in [x, y, sweep] {
+                fixture.u64(c.to_bits());
+            }
+        }
+        Seen::FixtureRefused(_) => fixture.text("refused"),
+        Seen::Document(name) => docs.push((name.to_owned(), Nodes::new())),
+        Seen::Node { id, outcome, .. } => {
+            let outcome = match outcome {
+                Outcome::Poisoned { .. } => "poisoned",
+                Outcome::Failed => "failed",
+                Outcome::Ok { kind } => kind,
+            };
+            docs.last_mut()
+                .expect("a node is walked inside a document")
+                .1
+                .insert(id, (outcome.to_owned(), Vec::new()));
+        }
+        Seen::Point { id, p, .. } => docs
+            .last_mut()
+            .and_then(|(_, nodes)| nodes.get_mut(&id))
+            .expect("a point is walked under its node")
+            .1
+            .push(p.to_array().map(f64::to_bits)),
+    });
+    let mut d = Digest::new();
+    d.u64(fixture.lo);
+    d.u64(fixture.hi);
+    for (name, nodes) in docs {
+        d.text(&name);
+        let mut held: Vec<(String, Vec<[u64; 3]>)> = nodes
+            .into_values()
+            .map(|(outcome, mut points)| {
+                points.sort_unstable();
+                (outcome, points)
+            })
+            .collect();
+        held.sort();
+        for (outcome, points) in held {
+            d.text(&outcome);
+            d.u64(points.len() as u64);
+            for c in points.into_iter().flatten() {
+                d.u64(c);
+            }
+        }
+    }
+    (d.lo, d.hi)
+}
+
+/// **The fence with ids masked, at `f64`** ([`id_free_corpus_digest`]).
+#[test]
+fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
+    let got = id_free_corpus_digest();
+    println!("m10-p fence id-free: {got:016x?}");
+    assert_eq!(
+        got,
+        (0x7395_9181_b282_85fb, 0x45bd_7c42_dd6c_e53f),
+        "an outcome or a point of the corpus moved — every other row here also \
+         moves with ids, and this one does not"
+    );
+}

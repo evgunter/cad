@@ -269,6 +269,21 @@ impl core::fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
+/// **Why a name leaf did not lower** ([`Expr::lower_names`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unlowered {
+    /// No variable holds the name.
+    Unheld,
+    /// The variable holding the name reads at `declared`, not at the
+    /// dimension the leaf reads it at.
+    Kind {
+        /// The variable holding the name.
+        var: VarId,
+        /// The dimension its kind reads at.
+        declared: Dimension,
+    },
+}
+
 /// A dimension-checked expression tree (ratified F7 shape).
 ///
 /// Construction goes through the smart constructors below, which run
@@ -1197,24 +1212,39 @@ impl Expr {
 
     /// **Lower every name leaf `scope` resolves** to a reader of the
     /// variable it resolves to, when the variable's kind is the one the
-    /// leaf reads it at. A name `scope` does not hold, or holds at
-    /// another kind, stays a name leaf, for the door that writes the
-    /// expression to refuse at its address.
-    pub fn lower_names(&mut self, scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>) {
+    /// leaf reads it at — the one lowering rule. A name `scope` does not
+    /// hold, or holds at another kind, stays a name leaf, for the door
+    /// that writes the expression to refuse at its address; each such
+    /// leaf is answered, in leaf order, with the dimension it reads at
+    /// and why it stayed ([`Unlowered`]).
+    pub fn lower_names(
+        &mut self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+    ) -> Vec<(VarName, Dimension, Unlowered)> {
+        let mut left = Vec::new();
+        self.lower_into(scope, &mut left);
+        left
+    }
+
+    fn lower_into(
+        &mut self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        left: &mut Vec<(VarName, Dimension, Unlowered)>,
+    ) {
         let dim = self.dim;
         match &mut self.kind {
-            ExprKind::Name(name) => {
-                if let Some((var, declared)) = scope(name)
-                    && declared == dim
-                {
-                    self.kind = ExprKind::Var(var);
+            ExprKind::Name(name) => match scope(name) {
+                Some((var, declared)) if declared == dim => self.kind = ExprKind::Var(var),
+                Some((var, declared)) => {
+                    left.push((name.clone(), dim, Unlowered::Kind { var, declared }));
                 }
-            }
+                None => left.push((name.clone(), dim, Unlowered::Unheld)),
+            },
             ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) => {}
-            unary_kind!(a) => a.lower_names(scope),
+            unary_kind!(a) => a.lower_into(scope, left),
             binary_kind!(a, b) => {
-                a.lower_names(scope);
-                b.lower_names(scope);
+                a.lower_into(scope, left);
+                b.lower_into(scope, left);
             }
         }
     }

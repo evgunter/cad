@@ -677,7 +677,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// or does not compile.
     fn exprs_mut(&mut self) -> Vec<&mut Expr> {
         match self {
-            Self::InsertNode { node } => node_exprs_mut(node),
+            Self::InsertNode { node } => node.exprs_mut(),
             Self::SetParam { expr, .. }
             | Self::SetStructuralParam { expr, .. }
             | Self::SetExpression { expr, .. } => vec![expr],
@@ -719,20 +719,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     }
 }
 
-/// Every expression `node` carries: its payload expressions for the two
-/// nodes that carry them, which carry no slot, and its slots for every
-/// other.
-fn node_exprs_mut<P: crate::ProfilePayload>(node: &mut Node<P>) -> Vec<&mut Expr> {
-    if matches!(node, Node::Measure { .. } | Node::Assertion { .. }) {
-        crate::node::payload_exprs_mut(node)
-            .into_iter()
-            .flatten()
-            .collect()
-    } else {
-        node.rows_mut().into_iter().map(|(_, e)| e).collect()
-    }
-}
-
 /// **The edit as the door writes it: every name leaf lowered** to a
 /// reader of the variable `doc` names, where that variable has the kind
 /// the leaf reads it at (VR6's lowering, for the one authored form this
@@ -754,7 +740,10 @@ fn lowered<'e, P: Clone + crate::ProfilePayload>(
         e.named_reads(&mut names);
         if !names.is_empty() {
             named = true;
-            e.lower_names(&|name| doc.lowering_scope(name));
+            // What did not lower is refused where the door checks
+            // the expression it writes, from the same answer
+            // (`Doc::var_read_faults`).
+            let _unlowered = e.lower_names(&|name| doc.lowering_scope(name));
         }
     }
     if named {
@@ -762,15 +751,6 @@ fn lowered<'e, P: Clone + crate::ProfilePayload>(
     } else {
         std::borrow::Cow::Borrowed(edit)
     }
-}
-
-/// The dimension `expr` first reads `name` at, if it reads it.
-fn expr_dim_of(expr: &Expr, name: &VarName) -> Option<Dimension> {
-    let mut names = Vec::new();
-    expr.named_reads(&mut names);
-    names
-        .into_iter()
-        .find_map(|(read, dim)| (read == *name).then_some(dim))
 }
 
 /// **The reads of one expression an edit writes**, against the
@@ -788,21 +768,6 @@ fn check_reads<P>(
         return Ok(());
     };
     let node = node.clone();
-    // A name that did not lower is one no variable holds, or one held
-    // by a variable of another kind ([`lowered`]).
-    let fault = match fault {
-        VarReadFault::Name { name } => {
-            match (doc.lowering_scope(&name), expr_dim_of(expr, &name)) {
-                (Some((var, declared)), Some(referenced)) => VarReadFault::Kind {
-                    var,
-                    declared,
-                    referenced,
-                },
-                _ => VarReadFault::Name { name },
-            }
-        }
-        other => other,
-    };
     Err(match (site, fault) {
         (ExprSite::Slot(slot), VarReadFault::Name { name }) => {
             EditError::SlotUnknownVarName { name, node, slot }
@@ -1234,6 +1199,17 @@ pub enum EditError {
         var: SpokenVar,
         /// The reading node.
         node: SpokenNode,
+    },
+    /// **The door's post-condition failed**: the written document
+    /// holds a name leaf in `node`, where a stored document reads
+    /// variables by id alone. Every writing arm lowers what it writes
+    /// and refuses a name that does not lower, so this is the kernel's
+    /// own defect, refused rather than stored.
+    NameLeafWritten {
+        /// The node holding the name leaf.
+        node: SpokenNode,
+        /// The name it reads.
+        name: VarName,
     },
     /// A [`Node::Measure`]'s expression reads a reference the node does
     /// not carry ([`crate::MeasureNodeFault`]).
@@ -2164,6 +2140,9 @@ impl EditError {
                 *node = node.respoken(doc);
                 *var = var.respoken(doc);
             }
+            Self::NameLeafWritten { node, name: _ } => {
+                *node = node.respoken(doc);
+            }
             Self::ContinuousVarCannotBeCount { var }
             | Self::VarNameTaken {
                 name: _,
@@ -2696,6 +2675,14 @@ impl EditError {
                     f,
                     "the declare drew the variable id {id}, which this document's mint log \
                      already holds"
+                )?;
+                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
+            }
+            Self::NameLeafWritten { node, name } => {
+                write!(
+                    f,
+                    "the edit would store {node} reading the name {name}, and a stored \
+                     document reads variables by id"
                 )?;
                 tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
             }
@@ -4632,6 +4619,26 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let wrote = write(&mut new, &mut reported)?;
+    // The post-condition, on EVERY arm: a stored node reads variables
+    // by id, so no name leaf survives the write. Each writing arm
+    // lowers and checks what it writes; this is what says so rather
+    // than assuming it, and refuses loud where an arm did not.
+    for (&node, n) in new
+        .order
+        .iter()
+        .filter_map(|id| Some((id, new.nodes.get(id)?)))
+    {
+        let mut names = Vec::new();
+        for expr in n.exprs() {
+            expr.named_reads(&mut names);
+        }
+        if let Some((name, _)) = names.into_iter().next() {
+            return Err(EditError::NameLeafWritten {
+                node: written(doc, node, n),
+                name,
+            });
+        }
+    }
     // VR7, on EVERY arm: an anonymous variable is read by something, so
     // the edit that detached its last reader removes it. The mint log
     // keeps its id.

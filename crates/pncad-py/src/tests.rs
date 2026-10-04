@@ -2973,6 +2973,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "param"],
     );
     carries(
+        &E::NameLeafWritten {
+            node: sp(1),
+            name: param(),
+        },
+        &["node", "param"],
+    );
+    carries(
         &E::SlotUnresolvedVar {
             var: spv(),
             node: sp(1),
@@ -4965,6 +4972,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
+            "name_leaf_written",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
             "node_id_collides",

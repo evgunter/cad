@@ -563,7 +563,7 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
 /// slot or payload ([`Walk::NamedReader`]).
 fn first_named_reader(snapshot: &ProfileDoc) -> Option<RecipeNodeId> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        crate::doc::node_exprs(node)
+        node.exprs()
             .into_iter()
             .any(|expr| {
                 let mut names = Vec::new();

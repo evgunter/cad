@@ -1592,6 +1592,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadVarKind { .. }
             | EditError::SlotUnresolvedVar { .. }
             | EditError::PayloadUnresolvedVar { .. }
+            | EditError::NameLeafWritten { .. }
             | EditError::VarNameUnchanged { .. }
             | EditError::AnonymousVarUnread { .. }
             | EditError::DeleteAnonymousVar { .. }
@@ -2241,7 +2242,7 @@ fn remap_node(
 /// extrude's distance is.
 fn node_var_reads(node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
     let mut reads = Vec::new();
-    for expr in crate::doc::node_exprs(node) {
+    for expr in node.exprs() {
         expr.var_reads(&mut reads);
     }
     reads.into_iter().map(|(var, _)| var).collect()
@@ -2249,10 +2250,7 @@ fn node_var_reads(node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
 
 /// Every reader in `node` re-pointed through `map`.
 fn remap_node_vars(node: &mut Node<ProfileProgram>, map: &BTreeMap<VarId, VarId>) {
-    for (_, expr) in node.rows_mut() {
-        expr.remap_vars(map);
-    }
-    for expr in crate::node::payload_exprs_mut(node).into_iter().flatten() {
+    for expr in node.exprs_mut() {
         expr.remap_vars(map);
     }
 }

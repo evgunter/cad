@@ -349,7 +349,8 @@ impl core::fmt::Display for DocParamField {
 /// which is a deleted variable's unresolved reader (VR7).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum VarReadFault {
-    /// An authored name leaf, unlowered.
+    /// An authored name leaf no variable holds (the lowering rule's
+    /// [`crate::expr::Unlowered::Unheld`]).
     Name {
         /// The name it reads.
         name: VarName,
@@ -364,7 +365,9 @@ pub(crate) enum VarReadFault {
         /// The id.
         var: VarId,
     },
-    /// A reader of a live variable, at another dimension than its kind.
+    /// A reader of a live variable, or a name leaf a live variable
+    /// holds ([`crate::expr::Unlowered::Kind`]), at another dimension
+    /// than its kind.
     Kind {
         /// The variable.
         var: VarId,
@@ -1092,13 +1095,27 @@ impl<P> Doc<P> {
     /// ([`VarReadFault`]). Both doors ask it, each of the slot and the
     /// payload expressions it walks, and each decides which arms refuse.
     pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
+        // A name leaf faults as the lowering rule left it: unheld, or
+        // held at another kind ([`Expr::lower_names`]'s answer).
         let mut names = Vec::new();
         expr.named_reads(&mut names);
+        let unlowered = if names.is_empty() {
+            Vec::new()
+        } else {
+            expr.clone().lower_names(&|name| self.lowering_scope(name))
+        };
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
-        names
+        unlowered
             .into_iter()
-            .map(|(name, _)| VarReadFault::Name { name })
+            .map(|(name, referenced, why)| match why {
+                crate::expr::Unlowered::Unheld => VarReadFault::Name { name },
+                crate::expr::Unlowered::Kind { var, declared } => VarReadFault::Kind {
+                    var,
+                    declared,
+                    referenced,
+                },
+            })
             .chain(
                 reads
                     .into_iter()
@@ -1146,7 +1163,7 @@ impl<P> Doc<P> {
     {
         let mut read = std::collections::BTreeSet::new();
         for node in self.nodes.values() {
-            for expr in node_exprs(node) {
+            for expr in node.exprs() {
                 let mut reads = Vec::new();
                 expr.var_reads(&mut reads);
                 read.extend(reads.into_iter().map(|(var, _)| var));
@@ -1437,19 +1454,9 @@ impl<P> Doc<P> {
     }
 }
 
-/// Every expression `node` carries: its slot expressions, then its
-/// payload expressions.
-pub(crate) fn node_exprs<P: crate::ProfilePayload>(node: &Node<P>) -> Vec<&Expr> {
-    node.rows()
-        .into_iter()
-        .map(|(_, expr)| expr)
-        .chain(crate::node::payload_exprs(node).into_iter().flatten())
-        .collect()
-}
-
 /// Whether any expression `node` carries reads `var`.
 pub(crate) fn node_reads<P: crate::ProfilePayload>(node: &Node<P>, var: VarId) -> bool {
-    node_exprs(node).into_iter().any(|expr| expr.reads(var))
+    node.exprs().into_iter().any(|expr| expr.reads(var))
 }
 
 impl<P: PartialEq + crate::ProfilePayload> Doc<P> {

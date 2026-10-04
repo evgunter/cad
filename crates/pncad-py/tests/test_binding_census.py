@@ -3564,6 +3564,7 @@ MEMBERS_BOUND_AS = {
     "EditError::DeleteAnonymousVar": "EditError.variant",
     "EditError::SlotUnresolvedVar": "EditError.variant",
     "EditError::PayloadUnresolvedVar": "EditError.variant",
+    "EditError::NameLeafWritten": "EditError.variant",
     "EditError::VarIdCollides": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
     "EditError::VarValueKindMismatch": "EditError.variant",
