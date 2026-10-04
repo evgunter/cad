@@ -47,14 +47,14 @@ fn env_usize(name: &str, default: usize) -> usize {
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &ParamBox) -> f64 {
     let mut m = 1.0;
     for (name, axis) in box_.axes() {
-        let Some(p) = analyzed.get(name) else {
+        let Some(p) = analyzed.get(*name) else {
             continue;
         };
         let Some(dist) = &p.distribution else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(*name), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -91,10 +91,10 @@ fn children(box_: &ParamBox) -> Vec<ParamBox> {
         };
         out = out
             .into_iter()
-            .flat_map(|acc: BTreeMap<VarName, BoxAxis>| {
+            .flat_map(|acc: BTreeMap<editor_core::VarId, BoxAxis>| {
                 halves.iter().map(move |h| {
                     let mut a = acc.clone();
-                    a.insert(name.clone(), *h);
+                    a.insert(*name, *h);
                     a
                 })
             })
@@ -265,14 +265,14 @@ pub(crate) fn d_tab_at(
     let mut r = Recorder::new();
     let declare =
         |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
-            r.push(DocEdit::SetDocParam {
+            r.push(DocEdit::DeclareVar {
                 name: VarName::from_static(n),
-                value: FreeVar::Continuous {
+                def: editor_core::VarDef::Free(FreeVar::Continuous {
                     dim,
                     value,
                     display_unit: UnitSym::canonical_for(dim),
                     distribution: Some(d),
-                },
+                }),
             });
         };
     declare(

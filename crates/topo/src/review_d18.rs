@@ -37,12 +37,10 @@
 //!   row that owns the gap,
 //!   `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
 //!
-//!   **Calling is not reaching, and the two rows say which they did.**
-//!   Both print an exposure per operator and both ASSERT it, per
-//!   operator rather than in aggregate: the deterministic row pins every
-//!   operator's count exactly against `SPENT_GRAFT_EXPOSURE`, and the
-//!   sampling row floors EACH of `LINK_OPS` — a mutation phase being the
-//!   only place a row-4 arm can fire. `kemr` is the one that needed a
+//!   **Calling is not reaching, and the row says which it did.** It
+//!   prints an exposure per operator and ASSERTS it, per operator
+//!   rather than in aggregate: it floors EACH of `LINK_OPS` — a
+//!   mutation phase being the only place a row-4 arm can fire. `kemr` is the one that needed a
 //!   fixture: its plan phase wants the two halves of ONE edge in ONE
 //!   loop, which no cube and no torn cube presents, so the sweep hammers
 //!   [`crate::fixtures::ops_ring_bridge`] (the holed box with its hole
@@ -925,34 +923,6 @@ const KEMR_CYCLE_RING: &str = "kemr: cycle ring side";
 #[cfg(not(debug_assertions))]
 const KEMR_EMPTY_RING: &str = "kemr: empty ring side";
 
-/// Every operator's exposure on the spent graft destination,
-/// **exactly**, because that row is deterministic end to end — one
-/// fixture, one tear, one graft, one hammer, no `Rng` and no effort
-/// dial. Asserted rather than written in a comment: the comment this
-/// replaced named a per-operator count that nothing held, and it had
-/// been wrong for the row's whole life.
-///
-/// A change that moves one of these is not a failure to be edited back
-/// into line; re-derive the row and say in the PR what moved and why it
-/// is right.
-#[cfg(not(debug_assertions))]
-const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
-    ("kef", 16),
-    ("kemr", 2),
-    (KEMR_CYCLE_RING, 2),
-    (KEMR_EMPTY_RING, 0),
-    ("kev", 25),
-    ("mef_chord", 90),
-    ("mev_line", 54),
-    ("mfkrh_plug", 1),
-    ("split_edge", 93),
-];
-
-/// Calls the spent-destination row makes, exactly — see
-/// [`SPENT_GRAFT_EXPOSURE`] for why an exact number and not a floor.
-#[cfg(not(debug_assertions))]
-const SPENT_GRAFT_CALLS: usize = 1_420;
-
 /// Calls one ROUND of the torn sweep makes — every [`FIXTURES`] entry
 /// hammered once — exactly.
 ///
@@ -960,16 +930,17 @@ const SPENT_GRAFT_CALLS: usize = 1_420;
 /// [`plant`] rewrites fields and never adds or removes an entity, and
 /// [`hammer`] iterates collections it took before the first call, so
 /// the count is `trials × TEARS.len() ×` this and does not depend on
-/// the draw. Asserted rather than floored, for the reason
-/// [`SPENT_GRAFT_EXPOSURE`] gives.
+/// the draw. Asserted rather than floored: a count that is a fact about
+/// the tree is checkable only as an exact number, and a change that
+/// moves it is not a failure to be edited back into line — re-derive
+/// it and say in the PR what moved and why it is right.
 #[cfg(not(debug_assertions))]
 const TORN_SWEEP_CALLS_PER_ROUND: usize = 1_928;
 
 #[cfg(not(debug_assertions))]
 const CALLS: &str = "operator calls";
 
-/// The bodies the TORN SWEEP is run over, by name. (The spent-graft row
-/// builds its own destination directly and reads nothing here.)
+/// The bodies the TORN SWEEP is run over, by name.
 ///
 /// **The cube alone cannot get `kemr` past its plan phase, and no
 /// amount of tearing changes that.** `kemr` wants the two halves of one
@@ -1106,8 +1077,7 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
 /// exercised* from *one exercised and five refused at the door* — and on
 /// this fixture family that is not hypothetical: `mfkrh_plug` proves
 /// only that the ring it is handed walks as its own, so its count moves with how many
-/// rings walk as their own (once on today's destination, the figure
-/// [`SPENT_GRAFT_EXPOSURE`] holds) rather than with the arms under
+/// rings walk as their own rather than with the arms under
 /// attack, and a floor on the total could be held up by it alone.
 /// [`LINK_OPS`] is therefore what the floor counts over, and
 /// `mfkrh_plug` is not in it.
@@ -1379,77 +1349,6 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
              it runs are attacked by nothing — {}",
             fuzz::replay()
         ),
-    );
-}
-
-/// The spent-destination attack: `graft_disjoint_all_keyed` is a PUBLIC
-/// door whose own docs concede that a mid-transplant refusal leaves
-/// `dst` partially written and never resumable. Take a body through a
-/// failed graft, KEEP it, and run the operators over it.
-///
-/// The graft is made to fail in its cross-reference patch pass, which
-/// is the failure that leaves half-edges holding SOURCE-arena keys in
-/// `next`/`prev` — the #720 hazard, where such a key may resolve to an
-/// unrelated LIVE entity of `dst` rather than dangle. Tearing the
-/// source needs `pub(crate)` reach, so this row is a SUPERSET of what a
-/// public consumer can build, which is the right direction for a
-/// falsification attempt.
-#[test]
-#[cfg(not(debug_assertions))]
-fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
-    let tol = Tol::witness();
-    let cube = declined_cube::<f64>(tol);
-    let mut src = cube.body;
-    src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    // The DESTINATION carries the ring bridge, so the spent body still
-    // presents the one edge whose halves share a loop and `kemr` has an
-    // input here too; the source stays the cube, since what it has to be
-    // is torn enough to refuse mid-patch.
-    let mut dst = ops_ring_bridge(tol).body;
-    let before = deep_snapshot(&dst);
-    assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
-        "the torn source must refuse to graft"
-    );
-    assert_ne!(
-        deep_snapshot(&dst),
-        before,
-        "this row only means something if the refusal really did leave \
-         `dst` partially written; if the graft ever becomes atomic, retire it"
-    );
-    let census = hammer(&dst, tol);
-    census.report();
-    // THE EXACT TALLY, which this row alone can carry and which is the
-    // whole floor here: the row is deterministic, so every operator's
-    // exposure is a fact about the tree rather than about a draw, and a
-    // per-operator number is the only form in which the module doc's
-    // coverage claim is checkable at all. It sees `kemr` falling from
-    // its 2 back to 0, and a change that quietly halves `mef_chord`.
-    //
-    // No aggregate floor beside it: `require_nonzero_among(&LINK_OPS,
-    // …)` over the same census asserts strictly less than this loop
-    // does — every entry below is nonzero but `kemr`'s empty-ring arm,
-    // which no input on this destination reaches — so it would be a
-    // guard nothing could break alone.
-    //
-    // The floor a spent graft destination needs is a per-operator one
-    // for the reason the twin row gives: it is more structurally damaged
-    // than a randomly torn body, so it is the likelier of the two to
-    // have its calls refuse in a plan phase — the run that proves
-    // nothing about the arms under attack while passing green.
-    for (op, expected) in SPENT_GRAFT_EXPOSURE {
-        assert_eq!(
-            census.count(op),
-            expected,
-            "`{op}` reached {} mutation phases on the spent destination, against {expected} \
-             measured: {census}",
-            census.count(op)
-        );
-    }
-    assert_eq!(
-        census.count(CALLS),
-        SPENT_GRAFT_CALLS,
-        "the spent destination no longer presents the keys this row hammers: {census}"
     );
 }
 

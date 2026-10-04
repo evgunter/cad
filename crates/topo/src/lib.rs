@@ -376,6 +376,22 @@ pub mod test_support {
         crate::boolean::join_refusal(op, a, b, decls, tol)
     }
 
+    /// The join's section segments of `op`: the pair-record count and
+    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// `None` where the reduction registers no pair.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal, or the matcher's.
+    pub fn boolean_segment_sites(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::boolean::SegmentSites>, crate::BooleanError> {
+        crate::boolean::section_segment_sites(op, a, b, tol)
+    }
+
     /// The direct split run through its join: the scratch body with
     /// every null edge killed, before the finish and the closing mint
     /// (`splitting::through_the_join`).

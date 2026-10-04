@@ -38,9 +38,9 @@ fn small() -> (ProfileDoc, String) {
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            value: FreeVar::continuous(Dimension::Length, 2.5),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -118,24 +118,30 @@ fn tokens_separate_structure_from_data() {
 }
 
 /// ATTACK 2: duplicate JSON object keys in serde-derived BTreeMaps
-/// (params / nodes / metadata / witnesses) — last-wins silently?
+/// (vars / nodes / metadata / witnesses) — last-wins silently?
 #[test]
 fn attack_duplicate_json_keys() {
-    let (_, text) = small();
-    // Duplicate the "q" param with a different value.
-    let dup_param = text.replace(
-        "\"q\": {",
-        "\"q\": {\"Continuous\":{\"dim\":\"Length\",\"value\":9.75,\"display_unit\":\"m\"}}, \"q\": {",
+    let (doc, text) = small();
+    // Duplicate the "q" variable's entry with a different value.
+    let q = doc.var_named("q").expect("the fixture declares q");
+    let key = format!("\"{}\": {{", q.0);
+    let dup_param = text.replacen(
+        &key,
+        &format!(
+            "{key}\"kind\":\"Length\",\"def\":{{\"Free\":{{\"Continuous\":{{\"dim\":\
+             \"Length\",\"value\":9.75,\"display_unit\":\"m\"}}}}}}}}, {key}"
+        ),
+        1,
     );
-    assert_ne!(dup_param, text, "fixture must contain the param");
+    assert_ne!(dup_param, text, "fixture must contain the variable");
     match load(&dup_param, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                detail.contains("duplicate document parameter key") && detail.contains("\"q\""),
+                detail.contains("duplicate variable key") && detail.contains(&q.to_string()),
                 "refusal must name key and section: {detail}"
             );
         }
-        other => panic!("duplicate param key must refuse typed, got {other:?}"),
+        other => panic!("duplicate variable key must refuse typed, got {other:?}"),
     }
 }
 
@@ -218,9 +224,7 @@ fn attack_long_decimal_strings() {
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
-        let Some(FreeVar::Continuous { value, .. }) =
-            loaded.doc.params().get(&VarName::from_static("q"))
-        else {
+        let Some(FreeVar::Continuous { value, .. }) = loaded.doc.free_named("q") else {
             panic!("param lost")
         };
         assert_eq!(
@@ -240,10 +244,7 @@ fn attack_inf_via_big_exponent() {
         assert_ne!(crafted, text);
         match load(&crafted, Tol::witness()) {
             Err(PersistError::Parse { .. }) => {}
-            Ok(l) => panic!(
-                "{s} loaded as {:?}",
-                l.doc.params().get(&VarName::from_static("q"))
-            ),
+            Ok(l) => panic!("{s} loaded as {:?}", l.doc.free_named("q")),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
     }
@@ -269,12 +270,12 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         edits.push(e);
         a.record.minted
     };
-    // 1 SetDocParam
+    // 1 DeclareVar
     push(
         &mut doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("d"),
-            value: FreeVar::continuous(Dimension::Length, 1.5),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so

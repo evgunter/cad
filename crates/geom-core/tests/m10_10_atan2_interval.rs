@@ -28,7 +28,12 @@ fn band() -> Band {
 
 /// A parameter over a box, minted in the installed session.
 fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+    Sym::param_over(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
 }
 
 /// How the tier answered the margin `build` makes inside a fresh

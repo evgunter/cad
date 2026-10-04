@@ -114,7 +114,7 @@ impl ViewerBehavior<'_> {
                         // parameter's notation is a fact the document
                         // stores and an edit changes
                         // (`SessionOp::SetParamUnit`, over
-                        // `DocEdit::SetDocParamUnit`), so the row says
+                        // `DocEdit::SetVarUnit`), so the row says
                         // it the way a slot row does: with the control
                         // that changes it. The dimensionless row and a
                         // `Count` have no notation to offer and draw
@@ -292,7 +292,7 @@ impl ViewerBehavior<'_> {
         // not see.
         let existing = name
             .as_ref()
-            .and_then(|name| self.session.committed_doc().params().get(name));
+            .and_then(|name| self.session.committed_doc().free_named(name.as_str()));
         if let (Some(name), Some(existing)) = (&name, existing) {
             if exists_notice(ui, &self.theme, name, existing.dim()) {
                 self.ops

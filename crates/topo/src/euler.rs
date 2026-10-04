@@ -113,39 +113,18 @@
 //!   sweep is a claim about both, and it is the only thing that sees
 //!   this one.
 //!
-//!   **The exception, and it is a real one.**
-//!   [`crate::instance`]'s grafts are a **raw transplant**, not an
-//!   operator run: `graft_disjoint_all_keyed` mints an empty
-//!   destination solid per source solid before transplanting, and a
-//!   refusal raised mid-transplant leaves `dst` partially written —
-//!   its own docs say the destination is then *spent, never
-//!   resumable*, and the destination's own docs, `DESIGN.md`'s D9
-//!   footnote and the 37-door allowlist entry in
-//!   `review_m1_pr5_internal` all name that state as the tier-1 error
-//!   [`crate::ValidationError::SolidWithoutShells`] — which is the
-//!   *late* failure, raised after the transplant's second pass with
-//!   every key patched. **All three understate it.** A refusal raised
-//!   between the transplant's two passes leaves entities holding
-//!   source-internal keys, which in `dst` either dangle or resolve to
-//!   an unrelated live entity. The same sentence is written in three
-//!   places, so a correction has to reach all three. So a caller that
-//!   ignores a graft's `Err` and keeps using `dst` can hand the next
-//!   operator a tier-1-invalid body and fire its postcondition from
-//!   **API misuse rather than a kernel bug**. That is the state class
-//!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover. **It is an open question in front of Ev,
-//!   not a thing this module settles**: whether the graft can be
-//!   restructured so a partially-written destination is not
-//!   representable — staging into a fresh body and committing on
-//!   success, the shape [`Body::merge_coplanar_faces`] already uses —
-//!   or whether the class gets a name of its own.
+//!   **The graft is a transplant, not an operator run.**
+//!   [`crate::instance`]'s grafts copy a whole source body into the
+//!   destination's arenas. The transplant runs into a fresh staging
+//!   body and is committed into the destination only once it has
+//!   succeeded in full, so a refusal leaves the destination as it
+//!   was; the committed body is swept like any operator's.
 //!
-//!   The D9 taxonomy consequence therefore holds **for every door but
-//!   that one**: these debug panics are
-//!   **unreachable by input** through the public API as it stands —
-//!   no public path builds a `Body` from bytes, so reaching one
-//!   requires in-crate raw corruption (which is what the validator's
-//!   own tests do deliberately) or a discarded graft refusal. Release
+//!   The D9 taxonomy consequence therefore holds at every door: these
+//!   debug panics are **unreachable by input** through the public API
+//!   as it stands — no public path builds a `Body` from bytes, so
+//!   reaching one requires in-crate raw corruption (which is what the
+//!   validator's own tests do deliberately). Release
 //!   builds carry no postcondition either way: on corruption the plan
 //!   phase cannot detect they return `Ok` with a garbage body. That is
 //!   wrong data written by lookups that all succeeded — the silent

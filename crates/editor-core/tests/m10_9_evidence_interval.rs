@@ -282,10 +282,11 @@ fn the_two_fillet_forms() {
         max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
     };
     for n in ["r", "ax", "ay", "bx", "by"] {
-        name_param(n);
+        name_param(geom_core::ParamSymbol::new(test_utils::symbol_id(n)), n);
     }
     let (_, counts) = with_session_rules(budget, SymRules::shipped(), || {
-        let p = |n: &str, v: f64| Sym::param(geom_core::ParamSymbol::of(n), v);
+        let p =
+            |n: &str, v: f64| Sym::param(geom_core::ParamSymbol::new(test_utils::symbol_id(n)), v);
         let (r, ax, ay, bx, by) = (
             p("r", 2.0e-3),
             p("ax", 0.0),

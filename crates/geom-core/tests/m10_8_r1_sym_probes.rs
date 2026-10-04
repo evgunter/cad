@@ -26,7 +26,10 @@ fn band() -> Band {
 }
 
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn lit(x: f64) -> Sym<Interval> {

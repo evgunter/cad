@@ -431,3 +431,95 @@ CONTACT's tube-rim tangent tier-3′ row, an issues row on a tilted tube
 cut 1.2e-7 off its oracle.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4008 lands: a germ ranks its partners by the turn along the conic
+
+Two rows are closed: `a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face`
+and `join-ranks-conic-facing-germs-by-chord`.
+
+**Cause 1.** Ring re-homing was not the cause. `find_match` ranked
+partner sites by chord length. On a conic germ line the chord grows to
+the half-turn and then shrinks, so the matcher picked a partner a major
+arc away and the chord walled the run off. Each germ now ranks its own
+candidates by half-turn (`germ_arm`), then by the turn along the conic
+(`nearer_along`, `bool_join_arc_travel`). The chord is kept only as the
+tie-break, for straight lines, and for ordering pairs. `loose_partners`
+reads the same rule.
+
+**Cause 2.** `wall_region` takes the wall window from the region that
+owns the halves. It is lineage-guarded: `chord_join::lineage`, which
+`rest::fragment_holding` now shares.
+
+**Review tier: DUAL, H / ARCHITECTURAL (DR-74).**
+- R1: NOT-MERGEABLE-AS-IS, 1/3/6. Its MAJOR: within one arm the chord
+  is not monotone on a steep ellipse (k² > 2). One pose shipped a
+  `LoopRoleInverted` body where main refused.
+- R2: APPROVE-WITH-FIXES, 0/3/3. It found the same defect as 300
+  refusals.
+- Coded by a blinded coder: bilateral, tally 0.
+
+**Fix pass (cloud session).** It ranks by the turn rather than an
+in-arm chord, and adds the gating row
+`steep_ellipse_poses_build_sound_or_refuse_typed`, red on the frozen
+head with 25 misses.
+
+**Delta review** on `42bc54e5`: single FULL, no MAJOR, 0/2/3.
+- An atan2 instrument found 0 mispicks in about 800k selections, at k
+  from 0.05 to 10.
+- The PR body's tables reproduce exactly.
+- MINOR 1: the travel margin is not arc length on a steep ellipse.
+  Filed as `a-steep-ellipse-travel-margin-ties-band-apart-sites-and-falls-back-to-the-chord`.
+- MINOR 2: the conic row was left open. It is closed here.
+
+**Measured.**
+- Steep-ellipse batteries against main: the scan goes from 22 SOUND
+  and 20 BAD to 1 303 SOUND and 0 BAD. The plate battery goes from
+  1 151 to 1 817 built right. U-plate goes from 66 to 192 of 192.
+- Across the 14 batteries: 0 SOUND→refusal and 0 new BAD.
+- One main-SOUND pose now refuses: k = 0.5, ∪ AB. Main's body was right
+  by luck, on two wrong chords. The pose is now a witness on FLUX's
+  `an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane`.
+
+**Filed:**
+- `a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef`
+- cleave's `which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways`
+- cleave's `site-census-attributes-a-parents-decisions-to-its-nested-fn`
+
+**HOLD (D10).** The `wall_region` branch with one half on the recorded
+face is left as it was: that pose is declared ground.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4025 lands: the transverse cylinder × sphere germ frame
+
+`cylinder-sphere-germ-pair-has-no-section-frame` is closed.
+
+**What changed.** A transverse cylinder-wall × sphere germ pair now has
+its section frame (`cs_germ_frame`, `cs_transverse_frame`). One loop
+reads one axis and two loops read the offset axis. The loop count is
+decided by `bool_germ_frame_cs_reach`. The node, the coaxial pose and an
+in-band offset keep `NoArm`; under the D10 hold the declared-coaxial
+reading is unchanged.
+
+**No body ships yet.** Every pose now stops at the lane door. The lane
+is filed as a design row, `cylinder-sphere-germ-pair-has-no-join-lane`.
+A turned-chart ball crossing a cap stops earlier, at `SectionNotPolar`.
+
+**Review tier: single FULL**, cloud session. Reason: a new decided
+frame, but a wrong frame cannot ship a body until the lane lands, and
+the lane gets its own review. Verdict APPROVE-WITH-FIXES, 0/3/4.
+- An analytic sweep found 0 bad loops in 5 656, and 114 matcher-level
+  edge poses (transition, tilted drum) passed.
+- The batteries are byte-identical: `rc_wide`, `join1_r1`, delta arc.
+- The review's own mutant M4, on the loop-count margin, survived every
+  integration row. The fix pass adds an r < R < r + d pose, and M4 now
+  turns it red.
+- The minors were tracker and prose. REACH's NURBS rung was re-parked
+  on the lane row.
+
+**Filed:**
+- `skew-cylinder-germ-pair-has-no-section-frame`
+- `torus-germ-pairs-have-no-section-frame`
+- `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times`
+
+Signed (JOIN orchestrator).
