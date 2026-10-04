@@ -6625,3 +6625,11 @@ Dispatched `a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-th
 session_01S8KTUqDStHBaoKW1H8uxX2 on `topo/re-anchored-loop-rows-match-the-pass`. Its question is whether the
 defect is (a) the kill keeping rows, or (b) the pass deriving rows from an arbitrary `first`. It must stop and
 report if that turns out to be a real design fork.
+
+## PR 3970: Ev answered choice 1 (2026-10-04 06:41)
+
+Ev: "1. the final state should be B, and i also think it'd be best to go directly there rather than by way of A, but
+less sure on the second. for 2 and 3 i am still unsure". Recorded 1 = B (field privacy, compile-time). Round 4
+is dispatched to both designers (brief /home/user/topo-orch/design-kef-r4-brief.md): re-weigh 2 and 3 given 1 = B,
+and say whether to go direct to B. I acknowledged on the PR and will post the reports, then edit the row in
+place.
