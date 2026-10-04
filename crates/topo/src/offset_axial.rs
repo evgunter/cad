@@ -839,11 +839,8 @@ fn axial_frame<T: Real>(
     // The same posture the axis gate's third outcome is documented
     // under: written for correctness rather than pinned by a fixture.
     let mut extent = T::zero();
-    for (vertex, p) in body.vertex_points() {
-        if !scope.holds_vertex(vertex) {
-            continue;
-        }
-        extent = extent.max((p - origin).norm());
+    for (key, vertex) in body.vertices().filter(|&(k, _)| scope.holds_vertex(k)) {
+        extent = extent.max((body.point_of(key, vertex) - origin).norm());
     }
     Ok(Frame {
         origin,
