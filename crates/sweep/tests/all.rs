@@ -105,6 +105,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
+#[path = "parallel_cylinder_join.rs"]
+mod parallel_cylinder_join;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
 #[path = "pieces_oblique_bore.rs"]

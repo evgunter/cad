@@ -2294,6 +2294,14 @@ impl<T: Real> SegmentCurve<T> {
     }
 }
 
+impl<T: Real> SegmentCurve<T> {
+    /// The curve from the site of `halves.0`, or `None` for the straight
+    /// chord.
+    pub(crate) fn spec(&self) -> Option<&EdgeCurveSpec<T>> {
+        self.spec.as_ref()
+    }
+}
+
 impl<T: Decide> SegmentCurve<T> {
     /// The curve closing the ring-lane run `[h1 .. h2]` — the chord the
     /// joiner's first `mef` mints, run from `h2`'s site back to `h1`'s,
