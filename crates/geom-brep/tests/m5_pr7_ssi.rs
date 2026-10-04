@@ -5086,6 +5086,7 @@ fn a_straight_marched_branch_takes_the_fits_four_samples() {
         panic!("{at}: expected two branches, got {}", out.branches.len());
     };
     let n = first.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    eprintln!("STRAIGHT {at}: samples {n} halvings {}", geom_brep::ssi::march::PROBE_HALVINGS.with(|c| c.get()));
     assert_eq!(n, 4, "{at}: the marched metre's samples");
     assert!(one_cubic_span(&at, second), "{at}: the second branch");
 }

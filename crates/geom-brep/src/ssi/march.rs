@@ -978,6 +978,8 @@ where
             return Err(unusable(StepFault::SpeedUnusable));
         }
 
+        // PROBE: halvings this step, counted against the wall when PROBE_ATTEMPTS.
+        let mut probe_extra = 0usize;
         // ---- 4./5. the step ----
         let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
@@ -1134,6 +1136,7 @@ where
                         }
                         h *= 0.5;
                         PROBE_HALVINGS.with(|c| c.set(c.get() + 1));
+                        probe_extra += 1;
                     }
                     last_h = Some(h);
                 }
@@ -1204,6 +1207,9 @@ where
         };
         next = refined;
         steps += 1;
+        if std::env::var("PROBE_ATTEMPTS").is_ok() {
+            steps += probe_extra;
+        }
         match bound {
             StepBound::Curvature => held.curvature += 1,
             StepBound::Cap(cap) | StepBound::Both(cap) => held.caps[cap.index()] += 1,
