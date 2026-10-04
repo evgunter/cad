@@ -654,7 +654,10 @@ impl<T: Decide> PastTarget<'_, T> {
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
         let walk = &self.walk;
         let lane = walk.quad?;
-        Some(rederive(walk.body, walk.band, walk.tol, lane, &walk.runs).map(|r| (r.volume, r.area)))
+        Some(
+            rederive(walk.body, walk.band, walk.tol, lane, &walk.runs, true)
+                .map(|r| (r.volume, r.area)),
+        )
     }
 
     /// **One round further** on every face that met the target at a
@@ -730,9 +733,9 @@ impl<T: Decide> Round<'_, '_, T> {
     pub(crate) fn certify(&self, names: RoleNames, certified: RoleNames) -> Certified {
         certify_role(
             self.reading(),
-            || {
+            |tight| {
                 self.certify
-                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs))
+                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight))
             },
             names,
             certified,
@@ -950,8 +953,15 @@ pub(crate) enum Certified {
 /// at the closed forms' own outward rounding about that corner. An
 /// interval that decides nothing is [`Certified::Open`] where every face
 /// was recentred — the sign is in band, or straddles zero by the body's
-/// own rounding — and [`Certified::Unresolved`] where a quadrature face
-/// kept its world-origin width. The sums are read
+/// own rounding — and [`Certified::Unresolved`] where a face kept its
+/// world-origin width.
+///
+/// `interval(tight)` is read in two stages, so a decision costs one read
+/// of each face wherever one suffices. Untight (`false`), a quadrature
+/// face is the walk's own enclosure less `c · A⃗`, no new quadrature; a
+/// role it decides stands, the enclosure being sound. Only where it
+/// leaves the sign open on a face it did not recentre is `interval(true)`
+/// read, which measures those faces again about the corner. The sums are read
 /// first all the same, and when neither decides, theirs is the reading a
 /// refusal reports: it carries the valued margin a caller can act on,
 /// where the interval's carries an enclosure. A walk holding no lane has
@@ -959,28 +969,33 @@ pub(crate) enum Certified {
 /// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
-    interval: impl FnOnce() -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
+    interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
     names: RoleNames,
     certified: RoleNames,
     band: Band,
 ) -> Certified {
     let walk = read_role(reading, names, band);
-    match (interval(), walk) {
-        (None, RoleRead::Decided(role)) => Certified::Role(role),
-        (None, RoleRead::Unread(unread)) => Certified::Open(unread),
-        (Some(Err(source)), _) => Certified::Refused(source),
-        (Some(Ok((exact, recentred))), walk) => {
-            let unread = match (read_role(exact, certified, band), walk) {
-                (RoleRead::Decided(role), _) => return Certified::Role(role),
-                (RoleRead::Unread(_), RoleRead::Unread(unread))
-                | (RoleRead::Unread(unread), RoleRead::Decided(_)) => unread,
-            };
-            if recentred {
-                Certified::Open(unread)
-            } else {
-                Certified::Unresolved(unread)
+    let read =
+        |got: Option<Result<(SignReading<Interval>, bool), MassPropsError>>| match (got, walk) {
+            (None, RoleRead::Decided(role)) => Certified::Role(role),
+            (None, RoleRead::Unread(unread)) => Certified::Open(unread),
+            (Some(Err(source)), _) => Certified::Refused(source),
+            (Some(Ok((exact, recentred))), walk) => {
+                let unread = match (read_role(exact, certified, band), walk) {
+                    (RoleRead::Decided(role), _) => return Certified::Role(role),
+                    (RoleRead::Unread(_), RoleRead::Unread(unread))
+                    | (RoleRead::Unread(unread), RoleRead::Decided(_)) => unread,
+                };
+                if recentred {
+                    Certified::Open(unread)
+                } else {
+                    Certified::Unresolved(unread)
+                }
             }
-        }
+        };
+    match read(interval(false)) {
+        Certified::Unresolved(_) => read(interval(true)),
+        certified => certified,
     }
 }
 
@@ -991,8 +1006,9 @@ fn rederived<T: Decide>(
     tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
+    tight: bool,
 ) -> Result<(SignReading<Interval>, bool), MassPropsError> {
-    rederive(body, band, tol, lane, runs)
+    rederive(body, band, tol, lane, runs, tight)
         .map(|r| (SignReading::exact(r.volume, r.area), r.recentred))
 }
 
@@ -1029,18 +1045,23 @@ fn rederive<T: Decide>(
     tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
+    tight: bool,
 ) -> Result<Rederived, MassPropsError> {
     if runs.is_empty() {
-        return rederive_about(body, band, tol, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
-            what: "a walk about the world origin asked for a recentring",
-        });
+        return rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
+            MassPropsError::Corrupt {
+                what: "a walk about the world origin asked for a recentring",
+            },
+        );
     }
     let centre = corner_of(body, lane, runs)?;
-    match rederive_about(body, band, tol, lane, runs, Some(centre))? {
+    match rederive_about(body, band, tol, lane, runs, Some(centre), tight)? {
         Some(rederived) => Ok(rederived),
-        None => rederive_about(body, band, tol, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
-            what: "a walk about the world origin asked for a recentring",
-        }),
+        None => rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
+            MassPropsError::Corrupt {
+                what: "a walk about the world origin asked for a recentring",
+            },
+        ),
     }
 }
 
@@ -1055,6 +1076,7 @@ fn rederive_about<T: Decide>(
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
     centre: Option<Point3<Interval>>,
+    tight: bool,
 ) -> Result<Option<Rederived>, MassPropsError> {
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = centre.is_some();
@@ -1076,16 +1098,23 @@ fn rederive_about<T: Decide>(
                     .or(run.converged_at)
                     .map_or(RoundWindow::SCHEDULE, RoundWindow::at);
                 let (outer, hes) = loop_edges(body, face.outer)?;
-                match (lane.cut_face_rounds)(
-                    body,
-                    surface,
-                    &outer,
-                    &hes,
-                    band,
-                    tol,
-                    window,
-                    Some(centre),
-                ) {
+                let rerun = if tight {
+                    (lane.cut_face_rounds)(
+                        body,
+                        surface,
+                        &outer,
+                        &hes,
+                        band,
+                        tol,
+                        window,
+                        Some(centre),
+                    )
+                } else {
+                    Err(PropsError::QuadratureUnsupported {
+                        what: "the untight read keeps the walk's enclosure",
+                    })
+                };
+                match rerun {
                     Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
                         (b.flux, b.area)
                     }
@@ -2895,7 +2924,7 @@ fn classify_shells_via<T: Decide>(
         let (volume, volume_pad) = (sums.volume, sums.volume_pad);
         let role = match certify_role(
             sums.reading(),
-            || quad.map(|lane| rederived(body, band, tol, lane, &runs)),
+            |tight| quad.map(|lane| rederived(body, band, tol, lane, &runs, tight)),
             SHELL_ROLE_NAMES,
             SHELL_ROLE_ENCLOSURE_NAMES,
             band,
