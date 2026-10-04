@@ -1434,9 +1434,11 @@ pub enum EvalError {
         /// The dimension the reader reads at.
         read: Dimension,
     },
-    /// A name leaf reached evaluation: an authored expression no edit
-    /// door lowered. Unreachable from a stored document (the doors
-    /// lower every name, and the load door refuses a file holding one).
+    /// A name leaf reached evaluation: an authored expression whose name
+    /// no document resolved — none holds it at the dimension it is read
+    /// at, or none was asked. Unreachable from a stored document (the
+    /// doors lower every name, and the load door refuses a file holding
+    /// one).
     UnloweredName {
         /// The name.
         name: VarName,
@@ -1492,8 +1494,8 @@ impl core::fmt::Display for EvalError {
             }
             Self::UnloweredName { name } => write!(
                 f,
-                "the name {name} was never resolved to a variable — an expression \
-                 reaches evaluation through an edit door, which resolves its names"
+                "the name {name} reads no variable — no variable holds it at the dimension \
+                 it is read at; declare it, or read a declared variable"
             ),
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \

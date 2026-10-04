@@ -1823,7 +1823,7 @@ edit.
 
 Named document parameters were LIB-U10's headline finding: the façade
 did not re-export `VarName` or `FreeVar`, so declaring a variable
-and `Expr::param` were doors a `pncad`-only consumer could see and not
+and `Expr::named` were doors a `pncad`-only consumer could see and not
 open, and a `compile_fail` doctest sat here pinning the hole.
 R1-PARAMS cured it — both names are curated through `pncad::document`
 (and the prelude), so what follows is `plate_param` itself, authored
@@ -1944,8 +1944,27 @@ assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
                                // branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
+
+// The holes were authored by NAME and are stored by IDENTITY: the
+// edit door resolved `hole_r` to the variable it names. So a rename
+// writes the name and nothing else, and nothing recomputes.
+let held = bigger.var_named("hole_r").expect("declared");
+let renamed = apply(&bigger, &DocEdit::RenameVar {
+    var: VarName::from_static("hole_r").into(),
+    name: Some(VarName::from_static("hole_radius")),
+}, tol, &pncad::document::RefusingReach)?.doc;
+assert_eq!(renamed.var_named("hole_radius"), Some(held));
+let ev3 = evaluate::<f64>(&renamed, Some(&ev2), &CancelToken::new(), &EvalOptions::default(), tol);
+assert_eq!(ev3.recomputed, 0);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+A slot reads a variable by its minted id, never by its name; the name
+lives beside the variable and is resolved only where text is read
+(`parse_expr`, an expression authored with `Expr::named`) or written
+(`Doc::unparse`). `DocEdit::DeleteVar` removes a named variable and
+leaves its readers in place, unresolved: evaluation refuses at each
+one, typed, and the id is never minted again.
 
 Note what row 3 of §3.1 already told you: `DefineVar` applies
 cleanly even for a value the geometry will refuse — a program that

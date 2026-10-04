@@ -1159,6 +1159,20 @@ impl<P> Doc<P> {
             .collect()
     }
 
+    /// **`expr` with every name leaf this document resolves lowered** to
+    /// a reader of the variable it names, at the kind the leaf reads it
+    /// at ([`Expr::lower_names`]) — what the edit door writes, for a
+    /// caller that evaluates an authored expression against this
+    /// document without storing it. A name the document does not hold
+    /// at that kind stays, and evaluation refuses it
+    /// ([`crate::EvalError::UnloweredName`]).
+    #[must_use]
+    pub fn lowered(&self, expr: &Expr) -> Expr {
+        let mut lowered = expr.clone();
+        lowered.lower_names(&|name| self.lowering_scope(name));
+        lowered
+    }
+
     /// **The text of `expr`**, its readers written by the names this
     /// document holds ([`crate::unparse`]).
     pub fn unparse(&self, expr: &Expr) -> String {

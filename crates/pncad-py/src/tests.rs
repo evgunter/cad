@@ -1908,6 +1908,10 @@ fn expression_evaluation_tags_are_stable() {
     let parse = |src: &str| parse_expr(src, &declared).expect("a well-formed expression");
 
     let bound = lengths.var_env::<f64>();
+    // The names are read against the document, as `Document.eval` reads
+    // them.
+    let parse_in = |doc: &ProfileDoc, src: &str| doc.lowered(&parse(src));
+    let parse = |src: &str| parse_in(&lengths, src);
 
     // The value the whole family exists for: an expression a caller
     // could not otherwise evaluate without re-implementing the
@@ -1923,15 +1927,38 @@ fn expression_evaluation_tags_are_stable() {
     );
 
     assert_eq!(
-        tag(&eval(&parse("width"), &empty.var_env::<f64>()).expect_err("no binding")),
-        "unknown_param"
+        tag(&eval(&parse_in(&empty, "width"), &empty.var_env::<f64>()).expect_err("no binding")),
+        "unlowered_name"
     );
 
-    // The expression's reference recorded a length; this document
-    // declares the same name as a count.
+    // The expression reads a length; this document holds the same name
+    // as a count, so the name does not lower.
     assert_eq!(
-        tag(&eval(&parse("width"), &counts.var_env::<f64>()).expect_err("the dimensions disagree")),
-        "param_dimension_mismatch"
+        tag(&eval(&parse_in(&counts, "width"), &counts.var_env::<f64>())
+            .expect_err("the dimensions disagree")),
+        "unlowered_name"
+    );
+
+    // A reader by id the document does not bind, and one at the wrong
+    // kind.
+    let read = parse("width");
+    assert_eq!(
+        tag(&eval(&read, &empty.var_env::<f64>()).expect_err("no binding")),
+        "unresolved_var"
+    );
+    let count = counts
+        .var_env::<f64>()
+        .bindings
+        .into_values()
+        .next()
+        .expect("counts binds its variable");
+    let mut wrong = lengths.var_env::<f64>();
+    for value in wrong.bindings.values_mut() {
+        *value = count;
+    }
+    assert_eq!(
+        tag(&eval(&read, &wrong).expect_err("the kinds disagree")),
+        "var_kind_mismatch"
     );
 
     assert_eq!(
@@ -2931,13 +2958,31 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::PayloadVarKind {
-            name: param(),
+            var: spv(),
             node: sp(1),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         },
         &["node", "param", "expected", "found"],
     );
+    carries(
+        &E::PayloadUnresolvedVar {
+            var: spv(),
+            node: sp(1),
+        },
+        &["node", "param"],
+    );
+    carries(
+        &E::SlotUnresolvedVar {
+            var: spv(),
+            node: sp(1),
+            slot: SlotId::Count,
+        },
+        &["node", "slot", "param"],
+    );
+    carries(&E::VarNameUnchanged { var: spv() }, &["param"]);
+    carries(&E::AnonymousVarUnread { var: spv() }, &["param"]);
+    carries(&E::DeleteAnonymousVar { var: spv() }, &["param"]);
     carries(
         &E::SlotUnknownVarName {
             name: param(),
@@ -2948,7 +2993,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::SlotVarKind {
-            name: param(),
+            var: spv(),
             node: sp(1),
             slot: SlotId::Count,
             declared: Dimension::Count,
@@ -4461,9 +4506,9 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
     );
 }
 
-/// **Two doors spell one param-table fault the same way.**
+/// **Two doors spell one variable-read fault the same way.**
 ///
-/// The kernel names the eight param-ref refusal arms under one
+/// The kernel names the variable-read refusal arms under one
 /// convention, stated once on `editor_core::EditError` and guarded
 /// there; this is that convention's image on the wire. A caller that
 /// branches on `EditError.variant` and one that branches on the
@@ -4472,39 +4517,26 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
 /// than about the kernel.
 ///
 /// Pinned by CONSTRUCTION, so it pins the MAPPING and not just the
-/// vocabulary: each of the four (address, fact) pairs is built at both
-/// doors and the two words compared. A door that re-mints a word of
-/// its own reds here by name. The four entries `SHARED_TAG_WORDS`
+/// vocabulary: each (address, fact) pair the two doors share is built
+/// at both doors and the two words compared. A door that re-mints a
+/// word of its own reds here by name. The two entries `SHARED_TAG_WORDS`
 /// carries are the population half of the same fact; this row is why
 /// they are one concept rather than a coincidence.
 #[test]
-fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
+fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
     use pncad::document::{Dimension, EditError, RecipeNodeId, SlotId, SnapshotError, VarName};
 
     let spoken = pncad::document::SpokenNode::absent(RecipeNodeId(5));
     let name = || VarName::from_static("width");
 
-    let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
+    let var = || pncad::document::SpokenVar::new(pncad::document::VarId(7), Some(name()));
+    let pairs: [(&str, &str, EditError, SnapshotError); 2] = [
         (
             "slot",
-            "unknown",
-            EditError::SlotUnknownVarName {
-                name: name(),
-                node: spoken.clone(),
-                slot: SlotId::Radius,
-            },
-            SnapshotError::SlotUnknownVarName {
-                node: spoken.clone(),
-                slot: SlotId::Radius,
-                name: name(),
-            },
-        ),
-        (
-            "slot",
-            "dimension",
+            "kind",
             EditError::SlotVarKind {
-                name: name(),
+                var: var(),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 declared: Dimension::Length,
@@ -4513,35 +4545,23 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             SnapshotError::SlotVarKind {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                name: name(),
+                var: var(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
         ),
         (
             "payload",
-            "unknown",
-            EditError::PayloadUnknownVarName {
-                name: name(),
-                node: spoken.clone(),
-            },
-            SnapshotError::PayloadUnknownVarName {
-                node: spoken.clone(),
-                name: name(),
-            },
-        ),
-        (
-            "payload",
-            "dimension",
+            "kind",
             EditError::PayloadVarKind {
-                name: name(),
+                var: var(),
                 node: spoken.clone(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
             SnapshotError::PayloadVarKind {
                 node: spoken.clone(),
-                name: name(),
+                var: var(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
@@ -4567,7 +4587,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     let mut convention: Vec<String> = ["slot", "payload"]
         .into_iter()
         .flat_map(|address| {
-            ["unknown_doc_param", "doc_param_dimension"]
+            ["var_kind"]
                 .into_iter()
                 .map(move |fact| format!("{address}_{fact}"))
         })
@@ -4576,7 +4596,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     convention.sort_unstable();
     assert_eq!(
         spoken, convention,
-        "the four param-ref words have left the address-then-fact convention on the wire"
+        "the variable-read words have left the address-then-fact convention on the wire"
     );
 }
 
@@ -4912,6 +4932,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_error_tag",
         values: &[
+            "anonymous_var_unread",
             "appearance_names_missing_node",
             "appearance_not_set",
             "appearance_wrong_kind",
@@ -4921,12 +4942,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "declared_name_not_upstream",
             "declared_site_not_an_operand",
+            "delete_anonymous_var",
             "delete_would_dangle",
             "dimension",
-            "var_count_has_no_distribution",
-            "var_count_has_no_unit",
-            "var_unit_mismatch",
-            "var_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
@@ -4951,15 +4969,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_unresolved_in_evaluation",
             "node_id_collides",
             "non_finite_alignment",
-            "non_finite_var",
             "non_finite_placement",
+            "non_finite_var",
             "non_rigid_placement",
             "not_a_gauge",
             "not_structural_slot",
             "offset_on_non_instance",
             "path_off_tree",
-            "payload_var_kind",
             "payload_unknown_var_name",
+            "payload_unresolved_var",
+            "payload_var_kind",
             "pin_unchanged",
             "placement_axis",
             "placement_rule_mismatch",
@@ -4983,8 +5002,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
-            "slot_var_kind",
             "slot_unknown_var_name",
+            "slot_unresolved_var",
+            "slot_var_kind",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "too_few_members",
@@ -4993,9 +5013,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unknown_var",
             "unresolved_input",
             "update_on_non_instance",
+            "var_count_has_no_distribution",
+            "var_count_has_no_unit",
             "var_id_collides",
             "var_kind_fixed",
             "var_name_taken",
+            "var_name_unchanged",
+            "var_unit_mismatch",
+            "var_value_kind_mismatch",
             "witness_on_non_sketch",
             "would_cycle",
             "would_start_placing",
@@ -5045,8 +5070,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_overflow",
             "count_to_scalar_out_of_range",
             "non_finite_result",
-            "param_dimension_mismatch",
-            "unknown_param",
+            "unlowered_name",
+            "unresolved_var",
+            "var_kind_mismatch",
         ],
         delegates: &[],
     },
@@ -5159,6 +5185,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "inline_error_tag",
         values: &[
+            "anonymous_var_crosses_cut",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
@@ -5170,13 +5197,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "moved_member_offset",
             "name_on_dropped_step",
             "not_an_instance",
-            "param_conflict",
             "part_carries_metadata",
             "part_dead_gauge",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
             "unplaced",
+            "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
     },
@@ -5226,6 +5253,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "maintenance_tag",
         values: &[
+            "anonymous_var_removed",
             "label_dropped",
             "offset_cleared",
             "strand",
@@ -5918,6 +5946,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "snapshot_error_tag",
         values: &[
+            "anonymous_var_unread",
             "assertion_bound",
             "assertion_target",
             "dangling_input",
@@ -5935,24 +5964,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mint_log_order",
             "name_on_missing_var",
             "name_step_not_minted",
+            "named_reader_in_snapshot",
             "node_not_minted",
             "not_a_gauge",
             "order_mismatch",
             "payload_var_kind",
-            "payload_unknown_var_name",
             "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
+            "reader_of_unminted_var",
             "slot_dimension",
             "slot_var_kind",
-            "slot_unknown_var_name",
             "step_ids",
             "var_kind",
             "var_name_twice",
             "var_not_minted",
             "var_order_mismatch",
-            "var_unnamed",
             "witness_on_missing_node",
             "witness_site",
         ],
@@ -5966,6 +5994,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_error_tag",
         values: &[
+            "anonymous_var_crosses_cut",
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
@@ -5984,7 +6013,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_pin",
             "torn_group",
             "two_anchors",
-            "uncut_param_reference",
+            "uncut_var_reference",
             "unknown_cut_node",
             "unplaceable_root",
             "unplaced_alone",
@@ -6312,6 +6341,13 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // pick and the flush detector each refuse to order or compare.
     ("across_spaces", 2),
     ("ambiguous", 4),
+    // One fact at the two doors that cross a document seam: a split's
+    // part and an inline's host would have to name a variable nobody
+    // named (VR2).
+    ("anonymous_var_crosses_cut", 2),
+    // One fact (VR7) at the edit and load doors: a variable with no
+    // name that nothing reads.
+    ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("assertion_target", 2),
@@ -6388,13 +6424,12 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("null_scaffold_edge", 2),
     ("op", 3),
     ("part_unresolved", 3),
-    // ONE concept, and pinned as one: the param-ref convention
+    // ONE concept, and pinned as one: the variable-read convention
     // `editor_core::EditError`'s enum doc states. That the two maps
     // agree word for word is held by
-    // `the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`;
-    // these four rows say only that the sharing is deliberate.
+    // `the_edit_and_snapshot_maps_agree_on_the_var_read_words`;
+    // these two rows say only that the sharing is deliberate.
     ("payload_var_kind", 2),
-    ("payload_unknown_var_name", 2),
     ("pcurve", 6),
     ("pcurves", 3),
     // One fact for the boolean, the shell and the split: the result sort
@@ -6412,9 +6447,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("skin", 2),
     ("sliver_join", 2),
     ("sliver_rim", 2),
-    // The slot-addressed half of the four above, same pin.
+    // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
-    ("slot_unknown_var_name", 2),
     ("smooth_join_refuted", 2),
     ("step_ids", 3),
     ("structure", 3),
@@ -6426,7 +6460,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
     ("unknown_node", 5),
-    ("unknown_param", 4),
+    ("unknown_param", 3),
     ("unminted", 2),
     ("unnamed", 2),
     // One fact (A11 (2)): a group nothing places — the node that read

@@ -428,13 +428,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // `SlotDimensionMismatch` calls `expected`/`found` — what the
         // door required, and what it was offered.
         EditError::PayloadVarKind {
-            name,
+            var,
             node,
             declared,
             referenced,
         } => EditPayload {
             node: Some(node.id()),
-            param: Some(name),
+            param: var.name(),
             expected: Some(dim(*declared)),
             found: Some(dim(*referenced)),
             ..none
@@ -446,14 +446,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SlotVarKind {
-            name,
+            var,
             node,
             slot,
             declared,
             referenced,
         } => EditPayload {
             node: Some(node.id()),
-            param: Some(name),
+            param: var.name(),
             slot: Some(slot_id_tag(slot)),
             expected: Some(dim(*declared)),
             found: Some(dim(*referenced)),
@@ -463,7 +463,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::VarCountHasNoUnit { var }
         | EditError::VarCountHasNoDistribution { var }
         // The field the refusal names does not cross: a caller holds
-        // the parameter it just submitted, and `non_finite_doc_param`
+        // the parameter it just submitted, and `non_finite_var`
         // plus the Rust sentence say which float it was.
         | EditError::NonFiniteVar { var, field: _ }
         | EditError::InvalidDistribution { var, fault: _ } => EditPayload {
@@ -484,6 +484,23 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::VarIdCollides { id: _ } => none,
+        EditError::SlotUnresolvedVar { var, node, slot } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            slot: Some(slot_id_tag(slot)),
+            ..none
+        },
+        EditError::PayloadUnresolvedVar { var, node } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            ..none
+        },
+        EditError::VarNameUnchanged { var }
+        | EditError::AnonymousVarUnread { var }
+        | EditError::DeleteAnonymousVar { var } => EditPayload {
+            param: var.name(),
+            ..none
+        },
         EditError::VarKindFixed {
             var,
             kind,
@@ -506,7 +523,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // The notation door's dimension fault: `expected` is the
         // declaration's dimension and `found` what the offered unit
-        // measures — the pair `slot_doc_param_dimension` already
+        // measures — the pair `slot_var_kind` already
         // spells, over a unit rather than over a reference.
         EditError::VarUnitMismatch {
             var,

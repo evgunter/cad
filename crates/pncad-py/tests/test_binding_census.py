@@ -594,6 +594,9 @@ BOUND_AS = {
     "FreeValue": "DocParamValue",
     "FreeVar": "DocParam",
     "VarName": "ParamName",
+    # A variable's identity is Python's `Var`, the handle `Doc.var`
+    # and `Doc.vars` answer.
+    "VarId": "Var",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -2300,9 +2303,7 @@ NOT_BOUND = {
     # has none. Python reads a refusal's variable as the name its
     # message and payload carry.
     "SpokenVar": SHAPE,
-    "Var": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "VarId": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarKind": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -2332,14 +2333,14 @@ NOT_BOUND = {
     # notation cannot be written. It is flattened because no Python
     # door answers in it — the binding's notation edit goes through
     # `Doc.apply`, where the kernel has already mapped these two to
-    # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
+    # `var_count_has_no_unit` and `var_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
     # `FreeVar::with_distribution`'s `Err`, flattened for
     # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
     # binding's annotation edit goes through `Doc.apply`, where the
     # kernel has already mapped these to
-    # `doc_param_count_has_no_distribution` and to the distribution
+    # `var_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
     # `FreeVar::first_non_finite`'s answer: WHICH float of a
@@ -2347,7 +2348,7 @@ NOT_BOUND = {
     # offset `DistributionField` names. It is `DistributionRefusal`'s
     # row one concept over and flattened for its reason: no Python
     # door answers in it. Both refusals that carry it cross as their
-    # own tags (`non_finite_doc_param`, `PersistError.site`'s
+    # own tags (`non_finite_var`, `PersistError.site`'s
     # sentence), and those are the words a caller branches on.
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
@@ -3524,6 +3525,7 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::LabelDropped": "Maintenance.variant",
+    "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3557,6 +3559,11 @@ MEMBERS_BOUND_AS = {
     "EditError::ContinuousVarCannotBeCount": "EditError.variant",
     "EditError::UnknownVar": "EditError.variant",
     "EditError::VarNameTaken": "EditError.variant",
+    "EditError::VarNameUnchanged": "EditError.variant",
+    "EditError::AnonymousVarUnread": "EditError.variant",
+    "EditError::DeleteAnonymousVar": "EditError.variant",
+    "EditError::SlotUnresolvedVar": "EditError.variant",
+    "EditError::PayloadUnresolvedVar": "EditError.variant",
     "EditError::VarIdCollides": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
     "EditError::VarValueKindMismatch": "EditError.variant",
@@ -3615,8 +3622,9 @@ MEMBERS_BOUND_AS = {
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::LabelUnchanged": "EditError.variant",
-    "EvalError::UnknownParam": "EvalError.variant",
-    "EvalError::ParamDimensionMismatch": "EvalError.variant",
+    "EvalError::UnresolvedVar": "EvalError.variant",
+    "EvalError::VarKindMismatch": "EvalError.variant",
+    "EvalError::UnloweredName": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
     "EvalError::ContinuousExprInCountEval": "EvalError.variant",
     "EvalError::CountOverflow": "EvalError.variant",
@@ -3634,7 +3642,8 @@ MEMBERS_BOUND_AS = {
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
-    "InlineError::ParamConflict": "InlineError.variant",
+    "InlineError::VarNameConflict": "InlineError.variant",
+    "InlineError::AnonymousVarCrossesCut": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",
     "InlineError::Unplaced": "InlineError.variant",
@@ -3780,7 +3789,8 @@ MEMBERS_BOUND_AS = {
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
-    "SplitError::UncutParamReference": "SplitError.variant",
+    "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::AnonymousVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
