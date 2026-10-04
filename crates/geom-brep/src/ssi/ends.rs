@@ -382,11 +382,19 @@ impl<'a> Ends<'a> {
         let (carrier, pa, pb, cert) =
             refine_by_certificate(self.sys, states.to_vec(), &self.ctx, self.band, |states| {
                 let (carrier, pa, pb) = fit_states(self.sys, states)?;
+                let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: certify::NURBS_LIMBS_NEED_PCURVE,
+                    }
+                    .into());
+                };
                 let cert = certify::certify_located(
                     &carrier,
-                    pb.as_ref(),
-                    &SsiOperand::Analytic(self.plane),
-                    self.wall,
+                    certify::Lane::Chart {
+                        plane: self.plane,
+                        wall: *wall,
+                        pcurve,
+                    },
                     TubeScale::uniform(self.extent),
                     self.band,
                 )?;
@@ -406,11 +414,18 @@ impl<'a> Ends<'a> {
         min_transversality: f64,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
+        let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
+            return Err(SsiError::UnsupportedCertificate {
+                what: certify::NURBS_LIMBS_NEED_PCURVE,
+            });
+        };
         let cert = certify::certify_branch(
             &carrier,
-            pb.as_ref(),
-            &SsiOperand::Analytic(self.plane),
-            self.wall,
+            certify::Lane::Chart {
+                plane: self.plane,
+                wall: *wall,
+                pcurve,
+            },
             TubeScale::uniform(self.extent),
             self.band,
             &mut Vec::new(),
