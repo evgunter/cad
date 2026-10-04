@@ -165,3 +165,11 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Filed:** `chart-point-signs-are-f64-evaluations` (P3).
 - 2026-10-04 — **`[ev]` PR 4012 opened** for the limb-3-at-rest fork: C2's proof sentence gains a side-cover arm and end-slice coverage at every door. The work row is `needs_ev`, `spec`, with its Done-when; fork-log row 63 records the recommendation half. The build lands on that branch after Ev rules.
 - 2026-10-04 — **PR 3983 (Hermite-first) resumed**, now that limb 3 proves one arc. The lane merges main (3968, 3998, 3999), certifies the Hermite through `Lane::Chart`, pins the fold with a row that goes red without the chart lane's proof, fixes m1–m3 and strengthens the converging row. Review tier: the orchestrator's read of the fix delta plus a delta review, since the earlier review was a BLOCK. (SSI orchestrator)
+
+- 2026-10-04 — **Main was red on `certified_endpoint_census`** after PR 3999. Its one-arc walk added endpoint reads with no census lines, and main's gate skips the geom-core census on a geom-brep-only diff. The PR 3983 lane found it. #4015 carried its two roster lines alone and has merged (1c6e169b46). My process miss: I merged 3999 on its own gate, which did not run that census.
+- 2026-10-04 — **PR 3983 merged** (2bb5b2c039): Hermite first, march where anything refuses it.
+  - **Fold closed:** with the one-arc limb, the fold pairs correctly or refuses at both L values and all three ε. The row goes red with the Hermite certified at rest, and a 180-case sweep found 0 wrong pairings per ε.
+  - **Review findings:** m1 (`neither`) fixed; m2 restored at the ends; m3 removed (`min_transversality`, no reader).
+  - **Delta review:** APPROVE-WITH-FIXES, with 0 wrong pairings across several hundred adversarial cases of its own. Its MINOR: between a Hermite's ends transversality is the tube's, levered by the extent, while the march levers by `min(lever_arm, extent)`, which reads the chart's parameterisation. A flat wall with a bent chart now answers where main refused. I ruled for honest text plus a row now and a design row for later.
+  - **Filed:** `ssi-transversality-at-a-point-is-spelled-three-ways` (P2, design) and `ssi-short-branch-uncertified-length-can-name-another-branchs-crossing` (P3).
+  - **Cost:** about +1.5–3% on the SSI rows. (SSI orchestrator)
