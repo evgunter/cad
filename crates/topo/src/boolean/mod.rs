@@ -2082,10 +2082,12 @@ pub enum BooleanError {
     /// - **Cone**: the germ-pair JOIN dispatch —
     ///   `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names, and
-    ///   no cone or torus pair. Its catch-all raises
-    ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a torus, `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ
-    ///   lands there too.
+    ///   no cone or torus pair: a plane against a plane, cylinder or
+    ///   sphere, a sphere pair (on its radical plane) and a cylinder
+    ///   pair with parallel offset axes (on its rulings). Its catch-all
+    ///   raises [`BooleanError::CurvedBooleanUnsupported`], not this
+    ///   error, and a torus or `(Cylinder, Sphere)` germ lands there
+    ///   too.
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general

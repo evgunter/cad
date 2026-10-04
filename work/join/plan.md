@@ -63,9 +63,14 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the reflex vertex's B senses, the tube on a ball, the closed
-in-face loop (its join half), parallel cylinders (PR 4031, in
-review), and the pierce families PR 4026 filed. The ring
+alone: the pierce families PR 4026 filed (the pinch families and the
+vertex-vertex lane, both in flight; the vertex-vertex lane, PR 4036,
+also builds the parked four-germ row's fix and the reflex vertex's B
+senses, which share its mechanism). Parked on
+`d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer
+read: the tube on a ball (its rim lies ON the ball, a coincidence
+verdict) and the closed in-face loop (a conic lying in the partner's
+face). Parallel cylinders landed in PR 4031. The ring
 re-homing pocket and conic ranking landed in PR 4008, the fan-end
 consolidation in PR 4004, and the cylinder-sphere frame in PR 4025
 (its lane, `cylinder-sphere-germ-pair-has-no-join-lane`, is a design

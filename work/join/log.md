@@ -589,3 +589,52 @@ census or on D10's coincidence ground. They are the first thing to
 take up when the hold lifts.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4031 lands: a parallel cylinder pair splits each wall along its own ruling
+
+`parallel-cylinder-germ-pair-has-no-join-arm` is closed. TANG's
+`cylinder-pair-germ-has-no-join-arm` was closed with it.
+
+**What changed.** `GermLane::Rulings` and a `(Cylinder, Cylinder)`
+dispatch arm were added. `parallel_radical_plane` gives the plane that
+holds both rulings.
+
+**Measured.**
+- `join1_delta_arc_battery`: 477 lines go from `CurvedBooleanUnsupported`
+  to SOUND, and the review re-judged all of them through
+  `differential::outcome`.
+- 324 of those lines are `decl=true`. Their undeclared twins either
+  refuse `UndeclaredCoincidence` or build at the same volume. The arm
+  reads no declaration.
+- 0 SOUND→refusal and 0 new BAD.
+
+**Review tier: single FULL**, cloud session. Reason: a contained new
+arm in the existing shape, with closed-form oracles. Verdict
+APPROVE-WITH-FIXES, 0/1/3.
+- The review ran over 1 300 poses at two tolerances: near-tangent,
+  equal radii, near-coaxial, across a cap rim, tilted.
+- MINOR-1: parallelism was levered by radius, so a long near-parallel
+  rod died at the pcurve backstop.
+- The fix pass levers by max(radius, the walls' reach), the same lever
+  geom-brep's cylinder table uses. The tipped rods now refuse
+  `GermFrameUnsupported`, and a band-scaled row pins them at every
+  tolerance.
+- I read the fix pass myself and ran no delta review: the lever change
+  only moves verdicts toward refusal, and the battery is byte-identical
+  apart from the 477.
+
+**Filed:**
+- `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another`
+  (design)
+- `cylinder-axes-parallel-is-spelled-at-two-sites`
+- `join1-delta-probes-keep-their-own-outcome`
+- `along-edge-ring-on-a-curved-face-has-no-join-arm`
+- TOPO's P0 `rc-wide-battery-panics-at-the-orbit-step-unreachable`:
+  main panics at `orbit_step_at` since `2ad740e2`, and 8 of 84 shards
+  panic.
+
+**Parked on D10** at this landing: the tube on a ball and the closed
+in-face loop. Both are coincidence verdicts; see the plan's hold
+section.
+
+Signed (JOIN orchestrator).
