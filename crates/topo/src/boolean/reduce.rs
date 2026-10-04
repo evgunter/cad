@@ -300,9 +300,8 @@ pub(super) struct UnsupportedPair {
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// key does not resolve, or whose topology is corrupt
-/// (`boxes::face_box`).
+/// [`BooleanError::ClassificationInvariant`] for a cylinder face whose
+/// axis has no decided length (`boxes::face_box`).
 pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -317,7 +316,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // pays nothing for this gate.
         let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
         for (key, f) in body.faces() {
-            let s = surface_of(body, f)?;
+            let s = body.face_surface_linked(key, f);
             if !supported(s) {
                 offenders.push((key, s.kind()));
             }
@@ -331,7 +330,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
             .faces()
             .map(|(key, f)| {
-                let kind = surface_of(other, f)?.kind();
+                let kind = other.face_surface_linked(key, f).kind();
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -372,8 +371,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
-/// for a germ pair with no arm; [`BooleanError::CurvedBooleanUnsupported`]
-/// for a face whose surface key does not resolve.
+/// for a germ pair with no arm; [`first_unsupported_pair`]'s.
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -472,20 +470,6 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
         return Err(BooleanError::InsideOutOperand { operand, solid });
     }
     Ok(())
-}
-
-/// A face's resolved surface. An unresolved key is arena corruption
-/// and says so, rather than acquiring a kind label by default —
-/// `Nurbs` was the old default and named a kind nothing had shown the
-/// face to have.
-fn surface_of<'a, T: Decide>(
-    body: &'a Body<T>,
-    face: &crate::entity::Face,
-) -> Result<&'a geom::Surface<T>, BooleanError> {
-    body.get_surface(face.surface)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "operand gate: an operand face's surface key does not resolve",
-        })
 }
 
 /// [`gate_operand`]'s edge carriers.

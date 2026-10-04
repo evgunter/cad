@@ -1081,7 +1081,7 @@ fn rederive_about<T: Decide>(
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = centre.is_some();
     for run in runs {
-        let (face, surface) = resolve_face(body, run.face)?;
+        let (face, surface) = resolve_face(body, run.face);
         let loops = face_loops(body, face)?;
         let refused = |source| MassPropsError::Face {
             face: run.face,
@@ -1184,7 +1184,7 @@ fn corner_of<T: Decide>(
 ) -> Result<Point3<Interval>, MassPropsError> {
     let mut corner: Option<Point3<T>> = None;
     for run in runs {
-        let (face, _) = resolve_face(body, run.face)?;
+        let (face, _) = resolve_face(body, run.face);
         for edges in face_loops(body, face)? {
             for e in &edges {
                 let p = e.carrier.eval(e.t0);
@@ -2296,23 +2296,12 @@ struct FaceRun<T> {
     refusal: Option<PropsError>,
 }
 
-/// A face and its surface, or the walk's typed refusal of a key that
-/// does not resolve.
-fn resolve_face<T: Real>(
-    body: &Body<T>,
-    face_key: FaceKey,
-) -> Result<(&crate::entity::Face, &Surface<T>), MassPropsError> {
-    let Some(face) = body.faces.get(face_key) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face key does not resolve",
-        });
-    };
-    let Some(surface) = body.surfaces.get(face.surface) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face surface key does not resolve",
-        });
-    };
-    Ok((face, surface))
+/// A face and its surface, for a face the walk read out of the arena
+/// or a solid's record: a miss of either panics naming it (D2 row 4).
+#[track_caller]
+fn resolve_face<T: Real>(body: &Body<T>, face_key: FaceKey) -> (&crate::entity::Face, &Surface<T>) {
+    let face = crate::live::proven(&body.faces, face_key, crate::entity::EntityId::Face);
+    (face, body.face_surface_linked(face_key, face))
 }
 
 /// A face's loops flattened, the outer first, then the rings.
@@ -2360,7 +2349,7 @@ fn face_flux<T: Decide>(
     tol: Tol,
     window: RoundWindow,
 ) -> Result<FaceRun<T>, MassPropsError> {
-    let (face, surface) = resolve_face(body, face_key)?;
+    let (face, surface) = resolve_face(body, face_key);
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,

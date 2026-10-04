@@ -414,7 +414,7 @@ pub enum MergeCoplanarError {
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// resolve, or names two surfaces of DIFFERENT kinds — a malformed
     /// argument, refused up front. A pair on one non-planar kind is
     /// NOT this: it is a legal declaration recorded as
     /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
@@ -1278,7 +1278,7 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `PcurveMint` (`Corrupt` alone: a moved loop is left as found on a spline chart) and `Certification` (a `tol` that forms no band) |
+/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
 /// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
@@ -1635,7 +1635,7 @@ impl<T: Decide> Body<T> {
         // ---- Declared pairs: validate, then class each by carrier kind. ----
         //
         // A key that does not resolve, or a pair of two kinds, is a
-        // torn argument and refuses. A planar pair joins the surface
+        // malformed argument and refuses. A planar pair joins the surface
         // equivalence. A pair on one non-planar kind is a LEGAL
         // declaration this door has no rung for: it is declined here
         // and recorded below, never refused — the declaration served
@@ -2057,7 +2057,8 @@ impl<T: Decide> Body<T> {
                              an edge claims the two half-edges that name it"
                         )
                     };
-                    let facts = self.half_edge_facts(claim.mate, EntityId::Edge(edge), "slot");
+                    let facts =
+                        self.half_edge_facts(claim.mate, EntityId::Edge(edge), claim.mate_field());
                     if facts.face != f && in_group(facts.face) {
                         nested.insert(facts.face);
                     }
@@ -2611,7 +2612,7 @@ impl<T: Decide> Body<T> {
                 mate_key,
                 EntityId::HalfEdge,
                 EntityId::Edge(edge_key),
-                "slot",
+                claim.mate_field(),
             );
             let kept_loop = mate.parent_loop;
             if dying.next == dying_he && mate.next == mate_key {

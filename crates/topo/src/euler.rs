@@ -3414,7 +3414,7 @@ impl<T: Decide> Body<T> {
             mate,
             EntityId::HalfEdge,
             EntityId::Edge(edge),
-            "slot",
+            claim.mate_field(),
         )
         .clone();
         require_halves(edge, edge_data, he, (mate, mate_data.edge));
@@ -3663,7 +3663,7 @@ impl<T: Decide> Body<T> {
         p_new: Point3<T>,
     ) -> (Point3<T>, Point3<T>) {
         let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        let endpoint = |he: HalfEdgeKey| -> Point3<T> {
+        let endpoint = |he: HalfEdgeKey, field| -> Point3<T> {
             if run.contains(&he) {
                 return p_new;
             }
@@ -3672,12 +3672,15 @@ impl<T: Decide> Body<T> {
                 he,
                 EntityId::HalfEdge,
                 EntityId::Edge(edge),
-                "slot",
+                field,
             )
             .start;
             self.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
         };
-        (endpoint(edge_data.he_plus), endpoint(edge_data.he_minus))
+        (
+            endpoint(edge_data.he_plus, "he_plus"),
+            endpoint(edge_data.he_minus, "he_minus"),
+        )
     }
 
     /// Every edge with a half-edge in `run`, once, in run order: the

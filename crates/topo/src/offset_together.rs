@@ -950,6 +950,13 @@ pub(crate) fn scope_of_moves<T: Real>(
                 "shell",
             )
             .solid;
+            linked(
+                &body.solids,
+                solid,
+                EntityId::Solid,
+                EntityId::Shell(shell),
+                "solid",
+            );
             if !solids.contains(&solid) {
                 solids.push(solid);
             }

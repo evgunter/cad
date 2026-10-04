@@ -428,6 +428,14 @@ pub(crate) struct Claim {
     pub(crate) mate: HalfEdgeKey,
 }
 
+impl Claim {
+    /// The [`Edge`] field holding [`Claim::mate`]: the label a read of
+    /// the mate through its edge names.
+    pub(crate) const fn mate_field(&self) -> &'static str {
+        if self.plus { "he_minus" } else { "he_plus" }
+    }
+}
+
 impl Edge {
     /// **`he`'s place on this edge** — the one reading of the edge ↔
     /// half-edge pairing, for the mate and for the direction alike.

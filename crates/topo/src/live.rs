@@ -353,7 +353,7 @@ impl<T: Real> Body<T> {
             claim.mate,
             EntityId::HalfEdge,
             EntityId::Edge(edge),
-            "slot",
+            claim.mate_field(),
         )
         .next
     }
