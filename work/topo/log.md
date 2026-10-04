@@ -6810,3 +6810,10 @@ Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and
   Fix lane archived (about $14). **Stale-key row closed** (both units merged; items 1-6 hold for every named variant). The residue row `torn-body-refusal-families-beyond-the-six-doors` gets P3 and M. **R build dispatched** (`session_01Gh7MVn8yRcX5XCDaEt6YQK`; the re-anchor row is `dispatched`). It includes the pole-slit row, takes the in-band-lever row optionally, is accepted on a probe re-run (every kill-kept face byte-equal and tier-3-clean), and may be staged in 2-3 PRs.
 - 19:31: PR 4035 (sync) merged at `79aafa8b66`.
 - 20:29 check-in: the R build (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, branch `topo/joint-elements`) has finished the element-carrier flow and is fixing sweep test failures; no PR yet. Nothing new on PR 3970. No topo commits incoming.
+- 21:31: **The R build opened PR 4037** (part 1 of 2; about 3k lines, 36 files).
+  - Adds a deck-group `JointElement` (`joint.rs`) with `Reset` at zero-lever joints. `pin_branch` becomes `decide_joint`. `Winding::closes` is independent of `first`. Tier 3 re-decides elements.
+  - One `loop_lift` accessor; 7 readers moved.
+  - `link_half_edges(a, b, element)`; kills sum elements; `revert` inverts elements and moves no anchor.
+  - **Probe re-run: every kill-kept complete periodic face in sweep ci is byte-equal and tier-3-clean** (`kef` 21, `kef_minting` 8,102, `kev` 592, `kemr` 73; previously 1,641 mixed). The snowman refusal is gone.
+
+  Subscribed. Reviewer `session_01KiZYQJiYUBLPTVuYdBx6zs` dispatched: deck-group laws, kill sums including the `kev_describing` turn (D9), tier-3 acceptance looseness, `first`-independence, the `revert` involution, readers missed, staging honesty. The implementer is already on part 2 and its status says "checking CI before merge"; it may self-merge before review. If so, the review is fixed forward.
