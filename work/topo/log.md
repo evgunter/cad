@@ -6800,3 +6800,4 @@ All findings adopted:
 - Style: two byte-identical helpers; two `face_cycles` walks; the new orbit helper bypassed, with fallible and panicking twins; dead `Result`s; uneven conversion (`surface_of`, `merge_faces`, `props`, `chord_join`); panic labels.
 
 Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and implementer (about $93) archived. The seven-day rate warning has cleared (five-hour window, allowed). Nothing new on PR 3970.
+- 18:53 check-in: the PR 4033 fix lane is still working (the style item on panic labels); head unchanged. Nothing new on PR 3970. No topo commits incoming. The R build waits for 4033 (`pcurves.rs`).
