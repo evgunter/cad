@@ -1275,7 +1275,7 @@ fn walk_faces_first<T: Decide>(
 /// refuses: nothing orders the germs. A strut's two germs in one entry
 /// are its only comparands, where it agrees with [`precedes`]
 /// ([`walk_faces_first`]).
-fn strut_order<T: Decide>(
+pub(super) fn strut_order<T: Decide>(
     e_dir: Vec3<T>,
     normal: Vec3<T>,
     germs: (Vec3<T>, Vec3<T>),

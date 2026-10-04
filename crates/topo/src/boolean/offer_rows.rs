@@ -2063,6 +2063,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
+        | BooleanErrorKind::PierceRunsUnordered
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CorruptOperand
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2418,6 +2419,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "finish.rs",
         "weld_pinches",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
+    (
+        "finish.rs",
+        "weld_pierce_copies",
         "BooleanDecision::VertexOnVertex",
         1,
     ),
