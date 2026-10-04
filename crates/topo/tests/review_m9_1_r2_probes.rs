@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
@@ -219,8 +219,17 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
 /// than vacuously true.
 #[test]
 fn probe_replay_partial_eq_bites_on_mutation() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");

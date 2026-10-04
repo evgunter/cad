@@ -15,6 +15,8 @@ use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
 
+pub use sweep::test_support::finished;
+
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -149,9 +151,11 @@ pub fn boss_plate() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let plate = finished("the plate", plate, Tol::witness());
+    let boss = finished("the boss", boss, Tol::witness());
     let out = topo::union(&plate, &boss, Tol::witness()).unwrap();
     match out {
-        BooleanResult::Body(bb) => bb.body,
+        BooleanResult::Body(bb) => bb.body.into_body(),
         other => panic!("the boss union yields a body, got {other:?}"),
     }
 }
@@ -215,8 +219,10 @@ pub fn az_intersect() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let a = finished("prism A", a, Tol::witness());
+    let z = finished("prism Z", z, Tol::witness());
     match topo::intersect(&a, &z, Tol::witness()) {
-        Ok(BooleanResult::Body(bb)) => bb.body,
+        Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
 }

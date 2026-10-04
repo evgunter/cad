@@ -240,6 +240,11 @@ fn kernel_ops(c: &mut Criterion) {
     // genuinely interpenetrate and NO pair of faces is coincident, so this
     // is the plain seamed path rather than a declared-contact union.
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0));
+    // The boolean's operands, finished once outside the timed loop.
+    let finished = |body| {
+        pncad::topo::AtRestBody::validate(body, Tol::witness()).expect("a brick is a finished body")
+    };
+    let (base, post) = (finished(base), finished(post));
 
     let mut group = c.benchmark_group("kernel");
     group

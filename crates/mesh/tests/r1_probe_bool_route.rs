@@ -103,6 +103,16 @@ fn attempt(r: f64, gap: f64) {
             return;
         }
     };
+    let finish = |what: &str, body| match topo::AtRestBody::validate(body, Tol::witness()) {
+        Ok(body) => Some(body),
+        Err(e) => {
+            println!("    {what} REFUSED at validation: {e:?}");
+            None
+        }
+    };
+    let (Some(a), Some(b)) = (finish("ball", a), finish("slab", b)) else {
+        return;
+    };
     match topo::boolean::subtract(&b, &a, Tol::witness()) {
         Err(e) => println!("    boolean subtract REFUSED: {e:?}"),
         Ok(res) => {

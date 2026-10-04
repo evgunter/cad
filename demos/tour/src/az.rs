@@ -21,9 +21,9 @@
 use pncad::document::ExtrudeSide;
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody};
+use pncad::topo::{AtRestBody, BooleanBody};
 
-use crate::booleans::{check, expect_seamed, try_intersect_declared};
+use crate::booleans::{check, expect_seamed, finished, try_intersect_declared};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
@@ -74,9 +74,9 @@ fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ConstructedLoop<S> {
 }
 
 /// The A prism: xy sketch at z = 0, extruded 2 along +z.
-fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
+fn a_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
-    extrude(
+    let body = extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol).expect("A profile"),
         Extrusion::Distance {
             depth: S::from_f64(2.0),
@@ -85,13 +85,14 @@ fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
         tol,
     )
     .expect("extrude A")
-    .body
+    .body;
+    finished("the A prism", body, tol)
 }
 
 /// The Z prism: yz sketch at x = 0, extruded 2 along +x.
-fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
+fn z_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)));
-    extrude(
+    let body = extrude(
         &validated(plane, vec![lp(&Z_OUTLINE, tol)], tol).expect("Z profile"),
         Extrusion::Distance {
             depth: S::from_f64(2.0),
@@ -100,7 +101,8 @@ fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
         tol,
     )
     .expect("extrude Z")
-    .body
+    .body;
+    finished("the Z prism", body, tol)
 }
 
 /// Builds the A × Z intersect result (generic — the Probe sweep runs
@@ -154,7 +156,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         bodies: vec![SceneBody::seamed(
             "az",
             [0.42, 0.55, 0.74],
-            az.body,
+            az.body.into_body(),
             az.contacts,
         )],
     }]

@@ -1735,10 +1735,12 @@ pub enum BooleanError {
     /// An operand holds an inside-out solid: tier 3's check 7 decides
     /// its signed volume definitely negative
     /// ([`ValidationError::NegativeVolume`]), so its faces bound the
-    /// complement of the region they enclose. Such a body is not a
-    /// finished solid (`docs/DESIGN.md` D1, tier 3), and the Boolean
-    /// refuses it before any classification reads it, rather than
-    /// answering for the complement.
+    /// complement of the region they enclose. A finished body never
+    /// holds one; the door reads check 7 itself on an operand whose
+    /// scalar runs no at-rest gate (a dual,
+    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), and refuses it
+    /// before any classification reads it, rather than answering for
+    /// the complement.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,
@@ -2415,11 +2417,18 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate, loudly — no invalid
-    /// body is ever returned. A kernel bug, unless an operand carried
-    /// the finding in: an operand edge still described as a scaffold
-    /// reaches every result that keeps it, and the gate refuses it
-    /// there ([`ValidationError::ScaffoldAtRest`]).
+    /// The result did not pass the door's at-rest gate (tier 3,
+    /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
+    /// the scaffold fence where the scalar runs none), loudly — no body
+    /// below it is ever returned. Where the scalar runs the at-rest
+    /// gate, the operands are finished bodies, so no finding is carried
+    /// in from an operand: each is either a defect in what the door
+    /// built or a wrong verdict of the validator's own (a valid sliver
+    /// refused on a sign check 7 misreads), and a kernel defect either
+    /// way. Where it runs none (a dual), an operand carries no verdict:
+    /// the door has read only its tiers 1 and 2, its edges and its
+    /// orientation, so a finding may also trace to a defect of an
+    /// operand's that those reads do not see.
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -3371,14 +3380,19 @@ impl core::fmt::Display for BooleanError {
                 write!(f, "seam zip correspondence failed: {what} (kernel bug)")
             }
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
-            Self::ResultInvalid { errors } => write!(
-                f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
-                 body is returned — a kernel bug, unless an operand carried the finding in \
-                 (an edge still described as a scaffold)",
-                errors.len(),
-                errors.first()
-            ),
+            Self::ResultInvalid { errors } => match errors.as_slice() {
+                [first, ..] => write!(
+                    f,
+                    "the Boolean's result did not pass the at-rest gate, so no body is \
+                     returned ({} finding(s)); the first: {first}",
+                    errors.len(),
+                ),
+                [] => write!(
+                    f,
+                    "the Boolean's result did not pass the at-rest gate, so no body is \
+                     returned. {KERNEL_DEFECT_ENDING}"
+                ),
+            },
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
                 "the Boolean's result broke a bound a correct result's volume always meets \
@@ -3441,7 +3455,30 @@ impl std::error::Error for BooleanError {}
 /// null-edge insertion across two bodies (module docs for the
 /// pipeline). Functional: both operands are cloned and never touched;
 /// the annotated clones come back in [`BooleanReduction`]. Joining and
-/// result generation are PR 5.
+/// result generation are PR 5. The operands are finished bodies, as at
+/// the boolean doors ([`crate::AtRestBody`]); one with no verdict (a
+/// dual) passes the door's own operand gate and orientation read first.
+///
+/// A plain body is not an operand: it does not coerce to a finished
+/// one, so this example must NOT compile.
+///
+/// ```compile_fail,E0308
+/// use geom_core::Tol;
+/// use topo::{Body, BooleanOp, boolean_reduce};
+///
+/// let body = Body::<f64>::new();
+/// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
+/// ```
+///
+/// The same call on finished bodies compiles:
+///
+/// ```no_run
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, Body, BooleanOp, boolean_reduce};
+///
+/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
+/// ```
 ///
 /// Determinism (D9): gates, sweeps, contact processing, and
 /// per-neighborhood classification all run in arena/discovery order —
@@ -3453,8 +3490,8 @@ impl std::error::Error for BooleanError {}
 /// operands are never mutated (the clones are dropped).
 pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
+    a_operand: &crate::AtRestBody<T>,
+    b_operand: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none(), tol)
@@ -3465,17 +3502,44 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// plane-identity evidence; carried contacts are validated here and
 /// consumed by the result stage (`ops`).
 ///
+/// It takes finished operands too, and a plain body does not coerce to
+/// one, so this example must NOT compile:
+///
+/// ```compile_fail,E0308
+/// use geom_core::Tol;
+/// use topo::{Body, BooleanDeclarations, BooleanOp, boolean_reduce_declared};
+///
+/// let body = Body::<f64>::new();
+/// let none = BooleanDeclarations::none();
+/// let _ = boolean_reduce_declared(BooleanOp::Union, &body, &body, &none, Tol::witness());
+/// ```
+///
+/// The same call on finished bodies compiles:
+///
+/// ```no_run
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, Body, BooleanDeclarations, BooleanOp, boolean_reduce_declared};
+///
+/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let none = BooleanDeclarations::none();
+/// let _ = boolean_reduce_declared(BooleanOp::Union, &body, &body, &none, Tol::witness());
+/// ```
+///
 /// # Errors
 ///
 /// [`BooleanError`] — including [`BooleanError::InvalidDeclaration`]
 /// for payloads that do not resolve against the operands.
 pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
+    a_operand: &crate::AtRestBody<T>,
+    b_operand: &crate::AtRestBody<T>,
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
+    let band = Band::linear(tol)?;
+    for (operand, body) in [(Operand::A, a_operand), (Operand::B, b_operand)] {
+        reduce::gate_unverdicted_operand(body, operand, band, tol)?;
+    }
     boolean_reduce_declared_strategy(
         op,
         a_operand,
@@ -3548,7 +3612,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     validate_declarations(a_operand, b_operand, decls)?;
     let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -3603,7 +3667,7 @@ pub fn sweep_records(
 ) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut a = a_operand.clone();
@@ -3664,6 +3728,23 @@ pub(crate) fn through_the_join(
     )
 }
 
+/// The operand's maximal-faces gate (F7) alone, at `tol`'s band: the
+/// rung a body with neighbouring faces on one surface ends at, asked of
+/// a body whatever its tier.
+///
+/// # Errors
+///
+/// The gate's refusal; [`BooleanError::Band`] where `tol` yields no
+/// band.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn maximal_faces_gate<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    reduce::gate_maximal_faces(body, operand, Band::linear(tol)?)
+}
+
 /// **The join's own refusal** of `op` under `decls`: what its matching
 /// or its surgery refuses on the reduction, before the declared-REST
 /// door may take it over. `None` where the join connects, or where the
@@ -3700,8 +3781,8 @@ pub(crate) fn join_refusal(
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn section_segment_sites(
     op: BooleanOp,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
     tol: Tol,
 ) -> Result<Option<SegmentSites>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -3740,7 +3821,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the

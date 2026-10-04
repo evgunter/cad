@@ -30,7 +30,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
-use sweep::test_support::{cube, loft_prism};
+use sweep::test_support::{cube, finished, loft_prism};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
@@ -197,25 +197,28 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     // cannot reach is invisible to the validator and visible here) and
     // a single place that lists every offender instead of stopping at
     // the first.
-    let a = slab(0.0, 0.0, 2.0, 0.0, 2.0);
-    let b = slab(1.0, 1.0, 2.0, 1.0, 2.0);
+    let a = finished("slab a", slab(0.0, 0.0, 2.0, 0.0, 2.0), Tol::witness());
+    let b = finished("slab b", slab(1.0, 1.0, 2.0, 1.0, 2.0), Tol::witness());
     for (name, r) in [
         ("boolean union", topo::union(&a, &b, Tol::witness())),
         ("boolean subtract", topo::subtract(&a, &b, Tol::witness())),
         ("boolean intersect", topo::intersect(&a, &b, Tol::witness())),
     ] {
-        if let Some(body) = r.ok().and_then(|r| r.body().map(|b| b.body.clone())) {
+        if let Some(body) = r
+            .ok()
+            .and_then(|r| r.body().map(|b| b.body.clone().into_body()))
+        {
             bodies.push((name, body));
         }
     }
     // A curved pair: a pocket cut out of the tube by a slab.
     if let Some(body) = topo::subtract(
-        &tube(0.4, 0.8, 0.6),
-        &slab(0.5, -1.0, 2.0, 0.2, 0.2),
+        &finished("the tube", tube(0.4, 0.8, 0.6), Tol::witness()),
+        &finished("the slab", slab(0.5, -1.0, 2.0, 0.2, 0.2), Tol::witness()),
         Tol::witness(),
     )
     .ok()
-    .and_then(|r| r.body().map(|b| b.body.clone()))
+    .and_then(|r| r.body().map(|b| b.body.clone().into_body()))
     {
         bodies.push(("boolean curved subtract", body));
     }
