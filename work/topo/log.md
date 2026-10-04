@@ -6808,3 +6808,5 @@ Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and
   - Main's PR 3987 (`AtRestBody`) was merged in.
 
   Fix lane archived (about $14). **Stale-key row closed** (both units merged; items 1-6 hold for every named variant). The residue row `torn-body-refusal-families-beyond-the-six-doors` gets P3 and M. **R build dispatched** (`session_01Gh7MVn8yRcX5XCDaEt6YQK`; the re-anchor row is `dispatched`). It includes the pole-slit row, takes the in-band-lever row optionally, is accepted on a probe re-run (every kill-kept face byte-equal and tier-3-clean), and may be staged in 2-3 PRs.
+- 19:31: PR 4035 (sync) merged at `79aafa8b66`.
+- 20:29 check-in: the R build (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, branch `topo/joint-elements`) has finished the element-carrier flow and is fixing sweep test failures; no PR yet. Nothing new on PR 3970. No topo commits incoming.
