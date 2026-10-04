@@ -4902,7 +4902,13 @@ fn a_curved_domes_level_loop_certifies_or_refuses_the_fit_budget() {
             1.0e-9 => 1000..1100,
             1.0e-12 => {
                 assert!(
-                    matches!(r, Err(SsiError::FitSampleBudget { samples: 5700..5900, .. })),
+                    matches!(
+                        r,
+                        Err(SsiError::FitSampleBudget {
+                            samples: 5700..5900,
+                            ..
+                        })
+                    ),
                     "{at}: the march hands the fit about 5787 samples: {r:?}"
                 );
                 continue;
@@ -4960,7 +4966,13 @@ fn a_curved_domes_oblique_arc_is_refined_across_its_inflections() {
         1.0e-9 => 260..280,
         1.0e-12 => {
             assert!(
-                matches!(r, Err(SsiError::FitSampleBudget { samples: 1300..1350, .. })),
+                matches!(
+                    r,
+                    Err(SsiError::FitSampleBudget {
+                        samples: 1300..1350,
+                        ..
+                    })
+                ),
                 "{at}: the march hands the fit about 1321 samples: {r:?}"
             );
             return;
