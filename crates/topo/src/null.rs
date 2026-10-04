@@ -214,9 +214,10 @@ impl<T: geom_core::Decide> Body<T> {
     /// that rewires the loop out from under the edge — the boolean's and
     /// the splitting lane's joins, whose chord `mef`s cut the section's
     /// null halves off the faces they cross — or the edge's first
-    /// description ([`Body::set_edge_curve`]); on a spline chart either
-    /// leaves the face as found. A kill that releases the loop leaves
-    /// those rows missing
+    /// description ([`Body::set_edge_curve`], or a
+    /// [`Body::kev_describing`] that lists it); on a spline chart either
+    /// leaves the face as found. A kill that releases the loop otherwise
+    /// leaves those rows missing
     /// (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to

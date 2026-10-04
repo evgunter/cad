@@ -75,16 +75,26 @@ and `compose::tensor` encloses
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
-by a mean-value argument each slice holds at most one solution and the
-solution set in the chain is one arc. For plane×NURBS the chain is the
+by a mean-value argument each slice holds at most one solution, and each
+connected piece of the solution set in a box ends on the box's boundary
+at two points. The solution set in the chain is one arc. Where limb 3
+runs that proof, each box, cut to the region its search covers (the
+wall's knot rectangle, the ℝ³ slab), holds exactly two simple solutions
+on its boundary, so one piece, and consecutive boxes share it (chart
+edges walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+rung whose chain is a graph but not one arc gives way to a narrower one.
+With none certified, the narrowest rung probed speaks: its band verdict
+where it straddled, `SsiError::TubeNotOneArc` with what it found where
+it was a graph but not one arc. For
+plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,
 refusing a zero or non-finite axis by name), and the enclosure is the
 chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
-The tube says nothing about a disjoint component at other `e`-levels;
-that is C3's exhaustiveness obligation, a separate theorem. Refusal
+A component outside the chain is C3's exhaustiveness obligation, a
+separate theorem. Refusal
 is typed, never a retry loop: an enclosure that does not clear the
 band at any rung escalates (`ssi_tube_transversality`,
 `SsiError::TubeStraddles`). Two branches passing within the band of
@@ -128,8 +138,19 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. The longest step is
-`SSI_STEP_MAX` of the caller's feature extent. Before any march, the
+(`StepCollapsed`) refuses naming the speed. The step is the
+curvature's against ε, and no extent caps it. The certificate decides
+how many samples a carrier gets: where limb 1 or 2 refuses the fitted
+carrier on a margin that is a number, it names the spans it refused,
+every gap between samples that a refused span meets is halved with one
+gap on each side of it, the new sample settled onto the locus, and the
+carrier is refitted and certified again (`ssi/refine.rs`). A gap is
+halved only while half of it clears the band, and no round hands the
+fit more than its budget; where refinement can go no further, the
+certificate's refusal stands, naming where refinement stopped
+(`SsiError::RefinementExhausted`).
+A straight branch so takes the fewest samples its fit needs, and a
+curved one more only where its certificate refused. Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
@@ -192,8 +213,9 @@ way the
 certificate decides; a Hermite candidate it refuses on a branch too
 short for a fifth of it to clear the band is a sized refusal in the
 branch's length (`SsiError::ShortBranchUncertified`), and on a longer
-one the march's refusal stands. The extent keeps its other roles:
-the lever arm's clamp, the seeding floor and the tube ladder.
+one the march's refusal stands. The extent sizes no realized step; it
+is the lever arm's clamp, the seeding floor and the tube ladder's
+widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure, the boundary pass's mean-value enclosure of a strip

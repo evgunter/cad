@@ -131,7 +131,8 @@
 //! that rewires it out from under the null edge — the boolean's and the
 //! splitting lane's join, whose chord `mef`s leave the section's null
 //! halves on the sliver between the chords — or the edge's first
-//! description ([`crate::Body::set_edge_curve`]), which re-walks every
+//! description ([`crate::Body::set_edge_curve`], or a
+//! [`crate::Body::kev_describing`] that lists it), which re-walks every
 //! loop of the face; on a spline chart either leaves the face as found.
 //! A face half-minted any other way is left as found. Other doors still
 //! produce a half-minted face
@@ -254,7 +255,8 @@
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
 //!
-//! **Completes the map** — [`crate::Body::set_edge_curve`], the
+//! **Completes the map** — [`crate::Body::set_edge_curve`] (and the
+//! members [`crate::Body::kev_describing`] re-describes), the
 //! surface setter's sibling, which is NOT the same case: a carrier swap
 //! moves neither the row's key nor its chart, and pass 2 re-derives
 //! every row's agreement from the edge's current carrier, so what it
@@ -264,12 +266,15 @@
 //! can derive the rows of its halves, and on a face the site mint
 //! selects ([`StoredRows::remints`]) it re-mints every loop no other
 //! null edge holds open ([`site_rows`]) — the whole face, once no null
-//! edge is left on it.
+//! edge is left on it. A kill that lists a null member describes it
+//! for the first time, and re-mints the same way over each face as
+//! the kill leaves it.
 //!
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
-//! kill ops. These are primitives, and they are what the stale-row
+//! kill ops other than [`crate::Body::kev_describing`] (above). These
+//! are primitives, and they are what the stale-row
 //! consequence below is about. A kill that takes the last null edge
 //! off a loop leaves the rows that loop missed while it was held open
 //! missing: `kemr`, `kev` and `kef` take no `Tol` to mint with, and
@@ -335,7 +340,7 @@ use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
 use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
-use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
 use crate::props::AtRestPolicy;
 
@@ -451,9 +456,10 @@ pub enum PcurveMintError {
     ///   to the loop meanwhile, while a null edge holds it open; the
     ///   door that releases the loop — an operator rewiring it out from
     ///   under the edge, as the pipelines' joins do, or the edge's first
-    ///   description ([`crate::Body::set_edge_curve`]) — mints it whole,
-    ///   except on a spline chart. A kill that releases it leaves those
-    ///   rows missing
+    ///   description ([`crate::Body::set_edge_curve`], or a
+    ///   [`crate::Body::kev_describing`] that lists it) — mints it whole,
+    ///   except on a spline chart. A kill that releases it otherwise
+    ///   leaves those rows missing
     ///   (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`);
     /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]);
     /// - a caller's own [`crate::Body::detach_pcurve`];
@@ -2751,10 +2757,33 @@ pub(crate) enum SiteHalf {
     NewPlus,
     /// The new edge's `he_minus`, which the surgery mints.
     NewMinus,
-    /// A half-edge the body already holds, of the edge being described:
-    /// the walk reads it under the carrier the description installs.
+    /// A half-edge the body already holds, of an edge being described:
+    /// the walk reads it under the carrier the description installs
+    /// ([`SiteCarriers::Described`]).
     Described(HalfEdgeKey),
 }
+
+/// The carriers a site mint's plan reads for the halves it names that
+/// the body does not carry yet ([`SiteHalf`]): no door both mints an
+/// edge and describes one.
+pub(crate) enum SiteCarriers<'a, T: Real> {
+    /// A door that names existing halves alone.
+    Existing,
+    /// An Euler operator's new edge, for [`SiteHalf::NewPlus`] and
+    /// [`SiteHalf::NewMinus`].
+    New(&'a geom_brep::EdgeCurve<T>),
+    /// The curves a description installs, by edge, for every
+    /// [`SiteHalf::Described`] half of those edges.
+    Described(&'a [(EdgeKey, &'a geom_brep::EdgeCurve<T>)]),
+}
+
+impl<T: Real> Clone for SiteCarriers<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Real> Copy for SiteCarriers<'_, T> {}
 
 /// Why a site mint refused to write a face's rows — [`site_rows`]'
 /// refusal, raised before its door mutates anything, so the body is
@@ -3064,7 +3093,7 @@ pub(crate) fn site_rows<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
     from: &SiteFrom<T>,
-    edge: Option<&geom_brep::EdgeCurve<T>>,
+    curves: SiteCarriers<'_, T>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
     let Some(chart) = DescribedChart::minting(&face.surface) else {
@@ -3096,14 +3125,6 @@ pub(crate) fn site_rows<T: Decide>(
             })
             .collect()
     };
-    fn named<T: Real>(edge: Option<&geom_brep::EdgeCurve<T>>) -> &geom_brep::EdgeCurve<T> {
-        edge.unwrap_or_else(|| {
-            unreachable!(
-                "site_rows: a plan names a new or described half only beside the edge that \
-                 carries it; a door that moves a loop names existing halves alone"
-            )
-        })
-    }
     let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), ItemFail> {
         match at {
             SiteHalf::Existing(he) => {
@@ -3113,12 +3134,32 @@ pub(crate) fn site_rows<T: Decide>(
                 Ok((carrier, t0, t1, plus))
             }
             SiteHalf::NewPlus | SiteHalf::NewMinus => {
-                let edge = named(edge);
+                let SiteCarriers::New(edge) = curves else {
+                    unreachable!(
+                        "site_rows: a plan names a new half only beside the edge that carries it"
+                    )
+                };
                 let (t0, t1) = edge.params();
                 Ok((edge.carrier().clone(), t0, t1, at == SiteHalf::NewPlus))
             }
             SiteHalf::Described(he) => {
-                let edge = named(edge);
+                let of = body.get_half_edge(he).ok_or(ItemFail::Corrupt)?.edge;
+                let SiteCarriers::Described(described) = curves else {
+                    unreachable!(
+                        "site_rows: a Described half under non-Described carriers; \
+                         `Body::null_description_rows` is the one constructor of \
+                         `SiteHalf::Described`, and it plans under \
+                         `SiteCarriers::Described` alone"
+                    )
+                };
+                let Some(&(_, edge)) = described.iter().find(|(e, _)| *e == of) else {
+                    unreachable!(
+                        "site_rows: a Described half whose edge the carriers do not list; \
+                         `Body::null_description_rows` marks a half Described only when it is \
+                         a half of one of `described`'s edges, and passes that same slice as \
+                         the carriers"
+                    )
+                };
                 let (t0, t1) = edge.params();
                 let plus = is_plus(body, he).map_err(|_| ItemFail::Corrupt)?;
                 Ok((edge.carrier().clone(), t0, t1, plus))
@@ -4382,7 +4423,8 @@ pub(crate) mod staleness_posture {
              The door that releases the loop mints it whole, except on a spline chart: an \
              operator rewiring it out from under the edge (the boolean's and the \
              splitting lane's joins) or the edge's first description \
-             (`set_edge_curve`); a kill that releases it does not \
+             (`set_edge_curve`, or a `kev_describing` that lists it); a kill that releases \
+             it otherwise does not \
              (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`); \
              tier 2 refuses a null edge at rest",
             ),
@@ -4390,9 +4432,12 @@ pub(crate) mod staleness_posture {
             ("kev", Neither, "kill op"),
             (
                 "kev_describing",
-                Neither,
-                "kill op; the members it re-describes keep their rows, as \
-             `set_edge_curve` leaves them",
+                Completes,
+                "kill op, `set_edge_curve`'s posture for the members it re-describes: a \
+             certified member keeps its rows, and a listed NULL member's description is its \
+             first, re-minted through the same planner over the faces its halves are on as \
+             the kill leaves them (the killed halves gone), every listed member's halves \
+             under the curve the kill installs",
             ),
             ("kvfs", Neither, "kill op"),
             // ---- Maintains: the half-edge-minting Euler operators,
@@ -4543,7 +4588,7 @@ pub(crate) mod staleness_posture {
              which that pass skips entirely",
             ),
             (
-                "set_face_surface_stranding_for_tests",
+                "set_face_surface_unvouched_for_tests",
                 Transfers,
                 "the failure-injection twin of `set_face_surface`, whose rows it keeps and \
              drops on the same terms",

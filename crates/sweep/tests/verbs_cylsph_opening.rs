@@ -416,7 +416,8 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
 fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let mut b = cyl(1.0, -0.5, 0.5);
     let (face, _) = b.faces().next().unwrap();
-    b.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),

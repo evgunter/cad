@@ -3496,7 +3496,7 @@ pub(in crate::boolean) mod tests {
         let diagonal = (p1 - p0).norm();
         let along = (p1 - p0) * (1.0 / diagonal);
         // Lifts RechartStrandsDescriptions: the re-described half is the gate's input; its edges are not the row.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             half.face,
             crate::euler::FaceSurface::New {
                 surface: plane(p0, along, diagonal),

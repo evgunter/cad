@@ -348,7 +348,7 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     let tilt = 0.05f64;
     // Lifts RechartStrandsDescriptions: the planted off-axis pair is the row; no door mints one.
     source
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             cone_face,
             FaceSurface::New {
                 surface: Surface::Cone {

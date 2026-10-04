@@ -208,8 +208,8 @@ fn two_bricks_union() {
 
 /// The Fig. 15.1 coplanar-overlap ∩ (the deferred PR 5 acceptance
 /// item, landed by PR 5.5): the seam runs partly ALONG the shared cap
-/// planes; the angular strut spike order (the sort half of
-/// `ssortnulledges`, `bool_strut_order`) nests the corner-site chords
+/// planes; the strut facing rule (`strut_faces_first`, the sort half
+/// of `ssortnulledges`) nests the corner-site chords
 /// so the joining completes and the [1,2]²×[0,1] cube comes out with
 /// exact mass properties.
 #[test]

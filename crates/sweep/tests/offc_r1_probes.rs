@@ -362,7 +362,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
     )
     .unwrap();
     // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -443,7 +443,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
     let mut a = unit_box();
     let face = top_face(&a);
     // Lifts RechartStrandsDescriptions: the certified offset on a box cap is the germ-pair gate's input.
-    a.set_face_surface_stranding_for_tests(
+    a.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: approx,

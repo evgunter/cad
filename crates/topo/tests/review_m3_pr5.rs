@@ -391,8 +391,8 @@ fn pinned_refusals_deterministic() {
 
 /// NEW NAMED ACCEPTANCE (PR 5.5): the Fig 15.1 coplanar-overlap ∩ —
 /// shared cap planes, seam partly on them — produces the exact
-/// [1,2]²×[0,1] cube (the angular strut spike order nests the
-/// corner-site chords).
+/// [1,2]²×[0,1] cube (the strut facing rule, `strut_faces_first`,
+/// nests the corner-site chords).
 #[test]
 fn fig151_coplanar_overlap_intersect_exact() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
