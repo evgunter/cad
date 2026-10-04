@@ -200,8 +200,8 @@ fn the_parametric_living_walk() {
 
     // ── 3. The two doors partition the edit's semantics, typed.
     // Create over a declared name refuses `ParamExists` carrying what
-    // already stands there — a layer-3 narrowing of an edit that is
-    // create-or-replace, so no door below refuses it. A value write to
+    // already stands there — answered ahead of the declare door, which
+    // refuses a taken name too (`VarNameTaken`). A value write to
     // an undeclared name — here a typo — is refused by the EDIT door
     // instead: `DocEdit::SetVarValue` carries an existing
     // declaration forward and says so, `EditError::UnknownVar`

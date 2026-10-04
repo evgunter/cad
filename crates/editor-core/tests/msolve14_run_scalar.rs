@@ -855,13 +855,17 @@ fn run_at<T: editor_core::EvalScalar>(
     evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-/// **The corpus digest the pre-generic tree gives, per ε row.** Measured
-/// on main's own tree from this same file's corpus and digest — first at
+/// **The corpus digest, per ε row.** It was measured on the
+/// pre-generic tree from this same file's corpus and digest — first at
 /// `a8f56a79f`, before any solve code moved, again at `2d29576fb` once
 /// PLACE's mate-frame offset (#3961) changed how an authored side is
 /// held, and at `11d9c7a7f` once the corpus took the shaft in two
-/// coaxial bores — and held since: the generic solve at `f64` is the
-/// nominal solve, bit for bit.
+/// coaxial bores — which is what showed the generic solve at `f64` to be
+/// the nominal solve, bit for bit. The numbers below are no longer that
+/// tree's: they were re-taken on this tree when the variable table
+/// renumbered the corpus's ids (the paragraph below), so they pin the
+/// generic solve against itself, and the bit-for-bit claim against the
+/// pre-generic tree rests on that measurement and on the id-free rows.
 ///
 /// One number per row because the documents are not ε-free: a part's
 /// content pin hashes its recorded ε, and an instance's id hashes the
@@ -870,16 +874,17 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the row fails rather than pass on nothing.
 ///
 /// Re-pinned at all three rows when declaring a variable began minting
-/// its id on the document's chain (INTENT-VARS-1 PR 2): every corpus
-/// document declares a variable, so every node minted after a declare
-/// was renumbered and the digest, which feeds ids, moved. No pose
+/// its id on the document's chain (INTENT-VARS-1 PR 2; its preimage is
+/// the variable's kind alone): every corpus document declares a
+/// variable, so every node minted after a declare was renumbered and the
+/// digest, which feeds ids, moved. No pose
 /// did: this file's id-free rows — each pose against the `f64` solve at
 /// the box's corners, each tangent against its central difference —
 /// held across the change untouched.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x6ba3_45dd_1e2f_f732),
-    (1e-6, 0x6813_bd5d_feb8_4201),
-    (1e-12, 0x9956_2017_dd54_82c2),
+    (1e-9, 0xb153_489f_9dd3_2b7c),
+    (1e-6, 0xd0bb_1a90_cc72_c974),
+    (1e-12, 0x38fb_a2c0_f9e0_65a3),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

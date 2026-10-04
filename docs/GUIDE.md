@@ -2100,7 +2100,8 @@ assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
 assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
 assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
 assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
-assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+# `varying` is in the variables' id order, not their names'.
+assert sorted(n.name for n in boxed.varying) == ["bore_r", "plate_t"]
 
 # The band refuses to price anything its shape would decide, and the
 # refusal NAMES the parameter rather than quietly assuming uniform.

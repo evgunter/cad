@@ -346,16 +346,13 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
                 "annotations {a:?} vs {b:?}: bit_eq must be {same}"
             );
             let diff = da.diff(&db);
-            // A declare's id is minted from its definition, so two
-            // documents declaring `q` differently hold two variables.
-            let mut both = vec![
-                da.var_named("q").expect("declared"),
-                db.var_named("q").expect("declared"),
-            ];
-            both.sort_unstable();
+            // A declare mints from the variable's kind alone, so both
+            // documents hold ONE variable `q`, and its definition moved.
+            let q = da.var_named("q").expect("declared");
+            assert_eq!(db.var_named("q"), Some(q), "one identity either way");
             assert_eq!(
                 diff.vars,
-                if same { vec![] } else { both },
+                if same { vec![] } else { vec![q] },
                 "annotations {a:?} vs {b:?}: diff"
             );
         }

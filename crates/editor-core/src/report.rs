@@ -37,6 +37,7 @@ use crate::analysis::{AnalyzedBox, MeasureUnavailable};
 use crate::distribution::Distribution;
 use crate::eval::{ContentKey, KeyHasher, key_of};
 use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// **Priced or forced** — the honesty type the unresolved-mass budget
 /// was missing (the M10-1 adjudication's R2 MINOR-1, this unit's named
@@ -65,8 +66,9 @@ pub enum MassBasis {
     /// report that called them "priced" would be claiming a shape
     /// nobody stated.
     Forced {
-        /// Every band-carrying variable, in id order.
-        by: Vec<SpokenVar>,
+        /// Every band-carrying variable, in id order — by identity, so
+        /// a rename moves no basis ([`Self::sentence`] speaks them).
+        by: Vec<VarId>,
     },
 }
 
@@ -79,10 +81,10 @@ impl MassBasis {
     /// measure with σ = 0, and a document of nothing but fixed
     /// parameters is priced (trivially, and truthfully).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
-        let by: Vec<SpokenVar> = analyzed
+        let by: Vec<VarId> = analyzed
             .varying()
             .filter(|(_, p)| matches!(p.distribution, Some(Distribution::Band { .. })))
-            .map(|(id, _)| analyzed.spoken(id))
+            .map(|(id, _)| id)
             .collect();
         if by.is_empty() {
             Self::Priced
@@ -100,20 +102,20 @@ impl MassBasis {
     }
 }
 
-impl core::fmt::Display for MassBasis {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl MassBasis {
+    /// The basis spelled out, each band-carrying variable spoken by
+    /// `speak` — at display time, so the basis itself holds ids alone.
+    pub fn sentence(&self, speak: impl Fn(VarId) -> SpokenVar) -> String {
         match self {
-            Self::Priced => f.write_str(
-                "priced: every varying parameter carries a stated distribution, so these \
-                 masses are integrals of a stated measure",
-            ),
-            Self::Forced { by } => write!(
-                f,
+            Self::Priced => "priced: every varying parameter carries a stated distribution, \
+                             so these masses are integrals of a stated measure"
+                .to_owned(),
+            Self::Forced { by } => format!(
                 "FORCED, not priced: {} carr{} a band — limits with no shape — so these \
                  masses are what set theory forces on any measure consistent with those \
                  limits, and none of them is a probability",
                 by.iter()
-                    .map(ToString::to_string)
+                    .map(|&id| speak(id).to_string())
                     .collect::<Vec<_>>()
                     .join(", "),
                 if by.len() == 1 { "ies" } else { "y" }
@@ -128,7 +130,7 @@ impl core::fmt::Display for MassBasis {
 /// The numbers are the drive's own, verbatim — this recomputes
 /// nothing. What it adds is the [`MassBasis`] beside them and the two
 /// doors every report in this lane carries.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct MassBudget {
     /// Mass on certified leaves.
     pub certified: Result<f64, MeasureUnavailable>,
@@ -144,6 +146,21 @@ pub struct MassBudget {
     pub containment: bool,
     /// Priced or forced ([`MassBasis`]).
     pub basis: MassBasis,
+    /// The analyzed box's variables as its document speaks them, for
+    /// [`Self::render`]'s basis line. Not part of the budget's
+    /// equality: a rename moves no mass.
+    spoken: BTreeMap<VarId, SpokenVar>,
+}
+
+impl PartialEq for MassBudget {
+    fn eq(&self, other: &Self) -> bool {
+        self.certified == other.certified
+            && self.unresolved == other.unresolved
+            && self.refused == other.refused
+            && self.tail == other.tail
+            && self.containment == other.containment
+            && self.basis == other.basis
+    }
 }
 
 impl MassBudget {
@@ -160,6 +177,11 @@ impl MassBudget {
             tail: accounting.unanalyzed.clone(),
             containment: accounting.containment,
             basis: MassBasis::of(analyzed),
+            spoken: analyzed
+                .params()
+                .keys()
+                .map(|&id| (id, analyzed.spoken(id)))
+                .collect(),
         }
     }
 
@@ -170,7 +192,7 @@ impl MassBudget {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "band {}", p.id().full());
+                let _ = writeln!(s, "band {}", p.full());
             }
         }
         let _ = writeln!(s, "certified {}", mass_bits(&self.certified));
@@ -193,7 +215,15 @@ impl MassBudget {
     pub fn render(&self) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
-        let _ = writeln!(s, "{}", self.basis);
+        let _ = writeln!(
+            s,
+            "{}",
+            self.basis.sentence(|id| self
+                .spoken
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| SpokenVar::new(id, None)))
+        );
         let _ = writeln!(s, "  certified   {}", percent(&self.certified));
         for (class, m) in &self.refused {
             let _ = writeln!(s, "  refused ({class}) {}", percent(m));
@@ -305,7 +335,7 @@ impl LeafHistogram {
              (E11.6), and nothing here claims one.",
             doc.spoken(self.measurement)
         );
-        let _ = writeln!(s, "{}", self.basis);
+        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         for row in &self.rows {
             let (lo, hi) = row.enclosure;
             let _ = writeln!(

@@ -2707,18 +2707,25 @@ pub fn split(
     if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
-    for param in cut_refs.keys() {
-        // The reference was validated against this table, so the
-        // variable exists; a miss would refuse at the insert below.
-        if let Some(var) = doc.var_named(param.as_str()).and_then(|id| doc.var(id)) {
-            part_apply(
-                &mut part,
-                DocEdit::DeclareVar {
-                    name: param.clone(),
-                    def: var.def().clone(),
-                },
-            )?;
-        }
+    // Declared in the PARENT's id order, so the part's ids follow the
+    // parent's variables rather than their names' spelling. The
+    // reference was validated against this table, so each variable
+    // exists; a miss would refuse at the insert below.
+    let carried: std::collections::BTreeSet<crate::var::VarId> = cut_refs
+        .keys()
+        .filter_map(|param| doc.var_named(param.as_str()))
+        .collect();
+    for id in carried {
+        let (Some(var), Some(name)) = (doc.var(id), doc.var_name(id)) else {
+            continue;
+        };
+        part_apply(
+            &mut part,
+            DocEdit::DeclareVar {
+                name: name.clone(),
+                def: var.def().clone(),
+            },
+        )?;
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).

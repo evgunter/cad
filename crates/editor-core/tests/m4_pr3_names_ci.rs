@@ -94,11 +94,11 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
 /// wording moved).
-const DIE_TABLE_DIGEST: u64 = 0x0a31_f679_bd9d_b4e3;
+const DIE_TABLE_DIGEST: u64 = 0xccbe_012c_1535_2cff;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x44e4_dbf9_0377_6ead;
+const DIE_NAMES_DIGEST: u64 = 0xfb43_7923_8c7c_9bf3;
 
 #[test]
 fn die_name_tables_are_golden() {

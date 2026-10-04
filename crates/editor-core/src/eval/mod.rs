@@ -3844,7 +3844,7 @@ where
             lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
-            seed: opts.seed.and_then(|var| Some((var, doc.var_name(var)?))),
+            seed: opts.seed,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();

@@ -132,28 +132,16 @@ fn boxed_at(name: editor_core::VarId, offset: f64) -> Option<std::sync::Arc<Para
 /// Returns the document and (frame, both profiles, extrude).
 fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry", Tol::witness());
-    // Declared at one value and moved to `lift`, so the documents of
-    // every lift share their ids: a declare mints from its value.
     let doc = doc
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.0)),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
-        .doc
-        .apply(
-            &DocEdit::SetVarValue {
-                var: p().into(),
-                value: editor_core::FreeValue::Continuous(lift),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the parameter moves")
         .doc;
     // Sketch +x along world +y and sketch +y along world +z: a frame
     // no reader can confuse with the identity, still exactly unit and

@@ -17,8 +17,8 @@
 //!   pin "which version"; a document copied under a fresh id is
 //!   detectably the same content.
 //!
-//! Everything else is INCLUDED — nodes, order, params, recorded ε,
-//! witnesses, metadata, appearance, and every FUTURE `Doc` field,
+//! Everything else is INCLUDED — nodes, order, variables and their
+//! names, recorded ε, witnesses, metadata, appearance, and every FUTURE `Doc` field,
 //! automatically: the preimage is the document's own serde form with
 //! the `id` key removed, not a curated field list, so a grown field
 //! pins by default instead of relying on someone remembering to

@@ -102,15 +102,6 @@ impl VarDef {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
         }
     }
-
-    /// The definition with its display units read as canonical: what
-    /// the mint hashes (D6), so two declares `bit_eq` cannot tell apart
-    /// hash alike.
-    pub(crate) fn erase_display_units(&mut self) {
-        match self {
-            Self::Free(free) => free.erase_display_unit(),
-        }
-    }
 }
 
 /// **A variable**: its kind and its definition. The definition's kind

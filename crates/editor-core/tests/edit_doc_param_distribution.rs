@@ -23,8 +23,8 @@
 //! # Where the twin rows live
 //!
 //! `edit_doc_param_unit.rs` holds the mirror-image trap — re-spelling
-//! a notation through create-or-replace and losing the annotation —
-//! and its `annotating_through_create_or_replace_reverts_the_notation`
+//! a notation through `DefineVar` and losing the annotation —
+//! and its `annotating_through_define_var_reverts_the_notation`
 //! is this file's own finding, written from the other side by the lane
 //! that found it. `m10_1_r2_probes.rs` §6 pins the same carry-forward
 //! CLASS over the VALUE field. These rows cross-cite both rather than
@@ -141,7 +141,7 @@ fn fixture() -> ProfileDoc {
 /// (`DefineVar` with `FreeVar::continuous_with`) it FAILS: the
 /// notation reverts to the canonical unit, silently. That is the
 /// filed finding, and `edit_doc_param_unit.rs`'s
-/// `annotating_through_create_or_replace_reverts_the_notation` holds
+/// `annotating_through_define_var_reverts_the_notation` holds
 /// it as a standing row.
 #[test]
 fn annotating_a_standing_parameter_keeps_its_notation() {

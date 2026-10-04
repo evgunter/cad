@@ -199,7 +199,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: None,
+            distribution: Some(radius),
         }),
     });
     r.push(DocEdit::DeclareVar {
@@ -208,20 +208,8 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: None,
+            distribution: Some(depth),
         }),
-    });
-    // Annotated by their own door: a declare mints from its definition,
-    // so declaring them annotated would give two plates that differ only
-    // in a law different variable ids and node ids, and rows comparing
-    // such plates' witness keys would compare numberings.
-    r.push(DocEdit::SetVarDistribution {
-        var: name("hole_r").into(),
-        distribution: Some(radius),
-    });
-    r.push(DocEdit::SetVarDistribution {
-        var: name("depth").into(),
-        distribution: Some(depth),
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {

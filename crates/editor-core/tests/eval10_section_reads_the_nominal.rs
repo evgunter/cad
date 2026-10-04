@@ -43,28 +43,16 @@ fn var(doc: &ProfileDoc) -> editor_core::VarId {
 /// between them. Returns the document and the loft's id.
 fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("eval10_section_reads_the_nominal", Tol::witness());
-    // Declared at one value and moved to `nominal`, so the documents
-    // of every nominal share their ids: a declare mints from its value.
     let doc = doc
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
-        .doc
-        .apply(
-            &DocEdit::SetVarValue {
-                var: p().into(),
-                value: editor_core::FreeValue::Continuous(nominal),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the parameter moves")
         .doc;
     let (doc, lower_frame) = fixture::insert(doc, fixture::xy_frame());
     let (doc, lower) = fixture::insert(

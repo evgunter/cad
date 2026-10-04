@@ -151,11 +151,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::ParamEnv<f64>,
-    /// The E4 seed this evaluation carries, and the name its readers
-    /// read it by (`None` on the build path). Consulted by the one place
-    /// the lift cannot reach: a C6/D9-pinned section refuses a seed it
-    /// would otherwise embed as a constant ([`section_of`]).
-    pub seed: Option<(crate::var::VarId, &'a crate::doc::VarName)>,
+    /// The E4 seed this evaluation carries, by its variable (`None` on
+    /// the build path). Consulted by the one place the lift cannot
+    /// reach: a C6/D9-pinned section refuses a seed it would otherwise
+    /// embed as a constant ([`section_of`]).
+    pub seed: Option<crate::var::VarId>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -4450,8 +4450,12 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
     // a parameter this program reads would arrive at the skinned
     // surface as a constant — a finite, wrong zero tangent.
-    if let Some((param, name)) = lane.seed
-        && program.references(name)
+    // Keyed by the variable: the program's readers read names in this
+    // unit, so the variable's own name is what they are asked for.
+    if let Some(param) = lane.seed
+        && doc
+            .var_name(param)
+            .is_some_and(|name| program.references(name))
     {
         return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
     }

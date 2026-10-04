@@ -1070,10 +1070,9 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 /// The document's continuous free variables, in id order — the entry
 /// set of every driver call.
 fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
-    doc.vars()
-        .iter()
-        .filter(|(_, var)| matches!(var.free(), Some(FreeVar::Continuous { .. })))
-        .map(|(&id, _)| id)
+    doc.free_vars()
+        .filter(|(_, free)| matches!(free, FreeVar::Continuous { .. }))
+        .map(|(id, _)| id)
 }
 
 /// Whether a verdict's root box spans exactly this document's
@@ -1448,7 +1447,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.id().full());
+                let _ = writeln!(s, "  forced_by {}", p.full());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));

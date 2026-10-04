@@ -18,7 +18,7 @@
 //! # Where the twin rows live
 //!
 //! `m10_1_r2_probes.rs` §6 pins the same carry-forward CLASS over the
-//! VALUE field: the same trap through create-or-replace, then
+//! VALUE field: the same trap through `DefineVar`, then
 //! `SetVarValue` avoiding it. **The two sections cross-cite rather
 //! than merge**, deliberately: that suite is an independent derivation
 //! of M10-1's error-analysis claims, gated to `distribution.rs`,
@@ -39,7 +39,7 @@
 //! `2b6bd62e4`, `crates/editor-core/tests/dp_rv_probes.rs`) against
 //! claims this PR's body made and its own rows did not execute. They
 //! are kept in their author's words and numbering; the one that
-//! asserted the create-or-replace door still ADMITS a mismatched
+//! asserted the whole-definition door (`DefineVar`) still ADMITS a mismatched
 //! pairing is inverted, because that finding was accepted and the door
 //! now refuses.
 
@@ -115,7 +115,7 @@ fn fixture() -> ProfileDoc {
 }
 
 /// **The trap, written down.** Re-spelling a parameter's notation
-/// through the create-or-replace door means assembling a whole
+/// through the whole-definition door (`DefineVar`) means assembling a whole
 /// `FreeVar`, and the natural spelling — `FreeVar::continuous(dim,
 /// value)`, then the notation — names no distribution, so the
 /// annotation is deleted. No refusal, no diagnostic: the edit applies.
@@ -162,12 +162,12 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("create-or-replace accepts it")
+    .expect("the whole-definition door accepts it")
     .doc;
     assert_eq!(
         (*after.free_named("wall").expect("declared")).distribution(),
         None,
-        "the create-or-replace door deleted the annotation the caller never named"
+        "the whole-definition door deleted the annotation the caller never named"
     );
     // The older twin's strength (`m10_1_r2_probes.rs` section 6): the
     // deletion is not a field going `None`, it is the analysis now
@@ -669,9 +669,9 @@ fn the_notation_edit_round_trips_the_bytes() {
 
 /// **Claim 8** (the filed sweep row): `continuous_with` writes the
 /// canonical notation, so annotating a parameter authored in mm
-/// through create-or-replace reverts it to metres.
+/// through `DefineVar` reverts it to metres.
 #[test]
-fn annotating_through_create_or_replace_reverts_the_notation() {
+fn annotating_through_define_var_reverts_the_notation() {
     let doc = fixture();
     let in_mm = apply(
         &doc,
@@ -701,7 +701,7 @@ fn annotating_through_create_or_replace_reverts_the_notation() {
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("create-or-replace applies")
+    .expect("the whole-definition door applies")
     .doc;
     match *reannotated.free_named("wall").expect("declared") {
         FreeVar::Continuous { display_unit, .. } => assert_eq!(
@@ -736,9 +736,10 @@ fn the_table_has_exactly_one_scalar_row() {
 /// **The sibling door, swept.** The review found this row's claim
 /// inverted: `EditError::DocParamUnitMismatch`'s rustdoc said the
 /// pairing fault was refused "at the edit door, before it can reach a
-/// document at all", while create-or-replace still let a mismatched
+/// document at all", while the whole-definition door still let a mismatched
 /// pair into a live document and only save/load objected. The finding
-/// was accepted and `write_doc_param` now asks `measures()` too, so
+/// was accepted and the definition check (`check_var_def`) now asks
+/// `measures()` too, so
 /// this row is the same probe with its verdict flipped: EVERY door
 /// that writes a declaration refuses the pair.
 ///

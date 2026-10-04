@@ -1971,8 +1971,10 @@ impl DocSession {
     }
 
     /// The create door: refuse an already-declared name typed, commit
-    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
-    /// this door narrows the edit's create-or-replace semantics.
+    /// one `DeclareVar` for a new one. The declare door refuses a taken
+    /// name too (`EditError::VarNameTaken`); this refusal answers first
+    /// so the offer can carry the standing variable's dimension (see
+    /// [`SessionOp::CreateParam`]).
     fn create_param(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
         if let Some(existing) = self.committed_doc().free_named(name.as_str()) {
             return OpOutcome::refused(Refusal::ParamExists {

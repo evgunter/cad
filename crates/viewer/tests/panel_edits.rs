@@ -36,7 +36,7 @@ fn a_property_edit_emits_exactly_one_committed_docedit() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     assert!(outcome.previewed.is_empty());
-    // The VALUE door, not the create-or-replace one: the panel is
+    // The VALUE door, not the whole-definition one: the panel is
     // moving a number, so it emits the edit that moves a number and
     // leaves the declaration alone.
     assert!(matches!(

@@ -172,31 +172,41 @@ pub fn cut_plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: To
 
 fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol: Tol) -> Plate {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-tolerance"), tol);
-    // The hole spacing: a UNIFORM tolerance, the machinist's ±.
-    declare(
-        &mut doc,
-        "half_spacing",
-        SPACING / 2.0,
-        Distribution::Uniform {
-            lo: -spacing_half_width,
-            hi: spacing_half_width,
-        },
-        tol,
-    );
-    // The two radii: INDEPENDENT normals. Independent because they are
-    // two names (PL6), which is what makes the RSS's root-sum-square
-    // differ from the worst case's linear sum — the whole subject of
-    // stop 2.
-    for n in ["hole_a_r", "hole_b_r"] {
-        declare(
-            &mut doc,
-            n,
+    // The hole spacing: a UNIFORM tolerance, the machinist's ±. The two
+    // radii: INDEPENDENT normals. Independent because they are two
+    // names (PL6), which is what makes the RSS's root-sum-square differ
+    // from the worst case's linear sum — the whole subject of stop 2.
+    let studied = [
+        (
+            "half_spacing",
+            SPACING / 2.0,
+            Distribution::Uniform {
+                lo: -spacing_half_width,
+                hi: spacing_half_width,
+            },
+        ),
+        (
+            "hole_a_r",
             RADIUS,
             Distribution::Normal {
                 sigma: radius_sigma,
             },
-            tol,
-        );
+        ),
+        (
+            "hole_b_r",
+            RADIUS,
+            Distribution::Normal {
+                sigma: radius_sigma,
+            },
+        ),
+    ];
+    // Declared so their ids sort in the order above
+    // (`chain::id_ordered`): the drive breaks a tie between equally
+    // wide axes toward the lowest id, and the stops below were measured
+    // splitting the spacing first.
+    for k in crate::chain::id_ordered(&doc, studied.len(), Dimension::Length, tol) {
+        let (n, value, distribution) = studied[k];
+        declare(&mut doc, n, value, distribution, tol);
     }
 
     let plane = insert(

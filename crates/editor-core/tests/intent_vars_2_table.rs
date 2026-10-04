@@ -134,13 +134,19 @@ fn equal_definitions_are_two_variables_and_the_name_is_not_minted() {
     let moved = declare(
         &empty,
         "w",
-        VarDef::Free(FreeVar::continuous(Dimension::Length, VALUE)),
+        VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * VALUE)),
     );
-    assert_ne!(
+    assert_eq!(
         moved.var_named("w"),
         Some(w),
-        "the definition is: an unannotated w is another id"
+        "nor is the definition: another value and no annotation mint the same id"
     );
+    let angle = declare(
+        &empty,
+        "w",
+        VarDef::Free(FreeVar::continuous(Dimension::Angle, VALUE)),
+    );
+    assert_ne!(angle.var_named("w"), Some(w), "the kind is");
 }
 
 /// Row 3's load half: a file naming two ids `w` refuses `VarNameTwice`
@@ -343,9 +349,26 @@ fn analysis_is_keyed_by_var_id() {
     let boxed = ParamBox::of(&analyzed);
     assert_eq!(boxed.axes().keys().copied().collect::<Vec<_>>(), both);
 
-    let draws = sample_offsets(&analyzed, &McConfig::default(), 0).unwrap();
-    assert_eq!(draws.keys().copied().collect::<Vec<_>>(), both);
-    assert_ne!(draws[&w], draws[&v], "two laws, two independent draws");
+    // Different laws, so a draw handed to the wrong variable shows: w's
+    // is a σ = 1e-4 normal, v's a uniform on [-2, 2].
+    let lawed = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: v.into(),
+            distribution: Some(Distribution::Uniform { lo: -2.0, hi: 2.0 }),
+        },
+    )
+    .unwrap();
+    let lawed_box = analyzed_box(&lawed, &AnalysisPolicy::default());
+    let mut widest_v = 0.0_f64;
+    for i in 0..16 {
+        let draws = sample_offsets(&lawed_box, &McConfig::default(), i).unwrap();
+        assert_eq!(draws.keys().copied().collect::<Vec<_>>(), both);
+        assert!(draws[&w].abs() < 1e-2, "w draws its own normal: {draws:?}");
+        assert!(draws[&v].abs() <= 2.0, "v its own uniform: {draws:?}");
+        widest_v = widest_v.max(draws[&v].abs());
+    }
+    assert!(widest_v > 0.1, "v's draws span its uniform, not w's normal");
 
     let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
     let partial = |var: VarId| {
@@ -357,4 +380,78 @@ fn analysis_is_keyed_by_var_id() {
     };
     assert_eq!(entries.len(), 2);
     assert_eq!((partial(w), partial(v)), (1.0, 2.0), "∂/∂w = 1, ∂/∂v = 2");
+}
+
+// ------------------------------------------------- the load walk's arms
+
+/// A fresh save of the twins with `edit` applied to its snapshot, then
+/// loaded: what the load door answers.
+fn load_doctored(edit: impl FnOnce(&mut serde_json::Value, VarId, VarId)) -> PersistError {
+    let doc = twins();
+    let (w, v) = (id(&doc, "w"), id(&doc, "v"));
+    let text = save(&doc, &[], Tol::witness()).unwrap();
+    load(&text, Tol::witness()).expect("the undoctored save loads");
+    let corrupt = crate::wire::doctored(&text, |wire| edit(&mut wire["snapshot"], w, v));
+    load(&corrupt, Tol::witness()).expect_err("the doctored save must refuse")
+}
+
+/// `VarKind`: a stored kind that is not its definition's.
+#[test]
+fn a_kind_its_definition_does_not_hold_refuses_at_load() {
+    let err = load_doctored(|snap, w, _| {
+        let kind = &mut snap["vars"][w.0.to_string()]["kind"];
+        assert_eq!(*kind, serde_json::json!("Length"), "aimed at w's kind");
+        *kind = serde_json::json!("Angle");
+    });
+    let PersistError::Snapshot(SnapshotError::VarKind { var, kind, def }) = err else {
+        panic!("not VarKind: {err:?}")
+    };
+    assert_eq!(var.name(), Some(&n("w")));
+    assert_eq!((kind, def), (VarKind::Angle, VarKind::Length));
+}
+
+/// `VarNotMinted`: a variable the mint log does not hold.
+#[test]
+fn a_variable_the_mint_never_minted_refuses_at_load() {
+    let err = load_doctored(|snap, w, _| {
+        let log = snap["mint"]["log"].as_array_mut().expect("the mint log");
+        let before = log.len();
+        log.retain(|entry| entry != &serde_json::json!({ "var": w.0 }));
+        assert_eq!(log.len(), before - 1, "w's entry was in the log");
+    });
+    let PersistError::Snapshot(SnapshotError::VarNotMinted { var }) = err else {
+        panic!("not VarNotMinted: {err:?}")
+    };
+    assert_eq!(var.name(), Some(&n("w")));
+}
+
+/// `NameOnMissingVar`: a name on an id that holds no variable.
+#[test]
+fn a_name_on_no_variable_refuses_at_load() {
+    let err = load_doctored(|snap, _, _| {
+        snap["var_names"]["99"] = serde_json::json!("ghost");
+    });
+    assert_eq!(
+        err,
+        PersistError::Snapshot(SnapshotError::NameOnMissingVar {
+            var: VarId(99),
+            name: n("ghost"),
+        })
+    );
+}
+
+/// `VarUnnamed`: a variable with no name — no door of this build makes
+/// one, and readers read names, so the load door refuses it rather than
+/// let the lanes disagree on whether it exists.
+#[test]
+fn an_unnamed_variable_refuses_at_load() {
+    let err = load_doctored(|snap, _, v| {
+        let names = snap["var_names"].as_object_mut().expect("the name table");
+        assert!(names.remove(&v.0.to_string()).is_some(), "v had a name");
+    });
+    let PersistError::Snapshot(SnapshotError::VarUnnamed { var }) = err else {
+        panic!("not VarUnnamed: {err:?}")
+    };
+    let doc = twins();
+    assert_eq!(var, id(&doc, "v"));
 }

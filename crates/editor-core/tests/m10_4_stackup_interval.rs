@@ -240,24 +240,12 @@ fn plate_spaced(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, None)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, radius)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, None)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, depth)),
     });
-    // Annotated by their own door: a declare mints from its definition,
-    // so plates declared with different laws would carry different
-    // variable and node ids, and a drive of one would read as foreign to
-    // the other — which is not what the rows comparing them are about.
-    for (n, law) in [("hole_r", radius), ("depth", depth)] {
-        if law.is_some() {
-            r.push(DocEdit::SetVarDistribution {
-                var: name(n).into(),
-                distribution: law,
-            });
-        }
-    }
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
@@ -533,6 +521,17 @@ fn the_two_hole_plate_stackup() {
     );
     assert!(!golden.contains("Measure "), "{golden}");
     assert!(!golden.contains("hole_r"), "{golden}");
+    // The human form SPEAKS the variable: by its name, where the
+    // content-keyed goldening form above holds its identity (so a
+    // rename moves no report key).
+    let human = unliftable.render(&doc, &analyzed);
+    assert!(
+        human.contains(&format!(
+            "hole_r feeds the section of {}, which stays f64",
+            doc.spoken(assertion)
+        )),
+        "{human}"
+    );
 
     // The nominal: the plate's own formula, 2·0.30 − 2·0.2.
     assert!(

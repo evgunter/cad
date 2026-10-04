@@ -719,9 +719,8 @@ pub fn derive(
     // pinned at its nominal, because this query's contract is one
     // field.
     let annotated: Vec<(VarId, Option<Distribution>)> = derived
-        .vars()
-        .iter()
-        .filter_map(|(&id, var)| match var.free()? {
+        .free_vars()
+        .filter_map(|(id, free)| match free {
             FreeVar::Continuous { distribution, .. } => {
                 let wanted = if id == axis { Some(band) } else { None };
                 (*distribution != wanted).then_some((id, wanted))

@@ -383,22 +383,14 @@ fn band_placement() -> ProfileDoc {
 
 fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    // Declared unannotated and annotated by its own door: the
-    // distribution's offsets are multiples of ε, and a declare mints
-    // from its definition, so declaring it annotated would make every
-    // id after it — and the goldened keys — differ per ε row.
     r.push(DocEdit::DeclareVar {
         name: name("place"),
         def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: None,
+            distribution: Some(distribution),
         }),
-    });
-    r.push(DocEdit::SetVarDistribution {
-        var: name("place").into(),
-        distribution: Some(distribution),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -772,8 +764,8 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     match MassBasis::of(&forced) {
         MassBasis::Forced { by } => {
             assert_eq!(
-                by.iter().map(|v| v.name().cloned()).collect::<Vec<_>>(),
-                vec![Some(name("place"))]
+                by,
+                vec![band_placement().var_named("place").expect("declared")]
             );
         }
         other => panic!("a band parameter forces the basis: {other:?}"),

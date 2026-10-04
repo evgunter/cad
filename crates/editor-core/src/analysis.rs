@@ -185,12 +185,22 @@ impl AnalyzedParam {
 /// The analyzed box: one axis per CONTINUOUS free variable, in id
 /// order (VR8: the axes are keyed by identity, so a rename moves none).
 /// Derived, never stored.
-#[derive(Debug, Clone, PartialEq, Default)]
+///
+/// Equality is the axes' alone: the spoken forms beside them are how a
+/// refusal names a variable, and a rename — which moves no axis — must
+/// move no equality either.
+#[derive(Debug, Clone, Default)]
 pub struct AnalyzedBox {
     params: BTreeMap<VarId, AnalyzedParam>,
     /// Each axis's variable as the document it was taken of speaks it,
-    /// for the refusals that name one.
+    /// for the refusals that name one. Not part of the box's identity.
     spoken: BTreeMap<VarId, SpokenVar>,
+}
+
+impl PartialEq for AnalyzedBox {
+    fn eq(&self, other: &Self) -> bool {
+        self.params == other.params
+    }
 }
 
 impl AnalyzedBox {
@@ -300,9 +310,7 @@ impl AnalyzedBox {
 pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
     let z = quantile_z(policy.quantile_mass());
     let params: BTreeMap<VarId, AnalyzedParam> = doc
-        .vars()
-        .iter()
-        .filter_map(|(&id, var)| Some((id, var.free()?)))
+        .free_vars()
         .filter_map(|(id, p)| match *p {
             FreeVar::Continuous {
                 dim,
@@ -949,8 +957,12 @@ pub fn param_env_over<T: AxisScalar, P>(
         }
     }
     let mut bindings = BTreeMap::new();
-    for (&id, name) in doc.var_names() {
-        let Some(p) = doc.free(id) else { continue };
+    for (id, p) in doc.free_vars() {
+        // Bound under its name, as `Doc::param_env` binds it: the two
+        // environment doors read one iteration base.
+        let Some(name) = doc.var_name(id) else {
+            continue;
+        };
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);

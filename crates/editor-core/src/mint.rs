@@ -37,7 +37,7 @@ use sha2::{Digest, Sha256};
 
 use crate::node::{Node, RecipeNodeId, StepId};
 use crate::program::{LoopProgram, StepIdFault};
-use crate::var::{VarDef, VarId};
+use crate::var::{VarId, VarKind};
 
 /// The document's mint: the chain the next minting edit extends and
 /// the log of every id minted so far.
@@ -132,20 +132,18 @@ pub(crate) enum MintingEdit<'a, P> {
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
     },
-    /// A variable declared: its definition, and not its name (VR2).
+    /// A variable declared: its KIND, and nothing else. Not its name
+    /// (VR2: a name is a label, in neither an id's mint nor a content
+    /// key), and not its definition: a nominal or an annotation in the
+    /// preimage would make every id minted after the declare, and every
+    /// verdict keyed by one, move with a value — and a distribution
+    /// enters no evaluation, no content key and no predicate. Two
+    /// declares of one kind still mint two ids, because the chain
+    /// extends.
     DeclareVar {
-        /// The definition.
-        def: VarDef,
+        /// The kind.
+        kind: VarKind,
     },
-}
-
-impl MintingEdit<'_, ()> {
-    /// The declare of `def`, display units erased.
-    fn declare(def: &VarDef) -> Self {
-        let mut def = def.clone();
-        def.erase_display_units();
-        Self::DeclareVar { def }
-    }
 }
 
 impl<'a, P: Serialize + Clone + crate::ProfilePayload> MintingEdit<'a, P> {
@@ -265,17 +263,31 @@ impl Mint {
         })
     }
 
-    /// **The id a declare of `def` mints**: the chain extended by the
-    /// definition's canonical bytes, display units erased, then once
-    /// for the variable. The name is not hashed (VR2). On a refusal
-    /// `self` is untouched.
+    /// **The id a declare of a `kind` variable draws here**, and the
+    /// chain it leaves: the chain extended by the declare's canonical
+    /// bytes (its kind alone, [`MintingEdit::DeclareVar`]), then once
+    /// for the variable. Reads; mints nothing.
+    fn draw_var(&self, kind: VarKind) -> ([u8; 32], VarId) {
+        let edit = MintingEdit::<()>::DeclareVar { kind };
+        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&edit));
+        (chain, VarId(bits))
+    }
+
+    /// The id a declare of a `kind` variable would mint here — what a
+    /// refused declare's refusal speaks. Reads; mints nothing.
+    #[must_use]
+    pub(crate) fn would_declare(&self, kind: VarKind) -> VarId {
+        self.draw_var(kind).1
+    }
+
+    /// **Mint the id of a declared `kind` variable** ([`Self::draw_var`]).
+    /// On a refusal `self` is untouched.
     ///
     /// # Errors
     ///
     /// [`VarIdCollides`] where the log already holds the id.
-    pub(crate) fn declare(&mut self, def: &VarDef) -> Result<VarId, VarIdCollides> {
-        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&MintingEdit::declare(def)));
-        let id = VarId(bits);
+    pub(crate) fn declare(&mut self, kind: VarKind) -> Result<VarId, VarIdCollides> {
+        let (chain, id) = self.draw_var(kind);
         let mut log = self.log.clone();
         Self::log_new(&mut log, Minted::Var(id)).map_err(|_| VarIdCollides { id })?;
         self.chain = chain;
@@ -473,11 +485,10 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::{Mint, Minted, NodeIdCollides, VarIdCollides};
-    use crate::doc::FreeVar;
     use crate::expr::{Dimension, Expr};
     use crate::node::{Node, RecipeNodeId, StepId};
     use crate::program::{LoopProgram, ProfileProgram, StepIdFault};
-    use crate::var::{VarDef, VarId};
+    use crate::var::{VarId, VarKind};
 
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
@@ -631,18 +642,16 @@ mod tests {
     const PIN_LAST: u64 = 1_356_137_351_626_931_182;
     const PIN_CHAIN: &str = "12d1f7bc765cbbee68bd2a7bb046ab2b1a0027e350a1c8d5d66eb8bf72e7d5ba";
 
-    fn length(value: f64) -> VarDef {
-        VarDef::Free(FreeVar::continuous(Dimension::Length, value))
-    }
+    const LEN: VarKind = VarKind::Length;
 
     /// INTENT-VARS-1 §4 row 4 and ruling Q5: the chain extends, so two
-    /// declares of one definition mint two ids, both logged as
-    /// variables' — equal values are not one variable.
+    /// declares of one kind mint two ids, both logged as variables' —
+    /// equal values are not one variable.
     #[test]
-    fn two_declares_of_one_definition_mint_two_ids() {
+    fn two_declares_of_one_kind_mint_two_ids() {
         let mut m = Mint::empty();
-        let a = m.declare(&length(0.005)).unwrap();
-        let b = m.declare(&length(0.005)).unwrap();
+        let a = m.declare(LEN).unwrap();
+        let b = m.declare(LEN).unwrap();
         assert_ne!(a, b, "the second declare extends a different chain");
         assert_eq!(m.vars().collect::<Vec<_>>(), {
             let mut both = vec![a, b];
@@ -656,31 +665,18 @@ mod tests {
         );
     }
 
-    /// The declare's preimage is the definition with its display unit
-    /// erased (D6), so a definition written in millimetres mints the id
-    /// its canonical spelling does, and a different value does not.
+    /// The declare's preimage is the kind (the orchestrator's ruling on
+    /// spec §1): kinds part, and `would_declare` reads the id `declare`
+    /// mints without minting it.
     #[test]
-    fn a_declare_hashes_the_definition_and_not_its_display_unit() {
-        let mm = VarDef::Free(FreeVar::written_length(quantity::WrittenLength::in_unit(
-            5.0,
-            quantity::MM,
-        )));
-        let canonical = length(0.005);
-        assert!(mm.bit_eq(&canonical), "bit_eq cannot tell the two apart");
-        let id = Mint::empty().declare(&canonical).unwrap();
-        assert_eq!(Mint::empty().declare(&mm).unwrap(), id, "one id (D6)");
-        assert_ne!(
-            Mint::empty().declare(&length(0.006)).unwrap(),
-            id,
-            "the value is in the preimage"
-        );
-        assert_ne!(
-            Mint::empty()
-                .declare(&VarDef::Free(FreeVar::Count { value: 5 }))
-                .unwrap(),
-            id,
-            "and so is the kind"
-        );
+    fn a_declare_hashes_its_kind_and_would_declare_agrees() {
+        let id = Mint::empty().declare(LEN).unwrap();
+        for other in [VarKind::Angle, VarKind::Scalar, VarKind::Count] {
+            assert_ne!(Mint::empty().declare(other).unwrap(), id, "{other:?}");
+        }
+        let m = Mint::empty();
+        assert_eq!(m.would_declare(LEN), id);
+        assert_eq!(m, Mint::empty(), "a read mints nothing");
     }
 
     /// §4 row 4: a log already holding the bits a declare would draw —
@@ -688,33 +684,29 @@ mod tests {
     /// `VarIdCollides` and moves neither chain nor log.
     #[test]
     fn a_var_id_the_log_holds_refuses_and_moves_nothing() {
-        let drawn = Mint::empty().declare(&length(0.005)).unwrap();
+        let drawn = Mint::empty().declare(LEN).unwrap();
         let taken = Mint::empty().logged([Minted::Node(RecipeNodeId(drawn.0))]);
         let mut m = taken.clone();
-        assert_eq!(m.declare(&length(0.005)), Err(VarIdCollides { id: drawn }));
+        assert_eq!(m.declare(LEN), Err(VarIdCollides { id: drawn }));
         assert_eq!(m, taken, "a refused mint moves neither chain nor log");
         assert_eq!(m.chain(), taken.chain());
         let mut free = Mint::empty();
-        assert_eq!(
-            free.declare(&length(0.005)),
-            Ok(drawn),
-            "and an empty log takes it"
-        );
+        assert_eq!(free.declare(LEN), Ok(drawn), "and an empty log takes it");
     }
 
     /// **The declare's bytes are frozen**, as the insert's are: one
-    /// fixture declare — a length of 5 mm, into the empty document —
-    /// mints this id and leaves this chain.
+    /// fixture declare — a length, into the empty document — mints this
+    /// id and leaves this chain.
     #[test]
     fn the_mint_of_one_fixture_declare_is_pinned() {
         let mut m = Mint::empty();
-        let id = m.declare(&length(0.005)).unwrap();
+        let id = m.declare(LEN).unwrap();
         let hex: String = m.chain().iter().map(|b| format!("{b:02x}")).collect();
         assert_eq!((id, hex.as_str()), (VarId(PIN_VAR), PIN_VAR_CHAIN));
     }
 
-    const PIN_VAR: u64 = 12_108_029_820_243_274_338;
-    const PIN_VAR_CHAIN: &str = "a8085cf86d6fea62ccb6326c3101b253c692fa73afc7130e254a2eaa2655df46";
+    const PIN_VAR: u64 = 16_300_829_493_895_992_422;
+    const PIN_VAR_CHAIN: &str = "e2382e0f27e19466322b51bf83cd48ccace92c81be7625e6fe836050c144b25f";
 
     #[test]
     fn the_wire_round_trips_and_refuses_a_short_chain() {

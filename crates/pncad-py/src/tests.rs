@@ -5952,6 +5952,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "var_kind",
             "var_name_twice",
             "var_not_minted",
+            "var_unnamed",
             "witness_on_missing_node",
             "witness_site",
         ],

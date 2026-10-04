@@ -31,7 +31,7 @@ use geom_core::Tol;
 /// spelled, and the load door refuses one at the token, through
 /// `Deserialize`, which is this same constructor
 /// (`try_from = "String"`) — the same shape `UnitSym` refuses an
-/// off-table symbol in. That is why `write_doc_param` runs no name
+/// off-table symbol in. That is why the declare door runs no name
 /// check and `persist::check` has no name walk: there is one
 /// decision, at the type, and no second door can restate it.
 #[derive(
@@ -342,8 +342,8 @@ impl core::fmt::Display for DocParamField {
 /// unusable** ([`Doc::param_ref_fault`], spec D6) — one vocabulary for
 /// the edit doors and the load door.
 ///
-/// The rule is the param TABLE's: a reference names a declared
-/// parameter, and reads it at the dimension it was declared with. An
+/// The rule is the variable table's: a reference names a declared
+/// variable, and reads it at the dimension it was declared with. An
 /// expression carries the dimension it read at, so a (re)declaration
 /// that moves a parameter's dimension breaks every expression
 /// referencing it — which is why the edit door re-asks this of every
@@ -512,10 +512,11 @@ impl FreeVar {
     /// [`Self::with_display_unit`].
     ///
     /// `None` when the value's arm does not match the declaration's.
-    /// Changing a parameter's kind is a REDECLARATION — the
-    /// create-or-replace door, where the dimension and the annotation
-    /// are stated afresh — and a value edit that quietly performed one
-    /// would be the same silent deletion in a different disguise.
+    /// A variable's kind is fixed when it is declared — no door changes
+    /// it ([`crate::DocEdit::DefineVar`] refuses `VarKindFixed`), and a
+    /// different kind is a new variable, declared afresh — so a value
+    /// edit that quietly changed one would be a redeclaration in
+    /// disguise.
     pub fn with_value(&self, value: FreeValue) -> Option<Self> {
         match (self, value) {
             (
@@ -564,8 +565,9 @@ impl FreeVar {
     /// sees — it enters the history and it persists, and replay
     /// identity and `diff.rs` are blind to it exactly as they are to a
     /// literal's notation. So there is nothing about the parameter for
-    /// a caller to restate; the create-or-replace door would make them
-    /// restate it all, and silently delete whatever they forgot.
+    /// a caller to restate; the whole-definition door
+    /// ([`crate::DocEdit::DefineVar`]) would make them restate it all,
+    /// and silently delete whatever they forgot.
     ///
     /// # Errors
     ///
@@ -622,8 +624,9 @@ impl FreeVar {
     /// rebuilding a parameter from parts, so no door can drop a field
     /// it never mentioned. [`Self::continuous_with`], the authoring
     /// spelling, writes the CANONICAL notation, so annotating through
-    /// create-or-replace re-spells a parameter authored in
-    /// millimetres; there is nothing to restate here.
+    /// the whole-definition door ([`crate::DocEdit::DefineVar`])
+    /// re-spells a variable authored in millimetres; there is nothing
+    /// to restate here.
     ///
     /// # `None` clears, and clearing is this door
     ///
@@ -755,17 +758,6 @@ impl FreeVar {
             (Self::Count { value: a }, Self::Count { value: b }) => a == b,
             (Self::Continuous { .. }, Self::Count { .. })
             | (Self::Count { .. }, Self::Continuous { .. }) => false,
-        }
-    }
-
-    /// The display unit read as the dimension's canonical one (D6):
-    /// what the mint hashes, since a notation is never identity.
-    pub(crate) fn erase_display_unit(&mut self) {
-        match self {
-            Self::Continuous {
-                dim, display_unit, ..
-            } => *display_unit = crate::expr::UnitSym::canonical_for(*dim),
-            Self::Count { .. } => {}
         }
     }
 }
@@ -1129,6 +1121,17 @@ impl<P> Doc<P> {
         self.vars.get(&id).and_then(Var::free)
     }
 
+    /// **The document's free variables, in id order** — the ONE
+    /// iteration base every lane reads (the evaluation environment, the
+    /// analysis box, the interval and seed doors, the drive), so no two
+    /// lanes can disagree on which variables there are. A name is read
+    /// off it with [`Self::var_name`] where a lane needs one.
+    pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
+        self.vars
+            .iter()
+            .filter_map(|(&id, var)| Some((id, var.free()?)))
+    }
+
     /// The name the document holds for `id`, if any.
     pub fn var_name(&self, id: VarId) -> Option<&VarName> {
         self.var_names.get(&id)
@@ -1175,10 +1178,9 @@ impl<P> Doc<P> {
         name: &VarName,
         def: &crate::var::VarDef,
     ) -> crate::spoken::SpokenVar {
-        let id = match self.mint.clone().declare(def) {
-            Ok(id) => id,
-            Err(collides) => collides.id,
-        };
+        // The door's order: a definition is checked against the id the
+        // declare WOULD mint, before anything is minted.
+        let id = self.mint.would_declare(def.kind());
         crate::spoken::SpokenVar::new(id, Some(name.clone()))
     }
 
@@ -1336,13 +1338,16 @@ impl<P> Doc<P> {
     /// the evaluator is scalar-generic; units erase here, GQ5).
     pub fn param_env<T: Real>(&self) -> ParamEnv<T> {
         let bindings = self
-            .var_names
-            .iter()
-            .filter_map(|(id, name)| {
+            .free_vars()
+            .filter_map(|(id, free)| {
+                // Readers read names in this unit, so a variable is
+                // bound under its name (the load door refuses one with
+                // none).
+                let name = self.var_name(id)?;
                 // The nominal alone crosses into evaluation: a
                 // distribution is document metadata the scalar channel
                 // never sees (E1).
-                let v = match *self.free(*id)? {
+                let v = match *free {
                     FreeVar::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
                         value: T::from_f64(value),

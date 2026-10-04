@@ -957,10 +957,7 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
         MassBasis::Forced { by } => {
-            assert_eq!(
-                by.iter().map(|v| v.name().cloned()).collect::<Vec<_>>(),
-                vec![Some(name("lift"))]
-            );
+            assert_eq!(by, vec![r.doc.var_named("lift").expect("declared")]);
         }
         other => panic!("{other:?}"),
     }

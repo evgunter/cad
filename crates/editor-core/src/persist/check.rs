@@ -158,12 +158,12 @@ pub(crate) enum Walk {
     /// JSON has no non-finite tokens — which is the asymmetry being
     /// BYTE-level, not a reason to fork the validator.
     NonFinite,
-    /// [`first_distribution_fault`] over the param table: the E2
+    /// [`first_distribution_fault`] over the variable table: the E2
     /// invariants of every doc param's distribution beyond finiteness,
     /// by the same `Distribution::check` the edit door runs. Snapshot
     /// only.
     Distribution,
-    /// [`first_display_unit_fault`] over the param table: every
+    /// [`first_display_unit_fault`] over the variable table: every
     /// document parameter's authored display unit measures the
     /// dimension it was declared with. A literal needs no twin walk
     /// (`Expr::literal_with_unit` makes the pairing at construction and
@@ -183,7 +183,7 @@ pub(crate) enum Walk {
     /// Snapshot only.
     SlotDimension,
     /// [`first_slot_param_ref_fault`] over every slot expression's
-    /// document-parameter references, against the param table, by the
+    /// document-parameter references, against the variable table, by the
     /// same `Doc::param_ref_fault` the edit doors ask. An undeclared
     /// name and a dimension the declaration contradicts are facts about
     /// the document; a reference that merely fails to EVALUATE is V1
@@ -490,6 +490,12 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 var: snapshot.spoken_var(id),
             });
         }
+        // No door this build ships can leave a variable without a name,
+        // and readers read names, so an unnamed one is unreadable and
+        // every lane would disagree on whether it exists.
+        if !snapshot.var_names.contains_key(&id) {
+            return Some(SnapshotError::VarUnnamed { var: id });
+        }
     }
     let mut held: std::collections::BTreeMap<&VarName, VarId> = std::collections::BTreeMap::new();
     for (&id, name) in &snapshot.var_names {
@@ -527,7 +533,7 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
 }
 
 /// The first slot expression whose document-parameter references the
-/// param table cannot answer, by the ONE predicate the edit doors ask
+/// variable table cannot answer, by the ONE predicate the edit doors ask
 /// ([`crate::Doc::param_ref_fault`]).
 ///
 /// Runs after the dimension walk above, so a slot broken both ways is
@@ -548,7 +554,7 @@ fn first_slot_param_ref_fault(
 }
 
 /// The first PAYLOAD expression whose document-parameter references
-/// the param table cannot answer, as `(node, fault)`, by the ONE
+/// the variable table cannot answer, as `(node, fault)`, by the ONE
 /// predicate the edit doors ask ([`crate::Doc::param_ref_fault`]).
 ///
 /// The expressions no slot addresses ([`crate::node::payload_exprs`]):
@@ -567,7 +573,7 @@ fn first_slot_param_ref_fault(
 /// constructor, and an assertion's bound is checked against its
 /// measure's dimension by [`Node::assertion_bound_fault`], whose
 /// refusal is [`SnapshotError::AssertionBound`]. What is left for this
-/// walk is the param TABLE, exactly as for a slot expression.
+/// walk is the variable TABLE, exactly as for a slot expression.
 ///
 /// **The domain's edge, stated because it is not empty.** `slots()`
 /// and [`crate::node::payload_exprs`] together do NOT reach every
@@ -918,6 +924,12 @@ pub enum SnapshotError {
     VarNotMinted {
         /// The variable.
         var: SpokenVar,
+    },
+    /// A variable with no name. Readers read names in this build and no
+    /// door can clear one, so nothing could read it.
+    VarUnnamed {
+        /// The variable.
+        var: VarId,
     },
     /// A name attached to a variable id that names nothing live.
     NameOnMissingVar {
@@ -1274,6 +1286,11 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} is not in the document's mint log — the document never \
                  minted it"
+            ),
+            Self::VarUnnamed { var } => write!(
+                f,
+                "variable {var} has no name, and a variable this build reads is read by its \
+                 name"
             ),
             Self::NameOnMissingVar { var, name } => write!(
                 f,
@@ -1894,6 +1911,7 @@ mod tests {
             LabelOnMissingNode,
             VarKind,
             VarNotMinted,
+            VarUnnamed,
             NameOnMissingVar,
             VarNameTwice,
             SlotDimension,
@@ -1928,6 +1946,7 @@ mod tests {
             // maps into this vocabulary.
             SnapshotError::VarKind { .. }
             | SnapshotError::VarNotMinted { .. }
+            | SnapshotError::VarUnnamed { .. }
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
@@ -2039,6 +2058,9 @@ mod tests {
             },
             SnapshotError::VarNotMinted {
                 var: crate::SpokenVar::new(crate::VarId(7), None),
+            },
+            SnapshotError::VarUnnamed {
+                var: crate::VarId(7),
             },
             SnapshotError::NameOnMissingVar {
                 var: crate::VarId(7),

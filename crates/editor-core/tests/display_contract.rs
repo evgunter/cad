@@ -1041,6 +1041,7 @@ test_utils::f6_variants! {
         LabelOnMissingNode,
         VarKind,
         VarNotMinted,
+        VarUnnamed,
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
@@ -1187,6 +1188,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "variable 000000000007 is not in the document's mint log",
                 "never minted",
             ],
+        ),
+        (
+            SnapshotError::VarUnnamed {
+                var: editor_core::VarId(tagged(7)),
+            },
+            vec!["variable 000000000007 has no name", "read by its name"],
         ),
         (
             SnapshotError::NameOnMissingVar {

@@ -60,8 +60,8 @@ pub(crate) struct Study {
     pub(crate) refuses_at: f64,
     /// `SymCounts::registered` at `certifies_at`, shipped set (over the
     /// decisions taken before the refusal, where `refused_by` names
-    /// one), per ε row as [`Self::symbolic_zero`] is.
-    pub(crate) registered: [u64; 3],
+    /// one).
+    pub(crate) registered: u64,
     /// `SymCounts::symbolic_zero` at `certifies_at`, shipped set — the
     /// THEOREM count beside the axiom count, pinned since SYM-8.
     ///
@@ -115,7 +115,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
             refused_by: None,
-            registered: [148, 148, 148],
+            registered: 148,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
@@ -127,7 +127,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.805e2,
             refuses_at: 7.810e2,
             refused_by: None,
-            registered: [148, 148, 148],
+            registered: 148,
             // 432 until DECIDE-9 (a product with an ungated zero factor
             // rests on that factor alone): eight decisions the read
             // answered as `sign_gated` are theorems, `registered` and
@@ -156,7 +156,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exactly (`geom_brep::schedule_param`): two end residuals
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
-            registered: [118, 118, 118],
+            registered: 118,
             symbolic_zero: [689, 689, 689],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -168,8 +168,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
-            // numeric decisions reach the door, verdicts unchanged.
-            registered: [156, 156, 154],
+            // numeric decisions reach the door, verdicts unchanged. 156
+            // until the variable table (the `symbolic_zero` note below).
+            registered: 154,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -185,17 +186,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // read settles); the other twelve exist only since the
             // extrude closes with the pcurve mint, and which predicates
             // they are is not read off a split here.
-            // 1283 at every row (and `registered` 156) until a
+            // 1283 (and `registered` 156) at every row until a
             // variable's symbol became its minted id (INTENT-VARS-1 PR 2)
             // rather than a hash of its name: the bracket's variables
-            // sort differently inside the forms. At 1e-6 one theorem
-            // goes numeric; at 1e-12 two theorems and two registrations
-            // do — the same reorder that leaves two of the bracket's
-            // registrations numeric in `sym_9_retry_interval`. Measured
-            // by a probe binding each variable under its old name-hash
-            // symbol, which restores 1283/156 at both rows (and 156/162
-            // there): the move is the order alone.
-            symbolic_zero: [1282, 1283, 1281],
+            // sort differently inside the forms, and one theorem and two
+            // registrations go numeric at every row — the same reorder
+            // that leaves two of the bracket's registrations numeric in
+            // `sym_9_retry_interval`. Measured by a probe binding each
+            // variable under its old name-hash symbol, which restores
+            // 1283/156 here (and 156/162 there): the move is the order
+            // alone. How much the tier reaches depends on symbol order;
+            // the orchestrator files that.
+            symbolic_zero: [1282, 1282, 1282],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -277,7 +279,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            registered: [152, 152, 152],
+            registered: 152,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
@@ -580,7 +582,7 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
             ),
         }
         assert_eq!(
-            counts.registered, study.registered[row],
+            counts.registered, study.registered,
             "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
              than the measurement. The cause this pin exists for is a registrant that \
              started stating something slightly false — it stops discharging without \

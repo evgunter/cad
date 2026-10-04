@@ -629,8 +629,12 @@ impl<P> DocEdit<P> {
     }
 }
 
-/// Which door an edit of a standing variable came through — the edits
-/// that write one part of a variable and carry the rest untouched.
+/// Which door an edit of a STANDING variable came through: the three
+/// carry-forward edits, which write one field of a definition and carry
+/// the rest untouched, and [`DocEdit::DefineVar`], which replaces the
+/// definition whole and carries only the variable's identity, name and
+/// kind. The type keeps its carry-forward name for the three it was
+/// minted for; the `Definition` arm is the one door here that is not one.
 ///
 /// It exists so a refusal every such door shares can name the one the
 /// caller actually used ([`EditError::UnknownVar`]). A door over a
@@ -638,7 +642,9 @@ impl<P> DocEdit<P> {
 /// that has to learn the word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarryForwardDoor {
-    /// [`DocEdit::DefineVar`] — the definition, keeping the identity.
+    /// [`DocEdit::DefineVar`] — the whole definition replaced, keeping
+    /// the identity, the name and the kind. Not a carry-forward: nothing
+    /// of the old definition survives it.
     Definition,
     /// [`DocEdit::SetVarValue`] — the number.
     Value,
@@ -3625,7 +3631,7 @@ fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Resu
     }
 }
 
-/// One expression's document-parameter refs against the param table,
+/// One expression's document-parameter refs against the variable table,
 /// in THIS door's vocabulary (spec D6: dimension checks re-run on
 /// touched expressions; `node`/`slot` locate the expression for the
 /// error). The rule itself is `Doc::param_ref_fault`, the one home the
@@ -3810,13 +3816,13 @@ fn standing_var<P>(
     var: &VarRef,
     door: CarryForwardDoor,
 ) -> Result<(VarId, SpokenVar, FreeVar), EditError> {
-    let Some(id) = doc.resolve_var(var) else {
-        return Err(EditError::UnknownVar {
-            var: var.clone(),
-            door,
-        });
-    };
-    let Some(VarDef::Free(free)) = doc.var(id).map(Var::def) else {
+    // `resolve_var` answers live ids only, and every definition this
+    // build holds is free (one arm, R1), so the one miss is a variable
+    // the document does not hold — which is what `UnknownVar` says.
+    let Some((id, VarDef::Free(free))) = doc
+        .resolve_var(var)
+        .and_then(|id| Some((id, doc.var(id)?.def())))
+    else {
         return Err(EditError::UnknownVar {
             var: var.clone(),
             door,
@@ -3826,7 +3832,7 @@ fn standing_var<P>(
 }
 
 /// Validate every slot of a node payload against slot dimensions and
-/// the param table, keyed as `id` for error reporting.
+/// the variable table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     before: &Doc<P>,
@@ -3854,7 +3860,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
             found,
         });
     }
-    // The param table, against the slot expressions the rule above has
+    // The variable table, against the slot expressions the rule above has
     // just established are all readable.
     for (slot, expr) in node
         .slots()
@@ -4805,11 +4811,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
+            // The definition is checked BEFORE anything is minted: a
+            // definition fault outranks a collision, and a refused
+            // declare speaks the id it would have minted.
+            let would = new.mint.would_declare(def.kind());
+            check_var_def(&SpokenVar::new(would, Some(name.clone())), def)?;
             let mut mint = new.mint.clone();
             let id = mint
-                .declare(def)
+                .declare(def.kind())
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
-            check_var_def(&SpokenVar::new(id, Some(name.clone())), def)?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
