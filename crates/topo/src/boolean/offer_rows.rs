@@ -1056,7 +1056,7 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, band())
+    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, None, band())
         .map(|_| ())
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }

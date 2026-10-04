@@ -18,16 +18,18 @@ use core::f64::consts::PI;
 use crate::common::differential::outcome;
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use topo::{Body, BooleanError, BooleanResult};
+use sweep::test_support::finished;
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
-fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> Body<f64> {
-    sweep::test_support::prism_at(
+fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
+    let rod = sweep::test_support::prism_at(
         vec![(Point2::new(x - r, y), 1.0), (Point2::new(x + r, y), 1.0)],
         z0,
         z1 - z0,
         Tol::witness(),
-    )
+    );
+    finished("the rod", rod, Tol::witness())
 }
 
 /// The lens of the discs `(c1, r1)` and `(c2, r2)`: its area and its
@@ -57,8 +59,8 @@ type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
 /// One pose: the two operands, their volumes and the volume they share.
 struct Pose {
     label: String,
-    a: Body<f64>,
-    b: Body<f64>,
+    a: AtRestBody<f64>,
+    b: AtRestBody<f64>,
     va: f64,
     vb: f64,
     shared: f64,
@@ -102,7 +104,13 @@ fn upright(r: f64, c: (f64, f64), span: (f64, f64)) -> Pose {
 /// direction.
 fn turned(mut pose: Pose, axis: Vec3<f64>, angle: f64) -> Pose {
     let m = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle);
-    let turn = |b: &Body<f64>| topo::transform_rigid(b, &m, Tol::witness()).unwrap();
+    let turn = |b: &AtRestBody<f64>| {
+        finished(
+            "the turned operand",
+            topo::transform_rigid(b, &m, Tol::witness()).unwrap(),
+            Tol::witness(),
+        )
+    };
     pose.a = turn(&pose.a);
     pose.b = turn(&pose.b);
     pose.label = format!("{} turned {angle} about {axis:?}", pose.label);
@@ -127,26 +135,27 @@ fn across_the_rim(r: f64, c: (f64, f64), (z0, z1): (f64, f64)) -> Pose {
     }
 }
 
-/// The poses that build: a drum against a rod across its wall — rod
-/// caps inside it, one through a cap, both through, equal radii, a rod
-/// fatter than the drum, a rod axis inside the drum, a rod whose section
-/// is an island in the drum's wall face, which a ruling's chord closes
-/// as a ring — and one pose turned off the coordinate axes.
-fn poses() -> Vec<Pose> {
-    vec![
-        upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
-        upright(0.2, (0.5, 0.0), (-0.5, 1.5)),
-        upright(0.3, (0.6, 0.1), (-1.5, 1.5)),
-        upright(0.5, (0.7, 0.0), (-0.3, 0.4)),
-        upright(0.8, (0.9, 0.0), (-0.5, 0.5)),
-        upright(0.2, (0.4, 0.0), (-0.5, 0.5)),
-        upright(0.15, (0.0, 0.5), (-0.5, 0.5)),
-        turned(
+/// The `k`th of the eight poses that build: a drum against a rod across
+/// its wall — rod caps inside it, one through a cap, both through, equal
+/// radii, a rod fatter than the drum, a rod axis inside the drum, a rod
+/// whose section is an island in the drum's wall face, which a ruling's
+/// chord closes as a ring — and one pose turned off the coordinate axes.
+fn pose(k: usize) -> Pose {
+    match k {
+        0 => upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+        1 => upright(0.2, (0.5, 0.0), (-0.5, 1.5)),
+        2 => upright(0.3, (0.6, 0.1), (-1.5, 1.5)),
+        3 => upright(0.5, (0.7, 0.0), (-0.3, 0.4)),
+        4 => upright(0.8, (0.9, 0.0), (-0.5, 0.5)),
+        5 => upright(0.2, (0.4, 0.0), (-0.5, 0.5)),
+        6 => upright(0.15, (0.0, 0.5), (-0.5, 0.5)),
+        7 => turned(
             upright(0.25, (0.5, 0.15), (-0.6, 0.7)),
             Vec3::new(1.0, 2.0, 0.5),
             0.7,
         ),
-    ]
+        _ => panic!("there are eight poses"),
+    }
 }
 
 /// The row's poses (`conic_edge_curved_face`'s
@@ -176,18 +185,26 @@ fn unsound(poses: &[Pose]) -> Vec<String> {
 
 /// **Every pose builds SOUND in every op and order**: tiers 2 and 3′,
 /// the certificate, a legal operand, and the closed-form volume. Split
-/// in two to keep each test short: a rod across the drum's wall, then
-/// the wider, nested and turned poses.
+/// in three to keep each test short.
 #[test]
-fn a_rod_across_the_wall_joins_along_its_rulings() {
-    let bad = unsound(&poses()[..4]);
+fn rods_across_the_wall_join_along_their_rulings() {
+    let bad = unsound(&(0..3).map(pose).collect::<Vec<_>>());
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// [`a_rod_across_the_wall_joins_along_its_rulings`]'s other half.
+/// [`rods_across_the_wall_join_along_their_rulings`] for equal radii, a
+/// rod fatter than the drum, and a rod axis inside the drum.
 #[test]
-fn wide_nested_and_turned_walls_join_along_their_rulings() {
-    let bad = unsound(&poses()[4..]);
+fn equal_wider_and_nested_rods_join_along_their_rulings() {
+    let bad = unsound(&(3..6).map(pose).collect::<Vec<_>>());
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// [`rods_across_the_wall_join_along_their_rulings`] for the island a
+/// ruling closes as a ring, and the turned pose.
+#[test]
+fn an_island_and_a_turned_pose_join_along_their_rulings() {
+    let bad = unsound(&(6..8).map(pose).collect::<Vec<_>>());
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
@@ -269,4 +286,54 @@ fn the_lens_oracle_agrees_with_a_second_slicing() {
             "{c2:?}: moment {moment} against {m}"
         );
     }
+}
+
+/// A drum of radius 0.5 over `z ∈ [−half − 1, half + 1]` against a rod
+/// of radius `r` about `(c, 0)` over `z ∈ [−half, half]`, tipped `theta`
+/// about the `x` axis through its centre.
+fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
+    let tol = Tol::witness();
+    let m = Affine3::rotation_about_axis(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
+    let rod_b = rod(r, (c, 0.0), (-half, half));
+    Pose {
+        label: format!("drum × rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
+        a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
+        b: finished(
+            "the tipped rod",
+            topo::transform_rigid(&rod_b, &m, tol).unwrap(),
+            tol,
+        ),
+        va: PI * 0.25 * (2.0 * half + 2.0),
+        vb: PI * r * r * 2.0 * half,
+        shared: lens((0.0, 0.0), 0.5, (c, 0.0), r).0 * 2.0 * half,
+    }
+}
+
+/// **A rod tipped off parallel over a long wall takes a decided door.**
+/// The frame levers the axes' parallelism by the walls' reach, so a
+/// sine of 2e-10 over 100 of wall (a drift of 2e-8, past the band)
+/// reads as a skew pair, `GermFrameUnsupported`, rather than reaching
+/// the rulings arm and failing at the result's pcurve pass. A tip whose
+/// drift over the walls stays inside the zero band is parallel, and
+/// builds.
+#[test]
+fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
+    for half in [50.0, 200.0] {
+        for theta in [2e-10, 1e-9] {
+            for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
+                let pose = tipped(r, c, half, theta);
+                for (op, res, _) in pose.runs() {
+                    assert!(
+                        matches!(res, Err(BooleanError::GermFrameUnsupported { .. })),
+                        "{} | {op}: {:?}",
+                        pose.label,
+                        res.map(|_| "a body")
+                    );
+                }
+            }
+        }
+    }
+    let parallel = tipped(0.3, 0.6, 200.0, 1e-12);
+    let bad = unsound(&[parallel]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
