@@ -67,7 +67,7 @@ fn cube_topped(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
     let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
     common::describe_as_intersections(&mut body, Tol::witness());
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         cube.seed.face,
         FaceSurface::New {
             surface,

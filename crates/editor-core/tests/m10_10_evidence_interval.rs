@@ -616,7 +616,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                 tol,
             )
             .expect("the document builds");
-            let report = stackup(doc, measure, &analyzed, &verdict, None, false, tol)
+            let report = stackup(doc, measure, &analyzed, &verdict, None, false, None, tol)
                 .unwrap_or_else(|e| panic!("{e}"));
             let wc = report.worst_case;
             println!(
@@ -755,7 +755,7 @@ fn m10_10_the_plates_real_study_driven_whole() {
         }
     }
     println!("{}", verdict.render(&analyzed));
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => println!("   stackup OK:\n{}", report.render(&doc, &analyzed)),
         Err(e) => println!("   stackup refused: {e}"),
     }

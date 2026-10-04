@@ -592,7 +592,7 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     let mut b = brick::<f64>(x, (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
     // Lifts RechartStrandsDescriptions: the relabelled cone is the operand gate's input, its box read off the brick.
-    b.set_face_surface_stranding_for_tests(
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface: geom::Surface::Cone {
@@ -678,7 +678,7 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
     // Lifts RechartStrandsDescriptions: the NURBS wall is the boolean's input; its edges are not the row.
-    b.set_face_surface_stranding_for_tests(
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),

@@ -1838,7 +1838,6 @@ pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
         FacePoseRefusal::Ambiguous { .. } => "ambiguous",
         FacePoseRefusal::NotAFace { .. } => "not_a_face",
         FacePoseRefusal::Readback(_) => "readback",
-        FacePoseRefusal::Unpinned => "unpinned",
     }
 }
 
