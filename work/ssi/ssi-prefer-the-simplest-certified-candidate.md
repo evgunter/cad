@@ -2,10 +2,13 @@
 id: ssi-prefer-the-simplest-certified-candidate
 kind: issue
 title: ssi: 'march first, then Hermite' is an ordering, not a rule; prefer the simplest certified candidate (Hermite first, march only if it refuses)
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+pr: 3983
+branch: ssi/hermite-first
+closed: 2026-10-03
 ---
 
 
@@ -37,3 +40,7 @@ This removes the step-in-band trigger. Short and nearly straight branches get on
 - The candidate order is "simplest first", stated in C3.
 - No step-in-band trigger remains.
 - Rows pin a one-span carrier on a straight branch, and a march on a curved one.
+
+## Closed
+
+PR 3983. `Ends::branches` tries the Hermite cubic first on every branch between known ends, and marches only where the certificate refuses it; the step-in-band trigger is gone, and C3 states the order. The Hermite certifies on the chart lane, so limb 3's one-arc proof judges its pairing (`ssi_limb3_one_arc::the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them`, which goes red with the Hermite certified at rest). Rows: `a_straight_branch_is_one_hermite_span_at_any_length`, `a_curved_branch_the_hermite_cannot_certify_is_marched`, `converging_crossings_certify_no_wrong_pairing` (`m5_pr7_ssi.rs`), `a_short_branchs_sized_refusal_masks_no_more_specific_march_refusal` (`ssi/ends.rs`). The 41-column zigzag's cell-budget refusal is recorded on `the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell`.

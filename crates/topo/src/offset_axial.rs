@@ -735,8 +735,10 @@ pub(crate) fn is_axial_in<T: Decide>(
     scope: &crate::offset_together::Scope,
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
-    let Ok(frame) = axial_frame(body, scope) else {
-        return Ok(false);
+    let frame = match axial_frame(body, scope) {
+        Ok(frame) => frame,
+        Err(ReplaceFaceError::TogetherAxialUnsupported { .. }) => return Ok(false),
+        Err(source) => return Err(source),
     };
     for (face, f) in body.faces() {
         if !scope.holds_face(face) {
@@ -834,13 +836,12 @@ fn axial_frame<T: Real>(
     // The same posture the axis gate's third outcome is documented
     // under: written for correctness rather than pinned by a fixture.
     let mut extent = T::zero();
-    for (vertex, v) in body.vertices() {
+    for (vertex, p) in body.vertex_points() {
         if !scope.holds_vertex(vertex) {
             continue;
         }
-        if let Some(p) = body.get_point(v.point) {
-            extent = extent.max((*p - origin).norm());
-        }
+        let p = p.map_err(|_| ReplaceFaceError::Corrupt)?;
+        extent = extent.max((p - origin).norm());
     }
     Ok(Frame {
         origin,
@@ -2700,4 +2701,47 @@ fn side_of<T: Decide>(
 /// separation meter has already certified.
 fn clamp_unit<T: Real>(x: T) -> T {
     x.max(-T::one()).min(T::one())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::test_support_fixtures::geometric_cube;
+
+    /// The unit cube re-charted as a quarter-revolve wedge about `z`:
+    /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,
+    /// and the `x = 1` and `y = 1` walls sit on one coaxial cylinder.
+    fn quarter_wedge() -> Body<f64> {
+        let cube = geometric_cube::<f64>(Tol::witness());
+        let mut body = cube.body;
+        let wall = body.add_surface(Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        for side in [cube.mefs[2].face, cube.mefs[3].face] {
+            body.get_face_mut(side).expect("a cube wall").surface = wall;
+        }
+        body
+    }
+
+    #[test]
+    fn is_axial_refuses_a_torn_point_rather_than_answering_not_axial() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let mut body = quarter_wedge();
+        assert!(
+            matches!(is_axial(&body, band), Ok(true)),
+            "the untorn wedge is axial"
+        );
+        let (vertex, _) = body.vertices().next().expect("a vertex");
+        let dead = body.add_point(Point3::new(0.0, 0.0, 0.0));
+        body.points.remove(dead);
+        body.get_vertex_mut(vertex).unwrap().point = dead;
+        assert!(
+            matches!(is_axial(&body, band), Err(ReplaceFaceError::Corrupt)),
+            "a torn point refuses typed rather than reading as a silent `false`"
+        );
+    }
 }

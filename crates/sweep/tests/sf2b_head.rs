@@ -276,10 +276,9 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             let outer = topo::mass_properties(body, tol).map(|p| p.volume);
             let inner = topo::mass_properties(&cavity, tol).map(|p| p.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");
-            for (k, v) in cavity.vertices() {
-                if let Some(p) = cavity.get_point(v.point) {
-                    println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
-                }
+            for (k, p) in cavity.vertex_points() {
+                let p = p.unwrap();
+                println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
             }
         }
     }

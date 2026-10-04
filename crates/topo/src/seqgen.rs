@@ -1043,8 +1043,8 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     // any output depends on.
     let minted = curve.carrier().eval(t);
     if body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p.expect("the generator's body is untorn"))
         .any(|p| {
             !matches!(
                 p.distance(minted).sign_within(band).map(|d| d.sign),

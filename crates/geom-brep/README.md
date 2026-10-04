@@ -195,27 +195,35 @@ vertex lies on a face stays the
 consumer's decision, and the exact empty answer stands outside the
 domain. Every root is settled onto both surfaces, or refuses
 `SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
-on this lane: a trace runs from one to the unused crossing on the side
-it leaves, the one nearest where its last step meets that side, its
-step capped at a fifth of the distance to the nearest crossing not yet
-used, so at most a fifth of the branch's; a march that leaves where no
-crossing matches refuses as the march's limit
-(`SsiError::CrossingUnmatched`). The plane's window must hold the
+on this lane, and between them the simplest candidate is tried first:
+from a crossing, the Hermite cubic to the nearest crossing not yet
+used, through their tangents, one span exact at both ends, its two
+states taking the march's transversality decision. Where anything
+refuses it (that decision at either end, the march tolerance, or the
+certificate), a march runs from the crossing to the unused
+crossing on the side it leaves, the one nearest where its last step
+meets that side, its step capped at a fifth of the distance to the
+nearest crossing not yet used, so at most a fifth of the branch's; a
+march that leaves where no crossing matches refuses as the march's
+limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
 march ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
-geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Where the march
-cannot progress, its step falling in the band (`StepCollapsed`, or
-undecided there), the candidate is the Hermite cubic from its crossing
-to the nearest crossing not yet used, through their tangents. Either
-way the
-certificate decides; a Hermite candidate it refuses on a branch too
-short for a fifth of it to clear the band is a sized refusal in the
-branch's length (`SsiError::ShortBranchUncertified`), and on a longer
-one the march's refusal stands. The extent sizes no realized step; it
-is the lever arm's clamp, the seeding floor and the tube ladder's
-widest rung.
+geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+is trusted, its pairing of crossings included: the certificate decides
+each on the chart lane, so limb 3 proves its tube one arc in the knot
+rectangle, and a cubic to another branch's crossing either leaves the
+locus, which limbs 1 and 2 refuse, or holds more than one arc in its
+tube, which limb 3 refuses. The Hermite is one span, not a polyline of
+samples, so refinement has nothing to halve in it: a refused Hermite is
+marched, and the march's carrier is refined as any is. Where neither
+certifies, the march's refusal stands, except on a branch too short for
+a fifth of it to clear the band whose march refused for want of step,
+which is a sized refusal in the branch's length
+(`SsiError::ShortBranchUncertified`). The extent sizes no realized
+step; it is the lever arm's clamp, the seeding floor and the tube
+ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure, the boundary pass's mean-value enclosure of a strip
@@ -241,8 +249,15 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations (the transversality band along the trace) refuse toward
-C7; Hoffmann §6.5's tracing through singular points is deliberately not
+configurations refuse toward C7, each candidate by what it reads: a
+marched branch by the transversality decision at every state, `sin θ`
+levered by the smaller of the operands' lever arm (on a wall, its
+chart's) and the extent; a Hermite branch by that decision at its two
+ends, and between them by limb 3's tube, whose clearance is levered by
+the extent alone. The levers differ where a wall's chart bends and its
+surface does not
+(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
 

@@ -582,12 +582,6 @@ pub struct Trace<const N: usize, E> {
     pub states: Vec<[f64; N]>,
     /// How the march ended, in its lane's terms.
     pub end: E,
-    /// The smallest `sin θ · arm` (meters) seen along the trace — the
-    /// transversality headroom, reported so a consumer can see how
-    /// close to the C7 regime this branch ran.
-    pub min_transversality: f64,
-    /// The smallest σ_min seen — Hoffmann's own signal, diagnostic.
-    pub min_sigma: f64,
     /// Steps consumed.
     pub steps: usize,
     /// The longest step the march minted, in metres.
@@ -863,6 +857,45 @@ pub(crate) trait TransversalityData<const N: usize> {
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
+/// **`ssi_transversality`** at the state `x`: the surfaces cross at a
+/// clear angle there, `sin θ · arm` in metres with the arm clamped to
+/// `extent`, `sigma` the state's σ_min reported beside it.
+///
+/// # Errors
+///
+/// [`SsiError::TransversalityBand`] in the sliver band, and
+/// [`SsiError::Escalated`] where the arm or the transversality is
+/// undecided.
+pub(crate) fn decide_transversality<const N: usize>(
+    sys: &impl TransversalityData<N>,
+    x: &[f64; N],
+    sigma: f64,
+    extent: f64,
+    band: Band,
+) -> Result<(), SsiError> {
+    let (n1, n2) = sys.normals(x);
+    let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+    let arm = Real::min(sys.lever_arm(x), extent);
+    decide_positive("ssi_transversality_arm", Margin::of(arm), band)
+        .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
+    let transversality = Margin::levered(sin_theta, arm);
+    // Zero is the sliver band: a tangential (or in-band tangential)
+    // contact along the candidate locus, C7's regime. `sin θ · arm` is a
+    // magnitude, so a definite negative cannot arise.
+    match decide_reported("ssi_transversality", transversality, band) {
+        Ok(decided) => match Refused::of(decided, band) {
+            Some(verdict) => Err(SsiError::TransversalityBand {
+                sin_theta,
+                arm,
+                sigma_min: sigma,
+                verdict,
+            }),
+            None => Ok(()),
+        },
+        Err(diag) => Err(TraceDecision::Transversality.escalated(diag)),
+    }
+}
+
 /// March one branch from `seed` (module docs), no step longer than
 /// `cap`.
 ///
@@ -899,8 +932,6 @@ where
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
     let mut seed_tangent: Option<[f64; N]> = None;
-    let mut min_transversality = f64::INFINITY;
-    let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
     let mut curvature_bound = 0usize;
@@ -911,37 +942,9 @@ where
         // ---- 1. the local decomposition ----
         let a = sys.jacobian(&x);
         let svd = Svd::<M, N>::new(a);
-        let sigma = svd.sigma_min();
-        if sigma < min_sigma {
-            min_sigma = sigma;
-        }
 
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
-        let (n1, n2) = sys.normals(&x);
-        let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = Real::min(sys.lever_arm(&x), ctx.extent);
-        decide_positive("ssi_transversality_arm", Margin::of(arm), band)
-            .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-        let transversality = Margin::levered(sin_theta, arm);
-        if transversality.value() < min_transversality {
-            min_transversality = transversality.value();
-        }
-        // Zero is the sliver band: a tangential (or in-band tangential)
-        // contact along the candidate locus, C7's regime. `sin θ · arm`
-        // is a magnitude, so a definite negative cannot arise.
-        match decide_reported("ssi_transversality", transversality, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(SsiError::TransversalityBand {
-                        sin_theta,
-                        arm,
-                        sigma_min: sigma,
-                        verdict,
-                    });
-                }
-            }
-            Err(diag) => return Err(TraceDecision::Transversality.escalated(diag)),
-        }
+        decide_transversality(sys, &x, svd.sigma_min(), ctx.extent, band)?;
 
         // ---- 3. the tangent, oriented along the march ----
         let mut d1 = svd.null_direction();
@@ -1115,8 +1118,6 @@ where
                 return Ok(Trace {
                     states,
                     end,
-                    min_transversality,
-                    min_sigma,
                     steps: steps + 1,
                     longest_step,
                 });
@@ -1138,8 +1139,6 @@ where
             return Ok(Trace {
                 states,
                 end,
-                min_transversality,
-                min_sigma,
                 steps,
                 longest_step,
             });
@@ -1179,8 +1178,6 @@ where
                             return Ok(Trace {
                                 states,
                                 end: E::CLOSED,
-                                min_transversality,
-                                min_sigma,
                                 steps,
                                 longest_step,
                             });
@@ -1544,8 +1541,6 @@ where
         } else {
             SlabEnd::Slab
         },
-        min_transversality: fwd.min_transversality.min(bwd.min_transversality),
-        min_sigma: fwd.min_sigma.min(bwd.min_sigma),
         steps: fwd.steps + bwd.steps,
         longest_step: Real::max(fwd.longest_step, bwd.longest_step),
     })
