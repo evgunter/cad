@@ -15,9 +15,11 @@
 //! (`boolean::join`'s `nearer_along`, `bool_join_arc_travel`) — so the
 //! partner it takes is the neighbour along the walk, and each chord
 //! then takes the arc the paired germs leave along (`chord_join`'s
-//! `arc_leaving`). A ranking by chord would pair across the walk here,
-//! and a chord that asked the divided face for its arc would find no
-//! window on this tilted section: the row is red under either.
+//! `arc_leaving`). What the row holds is that arc: it goes red when a
+//! chord reads its germ's direction reversed, or its partner's, or
+//! takes one arc regardless, and a chord that asked the divided face
+//! for its arc would find no window on this tilted section. The ranking
+//! within a half-turn is not what decides these poses.
 //!
 //! The ball is the canonical full revolve about `y`, and the same ball
 //! with its pole turned off every axis; the turn moves no point of the
