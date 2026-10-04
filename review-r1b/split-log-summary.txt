@@ -1,0 +1,9 @@
+# Logs of r1cube (15 552), r1b cube (28 512) and u2 (720) under R1_LOG. chain= in the r1cube/r1b runs was a != b (always true, meaningless);
+# only the u2 run (pass=2 rows and the 180 pass=1 chain=false rows) used the refined flag; chain=false there: every colliding pair had been fused directly before (no collision through a chain).
+    686 R1LOG site kind=ring ms=1
+   1947 R1LOG site kind=two ms=1
+    180 R1LOG split pass=1 chain=false same_side=Some(true) 
+     51 R1LOG split pass=1 chain=true same_side=None 
+   2316 R1LOG split pass=1 chain=true same_side=Some(true) 
+     43 R1LOG split pass=2 chain=false same_side=None 
+    137 R1LOG split pass=2 chain=false same_side=Some(true) 

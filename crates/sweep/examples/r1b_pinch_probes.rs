@@ -354,9 +354,22 @@ fn run_all(tag: &str, prism: &AtRestBody<f64>, other: &AtRestBody<f64>, va: f64,
                     Ok(res) => res.body().map_or(0, |bb| twov(&bb.body)),
                     Err(_) => 0,
                 };
+                let t3 = match &r {
+                    Ok(res) => res.body().map_or("-".to_string(), |bb| {
+                        topo::validate::validate_geometric(&bb.body, tol()).is_ok().to_string()
+                    }),
+                    Err(_) => "-".into(),
+                };
                 let mut line = outcome(r, want, tol());
                 if tv > 0 {
                     line = line.replace("SOUND", "BAD");
+                }
+                if std::env::var("R1_T3P").is_ok() && line.contains("t3p=false") {
+                    if let Ok(res) = f(x, y, &decls, tol()) {
+                        let bb = res.body().unwrap();
+                        let e = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err();
+                        line = format!("{line} T3P {e:?}");
+                    }
                 }
                 if std::env::var("R1_DIAG").is_ok() && line.contains("operand=false") {
                     if let Ok(res) = f(x, y, &decls, tol()) {
@@ -370,7 +383,7 @@ fn run_all(tag: &str, prism: &AtRestBody<f64>, other: &AtRestBody<f64>, va: f64,
                         line = format!("{line} UNION-ERR {e:?}");
                     }
                 }
-                format!("{line} twov={tv}")
+                format!("{line} twov={tv} t3={t3}")
             }))
             .unwrap_or_else(|_| "PANIC".into());
             println!("{tag} {order} {op}: {r}");
@@ -505,15 +518,33 @@ fn main() {
             // The U's two inner vertical edges: corners at both ends; the
             // cube's face plane through two of them, so one op may pinch
             // twice.
-            let base = base_prisms().into_iter().find(|p| p.name == "Uin").unwrap();
-            let body = base.body();
-            let va = base.volume();
-            let pairs: [(&str, V3, V3); 3] = [
-                ("t1b2", [1.0, 1.0, 1.0], [2.0, 1.0, 0.0]),
-                ("b1t2", [1.0, 1.0, 0.0], [2.0, 1.0, 1.0]),
-                ("t1t2", [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]),
+            let uin = base_prisms().into_iter().find(|p| p.name == "Uin").unwrap();
+            // A staircase: reflex corners (2,1) and (1,2), translates of
+            // one L corner, so one plane can give both two lobes.
+            let stair = Prism {
+                name: "stair".into(),
+                profile: vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0), (1.0, 3.0), (0.0, 3.0)],
+                pieces: vec![
+                    vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)],
+                    vec![(0.0, 1.0), (2.0, 1.0), (2.0, 2.0), (0.0, 2.0)],
+                    vec![(0.0, 2.0), (1.0, 2.0), (1.0, 3.0), (0.0, 3.0)],
+                ],
+                z0: 0.0,
+                z1: 1.0,
+                v: [2.0, 1.0, 1.0],
+                edges: vec![],
+            };
+            let pairs: [(&str, &Prism, V3, V3); 6] = [
+                ("U_t1b2", &uin, [1.0, 1.0, 1.0], [2.0, 1.0, 0.0]),
+                ("U_b1t2", &uin, [1.0, 1.0, 0.0], [2.0, 1.0, 1.0]),
+                ("U_t1t2", &uin, [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]),
+                ("S_tt", &stair, [2.0, 1.0, 1.0], [1.0, 2.0, 1.0]),
+                ("S_bb", &stair, [2.0, 1.0, 0.0], [1.0, 2.0, 0.0]),
+                ("S_tb", &stair, [2.0, 1.0, 1.0], [1.0, 2.0, 0.0]),
             ];
-            for (pn, a, bb) in pairs {
+            for (pn, base, a, bb) in pairs {
+                let body = base.body();
+                let va = base.volume();
                 let d = unit(sub(bb, a));
                 let (e1, e2) = basis(d);
                 let mid = scale(add(a, bb), 0.5);
@@ -546,7 +577,7 @@ fn main() {
                         ),
                         tol(),
                     );
-                    let common = common_cube(&base, &cube_poly(v, u, w, m));
+                    let common = common_cube(base, &cube_poly(v, u, w, m));
                     run_all(&format!("U2 {pn} b{i} lobes={la},{lb}"), &body, &cube, va, 64.0, common);
                 }
             }
