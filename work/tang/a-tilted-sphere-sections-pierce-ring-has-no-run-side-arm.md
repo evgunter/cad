@@ -2,8 +2,10 @@
 id: a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm
 kind: issue
 title: A tilted sphere section that passes through a face as a ring refuses NoCertifiedRun: the run-side arc rule has no cross-loop arm
-status: open
+status: review
 opened: 2026-10-02
+pr: 3985
+branch: reach/arc-from-pairing
 ---
 
 
@@ -38,3 +40,13 @@ The containment rule's statement for a cross-loop chord, in run-side
 form: the arc whose side places the divided face's own outer cycle on
 the material side, i.e. the face's whole boundary as the "run" with the
 chord's two ends on the ring rather than on it. Not attempted here.
+
+## Answered (PR 3985, `reach/arc-from-pairing`)
+
+A pierce ring's cross-loop chord takes the arc the pierce germs'
+directions name, on any carrier and tilt. Both witnesses build under
+every op to the lens closed form (`tilted_sphere_pair.rs`,
+`a_pierce_off_the_seam_plane_builds_under_every_boolean`), and the
+tour's snowman with its head moved 0.05 along `z` builds to the two-ball
+closed form (`demos/tour/src/snowman.rs`,
+`the_head_moved_out_of_the_seam_plane_builds_through_its_ring`).

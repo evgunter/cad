@@ -91,6 +91,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
+#[path = "four_crossings_on_one_section_circle.rs"]
+mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
@@ -895,6 +897,10 @@ mod review_ring2_r1_e2e;
 
 #[path = "full_turn_bore_mate.rs"]
 mod full_turn_bore_mate;
+
+#[path = "wedge_through_a_full_turn_collar.rs"]
+mod wedge_through_a_full_turn_collar;
+
 #[path = "rest_mate_every_op.rs"]
 mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]

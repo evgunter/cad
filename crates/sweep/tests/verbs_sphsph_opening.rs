@@ -17,9 +17,9 @@
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
 //!   side the pair's radical plane. Offset along Y (the polar axis) the
-//!   section is polar for both operands and the azimuth-window rule
-//!   selects its arcs; offset along X it is tilted against both charts
-//!   and the run-side rule does. Either way the union builds, because
+//!   section is polar for both operands; offset along X it is tilted
+//!   against both charts. Either way each chord takes the arc its
+//!   paired germs leave along, and the union builds, because
 //!   both balls are revolved from the same seam — each seam meridian
 //!   pierces the other sphere ON the other's seam. Spin either ball
 //!   about Y and the pierce lands inside a half-band: the pierce-ring
@@ -169,8 +169,8 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 
 /// An in-seam-plane or polar-axis offset drives a seam meridian through
 /// the other ball's sphere face, and the circle × sphere roots pierce
-/// it. Both offsets build, the polar one through the azimuth window and
-/// the in-seam-plane one through the run side, to one lens.
+/// it. Both offsets build, each chord on the arc its germs leave along,
+/// to one lens.
 #[test]
 fn seam_crossing_pairs_build() {
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));

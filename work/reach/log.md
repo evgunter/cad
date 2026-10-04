@@ -790,6 +790,13 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Its notes.** The backstop's interval confirm now re-runs quadrature faces about c, a cost change outside check 7. `validate_geometric` costs about 1.3–2.5× main on curved bodies.
 — (REACH orchestrator)
 
+## 2026-10-04 — a chord takes the arc its pairing named (PR 3985)
+
+- **The change.** One datum, the section's direction at each crossing, is minted with the crossing. Both the pairing and `chord_spec` read it, and the chord only orients itself by it. The azimuth-window selector and the run-side selector retire. The design fork behind it converged on its first reports (fork-log row 66) and was adopted, not sent to Ev.
+- **Review.** It was a dual review frozen at `7e33abf087`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR; nothing enters the tally. The last pass removed the stale prose citing the retired selectors, restated `Placement::Undecided`'s reachability, recorded the cross-check counts, and added a four-crossing walk-order row.
+- **The merge with JOIN (PR 4008).** After it, JOIN's chord ranking superseded the walk-order filter, so the filter pinned nothing. Ruling (a) removed it, with its rows. Main's `wall_region` and `ChordJoiner::fragments`, which only fed the retired window, went with it.
+- **Verification.** Two independent verifier sessions found it VERIFIED, the second on the final head. The head mints every chord main mints (26,499 in the suites, 10,830 in the tour). All four mutants are killed. Every ε red is red on main too: the four torn-body rows, the steep ellipse at 1e-6, and the arc loft at 1e-12.
+- **Also in this sync.** The two items filed for the steep-ellipse 1e-6 red, one by this lane and one by #3977's, are folded into the one on main.
 ## 2026-10-04 — the boolean door takes finished bodies (PR 3987)
 
 - **The change.** The boolean doors take `&AtRestBody<T>`, and `ops::gate` is the one result gate (tier 3 via `T::gate_at_rest_kept`) at every site that builds a `BooleanBody`. A sub-tier-3 operand refuses where it is finished, naming its own entities. The editor finishes each operand once at the seat. The census half is parked on `boolean-door-runs-the-census-over-its-result`. The seat's second tier-3 run is filed as `the-evaluator-carries-kept-bodies`.

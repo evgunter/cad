@@ -144,7 +144,9 @@ use super::{
     SelfCheck, SideCode,
 };
 use crate::body::Body;
-use crate::chord_join::{ChordJoiner, Chords, CutOutcome, JoinLane, SegmentCurve, SplitJoinError};
+use crate::chord_join::{
+    ChordJoiner, Chords, CutOutcome, Datum, JoinLane, Leave, SegmentCurve, SplitJoinError,
+};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::{RunClosing, RunMissesEnd};
@@ -287,9 +289,10 @@ impl SolidJoin {
         halves: (HalfEdgeKey, HalfEdgeKey),
         lane: JoinLane<'_, T>,
         segment: Option<EdgeKey>,
+        leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         self.joiner
-            .segment_curve(body, halves, lane, segment)
+            .segment_curve(body, halves, lane, segment, leave)
             .map_err(BooleanError::Join)
     }
 
@@ -303,38 +306,38 @@ impl SolidJoin {
         (origin, normal): (Point3<T>, UnitVec3<T>),
         datum: AuxDatum,
         segment: Option<EdgeKey>,
+        leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
             origin,
             normal,
             plane_key: self.aux.get(&datum).copied(),
         };
-        let curve = self.curve(body, halves, JoinLane::Split(&mut ctx), segment)?;
+        let curve = self.curve(body, halves, JoinLane::Split(&mut ctx), segment, leave)?;
         if let Some(k) = ctx.plane_key {
             self.aux.insert(datum, k);
         }
         Ok(curve)
     }
 
-    /// The planar-side curve against the partner `wall`, whose face's
-    /// azimuth window is `window`, through [`JoinLane::BoolPlanar`], the
-    /// wall copy keyed by `partner_face`.
+    /// The planar-side curve against the partner `wall`, through
+    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
     fn bool_planar_curve<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         halves: (HalfEdgeKey, HalfEdgeKey),
-        (wall, window): (geom::Surface<T>, (T, T)),
+        wall: geom::Surface<T>,
         partner_face: FaceKey,
         segment: Option<EdgeKey>,
+        leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let datum = AuxDatum::Partner(partner_face);
         let mut partner = self.aux.get(&datum).copied();
         let lane = JoinLane::BoolPlanar {
             wall,
-            window,
             partner_key: &mut partner,
         };
-        let curve = self.curve(body, halves, lane, segment)?;
+        let curve = self.curve(body, halves, lane, segment, leave)?;
         if let Some(k) = partner {
             self.aux.insert(datum, k);
         }
@@ -600,18 +603,15 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         b_loose.remove(rb);
         // Curved germ pairs (M5 PR 9): each solid's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
-        // lane with the partner's plane as its section; plane×cylinder mints
-        // the C5 section conic on both sides (the wall side through
-        // the S9 window machinery with the germ plane as context, the
-        // planar side against the wall face's own window, so both
-        // solids select the SAME geometric arc); plane×sphere (M5
-        // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window (a section tilted against
-        // that chart refuses on the planar side); a sphere pair rides the
-        // wall-side lane on both sides against its radical plane, and so
-        // does a parallel cylinder pair, whose chords there are rulings;
-        // any other pair refuses typed citing its C5 routing (per-arm,
-        // C12.1).
+        // lane with the partner's plane as its section; plane×cylinder
+        // and plane×sphere (M5 S13) mint the C5 section conic on both
+        // sides (the wall side with the germ plane as context, the
+        // planar side against the partner wall), each taking the arc the
+        // matched germs' directions name, so both solids take the SAME
+        // geometric arc; a sphere pair rides the wall-side lane on both
+        // sides against its radical plane, and so does a parallel
+        // cylinder pair, whose chords there are rulings; any other pair
+        // refuses typed citing its C5 routing (per-arm, C12.1).
         let germ = seg.germ;
         let surf_of =
             |body: &Body<T>,
@@ -625,8 +625,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // the curved lanes below take from a plane germ is a point and
         // a chart normal — a section datum, an operation input whose
         // normal names a chart, not a material side. The plane as a
-        // point set (and hence the section conic, its azimuth window,
-        // and the auxiliary surface minted for it) is identical under
+        // point set (and hence the section conic and the auxiliary
+        // surface minted for it) is identical under
         // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
@@ -661,7 +661,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // Each solid's adjacency skip asks whether the edge between its
         // two halves is the one the segment's locus on that solid names.
         let (seg_a, seg_b) = (germ.a_locus.edge(), germ.b_locus.edge());
-        use crate::chord_join::face_azimuth_window;
         use geom::Surface as Sf;
         // No wired join arm for this germ pair (cyl×sphere's rung-3
         // fitted chords, a coaxial cylinder pair, plane×NURBS behind PR
@@ -705,9 +704,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 // plane is computed from the pair's own C5 Circle, once per
                 // germ, so the two sides' chords are sections of one datum;
                 // each body's aux copy of it is keyed by the two spheres it
-                // depends on ([`AuxDatum::Radical`]). A radical plane tilted
-                // against a chart's polar axis takes the run-side arc rule on
-                // that side (`chord_join::select_arc_by_run_side`).
+                // depends on ([`AuxDatum::Radical`]).
                 (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
@@ -767,39 +764,64 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)?;
         let (a_halves, b_halves) = (a_lane.curve_order((ea, ra)), b_lane.curve_order((eb, rb)));
+        // The section's direction at each site, toward the other: the
+        // germ the matched half faces, per operand.
+        let germ_at = |on_a: bool| {
+            let at = |(r, slot): (usize, usize)| {
+                let g = if on_a {
+                    open[r].a[slot].0
+                } else {
+                    open[r].b[slot].0
+                };
+                (g.he, g.dir)
+            };
+            Leave {
+                at: [at(seg.ends[0]), at(seg.ends[1])],
+                datum: Datum::Germ,
+            }
+        };
+        let (leave_a, leave_b) = (germ_at(true), germ_at(false));
+        // A chord's datum is looked up by the half it starts at
+        // (`Leave::from`), so the two halves each curve is minted
+        // between must be the matched germs' own: `choose_roles` orders
+        // them and picks no other.
+        for (halves, leave) in [(a_halves, &leave_a), (b_halves, &leave_b)] {
+            let named = leave.at.map(|(h, _)| h);
+            if !(named.contains(&halves.0) && named.contains(&halves.1)) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a segment's curve halves are not its matched germs' own",
+                });
+            }
+        }
         let (curve_a, curve_b) = match lane {
             None => (
-                sa.curve(&mut red.a, a_halves, JoinLane::AlongEdge, seg_a)?,
-                sb.curve(&mut red.b, b_halves, JoinLane::AlongEdge, seg_b)?,
+                sa.curve(&mut red.a, a_halves, JoinLane::AlongEdge, seg_a, leave_a)?,
+                sb.curve(&mut red.b, b_halves, JoinLane::AlongEdge, seg_b, leave_b)?,
             ),
             // The chord runs along the two planes' common line: straight
             // on both sides.
             Some(GermLane::Planar) => (
-                sa.curve(&mut red.a, a_halves, JoinLane::Planar, seg_a)?,
-                sb.curve(&mut red.b, b_halves, JoinLane::Planar, seg_b)?,
+                sa.curve(&mut red.a, a_halves, JoinLane::Planar, seg_a, leave_a)?,
+                sb.curve(&mut red.b, b_halves, JoinLane::Planar, seg_b, leave_b)?,
             ),
-            Some(GermLane::PlaneWall(plane)) => {
-                let region = wall_region(&red.b, germ.b_face, sb.joiner.fragments(), b_halves)?;
-                let window = face_azimuth_window(&red.b, &gb, region, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                (
-                    sa.bool_planar_curve(
-                        &mut red.a,
-                        a_halves,
-                        (gb.clone(), window),
-                        germ.b_face,
-                        seg_a,
-                    )?,
-                    sb.split_curve(
-                        &mut red.b,
-                        b_halves,
-                        plane,
-                        AuxDatum::Partner(germ.a_face),
-                        seg_b,
-                    )?,
-                )
-            }
+            Some(GermLane::PlaneWall(plane)) => (
+                sa.bool_planar_curve(
+                    &mut red.a,
+                    a_halves,
+                    gb.clone(),
+                    germ.b_face,
+                    seg_a,
+                    leave_a,
+                )?,
+                sb.split_curve(
+                    &mut red.b,
+                    b_halves,
+                    plane,
+                    AuxDatum::Partner(germ.a_face),
+                    seg_b,
+                    leave_b,
+                )?,
+            ),
             Some(GermLane::WallPlane(plane)) => {
                 let curve_a = sa.split_curve(
                     &mut red.a,
@@ -807,25 +829,23 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     plane,
                     AuxDatum::Partner(germ.b_face),
                     seg_a,
+                    leave_a,
                 )?;
-                let region = wall_region(&red.a, germ.a_face, sa.joiner.fragments(), a_halves)?;
-                let window = face_azimuth_window(&red.a, &ga, region, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
                 let curve_b = sb.bool_planar_curve(
                     &mut red.b,
                     b_halves,
-                    (ga.clone(), window),
+                    ga.clone(),
                     germ.a_face,
                     seg_b,
+                    leave_b,
                 )?;
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 (
-                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a)?,
-                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b)?,
+                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a, leave_a)?,
+                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b, leave_b)?,
                 )
             }
             // Each wall's own section table decides its rulings against
@@ -836,8 +856,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(GermLane::Rulings(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 let curves = (
-                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a)?,
-                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b)?,
+                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a, leave_a)?,
+                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b, leave_b)?,
                 );
                 rulings_are_straight([
                     (&curves.0, Operand::A, germ.a_face),
@@ -938,52 +958,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
     })
-}
-
-/// **The wall region whose window bounds the segment's chord arc**:
-/// the face the segment's two null halves sit on at CALL TIME, among
-/// `recorded` and the fragments the joiner's mefs divided off it
-/// ([`crate::chord_join::lineage`], the lineage `rest`'s
-/// `fragment_holding` reads too).
-///
-/// The germ's `a_face`/`b_face` is the face the germ was RECORDED
-/// against at insertion. An earlier segment's `mef` can divide it,
-/// leaving the key on a fragment neither half is in any more, whose
-/// window covers a part of the wall the arc does not lie in; so the
-/// halves name the fragment. A recorded face either half still sits on
-/// is read itself: a declared tangency's fillet puts the two halves on
-/// two faces, and the recorded one is the region the germ was taken on.
-///
-/// Halves together on a face outside the lineage, or on two faces
-/// neither of which is the recorded one, name no region to read a
-/// window on: refused rather than guessed at.
-fn wall_region<T: Decide>(
-    body: &Body<T>,
-    recorded: FaceKey,
-    fragments: &[(FaceKey, FaceKey)],
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-) -> Result<FaceKey, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let face_of = |he: HalfEdgeKey| -> Result<FaceKey, BooleanError> {
-        body.face_of_half_edge(he)
-            .ok_or(desync("a segment half or its loop no longer resolves"))
-    };
-    let (f1, f2) = (face_of(h1)?, face_of(h2)?);
-    if f1 == recorded || f2 == recorded {
-        Ok(recorded)
-    } else if f1 != f2 {
-        Err(desync(
-            "a segment's germ face holds neither of its halves and they sit on two faces of \
-             one wall (no region window)",
-        ))
-    } else if crate::chord_join::lineage(recorded, fragments).contains(&f1) {
-        Ok(f1)
-    } else {
-        Err(desync(
-            "a segment's halves sit on a face that is neither its germ face nor a fragment of \
-             it (no region window)",
-        ))
-    }
 }
 
 /// **How far a partner site is along the germ line**, seen from the
@@ -2349,8 +2323,8 @@ enum RoleLane<T: geom_core::Real> {
 
 impl<T: Decide> RoleLane<T> {
     /// The order the segment's curve is computed in: the decided one, or
-    /// the match's own on the ring lane, whose planar chord no run's
-    /// window enters.
+    /// the match's own on the ring lane, where either order names the
+    /// germs' one arc.
     fn curve_order(&self, given: (HalfEdgeKey, HalfEdgeKey)) -> (HalfEdgeKey, HalfEdgeKey) {
         match *self {
             RoleLane::Decided(order) => order,
@@ -2886,7 +2860,19 @@ mod self_check_rows {
             .expect("the top loop runs (0,0) → (1,h)");
         let h2 = body.get_half_edge(h1).unwrap().next;
         let chord = ChordJoiner::new(b)
-            .segment_curve(&mut body.clone(), (h1, h2), JoinLane::Planar, None)
+            .segment_curve(
+                &mut body.clone(),
+                (h1, h2),
+                JoinLane::Planar,
+                None,
+                crate::chord_join::Leave {
+                    at: [
+                        (h1, Vec3::new(1.0, 0.0, 0.0)),
+                        (h2, Vec3::new(-1.0, 0.0, 0.0)),
+                    ],
+                    datum: crate::chord_join::Datum::Germ,
+                },
+            )
             .expect("a planar face's chord is straight");
         let up = super::IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord);
         let err = super::ring_run_ccw(body, prism.top_face, (h1, h2), up, b)
