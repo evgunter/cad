@@ -1388,7 +1388,7 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {
                 edge: Some(edge),
-                error,
+                error: error.from_driver(),
             })?;
     }
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
@@ -2208,7 +2208,10 @@ pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
             .ok_or(ReplaceFaceError::Corrupt)?;
     }
     work.set_face_surfaces_describing(charts, specs, tol)
-        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+        .map_err(|error| ReplaceFaceError::Op {
+            edge: None,
+            error: error.from_driver(),
+        })?;
     Ok(())
 }
 

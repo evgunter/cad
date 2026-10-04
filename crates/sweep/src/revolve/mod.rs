@@ -795,7 +795,9 @@ impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 

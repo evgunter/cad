@@ -298,7 +298,10 @@ struct Builder<'a> {
 impl<'a> Builder<'a> {
     /// Wraps an operator refusal with the entity being assembled.
     fn op_err(id: u64) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
-        move |source| StepImportError::Assembly { id, source }
+        move |source| StepImportError::Assembly {
+            id,
+            source: source.from_driver(),
+        }
     }
 
     /// The nearest built σ-successor of `u` — the fan-position anchor
@@ -853,7 +856,7 @@ fn assemble_solid(
         body.mvfs(solid.vertices[&root], true)
             .map_err(|source| StepImportError::Assembly {
                 id: solid.id,
-                source,
+                source: source.from_driver(),
             })?;
     let mut vstate = BTreeMap::new();
     for &v in solid.vertices.keys() {

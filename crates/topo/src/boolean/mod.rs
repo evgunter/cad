@@ -2811,7 +2811,7 @@ impl From<BandError> for BooleanError {
 
 impl From<EulerOpError> for BooleanError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 

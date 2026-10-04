@@ -234,7 +234,7 @@ pub enum SplitFinishError {
 
 impl From<EulerOpError> for SplitFinishError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
