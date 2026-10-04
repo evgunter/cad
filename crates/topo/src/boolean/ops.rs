@@ -2957,12 +2957,14 @@ struct Recuts<T: Real> {
 
 /// A sphere face of a TRIMMED group that a plane face's carrier cuts in
 /// a circle certified inside both faces with no event (the section
-/// certificate's R-loop). The face takes a ring edge across the circle:
-/// the sphere's circle about a point `q` of the section circle, inside
-/// the face, which the section circle crosses at two points inside the
-/// plane face. The face's two sides stay one surface key, the maximal
-/// form a curved operand takes, and the re-entered crossing layer meets
-/// the circle at those two points.
+/// certificate's R-loop). The face is cut along the meridian of its own
+/// sphere's chart through the circle's centre, from its boundary below
+/// the circle to its boundary above: a new seam of the face, which the
+/// circle crosses twice inside the plane face. Both pieces keep the
+/// surface key (the maximal form a curved operand takes), a meridian
+/// and the face's own edges bound each, and the re-entered crossing
+/// layer meets the circle at the two crossings, as it meets a closed
+/// group's re-charted seams.
 struct SphereCutIn<T: Real> {
     /// The operand holding the face.
     operand: Operand,
@@ -3603,18 +3605,20 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok((out_a, out_b))
 }
 
-/// Applies the scan's cut-ins ([`SphereCutIn`]): each face takes a ring
-/// edge on its own sphere, the circle of chordal radius `r` about a
-/// point `q` of the section circle, which the section circle crosses at
-/// two points. The circle's cap must clear every boundary edge of the
-/// face by certified boxes; `q` is tried at four quarter turns of the
-/// section circle from the plane's `u_ref`, at `r = ρ` and halved after
-/// each round, and a face no candidate clears refuses typed.
+/// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
+/// the meridian half-plane of its sphere's chart that holds the section
+/// circle's centre direction.
 ///
-/// The ring is `mev` + `kemr` (a lone vertex inside the face, as the
-/// pierce ring is minted) and `mef(Lone)` along the circle, its plus
-/// half turning clockwise about the face's outward normal so the ring
-/// is the face's hole and the cap its new face, on the same surface.
+/// The circle meets that half-plane in two points (latitudes `s₁ < s₂`,
+/// as sines). Every boundary arc of the face meets the meridian's plane
+/// at the first-harmonic door's certified roots; those inside the arc's
+/// span and on the half-plane (or at a pole) are the face's boundary
+/// hits. The cut runs from the highest hit below `s₁` to the lowest
+/// above `s₂`, so nothing of the boundary lies between and the arc is
+/// inside the face. A hit at an arc's end is that vertex; one inside an
+/// arc splits it there. A hit between `s₁` and `s₂` (a hole inside the
+/// circle), no hit on a side, a carrier the door cannot read, or ends on
+/// different loops of the face refuses typed.
 fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
@@ -3622,105 +3626,293 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    /// Rounds of halving before the face refuses.
-    const ROUNDS: usize = 8;
-    let pad = boxes::sweep_pad(band);
+    const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
+        noise: "bool_sphere_cut_roots_noise",
+        coaxial: "bool_sphere_cut_roots_coaxial",
+        extreme: "bool_sphere_cut_roots_extreme",
+        root_slack: "bool_sphere_cut_roots_slack",
+        decision: BooleanDecision::Sphere(SphereQuestion::AgainstPlane),
+    };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
             Operand::B => &mut *b,
         };
-        let v_ref = cut.normal.cross(cut.u_ref);
-        let mut r = cut.rho;
-        let mut found = None;
-        'rounds: for _ in 0..ROUNDS {
-            for d in [cut.u_ref, v_ref, -cut.u_ref, -v_ref] {
-                let q = cut.foot + d * cut.rho;
-                if !face_boundary_meets(body, cut.face, &centred_box(q, r, pad), pad) {
-                    found = Some((q, r));
-                    break 'rounds;
-                }
-            }
-            r = r / T::from_f64(2.0);
-        }
-        let Some((q, r)) = found else {
-            return Err(BooleanError::FallbackExtentUnsupported {
-                operand: cut.operand,
-                face: cut.face,
-                what: "a trimmed sphere face meets a plane face in a circle interior to both, \
-                       and no ring across the circle clears the sphere face's boundary",
-            });
+        let refuse = |what| BooleanError::FallbackExtentUnsupported {
+            operand: cut.operand,
+            face: cut.face,
+            what,
         };
-        let outward = match crate::face_normal::face_outward_normal_at(body, cut.face, q, band) {
-            Ok(Some(n)) => n.vec(),
-            Ok(None) | Err(_) => return Err(corrupt("cut-in: no outward normal at the ring")),
+        let esc = |diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(SphereQuestion::AgainstPlane),
+            diag,
         };
-        // The ring's plane: normal to the radius through `q`, at the
-        // depth where the sphere's points lie `r` from `q`.
-        let axis = -outward / outward.norm();
-        let m = (q - cut.center) / cut.radius;
-        let depth = cut.radius - r * r / (cut.radius + cut.radius);
-        let origin = cut.center + m * depth;
-        let ring_radius = (cut.radius * cut.radius - depth * depth).sqrt();
-        // The ring's vertex sits where the ring leaves the section
-        // plane farthest, midway between the two crossings.
-        let lean = cut.normal - axis * cut.normal.dot(axis);
-        let u_ring = lean / lean.norm();
-        let start = origin + u_ring * ring_radius;
+        let r = cut.radius;
+        let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let fd = proven(&body.faces, cut.face, EntityId::Face);
         let sphere = fd.surface;
-        let LoopBoundary::Cycle { first: anchor } = linked(
-            &body.loops,
-            fd.outer,
-            EntityId::Loop,
-            EntityId::Face(cut.face),
-            "outer",
-        )
-        .boundary
-        else {
-            return Err(corrupt("cut-in: the sphere face's outer loop is not a cycle"));
+        let Some(&geom::Surface::Sphere { axis, .. }) = body.get_surface(sphere) else {
+            return Err(corrupt("cut-in: the face is not on a sphere"));
         };
-        let from = body.resolve_vertex_point(
-            proven(&body.half_edges, anchor, EntityId::HalfEdge).start,
-            crate::live::Proven,
-        );
-        let strut = body.mev(
-            crate::euler::MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            start,
-            geom_brep::EdgeCurveSpec::line_between(from, start),
-            tol,
-        )?;
-        let ring = body.kemr(strut.he_plus, strut.he_minus)?.ring;
-        let plane = body.add_surface(geom::Surface::Plane {
-            origin,
-            normal: axis,
-            u_ref: u_ring,
-        });
+        let axis = axis / axis.norm();
+        // The meridian plane through the circle's centre direction, or
+        // through a point of it where the circle is a rim of the chart.
+        let toward = |d: Vec3<T>| axis.cross(d);
+        let mut k = toward(cut.foot - cut.center);
+        if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
+            if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+                return Err(refuse("the section circle has no meridian of the face's chart"));
+            }
+        }
+        let k = k / k.norm();
+        let h = k.cross(axis);
+        let latitude = |p: Point3<T>| axis.dot(p - cut.center) / r;
+        // The circle's two crossings, both on the half-plane `h`.
+        let across = cut.normal.cross(k);
+        if sign("bool_sphere_cut_section_meridian", Margin::of(across.norm()))? == Sign::Zero {
+            return Err(refuse("the section circle lies in its own meridian plane"));
+        }
+        let e = across / across.norm();
+        let mut circle = [cut.foot - e * cut.rho, cut.foot + e * cut.rho].map(latitude);
+        for p in [cut.foot - e * cut.rho, cut.foot + e * cut.rho] {
+            if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
+                return Err(refuse("the section circle holds a pole of the face's chart"));
+            }
+        }
+        let above = |x: T, y: T| sign("bool_sphere_cut_order", Margin::levered(x - y, r));
+        if above(circle[0], circle[1])? == Sign::Positive {
+            circle.swap(0, 1);
+        }
+        let [s1, s2] = circle;
+        // The face's boundary hits on the half-meridian.
+        struct Hit<T> {
+            s: T,
+            vertex: Option<VertexKey>,
+            split: Option<(EdgeKey, T)>,
+        }
+        let mut hits: Vec<Hit<T>> = Vec::new();
+        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(cut.face), "loop");
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                return Err(refuse("the sphere face carries a lone-vertex loop"));
+            };
+            for he in body.loop_walk(first).closed("loop", first) {
+                let hd = proven(&body.half_edges, he, EntityId::HalfEdge);
+                let edge = hd.edge;
+                let ed = proven(&body.edges, edge, EntityId::Edge);
+                let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
+                    return Err(corrupt("cut-in: a boundary edge has no carrier"));
+                };
+                let (t0, t1) = curve.params();
+                let geom::Curve3::Circle {
+                    center: cc,
+                    axis: ca,
+                    radius: cr,
+                    u_ref: cu,
+                } = *curve.carrier()
+                else {
+                    return Err(refuse("a boundary edge of the sphere face is not a circle"));
+                };
+                let offset = cc - cut.center;
+                let d = k.dot(offset);
+                let (cos_part, sin_part) = (cr * k.dot(cu), cr * k.dot(ca.cross(cu)));
+                let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+                let noise = super::circle_roots::rounding_charge(offset.norm() + cr);
+                let roots = super::circle_roots::first_harmonic_roots(
+                    &super::circle_roots::FirstHarmonic {
+                        lo: d - amplitude,
+                        hi: d + amplitude,
+                        cos_part,
+                        sin_part,
+                        lo_noise: noise,
+                        hi_noise: noise,
+                        phase_noise: T::zero(),
+                    },
+                    cr,
+                    t0,
+                    t1,
+                    &ROWS,
+                    band,
+                )?;
+                let thetas = match roots {
+                    super::circle_roots::CircleRoots::Miss => continue,
+                    super::circle_roots::CircleRoots::Certified { count, thetas } => {
+                        thetas[..count].to_vec()
+                    }
+                    _ => {
+                        return Err(refuse(
+                            "a boundary arc of the sphere face meets the cut's meridian plane \
+                             where its roots are not certified",
+                        ));
+                    }
+                };
+                let (lo_t, hi_t) =
+                    match sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? {
+                        Sign::Positive => (t0, t1),
+                        _ => (t1, t0),
+                    };
+                for theta in thetas {
+                    let into = |end: T| Margin::levered(theta - end, cr);
+                    let (from_lo, to_hi) = (
+                        sign("bool_sphere_cut_span", into(lo_t))?,
+                        sign("bool_sphere_cut_span", Margin::levered(hi_t - theta, cr))?,
+                    );
+                    if from_lo == Sign::Negative || to_hi == Sign::Negative {
+                        continue;
+                    }
+                    let p = curve.carrier().eval(theta);
+                    let at_pole = sign(
+                        "bool_sphere_cut_pole",
+                        Margin::of(axis.cross(p - cut.center).norm()),
+                    )? == Sign::Zero;
+                    if !at_pole
+                        && sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))?
+                            != Sign::Positive
+                    {
+                        continue;
+                    }
+                    let vertex = if from_lo == Sign::Zero || to_hi == Sign::Zero {
+                        let start = hd.start;
+                        let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
+                        let at = |v| {
+                            let q = body.resolve_vertex_point(v, crate::live::Proven);
+                            sign("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
+                        };
+                        match (at(start)?, at(end)?) {
+                            (Sign::Zero, _) => Some(start),
+                            (_, Sign::Zero) => Some(end),
+                            _ => {
+                                return Err(refuse(
+                                    "the cut's meridian meets a boundary arc at its end, off \
+                                     its vertices",
+                                ));
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    hits.push(Hit {
+                        s: latitude(p),
+                        vertex,
+                        split: vertex.is_none().then_some((edge, theta)),
+                    });
+                }
+            }
+        }
+        let mut below: Option<&Hit<T>> = None;
+        let mut over: Option<&Hit<T>> = None;
+        for hit in &hits {
+            match (above(hit.s, s1)?, above(hit.s, s2)?) {
+                (Sign::Negative, _) => {
+                    let nearer = match below {
+                        None => true,
+                        Some(b) => above(hit.s, b.s)? == Sign::Positive,
+                    };
+                    if nearer {
+                        below = Some(hit);
+                    }
+                }
+                (_, Sign::Positive) => {
+                    let nearer = match over {
+                        None => true,
+                        Some(o) => above(o.s, hit.s)? == Sign::Positive,
+                    };
+                    if nearer {
+                        over = Some(hit);
+                    }
+                }
+                _ => {
+                    return Err(refuse(
+                        "the sphere face's boundary meets the cut's meridian inside the section \
+                         circle",
+                    ));
+                }
+            }
+        }
+        let (Some(below), Some(over)) = (below, over) else {
+            return Err(refuse("the cut's meridian leaves the sphere face through no boundary"));
+        };
+        if let (Some((e1, _)), Some((e2, _))) = (below.split, over.split)
+            && e1 == e2
+        {
+            return Err(refuse("the cut's meridian enters and leaves through one boundary arc"));
+        }
+        let (below_split, below_vertex) = (below.split, below.vertex);
+        let (over_split, over_vertex) = (over.split, over.vertex);
+        let mut end = |split: Option<(EdgeKey, T)>, vertex: Option<VertexKey>| match (split, vertex) {
+            (_, Some(v)) => Ok(v),
+            (Some((edge, theta)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
+            (None, None) => Err(corrupt("cut-in: a boundary hit with neither vertex nor arc")),
+        };
+        let v_lo = end(below_split, below_vertex)?;
+        let v_hi = end(over_split, over_vertex)?;
+        // The two ends' half-edges in the face's one loop.
+        let fd = proven(&body.faces, cut.face, EntityId::Face);
+        let mut ends = [None, None];
+        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(cut.face), "loop");
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                continue;
+            };
+            for he in body.loop_walk(first).closed("loop", first) {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
+                    if start == v {
+                        if slot.is_some() {
+                            return Err(refuse("the cut's end vertex recurs on the sphere face's loops"));
+                        }
+                        *slot = Some((lk, he));
+                    }
+                }
+            }
+        }
+        let [Some((l_lo, he_lo)), Some((l_hi, he_hi))] = ends else {
+            return Err(corrupt("cut-in: a cut end is not on the face's loops"));
+        };
+        if l_lo != l_hi {
+            return Err(refuse("the cut's meridian joins two loops of the sphere face"));
+        }
+        let p_lo = body.resolve_vertex_point(v_lo, crate::live::Proven);
+        let p_hi = body.resolve_vertex_point(v_hi, crate::live::Proven);
+        let u_arc = (p_lo - cut.center) / r;
+        let w = -k;
+        let to_hi = (p_hi - cut.center) / r;
+        let span = w.dot(u_arc.cross(to_hi)).atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::Circle {
-            center: origin,
-            axis,
-            radius: ring_radius,
-            u_ref: u_ring,
+            center: cut.center,
+            axis: w,
+            radius: r,
+            u_ref: u_arc,
         };
+        let plane = body.add_surface(geom::Surface::Plane {
+            origin: cut.center,
+            normal: k,
+            u_ref: h,
+        });
         body.mef(
-            crate::euler::MefSite::Lone { r#loop: ring },
+            crate::euler::MefSite::Chords {
+                he1: he_lo,
+                he2: he_hi,
+            },
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: sphere,
                     s2: plane,
-                    witness: carrier.mid_point(T::zero(), T::tau()),
+                    witness: carrier.mid_point(T::zero(), span),
                 },
                 carrier,
                 param_start: T::zero(),
-                param_end: T::tau(),
+                param_end: span,
             },
             crate::euler::FaceSurface::Inherit,
             tol,
         )?;
+    }
+    for body in [a, b] {
+        crate::pcurves::mint_pcurves(body, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
     }
     Ok(())
 }
