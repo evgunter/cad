@@ -206,6 +206,14 @@ pub const SSI_MAX_STEPS: usize = 20_000;
 /// which is why the refusal names it.
 pub const SSI_MAX_FIT_SAMPLES: usize = 1200;
 
+/// Scratch: the fit budget, overridden by `CAD_SCRATCH_FIT_BUDGET`.
+pub(crate) fn scratch_fit_budget() -> usize {
+    std::env::var("CAD_SCRATCH_FIT_BUDGET")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(SSI_MAX_FIT_SAMPLES)
+}
+
 /// An operand of a rung-3 intersection, tagged by which certificate
 /// machinery its limbs use.
 ///
@@ -1774,7 +1782,7 @@ fn fit_branch(
     points: &[Point3<f64>],
     charts: Option<ChartSamples<'_>>,
 ) -> Result<FittedBranch, SsiError> {
-    if points.len() > SSI_MAX_FIT_SAMPLES {
+    if points.len() > scratch_fit_budget() {
         return Err(SsiError::FitSampleBudget {
             samples: points.len(),
             budget: SSI_MAX_FIT_SAMPLES,

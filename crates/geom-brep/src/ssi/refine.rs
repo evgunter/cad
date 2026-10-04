@@ -78,11 +78,32 @@ pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
 where
     S: LocalSystem<M, N>,
 {
+    let trace = std::env::var_os("CAD_SCRATCH_REFINE").is_some();
+    let mut round = 0usize;
     loop {
-        let refused = match certify(&states) {
-            Ok(certified) => return Ok(certified),
+        let t0 = std::time::Instant::now();
+        let r = certify(&states);
+        if trace {
+            eprintln!("REFINE time n={} secs={:.3}", states.len(), t0.elapsed().as_secs_f64());
+        }
+        let refused = match r {
+            Ok(certified) => {
+                if trace {
+                    eprintln!("REFINE ok rounds={round} samples={}", states.len());
+                }
+                return Ok(certified);
+            }
             Err(refused) => refused,
         };
+        if trace {
+            eprintln!(
+                "REFINE round={round} samples={} located={} err={:?}",
+                states.len(),
+                refused.at.len(),
+                refused.error
+            );
+        }
+        round += 1;
         if refused.at.is_empty() {
             return Err(refused.error);
         }
@@ -91,6 +112,28 @@ where
         let Ok(params) = NurbsCurve3::<f64>::chord_parameters(&points) else {
             return Err(refused.error);
         };
+        if trace {
+            let total = params.last().copied().unwrap_or(1.0);
+            let fr: Vec<String> = refused
+                .at
+                .iter()
+                .take(12)
+                .map(|r| format!("{:.3}-{:.3}", r.lo / total, r.hi / total))
+                .collect();
+            eprintln!("REFINE where {}", fr.join(" "));
+            let mut gaps: Vec<(f64, f64)> = params
+                .windows(2)
+                .zip(points.windows(2))
+                .map(|(t, p)| (t[0] / total, (p[1] - p[0]).norm()))
+                .collect();
+            gaps.sort_by(|a, b| b.1.total_cmp(&a.1));
+            let g: Vec<String> = gaps
+                .iter()
+                .take(6)
+                .map(|(t, w)| format!("{t:.4}:{w:.2e}"))
+                .collect();
+            eprintln!("REFINE gaps {}", g.join(" "));
+        }
         let hit: Vec<bool> = params
             .windows(2)
             .map(|t| refused.at.iter().any(|r| r.lo <= t[1] && r.hi >= t[0]))
@@ -113,7 +156,7 @@ where
         finer.extend(states.last().copied());
         let stop = if finer.len() == states.len() {
             Some(RefineStop::NothingToHalve { in_band, unsettled })
-        } else if finer.len() > SSI_MAX_FIT_SAMPLES {
+        } else if finer.len() > super::scratch_fit_budget() {
             Some(RefineStop::FitBudget {
                 asked: finer.len(),
                 budget: SSI_MAX_FIT_SAMPLES,
