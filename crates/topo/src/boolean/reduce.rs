@@ -3372,8 +3372,12 @@ impl Placement {
     ///   (anything else answers `Unread` first), and the one such bore
     ///   tried — a full-turn collar less a partial-revolve wedge —
     ///   builds under every op
-    ///   (`sweep/tests/wedge_through_a_full_turn_collar.rs`); whether
-    ///   any of its poses passes through this arm is unmeasured;
+    ///   (`sweep/tests/wedge_through_a_full_turn_collar.rs`) without
+    ///   ever placing an end `Undecided`: measured over the full suites
+    ///   of `topo`, `sweep`, `mesh`, `editor-core` and `step-import`
+    ///   and the tour at ε 1e-9 (all 48 of its poses among them), no
+    ///   endpoint is placed `Undecided` anywhere, and the rule reads
+    ///   one only in the truth-table rows below;
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm

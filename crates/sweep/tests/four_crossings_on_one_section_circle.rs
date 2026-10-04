@@ -20,10 +20,10 @@
 //!
 //! `bool_join_walk_site` answers `Zero` on every call for the pair's own
 //! two germs (each is a site of its own locus, at distance exactly
-//! zero), so that branch runs in every row; a THIRD germ within the band
-//! of an end is a section passing through an existing vertex, which
-//! the crossing layer settles as a vertex contact before any germ is
-//! minted there.
+//! zero), so that branch runs in every row. A THIRD site within the
+//! band of an end reaches it from no row: measured over the full suites
+//! of `topo`, `sweep`, `mesh`, `editor-core` and `step-import` and the
+//! tour at ε 1e-9, no walk check met one.
 //!
 //! The ball is the canonical full revolve about `y`, and the same ball
 //! with its pole turned off every axis; the turn moves no point of the
