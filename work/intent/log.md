@@ -72,3 +72,13 @@ The fix pass was large and run by the implementer lane. It also
 re-blessed the sym_9 bracket's pins (154/160): the tier's reach depends
 on symbol order, filed as `work/sym/sym-tier-reach-depends-on-symbol-order.md`.
 The row is in `docs/DUAL-REVIEW-LOG.md`. Next is PR 3: readers read ids.
+## 2026-10-04 — open PRs triaged against D10
+
+At Ev's request a lane read every open PR against D10. Closed as fully
+superseded: #3929 (`[ev]`, a measured part stays a product root: the
+consume/read typing is moot once nothing consumes). Its row
+`a-measured-part-is-not-a-product-root` moved here from RECIPE, parked on
+the build (REACH's plate row still blocks on it by id); its one unfiled
+finding is `a-failed-requirement-refuses-the-whole-product`. Partly
+superseded and left open: FUSE's #3955 (note on FUSE's log). 22 others
+are not superseded.
