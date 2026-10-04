@@ -107,7 +107,7 @@ rows:
 - `nurbs-edge-crossing-rung-is-the-ring-composite`: the NURBS edge's
   rung (the `spline::compose` composite, one lane keyed on the
   carrier), parked on frontier (d)'s
-  `join/cylinder-sphere-germ-pair-has-no-section-frame`.
+  `join/cylinder-sphere-germ-pair-has-no-join-lane`.
 - `spiric-operand-edges-reopen-with-their-first-producer`: deferred.
 
 The three demo joins this row names are not the edge's: with the gate
