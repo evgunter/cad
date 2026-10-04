@@ -383,14 +383,22 @@ fn band_placement() -> ProfileDoc {
 
 fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
+    // Declared unannotated and annotated by its own door: the
+    // distribution's offsets are multiples of ε, and a declare mints
+    // from its definition, so declaring it annotated would make every
+    // id after it — and the goldened keys — differ per ε row.
     r.push(DocEdit::DeclareVar {
         name: name("place"),
         def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(distribution),
+            distribution: None,
         }),
+    });
+    r.push(DocEdit::SetVarDistribution {
+        var: name("place").into(),
+        distribution: Some(distribution),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
