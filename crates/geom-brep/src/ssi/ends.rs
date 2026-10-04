@@ -435,13 +435,16 @@ impl<'a> Ends<'a> {
                 what: certify::NURBS_LIMBS_NEED_PCURVE,
             });
         };
+        let pl = SsiOperand::Analytic(self.plane);
+        let mutant = std::env::var("REV_MUTANT").is_ok();
         let cert = certify::certify_branch(
             &carrier,
+            if mutant { certify::Lane::AtRest { a: &pl, b: self.wall, pcurve_b: Some(pcurve) } } else {
             certify::Lane::Chart {
                 plane: self.plane,
                 wall: *wall,
                 pcurve,
-            },
+            }},
             TubeScale::uniform(self.extent),
             self.band,
             &mut Vec::new(),
