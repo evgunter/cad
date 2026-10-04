@@ -6495,3 +6495,8 @@ The test-door rename merged as `7d2bf68522`. The reviewer's MAJOR finding: main 
 old name (`boolean/reduce.rs`, `boolean/offer_rows.rs`). The lane fixed it by merging main and renaming both.
 The MINOR finding (row not closed) I fixed myself at `63eb19f82d`. CI was green on that head. Both sessions
 are archived.
+
+Dispatched (2026-10-04 00:14): `kev-describing-a-null-member-leaves-its-face-missing-its-rows` (P3, E;
+not covered by the D10 hold) to cloud lane session_015ZfwN2bbh26FjE3ZrtM1mM on branch
+`topo/kev-describing-null-member-remints`. The lane chooses, with a witness, between planning the re-mint
+over the loop the kill leaves and refusing a listed null member at the gate.
