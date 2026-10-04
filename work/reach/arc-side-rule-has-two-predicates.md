@@ -2,12 +2,13 @@
 id: arc-side-rule-has-two-predicates
 kind: issue
 title: The chord's arc-side rule is the azimuth window on a monotone section and the run side on a tilted sphere section, where the chart-free one could serve every conic
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 pr: 3985
 branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -84,3 +85,17 @@ with no body; and the window rule on a cylinder wall
 closed form. The phase-1 commit as written
 paired by chord length; run that way, a third class shows, a slab
 across a round boss, which the walk-order pairing removed.
+
+## Closed (2026-10-04)
+
+Merged by PR 3985. A chord takes the arc its pairing named, read from
+one datum minted with the crossing; `select_arc` and the run-side
+selector are retired. After the merge with JOIN's chord ranking
+(PR 4008), the walk-order filter pinned nothing and was removed
+(orchestrator's ruling (a)); main's `wall_region` and
+`ChordJoiner::fragments`, which fed only the retired azimuth window,
+went with it. A second independent verifier
+(`analysis/reach-verify2/3985`) found the final head VERIFIED: of
+26,499 chords main mints across topo, sweep, mesh, editor-core and
+step-import, and 10,830 in the tour, the head mints every one; all
+four mutants are killed; every ε red is red on main too.

@@ -789,3 +789,12 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Verification.** An independent verifier session found the pass VERIFIED. No inside-out body passes in any family at 1e-9 or 1e-12, and no valid in-domain body that main accepts is refused beyond the sliver fixture main also refuses. All seven mutants behave as stated. One digest line moved, `sym_thin_strip`, and the move is explained.
 - **Its notes.** The backstop's interval confirm now re-runs quadrature faces about c, a cost change outside check 7. `validate_geometric` costs about 1.3–2.5× main on curved bodies.
 — (REACH orchestrator)
+
+## 2026-10-04 — a chord takes the arc its pairing named (PR 3985)
+
+- **The change.** One datum, the section's direction at each crossing, is minted with the crossing. Both the pairing and `chord_spec` read it, and the chord only orients itself by it. The azimuth-window selector and the run-side selector retire. The design fork behind it converged on its first reports (fork-log row 66) and was adopted, not sent to Ev.
+- **Review.** It was a dual review frozen at `7e33abf087`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR; nothing enters the tally. The last pass removed the stale prose citing the retired selectors, restated `Placement::Undecided`'s reachability, recorded the cross-check counts, and added a four-crossing walk-order row.
+- **The merge with JOIN (PR 4008).** After it, JOIN's chord ranking superseded the walk-order filter, so the filter pinned nothing. Ruling (a) removed it, with its rows. Main's `wall_region` and `ChordJoiner::fragments`, which only fed the retired window, went with it.
+- **Verification.** Two independent verifier sessions found it VERIFIED, the second on the final head. The head mints every chord main mints (26,499 in the suites, 10,830 in the tour). All four mutants are killed. Every ε red is red on main too: the four torn-body rows, the steep ellipse at 1e-6, and the arc loft at 1e-12.
+- **Also in this sync.** The two items filed for the steep-ellipse 1e-6 red, one by this lane and one by #3977's, are folded into the one on main.
+— (REACH orchestrator)
