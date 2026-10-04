@@ -547,7 +547,7 @@ reviewers' batteries:
 - 74 refusal→BAD: 72 escalated census bodies (main ships 139 of the
   class) and 2 census false positives.
 
-**Review tier: DUAL, H / TRICKY (DR-77).** Five finish modules change
+**Review tier: DUAL, H / TRICKY (DR-78).** Five finish modules change
 (welds, seam guard, `kept_end`, an op-specific ∩ facing).
 - R1: APPROVE-WITH-FIXES, 1/4/4. R2: APPROVE-WITH-FIXES, 1/2/4.
 - Both MAJORs were near-tangent poses that main refused, newly built
