@@ -937,6 +937,8 @@ where
     let mut steps = 0usize;
     let mut held = Held::default();
     let mut longest_step = 0.0f64;
+    // PROBE: the last accepted step, for the halving restart.
+    let mut last_h: Option<f64> = None;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -1093,14 +1095,19 @@ where
                 // residual mode: the predicted state's residual against
                 // twice the step rule's claimed deviation plus the
                 // residual the start state already carries.
-                let thr_res = 2.0 * claim + ctx.tol.settling();
+                let thr_res = if mode_p == "reps" {
+                    // the run tolerance itself, plus the start's residual
+                    ctx.tol.meters() + ctx.tol.settling()
+                } else {
+                    2.0 * claim + ctx.tol.settling()
+                };
                 let at = |h: f64| -> [f64; N] {
                     core::array::from_fn(|i| {
                         x[i] + h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i]
                     })
                 };
                 let accepts = |pred: [f64; N]| -> bool {
-                    if mode_p == "resid" {
+                    if mode_p == "resid" || mode_p == "reps" {
                         let r = sys.residual(&pred);
                         let n = r.iter().map(|v| v * v).sum::<f64>().sqrt();
                         return n <= thr_res;
@@ -1108,7 +1115,11 @@ where
                     newton_refine(sys, pred, ctx.tol)
                         .is_some_and(|r| distance_meters(sys, &pred, &r) <= thr)
                 };
-                let mut h = h0;
+                let restart = std::env::var("PROBE_RESTART").is_ok();
+                let mut h = match last_h {
+                    Some(l) if restart && probe_on() => Real::min(h0, 2.0 * l),
+                    _ => h0,
+                };
                 if probe_on() {
                     while h * speed > band.escalate() {
                         let pred = at(h);
@@ -1124,6 +1135,7 @@ where
                         h *= 0.5;
                         PROBE_HALVINGS.with(|c| c.set(c.get() + 1));
                     }
+                    last_h = Some(h);
                 }
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
