@@ -6748,3 +6748,16 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
 - The R build waits for PR 4029 (both touch `euler_kill.rs`).
 - **Unit 1 opened PR 4029** (about 9k lines, 58 files; every deleted variant's site converted; drivers through `from_driver()`; 11 + 8 editor-core chains closed; no goldens moved). Subscribed. Reviewer `session_01Th9v8RURstDac57y6oVuRv` dispatched; it posts its verdict as a PR comment.
 - Nothing new on PR 3970.
+
+## 12:34 check-in (2026-10-04)
+
+- PR 4030 (sync) merged at `75f8f4a557`.
+- **PR 4029 review: fix first, no blocking defect.** Full topo suite passes. The release corrupt-input filter selects the renamed test. A throwaway probe of 59 public-door calls with dead keys and bad pairings found no panic; every one came back typed under the right role. All findings adopted:
+  1. Two driver wraps bypass `from_driver()` (`boolean/ops.rs:556`, `step-import/adopt.rs:629`).
+  2. `ShellError::Partition` still says "(kernel bug)" though real refusals now reach it, and the chain sample exposes a driver-addressed recourse shown to users. Filed as a hone row by the fix lane.
+  3. About 12 `work/` rows prescribe deleted variants, and two resolved rows were left open.
+  4. The inverted sweeps cannot go red on a typed refusal or a mutation-phase panic. Harden them with a clone compare.
+  5. `describe_at_rest` with a dead chart is not an argument miss.
+  - Style: two panic helpers into one; the premise text hand-copied in about 9 places; `KeyFrom::miss` diverging inside a `Result`; dead `Result`s.
+- Fix lane `session_015ZRAnih51VcqL2q3r1aMjG` dispatched on the PR branch; it reports by PR body and comment. Reviewer and implementer archived (unit 1 cost about $64).
+- Nothing new on PR 3970.
