@@ -876,7 +876,12 @@ impl<T: Decide> Body<T> {
     ///   through, adjacency coherence included, and its curve is
     ///   replaced by fresh insertion (the old one reaped iff orphaned).
     ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
-    ///   say why, and what tier 3 does with them).
+    ///   say why, and what tier 3 does with them) — except that a listed
+    ///   null edge's description is its first, and re-mints the faces
+    ///   its halves are on as `set_edge_curve`'s does, through the one
+    ///   planner both doors run, over each face as the kill leaves it:
+    ///   the killed halves gone, and every listed member's halves under
+    ///   the curve this door installs.
     /// - **An unlisted member** keeps its carrier and passes the
     ///   re-basing gate [`Body::mev`]'s fan site passes, under this
     ///   band: its stored description re-certified against the merged
@@ -926,7 +931,11 @@ impl<T: Decide> Body<T> {
     /// `StaleGeometry` / [`EulerOpError::RebasedNullEdge`] /
     /// [`EulerOpError::RebasedCarrier`] naming the first that fails).
     /// So an empty merged fan with an empty list asks nothing past the
-    /// structural list, and the two doors agree there.
+    /// structural list, and the two doors agree there. Last, where a
+    /// listed member is a null edge, its first description's site mint
+    /// is planned (`StaleKey` / `StaleGeometry` /
+    /// [`EulerOpError::LoopCycleBroken`] /
+    /// [`EulerOpError::PcurveMint`], as [`Body::set_edge_curve`]'s).
     ///
     /// # Errors
     ///
@@ -945,6 +954,11 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let plan = self.kev_plan(he)?;
         let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
+            .iter()
+            .map(|(edge, curve)| (*edge, curve))
+            .collect();
+        let rows = self.null_description_rows(&curves, |body| body.kev_loops_after(&plan), tol)?;
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
         // the killed edge (`kev_plan` proves it), so each one survives
@@ -952,6 +966,7 @@ impl<T: Decide> Body<T> {
         for (edge, curve) in described {
             self.replace_edge_curve(edge, curve);
         }
+        crate::pcurves::apply_site_rows(self, rows, None);
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEV_DELTA, "kev_describing");
         Ok(result)
@@ -1168,6 +1183,41 @@ impl<T: Decide> Body<T> {
         } else {
             Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
         }
+    }
+
+    /// The loops the kill rewires, as it leaves them: each loop it
+    /// re-anchors, in `next` order from its new anchor with the killed
+    /// halves gone (the unsplice's links only bridge them,
+    /// [`KevUnsplice::links`]), and the segment's loop empty. Where both
+    /// anchors name one loop the second wins, as in
+    /// [`KevUnsplice::loop_writes`]. Pure.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::LoopCycleBroken`] where a re-anchored loop's
+    /// cycle does not close.
+    fn kev_loops_after(
+        &self,
+        plan: &KevPlan,
+    ) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError> {
+        let [_, b, _, d] = plan.links;
+        let mut after: Vec<(LoopKey, Vec<HalfEdgeKey>)> = Vec::with_capacity(2);
+        for (r#loop, boundary) in plan
+            .unsplice
+            .loop_writes(plan.loops, [b.key(), d.key()], plan.v)
+        {
+            let cycle = match boundary {
+                LoopBoundary::Empty { .. } => Vec::new(),
+                LoopBoundary::Cycle { first } => {
+                    let mut cycle = self.site_cycle_from(first, r#loop)?;
+                    cycle.retain(|&h| h != plan.he && h != plan.m);
+                    cycle
+                }
+            };
+            after.retain(|(k, _)| *k != r#loop);
+            after.push((r#loop, cycle));
+        }
+        Ok(after)
     }
 
     /// [`Body::kev_describing`]'s gate: every listed spec certified
@@ -1409,11 +1459,12 @@ impl<T: Decide> Body<T> {
     /// `next` or `prev` as the splice leaves it, no loop's `first` but
     /// the surviving loop's, no vertex's `emanating` but the endpoints'
     /// and no other edge's slot (`KillLeavesDangling` from the first
-    /// record, in that order and in arena order within each); then, where the surviving face would be re-minted,
-    /// the
-    /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
-    /// [`EulerOpError::PcurveMint`] naming the surviving face among
-    /// them — `KeysOnly` at this door).
+    /// record, in that order and in arena order within each); then the
+    /// site mint's plan ([`Body::plan_moved_rows`]'s errors): on a
+    /// face whose chart mints, a loop of it that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), and, where the surviving
+    /// face would be re-minted, [`EulerOpError::PcurveMint`] naming it
+    /// (`KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1773,8 +1824,9 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
     /// rows are a curve stated in the DEMOTING face's chart. A spec on
     /// that chart ([`Body::same_chart`]) keeps them; any other surface
-    /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
-    /// why). Where they do not stand on the new face — dropped, or
+    /// DROPS them ([`Body::drop_rows`] states why), over the members the
+    /// plan proves are the ring's ([`Body::whole_cycle`]). Where they do
+    /// not stand on the new face — dropped, or
     /// missing — and the demoting face's rows were complete on an
     /// analytic chart, this door refuses
     /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
@@ -1811,15 +1863,19 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face's
+    /// ([`EulerOpError::SenseContradictsChart`]); the ring's walk closes
+    /// and is exactly the half-edges that claim the ring
+    /// ([`EulerOpError::LoopCycleBroken`], [`Body::whole_cycle`]); then,
+    /// where the new face's
     /// key is not the demoting face's, no edge of the ring is stranded
     /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
     /// in cycle order) and every certified one names that key
-    /// ([`EulerOpError::RechartUnvouched`], the same); then, where the new face
-    /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
-    /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
-    /// among them — `KeysOnly` at this door).
+    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors): a loop of a
+    /// face it reads, on a chart that mints, that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), then, where the new face
+    /// would be minted, [`EulerOpError::PcurveMint`] naming the demoting
+    /// face (`KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1898,7 +1954,7 @@ impl<T: Decide> Body<T> {
             (inherit_surface, inherit_sense),
             ParentSide::Against,
         )?;
-        let ring_halves = self.site_cycle(ring)?;
+        let ring_halves = self.whole_cycle(ring)?;
         self.vouch_move(
             door,
             old_face,
@@ -1950,7 +2006,7 @@ impl<T: Decide> Body<T> {
         loop_data.face = face;
         self.drop_null_face_records_naming(ring);
         if !resolved.on_parent_chart {
-            self.drop_loop_rows(ring);
+            self.drop_rows(ring_halves);
         }
         crate::pcurves::apply_site_rows(self, rows, None);
         let Some(shell_data) = self.get_shell_mut(shell) else {
@@ -4352,5 +4408,41 @@ mod tests {
         body.get_half_edge_mut(he).unwrap().start = lone.vertex;
         let torn = EulerOpError::OrbitBroken { he };
         assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
+
+    // ------------------------------------------------------------------
+    // kev_describing: a listed null member's first description
+    // ------------------------------------------------------------------
+
+    /// **The re-mint is planned before the kill mutates.** The wall's
+    /// far side has lost its curve entry, which neither the kill's plan
+    /// nor its gate reads; the null member's re-mint reads the wall
+    /// and refuses it, and the kill is not run: the body is deep
+    /// unchanged, every pcurve row included.
+    #[test]
+    fn a_refused_null_member_re_mint_leaves_the_body_untouched() {
+        let (mut body, face, _, toward_tip, listed) =
+            crate::test_support_fixtures::kill_under_a_null_strut(Tol::witness());
+        let side = body
+            .edges()
+            .find(|(_, e)| {
+                body.get_curve_geom(e.curve)
+                    .and_then(crate::CurveGeom::certified)
+                    .is_some_and(|c| {
+                        matches!(c.carrier(), geom::Curve3::Line { origin, .. }
+                            if (origin.x - 1.4f64.cos()).abs() < 1e-12)
+                    })
+            })
+            .map(|(_, e)| e.curve)
+            .unwrap();
+        body.curves.remove(side).unwrap();
+        let refused = EulerOpError::PcurveMint {
+            face,
+            refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+        };
+        assert_err_deep_unchanged(&mut body, &refused, |b| {
+            b.kev_describing(toward_tip, &listed, Tol::witness())
+                .unwrap_err()
+        });
     }
 }

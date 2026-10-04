@@ -699,8 +699,8 @@ fn kemr_splices_twice_on_the_ring_bridge_once_on_a_strut_and_never_on_a_closed_f
 /// LIVE-BUT-WRONG (the lookup succeeds against an unrelated entity —
 /// the shape a slotmap key laundered across arenas actually takes).
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(debug_assertions, allow(dead_code))] // a dev build plants `ANCHOR_TEARS` only
-enum Tear {
+#[cfg_attr(debug_assertions, allow(dead_code))] // a dev build plants no dangling tear
+pub(crate) enum Tear {
     NextDangling,
     PrevDangling,
     NextForeign,
@@ -745,7 +745,12 @@ const TEARS: [Tear; 9] = [
     Tear::EmanatingDangling,
 ];
 
-fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead: HalfEdgeKey) {
+pub(crate) fn plant(
+    body: &mut Body<f64>,
+    tear: Tear,
+    rng: &mut test_utils::fuzz::Rng,
+    dead: HalfEdgeKey,
+) {
     use crate::entity::{EdgeKey, LoopKey, VertexKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
@@ -880,8 +885,9 @@ fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) ->
 /// `face`/`loop`/`shell` records — it calls `link_half_edges` NOWHERE,
 /// so a run that reached only it has reached none of the arms, which is
 /// exactly the run that made a floor on the total unfalsifiable here
-/// (`mfkrh`'s plan phase reads only `loop.face`, `face.outer`,
-/// `face.shell`, so it survives a fully nulled arena). An operator that
+/// (`mfkrh`'s plan phase proves only that the ring it is handed walks
+/// as its own, [`crate::Body::whole_cycle`], so it runs wherever that
+/// ring's walk and claims are intact, however torn the rest). An operator that
 /// cannot reach the arms cannot be evidence that the arms were reached.
 ///
 /// **Nor is it the whole class**: `mekr` reaches the arms and this pass
@@ -938,7 +944,7 @@ const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
     ("kev", 25),
     ("mef_chord", 90),
     ("mev_line", 54),
-    ("mfkrh_plug", 7),
+    ("mfkrh_plug", 1),
     ("split_edge", 93),
 ];
 
@@ -986,14 +992,14 @@ const CALLS: &str = "operator calls";
 ///
 /// Untorn, they are also the valid bodies the kill anchors' over-refusal
 /// row sweeps ([`valid_fixtures_never_refuse_a_kill_anchor`]).
-const FIXTURES: [(&str, BuildFixture); 3] = [
+pub(crate) const FIXTURES: [(&str, BuildFixture); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
     ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
 ];
 
 /// How a [`FIXTURES`] entry builds its body.
-type BuildFixture = fn(Tol) -> Body<f64>;
+pub(crate) type BuildFixture = fn(Tol) -> Body<f64>;
 
 /// A segment and a circle, the bodies whose kills empty a loop, each
 /// beside a lone vertex: another loop's `Empty` vertex, for a kill's
@@ -1098,12 +1104,13 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
 ///
 /// Per operator, because a total does not distinguish *six operators
 /// exercised* from *one exercised and five refused at the door* — and on
-/// this fixture family that is not hypothetical: null every arena field
-/// of the spent destination and `mfkrh_plug` still returns `Ok` at
-/// every loop it is handed — seven times on today's destination, which
-/// is the figure [`SPENT_GRAFT_EXPOSURE`] holds — so a floor on the
-/// total is one almost nothing can break. [`LINK_OPS`] is therefore
-/// what the floor counts over, and `mfkrh_plug` is not in it.
+/// this fixture family that is not hypothetical: `mfkrh_plug` proves
+/// only that the ring it is handed walks as its own, so its count moves with how many
+/// rings walk as their own (once on today's destination, the figure
+/// [`SPENT_GRAFT_EXPOSURE`] holds) rather than with the arms under
+/// attack, and a floor on the total could be held up by it alone.
+/// [`LINK_OPS`] is therefore what the floor counts over, and
+/// `mfkrh_plug` is not in it.
 ///
 /// **Two enumerations per operator, because `kemr`'s arguments are not
 /// free.** Every other operator here takes keys that may be drawn
@@ -1753,14 +1760,69 @@ fn null_records_maintained(
     counts
 }
 
+/// Every valid body the over-refusal enumerations run on: [`FIXTURES`],
+/// [`BESIDE_A_LONE_VERTEX`], [`RING_ABOUT_AN_EMPTY_OUTER`],
+/// [`EMPTY_RING_BESIDE_A_CYCLE`], [`TWO_EMPTY_LOOPS`],
+/// [`TWO_SHELLS_OF_ONE_SOLID`], [`NULL_SCAFFOLDING`], the genus-2 body,
+/// the holed box and its two-ring face build.
+const VALID_BODIES: [(&str, BuildFixture); 14] = [
+    FIXTURES[0],
+    FIXTURES[1],
+    FIXTURES[2],
+    BESIDE_A_LONE_VERTEX[0],
+    BESIDE_A_LONE_VERTEX[1],
+    RING_ABOUT_AN_EMPTY_OUTER,
+    EMPTY_RING_BESIDE_A_CYCLE,
+    TWO_EMPTY_LOOPS,
+    TWO_SHELLS_OF_ONE_SOLID,
+    NULL_SCAFFOLDING[0],
+    NULL_SCAFFOLDING[1],
+    ("ops_genus2", ops_genus2),
+    ("ops_holed_box", |tol| ops_holed_box(tol).body),
+    ("ops_two_ring_face", |tol| ops_two_ring_face(tol).body),
+];
+
+/// No over-refusal of the orbit inversion proof: on every
+/// [`VALID_BODIES`] body, every vertex-keyed orbit read answers, and
+/// `mev_null` at every fan site, every ordered pair of half-edges
+/// starting at one vertex, struts included, runs to `Ok`. An enumeration, not a sample.
+#[test]
+fn valid_fixtures_never_refuse_a_fan_split_or_a_vertex_read() {
+    let tol = Tol::witness();
+    for (fixture, build) in VALID_BODIES {
+        let body = build(tol);
+        assert_eq!(
+            crate::validate::validate(&body),
+            Ok(()),
+            "{fixture} is valid"
+        );
+        for (v, _) in body.vertices() {
+            assert!(
+                body.vertex_orbit_of(v).is_some(),
+                "{fixture}: vertex_orbit_of({v:?}) refused"
+            );
+        }
+        let halves: Vec<_> = body
+            .half_edges()
+            .map(|(he, data)| (he, data.start))
+            .collect();
+        for &(he1, v1) in &halves {
+            for &(he2, v2) in &halves {
+                if v1 != v2 {
+                    continue;
+                }
+                let site = MevSite::Fan { he1, he2 };
+                if let Err(err) = body.clone().mev_null(site, crate::NewVertexSide::Above) {
+                    panic!("{fixture}: mev_null at {site:?} refused {err:?}");
+                }
+            }
+        }
+    }
+}
+
 /// No over-refusal of the anchor, run and removal proofs: on every
-/// valid body [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`],
-/// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
-/// [`TWO_EMPTY_LOOPS`], [`TWO_SHELLS_OF_ONE_SOLID`],
-/// [`NULL_SCAFFOLDING`], the genus-2 body, the holed box and its
-/// two-ring face build, every
-/// [`anchor_calls`] call, through each door its operator has
-/// ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
+/// [`VALID_BODIES`] body, every [`anchor_calls`] call, through each
+/// door its operator has ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
 /// nothing that reports a torn arena
 /// ([`EulerOpError::reports_tier1_corruption`]). An enumeration, not a
 /// sample. Every ringed face is marked as a null face
@@ -1786,22 +1848,6 @@ fn null_records_maintained(
 #[test]
 fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 14] = [
-        FIXTURES[0],
-        FIXTURES[1],
-        FIXTURES[2],
-        BESIDE_A_LONE_VERTEX[0],
-        BESIDE_A_LONE_VERTEX[1],
-        RING_ABOUT_AN_EMPTY_OUTER,
-        EMPTY_RING_BESIDE_A_CYCLE,
-        TWO_EMPTY_LOOPS,
-        TWO_SHELLS_OF_ONE_SOLID,
-        NULL_SCAFFOLDING[0],
-        NULL_SCAFFOLDING[1],
-        ("ops_genus2", ops_genus2),
-        ("ops_holed_box", |tol| ops_holed_box(tol).body),
-        ("ops_two_ring_face", |tol| ops_two_ring_face(tol).body),
-    ];
     // Per operator: calls run to `Ok` through the first door, kills
     // that emptied a loop, and calls run to `Ok` through the twin.
     let mut ran = [[0usize; 3]; ANCHOR_OPS.len()];
@@ -1816,7 +1862,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
     let mut records = [0usize; 2];
     let mut moves = [[0usize; 2]; 2];
     let mut same_face_moves = 0usize;
-    for (fixture, build) in bodies {
+    for (fixture, build) in VALID_BODIES {
         let mut body = build(tol);
         mark_ringed_faces(&mut body);
         let body = body;

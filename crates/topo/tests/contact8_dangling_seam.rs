@@ -177,8 +177,8 @@ fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
 fn the_bent_seams_corner_is_deleted_and_no_record_survives() {
     let bb = a_union_f();
     assert_eq!(bb.contacts, Default::default(), "{:?}", bb.contacts);
-    let at_corner = bb.body.vertices().any(|(_, v)| {
-        let p = bb.body.get_point(v.point).unwrap();
+    let at_corner = bb.body.vertex_points().any(|(_, p)| {
+        let p = p.unwrap();
         (p.x, p.y) == (1.0, 1.0)
     });
     assert!(!at_corner, "the bent seam's corner went with its seam");

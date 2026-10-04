@@ -5,35 +5,40 @@
 //! An open branch runs from one crossing to another, so its two ends are
 //! known before any march, at ε, whatever the caller's extent:
 //!
-//! - From a crossing `A`, the march leaves inward with its step capped
-//!   at `|AB|/`[`SHORT_BRANCH_STEPS`], `B` the nearest crossing not yet
-//!   used, so the branch it reaches is cut into at least that many
-//!   steps. It stops at its first state outside the rectangle, and that
-//!   step is matched to the unused crossing on the side it left within
-//!   the step's reach, the one nearest where the step's chord meets the
-//!   side where two are (branches converging on a side). A march that
-//!   leaves where no crossing matches refuses as the march's limit
+//! - From a crossing `A`, the simplest candidate is tried first: the
+//!   Hermite cubic from `A` to `B`, the nearest crossing not yet used,
+//!   through their tangents, in both charts and in space. It is one span
+//!   and exact at both ends, and its two states are the ones the march's
+//!   transversality decision reads (`ssi_transversality`); whether `B`
+//!   is the branch's other end is the certificate's to decide, on the
+//!   chart lane, whose limb 3 proves the tube holds one arc.
+//! - Where the certificate refuses it, the march leaves `A` inward with
+//!   its step capped at `|AB|/`[`SHORT_BRANCH_STEPS`], so the branch it
+//!   reaches is cut into at least that many steps. It stops at its first
+//!   state outside the rectangle, and that step is matched to the unused
+//!   crossing on the side it left within the step's reach, the one
+//!   nearest where the step's chord meets the side where two are
+//!   (branches converging on a side). A march that leaves where no
+//!   crossing matches refuses as the march's limit
 //!   ([`SsiError::CrossingUnmatched`]).
-//! - Where the march cannot progress, its step falling in the band
-//!   ([`SsiError::StepCollapsed`], or undecided there), the candidate is
-//!   the Hermite cubic from `A` to `B` through their tangents, in both
-//!   charts and in space; whether `B` is the branch's other end is the
-//!   certificate's to decide. The march and the Hermite are two candidate
-//!   generators, each trusted for nothing; C2's three limbs decide
-//!   either, and a Hermite candidate they refuse on a branch too short
-//!   for a step of it to clear the band is a sized refusal in its length
-//!   ([`SsiError::ShortBranchUncertified`]).
+//!
+//! The Hermite and the march are two candidate generators, each trusted
+//! for nothing; C2's three limbs decide either. Where neither certifies,
+//! the march's refusal stands, except on a branch too short for a step
+//! of it to clear the band whose march refused for want of step, which
+//! is a sized refusal in its length ([`SsiError::ShortBranchUncertified`]).
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Margin, Point2, Point3, Real};
+use geom_core::{Band, Margin, Point2, Point3};
 
 use super::boundary::Crossing;
 use super::march::{
-    BranchEnd, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, SSI_STEP_MAX, StepperMode,
-    TransversalityData, march,
+    BranchEnd, Cap, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, StepCap, StepperMode,
+    decide_transversality, march,
 };
+use super::refine::refine_by_certificate;
 use super::section::BandVerdict;
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{
@@ -46,14 +51,12 @@ use crate::recourse::Refused;
 pub(crate) struct Ends<'a> {
     /// The ℝ⁴ system.
     pub sys: &'a ParametricPairR4<'a>,
-    /// The march's context.
+    /// The march's context, the caller's feature extent among it.
     pub ctx: MarchContext<4>,
     /// The plane operand.
     pub plane: &'a Surface<f64>,
     /// The wall operand.
     pub wall: &'a SsiOperand<'a, f64>,
-    /// The caller's feature extent.
-    pub extent: f64,
     /// The run band.
     pub band: Band,
 }
@@ -89,16 +92,38 @@ fn close_at(sys: &ParametricPairR4<'_>, states: &mut Vec<[f64; 4]>, end: [f64; 4
     states.push(end);
 }
 
-/// Whether a march refused because its step fell in the band: decided
-/// there, or undecided on a valid margin.
-fn step_in_band(e: &SsiError) -> bool {
-    match e {
+/// The refusal of a branch neither candidate certified: the march's,
+/// unless the march refused for want of step, its step falling in the
+/// band (decided there, or undecided on a valid margin), and the
+/// Hermite's refusal names more: the sized refusal of a branch too short
+/// to march, or the transversality decision at one of its two ends. A
+/// march refuses at its own first state as the Hermite does at that
+/// end, so where the Hermite's decision refused, it refused at the far
+/// end, which a march too short to step never reaches. Every other march
+/// refusal names more than either.
+fn neither(hermite: SsiError, march: SsiError) -> SsiError {
+    let for_want_of_step = match &march {
         SsiError::StepCollapsed { .. } => true,
         SsiError::Escalated {
             decision: super::TraceDecision::StepProgress,
             cause,
         } => !cause.margin.is_invalid(),
         _ => false,
+    };
+    let hermite_names_more = matches!(
+        hermite,
+        SsiError::ShortBranchUncertified { .. }
+            | SsiError::TransversalityBand { .. }
+            | SsiError::Escalated {
+                decision: super::TraceDecision::Transversality
+                    | super::TraceDecision::TransversalityArm,
+                ..
+            }
+    );
+    if hermite_names_more && for_want_of_step {
+        hermite
+    } else {
+        march
     }
 }
 
@@ -147,7 +172,6 @@ impl<'a> Ends<'a> {
         ctx: MarchContext<4>,
         plane: &'a Surface<f64>,
         wall: &'a SsiOperand<'a, f64>,
-        domain: &super::SsiDomain,
         band: Band,
     ) -> Self {
         Self {
@@ -155,7 +179,6 @@ impl<'a> Ends<'a> {
             ctx,
             plane,
             wall,
-            extent: domain.extent,
             band,
         }
     }
@@ -167,9 +190,10 @@ impl<'a> Ends<'a> {
     ///
     /// [`SsiError::CrossingUnmatched`] for a crossing with no partner,
     /// or a march whose exit matches none; any refusal of the
-    /// march, the fit or the certificate; and
-    /// [`SsiError::ShortBranchUncertified`] for a Hermite candidate the
-    /// certificate refuses.
+    /// march, the fit or the certificate, where the Hermite candidate
+    /// was refused too; and [`SsiError::ShortBranchUncertified`] where
+    /// neither candidate certifies a branch too short for the march and
+    /// the march refused for want of step ([`neither`]).
     pub(crate) fn branches(&self, crossings: &[Crossing]) -> Result<Vec<SsiBranch>, SsiError> {
         let n = crossings.len();
         let mut used = vec![false; n];
@@ -187,43 +211,54 @@ impl<'a> Ends<'a> {
             let Some((j, near)) = nearest else {
                 return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
             };
-            let branch = match self.march_from(a, near, crossings, &used) {
-                Ok((b, states, min_t)) => {
-                    used[b] = true;
-                    let end = BranchEnd::Crossings {
-                        from: a.at,
-                        to: crossings[b].at,
-                    };
-                    self.finish(&states, end, min_t)?
-                }
-                // The march cannot progress: the Hermite candidate. Where
-                // a step of the branch clears the band, it was the
-                // march's to trace, and the march's refusal stands.
-                Err(march) if step_in_band(&march) => {
+            let branch = match self.hermite(a, crossings[j], near) {
+                Ok(branch) => {
                     used[j] = true;
-                    self.hermite(a, crossings[j], near).map_err(|e| match e {
-                        SsiError::ShortBranchUncertified { .. } => e,
-                        _ => march,
-                    })?
+                    branch
                 }
-                Err(e) => return Err(e),
+                Err(hermite) => {
+                    let (b, branch) = self
+                        .marched(a, near, crossings, &used)
+                        .map_err(|march| neither(hermite, march))?;
+                    used[b] = true;
+                    branch
+                }
             };
             out.push(branch);
         }
         Ok(out)
     }
 
+    /// The marched candidate from crossing `a`: its far crossing's
+    /// index, and the branch fitted and certified.
+    fn marched(
+        &self,
+        a: Crossing,
+        near: f64,
+        crossings: &[Crossing],
+        used: &[bool],
+    ) -> Result<(usize, SsiBranch), SsiError> {
+        let (b, states) = self.march_from(a, near, crossings, used)?;
+        let end = BranchEnd::Crossings {
+            from: a.at,
+            to: crossings[b].at,
+        };
+        Ok((b, self.finish(&states, end)?))
+    }
+
     /// The march from crossing `a`, inward, to the crossing on the side
-    /// it leaves: that crossing's index, the states, and the march's
-    /// smallest transversality.
+    /// it leaves: that crossing's index, and the states.
     fn march_from(
         &self,
         a: Crossing,
         near: f64,
         crossings: &[Crossing],
         used: &[bool],
-    ) -> Result<(usize, Vec<[f64; 4]>, f64), SsiError> {
-        let cap = Real::min(SSI_STEP_MAX * self.extent, near / SHORT_BRANCH_STEPS as f64);
+    ) -> Result<(usize, Vec<[f64; 4]>), SsiError> {
+        let cap = Cap {
+            metres: near / SHORT_BRANCH_STEPS as f64,
+            kind: StepCap::Crossing,
+        };
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
             1.0
@@ -248,7 +283,7 @@ impl<'a> Ends<'a> {
         let b = self.match_exit(Some(a), inside, outside, crossings, used)?;
         let mut states = trace.states;
         close_at(self.sys, &mut states, crossings[b].state);
-        Ok((b, states, trace.min_transversality))
+        Ok((b, states))
     }
 
     /// The unused crossing on a side the step from `inside` to
@@ -308,8 +343,8 @@ impl<'a> Ends<'a> {
 
     /// **The branch through an interior `seed`**: a loop where the march
     /// closes; otherwise marched both ways, each half ending at the
-    /// crossing on the side it leaves. The states, how the branch ends,
-    /// and the smallest transversality the marches read.
+    /// crossing on the side it leaves. The states, and how the branch
+    /// ends.
     ///
     /// # Errors
     ///
@@ -318,8 +353,7 @@ impl<'a> Ends<'a> {
         &self,
         seed: [f64; 4],
         crossings: &[Crossing],
-        cap: f64,
-    ) -> Result<(Vec<[f64; 4]>, BranchEnd, f64), SsiError> {
+    ) -> Result<(Vec<[f64; 4]>, BranchEnd), SsiError> {
         let run = |direction| {
             march(
                 self.sys,
@@ -329,7 +363,7 @@ impl<'a> Ends<'a> {
                 StepperMode::Realized,
                 direction,
                 self.band,
-                cap,
+                Cap::NONE,
             )
         };
         let fwd = run(1.0)?;
@@ -338,7 +372,7 @@ impl<'a> Ends<'a> {
             outside: f_out,
         } = fwd.end
         else {
-            return Ok((fwd.states, BranchEnd::Closed, fwd.min_transversality));
+            return Ok((fwd.states, BranchEnd::Closed));
         };
         let bwd = run(-1.0)?;
         let RectEnd::Left {
@@ -363,45 +397,83 @@ impl<'a> Ends<'a> {
             from: crossings[from].at,
             to: crossings[to].at,
         };
-        let min_t = Real::min(fwd.min_transversality, bwd.min_transversality);
-        Ok((states, end, min_t))
+        Ok((states, end))
     }
 
-    /// Fit, certify and wrap a marched branch.
+    /// Fit, certify and wrap a marched branch, refined where the
+    /// certificate refuses it ([`refine_by_certificate`]).
     pub(crate) fn finish(
         &self,
         states: &[[f64; 4]],
         end: BranchEnd,
-        min_transversality: f64,
     ) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
-        let (carrier, pa, pb) = fit_states(self.sys, states)?;
-        self.certified(carrier, pa, pb, end, min_transversality, march_tol)
+        let (carrier, pa, pb, cert) =
+            refine_by_certificate(self.sys, states.to_vec(), &self.ctx, self.band, |states| {
+                let (carrier, pa, pb) = fit_states(self.sys, states)?;
+                let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: certify::NURBS_LIMBS_NEED_PCURVE,
+                    }
+                    .into());
+                };
+                let cert = certify::certify_located(
+                    &carrier,
+                    certify::Lane::Chart {
+                        plane: self.plane,
+                        wall: *wall,
+                        pcurve,
+                    },
+                    TubeScale::uniform(self.ctx.extent),
+                    self.band,
+                )?;
+                Ok((carrier, pa, pb, cert))
+            })?;
+        Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
     }
 
     /// The certificate on a fitted triple, and the branch.
-    #[allow(clippy::too_many_arguments)]
     fn certified(
         &self,
         carrier: NurbsCurve3<f64>,
         pa: Option<NurbsCurve2<f64>>,
         pb: Option<NurbsCurve2<f64>>,
         end: BranchEnd,
-        min_transversality: f64,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
+        let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
+            return Err(SsiError::UnsupportedCertificate {
+                what: certify::NURBS_LIMBS_NEED_PCURVE,
+            });
+        };
         let cert = certify::certify_branch(
             &carrier,
-            pb.as_ref(),
-            &SsiOperand::Analytic(self.plane),
-            self.wall,
-            TubeScale::uniform(self.extent),
+            certify::Lane::Chart {
+                plane: self.plane,
+                wall: *wall,
+                pcurve,
+            },
+            TubeScale::uniform(self.ctx.extent),
             self.band,
+            &mut Vec::new(),
         )?;
+        Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
+    }
+
+    /// The branch a certified triple is.
+    fn branch(
+        &self,
+        carrier: NurbsCurve3<f64>,
+        pa: Option<NurbsCurve2<f64>>,
+        pb: Option<NurbsCurve2<f64>>,
+        cert: certify::SsiCertificate<f64>,
+        end: BranchEnd,
+        march_tol: f64,
+    ) -> SsiBranch {
         let params = carrier.domain();
         let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
         let witness = carrier.mid_point(params.0, params.1);
-        Ok(SsiBranch {
+        SsiBranch {
             carrier,
             params,
             end,
@@ -409,18 +481,8 @@ impl<'a> Ends<'a> {
             witness,
             pcurve_a: pa,
             pcurve_b: pb,
-            min_transversality,
             march_tol,
-        })
-    }
-
-    /// The transversality `sin θ · arm` at a state, as the march reads
-    /// it: reported on a branch that was not marched.
-    fn transversality(&self, x: &[f64; 4]) -> f64 {
-        let (n1, n2) = self.sys.normals(x);
-        let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = Real::min(self.sys.lever_arm(x), self.extent);
-        Margin::levered(sin_theta, arm).value()
+        }
     }
 
     /// **The Hermite candidate**: the cubic from `a` to `b`
@@ -431,14 +493,20 @@ impl<'a> Ends<'a> {
     ///
     /// # Errors
     ///
-    /// The march tolerance's refusal ([`seam_tol`]). Where the
-    /// certificate refuses the candidate:
+    /// The march tolerance's refusal ([`seam_tol`]), and the
+    /// transversality decision's at either end, as the march's at a state
+    /// ([`decide_transversality`]). Where the certificate refuses the
+    /// candidate:
     /// [`SsiError::ShortBranchUncertified`] on a branch too short for
     /// `length / SHORT_BRANCH_STEPS` to clear the band, and on a longer
-    /// one the certificate's refusal itself, bare, which the caller
-    /// replaces by the march's.
+    /// one the certificate's refusal itself, bare, after which the
+    /// caller marches.
     fn hermite(&self, a: Crossing, b: Crossing, length: f64) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
+        for x in [&a.state, &b.state] {
+            let sigma = Svd::<3, 4>::new(self.sys.jacobian(x)).sigma_min();
+            decide_transversality(self.sys, x, sigma, self.ctx.extent, self.band)?;
+        }
         let ta = tangent(self.sys, &a.state, &self.ctx, true);
         let tb = tangent(self.sys, &b.state, &self.ctx, false);
         let va = ta.map(|v| v * length / self.sys.tangent_speed(&a.state, &ta));
@@ -478,12 +546,11 @@ impl<'a> Ends<'a> {
                 },
             ));
         };
-        let min_t = Real::min(self.transversality(&a.state), self.transversality(&b.state));
         let end = BranchEnd::Crossings {
             from: a.at,
             to: b.at,
         };
-        self.certified(carrier, Some(pa), Some(pb), end, min_t, march_tol)
+        self.certified(carrier, Some(pa), Some(pb), end, march_tol)
             .map_err(|e| self.short_refusal(length, e))
     }
 
@@ -505,5 +572,105 @@ impl<'a> Ends<'a> {
             limb: Box::new(limb),
             verdict,
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::neither;
+    use crate::recourse::{Classified, Refused};
+    use crate::ssi::section::BandVerdict;
+    use crate::ssi::{SsiError, SsiLimb, TraceDecision};
+
+    /// **A short branch's sized refusal speaks only where the march
+    /// refused for want of step.** Beside a march whose step fell in the
+    /// band, decided or undecided, the Hermite's sized refusal stands,
+    /// and so does its end's transversality decision; beside a tangency,
+    /// an undecided transversality, or an undecided step on a margin that
+    /// is no number, the march's refusal is returned, as it is beside a
+    /// longer branch's certificate refusal.
+    #[test]
+    fn a_short_branchs_sized_refusal_masks_no_more_specific_march_refusal() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let short = || SsiError::ShortBranchUncertified {
+            length: 3e-8,
+            limb: Box::new(SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                value: 3e-9,
+            }),
+            verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
+        };
+        let step = |margin| SsiError::Escalated {
+            decision: TraceDecision::StepProgress,
+            cause: cause(margin),
+        };
+        let collapsed = || SsiError::StepCollapsed {
+            mode: "realized",
+            step_meters: 6e-9,
+            speed: 1.0,
+        };
+        let sized = |e: &SsiError| matches!(e, SsiError::ShortBranchUncertified { .. });
+        for (what, march) in [
+            ("the step collapsed", collapsed()),
+            ("the step undecided", step(MarginDiag::value(6e-9))),
+        ] {
+            assert!(sized(&neither(short(), march)), "{what}: the sized refusal");
+        }
+        let tangency = SsiError::TransversalityBand {
+            sin_theta: 5e-10,
+            arm: 1.0,
+            sigma_min: 5e-10,
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(5e-10),
+                band,
+            }),
+        };
+        for (what, march) in [
+            ("a tangency", tangency),
+            (
+                "an undecided transversality",
+                SsiError::Escalated {
+                    decision: TraceDecision::Transversality,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+            ),
+            ("an invalid step margin", step(MarginDiag::INVALID)),
+        ] {
+            let e = neither(short(), march);
+            assert!(!sized(&e), "{what}: the march's refusal, got {e}");
+        }
+        let far_end = SsiError::Escalated {
+            decision: TraceDecision::Transversality,
+            cause: cause(MarginDiag::value(5e-9)),
+        };
+        let e = neither(far_end, collapsed());
+        assert!(
+            matches!(
+                e,
+                SsiError::Escalated {
+                    decision: TraceDecision::Transversality,
+                    ..
+                }
+            ),
+            "the Hermite's far end undecided beside a collapsed step: the far end's, got {e}"
+        );
+        let limb = SsiError::CertificateLimb {
+            limb: SsiLimb::OnLocus,
+            value: 3e-9,
+        };
+        let e = neither(limb, collapsed());
+        assert!(
+            matches!(e, SsiError::StepCollapsed { .. }),
+            "a longer branch's refusal is the march's: {e}"
+        );
     }
 }

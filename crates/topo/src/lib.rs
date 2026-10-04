@@ -214,6 +214,8 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+#[cfg(test)]
+mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
 // questions, so neither hosts them. Each module's own docs carry
@@ -285,11 +287,12 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
-        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
+        CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
+        StraddleSeat, assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_disc_face,
-        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
+        plane, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane,
+        straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 

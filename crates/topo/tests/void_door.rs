@@ -277,8 +277,8 @@ fn reading(body: &Body<f64>) -> Vec<String> {
             body.get_surface(f.surface)
         ));
     }
-    for (k, v) in body.vertices() {
-        out.push(format!("vertex {k:?} point={:?}", body.get_point(v.point)));
+    for (k, p) in body.vertex_points() {
+        out.push(format!("vertex {k:?} point={p:?}"));
     }
     out
 }

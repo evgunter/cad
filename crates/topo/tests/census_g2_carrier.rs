@@ -304,7 +304,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         let (mut a_body, mut b_body) = (a.body, b.body);
         // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface_stranding_for_tests(
+            .set_face_surface_unvouched_for_tests(
                 a.top_face,
                 FaceSurface::New {
                     surface: surface.clone(),
@@ -314,7 +314,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
             .unwrap();
         // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface_stranding_for_tests(
+            .set_face_surface_unvouched_for_tests(
                 b.bottom_face,
                 FaceSurface::New {
                     surface: surface.clone(),

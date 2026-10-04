@@ -22,8 +22,8 @@
 //! 4. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
 //!    on the revert roster, so each fixture under a subtract (both
 //!    orders) or an intersect refuses at the door its union meets; the
-//!    socket's union is built by the declared-REST zip, which is a
-//!    union lane, and its ∖ and ∩ stop at the section pass.
+//!    peg seated in the socket shares no interior with it, so its ∩ is
+//!    empty and each difference its minuend whole.
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
@@ -632,22 +632,26 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 // 4. ∖ and ∩ on the same fixtures.
 // -------------------------------------------------------------------
 
-/// **∖ and ∩ pass the revert roster and stop where ∪ does.** The torus
-/// is on the roster, so a torus pair under a subtract or an intersect
-/// reaches the same doors as under a union, in both operand orders:
+/// **∖ and ∩ pass the revert roster; the seated peg answers the closed
+/// form and the rest stop where ∪ does.** The torus is on the roster,
+/// so a torus pair under a subtract or an intersect reaches the same
+/// doors as under a union, in both operand orders:
 ///
-/// - the declared socket and peg, and the declared coincident pair,
-///   stop at the no-crossings section pass on the tangency (R-tan);
+/// - the declared socket and peg share no interior: `∩` is empty and
+///   each difference its minuend whole, the volumes by Pappus
+///   (`πr²·Rθ` for a tube of radius `r` turned through `θ` on a ring of
+///   radius `R`);
+/// - the declared coincident pair (a continuation, both materials on
+///   one side) stops at the no-crossings section pass on the tangency
+///   (R-tan);
 /// - the declared chain routes to the seam, the declared kissing pair
 ///   to the unbuilt cusp family;
 /// - undeclared, a pair with a continuation in it refuses that
 ///   continuation at the reduction, and the others refuse at the
 ///   crossing layer (escalated where the run's band puts the sampled
 ///   margin in its window).
-///
-/// None of them is a body.
 #[test]
-fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
+fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     let tangency = |what: &str, err: &BooleanError| {
         let BooleanError::FallbackExtentUnsupported { what: w, .. } = err else {
             panic!("{what}: the section pass refuses the tangency: {err:?}");
@@ -658,12 +662,47 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         );
     };
     let (s, p) = (socket(), segment_a());
-    for (op, r) in subtract_both_orders_and_intersect(
+    let pappus = |r_out: f64, r_in: f64| {
+        core::f64::consts::PI * (r_out * r_out - r_in * r_in) * RING * TURN.to_radians()
+    };
+    let wants = [
+        ("A ∖ B", Some(pappus(0.09, TUBE))),
+        ("B ∖ A", Some(pappus(TUBE, 0.0))),
+        ("A ∩ B", None),
+    ];
+    for ((op, r), (_, want)) in subtract_both_orders_and_intersect(
         &s,
         &p,
         &wall_declarations(&s, &p, TUBE, ContactClass::Rest),
-    ) {
-        tangency(&format!("socket and peg, {op}"), &r.expect_err(op));
+    )
+    .into_iter()
+    .zip(wants)
+    {
+        let what = format!("socket and peg, {op}");
+        match (r, want) {
+            (Ok(BooleanResult::Empty), None) => {}
+            (Ok(BooleanResult::Body(bb)), Some(want)) => {
+                let v = topo::mass_properties(&bb.body, Tol::witness())
+                    .unwrap()
+                    .volume;
+                assert!(
+                    (v - want).abs() <= 1e-12 * want,
+                    "{what}: volume {v} against Pappus {want}"
+                );
+                assert_eq!(bb.body.shells().count(), 1, "{what}: one shell");
+                assert_eq!(
+                    topo::validate_geometric(&bb.body, Tol::witness()),
+                    Ok(()),
+                    "{what}: tier 3"
+                );
+                assert_eq!(
+                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                    Ok(()),
+                    "{what}: tier 3′"
+                );
+            }
+            (r, want) => panic!("{what}: want {want:?} (None: empty), got {r:?}"),
+        }
     }
     let (a, b) = (full_torus(RING), full_torus(RING));
     for (op, r) in subtract_both_orders_and_intersect(

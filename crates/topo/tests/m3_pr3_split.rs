@@ -92,9 +92,9 @@ fn census<T: geom_core::Real>(b: &Body<T>) -> SideCensus {
 
 /// Vertices of `body` at exactly (x, y, z), bitwise.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<topo::VertexKey> {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)
@@ -204,8 +204,8 @@ fn generic_plane_asymmetric() {
     // y ≥ 1, every vertex of the below body at y ≤ 1 (a mixed-side
     // connecting edge would violate one of these).
     for (b, above_side) in [(above, true), (below, false)] {
-        for (_, v) in b.vertices() {
-            let p = *b.get_point(v.point).unwrap();
+        for (_, p) in b.vertex_points() {
+            let p = p.unwrap();
             assert!(if above_side { p.y >= 1.0 } else { p.y <= 1.0 });
         }
     }
@@ -909,9 +909,9 @@ fn an_offset_that_moves_both_tip_copies_together_keeps_them_touching() {
     let mut above = body_of(&result.above).clone();
     offset_one_plane(&mut above, |o, n| n.z < -0.5 && o.z == 0.0, 0.1);
     let tips: Vec<topo::VertexKey> = above
-        .vertices()
-        .filter(|(_, v)| {
-            let p = *above.get_point(v.point).unwrap();
+        .vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             (p.x - 4.0).abs() < 1e-9 && p.y == 1.0 && p.z == -0.1
         })
         .map(|(k, _)| k)

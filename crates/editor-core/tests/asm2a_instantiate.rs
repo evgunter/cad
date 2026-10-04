@@ -212,8 +212,8 @@ fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
 /// 4 need. Exact (no arithmetic beyond the comparison), so a rigid
 /// translation moves it by exactly the translation.
 fn min_x(body: &topo::Body<f64>) -> f64 {
-    body.vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+    body.vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| p.x)
         .fold(f64::INFINITY, f64::min)
 }

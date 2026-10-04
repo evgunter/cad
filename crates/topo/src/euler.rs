@@ -516,6 +516,47 @@ pub enum MevSite {
     },
 }
 
+/// Where the null edge moving one orbit run to a new vertex lands
+/// ([`Body::run_site`]), the one reading of a run's fan end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RunSite {
+    /// The run `he1 .. he2` (exclusive) is a proper part of the orbit:
+    /// `mev(Fan { he1, he2 })` moves it, and `he_plus` runs from the
+    /// old vertex along the run's first cut.
+    Fan {
+        /// The run's first half-edge.
+        he1: HalfEdgeKey,
+        /// The orbit successor of the run's last half-edge.
+        he2: HalfEdgeKey,
+    },
+    /// The run holds every half-edge of the orbit, so what it excludes
+    /// lies inside the one corner it does not cross, between the
+    /// arrival `prev(corner)` and the departure `corner` (the run's
+    /// first half-edge). Moving the whole run would leave the old
+    /// vertex bare, so the null edge is the strut
+    /// `mev(Fan { corner, corner })` splices into that corner: the old
+    /// vertex keeps the run, and the strut's tip stands for the
+    /// excluded side. Walked the other way round the orbit the same
+    /// run is empty, and its strut is this one.
+    WholeOrbit {
+        /// The corner's departure half-edge, the run's first.
+        corner: HalfEdgeKey,
+    },
+}
+
+impl RunSite {
+    /// The [`MevSite`] that builds this null edge.
+    pub(crate) fn mev_site(self) -> MevSite {
+        match self {
+            Self::Fan { he1, he2 } => MevSite::Fan { he1, he2 },
+            Self::WholeOrbit { corner } => MevSite::Fan {
+                he1: corner,
+                he2: corner,
+            },
+        }
+    }
+}
+
 /// Where [`Body::mef`] acts: the site addressing for "make edge, face".
 ///
 /// Same design as [`MevSite`]: the degenerate lone-vertex case is a
@@ -975,9 +1016,10 @@ pub enum EulerOpError {
         he2: HalfEdgeKey,
     },
     /// The clockwise orbit walk from `he1` failed to close, reached a
-    /// half-edge that does not start at `he1`'s vertex, or closed
-    /// without visiting `he2` (despite the matching start vertex) —
-    /// tier-1-invalid input.
+    /// half-edge that does not start at `he1`'s vertex, closed on a
+    /// member whose inverse step `mate(prev(·))` is not the member
+    /// before it, or closed without visiting `he2`
+    /// (despite the matching start vertex) — tier-1-invalid input.
     FanOrbitBroken {
         /// The half-edge the orbit was walked from.
         he1: HalfEdgeKey,
@@ -1463,8 +1505,8 @@ impl EulerOpError {
                  vertices"
             ),
             Self::FanOrbitBroken { he1, he2 } => format!(
-                "mev fan: the clockwise vertex orbit from {he1:?} never \
-                 reaches {he2:?}. {}",
+                "mev fan: the clockwise vertex orbit from {he1:?} is not a \
+                 closed orbit of its vertex reaching {he2:?}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotSameLoop { he1, he2 } => format!(
@@ -2246,12 +2288,14 @@ impl<T: Decide> Body<T> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]); the
     /// start vertex and its point resolve (`StaleKey` /
     /// [`EulerOpError::StaleGeometry`]); the orbit walk from `he1`
-    /// closes and reaches `he2` ([`EulerOpError::FanOrbitBroken`]);
-    /// every half-edge on it starts at the start vertex
-    /// ([`EulerOpError::OrbitBroken`] — tier-1-invalid input: a torn
-    /// `next` can walk it through another vertex's half-edge), a
-    /// strut's walk included, since the strut splices into that orbit;
-    /// both `prev` links resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
+    /// closes, every half-edge on it starts at the start vertex, and
+    /// it reaches `he2` ([`EulerOpError::FanOrbitBroken`] —
+    /// tier-1-invalid input: a torn `next` can walk it through another
+    /// vertex's half-edge), a strut's walk included, since the strut
+    /// splices into that orbit; both `prev` links resolve
+    /// (`StaleKey`); each member's inverse step `mate(prev(·))` is the
+    /// member before it (`FanOrbitBroken`: a torn `next` can split the
+    /// orbit, or close the walk past some of its members). `Lone`: the loop resolves (`StaleKey`); it
     /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
     /// the geometry gate: `curve` certifies
@@ -2266,9 +2310,11 @@ impl<T: Decide> Body<T> {
     /// The first edge of the run to fail names the refusal. Last, the
     /// pcurve rows, for both sites: the loops the new halves join, their
     /// faces and those faces' surfaces resolve (`StaleKey` /
-    /// `StaleGeometry`); then, only where the site mint selects one of
-    /// those faces, the loops the surgery rewires walk
-    /// ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
+    /// `StaleGeometry`), and each of those faces on a chart that mints
+    /// has every loop walk as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint selects one of
+    /// those faces, the loops the surgery rewires walk, every member
+    /// claiming its loop ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
     /// `StaleGeometry`), and each face's row plan is minted
     /// ([`EulerOpError::PcurveMint`]).
     ///
@@ -2480,9 +2526,12 @@ impl<T: Decide> Body<T> {
     /// same; `StaleKey` / `StaleGeometry` where a key the walk over the
     /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
-    /// the face's surface resolve; then, only where the site mint
-    /// selects that face, the old loop's cycle from `he1` walks
-    /// ([`EulerOpError::LoopCycleBroken`]), the new face's chart
+    /// the face's surface resolve, and on a chart that mints every loop
+    /// of the face walks as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint
+    /// selects that face, the old loop's cycle from `he1` walks, every
+    /// member claiming the loop ([`EulerOpError::LoopCycleBroken`]),
+    /// the new face's chart
     /// resolves (`StaleGeometry`), and the two faces' row plans are
     /// minted ([`EulerOpError::PcurveMint`]).
     ///
@@ -2699,6 +2748,9 @@ impl<T: Decide> Body<T> {
     /// that orbit. A torn half-edge in the run would be re-based; one
     /// past `he2`, or anywhere on a strut's walk (whose run is empty),
     /// would have the split splice into a torn orbit.
+    ///
+    /// The walk inverts ([`Body::orbit_inverts`]), so while the `prev`
+    /// links are untorn it is the vertex's whole orbit.
     pub(crate) fn mev_fan_plan(
         &self,
         he1: HalfEdgeKey,
@@ -2730,6 +2782,9 @@ impl<T: Decide> Body<T> {
         // the mutation below cannot fail midway (atomicity).
         let he1_prev = self.require_live(he1_prev)?;
         let he2_prev = self.require_live(he2_prev)?;
+        if !self.orbit_inverts(&orbit) {
+            return Err(EulerOpError::FanOrbitBroken { he1, he2 });
+        }
         Ok(MevFanPlan {
             v,
             point,
@@ -3489,14 +3544,17 @@ impl<T: Decide> Body<T> {
     /// Proves the run a plan's cycle walk took from `from` and moves
     /// out of it, before it mutates: every member claims `from`, so the
     /// move takes nothing out of a third loop; and for a
-    /// [`RunExtent::Whole`] run, whose loop the plan removes, no
-    /// half-edge but the run and `killed` claims `from`, so none is left
-    /// naming a dead loop. Refuses [`EulerOpError::LoopCycleBroken`]
+    /// [`RunExtent::Whole`] run, whose loop the plan removes or moves
+    /// whole, no half-edge but the run and `killed` claims `from`, so
+    /// none is left naming a dead loop or carrying a row the move does
+    /// not dispose of. Refuses [`EulerOpError::LoopCycleBroken`]
     /// naming `from` otherwise. Returns the run as a set.
     ///
-    /// The walk steps `next` and reads no `parent_loop`, so a torn
-    /// `next` can divert it through another loop and back, or close it
-    /// past a member. The second proof reads the whole arena, bounded
+    /// A walk that steps `next` alone ([`Body::loop_cycle`]) can be
+    /// diverted by a torn `next` through another loop and back, or
+    /// closed past a member; one that checks each member's claim
+    /// ([`Body::loop_cycle_of`]) can only be closed past one. The first
+    /// proof catches the diversion, the second the closing. The second proof reads the whole arena, bounded
     /// as [`Body::require_kill_anchors`]'s `Lone` proof is. The
     /// validator reports these faults in its cycle pass
     /// (`ParentLoopMismatch`, `UnreachableHalfEdge`) and as
@@ -3511,7 +3569,7 @@ impl<T: Decide> Body<T> {
         let broken = EulerOpError::LoopCycleBroken { r#loop: from };
         let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
         for member in members {
-            if self.half_edges.get(member).map(|data| data.parent_loop) != Some(from) {
+            if !self.claims(member, from) {
                 return Err(broken);
             }
             run.insert(member, ());
@@ -4220,7 +4278,12 @@ impl<T: Decide> Body<T> {
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        self.plan_site_mint(touched, |body, _| faces(body), Some(edge), tol)
+        self.plan_site_mint(
+            touched,
+            |body, _| faces(body),
+            crate::pcurves::SiteCarriers::New(edge),
+            tol,
+        )
     }
 
     /// **A site mint's plan**: which faces it re-mints, and the rows it
@@ -4241,7 +4304,7 @@ impl<T: Decide> Body<T> {
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
-        edge: Option<&EdgeCurve<T>>,
+        curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let read = touched.iter().map(|&lk| {
@@ -4251,7 +4314,7 @@ impl<T: Decide> Body<T> {
                     key: EntityId::Loop(lk),
                 })
         });
-        self.plan_site_mint_of(read, faces, edge, Some(tol))
+        self.plan_site_mint_of(read, faces, curves, Some(tol))
     }
 
     /// **A site mint's plan over the faces whose rows decide it**
@@ -4267,8 +4330,8 @@ impl<T: Decide> Body<T> {
     /// the body — and when none is read further, `faces` does not run.
     /// `faces` is handed those faces as found and describes the faces
     /// as the door leaves them; [`crate::pcurves::site_rows`] decides
-    /// each one. `edge` carries the door's new or described halves, and
-    /// is `None` for a door that names existing halves alone. `tol` is
+    /// each one. `curves` carries the door's new or described halves
+    /// ([`crate::pcurves::SiteCarriers`]). `tol` is
     /// the band the rows are derived at; `None` for a keys-only door,
     /// which derives nothing and refuses
     /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where a face would
@@ -4279,8 +4342,10 @@ impl<T: Decide> Body<T> {
     /// In this order, per face of `read` as it is reached: what `read`
     /// raises naming it, then the face does not resolve
     /// ([`EulerOpError::StaleKey`]), or its surface does not
-    /// ([`EulerOpError::StaleGeometry`]), or a half of it does not
-    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
+    /// ([`EulerOpError::StaleGeometry`]), or, on a chart that mints, a
+    /// loop of it does not walk as its own
+    /// ([`EulerOpError::LoopCycleBroken`]) or a half of it does not
+    /// resolve ([`EulerOpError::PcurveMint`] naming the face); then, only when a
     /// face is read further, what `faces` raises; then
     /// [`EulerOpError::PcurveMint`] naming the face.
     pub(crate) fn plan_site_mint_of(
@@ -4290,7 +4355,7 @@ impl<T: Decide> Body<T> {
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
-        edge: Option<&EdgeCurve<T>>,
+        curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
@@ -4309,8 +4374,17 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
-                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
+            if let Some(from) =
+                crate::pcurves::site_rows_from(self, face_data, surface).map_err(|refusal| {
+                    match refusal {
+                        crate::pcurves::SiteFromRefusal::LoopCycleBroken(r#loop) => {
+                            EulerOpError::LoopCycleBroken { r#loop }
+                        }
+                        crate::pcurves::SiteFromRefusal::Row(refusal) => {
+                            EulerOpError::PcurveMint { face, refusal }
+                        }
+                    }
+                })?
             {
                 minted.push((face, from));
             }
@@ -4347,7 +4421,7 @@ impl<T: Decide> Body<T> {
                 let Some(from) = from_of(face) else {
                     return Ok(SiteRows::Leave);
                 };
-                crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {
+                crate::pcurves::site_rows(self, face, from, curves, band).map_err(|refusal| {
                     EulerOpError::PcurveMint {
                         face: face.rows_from,
                         refusal,
@@ -4392,13 +4466,16 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// The half-edges of `he`'s loop in `next` order from `he` itself.
+    /// The half-edges of `r#loop` in `next` order from its member `he`,
+    /// every one claiming the loop ([`Body::loop_cycle_of`]).
+    /// [`EulerOpError::LoopCycleBroken`] naming the loop where the walk
+    /// does not close or strays out of it.
     pub(crate) fn site_cycle_from(
         &self,
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
-        self.loop_cycle(he)
+        self.loop_cycle_of(he, r#loop)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop })
     }
 
@@ -4442,13 +4519,29 @@ impl<T: Decide> Body<T> {
     }
 
     /// The half-edges of `r#loop` in `next` order from its `first`, as
-    /// the surgery finds them (empty for an empty loop).
+    /// the surgery finds them (empty for an empty loop): the one rows
+    /// walk ([`crate::pcurves::loop_rows`]), every member claiming the
+    /// loop. [`EulerOpError::LoopCycleBroken`] naming the loop where the
+    /// walk does not close or strays out of it.
     pub(crate) fn site_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
         match crate::pcurves::loop_rows(self, r#loop) {
             crate::pcurves::LoopRows::Cycle(cycle) => Ok(cycle),
             crate::pcurves::LoopRows::NoCycle => Ok(Vec::new()),
             crate::pcurves::LoopRows::Corrupt => Err(EulerOpError::LoopCycleBroken { r#loop }),
         }
+    }
+
+    /// [`Body::site_cycle`] proven to be every half-edge that claims
+    /// `r#loop` ([`Body::require_run_of`], [`RunExtent::Whole`]): the
+    /// members a door carries or drops rows for when it moves the loop
+    /// to another face or re-charts the face it is on. A walk closed
+    /// short of a member would leave that member's row stated in the
+    /// chart its loop left. [`EulerOpError::LoopCycleBroken`] naming the
+    /// loop otherwise. The proof reads the whole half-edge arena.
+    pub(crate) fn whole_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
+        let cycle = self.site_cycle(r#loop)?;
+        self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[])?;
+        Ok(cycle)
     }
 
     /// Mints `mef`'s new loop and face (in that order — part of `mef`'s
@@ -4673,7 +4766,8 @@ impl Clearing<'_> {
 pub(crate) enum RunExtent {
     /// Part of the loop, which keeps the rest.
     Part,
-    /// All of the loop but the halves the plan kills: the loop dies.
+    /// All of the loop but the halves the plan kills: the loop dies, or
+    /// moves to another face whole ([`Body::whole_cycle`]).
     Whole,
 }
 
@@ -6598,6 +6692,106 @@ mod tests {
         let (mut cube, halves) = twice_torn_cube();
         for he in [halves[5], halves[6]] {
             every_fan_door_refuses_the_torn_walk(&mut cube, he, he);
+        }
+    }
+
+    /// The declined cube torn by one `next` write, on `mate(a)`, a
+    /// half-edge that starts at another vertex and ends at the seed
+    /// corner `v`, whose clockwise orbit is `[a, b, c]`: `v`'s walk from
+    /// `a` skips `b` and closes `[a, c]` at `v`, and `b`'s walk runs into
+    /// that cycle and never returns to `b`. A static witness: the walk
+    /// from `a` passes the start proof, and is not `v`'s orbit.
+    fn cube_with_a_walk_run_into_a_corner() -> (Body<f64>, [HalfEdgeKey; 3]) {
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
+        let mut body = cube.body;
+        let v = cube.seed.vertex;
+        let a = body.get_vertex(v).unwrap().emanating.unwrap();
+        let &[_, b, c] = body.vertex_orbit(a).unwrap().as_slice() else {
+            unreachable!("a cube corner meets three edges")
+        };
+        let torn = body.mate(a).unwrap();
+        assert_ne!(
+            body.get_half_edge(torn).unwrap().start,
+            v,
+            "torn at another vertex"
+        );
+        body.get_half_edge_mut(torn).unwrap().next = c;
+        assert_eq!(body.vertex_orbit(a), Some(vec![a, c]), "closes at v past b");
+        assert_eq!(body.vertex_orbit(b), None, "b's walk runs into [a, c]");
+        (body, [a, b, c])
+    }
+
+    #[test]
+    fn a_fan_split_refuses_a_walk_another_walk_runs_into() {
+        // Every fan site on the cycle the walk from `a` closes, struts
+        // included: a split there would re-base part of `v`'s orbit and
+        // strand `b` on the walk that runs into it, and the plan refuses
+        // before any write.
+        let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
+        for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
+            every_fan_door_refuses_the_torn_walk(&mut body, he1, he2);
+        }
+    }
+
+    #[test]
+    fn a_vertex_keyed_read_refuses_a_walk_another_walk_runs_into() {
+        // `v`'s emanating `a` walks `[a, c]`, which meets two of the
+        // three edges at `v`; every vertex-keyed read refuses rather than
+        // answer part of the orbit.
+        let (body, [a, ..]) = cube_with_a_walk_run_into_a_corner();
+        let v = body.get_half_edge(a).unwrap().start;
+        assert_eq!(body.get_vertex(v).unwrap().emanating, Some(a));
+        assert_eq!(body.vertex_orbit_of(v), None, "vertex_orbit_of");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
+    #[test]
+    fn a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error() {
+        // The stated limit of the inversion proof: the witness's `next`
+        // tear paired with `prev(c) = mate(a)` makes the walk `[a, c]`
+        // invert, so every vertex-keyed read answers it and every fan
+        // site splits, stranding `b`. The validator reports the split at
+        // `v`, and no minted key lands in an orbit error.
+        let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
+        let v = body.get_half_edge(a).unwrap().start;
+        body.get_half_edge_mut(c).unwrap().prev = body.mate(a).unwrap();
+        assert!(body.orbit_inverts(&[a, c]), "the walk inverts");
+        assert_eq!(body.vertex_orbit_of(v), Some(vec![a, c]), "b is stranded");
+        for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
+            let mut trial = body.clone();
+            let mut scope = trial.begin_surgery();
+            let site = MevSite::Fan { he1, he2 };
+            let created = scope
+                .mev_null(site, crate::NewVertexSide::Above)
+                .unwrap_or_else(|err| panic!("{site:?} refused {err:?}"));
+            drop(scope);
+            let errors = validate(&trial).unwrap_err();
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. } if *vertex == v
+                )),
+                "{site:?}: the split at v is reported: {errors:?}"
+            );
+            let minted = |he: &HalfEdgeKey| [created.he_plus, created.he_minus].contains(he);
+            for error in &errors {
+                let names_a_minted_key = match error {
+                    crate::ValidationError::OrbitForeignMember { vertex, half_edge } => {
+                        *vertex == created.vertex || minted(half_edge)
+                    }
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. }
+                    | crate::ValidationError::VertexOrbitOverrun { vertex } => {
+                        *vertex == created.vertex
+                    }
+                    _ => false,
+                };
+                assert!(
+                    !names_a_minted_key,
+                    "{site:?}: {error:?} names a minted key"
+                );
+            }
         }
     }
 

@@ -524,9 +524,9 @@ fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
 /// where.
 fn corner_points(body: &pncad::topo::Body<f64>) -> Vec<[f64; 3]> {
     let mut out: Vec<[f64; 3]> = body
-        .vertices()
-        .map(|(v, _)| {
-            let p = pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
+        .vertex_points()
+        .map(|(_, p)| {
+            let p = p.expect("a built body's vertex carries its point");
             [p.x, p.y, p.z]
         })
         .collect();

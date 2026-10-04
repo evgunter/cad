@@ -2,11 +2,14 @@
 id: row-drop-walks-trust-the-loops-next-cycle
 kind: issue
 title: drop_loop_rows, drop_face_rows and the site-row plans take a loop's rows from its next walk, which no plan proves claims the loop: a torn next drops or re-mints another loop's rows
-status: open
+status: closed
 opened: 2026-09-30
 refs: [mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops]
 priority: P3
 cost: M
+pr: 4016
+branch: topo/row-drop-walks-prove-their-loop
+closed: 2026-10-04
 ---
 
 ## What
@@ -45,3 +48,14 @@ ring — and `kef`'s reads the surviving loop's own members through
 `site_cycle_from` from `next(m)` up to `m`
 (`Body::plan_moved_rows`'s callers). None proves its members claim the
 loop; the shape above covers them.
+
+## Closed by PR 4016
+
+`pcurves::loop_rows` and `Body::site_cycle_from` walk through
+`Body::loop_cycle_of`, which refuses a member that does not claim the
+loop. `kfmrh`, `ring_move`, `mfkrh` and the two surface setters prove
+the walk whole in their plan (`Body::whole_cycle`,
+`Body::face_cycles`) and drop that list; `drop_loop_rows` and
+`drop_face_rows` are gone. The site-row plans' half of "closed past a
+member" is filed as
+`site-row-plans-re-mint-a-face-whose-walk-closed-short-of-a-member`.
