@@ -6523,3 +6523,13 @@ dispatched and the implementer archived. No Ev reply on 3970 or 4006 yet. Next c
 - Parked `boolean-unreadable-norm-ends-as-a-kernel-defect` on the D10 hold: its fix routes through the
   coincidence refusals (`PoisonedCarrierDatum`, the plane rung).
 - No Ev reply on 3970 or 4006.
+
+## PR 4007 merged (2026-10-04)
+
+The fan-split orbit-inversion proof merged as `6306551594`. The fix pass at `00380fd1b4` met every ruled item.
+The claims are narrowed to an untorn `prev`, and the paired tear is pinned as
+`a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error`. The P4 row
+`vertex-orbit-answers-part-of-a-torn-orbit` now names `strut_tip`, the paired tear and `chord_join::null_site`.
+`null_site` is not fixed because the fix changes its signature at 8 call sites, and an instrumented panic was never
+reached across topo's suite. The row is closed and the 14-body list is shared (`VALID_BODIES`). CI was green on
+the head. The fix lane is archived.
