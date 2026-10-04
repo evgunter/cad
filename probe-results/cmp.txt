@@ -1,0 +1,173 @@
+hyperbola c=1e-2 [plain]                 1e-6 | OK [41, 42]                   0.23 | OK [49, 49]                  h=  72  0.32
+hyperbola c=1e-2 [plain]                 1e-9 | OK [197, 199]                 0.58 | OK [272, 273]                h= 423  0.78
+hyperbola c=1e-2 [bent]                  1e-6 | OK [44, 38]                   0.22 | OK [53, 46]                  h=  82  0.26
+hyperbola c=1e-2 [bent]                  1e-9 | OK [220, 192]                 0.74 | OK [287, 260]                h= 495  0.58
+hyperbola c=1e-2 [rational]              1e-6 | CellBudget                    4.02 | CellBudget                   h=   0  3.24
+hyperbola c=1e-2 [rational]              1e-9 | CellBudget                    3.44 | CellBudget                   h=   0  3.07
+hyperbola c=1e-2 [rational-extreme+bent] 1e-6 | BoundaryGraze                 0.00 | BoundaryGraze                h=   0  0.00
+hyperbola c=1e-2 [rational-extreme+bent] 1e-9 | CellBudget                    3.46 | CellBudget                   h=   0  2.94
+hyperbola c=1e-2 [near-degenerate-axes]  1e-6 | Fit(TooFew)                   0.08 | OK [45, 47]                  h= 302  0.16
+hyperbola c=1e-2 [near-degenerate-axes]  1e-9 | OK [120, 114]                 0.56 | OK [252, 253]                h=1761  0.51
+hyperbola c=1e-2 [short-spans]           1e-6 | CellBudget                    3.94 | CellBudget                   h=   0  3.27
+hyperbola c=1e-2 [short-spans]           1e-9 | CellBudget                    3.44 | CellBudget                   h=   0  3.11
+hyperbola c=1e-4 [plain]                 1e-6 | Fit(TooFew)                   0.14 | OK [55, 56]                  h= 229  1.37
+hyperbola c=1e-4 [plain]                 1e-9 | RefinementExhausted(NTH)     11.15 | OK [320, 317]                h=1362  2.23
+hyperbola c=1e-4 [bent]                  1e-6 | OK [36, 34]                   1.13 | OK [58, 56]                  h= 148  1.55
+hyperbola c=1e-4 [bent]                  1e-9 | CrossingUnmatched             0.31 | OK [321, 315]                h= 860  3.03
+hyperbola c=1e-4 [rational]              1e-6 | CellBudget                    3.03 | CellBudget                   h=   0  3.63
+hyperbola c=1e-4 [rational]              1e-9 | CellBudget                    2.44 | CellBudget                   h=   0  3.31
+hyperbola c=1e-4 [rational-extreme+bent] 1e-6 | BoundaryGraze                 0.00 | BoundaryGraze                h=   0  0.00
+hyperbola c=1e-4 [rational-extreme+bent] 1e-9 | CellBudget                    3.30 | CellBudget                   h=   0  3.10
+hyperbola c=1e-4 [near-degenerate-axes]  1e-6 | Fit(TooFew)                   0.09 | OK [54, 54]                  h= 416  1.19
+hyperbola c=1e-4 [near-degenerate-axes]  1e-9 | Fit(TooFew)                   0.09 | OK [301, 306]                h=2873  2.38
+hyperbola c=1e-4 [short-spans]           1e-6 | CellBudget                    3.78 | CellBudget                   h=   0  3.50
+hyperbola c=1e-4 [short-spans]           1e-9 | CellBudget                    3.47 | CellBudget                   h=   0  3.66
+hyperbola c=1e-6 [plain]                 1e-6 | Fit(TooFew)                   0.09 | CellBudget                   h= 283  2.96
+hyperbola c=1e-6 [plain]                 1e-9 | Fit(TooFew)                   0.08 | Escalated(StepProgress)      h= 498  0.09
+hyperbola c=1e-6 [bent]                  1e-6 | RefinementExhausted(NTH)     44.59 | Escalated(StepProgress)      h= 194  0.11
+hyperbola c=1e-6 [bent]                  1e-9 | CrossingUnmatched             0.36 | Escalated(StepProgress)      h= 358  0.12
+hyperbola c=1e-6 [rational]              1e-6 | CellBudget                    2.99 | CellBudget                   h=   0  2.79
+hyperbola c=1e-6 [rational]              1e-9 | CellBudget                    3.32 | CellBudget                   h=   0  2.51
+hyperbola c=1e-6 [rational-extreme+bent] 1e-6 | BoundaryGraze                 0.00 | BoundaryGraze                h=   0  0.00
+hyperbola c=1e-6 [rational-extreme+bent] 1e-9 | CellBudget                    3.16 | CellBudget                   h=   0  2.74
+hyperbola c=1e-6 [near-degenerate-axes]  1e-6 | Fit(TooFew)                   0.09 | CellBudget                   h= 397  3.51
+hyperbola c=1e-6 [near-degenerate-axes]  1e-9 | Fit(TooFew)                   0.10 | Escalated(StepProgress)      h=4110  0.55
+hyperbola c=1e-6 [short-spans]           1e-6 | CellBudget                    3.79 | CellBudget                   h=   0  3.11
+hyperbola c=1e-6 [short-spans]           1e-9 | CellBudget                    4.14 | CellBudget                   h=   0  3.16
+hyperbola c=1e-8 [plain]                 1e-6 | TubeStraddles                 0.09 | TubeStraddles                h=   2  0.15
+hyperbola c=1e-8 [plain]                 1e-9 | Fit(TooFew)                   0.08 | Escalated(StepProgress)      h= 551  0.10
+hyperbola c=1e-8 [bent]                  1e-6 | TubeStraddles                 0.11 | TubeStraddles                h=  47  0.17
+hyperbola c=1e-8 [bent]                  1e-9 | -                                  | Escalated(StepProgress)      h= 636  0.10
+hyperbola c=1e-8 [rational]              1e-6 | -                                  | CellBudget                   h=   0  3.23
+hyperbola c=1e-8 [rational]              1e-9 | -                                  | CellBudget                   h=   0  3.32
+hyperbola c=1e-8 [rational-extreme+bent] 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+hyperbola c=1e-8 [rational-extreme+bent] 1e-9 | -                                  | CellBudget                   h=   0  3.01
+hyperbola c=1e-8 [near-degenerate-axes]  1e-6 | -                                  | TubeStraddles                h=   2  0.13
+hyperbola c=1e-8 [near-degenerate-axes]  1e-9 | -                                  | Escalated(StepProgress)      h=1104  0.14
+hyperbola c=1e-8 [short-spans]           1e-6 | -                                  | CellBudget                   h=   0  3.82
+hyperbola c=1e-8 [short-spans]           1e-9 | -                                  | CellBudget                   h=   0  2.72
+hyperbola c=-1e-4 [plain]                1e-6 | -                                  | OK [72, 73]                  h= 241  2.16
+hyperbola c=-1e-4 [plain]                1e-9 | -                                  | OK [406, 403]                h=1448  3.04
+hyperbola c=-1e-4 [bent]                 1e-6 | -                                  | OK [72, 74]                  h= 172  2.66
+hyperbola c=-1e-4 [bent]                 1e-9 | -                                  | OK [404, 412]                h= 963  2.96
+hyperbola c=-1e-4 [rational]             1e-6 | -                                  | CellBudget                   h=   0  2.88
+hyperbola c=-1e-4 [rational]             1e-9 | -                                  | CellBudget                   h=   0  3.32
+hyperbola c=-1e-4 [rational-extreme+bent 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+hyperbola c=-1e-4 [rational-extreme+bent 1e-9 | -                                  | CellBudget                   h=   0  2.70
+hyperbola c=-1e-4 [near-degenerate-axes] 1e-6 | -                                  | Escalated(StepProgress)      h= 123  0.08
+hyperbola c=-1e-4 [near-degenerate-axes] 1e-9 | -                                  | OK [405, 404]                h=3041  2.27
+hyperbola c=-1e-4 [short-spans]          1e-6 | -                                  | CellBudget                   h=   0  3.03
+hyperbola c=-1e-4 [short-spans]          1e-9 | -                                  | CellBudget                   h=   0  2.87
+hyperbola c=-1e-6 [plain]                1e-6 | -                                  | Escalated(StepProgress)      h= 182  0.09
+hyperbola c=-1e-6 [plain]                1e-9 | -                                  | Escalated(StepProgress)      h=2090  0.98
+hyperbola c=-1e-6 [bent]                 1e-6 | -                                  | Escalated(StepProgress)      h= 176  0.09
+hyperbola c=-1e-6 [bent]                 1e-9 | -                                  | Escalated(StepProgress)      h=1544  1.02
+hyperbola c=-1e-6 [rational]             1e-6 | -                                  | CellBudget                   h=   0  3.03
+hyperbola c=-1e-6 [rational]             1e-9 | -                                  | CellBudget                   h=   0  3.31
+hyperbola c=-1e-6 [rational-extreme+bent 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+hyperbola c=-1e-6 [rational-extreme+bent 1e-9 | -                                  | CellBudget                   h=   0  3.10
+hyperbola c=-1e-6 [near-degenerate-axes] 1e-6 | -                                  | Escalated(StepProgress)      h= 210  0.09
+hyperbola c=-1e-6 [near-degenerate-axes] 1e-9 | -                                  | Escalated(StepProgress)      h=3979  1.27
+hyperbola c=-1e-6 [short-spans]          1e-6 | -                                  | CellBudget                   h=   0  3.45
+hyperbola c=-1e-6 [short-spans]          1e-9 | -                                  | CellBudget                   h=   0  4.04
+hyperbola c=-1e-8 [plain]                1e-6 | -                                  | TubeStraddles                h=   2  0.19
+hyperbola c=-1e-8 [plain]                1e-9 | -                                  | Escalated(StepProgress)      h= 903  0.18
+hyperbola c=-1e-8 [bent]                 1e-6 | -                                  | Escalated(StepProgress)      h=  10  0.07
+hyperbola c=-1e-8 [bent]                 1e-9 | -                                  | Escalated(StepProgress)      h= 882  0.10
+hyperbola c=-1e-8 [rational]             1e-6 | -                                  | CellBudget                   h=   0  3.33
+hyperbola c=-1e-8 [rational]             1e-9 | -                                  | CellBudget                   h=   0  3.17
+hyperbola c=-1e-8 [rational-extreme+bent 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+hyperbola c=-1e-8 [rational-extreme+bent 1e-9 | -                                  | CellBudget                   h=   0  4.10
+hyperbola c=-1e-8 [near-degenerate-axes] 1e-6 | -                                  | TubeStraddles                h=   2  0.16
+hyperbola c=-1e-8 [near-degenerate-axes] 1e-9 | -                                  | Escalated(StepProgress)      h=2556  0.93
+hyperbola c=-1e-8 [short-spans]          1e-6 | -                                  | CellBudget                   h=   0  3.45
+hyperbola c=-1e-8 [short-spans]          1e-9 | -                                  | CellBudget                   h=   0  3.38
+parabolas g=1e-2 [plain]                 1e-6 | -                                  | TubeStraddles                h=   0  0.80
+parabolas g=1e-2 [plain]                 1e-9 | -                                  | TubeStraddles                h=   1  2.03
+parabolas g=1e-2 [bent]                  1e-6 | -                                  | TubeStraddles                h=   0  1.19
+parabolas g=1e-2 [bent]                  1e-9 | -                                  | TubeStraddles                h=   0  1.97
+parabolas g=1e-2 [rational]              1e-6 | -                                  | CellBudget                   h=   0  5.42
+parabolas g=1e-2 [rational]              1e-9 | -                                  | CellBudget                   h=   0  5.42
+parabolas g=1e-2 [rational-extreme+bent] 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+parabolas g=1e-2 [rational-extreme+bent] 1e-9 | -                                  | CellBudget                   h=   0  5.79
+parabolas g=1e-2 [near-degenerate-axes]  1e-6 | -                                  | TubeStraddles                h=  79  0.83
+parabolas g=1e-2 [near-degenerate-axes]  1e-9 | -                                  | TubeStraddles                h= 489  1.77
+parabolas g=1e-2 [short-spans]           1e-6 | -                                  | CellBudget                   h=   0  5.99
+parabolas g=1e-2 [short-spans]           1e-9 | -                                  | CellBudget                   h=   0  5.34
+S-curves s=1 g=1e-2 [plain]              1e-6 | -                                  | TubeStraddles                h=   1  0.88
+S-curves s=1 g=1e-2 [plain]              1e-9 | -                                  | TubeStraddles                h=   0  2.00
+S-curves s=1 g=1e-2 [bent]               1e-6 | -                                  | TubeStraddles                h=   0  0.66
+S-curves s=1 g=1e-2 [bent]               1e-9 | -                                  | TubeStraddles                h=   6  2.68
+S-curves s=1 g=1e-2 [rational]           1e-6 | -                                  | CellBudget                   h=   0  7.69
+S-curves s=1 g=1e-2 [rational]           1e-9 | -                                  | CellBudget                   h=   0  8.27
+S-curves s=1 g=1e-2 [rational-extreme+be 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=1 g=1e-2 [rational-extreme+be 1e-9 | -                                  | CellBudget                   h=   0  7.80
+S-curves s=1 g=1e-2 [near-degenerate-axe 1e-6 | -                                  | TubeStraddles                h= 122  0.56
+S-curves s=1 g=1e-2 [near-degenerate-axe 1e-9 | -                                  | TubeStraddles                h= 685  1.85
+S-curves s=1 g=1e-2 [short-spans]        1e-6 | -                                  | CellBudget                   h=   0  7.93
+S-curves s=1 g=1e-2 [short-spans]        1e-9 | -                                  | CellBudget                   h=   0  7.96
+S-curves s=3 g=1e-2 [plain]              1e-6 | -                                  | TubeStraddles                h=   0  3.77
+S-curves s=3 g=1e-2 [plain]              1e-9 | -                                  | TubeStraddles                h=   0  7.17
+S-curves s=3 g=1e-2 [bent]               1e-6 | -                                  | TubeStraddles                h=   2  4.44
+S-curves s=3 g=1e-2 [bent]               1e-9 | -                                  | TubeStraddles                h=  19  7.57
+S-curves s=3 g=1e-2 [rational]           1e-6 | -                                  | CellBudget                   h=   0  6.73
+S-curves s=3 g=1e-2 [rational]           1e-9 | -                                  | CellBudget                   h=   0  7.53
+S-curves s=3 g=1e-2 [rational-extreme+be 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=3 g=1e-2 [rational-extreme+be 1e-9 | -                                  | CellBudget                   h=   0  9.06
+S-curves s=3 g=1e-2 [near-degenerate-axe 1e-6 | -                                  | TubeStraddles                h= 196  4.85
+S-curves s=3 g=1e-2 [near-degenerate-axe 1e-9 | -                                  | TubeStraddles                h=1206  7.92
+S-curves s=3 g=1e-2 [short-spans]        1e-6 | -                                  | CellBudget                   h=   0 10.34
+S-curves s=3 g=1e-2 [short-spans]        1e-9 | -                                  | CellBudget                   h=   0 11.30
+straight-parallel tilted g=1e-2 [plain]  1e-6 | -                                  | TubeStraddles                h=   2  0.12
+straight-parallel tilted g=1e-2 [plain]  1e-9 | -                                  | TubeStraddles                h=   2  0.13
+straight-parallel tilted g=1e-2 [bent]   1e-6 | -                                  | TubeStraddles                h=   0  0.25
+straight-parallel tilted g=1e-2 [bent]   1e-9 | -                                  | TubeStraddles                h=   0  0.47
+straight-parallel tilted g=1e-2 [rationa 1e-6 | -                                  | CellBudget                   h=   0  3.75
+straight-parallel tilted g=1e-2 [rationa 1e-9 | -                                  | CellBudget                   h=   0  3.22
+straight-parallel tilted g=1e-2 [rationa 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+straight-parallel tilted g=1e-2 [rationa 1e-9 | -                                  | CellBudget                   h=   0  3.15
+straight-parallel tilted g=1e-2 [near-de 1e-6 | -                                  | TubeStraddles                h=   2  0.14
+straight-parallel tilted g=1e-2 [near-de 1e-9 | -                                  | TubeStraddles                h=   2  0.14
+straight-parallel tilted g=1e-2 [short-s 1e-6 | -                                  | CellBudget                   h=   0  4.11
+straight-parallel tilted g=1e-2 [short-s 1e-9 | -                                  | CellBudget                   h=   0  4.83
+parabolas g=1e-3 [plain]                 1e-6 | -                                  | TubeStraddles                h=   0  0.84
+parabolas g=1e-3 [plain]                 1e-9 | -                                  | TubeStraddles                h=   1  1.98
+parabolas g=1e-3 [bent]                  1e-6 | -                                  | TubeStraddles                h=   0  0.99
+parabolas g=1e-3 [bent]                  1e-9 | -                                  | TubeStraddles                h=   0  1.82
+parabolas g=1e-3 [rational]              1e-6 | -                                  | CellBudget                   h=   0  6.05
+parabolas g=1e-3 [rational]              1e-9 | -                                  | CellBudget                   h=   0  5.51
+parabolas g=1e-3 [rational-extreme+bent] 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+parabolas g=1e-3 [rational-extreme+bent] 1e-9 | -                                  | BoundaryGraze                h=   0  0.00
+parabolas g=1e-3 [near-degenerate-axes]  1e-6 | -                                  | TubeStraddles                h= 385  1.35
+parabolas g=1e-3 [near-degenerate-axes]  1e-9 | -                                  | TubeStraddles                h=2268  5.45
+parabolas g=1e-3 [short-spans]           1e-6 | -                                  | CellBudget                   h=   0  6.76
+parabolas g=1e-3 [short-spans]           1e-9 | -                                  | CellBudget                   h=   0  7.75
+S-curves s=1 g=1e-3 [plain]              1e-6 | -                                  | TubeStraddles                h=   1  0.55
+S-curves s=1 g=1e-3 [plain]              1e-9 | -                                  | TubeStraddles                h= 105  3.22
+S-curves s=1 g=1e-3 [bent]               1e-6 | -                                  | TubeStraddles                h=   0  0.94
+S-curves s=1 g=1e-3 [bent]               1e-9 | -                                  | TubeStraddles                h=   6  2.99
+S-curves s=1 g=1e-3 [rational]           1e-6 | -                                  | CellBudget                   h=   0  8.45
+S-curves s=1 g=1e-3 [rational]           1e-9 | -                                  | CellBudget                   h=   0  8.65
+S-curves s=1 g=1e-3 [rational-extreme+be 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=1 g=1e-3 [rational-extreme+be 1e-9 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=1 g=1e-3 [near-degenerate-axe 1e-6 | -                                  | TubeStraddles                h= 438  1.37
+S-curves s=1 g=1e-3 [near-degenerate-axe 1e-9 | -                                  | Escalated(StepProgress)      h=1625  0.28
+S-curves s=1 g=1e-3 [short-spans]        1e-6 | -                                  | CellBudget                   h=   0  9.36
+S-curves s=1 g=1e-3 [short-spans]        1e-9 | -                                  | CellBudget                   h=   0 10.08
+S-curves s=3 g=1e-3 [plain]              1e-6 | -                                  | TubeStraddles                h=   0  4.77
+S-curves s=3 g=1e-3 [plain]              1e-9 | -                                  | TubeStraddles                h= 560 12.43
+S-curves s=3 g=1e-3 [bent]               1e-6 | -                                  | TubeStraddles                h=   2  4.75
+S-curves s=3 g=1e-3 [bent]               1e-9 | -                                  | TubeStraddles                h=  19  9.20
+S-curves s=3 g=1e-3 [rational]           1e-6 | -                                  | CellBudget                   h=   0  9.98
+S-curves s=3 g=1e-3 [rational]           1e-9 | -                                  | CellBudget                   h=   0  8.83
+S-curves s=3 g=1e-3 [rational-extreme+be 1e-6 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=3 g=1e-3 [rational-extreme+be 1e-9 | -                                  | BoundaryGraze                h=   0  0.00
+S-curves s=3 g=1e-3 [near-degenerate-axe 1e-6 | -                                  | TubeStraddles                h=1044  7.30
+S-curves s=3 g=1e-3 [near-degenerate-axe 1e-9 | -                                  | Escalated(StepProgress)      h=1705  4.22
+S-curves s=3 g=1e-3 [short-spans]        1e-6 | -                                  | CellBudget                   h=   0 10.16
+S-curves s=3 g=1e-3 [short-spans]        1e-9 | -                                  | CellBudget                   h=   0  9.69
+straight-parallel tilted g=1e-3 [plain]  1e-6 | -                                  | TubeStraddles                h=   2  0.15
+straight-parallel tilted g=1e-3 [plain]  1e-9 | -                                  | TubeStraddles                h=   2  0.16
+straight-parallel tilted g=1e-3 [bent]   1e-6 | -                                  | TubeStraddles                h=   0  0.16
+straight-parallel tilted g=1e-3 [bent]   1e-9 | -                                  | TubeStraddles                h=   0  0.30
+straight-parallel tilted g=1e-3 [rationa 1e-6 | -                                  | CellBudget                   h=   0  3.80

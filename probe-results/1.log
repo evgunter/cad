@@ -1,0 +1,247 @@
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=320       ε 1e-6  ERR Escalated(StepProgress)                     2.00s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=1730      ε 1e-9  ERR TubeStraddles                               5.91s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=56      ε 1e-6  ERR TubeStraddles                               0.28s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=347     ε 1e-9  ERR Escalated(StepProgress)                     0.17s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=32       ε 1e-6  ERR TubeStraddles                               0.26s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=389      ε 1e-9  ERR TubeStraddles                               1.91s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=592        ε 1e-6  ERR TubeStraddles                               1.42s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=764        ε 1e-9  ERR Escalated(StepProgress)                     0.53s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=221       ε 1e-6  ERR TubeStraddles                               1.70s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=322       ε 1e-9  ERR TubeStraddles                               3.23s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=31      ε 1e-6  ERR TubeStraddles                               0.42s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=45      ε 1e-9  ERR TubeStraddles                               0.85s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=31       ε 1e-6  ERR TubeStraddles                               0.33s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=45       ε 1e-9  ERR TubeStraddles                               0.59s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=201        ε 1e-6  ERR TubeStraddles                               0.84s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=514        ε 1e-9  ERR TubeStraddles                               1.76s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=28        ε 1e-6  ERR Escalated(Transversality)                   1.81s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=46        ε 1e-9  ERR TubeStraddles                               2.40s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=27      ε 1e-6  ERR Escalated(Transversality)                   0.14s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=45      ε 1e-9  ERR TubeStraddles                               0.58s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=27       ε 1e-6  ERR TubeStraddles                               0.26s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=45       ε 1e-9  ERR TubeStraddles                               0.59s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=29         ε 1e-6  ERR TubeStraddles                               0.79s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=45         ε 1e-9  ERR TubeStraddles                               1.83s
+bend single β=-0.5 n=2 h=101                     ε 1e-6  OK  1 branches samples [64]    0.12s
+bend single β=-0.5 n=2 h=409                     ε 1e-9  OK  1 branches samples [287]    0.68s
+bend single β=-2 n=2 h=207                       ε 1e-6  OK  1 branches samples [100]    0.19s
+bend single β=-2 n=2 h=839                       ε 1e-9  OK  1 branches samples [525]    1.32s
+bend single β=-8 n=2 h=296                       ε 1e-6  OK  1 branches samples [129]    0.42s
+bend single β=-8 n=2 h=1300                      ε 1e-9  OK  1 branches samples [660]    1.90s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=114          ε 1e-9  OK  2 branches samples [45, 45]    0.13s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=106          ε 1e-9  OK  2 branches samples [42, 42]    0.06s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=82           ε 1e-9  OK  2 branches samples [33, 33]    0.06s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=35            ε 1e-6  ERR TubeNotOneArc                               0.08s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=418           ε 1e-9  OK  2 branches samples [141, 141]    0.33s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=70            ε 1e-6  OK  2 branches samples [25, 25]    0.05s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=402           ε 1e-9  OK  2 branches samples [136, 136]    0.25s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=62            ε 1e-6  OK  2 branches samples [22, 22]    0.03s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=362           ε 1e-9  OK  2 branches samples [122, 122]    0.10s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=97              ε 1e-6  ERR TubeNotOneArc                               0.33s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=922             ε 1e-9  OK  2 branches samples [355, 355]    1.34s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=180             ε 1e-6  OK  2 branches samples [66, 66]    0.15s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=898             ε 1e-9  OK  2 branches samples [347, 347]    0.70s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=170             ε 1e-6  OK  2 branches samples [62, 62]    0.11s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=850             ε 1e-9  OK  2 branches samples [329, 329]    0.48s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 85.71s
+
+DONE probe_straight_then_bend 0
+
+running 1 test
+test zz_rev4034_probes::probe_bend_single_detail ... β=-2 ε 1e-6: Ok 1 branch(es), samples [100]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [525]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [2851]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [116]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [577]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [3136]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [122]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [612]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [3345]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [129]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [660]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [3565]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [142]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [736]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [4816]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 210.51s
+
+DONE probe_bend_single_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_hyperbola_fit_short_detail ... c=1e-4 ε 1e-6: Escalated { decision: StepProgress, cause: Indeterminate { margin: MarginDiag(Value(6.898313489040822e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_step_progress") } }
+    ssi: whether the march's step clears the tolerance band is too close to call: margin 6.898313489040822e-6 lies inside the ambiguity band (1e-6, 9.999999999999999e-6). Recourse: bring the operands within the model's size range, or name a domain that holds more of the intersection
+c=1e-4 ε 1e-9: Escalated { decision: StepProgress, cause: Indeterminate { margin: MarginDiag(Value(6.452893512762003e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_step_progress") } }
+    ssi: whether the march's step clears the tolerance band is too close to call: margin 6.452893512762003e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: bring the operands within the model's size range, or name a domain that holds more of the intersection
+c=1e-6 ε 1e-6: Escalated { decision: StepProgress, cause: Indeterminate { margin: MarginDiag(Value(8.256305122206994e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_step_progress") } }
+    ssi: whether the march's step clears the tolerance band is too close to call: margin 8.256305122206994e-6 lies inside the ambiguity band (1e-6, 9.999999999999999e-6). Recourse: bring the operands within the model's size range, or name a domain that holds more of the intersection
+c=1e-6 ε 1e-9: Escalated { decision: StepProgress, cause: Indeterminate { margin: MarginDiag(Value(8.68824067770467e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_step_progress") } }
+    ssi: whether the march's step clears the tolerance band is too close to call: margin 8.68824067770467e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: bring the operands within the model's size range, or name a domain that holds more of the intersection
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.38s
+
+DONE probe_hyperbola_fit_short_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=990    ε 1e-6  ERR Escalated(StepProgress)                     0.07s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=11194  ε 1e-9  ERR Escalated(StepProgress)                     0.18s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=757     ε 1e-6  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=8180    ε 1e-9  ERR Escalated(StepProgress)                     0.25s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-6  ERR CellBudget                                  2.64s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-9  ERR CellBudget                                  2.68s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  3.07s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=3247 ε 1e-6  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=11510 ε 1e-9  ERR Escalated(StepProgress)                     0.31s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR CellBudget                                  3.62s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  3.78s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=1508   ε 1e-6  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=5854   ε 1e-9  ERR Escalated(StepProgress)                     0.17s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=330     ε 1e-6  ERR Escalated(StepProgress)                     0.12s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=1102    ε 1e-9  ERR Escalated(StepProgress)                     0.13s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  2.94s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  3.04s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.50s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=707 ε 1e-6  ERR Escalated(StepProgress)                     0.10s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=9031 ε 1e-9  ERR Escalated(StepProgress)                     0.23s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.46s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.34s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=1484   ε 1e-6  ERR Escalated(StepProgress)                     0.08s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=3919   ε 1e-9  ERR Escalated(StepProgress)                     0.17s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=698     ε 1e-6  ERR Escalated(StepProgress)                     0.13s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=2366    ε 1e-9  ERR Escalated(StepProgress)                     0.11s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  2.75s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  3.25s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.98s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=487 ε 1e-6  ERR Escalated(StepProgress)                     0.12s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=2107 ε 1e-9  ERR Escalated(StepProgress)                     0.22s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  2.94s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.34s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=127    ε 1e-6  ERR TubeStraddles                               0.13s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=6418   ε 1e-9  ERR Escalated(StepProgress)                     1.40s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=108     ε 1e-6  ERR TubeStraddles                               0.20s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=1460    ε 1e-9  ERR Escalated(StepProgress)                     0.13s
+hyperbola c=1e-8 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  2.48s
+hyperbola c=1e-8 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  2.96s
+hyperbola c=1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.31s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=135 ε 1e-6  ERR TubeStraddles                               0.18s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2152 ε 1e-9  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.51s
+hyperbola c=1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.41s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=1722  ε 1e-6  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=4586  ε 1e-9  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=550    ε 1e-6  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=5945   ε 1e-9  ERR Escalated(StepProgress)                     0.27s
+hyperbola c=-1e-4 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  3.29s
+hyperbola c=-1e-4 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.36s
+hyperbola c=-1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.76s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=1095 ε 1e-6  ERR Escalated(StepProgress)                     0.11s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=8891 ε 1e-9  ERR Escalated(StepProgress)                     0.17s
+hyperbola c=-1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.78s
+hyperbola c=-1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.42s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=872   ε 1e-6  ERR Escalated(StepProgress)                     0.07s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=1929  ε 1e-9  ERR Escalated(StepProgress)                     0.13s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=547    ε 1e-6  ERR Escalated(StepProgress)                     0.08s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=5760   ε 1e-9  ERR Escalated(StepProgress)                     6.71s
+hyperbola c=-1e-6 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  3.16s
+hyperbola c=-1e-6 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.06s
+hyperbola c=-1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.23s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=1530 ε 1e-6  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=8848 ε 1e-9  ERR Escalated(StepProgress)                     0.17s
+hyperbola c=-1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.12s
+hyperbola c=-1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.17s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=43    ε 1e-6  ERR Escalated(Transversality)                   0.11s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=415   ε 1e-9  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=24     ε 1e-6  ERR Escalated(StepProgress)                     0.12s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=3023   ε 1e-9  ERR Escalated(StepProgress)                     1.55s
+hyperbola c=-1e-8 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  3.09s
+hyperbola c=-1e-8 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.35s
+hyperbola c=-1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.88s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=37 ε 1e-6  ERR Escalated(StepProgress)                     0.07s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2030 ε 1e-9  ERR Escalated(StepProgress)                     0.10s
+hyperbola c=-1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.34s
+hyperbola c=-1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.36s
+parabolas g=1e-2 [plain] n=4 sep=1.0e-2 h=340    ε 1e-6  ERR TubeStraddles                               1.14s
+parabolas g=1e-2 [plain] n=4 sep=1.0e-2 h=1229   ε 1e-9  ERR TubeStraddles                               7.37s
+parabolas g=1e-2 [bent] n=4 sep=1.0e-2 h=563     ε 1e-6  ERR Escalated(StepProgress)                     0.91s
+parabolas g=1e-2 [bent] n=4 sep=1.0e-2 h=107     ε 1e-9  ERR Escalated(StepProgress)                     0.73s
+parabolas g=1e-2 [rational] n=4 sep=1.0e-2 h=0   ε 1e-6  ERR CellBudget                                  5.63s
+parabolas g=1e-2 [rational] n=4 sep=1.0e-2 h=0   ε 1e-9  ERR CellBudget                                  6.08s
+parabolas g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  7.38s
+parabolas g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=447 ε 1e-6  ERR Escalated(StepProgress)                     0.72s
+parabolas g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=590 ε 1e-9  ERR Escalated(StepProgress)                     0.77s
+parabolas g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  7.05s
+parabolas g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  7.21s
+S-curves s=1 g=1e-2 [plain] n=4 sep=1.0e-2 h=316 ε 1e-6  ERR TubeStraddles                               2.07s
+S-curves s=1 g=1e-2 [plain] n=4 sep=1.0e-2 h=1932 ε 1e-9  ERR TubeStraddles                              13.33s
+S-curves s=1 g=1e-2 [bent] n=4 sep=1.0e-2 h=257  ε 1e-6  ERR Escalated(StepProgress)                     0.39s
+S-curves s=1 g=1e-2 [bent] n=4 sep=1.0e-2 h=7625 ε 1e-9  ERR CellBudget                                 60.16s
+S-curves s=1 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  8.82s
+S-curves s=1 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  8.25s
+S-curves s=1 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  9.84s
+S-curves s=1 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=1083 ε 1e-6  ERR TubeStraddles                               2.10s
+S-curves s=1 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=1960 ε 1e-9  ERR Escalated(StepProgress)                     0.58s
+S-curves s=1 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                 10.87s
+S-curves s=1 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                 10.11s
+S-curves s=3 g=1e-2 [plain] n=4 sep=1.0e-2 h=405 ε 1e-6  ERR Escalated(StepProgress)                     4.14s
+S-curves s=3 g=1e-2 [plain] n=4 sep=1.0e-2 h=1493 ε 1e-9  ERR Escalated(StepProgress)                     4.27s
+S-curves s=3 g=1e-2 [bent] n=4 sep=1.0e-2 h=367  ε 1e-6  ERR Escalated(StepProgress)                     4.30s
+S-curves s=3 g=1e-2 [bent] n=4 sep=1.0e-2 h=3173 ε 1e-9  ERR Escalated(StepProgress)                     4.58s
+S-curves s=3 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  9.22s
+S-curves s=3 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  8.13s
+S-curves s=3 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=3 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                 10.72s
+S-curves s=3 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=434 ε 1e-6  ERR Escalated(StepProgress)                     4.15s
+S-curves s=3 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=7536 ε 1e-9  ERR Escalated(StepProgress)                     4.25s
+S-curves s=3 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  9.82s
+S-curves s=3 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                 10.11s
+straight-parallel tilted g=1e-2 [plain] n=4 sep=1.0e-2 h=2 ε 1e-6  ERR TubeStraddles                               0.23s
+straight-parallel tilted g=1e-2 [plain] n=4 sep=1.0e-2 h=2 ε 1e-9  ERR TubeStraddles                               0.16s
+straight-parallel tilted g=1e-2 [bent] n=4 sep=1.0e-2 h=244 ε 1e-6  ERR TubeStraddles                               0.51s
+straight-parallel tilted g=1e-2 [bent] n=4 sep=1.0e-2 h=187 ε 1e-9  ERR TubeStraddles                               0.57s
+straight-parallel tilted g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  3.64s
+straight-parallel tilted g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  3.38s
+straight-parallel tilted g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+straight-parallel tilted g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  4.22s
+straight-parallel tilted g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=2 ε 1e-6  ERR TubeStraddles                               0.17s
+straight-parallel tilted g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=2 ε 1e-9  ERR TubeStraddles                               0.24s
+straight-parallel tilted g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  4.05s
+straight-parallel tilted g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  3.67s
+parabolas g=1e-3 [plain] n=4 sep=1.0e-3 h=0      ε 1e-6  ERR TubeStraddles                               1.07s
+parabolas g=1e-3 [plain] n=4 sep=1.0e-3 h=1      ε 1e-9  ERR TubeStraddles                               2.49s
+parabolas g=1e-3 [bent] n=4 sep=1.0e-3 h=449     ε 1e-6  ERR Escalated(StepProgress)                     0.85s
+parabolas g=1e-3 [bent] n=4 sep=1.0e-3 h=4492    ε 1e-9  ERR TubeStraddles                              18.95s
+parabolas g=1e-3 [rational] n=4 sep=1.0e-3 h=0   ε 1e-6  ERR CellBudget                                  5.89s
+parabolas g=1e-3 [rational] n=4 sep=1.0e-3 h=0   ε 1e-9  ERR CellBudget                                  8.12s
+parabolas g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+parabolas g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=385 ε 1e-6  ERR TubeStraddles                               1.61s
+parabolas g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=2268 ε 1e-9  ERR TubeStraddles                               5.88s
+parabolas g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  6.38s
+parabolas g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  7.34s
+S-curves s=1 g=1e-3 [plain] n=4 sep=1.0e-3 h=1   ε 1e-6  ERR TubeStraddles                               0.63s
+S-curves s=1 g=1e-3 [plain] n=4 sep=1.0e-3 h=105 ε 1e-9  ERR TubeStraddles                               3.49s
+S-curves s=1 g=1e-3 [bent] n=4 sep=1.0e-3 h=1018 ε 1e-6  ERR TubeStraddles                               4.60s
+S-curves s=1 g=1e-3 [bent] n=4 sep=1.0e-3 h=1249 ε 1e-9  ERR Escalated(StepProgress)                     0.50s
+S-curves s=1 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  9.65s
+S-curves s=1 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  8.69s
+S-curves s=1 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s

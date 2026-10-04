@@ -1,0 +1,143 @@
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=0         ε 1e-6  ERR CrossingUnmatched                           1.91s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=0         ε 1e-9  ERR CrossingUnmatched                           1.77s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=0       ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 3, unsettled: 1 })    0.72s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=0       ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 3, unsettled: 1 })    1.70s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=0        ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 2 })    0.64s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=0        ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 2 })    1.55s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=0          ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 2 })    1.14s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.74s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=0         ε 1e-6  ERR CrossingUnmatched                           1.32s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=0         ε 1e-9  ERR CrossingUnmatched                           1.55s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=0       ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=0       ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=0        ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.22s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=0        ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.21s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=0          ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.52s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.59s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=0         ε 1e-6  ERR CrossingUnmatched                           1.41s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=0         ε 1e-9  ERR CrossingUnmatched                           1.34s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=0       ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=0       ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.16s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=0        ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.22s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=0        ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.22s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=0          ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.53s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.49s
+bend single β=-0.5 n=2 h=0                       ε 1e-6  OK  1 branches samples [52]    0.16s
+bend single β=-0.5 n=2 h=0                       ε 1e-9  OK  1 branches samples [142]    0.44s
+bend single β=-2 n=2 h=0                         ε 1e-6  OK  1 branches samples [61]    0.29s
+bend single β=-2 n=2 h=0                         ε 1e-9  OK  1 branches samples [176]    0.88s
+bend single β=-8 n=2 h=0                         ε 1e-6  ERR CrossingUnmatched                           0.15s
+bend single β=-8 n=2 h=0                         ε 1e-9  ERR CrossingUnmatched                           0.16s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.03s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-9  OK  2 branches samples [20, 20]    0.08s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-9  OK  2 branches samples [18, 18]    0.05s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-9  OK  2 branches samples [15, 15]    0.04s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.14s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-9  OK  2 branches samples [54, 54]    0.18s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.11s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-9  OK  2 branches samples [52, 52]    0.10s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=0             ε 1e-6  OK  2 branches samples [9, 9]    0.05s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=0             ε 1e-9  OK  2 branches samples [47, 47]    0.10s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=0               ε 1e-6  ERR TubeNotOneArc                               0.11s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=0               ε 1e-9  OK  2 branches samples [153, 153]    0.61s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=0               ε 1e-6  OK  2 branches samples [27, 27]    0.06s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=0               ε 1e-9  OK  2 branches samples [151, 151]    0.25s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=0               ε 1e-6  OK  2 branches samples [26, 26]    0.07s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=0               ε 1e-9  OK  2 branches samples [143, 143]    0.15s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 69.45s
+
+DONE probe_straight_then_bend 0
+
+running 1 test
+test zz_rev4034_probes::probe_bend_single_detail ... β=-2 ε 1e-6: Ok 1 branch(es), samples [61]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [176]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [683]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [77]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [238]
+β=-4 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-6 ε 1e-6: Ok 1 branch(es), samples [87]
+β=-6 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-6 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-6: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-6: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 8.33s
+
+DONE probe_bend_single_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_hyperbola_fit_short_detail ... c=1e-4 ε 1e-6: Fit(TooFewPoints { have: 2, need: 4 })
+    ssi: a traced branch gave the fitting stack 2 samples, and it needs at least 4. There is no way through: this is a kernel defect; report it
+c=1e-4 ε 1e-9: RefinementExhausted { stop: NothingToHalve { in_band: 5, unsettled: 1 }, samples: 1123, refusal: CertificateLimb { limb: HullSup, value: 0.00010417392450708189 }, earlier: [RefusedRound { samples: 6, limb: OnLocus, margin: Over(0.0006850507484958218) }, RefusedRound { samples: 11, limb: OnLocus, margin: Over(0.0004952043967596894) }, RefusedRound { samples: 21, limb: OnLocus, margin: Over(0.00016203404473605256) }, RefusedRound { samples: 39, limb: OnLocus, margin: Over(4.198792729531264e-6) }, RefusedRound { samples: 51, limb: OnLocus, margin: InBand(MarginDiag(Value(3.27650029587277e-9, None))) }, RefusedRound { samples: 70, limb: OnLocus, margin: Over(8.270125175300749e-7) }, RefusedRound { samples: 92, limb: OnLocus, margin: Over(2.1800665236871934e-5) }, RefusedRound { samples: 113, limb: OnLocus, margin: Over(3.195551429827361e-6) }, RefusedRound { samples: 134, limb: OnLocus, margin: Over(9.263182546779253e-8) }, RefusedRound { samples: 154, limb: OnLocus, margin: InBand(MarginDiag(Value(3.861099394568857e-9, None))) }, RefusedRound { samples: 185, limb: OnLocus, margin: Over(2.0051800329273544e-6) }, RefusedRound { samples: 213, limb: OnLocus, margin: Over(1.3187637777355662e-7) }, RefusedRound { samples: 244, limb: OnLocus, margin: InBand(MarginDiag(Value(7.234544048120783e-9, None))) }, RefusedRound { samples: 278, limb: OnLocus, margin: Over(2.5838624313280585e-8) }, RefusedRound { samples: 312, limb: OnLocus, margin: Over(2.64490633328561e-7) }, RefusedRound { samples: 348, limb: OnLocus, margin: Over(2.2386318796360162e-5) }, RefusedRound { samples: 390, limb: OnLocus, margin: Over(0.006702193737649673) }, RefusedRound { samples: 444, limb: OnLocus, margin: Over(0.0015824393867371269) }, RefusedRound { samples: 485, limb: OnLocus, margin: Over(4.669252382118971e-6) }, RefusedRound { samples: 520, limb: OnLocus, margin: Over(1.1667787007623891e-7) }, RefusedRound { samples: 556, limb: OnLocus, margin: InBand(MarginDiag(Value(6.190762015367664e-9, None))) }, RefusedRound { samples: 603, limb: OnLocus, margin: InBand(MarginDiag(Value(2.093467543509272e-9, None))) }, RefusedRound { samples: 652, limb: OnLocus, margin: Over(1.3644683539253306e-5) }, RefusedRound { samples: 693, limb: OnLocus, margin: Over(6.597734679280358e-5) }, RefusedRound { samples: 725, limb: OnLocus, margin: Over(5.022693696098799e-6) }, RefusedRound { samples: 761, limb: OnLocus, margin: InBand(MarginDiag(Value(2.1824509109363144e-9, None))) }, RefusedRound { samples: 808, limb: OnLocus, margin: Over(1.5140236307895616e-7) }, RefusedRound { samples: 859, limb: OnLocus, margin: Over(4.800883943517953e-8) }, RefusedRound { samples: 920, limb: OnLocus, margin: InBand(MarginDiag(Value(4.396600653528448e-9, None))) }, RefusedRound { samples: 954, limb: HullSup, margin: Over(0.00010712131262538698) }, RefusedRound { samples: 986, limb: HullSup, margin: Over(0.00010513806723590138) }, RefusedRound { samples: 1022, limb: HullSup, margin: Over(0.00010437177354366411) }, RefusedRound { samples: 1045, limb: HullSup, margin: Over(0.00010399878191669833) }, RefusedRound { samples: 1062, limb: HullSup, margin: Over(0.00010385204719470842) }, RefusedRound { samples: 1074, limb: HullSup, margin: Over(0.00010388883157901818) }, RefusedRound { samples: 1080, limb: HullSup, margin: Over(0.00010397272497575674) }, RefusedRound { samples: 1086, limb: HullSup, margin: Over(0.0001040402996192404) }, RefusedRound { samples: 1089, limb: HullSup, margin: Over(0.00010514419544184043) }, RefusedRound { samples: 1092, limb: HullSup, margin: Over(0.00010445822913867632) }, RefusedRound { samples: 1095, limb: HullSup, margin: Over(0.00010404341041923249) }, RefusedRound { samples: 1098, limb: HullSup, margin: Over(0.00010366881143824733) }, RefusedRound { samples: 1101, limb: HullSup, margin: Over(0.00010375470257135242) }, RefusedRound { samples: 1104, limb: HullSup, margin: Over(0.00010487547971508557) }, RefusedRound { samples: 1107, limb: HullSup, margin: Over(0.00010487258282048048) }, RefusedRound { samples: 1110, limb: HullSup, margin: Over(0.00010364722321986851) }, RefusedRound { samples: 1113, limb: HullSup, margin: Over(0.00010377014261792038) }, RefusedRound { samples: 1115, limb: HullSup, margin: Over(0.00010582867858017068) }, RefusedRound { samples: 1117, limb: HullSup, margin: Over(0.00010363503235521789) }, RefusedRound { samples: 1120, limb: HullSup, margin: Over(0.00010363842617314608) }] }
+    ssi: refined over 49 rounds to 1123 samples, then no refused gap halved further (5 within the tolerance, 1 not settling): the fitted carrier failed limb 2 (control-hull sup-norm bound) at 1.0417392450708189e-4 m — the cache is not within tolerance of the locus it claims. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+c=1e-6 ε 1e-6: Fit(TooFewPoints { have: 2, need: 4 })
+    ssi: a traced branch gave the fitting stack 2 samples, and it needs at least 4. There is no way through: this is a kernel defect; report it
+c=1e-6 ε 1e-9: Fit(TooFewPoints { have: 2, need: 4 })
+    ssi: a traced branch gave the fitting stack 2 samples, and it needs at least 4. There is no way through: this is a kernel defect; report it
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 15.03s
+
+DONE probe_hyperbola_fit_short_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-6  OK  2 branches samples [41, 42]    0.23s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-9  OK  2 branches samples [197, 199]    0.58s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=0       ε 1e-6  OK  2 branches samples [44, 38]    0.22s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=0       ε 1e-9  OK  2 branches samples [220, 192]    0.74s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-6  ERR CellBudget                                  4.02s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-9  ERR CellBudget                                  3.44s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  3.46s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.08s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-9  OK  2 branches samples [120, 114]    0.56s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR CellBudget                                  3.94s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  3.44s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 1 })   11.15s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  OK  2 branches samples [36, 34]    1.13s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=0       ε 1e-9  ERR CrossingUnmatched                           0.31s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  3.03s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  2.44s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.30s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.09s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.09s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.78s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.47s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.09s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.08s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 2, unsettled: 1 })   44.59s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=0       ε 1e-9  ERR CrossingUnmatched                           0.36s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  2.99s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  3.32s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.16s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.09s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.10s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.79s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  4.14s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR TubeStraddles                               0.09s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.08s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  ERR TubeStraddles                               0.11s

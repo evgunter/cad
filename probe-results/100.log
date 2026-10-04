@@ -1,0 +1,295 @@
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=30        ε 1e-6  ERR TubeStraddles                               1.98s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=81        ε 1e-9  ERR TubeStraddles                               3.09s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=32      ε 1e-6  ERR TubeStraddles                               0.22s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=79      ε 1e-9  ERR TubeStraddles                               0.74s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=32       ε 1e-6  ERR TubeStraddles                               0.25s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=79       ε 1e-9  ERR TubeStraddles                               0.85s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=30         ε 1e-6  ERR TubeStraddles                               0.73s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=80         ε 1e-9  ERR TubeStraddles                               1.52s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=221       ε 1e-6  ERR TubeStraddles                               1.97s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=322       ε 1e-9  ERR TubeStraddles                               2.75s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=31      ε 1e-6  ERR TubeStraddles                               0.37s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=45      ε 1e-9  ERR TubeStraddles                               0.67s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=31       ε 1e-6  ERR TubeStraddles                               0.20s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=45       ε 1e-9  ERR TubeStraddles                               0.63s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=201        ε 1e-6  ERR TubeStraddles                               1.13s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=514        ε 1e-9  ERR TubeStraddles                               1.91s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=28        ε 1e-6  ERR Escalated(Transversality)                   1.37s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=46        ε 1e-9  ERR TubeStraddles                               2.57s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=27      ε 1e-6  ERR Escalated(Transversality)                   0.14s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=45      ε 1e-9  ERR TubeStraddles                               0.52s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=27       ε 1e-6  ERR TubeStraddles                               0.25s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=45       ε 1e-9  ERR TubeStraddles                               0.52s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=29         ε 1e-6  ERR TubeStraddles                               0.81s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=45         ε 1e-9  ERR TubeStraddles                               1.25s
+bend single β=-0.5 n=2 h=32                      ε 1e-6  OK  1 branches samples [43]    0.13s
+bend single β=-0.5 n=2 h=79                      ε 1e-9  OK  1 branches samples [139]    0.33s
+bend single β=-2 n=2 h=30                        ε 1e-6  OK  1 branches samples [53]    0.16s
+bend single β=-2 n=2 h=80                        ε 1e-9  OK  1 branches samples [213]    0.46s
+bend single β=-8 n=2 h=57                        ε 1e-6  OK  1 branches samples [61]    0.35s
+bend single β=-8 n=2 h=160                       ε 1e-9  OK  1 branches samples [256]    0.77s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-9  OK  2 branches samples [20, 20]    0.07s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.03s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=2            ε 1e-9  OK  2 branches samples [18, 18]    0.06s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-9  OK  2 branches samples [15, 15]    0.04s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.11s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-9  OK  2 branches samples [54, 54]    0.14s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.11s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-9  OK  2 branches samples [52, 52]    0.11s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=6             ε 1e-6  OK  2 branches samples [9, 9]    0.02s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=0             ε 1e-9  OK  2 branches samples [47, 47]    0.05s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=0               ε 1e-6  ERR TubeNotOneArc                               0.15s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=2               ε 1e-9  OK  2 branches samples [153, 153]    0.57s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=2               ε 1e-6  OK  2 branches samples [27, 27]    0.07s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2 h=0               ε 1e-9  OK  2 branches samples [151, 151]    0.27s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=0               ε 1e-6  OK  2 branches samples [26, 26]    0.07s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2 h=0               ε 1e-9  OK  2 branches samples [143, 143]    0.27s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 74.99s
+
+DONE probe_straight_then_bend 0
+
+running 1 test
+test zz_rev4034_probes::probe_bend_single_detail ... β=-2 ε 1e-6: Ok 1 branch(es), samples [53]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [213]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [1057]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [57]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [232]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [1173]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [60]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [250]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [1283]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [61]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [256]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [1316]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [64]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [269]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [1359]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 34.77s
+
+DONE probe_bend_single_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_hyperbola_fit_short_detail ... c=1e-4 ε 1e-6: Ok 2
+c=1e-4 ε 1e-9: Ok 2
+c=1e-6 ε 1e-6: CellBudget { budget: 200000 }
+    ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated. Recourse: name a domain around just the feature traced and a feature extent near its size, or move the surfaces to cross clearly or stay clearly apart
+c=1e-6 ε 1e-9: Escalated { decision: StepProgress, cause: Indeterminate { margin: MarginDiag(Value(5.20796311950799e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_step_progress") } }
+    ssi: whether the march's step clears the tolerance band is too close to call: margin 5.20796311950799e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: bring the operands within the model's size range, or name a domain that holds more of the intersection
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 7.52s
+
+DONE probe_hyperbola_fit_short_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=72     ε 1e-6  OK  2 branches samples [49, 49]    0.32s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=423    ε 1e-9  OK  2 branches samples [272, 273]    0.78s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=82      ε 1e-6  OK  2 branches samples [53, 46]    0.26s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=495     ε 1e-9  OK  2 branches samples [287, 260]    0.58s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-6  ERR CellBudget                                  3.24s
+hyperbola c=1e-2 [rational] n=4 sep=5.4e-1 h=0   ε 1e-9  ERR CellBudget                                  3.07s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-2 [rational-extreme+bent] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  2.94s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=302 ε 1e-6  OK  2 branches samples [45, 47]    0.16s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=1761 ε 1e-9  OK  2 branches samples [252, 253]    0.51s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR CellBudget                                  3.27s
+hyperbola c=1e-2 [short-spans] n=4 sep=5.4e-1 h=0 ε 1e-9  ERR CellBudget                                  3.11s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=229    ε 1e-6  OK  2 branches samples [55, 56]    1.37s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=1362   ε 1e-9  OK  2 branches samples [320, 317]    2.23s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=148     ε 1e-6  OK  2 branches samples [58, 56]    1.55s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=860     ε 1e-9  OK  2 branches samples [321, 315]    3.03s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  3.63s
+hyperbola c=1e-4 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  3.31s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.10s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=416 ε 1e-6  OK  2 branches samples [54, 54]    1.19s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=2873 ε 1e-9  OK  2 branches samples [301, 306]    2.38s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.50s
+hyperbola c=1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.66s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=283    ε 1e-6  ERR CellBudget                                  2.96s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=498    ε 1e-9  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=194     ε 1e-6  ERR Escalated(StepProgress)                     0.11s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=358     ε 1e-9  ERR Escalated(StepProgress)                     0.12s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  2.79s
+hyperbola c=1e-6 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  2.51s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.74s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=397 ε 1e-6  ERR CellBudget                                  3.51s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=4110 ε 1e-9  ERR Escalated(StepProgress)                     0.55s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.11s
+hyperbola c=1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.16s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=2      ε 1e-6  ERR TubeStraddles                               0.15s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=551    ε 1e-9  ERR Escalated(StepProgress)                     0.10s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=47      ε 1e-6  ERR TubeStraddles                               0.17s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=636     ε 1e-9  ERR Escalated(StepProgress)                     0.10s
+hyperbola c=1e-8 [rational] n=4 sep=5.0e-1 h=0   ε 1e-6  ERR CellBudget                                  3.23s
+hyperbola c=1e-8 [rational] n=4 sep=5.0e-1 h=0   ε 1e-9  ERR CellBudget                                  3.32s
+hyperbola c=1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.01s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2 ε 1e-6  ERR TubeStraddles                               0.13s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=1104 ε 1e-9  ERR Escalated(StepProgress)                     0.14s
+hyperbola c=1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.82s
+hyperbola c=1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.72s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=241   ε 1e-6  OK  2 branches samples [72, 73]    2.16s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=1448  ε 1e-9  OK  2 branches samples [406, 403]    3.04s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=172    ε 1e-6  OK  2 branches samples [72, 74]    2.66s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=963    ε 1e-9  OK  2 branches samples [404, 412]    2.96s
+hyperbola c=-1e-4 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  2.88s
+hyperbola c=-1e-4 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.32s
+hyperbola c=-1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-4 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.70s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=123 ε 1e-6  ERR Escalated(StepProgress)                     0.08s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=3041 ε 1e-9  OK  2 branches samples [405, 404]    2.27s
+hyperbola c=-1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.03s
+hyperbola c=-1e-4 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  2.87s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=182   ε 1e-6  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=2090  ε 1e-9  ERR Escalated(StepProgress)                     0.98s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=176    ε 1e-6  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=1544   ε 1e-9  ERR Escalated(StepProgress)                     1.02s
+hyperbola c=-1e-6 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  3.03s
+hyperbola c=-1e-6 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.31s
+hyperbola c=-1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-6 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.10s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=210 ε 1e-6  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=3979 ε 1e-9  ERR Escalated(StepProgress)                     1.27s
+hyperbola c=-1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.45s
+hyperbola c=-1e-6 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  4.04s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=2     ε 1e-6  ERR TubeStraddles                               0.19s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=903   ε 1e-9  ERR Escalated(StepProgress)                     0.18s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=10     ε 1e-6  ERR Escalated(StepProgress)                     0.07s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=882    ε 1e-9  ERR Escalated(StepProgress)                     0.10s
+hyperbola c=-1e-8 [rational] n=4 sep=5.0e-1 h=0  ε 1e-6  ERR CellBudget                                  3.33s
+hyperbola c=-1e-8 [rational] n=4 sep=5.0e-1 h=0  ε 1e-9  ERR CellBudget                                  3.17s
+hyperbola c=-1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+hyperbola c=-1e-8 [rational-extreme+bent] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  4.10s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2 ε 1e-6  ERR TubeStraddles                               0.16s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2556 ε 1e-9  ERR Escalated(StepProgress)                     0.93s
+hyperbola c=-1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR CellBudget                                  3.45s
+hyperbola c=-1e-8 [short-spans] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR CellBudget                                  3.38s
+parabolas g=1e-2 [plain] n=4 sep=1.0e-2 h=0      ε 1e-6  ERR TubeStraddles                               0.80s
+parabolas g=1e-2 [plain] n=4 sep=1.0e-2 h=1      ε 1e-9  ERR TubeStraddles                               2.03s
+parabolas g=1e-2 [bent] n=4 sep=1.0e-2 h=0       ε 1e-6  ERR TubeStraddles                               1.19s
+parabolas g=1e-2 [bent] n=4 sep=1.0e-2 h=0       ε 1e-9  ERR TubeStraddles                               1.97s
+parabolas g=1e-2 [rational] n=4 sep=1.0e-2 h=0   ε 1e-6  ERR CellBudget                                  5.42s
+parabolas g=1e-2 [rational] n=4 sep=1.0e-2 h=0   ε 1e-9  ERR CellBudget                                  5.42s
+parabolas g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  5.79s
+parabolas g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=79 ε 1e-6  ERR TubeStraddles                               0.83s
+parabolas g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=489 ε 1e-9  ERR TubeStraddles                               1.77s
+parabolas g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  5.99s
+parabolas g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  5.34s
+S-curves s=1 g=1e-2 [plain] n=4 sep=1.0e-2 h=1   ε 1e-6  ERR TubeStraddles                               0.88s
+S-curves s=1 g=1e-2 [plain] n=4 sep=1.0e-2 h=0   ε 1e-9  ERR TubeStraddles                               2.00s
+S-curves s=1 g=1e-2 [bent] n=4 sep=1.0e-2 h=0    ε 1e-6  ERR TubeStraddles                               0.66s
+S-curves s=1 g=1e-2 [bent] n=4 sep=1.0e-2 h=6    ε 1e-9  ERR TubeStraddles                               2.68s
+S-curves s=1 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  7.69s
+S-curves s=1 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  8.27s
+S-curves s=1 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  7.80s
+S-curves s=1 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=122 ε 1e-6  ERR TubeStraddles                               0.56s
+S-curves s=1 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=685 ε 1e-9  ERR TubeStraddles                               1.85s
+S-curves s=1 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  7.93s
+S-curves s=1 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  7.96s
+S-curves s=3 g=1e-2 [plain] n=4 sep=1.0e-2 h=0   ε 1e-6  ERR TubeStraddles                               3.77s
+S-curves s=3 g=1e-2 [plain] n=4 sep=1.0e-2 h=0   ε 1e-9  ERR TubeStraddles                               7.17s
+S-curves s=3 g=1e-2 [bent] n=4 sep=1.0e-2 h=2    ε 1e-6  ERR TubeStraddles                               4.44s
+S-curves s=3 g=1e-2 [bent] n=4 sep=1.0e-2 h=19   ε 1e-9  ERR TubeStraddles                               7.57s
+S-curves s=3 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  6.73s
+S-curves s=3 g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  7.53s
+S-curves s=3 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=3 g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  9.06s
+S-curves s=3 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=196 ε 1e-6  ERR TubeStraddles                               4.85s
+S-curves s=3 g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=1206 ε 1e-9  ERR TubeStraddles                               7.92s
+S-curves s=3 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                 10.34s
+S-curves s=3 g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                 11.30s
+straight-parallel tilted g=1e-2 [plain] n=4 sep=1.0e-2 h=2 ε 1e-6  ERR TubeStraddles                               0.12s
+straight-parallel tilted g=1e-2 [plain] n=4 sep=1.0e-2 h=2 ε 1e-9  ERR TubeStraddles                               0.13s
+straight-parallel tilted g=1e-2 [bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR TubeStraddles                               0.25s
+straight-parallel tilted g=1e-2 [bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR TubeStraddles                               0.47s
+straight-parallel tilted g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  3.75s
+straight-parallel tilted g=1e-2 [rational] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  3.22s
+straight-parallel tilted g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+straight-parallel tilted g=1e-2 [rational-extreme+bent] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  3.15s
+straight-parallel tilted g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=2 ε 1e-6  ERR TubeStraddles                               0.14s
+straight-parallel tilted g=1e-2 [near-degenerate-axes] n=4 sep=1.0e-2 h=2 ε 1e-9  ERR TubeStraddles                               0.14s
+straight-parallel tilted g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-6  ERR CellBudget                                  4.11s
+straight-parallel tilted g=1e-2 [short-spans] n=4 sep=1.0e-2 h=0 ε 1e-9  ERR CellBudget                                  4.83s
+parabolas g=1e-3 [plain] n=4 sep=1.0e-3 h=0      ε 1e-6  ERR TubeStraddles                               0.84s
+parabolas g=1e-3 [plain] n=4 sep=1.0e-3 h=1      ε 1e-9  ERR TubeStraddles                               1.98s
+parabolas g=1e-3 [bent] n=4 sep=1.0e-3 h=0       ε 1e-6  ERR TubeStraddles                               0.99s
+parabolas g=1e-3 [bent] n=4 sep=1.0e-3 h=0       ε 1e-9  ERR TubeStraddles                               1.82s
+parabolas g=1e-3 [rational] n=4 sep=1.0e-3 h=0   ε 1e-6  ERR CellBudget                                  6.05s
+parabolas g=1e-3 [rational] n=4 sep=1.0e-3 h=0   ε 1e-9  ERR CellBudget                                  5.51s
+parabolas g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+parabolas g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=385 ε 1e-6  ERR TubeStraddles                               1.35s
+parabolas g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=2268 ε 1e-9  ERR TubeStraddles                               5.45s
+parabolas g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  6.76s
+parabolas g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  7.75s
+S-curves s=1 g=1e-3 [plain] n=4 sep=1.0e-3 h=1   ε 1e-6  ERR TubeStraddles                               0.55s
+S-curves s=1 g=1e-3 [plain] n=4 sep=1.0e-3 h=105 ε 1e-9  ERR TubeStraddles                               3.22s
+S-curves s=1 g=1e-3 [bent] n=4 sep=1.0e-3 h=0    ε 1e-6  ERR TubeStraddles                               0.94s
+S-curves s=1 g=1e-3 [bent] n=4 sep=1.0e-3 h=6    ε 1e-9  ERR TubeStraddles                               2.99s
+S-curves s=1 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  8.45s
+S-curves s=1 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  8.65s
+S-curves s=1 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=438 ε 1e-6  ERR TubeStraddles                               1.37s
+S-curves s=1 g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=1625 ε 1e-9  ERR Escalated(StepProgress)                     0.28s
+S-curves s=1 g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  9.36s
+S-curves s=1 g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                 10.08s
+S-curves s=3 g=1e-3 [plain] n=4 sep=1.0e-3 h=0   ε 1e-6  ERR TubeStraddles                               4.77s
+S-curves s=3 g=1e-3 [plain] n=4 sep=1.0e-3 h=560 ε 1e-9  ERR TubeStraddles                              12.43s
+S-curves s=3 g=1e-3 [bent] n=4 sep=1.0e-3 h=2    ε 1e-6  ERR TubeStraddles                               4.75s
+S-curves s=3 g=1e-3 [bent] n=4 sep=1.0e-3 h=19   ε 1e-9  ERR TubeStraddles                               9.20s
+S-curves s=3 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  9.98s
+S-curves s=3 g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  8.83s
+S-curves s=3 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=3 g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+S-curves s=3 g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=1044 ε 1e-6  ERR TubeStraddles                               7.30s
+S-curves s=3 g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=1705 ε 1e-9  ERR Escalated(StepProgress)                     4.22s
+S-curves s=3 g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                 10.16s
+S-curves s=3 g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  9.69s
+straight-parallel tilted g=1e-3 [plain] n=4 sep=1.0e-3 h=2 ε 1e-6  ERR TubeStraddles                               0.15s
+straight-parallel tilted g=1e-3 [plain] n=4 sep=1.0e-3 h=2 ε 1e-9  ERR TubeStraddles                               0.16s
+straight-parallel tilted g=1e-3 [bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR TubeStraddles                               0.16s
+straight-parallel tilted g=1e-3 [bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR TubeStraddles                               0.30s
+straight-parallel tilted g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  3.80s
+straight-parallel tilted g=1e-3 [rational] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  3.47s
+straight-parallel tilted g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+straight-parallel tilted g=1e-3 [rational-extreme+bent] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+straight-parallel tilted g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=2 ε 1e-6  ERR TubeStraddles                               0.15s
+straight-parallel tilted g=1e-3 [near-degenerate-axes] n=4 sep=1.0e-3 h=2 ε 1e-9  ERR TubeStraddles                               0.14s
+straight-parallel tilted g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-6  ERR CellBudget                                  4.00s
+straight-parallel tilted g=1e-3 [short-spans] n=4 sep=1.0e-3 h=0 ε 1e-9  ERR CellBudget                                  4.09s
+parabolas g=1e-4 [plain] n=4 sep=1.0e-4 h=0      ε 1e-6  ERR TubeStraddles                               1.37s
+parabolas g=1e-4 [plain] n=4 sep=1.0e-4 h=1      ε 1e-9  ERR TubeStraddles                               2.62s
+parabolas g=1e-4 [bent] n=4 sep=1.0e-4 h=0       ε 1e-6  ERR TubeStraddles                               0.92s
+parabolas g=1e-4 [bent] n=4 sep=1.0e-4 h=0       ε 1e-9  ERR TubeStraddles                               2.62s
+parabolas g=1e-4 [rational] n=4 sep=1.0e-4 h=0   ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-4 [rational] n=4 sep=1.0e-4 h=0   ε 1e-9  ERR CellBudget                                  7.16s
+parabolas g=1e-4 [rational-extreme+bent] n=4 sep=1.0e-4 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-4 [rational-extreme+bent] n=4 sep=1.0e-4 h=0 ε 1e-9  ERR BoundaryGraze                               0.00s
+parabolas g=1e-4 [near-degenerate-axes] n=4 sep=1.0e-4 h=12 ε 1e-6  ERR TubeStraddles                               0.86s
+parabolas g=1e-4 [near-degenerate-axes] n=4 sep=1.0e-4 h=998 ε 1e-9  ERR TubeStraddles                               3.81s
+parabolas g=1e-4 [short-spans] n=4 sep=1.0e-4 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+parabolas g=1e-4 [short-spans] n=4 sep=1.0e-4 h=0 ε 1e-9  ERR CellBudget                                  7.84s
+S-curves s=1 g=1e-4 [plain] n=4 sep=1.0e-4 h=1   ε 1e-6  ERR TubeStraddles                               1.07s
+S-curves s=1 g=1e-4 [plain] n=4 sep=1.0e-4 h=0   ε 1e-9  ERR TubeStraddles                               2.89s
+S-curves s=1 g=1e-4 [bent] n=4 sep=1.0e-4 h=0    ε 1e-6  ERR TubeStraddles                               0.71s
+S-curves s=1 g=1e-4 [bent] n=4 sep=1.0e-4 h=6    ε 1e-9  ERR TubeStraddles                               3.11s
+S-curves s=1 g=1e-4 [rational] n=4 sep=1.0e-4 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-4 [rational] n=4 sep=1.0e-4 h=0 ε 1e-9  ERR CellBudget                                 11.92s
+S-curves s=1 g=1e-4 [rational-extreme+bent] n=4 sep=1.0e-4 h=0 ε 1e-6  ERR BoundaryGraze                               0.00s
+S-curves s=1 g=1e-4 [rational-extreme+bent] n=4 sep=1.0e-4 h=0 ε 1e-9  ERR BoundaryGraze                               0.01s
+S-curves s=1 g=1e-4 [near-degenerate-axes] n=4 sep=1.0e-4 h=30 ε 1e-6  ERR TubeStraddles                               0.52s
+S-curves s=1 g=1e-4 [near-degenerate-axes] n=4 sep=1.0e-4 h=1170 ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    9.92s

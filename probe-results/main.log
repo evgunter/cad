@@ -1,0 +1,83 @@
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3             ε 1e-6  ERR TubeStraddles                               3.09s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3             ε 1e-9  ERR TubeStraddles                               5.17s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2           ε 1e-6  ERR TubeStraddles                               1.39s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2           ε 1e-9  ERR TubeStraddles                               3.15s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2            ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 12, unsettled: 2 })    2.19s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2            ε 1e-9  ERR CrossingUnmatched                           2.33s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2              ε 1e-6  ERR TubeStraddles                               2.30s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2              ε 1e-9  ERR TubeStraddles                               4.82s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4             ε 1e-6  ERR TubeStraddles                              25.03s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4             ε 1e-9  ERR TubeStraddles                              32.47s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3           ε 1e-6  ERR TubeStraddles                              21.03s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3           ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 10, unsettled: 2 })   24.82s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3            ε 1e-6  ERR TubeStraddles                              20.38s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3            ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 9, unsettled: 2 })   25.38s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3              ε 1e-6  ERR TubeStraddles                              26.03s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3              ε 1e-9  ERR TubeStraddles                              33.04s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5             ε 1e-6  ERR StepBudget(Cap(Crossing))                   2.20s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5             ε 1e-9  ERR StepBudget(Cap(Crossing))                   2.10s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4           ε 1e-6  ERR StepBudget(Cap(Crossing))                   0.78s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4           ε 1e-9  ERR StepBudget(Cap(Crossing))                   0.78s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4            ε 1e-6  ERR StepBudget(Cap(Crossing))                   0.93s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4            ε 1e-9  ERR StepBudget(Cap(Crossing))                   0.90s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4              ε 1e-6  ERR StepBudget(Cap(Crossing))                   1.55s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4              ε 1e-9  ERR StepBudget(Cap(Crossing))                   1.49s
+bend single β=-0.5 n=2                           ε 1e-6  OK  1 branches samples [62]    0.28s
+bend single β=-0.5 n=2                           ε 1e-9  OK  1 branches samples [199]    1.00s
+bend single β=-2 n=2                             ε 1e-6  OK  1 branches samples [81]    0.33s
+bend single β=-2 n=2                             ε 1e-9  OK  1 branches samples [317]    1.75s
+bend single β=-8 n=2                             ε 1e-6  OK  1 branches samples [82]    0.60s
+bend single β=-8 n=2                             ε 1e-9  OK  1 branches samples [260]    1.79s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2                ε 1e-6  OK  2 branches samples [4, 4]    0.04s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2                ε 1e-9  OK  2 branches samples [20, 20]    0.06s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2                ε 1e-6  OK  2 branches samples [4, 4]    0.01s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2                ε 1e-9  OK  2 branches samples [18, 18]    0.05s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1                ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1                ε 1e-9  OK  2 branches samples [15, 15]    0.04s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2                 ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.19s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2                 ε 1e-9  OK  2 branches samples [54, 54]    0.28s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2                 ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.16s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2                 ε 1e-9  OK  2 branches samples [52, 52]    0.10s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1                 ε 1e-6  OK  2 branches samples [9, 9]    0.03s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1                 ε 1e-9  OK  2 branches samples [47, 47]    0.05s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3                   ε 1e-6  ERR TubeNotOneArc                               0.17s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3                   ε 1e-9  OK  2 branches samples [153, 153]    0.60s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2                   ε 1e-6  OK  2 branches samples [27, 27]    0.09s
+dip q=1 c=-1e-4 n=4 sep=2.0e-2                   ε 1e-9  OK  2 branches samples [151, 151]    0.34s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2                   ε 1e-6  OK  2 branches samples [26, 26]    0.08s
+dip q=1 c=-1e-3 n=4 sep=6.3e-2                   ε 1e-9  OK  2 branches samples [143, 143]    0.24s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 301.43s
+
+DONE probe_straight_then_bend 0
+
+running 1 test
+test zz_rev4034_probes::probe_bend_single_detail ... β=-2 ε 1e-6: Ok 1 branch(es), samples [81]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [317]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [1158]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [83]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [252]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [985]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [83]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [251]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [991]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [82]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [260]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [1013]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [93]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [317]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [1139]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 66.83s
+
+DONE probe_bend_single_detail 0
+
+running 1 test
+test zz_rev4034_probes::probe_hyperbola_fit_short_detail ... c=1e-4 ε 1e-6: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.8001999200639959 }) }
+    ssi: the branch from the wall's u = low side at parameter 8.001999200639959e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+c=1e-4 ε 1e-9: Ok 2
