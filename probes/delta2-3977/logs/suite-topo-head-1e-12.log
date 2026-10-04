@@ -1,0 +1,8 @@
+   Compiling topo v0.0.0 (/home/user/wt-head/crates/topo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.41s
+────────────
+ Nextest run ID 4d5fc6a2-1ae7-4746-a642-ef8db160780b with nextest profile: default
+    Starting 2246 tests across 2 binaries (114 tests skipped)
+────────────
+     Summary [ 123.578s] 2246 tests run: 2246 passed, 114 skipped
+exit 0

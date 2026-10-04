@@ -1,0 +1,103 @@
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index 8a8d6ab47..9b951c03d 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -1977,6 +1977,9 @@ fn bound_holds<'t, 'b, T: Decide>(
+     large: &mut [Term<'t, 'b, T>],
+     posture: Posture,
+ ) -> Result<(), BooleanError> {
++    if std::env::var("DMUT").as_deref() == Ok("nobackstop") {
++        return Ok(());
++    }
+     let escalated = |diag| BooleanError::Escalated {
+         decision: BooleanDecision::VolumeBackstop,
+         diag,
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index f9ebb8e14..a7a39b4b6 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -5454,7 +5454,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
+         band,
+         tol,
+         None,
+-        T::quad_lane(),
++        if std::env::var("DMUT").as_deref() == Ok("inflane") { None } else { T::quad_lane() },
+         |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
+             Certified::Role(role) => Some(Ok(role)),
+             Certified::Refused(source) => Some(Err(refused(source))),
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index 7b15cca37..d5b9c716c 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -1025,7 +1025,7 @@ fn rederive<T: Decide>(
+             what: "a walk about the world origin asked for a recentring",
+         });
+     }
+-    let centre = corner_of(body, lane, runs)?;
++    let centre = if std::env::var("DMUT").as_deref() == Ok("oldenc") { Point3::origin() } else { corner_of(body, lane, runs)? };
+     match rederive_about(body, band, lane, runs, Some(centre))? {
+         Some(rederived) => Ok(rederived),
+         None => rederive_about(body, band, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
+diff --git a/crates/topo/src/props/quad_lane.rs b/crates/topo/src/props/quad_lane.rs
+index 9f6387aec..8adcc4854 100644
+--- a/crates/topo/src/props/quad_lane.rs
++++ b/crates/topo/src/props/quad_lane.rs
+@@ -187,7 +187,13 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
+         return about_centre(flux, area);
+     }
+     let surface = surface.map_scalar(Interval::from_certified);
+-    if let Surface::Plane { .. } = surface {
++    if let Surface::Plane { origin, .. } = surface {
++        if std::env::var("DMUT").as_deref() == Ok("oldenc") {
++            return Ok((super::closed_form_of(&surface, &loops, sense, band)?, true));
++        }
++        if std::env::var("DMUT").as_deref() == Ok("fanorigin") {
++            return Ok((planar_face_about_from(&loops, centre, Some(origin))?, true));
++        }
+         return Ok((planar_face_about(&loops, centre)?, true));
+     }
+     let moved_loops = loops
+@@ -373,6 +379,13 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
+ fn planar_face_about(
+     loops: &[Vec<LoopEdge<Interval>>],
+     centre: Point3<Interval>,
++) -> Result<FaceContribution<Interval>, PropsError> {
++    planar_face_about_from(loops, centre, None)
++}
++fn planar_face_about_from(
++    loops: &[Vec<LoopEdge<Interval>>],
++    centre: Point3<Interval>,
++    carrier_origin: Option<Point3<Interval>>,
+ ) -> Result<FaceContribution<Interval>, PropsError> {
+     let Some(anchor) = loops
+         .first()
+@@ -381,6 +394,16 @@ fn planar_face_about(
+     else {
+         return Err(PropsError::DegenerateFace);
+     };
++    let anchor = carrier_origin.unwrap_or(anchor);
++    let anchor = if std::env::var("DMUT").as_deref() == Ok("fansecond") {
++        loops
++            .first()
++            .and_then(|edges| edges.get(1))
++            .map(|e| e.carrier.eval(e.t0))
++            .unwrap_or(anchor)
++    } else {
++        anchor
++    };
+     let mut va = geom_core::Vec3::zero();
+     for edges in loops {
+         va = va + loop_vector_area(edges, anchor)?;
+diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
+index b4544fd3f..2fd70d78a 100644
+--- a/crates/topo/src/validate.rs
++++ b/crates/topo/src/validate.rs
+@@ -4487,7 +4487,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
+                     None
+                 }
+                 Certified::Unresolved(_) => {
+-                    unresolved.set(true);
++                    unresolved.set(!(std::env::var("DMUT").as_deref() == Ok("exempt")));
+                     None
+                 }
+                 Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),

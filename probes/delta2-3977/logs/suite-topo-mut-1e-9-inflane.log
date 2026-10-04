@@ -1,0 +1,47 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+────────────
+ Nextest run ID 467f129e-987b-407f-9f84-0edbd18a55b7 with nextest profile: default
+    Starting 2246 tests across 2 binaries (114 tests skipped)
+        FAIL [   0.148s] (1208/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+────────────
+     Summary [ 120.147s] 2246 tests run: 2245 passed, 1 failed, 114 skipped
+        FAIL [   0.148s] (1208/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+  stdout ───
+
+    running 1 test
+    test tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding ... FAILED
+
+    failures:
+
+    failures:
+        tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1462 filtered out; finished in 0.14s
+
+  stderr ───
+
+    thread 'tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding' (32586) panicked at crates/topo/src/tier3_tests.rs:2750:9:
+    assertion `left == right` failed: upright: inside and beside the slab
+      left: [In, In]
+     right: [In, Out]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::panicking::assert_failed_inner
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+       3: core::panicking::assert_failed::<[topo::boolean::solid_contain::SolidContainment; 2], [topo::boolean::solid_contain::SolidContainment; 2]>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+       4: a_sign_is_read_off_the_exact_volume_not_its_rounding
+                 at ./src/tier3_tests.rs:2750:9
+       5: topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0}
+                 at ./src/tier3_tests.rs:2698:58
+       6: <topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100

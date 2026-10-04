@@ -1,0 +1,262 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.51s
+────────────
+ Nextest run ID d9d28cbf-b262-4a1c-abab-e16e2d45557b with nextest profile: default
+    Starting 1 test across 1 binary (2111 tests skipped)
+       START [         ] (1/1) sweep::all probe_d2_sweep::d2_quadrature_kind
+
+running 1 test
+D2|quad|eps=1e-9
+
+thread 'probe_d2_sweep::d2_quadrature_kind' (16880) panicked at crates/sweep/tests/probe_d2_sweep.rs:227:51:
+called `Result::unwrap()` on an `Err` value: VolumeUnmeasured { operand: None, source: Face { face: FaceKey(9v1), source: QuadratureBudget { width_len: 3.1524468442305422e-6, target_len: 1.024e-6, rounds: 13 } } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: unwrap<topo::boolean::ops::BooleanResult<f64>, topo::boolean::BooleanError>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1233:23
+   4: {closure#0}
+             at ./tests/probe_d2_sweep.rs:227:51
+   5: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   6: do_call<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+   7: __rust_try
+   8: catch_unwind<topo::body::Body<f64>, all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+   9: catch_unwind<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  10: all::probe_d2_sweep::built::<all::probe_d2_sweep::d2_quadrature_kind::{closure#0}>
+             at ./tests/probe_d2_sweep.rs:54:5
+  11: d2_quadrature_kind
+             at ./tests/probe_d2_sweep.rs:229:32
+  12: all::probe_d2_sweep::d2_quadrature_kind::{closure#0}
+             at ./tests/probe_d2_sweep.rs:213:24
+  13: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  14: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+D2|quad h=1e-7 tilt=0.3|no build at origin
+        SLOW [> 60.000s] (───) sweep::all probe_d2_sweep::d2_quadrature_kind
+test probe_d2_sweep::d2_quadrature_kind has been running for over 60 seconds
+
+thread 'probe_d2_sweep::d2_quadrature_kind' (16880) panicked at crates/sweep/tests/probe_d2_sweep.rs:227:51:
+called `Result::unwrap()` on an `Err` value: VolumeUnmeasured { operand: None, source: Face { face: FaceKey(9v1), source: QuadratureBudget { width_len: 6.642665454486923e-6, target_len: 1.024e-6, rounds: 13 } } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: unwrap<topo::boolean::ops::BooleanResult<f64>, topo::boolean::BooleanError>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1233:23
+   4: {closure#0}
+             at ./tests/probe_d2_sweep.rs:227:51
+   5: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   6: do_call<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+   7: __rust_try
+   8: catch_unwind<topo::body::Body<f64>, all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+   9: catch_unwind<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  10: all::probe_d2_sweep::built::<all::probe_d2_sweep::d2_quadrature_kind::{closure#0}>
+             at ./tests/probe_d2_sweep.rs:54:5
+  11: d2_quadrature_kind
+             at ./tests/probe_d2_sweep.rs:229:32
+  12: all::probe_d2_sweep::d2_quadrature_kind::{closure#0}
+             at ./tests/probe_d2_sweep.rs:213:24
+  13: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  14: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+D2|quad h=1e-7 tilt=0.8|no build at origin
+        SLOW [>120.000s] (───) sweep::all probe_d2_sweep::d2_quadrature_kind
+
+thread 'probe_d2_sweep::d2_quadrature_kind' (16880) panicked at crates/sweep/tests/probe_d2_sweep.rs:227:51:
+called `Result::unwrap()` on an `Err` value: VolumeUnmeasured { operand: None, source: Face { face: FaceKey(13v3), source: QuadratureBudget { width_len: 1.4709058734712148e-6, target_len: 1.024e-6, rounds: 13 } } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: unwrap<topo::boolean::ops::BooleanResult<f64>, topo::boolean::BooleanError>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1233:23
+   4: {closure#0}
+             at ./tests/probe_d2_sweep.rs:227:51
+   5: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   6: do_call<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+   7: __rust_try
+   8: catch_unwind<topo::body::Body<f64>, all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+   9: catch_unwind<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  10: all::probe_d2_sweep::built::<all::probe_d2_sweep::d2_quadrature_kind::{closure#0}>
+             at ./tests/probe_d2_sweep.rs:54:5
+  11: d2_quadrature_kind
+             at ./tests/probe_d2_sweep.rs:229:32
+  12: all::probe_d2_sweep::d2_quadrature_kind::{closure#0}
+             at ./tests/probe_d2_sweep.rs:213:24
+  13: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  14: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+D2|quad h=1e-6 tilt=0.3|no build at origin
+
+thread 'probe_d2_sweep::d2_quadrature_kind' (16880) panicked at crates/sweep/tests/probe_d2_sweep.rs:227:51:
+called `Result::unwrap()` on an `Err` value: VolumeUnmeasured { operand: None, source: Face { face: FaceKey(13v3), source: QuadratureBudget { width_len: 3.0975107873760892e-6, target_len: 1.024e-6, rounds: 13 } } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: unwrap<topo::boolean::ops::BooleanResult<f64>, topo::boolean::BooleanError>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1233:23
+   4: {closure#0}
+             at ./tests/probe_d2_sweep.rs:227:51
+   5: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   6: do_call<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+   7: __rust_try
+   8: catch_unwind<topo::body::Body<f64>, all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+   9: catch_unwind<all::probe_d2_sweep::d2_quadrature_kind::{closure_env#0}, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  10: all::probe_d2_sweep::built::<all::probe_d2_sweep::d2_quadrature_kind::{closure#0}>
+             at ./tests/probe_d2_sweep.rs:54:5
+  11: d2_quadrature_kind
+             at ./tests/probe_d2_sweep.rs:229:32
+  12: all::probe_d2_sweep::d2_quadrature_kind::{closure#0}
+             at ./tests/probe_d2_sweep.rs:213:24
+  13: <all::probe_d2_sweep::d2_quadrature_kind::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  14: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+D2|quad h=1e-6 tilt=0.8|no build at origin
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.3 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+3.288e-11|f64=+3.288e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.3 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-3.288e-11|f64=-3.288e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.8 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate  <-- VALID REFUSED
+D2|quad h=1e-5 tilt=0.8 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([VolumeSignUnresolved { solid: SolidKey(1v1) }])|classify=Err(Escalated { shell: ShellKey(3v1), source: Indeterminate 
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+4.509e-11|f64=+4.509e-11|VA/esc=500.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|quad h=1e-5 tilt=0.8 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-4.509e-11|f64=-4.509e-11|VA/esc=500.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+test probe_d2_sweep::d2_quadrature_kind ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2111 filtered out; finished in 156.61s
+
+        PASS [ 156.664s] (1/1) sweep::all probe_d2_sweep::d2_quadrature_kind
+────────────
+     Summary [ 156.676s] 1 test run: 1 passed (1 slow), 2111 skipped
+exit 0

@@ -1,0 +1,501 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+────────────
+ Nextest run ID 20bb4ff6-15e8-46dc-b248-4e3c7a0d1031 with nextest profile: default
+    Starting 1 test across 1 binary (2110 tests skipped)
+       START [         ] (1/1) sweep::all probe_d2_sweep::d2_planar_fans
+
+running 1 test
+D2|fan|eps=1e-9
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+1.299e-13|f64=+1.303e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-1.299e-13|f64=-1.303e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+1.299e-13|f64=+1.296e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.296e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+1.299e-13|f64=+1.295e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-1.299e-13|f64=-1.295e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+1.299e-13|f64=+1.303e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.303e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+1.299e-13|f64=+1.299e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-1.299e-13|f64=-1.299e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+3.071e-13|f64=+3.070e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.070e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+3.071e-13|f64=+3.081e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-3.071e-13|f64=-3.081e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+3.071e-13|f64=+3.078e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.078e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+3.071e-13|f64=+3.070e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.070e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+3.071e-13|f64=+3.060e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-3.071e-13|f64=-3.060e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+3.071e-13|f64=+3.063e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.063e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+3.071e-13|f64=+3.071e-13|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-3.071e-13|f64=-3.071e-13|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+
+thread 'probe_d2_sweep::d2_planar_fans' (10938) panicked at crates/sweep/src/test_support.rs:654:6:
+the fixture's profile extrudes: SliverJoin { loop_index: 0, vertex_index: 0, source: Indeterminate { margin: MarginDiag(Value(2.454122852291698e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("dihedral_wedge") } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: <core::result::Result<sweep::extrude::Extruded<f64>, sweep::extrude::ExtrudeError>>::expect
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1185:23
+   4: sweep::test_support::extruded::<f64>
+             at ./src/test_support.rs:654:6
+   5: prism_on<f64>
+             at ./src/test_support.rs:737:5
+   6: sweep::test_support::prism_at::<f64>
+             at ./src/test_support.rs:763:5
+   7: all::probe_d2_sweep::d2_planar_fans::{closure#1}
+             at ./tests/probe_d2_sweep.rs:182:74
+   8: <alloc::boxed::Box<dyn core::ops::function::Fn<(), Output = topo::body::Body<f64>> + core::panic::unwind_safe::RefUnwindSafe> as core::ops::function::Fn<()>>::call
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/alloc/src/boxed.rs:2289:9
+   9: all::probe_d2_sweep::d2_planar_fans::{closure#4}
+             at ./tests/probe_d2_sweep.rs:193:70
+  10: <all::probe_d2_sweep::d2_planar_fans::{closure#4} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  11: <core::panic::unwind_safe::AssertUnwindSafe<all::probe_d2_sweep::d2_planar_fans::{closure#4}> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panic/unwind_safe.rs:275:9
+  12: do_call<core::panic::unwind_safe::AssertUnwindSafe<all::probe_d2_sweep::d2_planar_fans::{closure_env#4}>, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+  13: __rust_try
+  14: catch_unwind<topo::body::Body<f64>, core::panic::unwind_safe::AssertUnwindSafe<all::probe_d2_sweep::d2_planar_fans::{closure_env#4}>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+  15: catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<all::probe_d2_sweep::d2_planar_fans::{closure_env#4}>, topo::body::Body<f64>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  16: all::probe_d2_sweep::built::<core::panic::unwind_safe::AssertUnwindSafe<all::probe_d2_sweep::d2_planar_fans::{closure#4}>>
+             at ./tests/probe_d2_sweep.rs:54:5
+  17: d2_planar_fans
+             at ./tests/probe_d2_sweep.rs:193:32
+  18: all::probe_d2_sweep::d2_planar_fans::{closure#0}
+             at ./tests/probe_d2_sweep.rs:164:20
+  19: <all::probe_d2_sweep::d2_planar_fans::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  20: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+D2|ngon n=256 h=1e-7|no build at origin
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+2.000e-16|f64=+2.117e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.117e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+2.000e-16|f64=+3.590e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-2.000e-16|f64=-3.590e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+2.000e-16|f64=+1.883e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-1.883e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+2.000e-16|f64=+4.096e-17|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-2.000e-16|f64=-4.096e-17|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+2.000e-16|f64=+2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-2.000e-16|f64=-2.000e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+2.000e-16|f64=+2.002e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-2.000e-16|f64=-2.002e-16|VA/esc=5.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+1.286e-12|f64=+1.286e-12|VA/esc=5.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-7 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-1.286e-12|f64=-1.286e-12|VA/esc=5.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+1.299e-12|f64=+1.303e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-1.299e-12|f64=-1.303e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+1.299e-12|f64=+1.296e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.296e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+1.299e-12|f64=+1.295e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-1.299e-12|f64=-1.295e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+1.299e-12|f64=+1.303e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.303e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+1.299e-12|f64=+1.299e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=3 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-1.299e-12|f64=-1.299e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+3.071e-12|f64=+3.070e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.070e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+3.071e-12|f64=+3.081e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-3.071e-12|f64=-3.081e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+3.071e-12|f64=+3.078e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.078e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+3.071e-12|f64=+3.070e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.070e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+3.071e-12|f64=+3.060e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-3.071e-12|f64=-3.060e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+3.071e-12|f64=+3.063e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.063e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+3.071e-12|f64=+3.071e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=17 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-3.071e-12|f64=-3.071e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+3.141e-12|f64=+3.141e-12|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|ngon n=256 h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-3.141e-12|f64=-3.141e-12|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+2.000e-15|f64=+2.117e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.117e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+2.000e-15|f64=+3.594e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-2.000e-15|f64=-3.594e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+2.000e-15|f64=+1.883e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-1.883e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+2.000e-15|f64=+4.058e-16|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-2.000e-15|f64=-4.058e-16|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+2.000e-15|f64=+2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Outer"]) <-- VALID REFUSED
+D2|sliver h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-2.000e-15|f64=-2.000e-15|VA/esc=50.0|tier3=Err([LaminaWedge { edge: EdgeKey(4v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=0e0 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=1e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=5e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.6, 0.48, 0.64) d=2e4 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=0e0 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=1e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=5e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(-0.6, -0.48, -0.64) d=2e4 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=0e0 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=1e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=5e3 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|upright|exact=+1.286e-11|f64=+1.286e-11|VA/esc=50.0|tier3=Ok(())|classify=Ok(["Outer"])
+D2|holed h=1e-6 dir=(0.0, 0.0, 1.0) d=2e4 a=0.7|INVERTED|exact=-1.286e-11|f64=-1.286e-11|VA/esc=50.0|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])|classify=Ok(["Void"])
+test probe_d2_sweep::d2_planar_fans ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2110 filtered out; finished in 6.30s
+
+        PASS [   6.330s] (1/1) sweep::all probe_d2_sweep::d2_planar_fans
+────────────
+     Summary [   6.335s] 1 test run: 1 passed, 2110 skipped
+exit 0

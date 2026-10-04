@@ -1,0 +1,88 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+────────────
+ Nextest run ID e38a6f98-3b32-4989-ad7a-dba7f0c496d3 with nextest profile: default
+    Starting 2246 tests across 2 binaries (114 tests skipped)
+        FAIL [   0.209s] (1214/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+        FAIL [   0.251s] (1464/2246) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+────────────
+     Summary [ 103.096s] 2246 tests run: 2244 passed, 2 failed, 114 skipped
+        FAIL [   0.209s] (1214/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+  stdout ───
+
+    running 1 test
+    test tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding ... FAILED
+
+    failures:
+
+    failures:
+        tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1462 filtered out; finished in 0.17s
+
+  stderr ───
+
+    thread 'tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding' (8395) panicked at crates/topo/src/tier3_tests.rs:2750:9:
+    assertion `left == right` failed: upright: inside and beside the slab
+      left: [In, In]
+     right: [In, Out]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::panicking::assert_failed_inner
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+       3: core::panicking::assert_failed::<[topo::boolean::solid_contain::SolidContainment; 2], [topo::boolean::solid_contain::SolidContainment; 2]>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+       4: a_sign_is_read_off_the_exact_volume_not_its_rounding
+                 at ./src/tier3_tests.rs:2750:9
+       5: topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0}
+                 at ./src/tier3_tests.rs:2698:58
+       6: <topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.251s] (1464/2246) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+  stdout ───
+
+    running 1 test
+    test contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex ... FAILED
+
+    failures:
+
+    failures:
+        contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 896 filtered out; finished in 0.23s
+
+  stderr ───
+
+    thread 'contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex' (9273) panicked at crates/topo/tests/contact9_side_codes.rs:176:9:
+    assertion `left == right` failed: control, 1 m edges: ∩ holds q, the solid's point, the tool's point and the far point as it should
+      left: [In, In, In, In]
+     right: [In, Out, Out, Out]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::panicking::assert_failed_inner
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+       3: core::panicking::assert_failed::<[topo::boolean::solid_contain::SolidContainment; 4], [topo::boolean::solid_contain::SolidContainment; 4]>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+       4: answers
+                 at ./tests/contact9_side_codes.rs:176:9
+       5: all::contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+                 at ./tests/contact9_side_codes.rs:247:9
+       6: all::contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex::{closure#0}
+                 at ./tests/contact9_side_codes.rs:239:59
+       7: <all::contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       8: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100

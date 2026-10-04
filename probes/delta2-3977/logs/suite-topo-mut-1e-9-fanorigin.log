@@ -1,0 +1,160 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+────────────
+ Nextest run ID 2dd6e33d-be15-40f5-bc2e-f6a1048b932a with nextest profile: default
+    Starting 2246 tests across 2 binaries (114 tests skipped)
+        FAIL [   0.164s] (1211/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+        FAIL [   0.151s] (1214/2246) topo tier3_tests::an_inside_out_slab_just_past_the_band_is_refused
+        FAIL [   0.164s] (1215/2246) topo tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+        FAIL [   0.269s] (1493/2246) topo::all door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+────────────
+     Summary [ 130.349s] 2246 tests run: 2242 passed, 4 failed, 114 skipped
+        FAIL [   0.164s] (1211/2246) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+  stdout ───
+
+    running 1 test
+    test tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding ... FAILED
+
+    failures:
+
+    failures:
+        tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1462 filtered out; finished in 0.14s
+
+  stderr ───
+
+    thread 'tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding' (32725) panicked at crates/topo/src/tier3_tests.rs:2685:10:
+    check 10's read decides a role: Escalated { shell: ShellKey(1v1), source: Indeterminate { margin: MarginDiag(Enclosure { lo: -4.385849056603775e-6, hi: 4.4196226415094355e-6, tag: None }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("positive_volume_exact") } }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::result::unwrap_failed
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+       3: <core::result::Result<topo::props::ShellRole, topo::props::ShellClassifyError>>::expect
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1185:23
+       4: topo::tier3_tests::roles_of
+                 at ./src/tier3_tests.rs:2685:10
+       5: a_sign_is_read_off_the_exact_volume_not_its_rounding
+                 at ./src/tier3_tests.rs:2722:9
+       6: topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0}
+                 at ./src/tier3_tests.rs:2698:58
+       7: <topo::tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       8: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.151s] (1214/2246) topo tier3_tests::an_inside_out_slab_just_past_the_band_is_refused
+  stdout ───
+
+    running 1 test
+    test tier3_tests::an_inside_out_slab_just_past_the_band_is_refused ... FAILED
+
+    failures:
+
+    failures:
+        tier3_tests::an_inside_out_slab_just_past_the_band_is_refused
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1462 filtered out; finished in 0.14s
+
+  stderr ───
+
+    thread 'tier3_tests::an_inside_out_slab_just_past_the_band_is_refused' (32757) panicked at crates/topo/src/tier3_tests.rs:2770:9:
+    assertion `left == right` failed: a 4e-8 m slab anchored 1000 m away, inside out
+      left: Ok(())
+     right: Err([NegativeVolume { solid: SolidKey(1v1) }])
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::panicking::assert_failed_inner
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+       3: core::panicking::assert_failed::<core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>, core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+       4: an_inside_out_slab_just_past_the_band_is_refused
+                 at ./src/tier3_tests.rs:2770:9
+       5: topo::tier3_tests::an_inside_out_slab_just_past_the_band_is_refused::{closure#0}
+                 at ./src/tier3_tests.rs:2761:54
+       6: <topo::tier3_tests::an_inside_out_slab_just_past_the_band_is_refused::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.164s] (1215/2246) topo tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+  stdout ───
+
+    running 1 test
+    test tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid ... FAILED
+
+    failures:
+
+    failures:
+        tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1462 filtered out; finished in 0.14s
+
+  stderr ───
+
+    thread 'tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid' (32767) panicked at crates/topo/src/tier3_tests.rs:2976:9:
+    assertion `left == right` failed: an upright slab beside the cube is a second piece
+      left: Err([ShellRoleUndecided { solid: SolidKey(1v1), error: Escalated { shell: ShellKey(2v1), source: Indeterminate { margin: MarginDiag(Enclosure { lo: -8.038724705196838e-8, hi: 1.9137962828164127e-7, tag: None }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("positive_volume_exact") } } }])
+     right: Err([SolidOuterShells { solid: SolidKey(1v1), outer: 2 }])
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: core::panicking::assert_failed_inner
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+       3: core::panicking::assert_failed::<core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>, core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+       4: check_10_reads_every_shell_s_role_or_refuses_the_solid
+                 at ./src/tier3_tests.rs:2976:9
+       5: topo::tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid::{closure#0}
+                 at ./src/tier3_tests.rs:2957:60
+       6: <topo::tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.269s] (1493/2246) topo::all door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+  stdout ───
+
+    running 1 test
+    test door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound ... FAILED
+
+    failures:
+
+    failures:
+        door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 896 filtered out; finished in 0.26s
+
+  stderr ───
+
+    thread 'door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound' (1268) panicked at crates/topo/tests/door_backstop_settled_residue.rs:211:27:
+    sunk at θ = -1.2ε, A ∩ B: it builds: ResultVolumeImplausible { which: "vol(A ∩ B) ≤ vol(B)", got: "0.0435778713755722", bound: "0.0435778713738291" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: all::door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound::{closure#2}
+                 at ./tests/door_backstop_settled_residue.rs:211:27
+       3: a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+                 at ./tests/door_backstop_settled_residue.rs:214:40
+       4: all::door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound::{closure#0}
+                 at ./tests/door_backstop_settled_residue.rs:82:74
+       5: <all::door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100

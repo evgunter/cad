@@ -1,0 +1,152 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+────────────
+ Nextest run ID b8e61492-a687-4b94-a61a-51dd3e450602 with nextest profile: default
+    Starting 3 tests across 1 binary (2108 tests skipped)
+       START [         ] (1/3) sweep::all probe_d_disc3::dprobe_disc_other_readers
+
+running 1 test
+DPROBE3|eps=1e-9
+DPROBE3|r=1e-3 h=1e-7 d=0e0|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-7 d=0e0|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-3 h=1e-7 d=1e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-7 d=1e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-3 h=1e-7 d=5e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-7 d=5e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-3 h=1e-6 d=0e0|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-6 d=0e0|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-3 h=1e-6 d=1e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-6 d=1e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-3 h=1e-6 d=5e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-3 h=1e-6 d=5e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-2 h=1e-6 d=0e0|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-2 h=1e-6 d=0e0|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-2 h=1e-6 d=1e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-2 h=1e-6 d=1e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+DPROBE3|r=1e-2 h=1e-6 d=5e3|upright|classify=Ok(["Outer"])|pis(beside)=Ok(Out)|pis(inside)=Ok(In)
+DPROBE3|r=1e-2 h=1e-6 d=5e3|INVERTED|classify=Ok(["Void"])|pis(beside)=Ok(In)|pis(inside)=Ok(Out)
+test probe_d_disc3::dprobe_disc_other_readers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2110 filtered out; finished in 0.10s
+
+        PASS [   0.113s] (1/3) sweep::all probe_d_disc3::dprobe_disc_other_readers
+       START [         ] (2/3) sweep::all probe_d_disc::dprobe_far_thin_disc
+
+running 1 test
+DPROBE|eps=1e-9
+DPROBE|r=1e-3 h=1e-7 d=0e0|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=0e0|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=1e0|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=1e0|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=1e1|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=1e1|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=1e2|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=1e2|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=1e3|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=1e3|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=5e3|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=5e3|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-7 d=2e4|upright|exact=+3.142e-13|f64=+3.142e-13|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-7 d=2e4|INVERTED|exact=-3.142e-13|f64=-3.142e-13|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=0e0|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=0e0|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=1e0|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=1e0|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=1e1|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=1e1|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=1e2|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=1e2|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=1e3|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=1e3|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=5e3|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=5e3|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-6 d=2e4|upright|exact=+3.142e-12|f64=+3.142e-12|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-6 d=2e4|INVERTED|exact=-3.142e-12|f64=-3.142e-12|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=0e0|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=0e0|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=1e0|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=1e0|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=1e1|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=1e1|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=1e2|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=1e2|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=1e3|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=1e3|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=5e3|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=5e3|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-3 h=1e-5 d=2e4|upright|exact=+3.142e-11|f64=+3.142e-11|tier3=Ok(())
+DPROBE|r=1e-3 h=1e-5 d=2e4|INVERTED|exact=-3.142e-11|f64=-3.142e-11|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=0e0|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=0e0|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=1e0|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=1e0|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=1e1|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=1e1|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=1e2|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=1e2|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=1e3|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=1e3|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=5e3|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=5e3|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-6 d=2e4|upright|exact=+3.142e-10|f64=+3.142e-10|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-6 d=2e4|INVERTED|exact=-3.142e-10|f64=-3.142e-10|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=0e0|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=0e0|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=1e0|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=1e0|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=1e1|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=1e1|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=1e2|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=1e2|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=1e3|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=1e3|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=5e3|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=5e3|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-2 h=1e-5 d=2e4|upright|exact=+3.142e-9|f64=+3.142e-9|tier3=Ok(())
+DPROBE|r=1e-2 h=1e-5 d=2e4|INVERTED|exact=-3.142e-9|f64=-3.142e-9|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=0e0|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=0e0|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=1e0|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=1e0|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=1e1|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=1e1|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=1e2|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=1e2|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=1e3|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=1e3|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=5e3|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=5e3|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+DPROBE|r=1e-1 h=1e-5 d=2e4|upright|exact=+3.142e-7|f64=+3.142e-7|tier3=Ok(())
+DPROBE|r=1e-1 h=1e-5 d=2e4|INVERTED|exact=-3.142e-7|f64=-3.142e-7|tier3=Err([NegativeVolume { solid: SolidKey(1v1) }])
+test probe_d_disc::dprobe_far_thin_disc ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2110 filtered out; finished in 0.40s
+
+        PASS [   0.414s] (2/3) sweep::all probe_d_disc::dprobe_far_thin_disc
+       START [         ] (3/3) sweep::all probe_d_void::dprobe_far_thin_disc_void
+
+running 1 test
+DPROBE4|eps=1e-9
+DPROBE4|r=1e-3 h=1e-6 d=0e0|shells=2|tier3=Ok(())
+DPROBE4|r=1e-3 h=1e-6 d=1e3|shells=2|tier3=Ok(())
+DPROBE4|r=1e-3 h=1e-6 d=5e3|shells=2|tier3=Ok(())
+DPROBE4|r=1e-3 h=1e-5 d=0e0|shells=2|tier3=Ok(())
+DPROBE4|r=1e-3 h=1e-5 d=1e3|shells=2|tier3=Ok(())
+DPROBE4|r=1e-3 h=1e-5 d=5e3|shells=2|tier3=Ok(())
+DPROBE4|r=1e-2 h=1e-6 d=0e0|shells=2|tier3=Ok(())
+DPROBE4|r=1e-2 h=1e-6 d=1e3|shells=2|tier3=Ok(())
+DPROBE4|r=1e-2 h=1e-6 d=5e3|shells=2|tier3=Ok(())
+test probe_d_void::dprobe_far_thin_disc_void ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2110 filtered out; finished in 0.21s
+
+        PASS [   0.222s] (3/3) sweep::all probe_d_void::dprobe_far_thin_disc_void
+────────────
+     Summary [   0.753s] 3 tests run: 3 passed, 2108 skipped
+exit 0

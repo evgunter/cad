@@ -1,0 +1,71 @@
+   Compiling geom-core v0.0.0 (/home/user/wt-head/crates/geom-core)
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling syn v3.0.3
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling digest v0.10.7
+   Compiling memchr v2.8.3
+   Compiling cpufeatures v0.2.17
+   Compiling itoa v1.0.18
+   Compiling sha2 v0.10.9
+   Compiling serde_derive v1.0.229
+   Compiling quantity v0.0.0 (/home/user/wt-head/crates/quantity)
+   Compiling bvh v0.0.0 (/home/user/wt-head/crates/bvh)
+   Compiling geom v0.0.0 (/home/user/wt-head/crates/geom)
+   Compiling profile v0.0.0 (/home/user/wt-head/crates/profile)
+   Compiling geom-brep v0.0.0 (/home/user/wt-head/crates/geom-brep)
+   Compiling topo v0.0.0 (/home/user/wt-head/crates/topo)
+   Compiling sweep v0.0.0 (/home/user/wt-head/crates/sweep)
+   Compiling mesh v0.0.0 (/home/user/wt-head/crates/mesh)
+   Compiling step-export v0.0.0 (/home/user/wt-head/crates/step-export)
+   Compiling verbs v0.0.0 (/home/user/wt-head/crates/verbs)
+   Compiling editor-core v0.0.0 (/home/user/wt-head/crates/editor-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 44s
+────────────
+ Nextest run ID 1a69b025-8567-458d-a14e-363d99eacc57 with nextest profile: default
+    Starting 4754 tests across 4 binaries (187 tests skipped)
+        FAIL [   0.644s] (2989/4754) sweep::all every_suite_file_is_aggregated
+────────────
+     Summary [1143.094s] 4754 tests run: 4753 passed (14 slow), 1 failed, 187 skipped
+        FAIL [   0.644s] (2989/4754) sweep::all every_suite_file_is_aggregated
+  stdout ───
+
+    running 1 test
+    test every_suite_file_is_aggregated ... FAILED
+
+    failures:
+
+    failures:
+        every_suite_file_is_aggregated
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2112 filtered out; finished in 0.63s
+
+  stderr ───
+
+    thread 'every_suite_file_is_aggregated' (27921) panicked at crates/sweep/tests/all.rs:559:1:
+    suites under tests/ are not declared in tests/all.rs, so `autotests = false` is silently dropping them: ["probe_d_disc2.rs"]. Add a `#[path]` line for each.
+    tests/all.rs declares 391 suites but 392 suite files exist under tests/
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: panic_display<alloc::string::String>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:259:5
+       3: all::every_suite_file_is_aggregated
+                 at /home/user/wt-head/crates/test-utils/src/source.rs:1405:13
+       4: all::every_suite_file_is_aggregated::{closure#0}
+                 at /home/user/wt-head/crates/test-utils/src/source.rs:1401:44
+       5: <all::every_suite_file_is_aggregated::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100
