@@ -179,11 +179,10 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
 /// refuses `JoinDesync` ("every chord arc separates a loose scaffolding
 /// pair"). Bound right, every op in either order builds: the shared
 /// volume is the half ball below `z = 0` less the half of its cap beyond
-/// `x = 0.25`, `π/12 − πh²(3r − h)/6` at `r = ½`, `h = ¼`. A result
-/// carrying a sphere face bounded by the tilted circle `x = 0.25` is no
-/// operand for the next boolean yet: point classification cannot read
-/// that face
-/// (`work/reach/carved-sphere-body-cannot-be-classified-or-reused-as-an-operand.md`).
+/// `x = 0.25`, `π/12 − πh²(3r − h)/6` at `r = ½`, `h = ¼`. Each result,
+/// whose sphere faces the tilted circle `x = 0.25` bounds, is the next
+/// boolean's operand: its union with a far box, which only point
+/// classification places, adds the box's volume.
 #[test]
 fn a_pole_struts_halves_face_their_own_meridians() {
     use core::f64::consts::PI;
@@ -232,15 +231,13 @@ fn a_pole_struts_halves_face_their_own_meridians() {
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
         let far = finished(
             "the far box",
-            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
             tol(),
         );
-        match topo::union(&bb.body, &far, tol()) {
-            Ok(_)
-            | Err(topo::BooleanError::Containment(topo::PointInSolidError::PartialSphereFace {
-                ..
-            })) => {}
-            Err(e) => panic!("{what}: as an operand, {e:?}"),
-        }
+        assert_sound(
+            &format!("{what}, then ∪ a far box"),
+            topo::union(&bb.body, &far, tol()),
+            want + 1.0,
+        );
     }
 }

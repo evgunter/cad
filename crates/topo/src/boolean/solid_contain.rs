@@ -282,22 +282,17 @@ pub enum PointInSolidError {
     /// breaks down by source) leaves that question unanswerable, and
     /// this says so rather than reporting a HEALTHY body as broken.
     VolumeUncertified,
-    /// A `Sphere` face that is neither closed on its own surface nor
-    /// expressible as a chart RECTANGLE.
+    /// A `Sphere` face that is not closed on its own surface and has a
+    /// boundary edge that is not a circle arc.
     ///
-    /// Two classes answer: a face group closed against itself covers
-    /// the whole chart, so membership on the surface is membership in
-    /// the group; and a trimmed face whose every boundary edge is a
-    /// latitude rim or a meridian great circle is exactly the rectangle
-    /// `[azimuth] × [latitude]` its boundary pins, which
-    /// [`sphere_chart_trim`] reads. What reaches here is the
-    /// remainder — a ringed face, a boundary edge that is neither chart
-    /// class, an azimuth walk that wraps past a period, or a meridian
-    /// edge with a POLE strictly inside it, where latitude stops being
-    /// monotone along the edge and no fold over boundary levels can see
-    /// the face's own extreme.
+    /// A trimmed sphere face is read from its boundary arcs
+    /// ([`super::sphere_region`]): every crossing of a great circle with
+    /// a circle arc is the root of a first harmonic. An edge on any other
+    /// carrier — a spline, or the spiric a torus or a cylinder off the
+    /// sphere's centre leaves — has no such crossing here, and neither
+    /// has an edge with no certified carrier.
     PartialSphereFace {
-        /// The sphere face the chart rectangle cannot express.
+        /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
     },
     /// A `Cone` face in neither cone class: its surface group does not
@@ -527,9 +522,9 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its sphere faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
-                 Recourse: bound the sphere face with latitude circles and meridians \
-                 that meet at the poles, keep it whole, or trim it with cylinders or \
-                 planes"
+                 Recourse: cut the sphere face only where its edges are circles — with \
+                 planes, other spheres, or cylinders and cones whose axis passes \
+                 through its centre"
             ),
             Self::PartialConeFace { .. } => write!(
                 f,
@@ -811,8 +806,8 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// Resolves [`FaceGeo`]; kinds outside
 /// {Plane, Cylinder, Cone, Sphere, Torus} refuse as
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
-/// kinds have no ray-crossing arm), and a TRIMMED sphere face
-/// the sphere chart cannot express as
+/// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
+/// boundary edge that is not a circle arc as
 /// [`PointInSolidError::PartialSphereFace`]. Only a surface key that
 /// does not RESOLVE is corruption.
 fn face_geo<T: Decide>(
@@ -2963,9 +2958,12 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
     Ok(verdict)
 }
 
-/// **A sphere face's exact chart trim**: the azimuth window and the
-/// LATITUDE window, for the face class the sphere chart rectangle can
-/// actually express.
+/// **A sphere face's exact LATITUDE window**, for the face class the
+/// sphere chart rectangle can actually express — the window the
+/// splitter's latitude-zone reach bounds a face by
+/// (`splitting::classify`). Point containment does not read it: a
+/// trimmed sphere face's region is read from its boundary arcs
+/// ([`super::sphere_region`]).
 ///
 /// # The class
 ///
@@ -3195,13 +3193,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             return Err(escalate(diag));
         }
         // A CORRUPTION-shaped refusal is not a class statement and must
-        // not wear one: `PartialSphereFace`'s message says the body is
-        // healthy and merely outside the served class, and a key the
-        // walk could not resolve, or a boundary that does not close,
-        // would be wearing that sentence falsely. The arena claim keeps
-        // its own door — the same distinction `bool_planar_chord_spec`
-        // draws between a key that does not resolve and a key of the
-        // wrong kind.
+        // not wear one: a key the walk could not resolve, or a boundary
+        // that does not close, keeps the arena claim's own door — the
+        // same distinction `bool_planar_chord_spec` draws between a key
+        // that does not resolve and a key of the wrong kind.
         Err(crate::chord_join::SplitJoinError::Corrupt { .. })
         | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
             return Err(PointInSolidError::CorruptFace { face });
