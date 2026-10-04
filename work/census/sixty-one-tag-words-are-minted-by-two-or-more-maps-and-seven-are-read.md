@@ -78,7 +78,7 @@ from rather than this list.
 - certify (2): blend_error_tag transform_error_tag
 - contact_contradicted (2): boolean_error_tag validation_error_tag
 - cosurface_escalated (2): extrude_error_tag revolve_error_tag
-- dangling_geometry (2): readback_error_tag validation_error_tag
+- dangling_geometry (2): readback_error_tag validation_error_tag — `readback_error_tag` no longer mints it (2026-10-04: `DanglingRef` is deleted), so it is `validation_error_tag`'s alone
 - dimension (2): edit_error_tag parse_error_tag
 - edge (2): entity_id_tag entity_kind_tag
 - empty (2): band_error_tag subgroup_tag
