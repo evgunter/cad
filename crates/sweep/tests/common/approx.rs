@@ -243,7 +243,7 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
     // Lifts RechartStrandsDescriptions: the Approx chart goes on first; the edges are re-described on it after.
     let surface = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             face,
             FaceSurface::New {
                 surface: approx,
@@ -422,7 +422,7 @@ pub fn try_approx_walls(
         }
         // Lifts RechartStrandsDescriptions: the Approx chart goes on first; the edges are re-described on it after.
         let new = body
-            .set_face_surface_stranding_for_tests(
+            .set_face_surface_unvouched_for_tests(
                 face,
                 FaceSurface::New {
                     surface: approx,

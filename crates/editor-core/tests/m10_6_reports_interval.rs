@@ -173,6 +173,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -183,6 +184,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -236,6 +238,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -248,6 +251,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -271,6 +275,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &wider_verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -344,6 +349,7 @@ fn the_cache_serves_equal_keys_and_only_those() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");

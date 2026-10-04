@@ -217,8 +217,9 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     v.receipt(),
                     v.decisions()
                 );
-                let stack =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let stack = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 match &stack {
                     Ok(rep) => println!(
                         "   stackup: worst case {:?} over {} leaves, nominal {:?}",

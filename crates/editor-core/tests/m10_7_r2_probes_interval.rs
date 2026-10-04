@@ -257,7 +257,7 @@ fn r2_end_to_end_bracket_study() {
                     );
                     println!("{}", v.render(&analyzed));
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc, measure, &analyzed, &v, None, false, None, tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol);
@@ -429,8 +429,9 @@ fn r2_what_a_real_study_gets_today() {
                 for l in v.refused().iter().take(4) {
                     println!("   refused: {:?}", l.reason);
                 }
-                let s =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let s = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 println!("   stackup: {s:?}");
                 println!(
                     "   assertion: {:?}",

@@ -364,6 +364,13 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// The seam a document's instantiated parts resolve through, as
+    /// an evaluation over options carrying it would
+    /// ([`EvalOptions::resolver`]); `None` for a document that
+    /// instantiates none. An assembly's mates solve over the leaf's box
+    /// at its scalar (`ASSEMBLY.md` A11 (5)), so a face frame's pose
+    /// encloses over the box like any other geometry.
+    pub resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
 }
 
 impl ClearanceQuery<'_> {
@@ -375,6 +382,7 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
         }
     }
 
@@ -385,6 +393,19 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
+        }
+    }
+}
+
+impl<'a> ClearanceQuery<'a> {
+    /// The same question over a document whose parts resolve through
+    /// `resolver` ([`ClearanceQuery::resolver`]).
+    #[must_use]
+    pub fn resolved_by(self, resolver: &'a Arc<dyn crate::part::PartResolver>) -> Self {
+        Self {
+            resolver: Some(resolver),
+            ..self
         }
     }
 }
@@ -1261,6 +1282,7 @@ pub fn clearance_with(
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
+        resolver: query.resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
@@ -1292,6 +1314,7 @@ pub fn clearance_with(
         band,
         config: query.config,
         deepest: 0,
+        resolver: query.resolver.cloned(),
     };
     sweep.run(doc, &queried, &windows_a, &windows_b, same_body, query.tol)
 }
@@ -2746,6 +2769,9 @@ struct Sweep {
     band: Band,
     config: ClearanceConfig,
     deepest: u32,
+    /// The query's part resolver, which the `f64` witness rebuild
+    /// resolves the same parts through.
+    resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Sweep {
@@ -2925,6 +2951,7 @@ impl Sweep {
                             (x, pair.a, y, pair.b),
                             self.bound,
                             self.band,
+                            self.resolver.as_ref(),
                             tol,
                         ) {
                             Ok(w) => {
@@ -2970,6 +2997,7 @@ impl Sweep {
                                 (x, pair.a, y, pair.b),
                                 self.bound,
                                 self.band,
+                                self.resolver.as_ref(),
                                 tol,
                             )
                         {
@@ -3215,6 +3243,7 @@ fn verify_witness(
     at: (&Window, Cell, &Window, Cell),
     bound: ClearanceBound,
     band: Band,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let (x, ca, y, cb) = at;
@@ -3228,6 +3257,7 @@ fn verify_witness(
         .collect();
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        resolver: resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

@@ -156,8 +156,8 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
 #[test]
 fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     let (doc, measure) = filleted_cube();
-    let entries =
-        sensitivities(&doc, measure, None, None, false, Tol::witness()).expect("the driver runs");
+    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness())
+        .expect("the driver runs");
     let m0 = (2.0 * (1.0 - 2.0 * R0).powi(2) + D0 * D0).sqrt();
     assert_eq!(
         measured(&doc, measure, "radius", R0),

@@ -347,7 +347,7 @@ fn analysis_is_keyed_by_var_id() {
     assert_eq!(draws.keys().copied().collect::<Vec<_>>(), both);
     assert_ne!(draws[&w], draws[&v], "two laws, two independent draws");
 
-    let entries = sensitivities(&doc, measure, None, None, false, Tol::witness()).unwrap();
+    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
     let partial = |var: VarId| {
         let e = entries.iter().find(|e| e.param == var).expect("an entry");
         match e.outcome {

@@ -142,6 +142,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 

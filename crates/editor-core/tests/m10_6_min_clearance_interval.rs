@@ -572,6 +572,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("the report builds even though the nominal cannot");

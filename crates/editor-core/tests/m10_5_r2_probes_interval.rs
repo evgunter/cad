@@ -297,6 +297,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -306,6 +307,7 @@ fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -891,6 +893,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
                     ..cfg(4_096, 20)
                 },
                 oracle: &Constant,
+                resolver: None,
             },
         );
         assert_eq!(
@@ -926,6 +929,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
                     ..cfg(4_096, 20)
                 },
                 oracle: &NoTangents,
+                resolver: None,
             },
         );
         assert_eq!(off.serialize(), forfeited.serialize(), "at c = {c}");
@@ -962,6 +966,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
                 ..cfg(4_096, 20)
             },
             oracle: &AlwaysDecreasing,
+            resolver: None,
         },
     );
     assert_eq!(

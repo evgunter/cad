@@ -401,7 +401,7 @@ fn r1_annulus_end_to_end() {
                         println!("{}", v.render(&analyzed));
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc, measure, &analyzed, &v, None, false, None, tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), d, tol);
