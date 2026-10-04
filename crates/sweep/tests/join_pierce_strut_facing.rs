@@ -26,17 +26,24 @@
 //! (two cones of boundary meet at one point); each difference does
 //! not. Every op, in both orders, builds `SOUND` with one vertex at
 //! `v`. Red as the row was filed: every run refuses, `JoinDesync` or
-//! `Euler(SelfLoopEdge)`. Red too if the ring copies of an
-//! intersection keep the Out side (the zip meets the piercing vertex
-//! twice on both sides: `SelfLoopEdge`), or if a union's two copies
-//! are left unwelded (two vertices at `v`).
+//! `Euler(SelfLoopEdge)`. Red too if the ring struts ignore the walk
+//! (`insert::strut_order`), if an intersection's ring copies keep the
+//! Out side (the zip meets the pinch vertex twice on both seams:
+//! `SelfLoopEdge`), or if a union's two copies are left unwelded (the
+//! cube's face runs through both).
+//!
+//! Two neighbouring families build in part, and the rest refuses typed
+//! (filed): a second run holding the x = 1 face's bisector too
+//! (`WIDE_RUN`) refuses its intersection, and two runs that are each a
+//! lone edge (`EDGE_RUNS`) refuse cube ∖ prism; their prism ∖ cube
+//! keeps the two copies apart on one point, where no face meets both.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, mass_properties};
 
 use crate::common::differential::outcome;
 
@@ -145,9 +152,11 @@ type Op = fn(
 /// Builds every op in both operand orders but those `refused` names.
 /// Each body is `SOUND` by [`outcome`] (tiers 2 and 3′, the
 /// certificate, a legal operand, its volume), passes tier 3, holds the
-/// prism's cut by the plane to 1e-9, and has one vertex at `V`. Each
-/// refused op refuses typed in both orders.
-fn assert_pose(pose: &str, m: [f64; 3], refused: &[&str]) {
+/// prism's cut by the plane to 1e-9, and holds the pierce point as one
+/// vertex wherever a face meets it: its vertices there share one point,
+/// and no face runs through two of them. Each `(order, op)` in
+/// `refused` refuses typed.
+fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
     let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
     let cube = cube_beyond(m);
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
@@ -164,7 +173,7 @@ fn assert_pose(pose: &str, m: [f64; 3], refused: &[&str]) {
         ];
         for (op, run, want) in ops {
             let what = format!("{pose}: {order} {op}");
-            if refused.contains(&op) {
+            if refused.contains(&(order, op)) {
                 let r = run(x, y, &decls, tol());
                 assert!(r.is_err(), "{what}: {}", outcome(r, want, tol()));
                 continue;
@@ -184,12 +193,34 @@ fn assert_pose(pose: &str, m: [f64; 3], refused: &[&str]) {
                 (got - want).abs() < 1e-9,
                 "{what}: volume {got}, want {want}"
             );
-            let at_v = bb
+            let at_v: Vec<_> = bb
                 .body
                 .vertex_points()
                 .filter(|(_, p)| p.as_ref().is_ok_and(|p| [p.x, p.y, p.z] == V))
-                .count();
-            assert_eq!(at_v, 1, "{what}: vertices at the pierce point");
+                .map(|(k, _)| k)
+                .collect();
+            let point = |k| bb.body.get_vertex(k).unwrap().point;
+            assert!(
+                at_v.iter().all(|&k| point(k) == point(at_v[0])),
+                "{what}: the vertices at the pierce point share one point: {at_v:?}"
+            );
+            for (face, f) in bb.body.faces() {
+                let mut met = Vec::new();
+                for &l in std::iter::once(&f.outer).chain(&f.rings) {
+                    if let LoopBoundary::Cycle { first } = bb.body.get_loop(l).unwrap().boundary {
+                        for he in bb.body.loop_cycle(first).unwrap() {
+                            let v = bb.body.get_half_edge(he).unwrap().start;
+                            if at_v.contains(&v) && !met.contains(&v) {
+                                met.push(v);
+                            }
+                        }
+                    }
+                }
+                assert!(
+                    met.len() < 2,
+                    "{what}: face {face:?} runs through two vertices at the pierce point"
+                );
+            }
         }
     }
 }
@@ -223,17 +254,26 @@ fn two_out_runs_at_the_corner_build_in_every_op() {
 #[test]
 fn a_wide_run_builds_its_union_and_difference() {
     for m in WIDE_RUN {
-        assert_pose(&format!("wide run {m:?}"), m, &["intersect"]);
+        assert_pose(
+            &format!("wide run {m:?}"),
+            m,
+            &[("prism-cube", "intersect"), ("cube-prism", "intersect")],
+        );
     }
 }
 
-/// The +x and +y edges alone read Out, two fans: the union and the
-/// intersection build, and the difference, which pinches, still
-/// refuses (`a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`).
+/// The +x and +y edges alone read Out, two fans: the union, the
+/// intersection and prism ∖ cube build, and cube ∖ prism, which
+/// pinches, still refuses
+/// (`a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`).
 #[test]
 fn two_edge_runs_build_their_union_and_intersection() {
     for m in EDGE_RUNS {
-        assert_pose(&format!("edge runs {m:?}"), m, &["subtract"]);
+        assert_pose(
+            &format!("edge runs {m:?}"),
+            m,
+            &[("cube-prism", "subtract")],
+        );
     }
 }
 

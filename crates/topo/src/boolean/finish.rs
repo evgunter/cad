@@ -485,14 +485,17 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
-/// **A pierce's copies are one vertex.** A vertex several runs pierce
-/// mints a null edge per run on each side, and each run's zip fuses
-/// that run's two kept copies. Where both sides keep a copy per run,
-/// the runs' vertices stay apart on one point, and each pair is joined
-/// across the face whose boundary runs through both, as a pinch weld
-/// joins two pierces. `fused` is the zips' fusions `(dead, kept)` in
-/// result keys, which `groups` (from [`FinishOut::pierce_copies`]) is
-/// read through; returns this pass's fusions.
+/// **A pierce's copies are one vertex where a face meets them.** A
+/// vertex several runs pierce mints a null edge per run on each side,
+/// and each run's zip fuses that run's two kept copies. Where both
+/// sides keep a copy per run, the runs' vertices stay apart on one
+/// point, and two of them are joined across a face whose boundary runs
+/// through both, as a pinch weld joins two pierces. Copies no face
+/// meets stay apart, on their one point, as unwelded pierces do. A
+/// weld that would divide a face is refused: nothing records the
+/// fragment. `fused` is the zips' fusions `(dead, kept)` in result
+/// keys, which `groups` (from [`FinishOut::pierce_copies`]) is read
+/// through; returns this pass's fusions.
 pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     groups: &[Vec<VertexKey>],
@@ -511,16 +514,21 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
                     live.push(k);
                 }
             }
-            let [u, w, ..] = live[..] else {
+            let mut site = None;
+            'pairs: for (i, &u) in live.iter().enumerate() {
+                for &w in &live[i + 1..] {
+                    if let Some((_, joint)) = pinch_site(body, u, w, |_| true)? {
+                        site = Some((u, joint));
+                        break 'pairs;
+                    }
+                }
+            }
+            let Some((u, joint)) = site else {
                 break;
             };
-            let joint = match pinch_site(body, u, w, |_| true)? {
-                None => return Err(desync("a pierce's copies survive apart")),
-                Some((_, Joint::Chord { .. })) => {
-                    return Err(desync("a pierce's copies divide a face the zips kept"));
-                }
-                Some((_, joint)) => joint,
-            };
+            if let Joint::Chord { .. } = joint {
+                return Err(desync("a pierce's copies divide a face the zips kept"));
+            }
             let p = crate::readback::vertex_point_ref(body, u)
                 .map_err(|_| desync("a pierce copy has no point"))?;
             let (fusion, _) = fuse_by_joint(body, joint, p, desync, tol)?;
@@ -753,8 +761,7 @@ fn one_kept(kept: &[(VertexKey, VertexKey)]) -> Option<VertexKey> {
 /// runs of one pierce cut, the stretch's ends are the two copies one
 /// edge of the twin joins. `held` is this operand's chord-split rows
 /// and the other operand's vertices in result keys, for the held
-/// stretches
-/// (`DiscardRow::held`).
+/// stretches (`DiscardRow::held`).
 #[allow(clippy::type_complexity)]
 fn discarded<T: Decide>(
     red: &BooleanReduction<T>,

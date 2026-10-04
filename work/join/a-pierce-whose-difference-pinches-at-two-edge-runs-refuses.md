@@ -1,7 +1,7 @@
 ---
 id: a-pierce-whose-difference-pinches-at-two-edge-runs-refuses
 kind: issue
-title: A pierce with two lone-edge Out runs refuses its difference, which pinches at the pierce point
+title: A pierce with two lone-edge Out runs refuses cube minus prism, which pinches at the pierce point (Euler SelfLoopEdge)
 status: open
 opened: 2026-10-04
 priority: P0
@@ -23,19 +23,16 @@ tilted so that only the +x and +y edges of the reflex top corner
 `join_pierce_runs_sweep.rs`, the face placement's poses `i=6..8 j=0..2`
 are this family.
 
-The union and the intersection build `SOUND` in both orders. The
-difference pinches at `v`: two lumps meet there. It refuses in both
-orders:
-
-- prism ∖ cube refuses `JoinDesync { "a pierce's copies survive apart" }`.
-  The runs' fused vertices stay apart after the zips, and no face's
-  boundary runs through both, so `finish::weld_pierce_copies` finds
-  no site;
-- cube ∖ prism refuses `Euler(SelfLoopEdge)` from `zip::zip_seam`.
-  Both seams pass the pinch vertex twice.
+The union and the intersection build `SOUND` in both orders, and so
+does prism ∖ cube. Its two runs' copies stay apart on one point, since
+no face's boundary runs through both and `finish::weld_pierce_copies`
+leaves them as unwelded pierces are left (one point, two vertices:
+the shared-point ruling, PR 3813). Cube ∖ prism refuses
+`Euler(SelfLoopEdge)` from `zip::zip_seam`: both of its seams pass
+the pinch vertex twice.
 
 With the ring struts faced the other way, every op of this family
-refuses.
+refuses (main's hard-coded facing).
 
 ## The shape to give
 

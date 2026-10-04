@@ -31,17 +31,18 @@ every op in both orders against an oracle that clips the prism's two
 boxes by the cube's half-spaces. Nothing is declared.
 
 Of 4 032 runs, 526 refuse (`edge` 368, `corner` 158). None ships a
-`BAD` body. The lines are identical on main `f8aabaae` and on the
-pierce PR's head.
+`BAD` body. Main `f8aabaae` refuses one run more: `edge i=8 j=1
+psi=1` prism ∩ cube, which the pierce PR builds `SOUND`.
 
 | refusal | runs |
 |---|---|
 | `PairingMismatch` | 243 |
 | `JoinDesync { "B senses agree at a matched pair" }` | 111 |
-| `Euler(FanStartMismatch / SelfLoopEdge)` | 75 |
+| `Euler(FanStartMismatch)` | 45 |
 | `JoinDesync { "conflicting seam vertex correspondence" }` | 40 |
 | `JoinDesync { "pair B edge has not exactly one surviving end" }` | 33 |
-| `Join(UnpairedLooseEnds / NotSameFace)` | 24 |
+| `Euler(SelfLoopEdge)`, from the zip | 30 |
+| `Join(UnpairedLooseEnds / Euler(NotSameFace))` | 24 |
 
 `m3_pr6_saddle.rs` calls the F12 pairing guard unwitnessed on its
 tilted-cube corpus. This sweep witnesses it 243 times.

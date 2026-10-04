@@ -32,9 +32,10 @@ written out at each minter:
   the attribute side and the germ halves on
   `dangling && !spike_from_first`;
 - the class's fourth: the pierce's ring struts
-  (`boolean/vtxfac.rs`, about `:744-760`) mint `Above` with a
-  hard-coded facing, already filed as part of
-  `a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op`.
+  (`boolean/vtxfac.rs`, `classify_vertex_on_face` step 3). They read
+  their facing by the walk about the pierced face
+  (`insert::strut_order`), and then match it into a side, a half pair
+  and an attribute, as the second bullet does.
 
 All three agree today (the PR 4004 batteries); they can drift apart
 because nothing makes them one datum.

@@ -48,3 +48,53 @@ This is unmeasured, so diagnose it before fixing.
 Add a row that pins the two-run pose in every op and both orders, with
 the exact volume (the cube holds the prism's far side whole, as in
 `join_pierce_strut_facing.rs`). Then find the first wrong state.
+
+## Built
+
+Branch `join/pierce-two-out-runs`.
+
+**The first wrong state was not the ring-strut facing, for the row's
+tilts.** With main's facing, the union and the subtract bodies were
+already right (tiers 2 and 3′, the certificate and the exact volume
+all passed once the refusal was bypassed). Three things broke after
+the body was built:
+
+- `finish::discarded`'s `kept_end` read one kept copy per section
+  vertex. A vertex that two runs cut keeps two copies on one twin
+  section face, so it refused.
+- The union kept both runs' copies apart: two vertices at `v`, against
+  `boolean_pinch_copies.rs`'s one vertex per point.
+- The intersection's zip met the pinch vertex twice on both seams, and
+  the second fusion was a self-loop (`SelfLoopEdge`).
+
+**The facing hypothesis was right in part.** A pose sweep over the
+tilt grid (`join_pierce_runs_sweep.rs`) found a second family: two Out
+runs, each a lone edge. Main's hard-coded facing refuses every op
+there, and the facing the walk reads builds its union and
+intersection.
+
+What changed:
+
+- **Ring struts.** With several runs, each ring strut faces its germs
+  by the walk about the pierced face's outward normal
+  (`insert::strut_order`). The copy's side follows by the sense
+  theorem. Where the op keeps both In sides, the copies take In, so
+  that the ring's In face passes a copy per run.
+- **Discard rows.** Where the twin passes several copies, a stretch's
+  ends are the two copies one edge of the twin joins.
+- **Seam correspondence.** The guard accepts one pierce's runs.
+- **Pierce weld.** `finish::weld_pierce_copies` fuses the copies a
+  pierce's runs leave apart after the zips, wherever a face runs
+  through two of them. It welds across a ring as a new `Joint::Hole`:
+  `mef` + `kev` + `kfmrh`, two holes meeting at the vertex.
+  `pinch_site` now returns a hole for a shared ring, rather than
+  dividing a face out of it. Copies that no face meets stay apart on
+  their one point.
+
+The row: `crates/sweep/tests/join_pierce_strut_facing.rs` (moved from
+`topo`, to share `differential::outcome`). The residue is filed:
+
+- `a-pierce-whose-wide-run-pinches-its-intersection-refuses`;
+- `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`;
+- `a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane`;
+- `ring-struts-of-three-or-more-runs-hang-in-run-order`.
