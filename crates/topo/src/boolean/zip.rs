@@ -360,7 +360,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let Some((he1, he2, crossing)) = site else {
         return Ok(None);
     };
-    let p = crate::readback::vertex_point_ref(body, v)
+    let p = crate::readback::vertex_point(body, v)
         .map_err(|_| corr("a pinch vertex has no point"))?;
     let made = body.mev(
         MevSite::Fan { he1, he2 },
