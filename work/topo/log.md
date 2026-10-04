@@ -6736,3 +6736,4 @@ Ev, 11:02 on PR 4024: "this sounds good!", which ratifies R: a row is an image p
 The row stays open as the build row. It will be dispatched after the probe report lands; the link primitive goes in PR 3970's module when that exists, so it is not blocked on it. Merge on green.
 
 Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; the seven-day rate window shows a warning, so dispatch frugally). The probe re-run has no report yet. Nothing new on PR 3970.
+- 11:06: **PR 4024 merged** at `76803eae5a` (CI green on `d720e3c47a`); unsubscribed. C4's seam sentence is now the joint-element form.
