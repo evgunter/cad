@@ -34,6 +34,11 @@ the pinch vertex twice.
 With the ring struts faced the other way, every op of this family
 refuses (main's hard-coded facing).
 
+**The family is wider than the lone edges** (PR 4026's review r1, m3):
+cube ∖ prism refuses `SelfLoopEdge` in all 30 L-corner poses whose +x
+and +y edges both read Out, including runs widened by a side face's
+bisector, and not only where each run is a lone edge.
+
 ## The shape to give
 
 This is the same question as `a-pierce-whose-wide-run-pinches-its-intersection-refuses`:

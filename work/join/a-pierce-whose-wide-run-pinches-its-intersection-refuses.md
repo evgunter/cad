@@ -28,6 +28,13 @@ intersection refuses in both orders with
 If the ring struts are faced the other way, it refuses
 `Euler(SelfLoopEdge)` from `zip::zip_seam` instead.
 
+PR 4026's review r1 (m3) also reads "derived ring role order" on L-corner
+∩ poses where only the top bisector and the −z edge read Out, outside
+this family (*likely*, by the bisector reading). The row's family is
+the ∩ residue of the L corner's two-run poses, whatever widens the
+runs. The notch and shallow corners' ∩ residue is
+`a-two-run-pierce-on-a-notch-or-shallow-corner-refuses-its-intersection-every-chord-arc`.
+
 The intersection pinches at `v`: two lumps of the prism's In part
 meet there. The piercing vertex keeps both In runs, so its In section
 face passes `v` twice. Where the second run is the −z edge alone,

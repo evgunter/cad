@@ -67,11 +67,13 @@ the body was built:
 - The intersection's zip met the pinch vertex twice on both seams, and
   the second fusion was a self-loop (`SelfLoopEdge`).
 
-**The facing hypothesis was right in part.** A pose sweep over the
-tilt grid (`join_pierce_runs_sweep.rs`) found a second family: two Out
-runs, each a lone edge. Main's hard-coded facing refuses every op
-there, and the facing the walk reads builds its union and
-intersection.
+**The facing hypothesis was right in part.** Main's hard-coded facing
+fails ∪ and ∖ in 171 of 340 two-run poses per order over six corners
+(PR 4026's review r1, m2: 70 `SectionLoopMixed`, 101 `JoinDesync`).
+On the L corner those are exactly the poses whose +x and +y edges both
+read Out, including runs widened by a side face's bisector. The lone-
+edge family of the pose sweep (`join_pierce_runs_sweep.rs`) is one of
+them. There the walk's facing builds the union and the intersection.
 
 What changed:
 

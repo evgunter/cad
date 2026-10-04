@@ -35,7 +35,13 @@ was seen to mint a third.
 
 ## The shape to give
 
+Today the pierce refuses typed: `BooleanError::PierceRunsUnordered`
+(`vtxfac::classify_vertex_on_face`, right after the runs are read),
+since PR 4026's fix pass. Its doc says what would license it.
+
 Build a fixture whose vertex has three Out runs against a face, for
 example a vertex of valence four or more with two reflex face angles.
-Then hang the ring struts in the walk's order, or refuse typed until
-a row pins the order.
+A prism's vertex cannot do it: its link meets a plane at most four
+times, so at most two runs (PR 4026's review r2, N3). Then hang the
+ring struts in the walk's order, pin it with a row, and retire the
+refusal.
