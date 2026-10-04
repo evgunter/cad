@@ -1449,7 +1449,9 @@ pub(super) enum FrameError {
     /// The classification contradicted the germ that was minted from
     /// it — a lockstep failure, not a frontier.
     Desync(&'static str),
-    /// The kind pair has no section arm at all.
+    /// No frame: the kind pair has no section arm, or an armed pair's
+    /// pose has none (the cylinder × sphere node, or a pose not
+    /// definitely off the axis).
     NoArm,
     /// **A cylinder pair whose axes definitely INTERSECT.** Its locus
     /// is never straight and is never one conic either, so it is
@@ -1560,11 +1562,10 @@ pub(super) fn pair_section_frame<T: Decide>(
                 )),
             };
         }
-        // **Cylinder×sphere.** The DECLARED-coaxial configuration is
-        // the one this dispatch can name a frame for, and
-        // [`cs_pair_frame`] carries the whole argument — including why
-        // ONE frame serves BOTH section circles, and why the
-        // declaration cannot be read here yet.
+        // **Cylinder×sphere** ([`cs_germ_frame`]): the declared-coaxial
+        // classification first ([`cs_pair_frame`], unreadable here
+        // yet), then the transverse frame for a pose off the axis
+        // ([`cs_transverse_frame`]).
         (Sf::Cylinder { .. }, Sf::Sphere { .. }) => return cs_germ_frame(sa, sb, band),
         (Sf::Sphere { .. }, Sf::Cylinder { .. }) => return cs_germ_frame(sb, sa, band),
         // The ONE structurally straight pair: a plane×plane section is
@@ -1765,7 +1766,7 @@ fn intersecting_cylinder_axes<T: Decide>(
 /// The cylinder×sphere germ frame: the declared-coaxial classification
 /// first ([`cs_pair_frame`]), and where it routes to the general rung,
 /// the transverse frame ([`cs_transverse_frame`]).
-#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+#[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
 fn cs_germ_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
@@ -1809,7 +1810,7 @@ fn cs_germ_frame<T: Decide>(
 /// measured `d` ([`cs_pair_frame`]), so a Zero or in-band offset keeps
 /// `NoArm` verbatim rather than escalating. Radii are read by magnitude:
 /// a negative stored radius denotes the same point set.
-#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+#[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
 fn cs_transverse_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
@@ -1847,6 +1848,9 @@ fn cs_transverse_frame<T: Decide>(
     ) {
         Ok(Sign::Negative) => Ok(Some((center, off * (T::one() / d)))),
         Ok(Sign::Positive) => Ok(Some((foot, axis))),
+        // `NoArm`, not the tangency `Desync` the circle arms answer: a
+        // germ minted from a crossing elsewhere on the figure-eight is
+        // real, and only the frame is missing.
         Ok(Sign::Zero) => Err(FrameError::NoArm),
         Err(diag) => Err(FrameError::Escalated(diag)),
     }

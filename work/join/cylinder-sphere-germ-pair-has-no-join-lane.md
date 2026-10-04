@@ -16,10 +16,11 @@ this one.
 
 ## Measured
 
-`crates/sweep/tests/cylinder_sphere_frame.rs` pins eight poses, each
-under ∪, ∩ and both differences in both operand orders (48 runs): a ball
+`crates/sweep/tests/cylinder_sphere_frame.rs` pins nine poses, each
+under ∪, ∩ and both differences in both operand orders (54 runs): a ball
 against a radius-0.5 drum `z ∈ [−1, 1]` crossing its wall in one loop
-(centre on the wall, inside it, outside it, a turned chart) or two (a
+(centre on the wall, inside it, outside it, a turned chart, a ball wider
+than the wall) or two (a
 ball reaching past the far side, one with a turned chart), and the
 tilted drum cut's lower part against the two balls straddling its rim
 (radius 0.2 at `(0.5, 0, 0.35)`, radius 0.1 at `(0.45, 0, 0.3)`). Every
@@ -34,7 +35,11 @@ CurvedBooleanUnsupported { operand: A, face: <the wall or the sphere>,
 ```
 
 at `boolean::join::bool_connect`'s lane dispatch, the `(a_s, b_s)`
-catch-all. The rows hold each run to its volume (an independent oracle,
+catch-all. Not every pose reaches this door: a ball whose turned chart
+crosses a cap passes the frame and the matcher and stops earlier, at
+`Join(SectionNotPolar)` (144 of 1 152 runs in the PR 4025 review's drum
+× ball grid; `work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+The rows hold each run to its volume (an independent oracle,
 the slices' closed-form areas integrated) the day it builds.
 
 ## What a fix has to supply

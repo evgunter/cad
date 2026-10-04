@@ -21,7 +21,7 @@ member orders): a drum `cyl(0.5, 1.0)` (radius 0.5 about `z`,
 `z ∈ [−1, 1]`, `common::germ_pair`), a ball of radius 0.5 revolved about
 `y`, a donut revolved about `y` (major 0.6, minor 0.2), a frustum, and a
 brick `[−0.4, 0.4]³`; the six placements are rotation 0 then
-`t = (0.45, 0.1, 0.05)`; 90° about `x`, `(0.3, 0.2, 0.1)`; 0.7 rad about
+`t = (0.45, 0.1, 0.05)`; 1.5707963 rad about `x` (a hair short of a right angle), `(0.3, 0.2, 0.1)`; 0.7 rad about
 `x`, `(0.1, 0.35, 0.2)`; 1.1 rad about `(0.3, 1, 0.2)`,
 `(0.42, −0.15, 0.3)`; 0.4 rad about `y`, `(0.6, 0, 0)`; 0.9 rad about
 `(1, 1, 0)`, `(0.05, 0.1, 0.02)`.

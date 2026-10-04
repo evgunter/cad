@@ -217,6 +217,13 @@ fn poses() -> Vec<Pose> {
         full("one loop, centre inside", 0.3, [0.35, 0.0, 0.1], 0.0),
         full("one loop, centre outside", 0.3, [0.7, 0.1, -0.2], 0.0),
         full("one loop, turned chart", 0.25, [0.3, -0.35, 0.4], 0.9),
+        // Wider than the wall, short of its far side: `r < R < r + d`.
+        full(
+            "one loop, ball wider than the wall",
+            0.699,
+            [0.2, 0.0, 0.0],
+            0.0,
+        ),
         full("two loops", 0.7, [0.1, 0.0, 0.0], 0.0),
         full("two loops, turned chart", 0.8, [0.2, 0.1, 0.05], 0.6),
         Pose {

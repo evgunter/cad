@@ -20,14 +20,19 @@ member orders): a drum `cyl(0.5, 1.0)` (radius 0.5 about `z`,
 `z ∈ [−1, 1]`, `common::germ_pair`), a ball of radius 0.5 revolved about
 `y`, a donut revolved about `y` (major 0.6, minor 0.2), a frustum, and a
 brick `[−0.4, 0.4]³`; the six placements are rotation 0 then
-`t = (0.45, 0.1, 0.05)`; 90° about `x`, `(0.3, 0.2, 0.1)`; 0.7 rad about
+`t = (0.45, 0.1, 0.05)`; 1.5707963 rad about `x` (a hair short of a right angle), `(0.3, 0.2, 0.1)`; 0.7 rad about
 `x`, `(0.1, 0.35, 0.2)`; 1.1 rad about `(0.3, 1, 0.2)`,
 `(0.42, −0.15, 0.3)`; 0.4 rad about `y`, `(0.6, 0, 0)`; 0.9 rad about
 `(1, 1, 0)`, `(0.05, 0.1, 0.02)`.
 
 Drum against drum, placements 2, 3 and 5 (skew axes), refuse
 `GermFrameUnsupported { a_kind: Cylinder, b_kind: Cylinder }` in both
-orders, raised by `boolean::join::pair_section_frame`'s coplanarity
+orders (6 lines). So does placement 1 turned by exactly `π/2` (the PR
+4025 review's `skew_placement_one`: perpendicular axes 0.3 apart), in
+both orders, for 8 lines over four skew placements; at the probe's
+1.5707963 rad that placement stops earlier, at
+`CurvedSectorSideUnsupported` (a sector side decided Zero at a margin
+of 7.5e-17). All are raised by `boolean::join::pair_section_frame`'s coplanarity
 split (`bool_germ_frame_axes_coplanar` definite: skew keeps `NoArm`).
 Placement 0 (parallel axes) passes the frame and stops at the lane
 (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`); placement 4
