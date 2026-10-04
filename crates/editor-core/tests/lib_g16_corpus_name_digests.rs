@@ -129,10 +129,10 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
 ///
-/// **`kitchen_sink` moved when a vertex pair crossing four times began
-/// minting its struts before its fans** (`boolean::insert`), alone: two
-/// faces and two crossing vertices of its split swap arena keys. Every
-/// name, every body and the persisted text are unchanged.
+/// **`kitchen_sink` moved with the null-edge insertion of a vertex pair
+/// crossing four times** (`boolean::insert`), alone: two faces and two
+/// crossing vertices of its split swap arena keys. Every name, every
+/// body and the persisted text are unchanged.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xaeb22275f9fa495e),
     ("corner_table", 0xe29a7605d42b6b99),
