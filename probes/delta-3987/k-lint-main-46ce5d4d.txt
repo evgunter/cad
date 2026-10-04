@@ -1,0 +1,139 @@
+k-lint: <out>/k-eps-1e-6.csv: 1577987 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1577987 classified), 42 flagged — rule 1 (undecided/invalid): 41, rule 2 (near a threshold): 1, rule 3 (below a floor): 1, rule 5 (off its construction's target): 0
+    rule 1 — invalid (poisoned) margin: 41
+    rule 2 — definite within 10^2 of the escalation threshold: 1
+    rule 3 — definite below the baseline distribution's floor (4e-5): 1
+  note: rule 2's definite arm (10^2*Keps = 1e-3) is looser than the baseline floor (4e-5) at this eps row and ran capped to it — at this eps the corpus's honest fine features sit less than a decade above the escalation band; the floor is the calibrated statement
+  note: props_quad_last_round carries 4 row(s) here and is eps-coupled but deliberately OFF the rule (4) roster. Its rows are judged by rules (2) and (3), so any flag on them below points at the baseline floor and its recourse does NOT apply: the open question is rule (4)'s floor for this family, which no committed era has a draw for. Rule it — see docs/K-REPORT.md, "Maintenance: this roster is a RECORD" — rather than re-deriving BASELINE_FLOOR_MARGIN, which did not move. Reason on record: the budget exit's once-per-FACE bound on a round that never runs, minted only when round 0 does not certify. No committed era carries a row of it and a fresh sweep records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md
+  FLAG corpus/boss_union:chart_bound_outer_span line 248559: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG corpus/boss_union:chart_bound_outer_span line 248595: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG corpus/boss_union:chart_bound_outer_span line 248631: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654664: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654700: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654736: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654776: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663824: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663860: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663896: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663932: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 675932: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 675968: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 693998: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 694034: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 694070: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/table:volume_backstop line 830021: |m|=1.5039173041239659e-5 band_zero=1e-6 — definite within 10^2 of the escalation threshold
+  FLAG demo/table:volume_backstop line 830021: |m|=1.5039173041239659e-5 band_zero=1e-6 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1077223: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1077259: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1081702: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1081738: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1087364: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1087400: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1094518: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1094554: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1103458: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1103494: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1118428: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1118464: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1136235: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1136271: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1155023: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1155059: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily:chart_bound_outer_span line 1494012: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily:chart_bound_outer_span line 1494048: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily:chart_bound_outer_span line 1494084: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548263: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548299: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548335: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565316: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565367: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565419: |m|=NaN band_zero=1e-6 — invalid (poisoned) margin
+k-lint: <out>/k-eps-1e-9.csv: 1578039 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1578039 classified), 58 flagged — rule 1 (undecided/invalid): 41, rule 2 (near a threshold): 2, rule 3 (below a floor): 15, rule 5 (off its construction's target): 0
+    rule 1 — invalid (poisoned) margin: 41
+    rule 2 — zero-classified within 10^2 of the coincidence threshold: 2
+    rule 3 — definite below the baseline distribution's floor (4e-5): 9
+    rule 3 — ε-coupled headroom below the ε-relative floor (1.5e2·ε): 6
+  note: props_quad_last_round carries 8 row(s) here and is eps-coupled but deliberately OFF the rule (4) roster. Its rows are judged by rules (2) and (3), so any flag on them below points at the baseline floor and its recourse does NOT apply: the open question is rule (4)'s floor for this family, which no committed era has a draw for. Rule it — see docs/K-REPORT.md, "Maintenance: this roster is a RECORD" — rather than re-deriving BASELINE_FLOOR_MARGIN, which did not move. Reason on record: the budget exit's once-per-FACE bound on a round that never runs, minted only when round 0 does not certify. No committed era carries a row of it and a fresh sweep records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md
+  FLAG corpus/boss_union:chart_bound_outer_span line 248559: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG corpus/boss_union:chart_bound_outer_span line 248595: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG corpus/boss_union:chart_bound_outer_span line 248631: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654664: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654700: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654736: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 654776: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663824: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663860: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663896: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 663932: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 675932: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/tiltedcut:chart_bound_outer_span line 675968: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 694010: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 694046: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/bossplate:chart_bound_outer_span line 694082: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/table:volume_backstop line 830033: |m|=1.5039173041239659e-5 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1077235: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1077271: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1081714: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1081750: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1087376: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1087412: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1094530: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1094566: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1103470: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1103506: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1118440: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1118476: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1136247: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1136283: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1155035: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:chart_bound_outer_span line 1155071: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1192407: |m|=1.330626333332935e-7 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1192413: |m|=3.8635432232999845e-10 band_zero=1e-9 — zero-classified within 10^2 of the coincidence threshold
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1192583: |m|=9.910468740449888e-8 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1228504: |m|=1.330626333882345e-7 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1228508: |m|=3.8635432232999845e-10 band_zero=1e-9 — zero-classified within 10^2 of the coincidence threshold
+  FLAG demo/projectbox_cutaway:props_quad_converged line 1242951: |m|=9.910468737114325e-8 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/lily:chart_bound_outer_span line 1494066: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily:chart_bound_outer_span line 1494102: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily:chart_bound_outer_span line 1494138: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily:props_quad_last_round line 1518027: |m|=1.0085665779924896e-6 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily:props_quad_last_round line 1518029: |m|=1.0201104738462261e-6 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily:props_quad_converged line 1518035: |m|=3.625793459144187e-8 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/lily:props_quad_converged line 1518039: |m|=2.8278643827165723e-8 band_zero=1e-9 — ε-coupled headroom below the ε-relative floor (1.5e2·ε)
+  FLAG demo/lily:props_quad_last_round line 1518384: |m|=1.0155765275466742e-6 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily:props_quad_last_round line 1518386: |m|=1.0221038715254972e-6 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548335: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548371: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1548407: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565388: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565439: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:chart_bound_outer_span line 1565491: |m|=NaN band_zero=1e-9 — invalid (poisoned) margin
+  FLAG demo/lily_walls:props_quad_last_round line 1577276: |m|=2.564745448773732e-5 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily_walls:props_quad_last_round line 1577278: |m|=2.1785984150066094e-5 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily_walls:props_quad_last_round line 1578036: |m|=1.1365004449022562e-5 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+  FLAG demo/lily_walls:props_quad_last_round line 1578038: |m|=3.0191506433502393e-6 band_zero=1e-9 — definite below the baseline distribution's floor (4e-5)
+k-lint: TOTAL over 2 file(s): 3156026 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 3156026 classified), rule 1 (undecided/invalid) 82, rule 2 (near a threshold) 3, rule 3 (below a floor) 16, rule 5 (off its construction's target) 0
+
+k-lint: GATE FAILED — the margin distribution changed: 100 margin(s) crowd a decision
+             boundary that the committed baseline says should be empty.
+
+             props_quad_last_round: 12 row(s). It is eps-coupled and deliberately OFF the rule (4)
+             roster (docs/K-REPORT.md, "Maintenance: this roster is a RECORD"), on the
+             record that no sweep had ever recorded one. That is no longer true, so the
+             question the ruling left open is now live: cut rule (4)'s floor over this
+             family and roster it, or re-state why the metre rules are right for it.
+             Re-deriving BASELINE_FLOOR_MARGIN is NOT the recourse here — it did not
+             move. Reason on record: the budget exit's once-per-FACE bound on a round that never runs, minted only when round 0 does not certify. No committed era carries a row of it and a fresh sweep records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md
+
+         If the flagged margins are REAL, INTENDED geometry, do NOT change the geometry
+         to silence this lint. A fired lint is evidence ABOUT THE MARGIN DISTRIBUTION
+         — possibly that the threshold or the baseline is stale — not a geometry defect.
+         
+         Recourse, in order:
+           1. Re-derive the baseline and the thresholds per the snapshot-contract
+              runbook: docs/K-REPORT.md, "M7 addendum (2026-08-07): the large-K
+              lint's floor refresh", which re-derives BASELINE_FLOOR_MARGIN, the
+              percentile choice and the eps-coupled ratio against a fresh sweep.
+           2. If re-derivation is not warranted, demote this row to advisory with a
+              recorded justification (nightly.yml's `k-lint` job).
+         
+         Changing geometry to get under a lint threshold is the one forbidden move.
