@@ -4743,37 +4743,47 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
     }
 }
 
-/// The refused rounds of `r`, which must be refinement stopped by the
-/// branch's step budget.
+/// What a refinement stopped by the branch's step budget left in `r`:
+/// the refused carrier's samples, every round's refusal (the earlier
+/// rounds, then the refusal itself), and the rendered refusal.
 fn rounds_at_the_wall(
     at: &str,
     r: &Result<geom_brep::SsiOutcome, SsiError>,
-) -> (usize, Vec<RefusedRound>) {
-    match r {
-        Err(SsiError::RefinementExhausted {
-            stop: RefineStop::StepBudget { asked, budget },
+) -> (usize, Vec<RefusedRound>, String) {
+    let Err(
+        e @ SsiError::RefinementExhausted {
+            stop: RefineStop::StepBudget { budget },
             samples,
-            rounds,
-            ..
-        }) => {
-            assert_eq!(*budget, SSI_MAX_STEPS, "{at}: the branch's step budget");
-            assert!(
-                *asked > *budget && *samples <= *budget + 1,
-                "{at}: refused at the round that would overrun it: {samples} samples, {asked} \
-                 steps asked"
-            );
-            let shown = r
-                .as_ref()
-                .unwrap_err()
-                .render(geom_brep::recourse::Reading::Build);
-            assert!(
-                shown.contains("may be the arithmetic's floor, not the geometry's size"),
-                "{at}: the ending names the floor: {shown}"
-            );
-            (*samples, rounds.clone())
-        }
-        other => panic!("{at}: expected refinement stopped by the step budget, got {other:?}"),
-    }
+            refusal,
+            earlier,
+        },
+    ) = r
+    else {
+        panic!("{at}: expected refinement stopped by the step budget, got {r:?}");
+    };
+    assert_eq!(*budget, SSI_MAX_STEPS, "{at}: the branch's step budget");
+    // A round adds at most one sample per gap, so the round the wall
+    // refused would have overrun it only from past half of it.
+    assert!(
+        *samples - 1 <= *budget && 2 * (*samples - 1) > *budget,
+        "{at}: refused at the round that would overrun it: {samples} samples"
+    );
+    let last = match **refusal {
+        SsiError::CertificateLimb { limb, value } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
+        ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
+    };
+    let mut rounds = earlier.clone();
+    rounds.push(RefusedRound {
+        samples: *samples,
+        limb: last.0,
+        margin: last.1,
+    });
+    (
+        *samples,
+        rounds,
+        e.render(geom_brep::recourse::Reading::Build),
+    )
 }
 
 /// **A loop past the step budget refuses typed at the wall.** At ε 1e-14
@@ -4782,7 +4792,8 @@ fn rounds_at_the_wall(
 /// refinement's first round asks about 23 400 steps, so the wall refuses
 /// before it, naming the one refused round. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier.
+/// carrier. One round shows no margin falling or stopping, so the ending
+/// is the curvature-held march's: the domain, then the tolerance.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4796,13 +4807,18 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let (samples, rounds, shown) = rounds_at_the_wall("the level loop at 1e-14", &r);
     assert!(
         (18_000..18_600).contains(&samples),
         "the march's samples: {samples}"
     );
     assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
-    assert_eq!(rounds[0].samples, samples, "the round names its samples");
+    assert!(
+        shown.contains("refining the branch's")
+            && shown.contains("name a domain around just the feature traced")
+            && !shown.contains("floor"),
+        "the march's levers, no floor claimed: {shown}"
+    );
 }
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
@@ -4812,7 +4828,7 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 /// doubles the samples and leaves the margin where it was. The rounds
 /// run from about 4 250 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
-/// and the refusal is the wall's.
+/// and the refusal is the wall's, its ending naming the floor.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4826,7 +4842,13 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let (_, rounds, shown) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    assert!(
+        shown.contains(
+            "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"
+        ),
+        "the ending names the floor: {shown}"
+    );
     let (first, last) = (rounds[0].samples, rounds[rounds.len() - 1].samples);
     assert!(
         rounds.len() >= 4 && last > 3 * first,
