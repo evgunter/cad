@@ -52,6 +52,14 @@ Beside the named variants, the same shape under other names:
   face, its shell, the operand solid) and `ops.rs` `apply_recuts`;
 - `describe_edges`' `EdgeDescribeFailure::NotWalkable`, shared by the
   boolean and `merge_faces`;
+- `boolean/ops.rs` `remap_contacts` / `remap_carried`: a fusion list
+  whose row keeps a key an earlier row killed refuses typed
+  (`ops::tests::a_corrupt_fusion_list_refuses_where_a_dead_end_drops`);
+  the list is the boolean's own bookkeeping, so that is a kernel bug;
+- `RevertError::Corrupt`'s rows (`revert::tests::revert_refuses_each_corrupt_link_typed`,
+  `review_d18::revert_writes_no_fault_off_a_torn_next_prev_or_start`)
+  and `offset_together::tests::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
+  assert today that a torn body answers typed or not at all;
 - outside topo, each a kernel driver or consumer reading records of a
   body a door built: `mesh`'s `TessellateError::MissingEntity` (about
   30 raises in `chords.rs`, `curved.rs`, `memo.rs`, `planar.rs`,
