@@ -245,9 +245,6 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// A wall face: closed along the section plane its chords lie in,
     /// on the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A sphere face: closed by the segment's curve, an arc of the
-    /// section plane's circle ([`sphere_island_ccw`]).
-    Sphere((Point3<T>, UnitVec3<T>), &'a SegmentCurve<T>),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -2245,14 +2242,8 @@ fn choose_roles<T: Decide>(
     enum RingFace<T: geom_core::Real> {
         Plane(Vec3<T>),
         Wall((Point3<T>, UnitVec3<T>)),
-        Sphere((Point3<T>, UnitVec3<T>)),
     }
-    let on_sphere = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }));
     let ring = match closure {
-        RingClosure::Wall(section) if on_sphere => RingFace::Sphere(section),
         RingClosure::Wall(section) => RingFace::Wall(section),
         RingClosure::Planar => RingFace::Plane(
             face_outward_normal(body, face)
@@ -2311,7 +2302,6 @@ fn choose_roles<T: Decide>(
     }
     match ring {
         RingFace::Plane(normal) => Ok(RoleLane::Ring { face, normal }),
-        RingFace::Sphere(section) => Ok(RoleLane::SphereRing { face, section }),
         RingFace::Wall(section) => {
             let ccw = ring_run_ccw(body, face, (ea, ra), IslandClosing::Wall(section), band)?;
             ring_order(body, (ea, ra), loose, ccw).map(RoleLane::Decided)
@@ -2329,11 +2319,6 @@ enum RoleLane<T: geom_core::Real> {
     Decided((HalfEdgeKey, HalfEdgeKey)),
     /// A ring of the planar `face`, with its outward `normal`.
     Ring { face: FaceKey, normal: Vec3<T> },
-    /// A ring of the sphere `face`, whose chords lie in `section`.
-    SphereRing {
-        face: FaceKey,
-        section: (Point3<T>, UnitVec3<T>),
-    },
 }
 
 impl<T: Decide> RoleLane<T> {
@@ -2343,7 +2328,7 @@ impl<T: Decide> RoleLane<T> {
     fn curve_order(&self, given: (HalfEdgeKey, HalfEdgeKey)) -> (HalfEdgeKey, HalfEdgeKey) {
         match *self {
             RoleLane::Decided(order) => order,
-            RoleLane::Ring { .. } | RoleLane::SphereRing { .. } => given,
+            RoleLane::Ring { .. } => given,
         }
     }
 
@@ -2368,14 +2353,16 @@ impl<T: Decide> RoleLane<T> {
         curve: &SegmentCurve<T>,
         band: Band,
     ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
-        let (face, closing) = match self {
-            RoleLane::Ring { face, normal } => (face, IslandClosing::Planar(normal, curve)),
-            RoleLane::SphereRing { face, section } => {
-                (face, IslandClosing::Sphere(section, curve))
-            }
-            RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
+        let RoleLane::Ring { face, normal } = self else {
+            return Ok(self.curve_order((ea, ra)));
         };
-        let ccw = ring_run_ccw(body, face, (ea, ra), closing, band)?;
+        let ccw = ring_run_ccw(
+            body,
+            face,
+            (ea, ra),
+            IslandClosing::Planar(normal, curve),
+            band,
+        )?;
         ring_order(body, (ea, ra), loose, ccw)
     }
 }
@@ -2440,16 +2427,6 @@ fn ring_run_ccw<T: Decide>(
                     .map_err(BooleanError::Join)?;
             return ring_winding_order(wound);
         }
-        IslandClosing::Sphere(section, curve) => {
-            return ring_winding_order(sphere_island_ccw(
-                body,
-                face,
-                (h1, h2),
-                section,
-                curve,
-                band,
-            )?);
-        }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
     let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
@@ -2466,154 +2443,6 @@ fn ring_run_ccw<T: Decide>(
                    the kinds)",
         }))?;
     ring_winding_order(wound.map(|decided| decided.sign))
-}
-
-/// **The winding of a ring-lane island on a sphere face**, about the
-/// face's OUTWARD normal, read without a chart: whether the open run
-/// `h1 → h2` (`next` order, through `h2`), closed by `curve` from `h2`'s
-/// site back to `h1`'s, bounds on its left the patch that holds none of
-/// the face's outer loop.
-///
-/// The closing arc lies on the circle the section plane cuts, which
-/// bounds two caps. The run lies in one of them, the side `σ` of the
-/// plane every charted run edge's midpoint is decided on, so the closed
-/// run bounds one region inside that cap and one holding the whole
-/// other cap. The region on its left is the inner one exactly when the
-/// arc's left normal at its midpoint, `N × t` (`N` the outward normal,
-/// `t` the direction of travel), points to `σ`.
-///
-/// The ring is a hole of the face, so the run and the ring's other run
-/// each bound, with the arc, one of the two pieces the arc cuts off the
-/// face's side of the ring, and the outer loop lies in exactly one. An
-/// outer-loop vertex `w` off the plane decides which:
-///
-/// - `w` on the side opposite `σ` is outside the inner region, so the
-///   run's patch holds no outer loop exactly when it is the inner one;
-/// - `w` on `σ` is read against the other run, which must then lie on
-///   the opposite side: there the same rule names the other run's patch,
-///   and this run's is the other piece.
-///
-/// Positive for CCW, negative for CW, as the cylinder arm's chart sign.
-/// A run with no charted edge off the plane or with edges on both
-/// sides, an outer loop on the plane, or both runs on `w`'s side is
-/// outside what this reading decides, and refuses loudly.
-fn sphere_island_ccw<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-    (origin, normal): (Point3<T>, UnitVec3<T>),
-    curve: &SegmentCurve<T>,
-    band: Band,
-) -> Result<Result<Sign, geom_core::Indeterminate>, BooleanError> {
-    let invariant = |what| BooleanError::Join(SplitJoinError::SectionInvariant { face, what });
-    let n = normal.get();
-    let Some(face_data) = body.get_face(face) else {
-        return Err(invariant("a sphere ring lane's face does not resolve"));
-    };
-    let Some(&geom::Surface::Sphere { radius, .. }) = body.get_surface(face_data.surface) else {
-        return Err(invariant("a sphere ring lane's face is not on a sphere"));
-    };
-    let side = |p: Point3<T>| {
-        decide(
-            "bool_sphere_ring_run_side",
-            Margin::of(n.dot(p - origin)),
-            band,
-        )
-    };
-    // The one side every charted edge of `run` leaves the plane on.
-    let run_side = |run: &[HalfEdgeKey]| -> Result<Result<Sign, geom_core::Indeterminate>, BooleanError> {
-        let mut seen: Option<Sign> = None;
-        for &he in run {
-            let Some(edge) = body.get_half_edge(he).map(|h| h.edge) else {
-                return Err(invariant("a ring run's half-edge does not resolve"));
-            };
-            let Some(data) = body.get_edge(edge) else {
-                return Err(invariant("a ring run's edge does not resolve"));
-            };
-            let Some(certified) = body.edge_curve_linked(edge, data).certified() else {
-                continue;
-            };
-            let (t0, t1) = certified.params();
-            match (side(certified.carrier().mid_point(t0, t1)), seen) {
-                (Err(diag), _) => return Ok(Err(diag)),
-                (Ok(Sign::Zero), _) => {}
-                (Ok(at), None) => seen = Some(at),
-                (Ok(at), Some(was)) if at == was => {}
-                _ => return Err(invariant("a sphere ring run crosses its section plane")),
-            }
-        }
-        seen.map(Ok).ok_or(invariant(
-            "a sphere ring run has no charted edge off its section plane",
-        ))
-    };
-    let cycle = body.loop_cycle(h1).ok_or(invariant("a ring run's loop does not walk"))?;
-    let end = cycle
-        .iter()
-        .position(|&he| he == h2)
-        .ok_or(invariant("a ring run does not reach its end half"))?;
-    let sigma = match run_side(&cycle[..=end])? {
-        Ok(sigma) => sigma,
-        Err(diag) => return Ok(Err(diag)),
-    };
-    let closing = curve
-        .run_closing(h1, face)
-        .map_err(BooleanError::Join)?
-        .ok_or(invariant("a sphere ring run is closed by a straight chord"))?;
-    let (t0, t1) = (closing.param_start, closing.param_end);
-    let mid = closing.carrier.mid_point(t0, t1);
-    let travel = closing.carrier.deriv((t0 + t1) * T::from_f64(0.5)) * (t1 - t0);
-    let outward = match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
-        Ok(Some(outward)) => outward.vec(),
-        _ => return Err(invariant("a sphere ring run's closing arc leaves its face's sphere")),
-    };
-    let left = outward.cross(travel);
-    let lean = match decide(
-        "bool_sphere_ring_arc_left",
-        Margin::levered(n.dot(left) / left.norm(), radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => return Ok(Ok(Sign::Zero)),
-        Ok(lean) => lean,
-        Err(diag) => return Ok(Err(diag)),
-    };
-    let inner = lean == sigma;
-    let outer_cycle = match body.get_loop(face_data.outer).map(|l| l.boundary) {
-        Some(crate::entity::LoopBoundary::Cycle { first }) => body.loop_cycle(first),
-        _ => None,
-    }
-    .ok_or(invariant("a sphere ring lane's face has no outer cycle"))?;
-    let mut w_side = None;
-    for he in outer_cycle {
-        let Some(p) = body.half_edge_start_point(he) else {
-            return Err(invariant("an outer-loop vertex has no point"));
-        };
-        match side(p) {
-            Ok(Sign::Zero) => {}
-            Ok(at) => {
-                w_side = Some(at);
-                break;
-            }
-            Err(diag) => return Ok(Err(diag)),
-        }
-    }
-    let w_side = w_side.ok_or(invariant(
-        "a sphere ring lane's outer loop lies on its section plane",
-    ))?;
-    let ccw = if w_side != sigma {
-        inner
-    } else {
-        let rest: Vec<HalfEdgeKey> = cycle[end + 1..].to_vec();
-        match run_side(&rest)? {
-            Ok(other) if other != sigma => !inner,
-            Ok(_) => {
-                return Err(invariant(
-                    "both runs of a sphere ring lie on its outer loop's side of the section",
-                ));
-            }
-            Err(diag) => return Ok(Err(diag)),
-        }
-    };
-    Ok(Ok(if ccw { Sign::Positive } else { Sign::Negative }))
 }
 
 /// The ring lane's role order from the decided winding: CCW keeps the
