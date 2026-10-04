@@ -59,10 +59,6 @@ three above:
   door offers ("read the structural validators' report and repair the
   reference it names", `crates/topo/src/pcurves.rs`); its sibling
   `SiteRowRefusal::Corrupt` ends in `KERNEL_DEFECT_ENDING` now.
-- `topo::shell`'s "stopped resolving mid-construction (kernel bug)"
-  (`crates/topo/src/shell.rs`, the `Display` arm that writes it) and
-  `replace_face_offset`'s "referential coherence broke mid-plan (kernel
-  bug)" (`crates/topo/src/replace_face.rs`, `Corrupt`).
 - `topo::splitting::SplitFinishError::Corrupt` ("the finish traversal
   failed (corrupt body)") and `SplitReduceError::CorruptOperand`, which
   ends in nothing (`crates/topo/src/splitting/finish.rs`,

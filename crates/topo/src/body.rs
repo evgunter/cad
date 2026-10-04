@@ -1617,50 +1617,32 @@ impl<T: Real> Body<T> {
 
     /// The face of `he`'s loop, for a half-edge this call resolved or
     /// read out of a record: its `parent_loop` and that loop's `face`
-    /// are links, and a miss panics naming the record.
+    /// are links, and the face lists the loop; a miss of either panics
+    /// naming the record.
     #[track_caller]
     pub(crate) fn face_of_linked(&self, he: HalfEdgeKey) -> FaceKey {
         let parent = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).parent_loop;
-        crate::live::linked(
+        let face = crate::live::linked(
             &self.loops,
             parent,
             EntityId::Loop,
             EntityId::HalfEdge(he),
             "parent_loop",
         )
-        .face
-    }
-
-    /// The mate of `he` for a half-edge this call resolved or read out
-    /// of a record: its `edge` is a link, and on a tier-1-valid body
-    /// that edge claims it, so either miss panics naming the record.
-    #[track_caller]
-    pub(crate) fn mate_linked(&self, he: HalfEdgeKey) -> HalfEdgeKey {
-        let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+        .face;
         let data = crate::live::linked(
-            &self.edges,
-            edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
+            &self.faces,
+            face,
+            EntityId::Face,
+            EntityId::Loop(parent),
+            "face",
         );
-        let claim = data.claim(he).unwrap_or_else(|| {
-            unreachable!(
-                "{}'s edge {} does not claim it in either slot: on a tier-1-valid body \
-                 an edge claims the two half-edges that name it",
-                EntityId::HalfEdge(he),
-                EntityId::Edge(edge)
-            )
-        });
-        let field = if claim.plus { "he_minus" } else { "he_plus" };
-        crate::live::linked(
-            &self.half_edges,
-            claim.mate,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            field,
+        assert!(
+            data.outer == parent || data.rings.contains(&parent),
+            "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
+             body a loop's face lists it"
         );
-        claim.mate
+        face
     }
 
     /// The end vertex of `he` (`start(next(he))`) for a half-edge this

@@ -2210,9 +2210,12 @@ fn offset_door<T: Decide>(
 }
 
 /// The face a simultaneous-door refusal is about, where it names one
-/// or names an entity that touches one.
+/// or names an entity that touches one. The door refused on its own
+/// clone and left `body` as it read it, so a vertex or edge it names is
+/// a record of `body`, and its links resolve.
+#[track_caller]
 fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
-    let face_of_he = |he| body.face_of_half_edge(he);
+    let face_of_he = |he| Some(body.face_of_linked(he));
     match error {
         ReplaceFaceError::StaleFace { face }
         | ReplaceFaceError::TogetherNonPlanar { face, .. }
@@ -2224,13 +2227,13 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::NappeStraddles { face, .. } => Some(*face),
         ReplaceFaceError::TogetherCorner { vertex, .. }
         | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
-            face_of_he(body.get_vertex(*vertex)?.emanating?)
+            face_of_he(proven(&body.vertices, *vertex, EntityId::Vertex).emanating?)
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
-            face_of_he(body.get_edge(*edge)?.he_plus)
+            face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus)
         }
         _ => None,
     }
@@ -2570,7 +2573,7 @@ fn inward<T: Real>(body: &Body<T>, face: FaceKey, thickness: T) -> T {
 /// takes its solid's whole group on its chart (`solid_charts`, each
 /// solid's own), and leaves its shell with a nonempty, connected
 /// remainder.
-fn check_designation<T: Real>(
+fn check_designation<T: Decide>(
     body: &Body<T>,
     solid_charts: &[(SolidKey, ChartGroups)],
     open_faces: &[FaceKey],
@@ -2634,7 +2637,7 @@ fn check_designation<T: Real>(
 /// How many edge-adjacency components `faces` falls into — the
 /// validator's own pass-11 relation, restricted to a subset.
 #[track_caller]
-fn count_components<T: Real>(body: &Body<T>, faces: &[FaceKey]) -> usize {
+fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
     let mut seen: Vec<FaceKey> = Vec::new();
     let mut components = 0usize;
     for seed in faces {
@@ -2659,10 +2662,11 @@ fn count_components<T: Real>(body: &Body<T>, faces: &[FaceKey]) -> usize {
 /// The faces `face` shares an edge with, for a face a shell's record
 /// lists: every hop is a link, so a miss panics naming the record.
 #[track_caller]
-fn face_neighbours<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
+fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
     for he in body.face_cycles_linked(face) {
-        let parent = body.face_of_linked(body.mate_linked(he));
+        let mate = body.proven_mate(he, crate::live::link(EntityId::Face(face), "cycle"));
+        let parent = body.face_of_linked(mate.mate);
         if parent != face && !out.contains(&parent) {
             out.push(parent);
         }
@@ -2726,6 +2730,38 @@ mod tests {
         );
         assert!(
             report.contains(&premise) && report.contains(NAMES_ONLY_LIVE),
+            "{report}"
+        );
+    }
+
+    /// A neighbour is read through the mate's loop, and the face that
+    /// loop names must list it: a loop torn to name another face would
+    /// join two components through a loop that face does not own, so
+    /// the hop panics naming the loop rather than counting it.
+    #[test]
+    fn face_neighbours_panics_on_a_loop_its_face_does_not_list() {
+        let tol = Tol::witness();
+        let mut body = crate::splitting::reassembly::quad_prism(
+            &crate::test_support_fixtures::UNIT_SQUARE,
+            1.0,
+            tol,
+        );
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let (torn, seed) = (faces[1], faces[0]);
+        let neighbours = face_neighbours(&body, torn);
+        let probe = *neighbours
+            .iter()
+            .find(|&&f| f != seed)
+            .expect("a side face has a neighbour other than the seed");
+        let outer = body.get_face(torn).unwrap().outer;
+        body.get_loop_mut(outer).unwrap().face = seed;
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = face_neighbours(&body, probe);
+        }));
+        assert!(
+            report.contains(&format!(
+                "loop {outer:?} names face {seed:?}, which does not list it"
+            )),
             "{report}"
         );
     }

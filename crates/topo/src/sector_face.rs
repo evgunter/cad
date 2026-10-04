@@ -139,7 +139,8 @@ pub(crate) fn resolve<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let face = body.face_of_linked(body.mate_linked(he));
+    let mate = body.proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"));
+    let face = body.face_of_linked(mate.mate);
     // The planar arm goes through the crate's ONE sense-flip door
     // ([`crate::face_normal`]) rather than re-deriving the flip, and
     // reads nothing else: a plane's outward normal is a property of
