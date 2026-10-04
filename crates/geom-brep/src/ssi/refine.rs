@@ -20,22 +20,30 @@
 //! refusal then names ([`RefineStop`]): where no selected gap can be
 //! halved, half of each falling in the band (`ssi_refine_halving`) or
 //! its midpoint not settling inside the domain, and where the next round
-//! would hand the fit more than [`super::SSI_MAX_FIT_SAMPLES`]. Every
-//! round that does not stop adds a sample, so refinement takes at most
-//! `SSI_MAX_FIT_SAMPLES − n₀ + 1` rounds from `n₀` marched samples, and
-//! at most half that where every selected midpoint settles on a branch
-//! of two gaps or more, since a refused gap is then halved with at least
-//! one neighbour.
+//! would give the branch more steps than its budget
+//! ([`super::SSI_MAX_STEPS`], the march's own). The band stop is the
+//! termination: a gap is halved only while half of it clears the band,
+//! so a branch of length `L` holds at most about `2L` over the band's
+//! escalate bound in samples. That bound is formal, so the step budget
+//! is the resource wall. Every round that does not stop adds a sample,
+//! so refinement takes at most `budget − n₀ + 2` rounds from `n₀`
+//! marched samples, and at most half that where every selected
+//! midpoint settles on a branch of two gaps or more, since a refused
+//! gap is then halved with at least one neighbour.
+//!
+//! The refusal carries every round's refused limb and margin
+//! ([`RefusedRound`]), so a margin that stays flat while the samples
+//! double shows as the floor it is.
 
 use geom::NurbsCurve3;
-use geom_core::{Band, Margin, Point3, Sign};
+use geom_core::{Band, Margin, MarginDiag, Point3, Sign};
 
 use crate::dihedral::decide;
 
-use super::certify::Located;
+use super::SsiError;
+use super::certify::{Located, SsiLimb};
 use super::march::{MarchContext, newton_refine, within};
 use super::system::LocalSystem;
-use super::{SSI_MAX_FIT_SAMPLES, SsiError};
 
 /// Where refinement stopped short of a certificate
 /// ([`SsiError::RefinementExhausted`]).
@@ -49,14 +57,59 @@ pub enum RefineStop {
         /// domain.
         unsettled: usize,
     },
-    /// The next round would have handed the fit more samples than it
-    /// takes.
-    FitBudget {
-        /// The samples the next round asked for.
+    /// The next round would have given the branch more steps, the gaps
+    /// between its samples, than the step budget the march spends
+    /// ([`super::SSI_MAX_STEPS`]): a resource wall, not a verdict on
+    /// the carrier.
+    StepBudget {
+        /// The steps the next round asked for.
         asked: usize,
-        /// The fit's budget, [`super::SSI_MAX_FIT_SAMPLES`].
+        /// The budget.
         budget: usize,
     },
+}
+
+/// One refinement round's refusal, as the certificate reported it. The
+/// certificate stops at the first limb that refuses, so a round names
+/// that limb alone, and a later round can name another.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RefusedRound {
+    /// The samples the refused carrier was fitted through.
+    pub samples: usize,
+    /// The limb that refused.
+    pub limb: SsiLimb,
+    /// What it read.
+    pub margin: RoundMargin,
+}
+
+/// What a refusing limb read in one round.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RoundMargin {
+    /// A definite refusal, in metres: limb 2's bound over the whole
+    /// carrier, or limb 1's residual at the first sample that refused.
+    Over(f64),
+    /// Undecided: the margin the classifier saw, inside the band, for
+    /// the refusal's report only.
+    InBand(MarginDiag),
+}
+
+impl RefusedRound {
+    /// The round a located refusal of `samples` samples records: a
+    /// limb's, the only refusal the certificate locates.
+    fn of(samples: usize, error: &SsiError) -> Option<Self> {
+        let (limb, margin) = match error {
+            SsiError::CertificateLimb { limb, value } => (*limb, RoundMargin::Over(*value)),
+            SsiError::CertificateEscalated { limb, cause } => {
+                (*limb, RoundMargin::InBand(cause.margin))
+            }
+            _ => return None,
+        };
+        Some(Self {
+            samples,
+            limb,
+            margin,
+        })
+    }
 }
 
 /// Fit and certify `states`, refining them where the certificate
@@ -67,7 +120,8 @@ pub enum RefineStop {
 /// A refusal the certificate does not locate (limb 3, a foot point, a
 /// limb whose margin is no number, the fit), as it is; a located one
 /// that refinement cannot answer as [`SsiError::RefinementExhausted`],
-/// naming where it stopped and on how many samples.
+/// naming where it stopped, on how many samples, and every round's
+/// refusal.
 pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
     sys: &S,
     mut states: Vec<[f64; N]>,
@@ -78,6 +132,7 @@ pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
 where
     S: LocalSystem<M, N>,
 {
+    let mut rounds = Vec::new();
     loop {
         let refused = match certify(&states) {
             Ok(certified) => return Ok(certified),
@@ -86,6 +141,7 @@ where
         if refused.at.is_empty() {
             return Err(refused.error);
         }
+        rounds.extend(RefusedRound::of(states.len(), &refused.error));
         let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
         // The fit just read these same points, so this does not refuse.
         let Ok(params) = NurbsCurve3::<f64>::chord_parameters(&points) else {
@@ -113,10 +169,10 @@ where
         finer.extend(states.last().copied());
         let stop = if finer.len() == states.len() {
             Some(RefineStop::NothingToHalve { in_band, unsettled })
-        } else if finer.len() > SSI_MAX_FIT_SAMPLES {
-            Some(RefineStop::FitBudget {
-                asked: finer.len(),
-                budget: SSI_MAX_FIT_SAMPLES,
+        } else if finer.len() - 1 > ctx.max_steps {
+            Some(RefineStop::StepBudget {
+                asked: finer.len() - 1,
+                budget: ctx.max_steps,
             })
         } else {
             None
@@ -126,6 +182,7 @@ where
                 stop,
                 samples: states.len(),
                 refusal: Box::new(refused.error),
+                rounds,
             });
         }
         states = finer;
@@ -177,8 +234,12 @@ where
 mod tests {
     use geom_core::Band;
 
-    use super::{Located, RefineStop, SSI_MAX_FIT_SAMPLES, SsiError, refine_by_certificate};
+    use super::{
+        Located, RefineStop, RefusedRound, RoundMargin, SsiError, SsiLimb, refine_by_certificate,
+    };
+    use crate::ssi::SSI_MAX_STEPS;
     use crate::ssi::certify::RefusedSpan;
+    use crate::ssi::march::MarchContext;
     use crate::ssi::march::tests::{FixedSpeedR3, unit_ctx};
 
     /// The x coordinates of states on the `x` axis.
@@ -191,10 +252,14 @@ mod tests {
         (x + 0.8) / 1.6
     }
 
-    /// A refusal of `[lo, hi]` in `x`, as the stand-ins below raise it.
-    fn refusal(lo: f64, hi: f64) -> Located {
+    /// The hull limb's refusal of `[lo, hi]` in `x`, reading `value`, as
+    /// the stand-ins below raise it.
+    fn refusal(lo: f64, hi: f64, value: f64) -> Located {
         Located {
-            error: SsiError::CellBudget { budget: 0 },
+            error: SsiError::CertificateLimb {
+                limb: SsiLimb::HullSup,
+                value,
+            },
             at: vec![RefusedSpan {
                 lo: t(lo),
                 hi: t(hi),
@@ -204,18 +269,21 @@ mod tests {
 
     /// A certificate stand-in over the `x` axis from −0.8 to 0.8: it
     /// refuses `[lo, hi]` in `x` while any gap meeting it is longer than
-    /// `longest`, and otherwise passes the states through.
+    /// `longest`, reading the longest such gap, and otherwise passes the
+    /// states through.
     fn refusing(
         lo: f64,
         hi: f64,
         longest: f64,
     ) -> impl FnMut(&[[f64; 3]]) -> Result<Vec<[f64; 3]>, Located> {
         move |states| {
-            let refused = states
+            let widest = states
                 .windows(2)
-                .any(|g| g[1][0] >= lo && g[0][0] <= hi && g[1][0] - g[0][0] > longest);
-            if refused {
-                Err(refusal(lo, hi))
+                .filter(|g| g[1][0] >= lo && g[0][0] <= hi)
+                .map(|g| g[1][0] - g[0][0])
+                .fold(0.0, f64::max);
+            if widest > longest {
+                Err(refusal(lo, hi, widest))
             } else {
                 Ok(states.to_vec())
             }
@@ -225,6 +293,14 @@ mod tests {
     /// Five states 0.4 apart along the `x` axis.
     fn axis_states() -> Vec<[f64; 3]> {
         [-0.8, -0.4, 0.0, 0.4, 0.8].map(|x| [x, 0.0, 0.0]).to_vec()
+    }
+
+    /// The unit context with the kernel's step budget.
+    fn kernel_ctx(band: Band) -> MarchContext<3> {
+        MarchContext {
+            max_steps: SSI_MAX_STEPS,
+            ..unit_ctx(band)
+        }
     }
 
     /// **Refinement halves the gaps the certificate refused and their
@@ -237,7 +313,7 @@ mod tests {
     fn refinement_halves_the_refused_gaps_and_their_neighbours() {
         let band = Band::new(1.0e-9, 1.0e-8).unwrap();
         let sys = FixedSpeedR3::at_speed(1.0);
-        let ctx = unit_ctx(band);
+        let ctx = kernel_ctx(band);
         let mut rounds = 0;
         let mut certify = refusing(-0.05, 0.05, 0.1);
         let out = refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
@@ -256,37 +332,70 @@ mod tests {
         assert_eq!(rounds, 3, "two refusals and the pass");
     }
 
-    /// **Refinement stops where it can no longer help, and says so**: a
-    /// refusal at `x = 0` that no density answers is halved until half a
-    /// gap would fall in the band, and stops naming the band; one over
-    /// the whole branch stops short of the round that would overrun the
-    /// fit's budget, naming the budget.
+    /// **Refinement stops at the band, carrying every round's refusal**:
+    /// a refusal at `x = 0` that no density answers is halved until half
+    /// a gap would fall in the band, and stops naming the band, with one
+    /// round recorded per refused carrier, each on the samples it had and
+    /// the margin it read, and the certificate's own refusal standing.
     #[test]
-    fn refinement_stops_at_the_band_and_at_the_fit_budget() {
+    fn refinement_stops_at_the_band_with_its_history() {
         let band = Band::new(1.0e-9, 1.0e-8).unwrap();
         let sys = FixedSpeedR3::at_speed(1.0);
-        let ctx = unit_ctx(band);
+        let ctx = kernel_ctx(band);
         let mut finest = f64::INFINITY;
+        let mut seen = Vec::new();
         let mut certify = refusing(0.0, 0.0, 0.0);
         let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
             for g in s.windows(2) {
                 finest = finest.min(g[1][0] - g[0][0]);
             }
-            certify(s)
+            let verdict = certify(s);
+            if let Err(Located {
+                error: SsiError::CertificateLimb { value, .. },
+                ..
+            }) = &verdict
+            {
+                seen.push((s.len(), *value));
+            }
+            verdict
         });
         match r {
             Err(SsiError::RefinementExhausted {
                 stop: RefineStop::NothingToHalve { in_band, unsettled },
                 refusal,
-                ..
+                samples,
+                rounds,
             }) => {
                 assert!(
                     in_band > 0 && unsettled == 0,
                     "{in_band} in band, {unsettled}"
                 );
                 assert!(
-                    matches!(*refusal, SsiError::CellBudget { budget: 0 }),
+                    matches!(
+                        *refusal,
+                        SsiError::CertificateLimb {
+                            limb: SsiLimb::HullSup,
+                            ..
+                        }
+                    ),
                     "the stand-in's refusal stands: {refusal:?}"
+                );
+                assert_eq!(rounds.len(), seen.len(), "a round per refused carrier");
+                for (round, (n, value)) in rounds.iter().zip(&seen) {
+                    assert_eq!(
+                        *round,
+                        RefusedRound {
+                            samples: *n,
+                            limb: SsiLimb::HullSup,
+                            margin: RoundMargin::Over(*value),
+                        },
+                        "each round as it was refused"
+                    );
+                }
+                assert_eq!(
+                    samples,
+                    seen.last().unwrap().0,
+                    "the last carrier's samples"
                 );
             }
             other => panic!("expected refinement exhausted at the band, got {other:?}"),
@@ -295,61 +404,74 @@ mod tests {
             finest > band.escalate() && finest <= 4.0 * band.escalate(),
             "the last cut is the band's: {finest:e}"
         );
+    }
 
-        let mut seen = 0;
-        let mut certify = refusing(-0.8, 0.8, 0.0);
-        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
-            seen = seen.max(s.len());
-            certify(s)
+    /// **A floor refinement cannot pass meets the step budget, typed,
+    /// with the floor in its history.** The stand-in refuses the whole
+    /// branch at a margin that does not move, as an enclosure's floor
+    /// would, so every round doubles the samples; the round that would
+    /// overrun the context's 64 steps is not taken, and every round reads
+    /// the same margin.
+    #[test]
+    fn a_flat_margin_stops_at_the_step_budget_with_its_history() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = unit_ctx(band);
+        let floor = 3.0e-9;
+        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |_| {
+            Err::<(), _>(refusal(-0.8, 0.8, floor))
         });
         match r {
             Err(SsiError::RefinementExhausted {
-                stop: RefineStop::FitBudget { asked, budget },
+                stop: RefineStop::StepBudget { asked, budget },
                 samples,
+                rounds,
                 ..
             }) => {
-                assert_eq!(budget, SSI_MAX_FIT_SAMPLES);
-                assert!(asked > budget && samples <= budget, "{samples} → {asked}");
-                assert_eq!(samples, seen, "the payload names the samples refused");
+                assert_eq!(budget, ctx.max_steps);
+                assert_eq!((samples, asked), (65, 128), "the doubling the wall stopped");
+                let counts: Vec<usize> = rounds.iter().map(|r| r.samples).collect();
+                assert_eq!(counts, [5, 9, 17, 33, 65], "the samples doubled each round");
+                assert!(
+                    rounds.iter().all(|r| r.margin == RoundMargin::Over(floor)),
+                    "the flat margin, round by round: {rounds:?}"
+                );
             }
-            other => panic!("expected refinement exhausted at the budget, got {other:?}"),
+            other => panic!("expected refinement exhausted at the step budget, got {other:?}"),
         }
     }
 
     /// **A refusal that creeps one gap a round is bounded.** The
     /// stand-in refuses only the leftmost gap longer than 1e-3, so the
-    /// branch would certify on 1601 samples, more than the fit takes:
-    /// refusal by refusal, the leftmost coarse gap moves right. Without
-    /// the neighbours, every round added one sample and the stand-in ran
-    /// 1196 rounds to the budget. With them, a refused gap is halved
-    /// with at least one neighbour, so a round adds at least two samples
-    /// and the rounds are at most `(SSI_MAX_FIT_SAMPLES − 5)/2 + 1`;
-    /// the refusal names the budget.
+    /// branch would certify on 1601 samples, more than the context's 64
+    /// steps: refusal by refusal, the leftmost coarse gap moves right. A
+    /// refused gap is halved with at least one neighbour, so a round adds
+    /// at least two samples and the rounds are at most `(64 − 4)/2 + 1`;
+    /// the refusal names the step budget.
     #[test]
     fn a_creeping_refusal_is_bounded_by_the_neighbours_it_halves() {
         let band = Band::new(1.0e-9, 1.0e-8).unwrap();
         let sys = FixedSpeedR3::at_speed(1.0);
         let ctx = unit_ctx(band);
         let tau = 1.0e-3;
-        let mut rounds = 0usize;
+        let mut calls = 0usize;
         let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |s: &[[f64; 3]]| {
-            rounds += 1;
+            calls += 1;
             match s.windows(2).find(|g| g[1][0] - g[0][0] > tau) {
-                Some(g) => Err(refusal(g[0][0] + 1e-12, g[1][0] - 1e-12)),
+                Some(g) => Err(refusal(g[0][0] + 1e-12, g[1][0] - 1e-12, g[1][0] - g[0][0])),
                 None => Ok(()),
             }
         });
-        assert!(
-            matches!(
-                r,
-                Err(SsiError::RefinementExhausted {
-                    stop: RefineStop::FitBudget { .. },
-                    ..
-                })
-            ),
-            "{r:?}"
-        );
-        let bound = (SSI_MAX_FIT_SAMPLES - 5) / 2 + 1;
-        assert!(rounds <= bound, "{rounds} rounds, bound {bound}");
+        let rounds = match r {
+            Err(SsiError::RefinementExhausted {
+                stop: RefineStop::StepBudget { .. },
+                rounds,
+                ..
+            }) => rounds,
+            other => panic!("expected refinement exhausted at the step budget, got {other:?}"),
+        };
+        assert_eq!(rounds.len(), calls, "a round per refused carrier");
+        let bound = (ctx.max_steps - 4) / 2 + 1;
+        assert!(calls <= bound, "{calls} rounds, bound {bound}");
     }
 }

@@ -145,9 +145,12 @@ carrier on a margin that is a number, it names the spans it refused,
 every gap between samples that a refused span meets is halved with one
 gap on each side of it, the new sample settled onto the locus, and the
 carrier is refitted and certified again (`ssi/refine.rs`). A gap is
-halved only while half of it clears the band, and no round hands the
-fit more than its budget; where refinement can go no further, the
-certificate's refusal stands, naming where refinement stopped
+halved only while half of it clears the band, and no round gives the
+branch more steps than the march may take (`SSI_MAX_STEPS`, one wall
+per branch on its samples, whether marched or inserted: a named
+resource wall like the cell budget, not a derivation); where
+refinement can go no further, the certificate's refusal stands, naming
+where refinement stopped and the limb and margin each round refused
 (`SsiError::RefinementExhausted`).
 A straight branch so takes the fewest samples its fit needs, and a
 curved one more only where its certificate refused. Before any march, the

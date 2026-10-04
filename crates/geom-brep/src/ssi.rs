@@ -152,7 +152,7 @@ pub use march::{
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
-pub use refine::RefineStop;
+pub use refine::{RefineStop, RefusedRound, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
@@ -184,27 +184,17 @@ pub type TracedTriple = (NurbsCurve3<f64>, NurbsCurve2<f64>, NurbsCurve2<f64>);
 /// standard choice for a curve that must carry curvature and torsion.
 pub const SSI_FIT_DEGREE: usize = 3;
 
-/// The marcher's step budget per branch. Fixed (D9); exceeding it is a
-/// typed refusal, never a truncated branch.
+/// The steps one branch may hold: the gaps between its samples,
+/// whether the march stepped them or refinement split them. Exceeding
+/// it is a typed refusal ([`SsiError::StepBudget`] in the march,
+/// [`RefineStop::StepBudget`] in refinement), never a truncated branch.
+///
+/// A named resource wall like the cell budget ([`SSI_MAX_CELLS`]), not a
+/// derivation: 20 000 is agent-written (PR 7); deriving it needs a stated
+/// envelope of largest model, curvature and finest ε. A fitted carrier's
+/// samples go as `L·κ^{3/4}·ε^{−1/4}`, so the wall is where that
+/// envelope ends.
 pub const SSI_MAX_STEPS: usize = 20_000;
-
-/// How many marched samples one branch's fit may consume.
-///
-/// The step rule spaces samples so a cubic through them stays inside ε
-/// between them, which makes the count scale as `(L·κ^{3/4})·ε^{−1/4}`
-/// — at ε = 1e-12 a 0.08 m loop wants ~4000 of them. The fit's solve is
-/// **cubic** in that count, so a tolerance three decades finer than the
-/// default turns a two-second operation into an hour-long one. That is
-/// a resource wall, and this kernel's rule for resource walls is the
-/// same everywhere ([`SSI_MAX_STEPS`], [`SSI_MAX_CELLS`]): a named
-/// budget and a typed refusal, never a silent truncation and never a
-/// carrier fitted from a sample set too coarse for its own tolerance.
-///
-/// Raising it is not the fix when it fires; the fix is the banked
-/// compaction work (least-squares fitting on a chosen knot structure
-/// via `approximate_with_params`, whose cost is linear in the samples),
-/// which is why the refusal names it.
-pub const SSI_MAX_FIT_SAMPLES: usize = 1200;
 
 /// An operand of a rung-3 intersection, tagged by which certificate
 /// machinery its limbs use.
@@ -584,22 +574,12 @@ pub enum SsiError {
         /// hull reaches, in metres.
         reach: f64,
     },
-    /// One branch's marched polyline exceeded
-    /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
-    /// curvature together demand more samples than the (cubic) fit can
-    /// afford — refused, never fitted from a coarser set than the
-    /// certificate would need.
-    FitSampleBudget {
-        /// Samples the branch produced.
-        samples: usize,
-        /// The budget.
-        budget: usize,
-    },
     /// The certificate refused a fitted carrier where it could say
     /// where, and refinement by certification could not answer it: no
     /// refused gap could be halved, or the next round would overrun the
-    /// fit's budget. The certificate's refusal stands, with where
-    /// refinement stopped and how many samples the refused carrier had.
+    /// branch's step budget. The certificate's refusal stands, with
+    /// where refinement stopped, how many samples the refused carrier
+    /// had, and what every round refused.
     RefinementExhausted {
         /// Where refinement stopped.
         stop: RefineStop,
@@ -607,6 +587,9 @@ pub enum SsiError {
         samples: usize,
         /// The certificate's refusal of it.
         refusal: Box<SsiError>,
+        /// Each round's refusal, the first carrier's first and this
+        /// one's last.
+        rounds: Vec<RefusedRound>,
     },
     /// This configuration routes to a certificate mechanism this build
     /// does not have — a documented per-arm boundary (C12.1), never a
@@ -969,16 +952,11 @@ impl core::fmt::Display for SsiError {
                 "ssi: the fitting stack could not interpolate a traced branch, which a branch the \
                  march settled always allows"
             ),
-            Self::FitSampleBudget { samples, budget } => write!(
-                f,
-                "ssi: a branch marched {samples} samples against a {budget}-sample fit \
-                 budget; this tolerance and curvature need more control points than the \
-                 fit affords"
-            ),
             Self::RefinementExhausted {
                 stop,
                 samples,
                 refusal,
+                rounds,
             } => {
                 let refusal = refusal.to_string();
                 let refusal = refusal.strip_prefix("ssi: ").unwrap_or(&refusal);
@@ -988,10 +966,11 @@ impl core::fmt::Display for SsiError {
                         "ssi: refined to {samples} samples, no refused gap halves further \
                          ({in_band} within the tolerance, {unsettled} not settling): {refusal}"
                     ),
-                    RefineStop::FitBudget { asked, budget } => write!(
+                    RefineStop::StepBudget { budget, .. } => write!(
                         f,
-                        "ssi: refined to {samples} samples, the next round asks {asked} of a \
-                         {budget}-sample fit budget: {refusal}"
+                        "ssi: refined to {samples} samples over {} refusals, then met the \
+                         {budget}-step budget: {refusal}",
+                        rounds.len()
                     ),
                 }
             }
@@ -1130,15 +1109,16 @@ impl SsiError {
                 fault: StepFault::SpeedUnusable,
                 ..
             } => defect_ending(reading).to_owned(),
-            // A kernel approximation limit: the user holds no lever but
-            // the tolerance (D4 ¶1 (i)'s last resort).
-            Self::FitSampleBudget { budget, .. }
-            | Self::RefinementExhausted {
-                stop: RefineStop::FitBudget { budget, .. },
+            // A resource wall: the user holds no lever but the tolerance
+            // (D4 ¶1 (i)'s last resort). A margin flat while the samples
+            // double is no between-sample error, so what the wall met may
+            // be the arithmetic's floor and not the geometry's size.
+            Self::RefinementExhausted {
+                stop: RefineStop::StepBudget { .. },
                 ..
             } => format!(
-                "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
-                 {KERNEL_LIMIT_LAST_RESORT}"
+                "Recourse: loosen the tolerance (at this ε and scale the margin may be the \
+                 arithmetic's floor, not the geometry's size), {KERNEL_LIMIT_LAST_RESORT}"
             ),
             // Refinement reached the band where the refusal sits: the
             // certificate's own ending is the one that applies.
@@ -1209,8 +1189,9 @@ impl SsiError {
             // the extent's. The short-branch re-march takes a handful of
             // steps and the diagonal ends an open branch in one, so either
             // spending the budget is the kernel's. A curvature-held count
-            // is `FitSampleBudget`'s physics: the domain shortens an open
-            // branch, and the tolerance is the last resort.
+            // goes as the curvature against the tolerance: the domain
+            // shortens an open branch, and the tolerance is the last
+            // resort.
             Self::StepBudget { bound, .. } => match bound {
                 StepBound::Cap(StepCap::Crossing) => STEP_BUDGET_CROSSING_RECOURSE,
                 StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
@@ -1774,12 +1755,6 @@ fn fit_branch(
     points: &[Point3<f64>],
     charts: Option<ChartSamples<'_>>,
 ) -> Result<FittedBranch, SsiError> {
-    if points.len() > SSI_MAX_FIT_SAMPLES {
-        return Err(SsiError::FitSampleBudget {
-            samples: points.len(),
-            budget: SSI_MAX_FIT_SAMPLES,
-        });
-    }
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
@@ -2366,8 +2341,8 @@ fn window_reach(chart: &Chart<'_>, half: f64) -> Box3 {
 /// Any [`SsiError`]. Notably: [`SsiError::CertificateEscalated`] naming
 /// [`SsiLimb::HullSup`] when the fitted pair's real between-samples
 /// deviation lands in the band (an inflected wall can genuinely earn
-/// this — module docs), [`SsiError::FitSampleBudget`] at tolerances
-/// whose sample demand exceeds the fit budget,
+/// this — module docs), [`SsiError::RefinementExhausted`] where
+/// refinement meets the band or the branch's step budget,
 /// [`SsiError::OperandNotFinite`] for a plane or wall that is not
 /// finite, and [`SsiError::ChartSpeed`] for a wall whose chart speed
 /// along an axis is zero or has no finite bound.
@@ -2776,7 +2751,9 @@ mod ending_tests {
         KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, NOT_YET_ENDING,
     };
 
-    use super::{SSI_MAX_FIT_SAMPLES, SsiError, SsiLimb, TraceDecision};
+    use super::{
+        RefineStop, RefusedRound, RoundMargin, SSI_MAX_STEPS, SsiError, SsiLimb, TraceDecision,
+    };
     use crate::recourse::{Classified, Reading, Refused};
 
     fn band() -> Band {
@@ -2969,9 +2946,9 @@ mod ending_tests {
     /// the transversality decision's lever and the pair's tangency its
     /// own (separating the operands among them), each with the tolerance
     /// their in-band margin gives (`m/K`, here `K = 10`), never a
-    /// declaration (the doors take none); the spent fit budget ends in
-    /// the loosening clause and the last resort, within 50 words
-    /// rendered; the fit's sample shortfall, which `march_both` never
+    /// declaration (the doors take none); refinement stopped by the step
+    /// budget ends in the loosening clause, the arithmetic's floor and
+    /// the last resort; the fit's sample shortfall, which `march_both` never
     /// hands it, ends as a kernel defect with no fit recourse in its
     /// payload; and a trace too short to fit ends as the march's limit,
     /// with its own recourse.
@@ -2989,7 +2966,7 @@ mod ending_tests {
     /// idealized step, the kernel for a re-march or the diagonal, the
     /// domain and the last resort for the curvature, the crossing's and
     /// the curvature's together for both); a refinement the certificate
-    /// exhausted by its stop (the tolerance at the fit budget, the
+    /// exhausted by its stop (the tolerance at the step budget, the
     /// limb's own ending at the band); a caller's
     /// seed by the seed, and one settled off the domain by the seed and
     /// the domain; the tube ladder by the extent alone, since it is
@@ -3013,9 +2990,28 @@ mod ending_tests {
             verdict: zero,
         };
         let pair = SsiError::PairTangent { verdict: zero };
-        let budget = SsiError::FitSampleBudget {
-            samples: 4 * SSI_MAX_FIT_SAMPLES,
-            budget: SSI_MAX_FIT_SAMPLES,
+        let budget = SsiError::RefinementExhausted {
+            stop: RefineStop::StepBudget {
+                asked: 20_440,
+                budget: SSI_MAX_STEPS,
+            },
+            samples: 10_221,
+            refusal: Box::new(SsiError::CertificateLimb {
+                limb: SsiLimb::HullSup,
+                value: 1.17e-14,
+            }),
+            rounds: vec![
+                RefusedRound {
+                    samples: 5_110,
+                    limb: SsiLimb::OnLocus,
+                    margin: RoundMargin::InBand(MarginDiag::value(9.0e-15)),
+                },
+                RefusedRound {
+                    samples: 10_221,
+                    limb: SsiLimb::HullSup,
+                    margin: RoundMargin::Over(1.17e-14),
+                },
+            ],
         };
         let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
         let single = SsiError::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 });
@@ -3049,8 +3045,8 @@ mod ending_tests {
             (
                 &budget,
                 format!(
-                    "Recourse: loosen the tolerance until a branch needs at most \
-                     {SSI_MAX_FIT_SAMPLES} samples, {KERNEL_LIMIT_LAST_RESORT}"
+                    "Recourse: loosen the tolerance (at this ε and scale the margin may be the \
+                     arithmetic's floor, not the geometry's size), {KERNEL_LIMIT_LAST_RESORT}"
                 ),
             ),
         ] {
@@ -3062,11 +3058,9 @@ mod ending_tests {
         }
         let rendered = budget.render(Reading::Build);
         assert!(
-            rendered.contains(&(4 * SSI_MAX_FIT_SAMPLES).to_string()),
-            "{rendered}"
+            rendered.contains("10221 samples over 2 refusals, then met the 20000-step budget"),
+            "the wall and the refusals it met: {rendered}"
         );
-        let words = rendered.split_whitespace().count();
-        assert!(words < 50, "{words} words: {rendered}");
 
         // Sign-certain: the lever alone, never a tolerance.
         let tube_extent = format!("Recourse: {}", super::TUBE_EXTENT.lever);
@@ -3242,7 +3236,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 39;
+    const ARMS: usize = 38;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3269,25 +3263,24 @@ mod ending_tests {
             SsiError::FootPointInconclusive { .. } => 17,
             SsiError::Fit(_) => 18,
             SsiError::TraceUnresolved { .. } => 19,
-            SsiError::FitSampleBudget { .. } => 20,
-            SsiError::UnsupportedCertificate { .. } => 21,
-            SsiError::ChartSpeed(_) => 22,
-            SsiError::TubeDegenerate(_) => 23,
-            SsiError::WrongLane { .. } => 24,
-            SsiError::Escalated { .. } => 25,
-            SsiError::CertificateEscalated { .. } => 26,
-            SsiError::DomainUnusable { .. } => 27,
-            SsiError::InvalidMarchTol { .. } => 28,
-            SsiError::MarchTolMismatch { .. } => 29,
-            SsiError::SeedOffDomain { .. } => 30,
-            SsiError::BoundaryGraze { .. } => 31,
-            SsiError::BoundaryTangent { .. } => 32,
-            SsiError::EndNotOnLocus { .. } => 33,
-            SsiError::CrossingUnmatched { .. } => 34,
-            SsiError::ShortBranchUncertified { .. } => 35,
-            SsiError::WindowShortOfWall { .. } => 36,
-            SsiError::TubeNotOneArc { .. } => 37,
-            SsiError::RefinementExhausted { .. } => 38,
+            SsiError::UnsupportedCertificate { .. } => 20,
+            SsiError::ChartSpeed(_) => 21,
+            SsiError::TubeDegenerate(_) => 22,
+            SsiError::WrongLane { .. } => 23,
+            SsiError::Escalated { .. } => 24,
+            SsiError::CertificateEscalated { .. } => 25,
+            SsiError::DomainUnusable { .. } => 26,
+            SsiError::InvalidMarchTol { .. } => 27,
+            SsiError::MarchTolMismatch { .. } => 28,
+            SsiError::SeedOffDomain { .. } => 29,
+            SsiError::BoundaryGraze { .. } => 30,
+            SsiError::BoundaryTangent { .. } => 31,
+            SsiError::EndNotOnLocus { .. } => 32,
+            SsiError::CrossingUnmatched { .. } => 33,
+            SsiError::ShortBranchUncertified { .. } => 34,
+            SsiError::WindowShortOfWall { .. } => 35,
+            SsiError::TubeNotOneArc { .. } => 36,
+            SsiError::RefinementExhausted { .. } => 37,
         }
     }
 
@@ -3408,20 +3401,30 @@ mod ending_tests {
                         limb: SsiLimb::HullSup,
                         value: 2.4e-9,
                     }),
+                    rounds: vec![RefusedRound {
+                        samples: 348,
+                        limb: SsiLimb::HullSup,
+                        margin: RoundMargin::Over(2.4e-9),
+                    }],
                 },
             ),
             (
-                "refinement exhausted, budget",
+                "refinement exhausted, step budget",
                 SsiError::RefinementExhausted {
-                    stop: RefineStop::FitBudget {
-                        asked: 1314,
-                        budget: SSI_MAX_FIT_SAMPLES,
+                    stop: RefineStop::StepBudget {
+                        asked: 20_440,
+                        budget: SSI_MAX_STEPS,
                     },
-                    samples: 1057,
+                    samples: 10_221,
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
-                        value: 1.17e-10,
+                        value: 1.17e-14,
                     }),
+                    rounds: vec![RefusedRound {
+                        samples: 10_221,
+                        limb: SsiLimb::HullSup,
+                        margin: RoundMargin::Over(1.17e-14),
+                    }],
                 },
             ),
             (
@@ -3543,13 +3546,6 @@ mod ending_tests {
                 SsiError::TraceUnresolved {
                     samples: 1,
                     step: 3.125,
-                },
-            ),
-            (
-                "fit budget",
-                SsiError::FitSampleBudget {
-                    samples: 4 * SSI_MAX_FIT_SAMPLES,
-                    budget: SSI_MAX_FIT_SAMPLES,
                 },
             ),
             (

@@ -822,6 +822,16 @@ pub(crate) struct MarchContext<const N: usize> {
 }
 
 impl<const N: usize> MarchContext<N> {
+    /// This context with the steps `half` spent taken off the budget:
+    /// the second half of a branch marched both ways from its seed, so
+    /// the budget is the branch's ([`super::SSI_MAX_STEPS`]).
+    pub(crate) fn rest(&self, half: &[[f64; N]]) -> Self {
+        Self {
+            max_steps: self.max_steps.saturating_sub(half.len().saturating_sub(1)),
+            ..*self
+        }
+    }
+
     /// The domain box's diagonal, in state units: the longest step the
     /// stepper takes. The trace ends at its first exit, so a longer step
     /// buys nothing, and it costs the trace twice. Landed far outside the
@@ -1526,7 +1536,16 @@ where
     if fwd.end == SlabEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march(sys, &SlabExit, seed, ctx, mode, -1.0, band, cap)?;
+    let bwd = march(
+        sys,
+        &SlabExit,
+        seed,
+        ctx.rest(&fwd.states),
+        mode,
+        -1.0,
+        band,
+        cap,
+    )?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half

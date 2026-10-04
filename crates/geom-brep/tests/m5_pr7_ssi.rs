@@ -63,20 +63,11 @@
 //! The mode pins are the only genuinely shared work, and the two
 //! cell-budget rows now share one helper rather than one call.
 //!
-//! Every ε stand-down in this file is **PROVED**, and that is the half
-//! that carries weight. Before it announces, the row asserts that the
-//! excuse is the one it claims — D9's `SSI_MAX_FIT_SAMPLES`, genuinely
-//! overrun, measured at an ε finer than the compiled default — so a
-//! budget that started firing everywhere reds HERE rather than being
-//! waved through. **That assertion is the only part a gating run can
-//! see.** The announcement itself is a `println!` from a row that
-//! passes, which every gating job discards
-//! (`test_utils::vacuity`'s module docs), so it is read locally and
-//! nowhere else. A stand-down that were only announced would be a row
-//! that greens without entering its own mode, and nothing would say
-//! so. The retired `fixture_or_return!` /
-//! `carrier_or_return!` macros returned green in silence, which is the
-//! honesty gap this suite closes.
+//! A row whose numbers are measured at the battery's ε stands down at
+//! any other ε through `test_utils::vacuity::stood_down`, which says so
+//! by name; the retired `fixture_or_return!` / `carrier_or_return!`
+//! macros returned green in silence, which is the honesty gap this suite
+//! closes.
 //!
 //! **Planted quantities are stated in metres, not in multipliers.** The
 //! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
@@ -99,12 +90,12 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS,
-    SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal,
-    SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
+    RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
+    SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
+    SsiTube, TubeScale,
 };
 use geom_core::spline::KnotVector;
-use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
@@ -210,12 +201,11 @@ fn slab() -> SsiDomain {
 
 /// **The planted fixture, built ONCE, and every row that reads it.**
 ///
-/// Eight rows until the test-cost audit, all of them questions about
+/// Seven rows until the test-cost audit, all of them questions about
 /// the SAME `cylinder_sphere_ssi` call on the SAME planted shape:
 ///
 /// | retired row | block below |
 /// |---|---|
-/// | `the_fit_sample_budget_refuses_typed_rather_than_grinding` | `BUDGET` |
 /// | `shape_iv_both_interior_loops_are_found_and_certified` | `SHAPE-IV` |
 /// | `the_accounting_receipt_is_bounded_and_reported` | `RECEIPT` |
 /// | `a_good_carrier_certifies_all_three_limbs` | `LIMBS` |
@@ -229,85 +219,26 @@ fn slab() -> SsiDomain {
 /// A rung-3 intersection at ε = 1e-9 legitimately produces a carrier
 /// with several hundred control points (the geometry's own requirement:
 /// a cubic needs that many spans to stay inside ε on a loop of 0.08 m
-/// radius), and the interpolation solve is cubic in that — measured
-/// ~3.2 s per call at the default ε. Two `OnceLock`s (`fixture_or_\
-/// budget` and `good_carrier`) used to say that cost was paid "once per
-/// process". It was: nextest runs ONE PROCESS PER TEST, so the memo
-/// shared nothing across the eight rows and the suite paid the
-/// operation eight times per ε row for one operation's worth of
-/// coverage. The memos are gone with the split that needed them.
+/// radius), and nextest runs ONE PROCESS PER TEST, so a memo shares
+/// nothing across rows: seven rows paid the operation seven times per ε
+/// row for one operation's worth of coverage.
 ///
 /// What the split bought and a merged row cannot is failure ISOLATION:
-/// eight independent properties now surface under one test id. So every
-/// assertion NAMES its property — `BUDGET`, `SHAPE-IV`, `RECEIPT`,
+/// seven independent properties now surface under one test id. So every
+/// assertion NAMES its property — `SHAPE-IV`, `RECEIPT`,
 /// `LIMBS`, `LIMB-1`, `LIMB-2`, `DEDUP`, `DIFFERENTIAL` — and the
 /// message alone says which one broke. Keep that discipline when adding
 /// assertions here.
 ///
-/// # The ε stand-down, said out loud
-///
 /// The battery runs at ε ∈ {1e-6, 1e-9, 1e-12}. The step rule spaces
 /// samples as `ε^{−1/4}`, so this 0.08 m loop wants ~126 samples at
-/// 1e-6, ~570 at 1e-9 and ~4000 at 1e-12 — and the fit's solve is cubic
-/// in that. At the finest row the operation therefore refuses
-/// [`SsiError::FitSampleBudget`], which is the kernel behaving exactly
-/// as designed (a named budget, a typed refusal, never a carrier fitted
-/// from too coarse a set).
-///
-/// This is a **skip gated on a typed kernel refusal**, not on an ε
-/// literal. Scaling the fixture instead would mean holding `r/ε`
-/// constant — an 80 m loop at 1e-6 and an 0.08 mm one at 1e-12 — which
-/// stops being the planted small-loop shape the row exists to test.
-///
-/// The retired `fixture_or_return!` / `carrier_or_return!` macros made
-/// that stand-down a bare `return`, so a row that asserted NOTHING
-/// reported green and nothing in the log said which it had been. The
-/// `BUDGET` arm
-/// below still pins the refusal typed, and then SAYS, by name, every
-/// property this run did not cover.
+/// 1e-6, ~570 at 1e-9 and ~4000 at 1e-12, every row inside the branch's
+/// step budget, so every row certifies.
 #[test]
 fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let (s, c) = (sphere(), threaded_cylinder());
-    // BUDGET: whichever ε the run resolved, the operation either
-    // produces certified branches or says — in one typed error, naming
-    // the fix — that this tolerance and this curvature need more
-    // control points than the fit can afford. It never truncates the
-    // sample set.
     let out = match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
-        Ok(o) => {
-            assert_eq!(
-                o.branches.len(),
-                2,
-                "BUDGET: an operation that fits at all fits both loops"
-            );
-            o
-        }
-        Err(SsiError::FitSampleBudget { samples, budget }) => {
-            assert!(samples > budget, "BUDGET: {samples} vs {budget}");
-            let msg = SsiError::FitSampleBudget { samples, budget }
-                .render(geom_brep::recourse::Reading::Build);
-            assert!(msg.contains("fit budget"), "BUDGET: {msg}");
-            assert!(
-                msg.ends_with(&format!(
-                    "Recourse: loosen the tolerance until a branch needs at most {budget} \
-                     samples, {}",
-                    geom_core::KERNEL_LIMIT_LAST_RESORT
-                )),
-                "BUDGET: {msg}"
-            );
-            vacuity::stood_down(
-                &format!("planted fixture, eps = {:e}", eps()),
-                &format!(
-                    "the SSI door refused typed on its named fit-sample budget \
-                     ({samples} samples vs {budget}). THIS RUN CONTRIBUTES NO \
-                     SHAPE-(iv) COVERAGE — no found-and-certified row, no three-limb \
-                     row, no limb-1/limb-2 separation, no accounting receipt, no dedup \
-                     row, no idealized-vs-realized differential. Only the BUDGET \
-                     assertions above executed."
-                ),
-            );
-            return;
-        }
+        Ok(o) => o,
         Err(e) => panic!("unexpected: {e}"),
     };
     println!(
@@ -712,40 +643,6 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
             assert!(msg.contains("on the ℝ³ lane"), "{msg}");
             assert!(!msg.contains("chart"), "{msg}");
         }
-        // At a fine enough ε the fit budget fires before any branch is
-        // fitted, so the floor never gets its turn — and no fixture
-        // fixes that, because a domain small enough to fit inside the
-        // budget at ε = 1e-12 holds no branch to find, which is the
-        // OTHER row's mode. So this row stands down there. What it must
-        // not do is stand down on trust: the stand-down is only
-        // legitimate for D9's own fit budget, exceeded, at an ε finer
-        // than the compiled default. Assert all three, so a fit budget
-        // that starts firing at the default ε — or a second budget
-        // wearing this variant's name — reds here instead of printing
-        // SKIPPED and passing.
-        SsiError::FitSampleBudget { samples, budget } => {
-            assert_eq!(
-                budget, SSI_MAX_FIT_SAMPLES,
-                "the stand-down is D9's fit budget or it is not a stand-down"
-            );
-            assert!(samples > budget, "{samples} of {budget} is not an overrun");
-            assert!(
-                eps() < DEFAULT_EPS,
-                "the fit budget fired at ε = {:e}, which is not finer than the compiled \
-                 default {DEFAULT_EPS:e} — the floor claim is REACHABLE here and this row \
-                 owes it, not a stand-down",
-                eps()
-            );
-            vacuity::stood_down(
-                &format!("the floor-clamped refusal, eps = {:e}", eps()),
-                &format!(
-                    "the fit budget ({samples} of {budget} samples) refused before any \
-                     branch was fitted, so THIS RUN ASSERTS NEITHER that the clamped \
-                     {FLOOR_CLAMP_METRES} m floor refuses NOR what its refusal says — only \
-                     that the refusal is D9's budget, overrun, at a finer-than-default ε"
-                ),
-            );
-        }
         other => panic!("expected the exhaustiveness refusal, got {other}"),
     }
 }
@@ -916,43 +813,21 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    // A carrier that IS the tangency circle (the equator).
-    // Interpolated, not approximated, and densely: the row is about
-    // limb 3, so limbs 1 and 2 must pass on their own merits. A cubic
-    // interpolant through 400 exact circle points deviates by
-    // A quarter arc, not the whole circle: the row is about limb 3, so
-    // limbs 1 and 2 must pass on their own merits, and a short arc
-    // reaches the same interpolation accuracy with a quarter of the
-    // samples — which matters, because the interpolation solve is cubic
-    // in the sample count.
+    // A carrier that IS the tangency circle (the equator), a quarter
+    // arc of it, interpolated: the row is about limb 3, so limbs 1 and 2
+    // must pass on their own merits.
     //
     // The count is DERIVED from the resolved ε, not fixed: a cubic
     // interpolant's error is `h⁴/384` on a unit circle, and what limb 2
     // actually reports is the control-hull bound over it — conservative
     // by ~20× on these fixtures — so the design point is `ε/200`, not
-    // `ε/10`: `n = ((π/2)⁴ / (384·0.005·ε))^{1/4}`. At the finest ε that
-    // lands past the fit-sample budget, and the row stands down for the
-    // same reason the fixture rows do.
+    // `ε/10`: `n = ((π/2)⁴ / (384·0.005·ε))^{1/4}`.
     let need = (std::f64::consts::FRAC_PI_2.powi(4) / (384.0 * 0.005 * eps()))
         .sqrt()
         .sqrt()
         .ceil();
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let n = (need as usize).max(64);
-    if n > geom_brep::ssi::SSI_MAX_FIT_SAMPLES {
-        vacuity::stood_down(
-            &format!("equator interpolant, eps = {:e}", eps()),
-            &format!(
-                "limbs 1 and 2 would need {n} samples against a fit budget of {} — THIS \
-                 RUN DOES NOT EXERCISE THE LIMB-3 TUBE REFUSAL ON A TANGENT PAIR. The \
-                 refusal itself is still reached end-to-end by \
-                 `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; \
-                 what is absent is the isolated limb-3 statement.",
-                SSI_MAX_FIT_SAMPLES
-            ),
-        );
-        return;
-    }
     let pts: Vec<Point3<f64>> = (0..=n)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
@@ -1054,7 +929,7 @@ const NURBS_WALL_COLS: [(f64, f64); 4] = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12
 /// wall-edge.
 ///
 /// Gently curved: a wall whose curvature *swings* violently makes ‖C⁗‖
-/// far exceed κ³ and the step rule's fit budget (which assumes
+/// far exceed κ³ and the step rule's fit rung (which assumes
 /// slowly-varying curvature) then understates what the fit needs. The
 /// acceptance shape wants a NURBS wall, not a pathological one.
 fn nurbs_wall() -> NurbsSurface<f64> {
@@ -1109,40 +984,19 @@ fn wall_domain() -> SsiDomain {
 }
 
 /// The certified outcome for the substrate wall (the operation runs a
-/// full march + exhaustiveness sweep). `None` when the fit budget
-/// refuses at this ε — pinned by its own row, and the budget's demand
-/// is march-side, which PR 7b deliberately did not touch.
+/// full march + exhaustiveness sweep), at every ε.
 ///
 /// **No memo.** This was a `OnceLock` "once per process"; nextest is
 /// process-per-test, so it shared nothing and each reader paid the
 /// march. The two readers that only wanted the finished outcome are one
 /// row now; `shape_iii_bit_replay` calls this AND re-runs the operation
 /// independently, which is the content of its claim, not duplication.
-fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
+fn wall_outcome() -> geom_brep::SsiOutcome {
     let (p, w) = (cutting_plane(), certifiable_wall());
     match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
-        Ok(o) => Some(o),
-        Err(SsiError::FitSampleBudget { .. }) => None,
+        Ok(o) => o,
         Err(e) => panic!("shape (iii) substrate must certify: {e}"),
     }
-}
-
-/// The wall fixture's stand-down, said out loud: which row stood down,
-/// and what it therefore did NOT cover. A bare `return` here reports
-/// coverage the run does not have.
-///
-/// One argument's worth of local vocabulary over
-/// [`test_utils::vacuity::stood_down`], not a second implementation of
-/// it: every caller stands down for the same reason, so the reason is
-/// written once here rather than at each `return`.
-fn wall_stand_down(row: &str, absent: &str) {
-    vacuity::stood_down(
-        &format!("{row}, eps = {:e}", eps()),
-        &format!(
-            "the plane×NURBS march wants more samples than the SSI fit budget allows, \
-             so the shape-(iii) wall never fitted at this ε — {absent}"
-        ),
-    );
 }
 
 /// **The shape-(iii) substrate, built ONCE, with both rows that read
@@ -1160,16 +1014,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     // NURBS wall cut by a plane — rung-3 marched + fitted + certified,
     // ALL THREE limbs, through the retired arm. Limb 2 is the tensor
     // composite bound; every pin scales from the resolved band.
-    let Some(out) = wall_outcome() else {
-        wall_stand_down(
-            "shape (iii) substrate",
-            "THIS RUN ASSERTS NEITHER the three-limb certification of the wall cut NOR \
-             the limb-2-alone refusal of a corrupted pcurve NOR this row's C5 table \
-             read (that last claim is ε-independent and is also stated \
-             unconditionally by `the_c5_table_retires_the_arm_whose_proof_is_complete`)",
-        );
-        return;
-    };
+    let out = wall_outcome();
     assert_eq!(
         out.branches.len(),
         1,
@@ -1303,14 +1148,7 @@ fn shape_iii_bit_replay() {
     // The same operation twice is the same certificate and the same
     // carrier to the BIT (D9) — the certified path includes the ring
     // composite, so this replays the whole PR 7b pipeline.
-    let Some(a) = wall_outcome() else {
-        wall_stand_down(
-            "shape (iii) bit replay",
-            "THIS RUN DOES NOT REPLAY the PR 7b pipeline — no certificate or control-point \
-             bit comparison was made at this ε",
-        );
-        return;
-    };
+    let a = wall_outcome();
     let (p, w) = (cutting_plane(), certifiable_wall());
     let b = ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()).expect("replay");
     assert_eq!(a.branches.len(), b.branches.len());
@@ -1344,9 +1182,8 @@ fn shape_iii_bit_replay() {
 /// step there, and the marched fit pair carries a deviation at the
 /// crossing, measured at ~4.5e-9 m at march-ε = 1e-9
 /// (review_m5_pr7b_ssi.rs `deviation2a`), which limb 2 read in band.
-/// Refined where limb 2 refused, the carrier certifies at every ε the
-/// fit budget affords, its hull bound within ε; the finest ε is
-/// preempted by the budget.
+/// Refined where limb 2 refused, the carrier certifies at every ε, its
+/// hull bound within ε.
 #[test]
 fn an_inflected_wall_is_refined_where_the_hull_limb_refused() {
     let (p, w) = (cutting_plane(), nurbs_wall());
@@ -1354,26 +1191,6 @@ fn an_inflected_wall_is_refined_where_the_hull_limb_refused() {
         Ok(out) => {
             assert_eq!(out.branches.len(), 1, "{out:?}");
             assert!(out.branches[0].certificate.hull_sup <= eps());
-        }
-        // The finest ε: the march demands more samples than the fit
-        // budget affords, pinned by its own row. Same discipline as the
-        // floor row's stand-down — it is D9's budget, overrun, at a
-        // finer-than-default ε, or it is not this arm.
-        Err(SsiError::FitSampleBudget { samples, budget }) => {
-            assert_eq!(budget, SSI_MAX_FIT_SAMPLES);
-            assert!(samples > budget, "{samples} of {budget} is not an overrun");
-            assert!(
-                eps() < DEFAULT_EPS,
-                "the fit budget fired at ε = {:e}",
-                eps()
-            );
-            vacuity::stood_down(
-                &format!("the inflected-wall refinement row, eps = {:e}", eps()),
-                &format!(
-                    "the fit budget ({samples} of {budget} samples) refused before limb 2 \
-                     was reached, so this run asserts nothing about the composite bound"
-                ),
-            );
         }
         Err(other) => panic!("expected the refined carrier certified, got {other}"),
     }
@@ -1399,14 +1216,6 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
         band(),
     ) {
         Ok(t) => t,
-        Err(SsiError::FitSampleBudget { .. }) => {
-            wall_stand_down(
-                "composite bound vs dense scan",
-                "THIS RUN COMPARES NOTHING against the 1e5-sample dense scan — the \
-                     measured-improvement claim (spec §5) is unstated at this ε",
-            );
-            return;
-        }
         Err(e) => panic!("the ℝ⁴ trace: {e}"),
     };
     use geom_core::spline::compose::{CurveCertData, tensor};
@@ -1461,17 +1270,6 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
         band(),
     ) {
         Ok(t) => t,
-        // Same budget stand-down as the ℝ³ fixture: at ε = 1e-12
-        // the wall's cut wants more samples than the fit affords,
-        // and the refusal is pinned by its own row.
-        Err(SsiError::FitSampleBudget { .. }) => {
-            wall_stand_down(
-                "OQ4 parameter identity",
-                "THIS RUN MAKES NO OQ4 DEMONSTRATION — neither pcurve was checked \
-                     against the carrier's own parameter on the PR 6 schedule at this ε",
-            );
-            return;
-        }
         Err(e) => panic!("the ℝ⁴ trace: {e}"),
     };
     let (t0, t1) = carrier.domain();
@@ -1794,15 +1592,9 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 /// meters through [`SsiDomain::floor_scale_for`], so both stay put at
 /// every battery ε.
 ///
-/// **No ε stand-down, deliberately.** Every other row on this wall
-/// carries a `FitSampleBudget` arm because `nurbs_wall()` outruns the
-/// fit budget at the fine end of the battery; `certifiable_wall()`
-/// does not, and this row was measured with both arms replaced by a
-/// panic at ε ∈ {1e-6, 1e-9, 1e-12} — the battery CI runs — and never
-/// took either. A stand-down that cannot happen is an escape hatch on
-/// the workspace's only guard for `UvRect::contained_in`, so there is
-/// none: if the fit budget ever does preempt this row, it fails and
-/// someone looks.
+/// **No ε stand-down.** A stand-down would be an escape hatch on the
+/// workspace's only guard for `UvRect::contained_in`, so a refusal at
+/// any battery ε fails this row.
 ///
 /// **The floor tie, in both runs.** The ℝ³ twin asserts its refusal
 /// floor equals `SSI_FLOOR · ε · floor_scale` outright. Here a second
@@ -1829,9 +1621,8 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
 
     // ---- Run 1, the MODE PIN: a floor under the width at which the
     // sweep resolves this domain.
-    // No `FitSampleBudget` arm: measured never taken at any battery ε
-    // on this fixture (see the doc comment). A refusal here is a
-    // failure, because this row is the only guard on the predicate.
+    // A refusal here is a failure, because this row is the only guard
+    // on the predicate.
     let out = ssi::plane_nurbs_ssi(&p, &w, domain(0.05), band())
         .expect("the substrate wall must certify at a healthy floor");
     assert_eq!(
@@ -2677,18 +2468,17 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     let bracket = Bracket::open();
     let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
     let v = bracket.finish().verdicts;
-    // The marching predicates run before anything is fitted, so they
-    // are recorded at every ε; the certificate's only run once a branch
-    // was actually fitted, which the fit-sample budget can prevent at
-    // the finest row.
-    let mut expected = vec!["ssi_cs_tangency", "ssi_transversality", "ssi_step_progress"];
-    if !matches!(outcome, Err(SsiError::FitSampleBudget { .. })) {
-        expected.extend(["ssi_on_locus", "ssi_hull_sup", "ssi_tube_transversality"]);
-    }
-    for name in expected {
+    for name in [
+        "ssi_cs_tangency",
+        "ssi_transversality",
+        "ssi_step_progress",
+        "ssi_on_locus",
+        "ssi_hull_sup",
+        "ssi_tube_transversality",
+    ] {
         assert!(
             v.iter().any(|x| x.predicate == name),
-            "{name} never reached the funnel (recorded: {:?})",
+            "{name} never reached the funnel ({outcome:?}; recorded: {:?})",
             v.iter()
                 .map(|x| x.predicate)
                 .collect::<std::collections::BTreeSet<_>>()
@@ -3999,13 +3789,11 @@ fn a_rational_walls_corner_and_side_in_band_answer_a_region_only_where_coinciden
 }
 
 /// Whether `e` is the certificate's own limit on a fitted branch: a limb
-/// refused or too close to call, the fit's sample budget spent, or such
-/// a refusal that refinement could not answer.
+/// refused or too close to call, or such a refusal that refinement could
+/// not answer.
 fn certificate_limit(e: &SsiError) -> bool {
     match e {
-        SsiError::CertificateLimb { .. }
-        | SsiError::CertificateEscalated { .. }
-        | SsiError::FitSampleBudget { .. } => true,
+        SsiError::CertificateLimb { .. } | SsiError::CertificateEscalated { .. } => true,
         SsiError::RefinementExhausted { refusal, .. } => certificate_limit(refusal),
         _ => false,
     }
@@ -4718,14 +4506,6 @@ fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
     }
     let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
         Ok(out) => out,
-        Err(SsiError::FitSampleBudget { .. }) => {
-            vacuity::stood_down(
-                &format!("the clipped north loop, ε {:e}", eps()),
-                "the arc wants more samples than the fit budget allows, so the door's \
-                 handling of the off-slab seed is not asserted at this ε",
-            );
-            return;
-        }
         Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
     };
     assert_eq!(out.branches.len(), 1, "the arc below the face");
@@ -4780,13 +4560,8 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 /// or as a trace of one sample. Settled outside, the seed is no
 /// branch, and a seed further in marches the branch to the edge.
 ///
-/// What the cut does is pinned by ε:
-/// - at 1e-6 and 1e-9 it certifies, one branch, refined where limb 2
-///   refused it (cause 4 of
-///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`);
-/// - at 1e-12 it refuses the fit budget, that row's cause 2.
-///
-/// None of them is a carrier off the wall.
+/// At 1e-6, 1e-9 and 1e-12 the cut certifies, one branch, refined where
+/// limb 2 refused it, and none of them is a carrier off the wall.
 #[test]
 fn a_seed_settled_off_the_walls_chart_is_no_branch() {
     let b = band();
@@ -4813,8 +4588,7 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
             panic!("{at}: a carrier off the wall's chart: {r:?}");
         }
         let pinned = match eps() {
-            1.0e-6 | 1.0e-9 => matches!(r, Ok(ref o) if o.branches.len() == 1),
-            1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
+            1.0e-6 | 1.0e-9 | 1.0e-12 => matches!(r, Ok(ref o) if o.branches.len() == 1),
             _ => {
                 vacuity::stood_down(
                     &at,
@@ -4838,8 +4612,8 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
 /// instead, `S_u.y` and `S_v.y` span `[−2d, 2d]`, and every rung down to
 /// the floor straddles.
 ///
-/// The band is the row's own 1e-6: limbs 1 and 2 refuse the tilt cut at
-/// 1e-9, and the fit budget both cuts at 1e-12, before limb 3 runs.
+/// The band is the row's own 1e-6: the row is about limb 3, which reads
+/// no ε of the run's.
 #[test]
 fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     let b = band_at(1e-6);
@@ -4871,22 +4645,17 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     }
 }
 
-/// **A curved dome's level loop certifies inside the fit budget at
-/// ε 1e-6 and 1e-9, and refuses it at 1e-12.** The level cut of `W(d)`
-/// is the same loop at every `d`, of 3-D curvature 1.4–4.7/m, and the
-/// wall's pcurve bends in its chart as much as the plane's. Its fit rung
-/// reads the carrier's curvature, so the loop takes about 184 samples at
-/// 1e-6 and 1030 at 1e-9, inside `SSI_MAX_FIT_SAMPLES`, and certifies as
-/// one closed branch. The ℝ⁴ state curve's curvature over speed² is √2
-/// the carrier's here; a rung read on it needs about 1335 at 1e-9, over
-/// the budget.
-///
-/// The count goes as `ε^{-1/4}`, so at 1e-12 the march hands the fit
-/// 5787 samples and the loop refuses `FitSampleBudget` before any fit
-/// (cause 2 of
-/// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`).
+/// **A curved dome's level loop certifies at ε 1e-6, 1e-9 and 1e-12.**
+/// The level cut of `W(d)` is the same loop at every `d`, of 3-D
+/// curvature 1.4–4.7/m, and the wall's pcurve bends in its chart as much
+/// as the plane's. Its fit rung reads the carrier's curvature, so the
+/// loop takes about 184 samples at 1e-6, 1030 at 1e-9 and 5787 at 1e-12
+/// (`ε^{-1/4}`), and certifies as one closed branch on the march's
+/// samples, no round of refinement. The ℝ⁴ state curve's curvature over
+/// speed² is √2 the carrier's here; a rung read on it would take about
+/// 30% more.
 #[test]
-fn a_curved_domes_level_loop_certifies_or_refuses_the_fit_budget() {
+fn a_curved_domes_level_loop_certifies_at_every_eps() {
     let b = band();
     for d in [1.0, 3.0] {
         let (_, dom) = dome_tilt(d);
@@ -4900,19 +4669,7 @@ fn a_curved_domes_level_loop_certifies_or_refuses_the_fit_budget() {
         let samples = match eps() {
             1.0e-6 => 180..190,
             1.0e-9 => 1000..1100,
-            1.0e-12 => {
-                assert!(
-                    matches!(
-                        r,
-                        Err(SsiError::FitSampleBudget {
-                            samples: 5700..5900,
-                            ..
-                        })
-                    ),
-                    "{at}: the march hands the fit about 5787 samples: {r:?}"
-                );
-                continue;
-            }
+            1.0e-12 => 5700..5900,
             _ => {
                 vacuity::stood_down(
                     &at,
@@ -4934,23 +4691,21 @@ fn a_curved_domes_level_loop_certifies_or_refuses_the_fit_budget() {
     }
 }
 
-/// **A curved dome's oblique arc is refined across its inflections.**
-/// The plane `x + z = 1` cuts the dome `W(½)` (centre curvature 1/m) in
-/// the open arc `y = −2·(s(1−s))²` along the diagonal, whose curvature
-/// is zero at `s = (3 ∓ √3)/6 ≈ 0.211, 0.789`. The fit rung prices the
-/// gap between samples by `‖C⁗‖ ≈ κ³`, which vanishes there while
-/// `‖C⁗‖` does not, so the march steps across each inflection at its
-/// cap, a fifth of the distance between the arc's crossings (0.28 m,
-/// where its neighbours are 1–6 cm at ε 1e-9). Limbs 1 and 2 refuse the
-/// marched carrier there, and refinement halves those gaps until it
-/// certifies:
+/// **A curved dome's oblique arc is refined across its inflections, and
+/// certifies at ε 1e-6, 1e-9 and 1e-12.** The plane `x + z = 1` cuts the
+/// dome `W(½)` (centre curvature 1/m) in the open arc
+/// `y = −2·(s(1−s))²` along the diagonal, whose curvature is zero at
+/// `s = (3 ∓ √3)/6 ≈ 0.211, 0.789`. The fit rung prices the gap between
+/// samples by `‖C⁗‖ ≈ κ³`, which vanishes there while `‖C⁗‖` does not,
+/// so the march steps across each inflection at its cap, a fifth of the
+/// distance between the arc's crossings (0.28 m, where its neighbours
+/// are 1–6 cm at ε 1e-9). Limbs 1 and 2 refuse the marched carrier
+/// there, and refinement halves those gaps until it certifies:
 /// - at 1e-6, 38 marched samples become about 49;
 /// - at 1e-9, 235 become about 270;
-/// - at 1e-12 the march's 1321 samples exceed the fit budget, which
-///   refuses before any fit (cause 2 of
-///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`).
+/// - at 1e-12, 1321 become about 1432.
 #[test]
-fn a_curved_domes_oblique_arc_is_refined_across_its_inflections() {
+fn a_curved_domes_oblique_arc_certifies_refined_across_its_inflections() {
     let d = 0.5;
     let (_, dom) = dome_tilt(d);
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
@@ -4964,19 +4719,7 @@ fn a_curved_domes_oblique_arc_is_refined_across_its_inflections() {
     let samples = match eps() {
         1.0e-6 => 45..55,
         1.0e-9 => 260..280,
-        1.0e-12 => {
-            assert!(
-                matches!(
-                    r,
-                    Err(SsiError::FitSampleBudget {
-                        samples: 1300..1350,
-                        ..
-                    })
-                ),
-                "{at}: the march hands the fit about 1321 samples: {r:?}"
-            );
-            return;
-        }
+        1.0e-12 => 1400..1470,
         _ => {
             vacuity::stood_down(
                 &at,
@@ -5025,6 +4768,130 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
         let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
         assert!(samples.contains(&n), "d = {d}: {n} samples");
     }
+}
+
+/// The refused rounds of `r`, which must be refinement stopped by the
+/// branch's step budget.
+fn rounds_at_the_wall(
+    at: &str,
+    r: &Result<geom_brep::SsiOutcome, SsiError>,
+) -> (usize, Vec<RefusedRound>) {
+    match r {
+        Err(SsiError::RefinementExhausted {
+            stop: RefineStop::StepBudget { asked, budget },
+            samples,
+            rounds,
+            ..
+        }) => {
+            assert_eq!(*budget, SSI_MAX_STEPS, "{at}: the branch's step budget");
+            assert!(
+                *asked > *budget && *samples <= *budget + 1,
+                "{at}: refused at the round that would overrun it: {samples} samples, {asked} \
+                 steps asked"
+            );
+            let shown = r
+                .as_ref()
+                .unwrap_err()
+                .render(geom_brep::recourse::Reading::Build);
+            assert!(
+                shown.contains("may be the arithmetic's floor, not the geometry's size"),
+                "{at}: the ending names the floor: {shown}"
+            );
+            (*samples, rounds.clone())
+        }
+        other => panic!("{at}: expected refinement stopped by the step budget, got {other:?}"),
+    }
+}
+
+/// **A loop past the step budget refuses typed at the wall.** At ε 1e-14
+/// the dome's level loop takes about 18 300 marched samples, inside the
+/// branch's 20 000 steps, and limb 2 reads it in band at about 2.4e-14 m;
+/// refinement's first round asks about 23 400 steps, so the wall refuses
+/// before it, naming the one refused round. A branch never grows past the
+/// wall, and the refusal is the resource limit, not a verdict on the
+/// carrier.
+#[test]
+fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
+    let d = 1.0;
+    let (_, dom) = dome_tilt(d);
+    let level = Surface::Plane {
+        origin: dom.center,
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    if !at_the_compiled_default("the level loop at 1e-14") {
+        return;
+    }
+    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
+    let (samples, rounds) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    assert!(
+        (18_000..18_600).contains(&samples),
+        "the march's samples: {samples}"
+    );
+    assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
+    assert_eq!(rounds[0].samples, samples, "the round names its samples");
+}
+
+/// **Refinement past the arithmetic's floor meets the wall typed, with
+/// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
+/// 0.2` arc in band at 1.6–1.8e-14 m whatever its samples: the enclosure's
+/// width, not a between-sample error, so halving every refused gap
+/// doubles the samples and leaves the margin where it was. The rounds
+/// run from about 4 250 samples until the next would overrun the
+/// branch's step budget, every one in band on limb 2 at the same width,
+/// and the refusal is the wall's.
+#[test]
+fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
+    let d = 1.0;
+    let (_, dom) = dome_tilt(d);
+    let zcut = Surface::Plane {
+        origin: Point3::new(0.5, -d / 8.0, 0.2),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    if !at_the_compiled_default("the zcut at 1e-14") {
+        return;
+    }
+    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
+    let (_, rounds) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let (first, last) = (rounds[0].samples, rounds[rounds.len() - 1].samples);
+    assert!(
+        rounds.len() >= 4 && last > 3 * first,
+        "the samples grew threefold or more: {rounds:?}"
+    );
+    let margins: Vec<f64> = rounds
+        .iter()
+        .map(|round| match round.margin {
+            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSup => {
+                match m.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Value(m) => m,
+                    other => panic!("a point margin: {other:?}"),
+                }
+            }
+            _ => panic!("limb 2 in band every round: {rounds:?}"),
+        })
+        .collect();
+    let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
+        (lo.min(*m), hi.max(*m))
+    });
+    assert!(
+        (1.4e-14..2.0e-14).contains(&lo) && hi < 1.2 * lo,
+        "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
+    );
+}
+
+/// Whether this run is at the compiled default ε, where a row that fixes
+/// its own band runs: its answer does not move with the run's ε, and it
+/// costs minutes at the finest band. Said by name where it stands down.
+fn at_the_compiled_default(row: &str) -> bool {
+    let at = eps() == geom_core::tolerance::DEFAULT_EPS;
+    if !at {
+        vacuity::stood_down(
+            &format!("{row}, run ε {:e}", eps()),
+            "the row fixes its own band and runs at the compiled default ε only",
+        );
+    }
+    at
 }
 
 /// **A seed is deduplicated where Newton lands it, so a loop is found

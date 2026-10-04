@@ -12,9 +12,8 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{NurbsSurface, Surface};
-use geom_brep::ssi::{self, BranchEnd, ChartAxis, ChartEnd, SsiDomain, SsiError, SsiOutcome};
+use geom_brep::ssi::{self, BranchEnd, ChartAxis, ChartEnd, SsiDomain, SsiOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Point3, Vec3};
 use test_utils::vacuity;
 
@@ -224,19 +223,6 @@ fn a_short_arc_in_a_long_arcs_end_box_is_traced() {
     };
     let out = match ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band()) {
         Ok(out) => out,
-        // Below the default ε the long arc's fit outgrows its sample
-        // budget, a typed refusal that answers before any tube is asked.
-        Err(e @ SsiError::FitSampleBudget { .. }) => {
-            assert!(
-                eps() < DEFAULT_EPS,
-                "the clipped circle stands down at the default ε: {e}"
-            );
-            vacuity::stood_down(
-                "the clipped circle",
-                "the long arc's fit refuses its sample budget at this ε, so no tube is probed",
-            );
-            return;
-        }
         Err(e) => panic!("the clipped circle: expected two arcs, got {e}"),
     };
     let mid = 0.5 * (alpha + beta);
