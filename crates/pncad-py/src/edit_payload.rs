@@ -39,7 +39,7 @@
 
 use pncad::document::{
     ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, RootFault,
-    VarName,
+    VarName, VarRef,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -459,24 +459,47 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(*referenced)),
             ..none
         },
-        EditError::ContinuousParamCannotBeCount { name }
-        | EditError::DocParamNotDeclared { name, door: _ }
-        | EditError::DocParamCountHasNoUnit { name }
-        | EditError::DocParamCountHasNoDistribution { name }
+        EditError::ContinuousParamCannotBeCount { var }
+        | EditError::DocParamCountHasNoUnit { var }
+        | EditError::DocParamCountHasNoDistribution { var }
         // The field the refusal names does not cross: a caller holds
         // the parameter it just submitted, and `non_finite_doc_param`
         // plus the Rust sentence say which float it was.
-        | EditError::NonFiniteDocParam { name, field: _ }
-        | EditError::InvalidDistribution { name, fault: _ } => EditPayload {
+        | EditError::NonFiniteDocParam { var, field: _ }
+        | EditError::InvalidDistribution { var, fault: _ } => EditPayload {
+            param: var.name(),
+            ..none
+        },
+        // An address by id carries no name to cross; the tag and the
+        // sentence say which edit was refused.
+        EditError::UnknownVar { var, door: _ } => EditPayload {
+            param: match var {
+                VarRef::Name(name) => Some(name),
+                VarRef::Id(_) => None,
+            },
+            ..none
+        },
+        EditError::VarNameTaken { name, holder: _ } => EditPayload {
             param: Some(name),
             ..none
         },
+        EditError::VarIdCollides { id: _ } => none,
+        EditError::VarKindFixed {
+            var,
+            kind,
+            offered,
+        } => EditPayload {
+            param: var.name(),
+            expected: Some(dim(kind.dimension())),
+            found: Some(dim(offered.dimension())),
+            ..none
+        },
         EditError::DocParamValueKindMismatch {
-            name,
+            var,
             declared,
             offered,
         } => EditPayload {
-            param: Some(name),
+            param: var.name(),
             expected: Some(dim(*declared)),
             offered: Some(*offered),
             ..none
@@ -486,11 +509,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // measures — the pair `slot_doc_param_dimension` already
         // spells, over a unit rather than over a reference.
         EditError::DocParamUnitMismatch {
-            name,
+            var,
             unit,
             declared,
         } => EditPayload {
-            param: Some(name),
+            param: var.name(),
             expected: Some(dim(*declared)),
             found: Some(dim(*unit)),
             ..none

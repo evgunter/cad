@@ -694,9 +694,11 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let name = VarName::from_static("base_r");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
+            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+                50.0, MM,
+            ))),
         },
         tol,
     );
@@ -748,9 +750,9 @@ fn a_count_parameter_has_no_written_unit() {
     let name = VarName::from_static("holes");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::Count { value: 6 },
+            def: pncad::document::VarDef::Free(FreeVar::Count { value: 6 }),
         },
         tol,
     );
@@ -786,9 +788,9 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         let name = VarName::from_static("thickness");
         let (doc, _) = common::edited(
             &doc,
-            DocEdit::SetDocParam {
+            DocEdit::DeclareVar {
                 name: name.clone(),
-                value,
+                def: pncad::document::VarDef::Free(value),
             },
             tol,
         );
@@ -862,17 +864,19 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-field", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("thickness"),
-            value: FreeVar::written_length(WrittenLength::in_unit(8.0, MM)),
+            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+                8.0, MM,
+            ))),
         },
         tol,
     );
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("in_metres"),
-            value: FreeVar::continuous(Dimension::Length, 0.008),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );

@@ -338,13 +338,13 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         an edit upstream of the Part can invalidate it — and says so
         rather than quietly selecting a neighbour."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(COUNT)))
+        doc.apply(DocEdit.declare_var(ParamName("n"), DocParam.count(COUNT)))
         family = pattern_of(doc, box(doc))
         doc.apply(DocEdit.bind_count_param(family, ParamName("n")))
         live = doc.insert(Node.part(family, PartSelect.instance(Expr.count(2))))
         self.assertTrue(evaluate(doc).succeeded(live))
 
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(2)))
+        doc.apply(DocEdit.define_var(ParamName("n"), DocParam.count(2)))
         self.assertTrue(evaluate(doc).succeeded(family), "the pattern is Ok at two")
         self.assertEqual(refusal(self, doc, live), "instance_out_of_range")
 
@@ -362,7 +362,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
 
     def build(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(0)))
+        doc.apply(DocEdit.declare_var(ParamName("which"), DocParam.count(0)))
         family = pattern_of(doc, box(doc))
         chosen = doc.insert(Node.part(family, PartSelect.instance(Expr.count(0))))
         doc.apply(DocEdit.bind_instance_param(chosen, ParamName("which")))
@@ -370,12 +370,12 @@ class TestTheIndexIsStructural(unittest.TestCase):
 
     def test_one_param_edit_moves_which_instance_is_selected(self):
         """The payoff: which copy a downstream consumer sees is a named
-        number, and moving it is one `set_doc_param`."""
+        number, and moving it is one `define_var`."""
         doc, family, chosen = self.build()
         for which in (0, 1, 2):
             with self.subTest(which=which):
                 doc.apply(
-                    DocEdit.set_doc_param(ParamName("which"), DocParam.count(which))
+                    DocEdit.define_var(ParamName("which"), DocParam.count(which))
                 )
                 ev = evaluate(doc)
                 self.assertEqual(
@@ -383,7 +383,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
                     ev.value(family).bodies()[which].mass_properties().volume,
                 )
         # And the bound index is judged the same way a literal one is.
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(COUNT)))
+        doc.apply(DocEdit.define_var(ParamName("which"), DocParam.count(COUNT)))
         self.assertEqual(refusal(self, doc, chosen), "instance_out_of_range")
 
     def test_moving_the_index_recomputes_the_part_alone(self):
@@ -392,7 +392,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
         that a Part is a projection."""
         doc, _, _chosen = self.build()
         first = evaluate(doc)
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(1)))
+        doc.apply(DocEdit.define_var(ParamName("which"), DocParam.count(1)))
         again = evaluate(doc, prior=first)
         self.assertEqual(again.recomputed, 1)
         self.assertEqual(again.reused, len(doc) - 1)
@@ -410,7 +410,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
         """A Part is one node with two shapes, and only one of them
         has a slot: which HALF is not a number to bind."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(0)))
+        doc.apply(DocEdit.declare_var(ParamName("which"), DocParam.count(0)))
         split = split_at(doc, box(doc))
         above = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
         with self.assertRaises(EditError) as caught:
@@ -424,12 +424,12 @@ class TestThePatternDoor(unittest.TestCase):
 
     def test_the_count_is_the_structural_slot(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("n"), DocParam.count(2)))
         family = pattern_of(doc, box(doc), count=2)
         doc.apply(DocEdit.bind_count_param(family, ParamName("n")))
         for n in (2, 3, 5):
             with self.subTest(count=n):
-                doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(n)))
+                doc.apply(DocEdit.define_var(ParamName("n"), DocParam.count(n)))
                 self.assertEqual(len(evaluate(doc).value(family).bodies()), n)
 
     def test_a_count_below_one_refuses(self):

@@ -173,8 +173,8 @@ pub(crate) fn literal(t: [f64; 3]) -> Placement {
 pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: lift(),
+        DocEdit::SetVarValue {
+            var: lift().into(),
             value: FreeValue::Continuous(value),
         },
     )
@@ -184,9 +184,9 @@ pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
 pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: lift(),
-            value: FreeVar::continuous(Dimension::Length, value),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0

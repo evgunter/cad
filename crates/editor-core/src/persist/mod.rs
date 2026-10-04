@@ -236,7 +236,7 @@ pub enum PersistError {
     /// never a best-effort load.
     Distribution {
         /// The parameter carrying the fault.
-        name: crate::doc::VarName,
+        var: crate::spoken::SpokenVar,
         /// The invariant that failed.
         fault: crate::distribution::DistributionFault,
     },
@@ -259,7 +259,7 @@ pub enum PersistError {
     /// units that are rows of the table.
     DisplayUnit {
         /// The parameter carrying the fault.
-        name: crate::doc::VarName,
+        var: crate::spoken::SpokenVar,
         /// The dimension the unit measures.
         unit: crate::expr::Dimension,
         /// The dimension the parameter was declared with.
@@ -427,16 +427,16 @@ impl Staged for PersistError {
             Self::ProfileProgram { node, fault } => {
                 write!(f, "{node}'s program: {fault}")
             }
-            Self::Distribution { name, fault } => {
-                write!(f, "document parameter {name}: {fault}")
+            Self::Distribution { var, fault } => {
+                write!(f, "{var}: {fault}")
             }
             Self::DisplayUnit {
-                name,
+                var,
                 unit,
                 declared,
             } => write!(
                 f,
-                "document parameter {name} is declared {declared} but its display \
+                "{var} is declared {declared} but its display \
                  unit measures {unit}"
             ),
             Self::Serialize { message } => write!(f, "serializer failed: {message}"),

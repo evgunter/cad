@@ -1040,30 +1040,30 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     for (value, expected) in cases {
         match apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: name.clone(),
-                value: value.clone(),
+                def: editor_core::VarDef::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
-            Err(EditError::NonFiniteDocParam { name: n, field }) => {
-                assert_eq!(n, name);
+            Err(EditError::NonFiniteDocParam { var: n, field }) => {
+                assert_eq!(n.name(), Some(&name));
                 assert_eq!(field, expected, "the edit door names the offending float");
             }
             other => panic!("a non-finite parameter must refuse typed, got {other:?}"),
         }
 
-        let edit = DocEdit::SetDocParam {
+        let edit = DocEdit::DeclareVar {
             name: name.clone(),
-            value,
+            def: editor_core::VarDef::Free(value),
         };
         match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
-                NonFiniteSite::DocParam { name: ref n, field } => {
-                    assert_eq!(*n, name);
+                NonFiniteSite::DocParam { var: ref n, field } => {
+                    assert_eq!(*n, editor_core::VarRef::Name(name.clone()));
                     assert_eq!(field, expected, "the load door names the same float");
                 }
                 ref other => panic!("expected a doc-param site, got {other:?}"),
@@ -1097,14 +1097,16 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     let name = VarName::from_static("n");
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::continuous(Dimension::Count, 3.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::ContinuousParamCannotBeCount { name: n }) => assert_eq!(n, name),
+        Err(EditError::ContinuousParamCannotBeCount { var: n }) => {
+            assert_eq!(n.name(), Some(&name));
+        }
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),
     }
 
@@ -1112,15 +1114,20 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     // a count on the wire.
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::continuous(Dimension::Length, 3.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 3.0)),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let dim = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"]["dim"];
+        let id = doc
+            .var_named(name.as_str())
+            .expect("declared")
+            .0
+            .to_string();
+        let dim = &mut wire["snapshot"]["vars"][id.as_str()]["def"]["Free"]["Continuous"]["dim"];
         assert_eq!(
             *dim,
             serde_json::json!("Length"),
@@ -1131,9 +1138,9 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::DisplayUnit {
             declared: Dimension::Count,
-            name: n,
+            var: n,
             ..
-        }) => assert_eq!(n, name),
+        }) => assert_eq!(n.name(), Some(&name)),
         other => panic!("a count-dimensioned continuous param must refuse at load, got {other:?}"),
     }
 }
@@ -1205,9 +1212,9 @@ fn saved_with_width() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty(DocumentId::derive("param-name-door"), Tol::witness());
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("width"),
-            value: FreeVar::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1221,11 +1228,8 @@ fn saved_with_width() -> (ProfileDoc, String) {
 /// Re-keys the snapshot's `width` declaration under `spelling`.
 fn rekey_width(text: &str, spelling: &str) -> String {
     doctored(text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the param table is an object");
-        let decl = params.remove("width").expect("the fixture declares width");
-        params.insert(spelling.to_string(), decl);
+        let id = crate::wire::wire_var_key(wire, "width");
+        wire["snapshot"]["var_names"][id.as_str()] = serde_json::json!(spelling);
     })
 }
 
@@ -1269,15 +1273,15 @@ fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
 #[test]
 fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     let (doc, _) = saved_with_width();
-    let log = vec![DocEdit::SetDocParam {
+    let log = vec![DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        value: FreeVar::continuous(Dimension::Length, 2.0),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)),
     }];
     let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let fault = VarName::new("1 2").expect_err("a spaced number is not a name");
     let corrupt = doctored(&text, |wire| {
-        let name = &mut wire["edits"][0]["SetDocParam"]["name"];
+        let name = &mut wire["edits"][0]["DeclareVar"]["name"];
         assert_eq!(
             *name,
             serde_json::json!("depth"),

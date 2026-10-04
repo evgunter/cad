@@ -11,7 +11,7 @@
 //! `SetGauge` to give a group a frame to stand on, `Node::Pattern` to
 //! replicate one, `Node::Mate` to seat one part on another (through
 //! `regauge_then_mate` where the mover stands on another gauge),
-//! `SetDocParamValue` to turn the gauge, `assemble` for the at-rest
+//! `SetVarValue` to turn the gauge, `assemble` for the at-rest
 //! gate, `split`/`inline` to refactor, `update_to_store` to accept a
 //! new version of a part, and `save` / `load` to round-trip. What
 //! this stop reports it MEASURED on this run; what refuses, refuses
@@ -29,7 +29,7 @@
 //! cover the two halves of A5's validity story: the layout is DISJOINT
 //! and its at-rest gate passes outright; the stand TOUCHES, and its
 //! gate CERTIFIES, its two flush seats and the crate's rest included
-//! (see [`stand_scene`]). Three `SetDocParamValue`
+//! (see [`stand_scene`]). Three `SetVarValue`
 //! edits on `swing` render three poses, each re-running only the
 //! turntable and the instances its chain places (see [`poses`]).
 //!
@@ -377,9 +377,9 @@ fn prism_part(
         let name = VarName::from_static(name);
         edit(
             &mut doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: name.clone(),
-                value: FreeVar::continuous(Dimension::Length, value),
+                def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
             },
             tol,
             &RefusingReach,
@@ -641,9 +641,9 @@ fn stand_doc(
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
     edit(
         &mut doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: swing(),
-            value: FreeVar::continuous(Dimension::Angle, 0.0),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
         tol,
         &RefusingReach,
@@ -1048,7 +1048,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
 /// The bench's material: two posts, a shelf and a crate.
 const BENCH_VOLUME: f64 = 2.0 * POST_VOLUME + SHELF_VOLUME + CRATE_VOLUME;
 
-/// **The three poses**: one `SetDocParamValue` on `swing` each, every
+/// **The three poses**: one `SetVarValue` on `swing` each, every
 /// evaluation fed the one before it as its memo.
 ///
 /// A swing re-runs the turntable and the four instances its chain
@@ -1070,8 +1070,8 @@ fn poses(
     for degrees in SWINGS {
         edit(
             &mut doc,
-            &DocEdit::SetDocParamValue {
-                name: swing(),
+            &DocEdit::SetVarValue {
+                var: swing().into(),
                 value: FreeValue::Continuous(degrees.to_radians()),
             },
             tol,
@@ -1824,8 +1824,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     let mut thicker = ws.resolve(&shelf, tol).expect("the shelf resolves");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static("thickness"),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("thickness").into(),
             value: FreeValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
@@ -1949,8 +1949,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         .expect("the post resolves");
     edit(
         &mut shorter,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static("height"),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("height").into(),
             value: FreeValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
@@ -2066,8 +2066,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // workspace a reader opens is the one the saved assemblies pin.
     edit(
         &mut shorter,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static("height"),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("height").into(),
             value: FreeValue::Continuous(POST_HEIGHT),
         },
         tol,
@@ -2076,8 +2076,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static("thickness"),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("thickness").into(),
             value: FreeValue::Continuous(SHELF_THICKNESS),
         },
         tol,
@@ -2258,14 +2258,14 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
                      -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
                      bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     A10 product gather -> SetDocParamValue(swing)";
+                     A10 product gather -> SetVarValue(swing)";
     let bench_story = "an ASSEMBLY document: two instances of a post document and one of a \
                        shelf document, the shelf SEATED on both by mates — only the root post \
                        carries an authored offset, the other two poses are solved — and the \
                        three stand on a TURNTABLE gauge whose swing is a document parameter. \
                        A crate rests on the shelf's top face, offset in that face's frame, by \
                        a mate that places it on the turntable with the stand, so it follows \
-                       any edit of the shelf. One SetDocParamValue on the swing moves all four \
+                       any edit of the shelf. One SetVarValue on the swing moves all four \
                        parts";
     let assembled = |counters: &str| {
         format!(
@@ -2309,7 +2309,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
                      -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
                      bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     A10 product gather -> SetDocParamValue(swing); and InstantiatePart \
+                     A10 product gather -> SetVarValue(swing); and InstantiatePart \
                      (explicit rotated frame) -> LinearPattern(2) + InstantiatePart (explicit \
                      frame) -> A10 product gather -> assemble",
                     format!(

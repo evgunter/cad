@@ -136,9 +136,9 @@ struct Authored {
 }
 
 fn depth_param() -> TEdit {
-    TEdit::SetDocParam {
+    TEdit::DeclareVar {
         name: VarName::from_static("pip_depth"),
-        value: FreeVar::continuous(Dimension::Length, 0.002),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
     }
 }
 
@@ -340,25 +340,38 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue. The first insert is
-    // one edit from one mint in both authorings, so it is one id and
-    // unchanged; from the second on the edit sequences differ, so the
-    // two share no other id: the rest of theirs Removed in its order,
-    // the rest of mine Added in its.
-    assert_eq!(
+    // The diff is EXACTLY the relabeling residue. Theirs opens with the
+    // declare and mine with an insert, so the two sequences part at the
+    // first minting edit and share no id: every node of theirs Removed
+    // in its order, every node of mine Added in its, and the one
+    // variable, declared at a different point of each chain, two ids.
+    assert_ne!(
         theirs.doc.order()[0],
         mine.doc.order()[0],
-        "one first edit, one first id"
+        "two first edits, two first ids"
     );
     let d = theirs.doc.diff(&mine.doc);
-    let expected: Vec<NodeChange> = theirs.doc.order()[1..]
+    let expected: Vec<NodeChange> = theirs
+        .doc
+        .order()
         .iter()
         .copied()
         .map(NodeChange::Removed)
-        .chain(mine.doc.order()[1..].iter().copied().map(NodeChange::Added))
+        .chain(mine.doc.order().iter().copied().map(NodeChange::Added))
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
-    assert!(d.params.is_empty(), "same params");
-    assert!(d.order_changed, "the orders share only the first id");
+    let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
+    // `self`'s as `self` declared them, then `other`'s added ones.
+    assert_eq!(
+        d.vars,
+        vec![depth(&theirs), depth(&mine)],
+        "one variable under two minted ids"
+    );
+    assert_eq!(
+        theirs.doc.var_scope(),
+        mine.doc.var_scope(),
+        "and one name at one kind"
+    );
+    assert!(d.order_changed, "the orders share no id");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

@@ -102,6 +102,60 @@ impl StepId {
     }
 }
 
+/// The bare tag, spelled as a node's is.
+impl fmt::Display for crate::var::VarId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_tag(f, self.0)
+    }
+}
+
+impl crate::var::VarId {
+    /// The id with every bit shown ([`FullId`]).
+    #[must_use]
+    pub fn full(self) -> FullId {
+        FullId(self.0)
+    }
+}
+
+/// **A variable as a person reads it** (VARIABLES-DESIGN VR2): its
+/// name (`w`), or `variable 3fa9c1d2a0b1` when it has none. Built by
+/// [`Doc::spoken_var`] from the document that holds the variable;
+/// refusals carry it the way they carry a [`SpokenNode`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenVar {
+    id: crate::var::VarId,
+    name: Option<crate::doc::VarName>,
+}
+
+impl SpokenVar {
+    /// `id`, under `name` when it has one.
+    #[must_use]
+    pub fn new(id: crate::var::VarId, name: Option<crate::doc::VarName>) -> Self {
+        Self { id, name }
+    }
+
+    /// The variable this sentence names.
+    #[must_use]
+    pub fn id(&self) -> crate::var::VarId {
+        self.id
+    }
+
+    /// Its name, when the document held one.
+    #[must_use]
+    pub fn name(&self) -> Option<&crate::doc::VarName> {
+        self.name.as_ref()
+    }
+}
+
+impl fmt::Display for SpokenVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "{name}"),
+            None => write!(f, "variable {}", self.id),
+        }
+    }
+}
+
 /// **A recipe node as a person reads it**: its kind noun, its label
 /// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
 /// `\` in the label escaped by a `\`), its kind and
