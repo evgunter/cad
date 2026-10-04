@@ -8,17 +8,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::assert_panics_deep_unchanged;
 use crate::fixtures::assert_err_deep_unchanged;
+use crate::review_d18::assert_torn_op_panics;
 use crate::{
     BadArgument, Body, EntityId, EulerOpError, FaceKey, HalfEdgeKey, LoopKey, MefSite, MevSite,
     PointKey, VertexKey, validate,
 };
 
 /// The premise a dangling link's panic names.
-const DANGLING: &str = "which does not resolve: every public door keeps the body tier-1-valid";
+const DANGLING: &str = crate::live::NAMES_ONLY_LIVE;
 /// The premise a walk that does not close names.
-const WALK: &str = "every public door keeps the body tier-1-valid, where every such walk closes";
+const WALK: &str = crate::body::WALKS_CLOSE;
 
 fn stale(role: &'static str, key: EntityId) -> EulerOpError {
     EulerOpError::Argument(BadArgument::Stale { role, key })
@@ -185,7 +185,7 @@ fn torn_bodies_panic_before_writing() {
     let (mut body, _, seg, _) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().start = VertexKey::default();
     body.get_half_edge_mut(seg.he_minus).unwrap().start = VertexKey::default();
-    assert_panics_deep_unchanged(
+    assert_torn_op_panics(
         "null start",
         &mut body,
         &["'s start names", DANGLING],
@@ -204,7 +204,7 @@ fn torn_bodies_panic_before_writing() {
     // Strut mev at a half-edge with a null prev.
     let (mut body, _, seg, _) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().prev = HalfEdgeKey::default();
-    assert_panics_deep_unchanged("null prev", &mut body, &["'s prev names", DANGLING], |b| {
+    assert_torn_op_panics("null prev", &mut body, &["'s prev names", DANGLING], |b| {
         let _ = b.mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
@@ -219,7 +219,7 @@ fn torn_bodies_panic_before_writing() {
     // self-loop chord at he_plus, which starts at seed.vertex).
     let (mut body, seed, seg, _) = pillow(tol);
     body.get_vertex_mut(seed.vertex).unwrap().point = PointKey::default();
-    assert_panics_deep_unchanged(
+    assert_torn_op_panics(
         "null point",
         &mut body,
         &["'s point names", DANGLING],
@@ -240,7 +240,7 @@ fn torn_bodies_panic_before_writing() {
     let (mut body, _, seg, split) = pillow(tol);
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_plus;
-    assert_panics_deep_unchanged(
+    assert_torn_op_panics(
         "torn orbit",
         &mut body,
         &["the orbit walk from", WALK],
@@ -260,7 +260,7 @@ fn torn_bodies_panic_before_writing() {
     // [seg.he_plus, split.he_minus] (mef moved it into split's loop).
     let (mut body, _, seg, split) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
-    assert_panics_deep_unchanged("torn next", &mut body, &["the loop walk from", WALK], |b| {
+    assert_torn_op_panics("torn next", &mut body, &["the loop walk from", WALK], |b| {
         let _ = b.mef_chord(
             MefSite::Chords {
                 he1: seg.he_plus,
@@ -276,7 +276,7 @@ fn torn_bodies_panic_before_writing() {
     let seed2 = body.mvfs(p(50.0), true).unwrap();
     body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = seed2.r#loop;
     body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = seed2.r#loop;
-    assert_panics_deep_unchanged(
+    assert_torn_op_panics(
         "empty parent loop",
         &mut body,
         &["which is empty: on a tier-1-valid body an empty loop reaches no half-edge"],
@@ -294,7 +294,7 @@ fn torn_bodies_panic_before_writing() {
     // A loop with a null face key.
     let (mut body, _, seg, split) = pillow(tol);
     body.get_loop_mut(split.r#loop).unwrap().face = FaceKey::default();
-    assert_panics_deep_unchanged("null face", &mut body, &["'s face names", DANGLING], |b| {
+    assert_torn_op_panics("null face", &mut body, &["'s face names", DANGLING], |b| {
         let _ = b.mef_chord(
             MefSite::Chords {
                 he1: seg.he_plus,
@@ -307,7 +307,7 @@ fn torn_bodies_panic_before_writing() {
     // A face with a null shell key.
     let (mut body, _, seg, split) = pillow(tol);
     body.get_face_mut(split.face).unwrap().shell = crate::ShellKey::default();
-    assert_panics_deep_unchanged(
+    assert_torn_op_panics(
         "null shell",
         &mut body,
         &["'s shell names", DANGLING],

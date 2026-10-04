@@ -241,7 +241,15 @@ impl PanicCapture {
 }
 
 impl Drop for PanicCapture {
+    /// Restores the previous hook, except while the thread unwinds a
+    /// failed assertion: the hook cannot be changed from a panicking
+    /// thread (that aborts the whole test binary), and the capture's
+    /// hook already hands every panic outside [`PanicCapture::run`] to
+    /// the previous one.
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
         drop(std::panic::take_hook());
         if let Some(previous) = self.previous.take() {
             match std::sync::Arc::try_unwrap(previous) {
@@ -254,15 +262,18 @@ impl Drop for PanicCapture {
 
 /// Runs `op` on the torn `body` and asserts it panics with a report
 /// containing every fragment of `premise`, in its plan phase: the body
-/// is deep-equal afterwards. It runs inside a surgery scope, so that an
-/// `Ok` the plan should have refused fails here naming what it wrote,
-/// rather than at a debug build's tier-1 postcondition.
+/// is deep-equal afterwards. Returns the report. It runs inside a
+/// surgery scope, so that an `Ok` the plan should have refused fails
+/// here naming what it returned and wrote, rather than at a debug
+/// build's tier-1 postcondition. The crate's one such helper: a row
+/// that wants more on an `Ok` maps it in `op`.
+#[track_caller]
 pub(crate) fn assert_torn_op_panics<R: core::fmt::Debug>(
     label: &str,
     body: &mut Body<f64>,
     premise: &[&str],
     op: impl FnOnce(&mut Body<f64>) -> R,
-) {
+) -> String {
     let before = deep_snapshot(body);
     let planted = kill_anchor_faults(body);
     let capture = PanicCapture::install();
@@ -282,16 +293,19 @@ pub(crate) fn assert_torn_op_panics<R: core::fmt::Debug>(
                  writing {written:?}"
             )
         }
-        Err(report) => assert!(
-            premise.iter().all(|fragment| report.contains(fragment)),
-            "{label}: expected a panic naming {premise:?}, got: {report}"
-        ),
+        Err(report) => {
+            assert!(
+                premise.iter().all(|fragment| report.contains(fragment)),
+                "{label}: expected a panic naming {premise:?}, got: {report}"
+            );
+            assert_eq!(
+                deep_snapshot(body),
+                before,
+                "{label}: the body changed before the panic: {report}"
+            );
+            report
+        }
     }
-    assert_eq!(
-        deep_snapshot(body),
-        before,
-        "{label}: the body changed before the panic"
-    );
 }
 
 // =====================================================================
@@ -1178,21 +1192,25 @@ fn kev_either_door(
     }
 }
 
-/// One call into a torn body, judged: `Some` with what an `Ok` returned,
-/// `None` for a typed refusal or a row-4 premise panic, each noted in
-/// `census` ([`REFUSED`], [`PREMISE`]). Fails on a panic whose report
-/// carries no [`ROW_FOUR`] premise, and on a stale-key
-/// [`EulerOpError::Argument`]: every key the sweep passes was read out
-/// of the body, so it resolves.
+/// One call into a clone of the torn `body`, judged: `Some` with what
+/// an `Ok` returned, `None` for a typed refusal or a row-4 premise
+/// panic, each noted in `census` ([`REFUSED`], [`PREMISE`]). Fails on a
+/// panic whose report carries no [`ROW_FOUR`] premise, on a premise
+/// panic that fired after the call wrote to its clone (the clone is no
+/// longer `snapshot`, `body`'s [`deep_snapshot`]: a plan-phase read
+/// moved past a write), and on a stale-key [`EulerOpError::Argument`]:
+/// every key the sweep passes was read out of the body, so it resolves.
 #[cfg(not(debug_assertions))]
 fn judge<R>(
     capture: &PanicCapture,
     census: &mut Exposure,
     op: &str,
-    call: impl FnOnce() -> Result<R, EulerOpError>,
+    (body, snapshot): (&Body<f64>, &[String]),
+    call: impl FnOnce(&mut Body<f64>) -> Result<R, EulerOpError>,
 ) -> Option<R> {
     use crate::euler::BadArgument;
-    match capture.run(call) {
+    let mut trial = body.clone();
+    match capture.run(|| call(&mut trial)) {
         Ok(Ok(out)) => Some(out),
         Ok(Err(
             stale @ EulerOpError::Argument(
@@ -1204,6 +1222,10 @@ fn judge<R>(
             None
         }
         Err(report) if report.contains(ROW_FOUR) => {
+            assert!(
+                deep_snapshot(&trial) == snapshot,
+                "{op} panicked naming a row-4 premise after writing to the body: {report}"
+            );
             census.note(PREMISE);
             None
         }
@@ -1255,68 +1277,60 @@ fn hammer(body: &Body<f64>, tol: Tol, capture: &PanicCapture) -> Exposure {
     }
     let mut cycle_ring = 0usize;
     let mut empty_ring = 0usize;
-    // Counts the call, judges it, and counts it under `op` where it
-    // ran to `Ok`.
-    let mut drive = |op: &str, call: &mut dyn FnMut() -> Result<(), EulerOpError>| {
+    let snapshot = deep_snapshot(body);
+    // Counts the call, judges it on a clone of `body`, and counts it
+    // under `op` where it ran to `Ok`.
+    let mut drive = |op: &str, call: &mut dyn FnMut(&mut Body<f64>) -> Result<(), EulerOpError>| {
         census.note(CALLS);
-        if judge(capture, &mut census, op, call).is_some() {
+        if judge(capture, &mut census, op, (body, &snapshot), call).is_some() {
             census.note(op);
         }
     };
     for &he in &halves {
-        drive("kef", &mut || body.clone().kef(he).map(drop));
-        drive("kev", &mut || {
-            kev_either_door(&mut body.clone(), he, tol).map(drop)
-        });
-        drive("mev_line", &mut || {
-            body.clone()
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
+        drive("kef", &mut |b| b.kef(he).map(drop));
+        drive("kev", &mut |b| kev_either_door(b, he, tol).map(drop));
+        drive("mev_line", &mut |b| {
+            b.mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
                 .map(drop)
         });
-        drive("mef_chord", &mut || {
-            body.clone()
-                .mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
+        drive("mef_chord", &mut |b| {
+            b.mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
                 .map(drop)
         });
         for &other in halves.iter().take(4) {
-            drive("kemr", &mut || body.clone().kemr(he, other).map(drop));
-            drive("mev_line", &mut || {
-                body.clone()
-                    .mev_line(
-                        MevSite::Fan {
-                            he1: he,
-                            he2: other,
-                        },
-                        p(42.0),
-                        tol,
-                    )
-                    .map(drop)
+            drive("kemr", &mut |b| b.kemr(he, other).map(drop));
+            drive("mev_line", &mut |b| {
+                b.mev_line(
+                    MevSite::Fan {
+                        he1: he,
+                        he2: other,
+                    },
+                    p(42.0),
+                    tol,
+                )
+                .map(drop)
             });
-            drive("mef_chord", &mut || {
-                body.clone()
-                    .mef_chord(
-                        MefSite::Chords {
-                            he1: he,
-                            he2: other,
-                        },
-                        tol,
-                    )
-                    .map(drop)
+            drive("mef_chord", &mut |b| {
+                b.mef_chord(
+                    MefSite::Chords {
+                        he1: he,
+                        he2: other,
+                    },
+                    tol,
+                )
+                .map(drop)
             });
         }
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            drive("split_edge", &mut || {
-                body.clone().split_edge(edge, t, tol).map(drop)
-            });
+            drive("split_edge", &mut |b| b.split_edge(edge, t, tol).map(drop));
         }
         let (hp, hm) = mate_halves(body, edge);
         for (he1, he2) in [(hp, hm), (hm, hp)] {
-            drive("kemr", &mut || {
-                let mut trial = body.clone();
-                let out = trial.kemr(he1, he2)?;
-                match trial.get_loop(out.ring).map(|l| l.boundary) {
+            drive("kemr", &mut |b| {
+                let out = b.kemr(he1, he2)?;
+                match b.get_loop(out.ring).map(|l| l.boundary) {
                     Some(crate::LoopBoundary::Cycle { .. }) => cycle_ring += 1,
                     _ => empty_ring += 1,
                 }
@@ -1325,19 +1339,14 @@ fn hammer(body: &Body<f64>, tol: Tol, capture: &PanicCapture) -> Exposure {
         }
     }
     for &l in &loops {
-        drive("mef_chord", &mut || {
-            body.clone()
-                .mef_chord(MefSite::Lone { r#loop: l }, tol)
+        drive("mef_chord", &mut |b| {
+            b.mef_chord(MefSite::Lone { r#loop: l }, tol).map(drop)
+        });
+        drive("mev_line", &mut |b| {
+            b.mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .map(drop)
         });
-        drive("mev_line", &mut || {
-            body.clone()
-                .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
-                .map(drop)
-        });
-        drive("mfkrh_plug", &mut || {
-            body.clone().mfkrh_plug(l, true).map(drop)
-        });
+        drive("mfkrh_plug", &mut |b| b.mfkrh_plug(l, true).map(drop));
     }
     census.add(KEMR_CYCLE_RING, cycle_ring);
     census.add(KEMR_EMPTY_RING, empty_ring);

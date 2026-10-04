@@ -1227,26 +1227,36 @@ fn kef_panics_on_a_corrupt_edge_bijection() {
 //    in the tree does.
 // =====================================================================
 
-/// Asserts that `op`'s outcome on a torn body is one the contract
-/// allows: `Ok`, a typed refusal that is not an argument's (every key
-/// the probes pass was read out of the body), or a panic naming a
-/// row-4 premise. `may_succeed` false also rules out `Ok`.
+/// Asserts that `op`'s outcome on a clone of the torn `body` is one the
+/// contract allows: `Ok`, a typed refusal that is not an argument's
+/// (every key the probes pass was read out of the body), or a panic
+/// naming a row-4 premise that fired before `op` wrote (the clone is
+/// still `snapshot`, `body`'s [`deep_snapshot`]). `may_succeed` false
+/// also rules out `Ok`.
 fn assert_torn_outcome<R>(
     capture: &PanicCapture,
+    (body, snapshot): (&Body<f64>, &[String]),
     label: &str,
     may_succeed: bool,
-    op: impl FnOnce() -> Result<R, EulerOpError>,
+    op: impl FnOnce(&mut Body<f64>) -> Result<R, EulerOpError>,
 ) {
-    match capture.run(op) {
+    let mut trial = body.clone();
+    match capture.run(|| op(&mut trial)) {
         Ok(Ok(_)) => assert!(may_succeed, "{label}: returned Ok on the torn chain"),
         Ok(Err(err)) => assert!(
             !matches!(err, EulerOpError::Argument(_)),
             "{label}: refused a key read out of the body as an argument: {err}"
         ),
-        Err(report) => assert!(
-            report.contains(ROW_FOUR),
-            "{label}: panicked without naming a row-4 premise: {report}"
-        ),
+        Err(report) => {
+            assert!(
+                report.contains(ROW_FOUR),
+                "{label}: panicked without naming a row-4 premise: {report}"
+            );
+            assert!(
+                deep_snapshot(&trial) == snapshot,
+                "{label}: panicked naming a row-4 premise after writing to the body: {report}"
+            );
+        }
     }
 }
 
@@ -1323,27 +1333,29 @@ fn kill_ops_on_torn_bodies_panic_only_naming_a_premise() {
     // own gate and never reaches the mutation. `review_d18`'s hammer is
     // the row that drives the mutation phase on a tear it survives.
     let capture = PanicCapture::install();
+    let snapshot = deep_snapshot(&body);
+    let torn = (&body, snapshot.as_slice());
     for &he in &halves {
-        assert_torn_outcome(&capture, &format!("kev({he:?})"), false, || {
-            body.clone().kev(he)
+        assert_torn_outcome(&capture, torn, &format!("kev({he:?})"), false, |b| {
+            b.kev(he)
         });
-        assert_torn_outcome(&capture, &format!("kev_describing({he:?})"), false, || {
-            body.clone().kev_describing(he, &[], tol)
-        });
-        assert_torn_outcome(&capture, &format!("kef({he:?})"), true, || {
-            body.clone().kef(he)
-        });
+        assert_torn_outcome(
+            &capture,
+            torn,
+            &format!("kev_describing({he:?})"),
+            false,
+            |b| b.kev_describing(he, &[], tol),
+        );
+        assert_torn_outcome(&capture, torn, &format!("kef({he:?})"), true, |b| b.kef(he));
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     for s in solids {
-        assert_torn_outcome(&capture, &format!("kvfs({s:?})"), true, || {
-            body.clone().kvfs(s)
-        });
+        assert_torn_outcome(&capture, torn, &format!("kvfs({s:?})"), true, |b| b.kvfs(s));
     }
     let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
     for l in loops {
-        assert_torn_outcome(&capture, &format!("mfkrh_plug({l:?})"), true, || {
-            body.clone().mfkrh_plug(l, true)
+        assert_torn_outcome(&capture, torn, &format!("mfkrh_plug({l:?})"), true, |b| {
+            b.mfkrh_plug(l, true)
         });
     }
     assert!(

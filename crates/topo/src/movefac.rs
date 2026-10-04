@@ -842,36 +842,21 @@ mod tests {
     }
 
     /// `movefac(shell)` on a torn `body` panics with a message containing
-    /// `want`, before it mutates the body. It runs in a surgery scope, so
-    /// an `Ok` answers with its partition rather than with the tier-1
-    /// postcondition a torn input fails whatever the operator writes.
+    /// `want`, before it mutates the body; an `Ok` answers with its
+    /// partition.
     #[track_caller]
     fn assert_panics_torn(body: &mut Body<f64>, shell: ShellKey, want: &str) {
         let truth = claimed_components(body, shell);
-        let before = deep_snapshot(body);
-        let mut outcome = None;
-        let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-            let mut scope = body.begin_surgery();
-            outcome = Some(scope.movefac(shell));
-        }));
-        match (panicked, outcome) {
-            (Some(message), _) => {
-                assert!(message.contains(want), "wanted `{want}`: {message}");
-                assert_eq!(deep_snapshot(body), before, "movefac panics in its plan");
-            }
-            (None, Some(Ok(shells))) => {
-                let (joined, split) = misread(body, &shells, &truth);
+        crate::review_d18::assert_torn_op_panics("movefac", body, &[want], |b| {
+            b.movefac(shell).map(|shells| {
+                let (joined, split) = misread(b, &shells, &truth);
                 let counts: Vec<usize> = shells
                     .iter()
-                    .map(|&s| body.get_shell(s).unwrap().faces.len())
+                    .map(|&s| b.get_shell(s).unwrap().faces.len())
                     .collect();
-                panic!(
-                    "movefac partitioned a torn body: Ok({shells:?}), face counts \
-                     {counts:?}, joined {joined}, split {split}"
-                );
-            }
-            (None, outcome) => panic!("movefac on a torn body: {outcome:?}, not a panic"),
-        }
+                format!("{shells:?}, face counts {counts:?}, joined {joined}, split {split}")
+            })
+        });
     }
 
     /// The first member of `l`'s cycle.

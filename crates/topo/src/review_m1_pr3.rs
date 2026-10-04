@@ -54,25 +54,12 @@ use geom_core::Tol;
 /// with the body deep-unchanged: the plan phase reads the tear and
 /// panics before any write.
 #[track_caller]
-fn assert_plan_panics<R>(
+fn assert_plan_panics<R: core::fmt::Debug>(
     body: &mut Body<f64>,
     premise: &str,
     op: impl FnOnce(&mut Body<f64>) -> R,
 ) {
-    let before = deep_snapshot(body);
-    let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-        op(body);
-    }))
-    .expect("the operator returned on a torn body");
-    assert!(
-        message.contains(premise),
-        "expected a panic naming {premise:?}, got: {message}"
-    );
-    assert_eq!(
-        deep_snapshot(body),
-        before,
-        "the panic left the body changed: {message}"
-    );
+    crate::review_d18::assert_torn_op_panics("torn body", body, &[premise], op);
 }
 
 fn stale(role: &'static str, key: EntityId) -> EulerOpError {
@@ -1645,7 +1632,7 @@ fn kemr_error_paths_are_atomic() {
     let t0 = std::time::Instant::now();
     assert_plan_panics(
         &mut body,
-        "does not close: on a tier-1-valid body every loop's next cycle closes",
+        "does not close within the half-edge arena's length",
         |b| b.kemr(strut.he_plus, strut.he_minus),
     );
     assert!(
@@ -1765,19 +1752,15 @@ fn mekr_error_paths_are_atomic() {
     let (mut body, _seed, es) = chain(3, tol);
     body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
     body.get_half_edge_mut(es[2].he_plus).unwrap().next = HalfEdgeKey::default();
-    assert_plan_panics(
-        &mut body,
-        "does not close: on a tier-1-valid body every loop's next cycle closes",
-        |b| {
-            b.mekr_chord(
-                MekrSite::Cycles {
-                    target: es[0].he_minus,
-                    ring: es[2].he_plus,
-                },
-                tol,
-            )
-        },
-    );
+    assert_plan_panics(&mut body, "breaks at HalfEdgeKey(", |b| {
+        b.mekr_chord(
+            MekrSite::Cycles {
+                target: es[0].he_minus,
+                ring: es[2].he_plus,
+            },
+            tol,
+        )
+    });
     // Two empty loops sharing one vertex (corrupt, raw-grafted):
     // panics.
     let (mut body, seed, es) = chain(2, tol);

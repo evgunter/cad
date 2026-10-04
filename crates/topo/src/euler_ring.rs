@@ -2130,32 +2130,21 @@ mod tests {
     /// the body deep-unchanged: the plan phase reads the tear and panics
     /// before any write.
     #[track_caller]
-    fn plan_panic<R>(body: &mut Body<f64>, op: impl FnOnce(&mut Body<f64>) -> R) -> String {
-        let before = deep_snapshot(body);
-        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-            op(body);
-        }))
-        .expect("the operator returned on a torn body");
-        assert_eq!(
-            deep_snapshot(body),
-            before,
-            "the panic left the body changed: {message}"
-        );
-        message
+    fn plan_panic<R: core::fmt::Debug>(
+        body: &mut Body<f64>,
+        op: impl FnOnce(&mut Body<f64>) -> R,
+    ) -> String {
+        crate::review_d18::assert_torn_op_panics("torn body", body, &[], op)
     }
 
     /// [`plan_panic`], asserting the message names `premise`.
     #[track_caller]
-    fn assert_plan_panics<R>(
+    fn assert_plan_panics<R: core::fmt::Debug>(
         body: &mut Body<f64>,
         premise: &str,
         op: impl FnOnce(&mut Body<f64>) -> R,
     ) {
-        let message = plan_panic(body, op);
-        assert!(
-            message.contains(premise),
-            "expected a panic naming {premise:?}, got: {message}"
-        );
+        crate::review_d18::assert_torn_op_panics("torn body", body, &[premise], op);
     }
 
     fn stale(role: &'static str, key: EntityId) -> EulerOpError {
