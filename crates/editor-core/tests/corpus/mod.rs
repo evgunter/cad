@@ -423,7 +423,7 @@ pub const NODE_KINDS: [&str; 20] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 20] = [
+pub const EDIT_KINDS: [&str; 21] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -431,10 +431,11 @@ pub const EDIT_KINDS: [&str; 20] = [
     "SetStructuralParam",
     "SetExtrudeSide",
     "SetExpression",
-    "SetDocParam",
-    "SetDocParamValue",
-    "SetDocParamUnit",
-    "SetDocParamDistribution",
+    "DeclareVar",
+    "DefineVar",
+    "SetVarValue",
+    "SetVarUnit",
+    "SetVarDistribution",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -620,10 +621,11 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExtrudeSide { .. } => "SetExtrudeSide",
         DocEdit::SetExpression { .. } => "SetExpression",
-        DocEdit::SetDocParam { .. } => "SetDocParam",
-        DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
-        DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
-        DocEdit::SetDocParamDistribution { .. } => "SetDocParamDistribution",
+        DocEdit::DeclareVar { .. } => "DeclareVar",
+        DocEdit::DefineVar { .. } => "DefineVar",
+        DocEdit::SetVarValue { .. } => "SetVarValue",
+        DocEdit::SetVarUnit { .. } => "SetVarUnit",
+        DocEdit::SetVarDistribution { .. } => "SetVarDistribution",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",

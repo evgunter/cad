@@ -51,3 +51,69 @@ Shapes: a kill that moves a minted loop's `first` re-mints that loop
 says of the kills), or the pass pins a loop's branch from something a
 kill does not move. The first is local to the kills; the second changes
 every minted row's derivation and wants its own measurement.
+
+**Witness** (`crates/topo/tests/euler_site_pcurve_rows.rs`,
+`a_kef_whose_dead_half_anchored_the_loop_keeps_the_pass_rows` and its
+`kef_minting` twin, `#[ignore]`d until this row is settled): the minted
+wall over `[4.2, 5.4]` (across `3π/2`, where the principal branch
+jumps), split by a `mef_chord` up `u = 4.5` whose plus half is the old
+loop's `first`, then `kef` of that chord from the new face. Both doors
+keep rows whose image (`p0.x`: `−τ` kept, `0` derived) and certificate
+residual differ from `mint_pcurves`' on every row of the loop.
+
+**(b) does not close the class.** The pass needs an anchor per loop:
+which half of a loop wrapping the period carries the jump, and which
+period a loop that does not wrap sits in. An anchor read off the loop's
+geometry (its least vertex, a fixed window) moves when a kill removes
+the extremal piece, merges two loops lifted apart (`kef`) or splits one
+(`kemr`). It also decides on the chart's seam, where a full turn's
+vertices sit exactly. So (b) moves the class rather than removing it,
+and adds an in-band decision. (a) it is.
+
+**(a) is a fork, measured** (a probe after every public kill, over
+topo's suite and sweep's `ci` profile; not committed). In sweep, of
+the loops a kill re-anchors on a complete face of a periodic chart:
+
+| door | re-anchored | rows ≠ the pass's |
+|---|---|---|
+| `kef_minting` | 4,146 | 1,770: 168 a whole shift, 1,589 mixed (part of the loop shifted, part not), 12 a torus's v period, 1 the pass refuses (`LoopNotClosed`) |
+| `kef` | 16 | 8 (mixed) |
+| `kev` | 140 (`boolean::rest::undo_struts`) | 0 |
+| `kemr` | 37 (20 new rings) | 0 |
+
+The `kev` measurement above does not reproduce at `d51af4c69`. Re-probed
+over the six tests it names, comparing every row of the face, their 18
+`kev`s on complete periodic faces move no anchor and leave every row the
+pass's. Across the whole profile, the 140 that move one leave none
+different. The class is live through `kef` and `kef_minting`.
+`kef_minting`'s come from `merge_faces` (2,691), `boolean::zip` (1,362)
+and `boolean::rest` (91). Every one of those producers re-mints after
+the kill: `merge_coplanar_faces_declared` re-mints its staged result, and
+the boolean runs its closing pass. In topo's suite,
+`loop_reparenting_pcurve_rows::a_move_whose_rows_stand_carries_them_as_found`
+pins `kef` and `kef_minting` carrying rows that differ from the pass's,
+as found. The kills re-anchor `first` unconditionally (module docs of
+`crates/topo/src/euler_kill.rs` and `euler_ring.rs`), so almost every
+kill moves it.
+
+The options:
+
+- **A1.** The band doors (`kev_describing`, `kef_minting`, and a new
+  `kemr_minting`) re-mint every loop whose `first` they move, through
+  the site mint. The keys-only doors refuse `KeysOnly` where they would
+  move the anchor of a loop on a complete periodic face, as `kef` and
+  `ring_move` already do for rows that do not stand (PR 2527's ruling
+  keeps the kills keys-only). Every production keys-only caller on such
+  a face moves to a band door: `undo_struts`, `merge_faces`'s `kev`,
+  `chord_join`, `revolve`, `step-import`, and blend. `kef_minting` then
+  re-mints on about 4,000 calls per sweep `ci` run.
+- **A2.** A1, with the kills keeping `first` wherever it survives (the
+  unconditional re-anchor retired). The refusal narrows to a dead
+  anchor, a merge (`kef`) and a split (`kemr`'s ring).
+- **A3.** Only the band doors re-mint. The keys-only doors keep
+  `Neither`, and the posture states the residue.
+- **A4.** Retire the claim for the kills. A kill's rows are certified
+  and branch-continuous; the producer's closing pass is what makes them
+  the pass's, as the measurement shows every producer already does. The
+  site-mint contract ("the pass's byte for byte") stays a claim about
+  the minting doors.

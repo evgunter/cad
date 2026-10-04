@@ -50,14 +50,14 @@ pub(crate) fn plate(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(

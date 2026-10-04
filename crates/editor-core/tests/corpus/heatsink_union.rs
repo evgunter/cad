@@ -30,7 +30,7 @@
 //! base.
 //!
 //! Vocabulary: Profile, Extrude, PlacedUnion (Linear), `InsertNode`,
-//! `SetDocParam`, `SetStructuralParam`, `SetParam`.
+//! `DeclareVar`, `DefineVar`, `SetStructuralParam`, `SetParam`.
 //!
 //! Geometry is `heat_sink`'s fin, constant for constant: footprint
 //! `0.1875 × 0.75` at `z = 0.1875`, extruded `0.8125`, five of them at
@@ -62,9 +62,9 @@ const PITCH: f64 = 0.3125;
 /// The grouped fin corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("fins"),
-        value: FreeVar::Count { value: FINS },
+        def: editor_core::VarDef::Free(FreeVar::Count { value: FINS }),
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],

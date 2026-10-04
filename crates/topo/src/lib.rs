@@ -214,6 +214,8 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+#[cfg(test)]
+mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
 // questions, so neither hosts them. Each module's own docs carry

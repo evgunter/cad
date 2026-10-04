@@ -90,9 +90,9 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(name),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -140,10 +140,19 @@ fn key(ev: &Evaluation<impl geom_core::Decide>, id: RecipeNodeId) -> u128 {
     ev.value(id).expect("evaluated Ok").content_key.0
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
+/// The variable `doc` declares as `n`.
+fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
+    doc.var_named(n).expect("the fixture declares it")
+}
+
+fn entry<'a>(
+    doc: &ProfileDoc,
+    entries: &'a [Sensitivity],
+    n: &'static str,
+) -> &'a SensitivityOutcome {
     &entries
         .iter()
-        .find(|s| s.param == name(n))
+        .find(|s| s.param == var(doc, n))
         .unwrap_or_else(|| panic!("no entry for {n}"))
         .outcome
 }
@@ -205,17 +214,17 @@ struct Slab {
 
 fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(Dimension::Length, 2.0, w_dist),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, w_dist)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("d"),
-        value: continuous(Dimension::Length, 1.0, d_dist),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, d_dist)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("k"),
-        value: continuous(Dimension::Length, 2.0, None),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -286,9 +295,9 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
 /// carrier's radius carries `r`.
 pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("r"),
-        value: continuous(Dimension::Length, 0.2, r_dist),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -339,13 +348,13 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
 /// is the spec's `abs` kink spelled in the measure vocabulary.
 fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("h"),
-        value: continuous(Dimension::Length, 1.0, h_dist),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("u"),
-        value: continuous(Dimension::Length, 1.0, None),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, None)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -403,9 +412,9 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
 /// vertices at (0, 0, 0) and (w, 0, 0), which is `w` exactly.
 fn loft() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(Dimension::Length, 2.0, None),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let section = |z: f64| {
         let chain = LoopProgram::Chain(vec![
@@ -479,9 +488,9 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
         ("tn", Some(tn)),
         ("f", None),
     ] {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name(p),
-            value: continuous(Dimension::Length, 1.0, dist),
+            def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, dist)),
         });
     }
     let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
@@ -504,7 +513,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
 #[test]
 fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     let s = slab(None, None);
-    let env = seed_env::<Dual64, _>(&s.doc, s.doc.param_env::<Dual64>(), &name("w"))
+    let env = seed_env::<Dual64, _>(&s.doc, s.doc.param_env::<Dual64>(), var(&s.doc, "w"))
         .expect("w is continuous");
     let binding = |n: &'static str| match env.bindings[&name(n)] {
         ParamValue::Continuous { value, .. } => value,
@@ -519,7 +528,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     assert_eq!(f.to_bits(), 3.0f64.to_bits());
     for (seed, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
         let m = measured(
-            &run::<Dual64>(&s.doc, None, &opts(Some(seed), ProfileLift::Guided)),
+            &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some(seed), ProfileLift::Guided)),
             s.measure,
         );
         assert_eq!(m.value.to_bits(), f.to_bits(), "{seed}: value channel");
@@ -534,7 +543,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     // sees "not exactly zero". The PR's own profile pin records the
     // same arrival on the pinned lift.
     let k = measured(
-        &run::<Dual64>(&s.doc, None, &opts(Some("k"), ProfileLift::Guided)),
+        &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("k"), ProfileLift::Guided)),
         s.measure,
     );
     println!(
@@ -545,7 +554,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     // The pinned lift: the profile dimension's tangent is the silent
     // zero the lift ends; the magnitude slot's is untouched.
     let pinned = measured(
-        &run::<Dual64>(&s.doc, None, &opts(Some("w"), ProfileLift::Pinned)),
+        &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("w"), ProfileLift::Pinned)),
         s.measure,
     );
     assert_eq!(pinned.deriv, 0.0);
@@ -562,7 +571,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
 #[test]
 fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order() {
     let s = slab(None, None);
-    let guided = |seed: Option<&'static str>| opts(seed, ProfileLift::Guided);
+    let guided = |seed: Option<&'static str>| opts(&s.doc, seed, ProfileLift::Guided);
     let base = run::<Dual64>(&s.doc, None, &guided(None));
     let on_w = run::<Dual64>(&s.doc, None, &guided(Some("w")));
     let on_d = run::<Dual64>(&s.doc, None, &guided(Some("d")));
@@ -666,7 +675,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
         "one entry per continuous parameter, k included"
     );
     for (n, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
-        match entry(&seq, n) {
+        match entry(&s.doc, &seq, n) {
             SensitivityOutcome::Derivative { value, chamber } => {
                 assert_eq!(*value, expect, "{n}");
                 assert_eq!(*chamber, Chamber::LocalOnly);
@@ -704,7 +713,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
     // (A build at another ε cannot be handed: `Tol` is the process's
     // one witness — D9's "one process, one ε" — so that attack has no
     // spelling here.)
-    let guided_f64 = run::<f64>(&s.doc, None, &opts(None, ProfileLift::Guided));
+    let guided_f64 = run::<f64>(&s.doc, None, &opts(&s.doc, None, ProfileLift::Guided));
     match sensitivities(
         &s.doc,
         s.measure,
@@ -741,9 +750,13 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
 
     let annotated = push(
         &s.doc,
-        DocEdit::SetDocParam {
-            name: name("w"),
-            value: continuous(Dimension::Length, 2.0, Some(uniform(-0.1, 0.1))),
+        DocEdit::DefineVar {
+            var: name("w").into(),
+            def: editor_core::VarDef::Free(continuous(
+                Dimension::Length,
+                2.0,
+                Some(uniform(-0.1, 0.1)),
+            )),
         },
     );
     let r = sensitivities(
@@ -785,8 +798,8 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
 
     let edited = push(
         &s.doc,
-        DocEdit::SetDocParamValue {
-            name: name("w"),
+        DocEdit::SetVarValue {
+            var: name("w").into(),
             value: FreeValue::Continuous(2.5),
         },
     );
@@ -865,7 +878,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     )
     .expect("never a refusal");
     for n in ["h", "u"] {
-        match entry(&entries, n) {
+        match entry(&doc, &entries, n) {
             SensitivityOutcome::TangentDegraded { tangent } => assert!(tangent.is_nan(), "{n}"),
             other => panic!("{n}: {other:?}"),
         }
@@ -898,11 +911,14 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         "{wc:?}"
     );
     assert_eq!(wc.leaves, verdict.certified().len());
-    let blockers: Vec<&VarName> = match &report.rss {
-        Rss::UnavailableBecause { blockers } => blockers.iter().map(Unavailable::param).collect(),
+    let blockers: Vec<editor_core::VarId> = match &report.rss {
+        Rss::UnavailableBecause { blockers } => blockers.iter().map(|b| b.param().id()).collect(),
         other => panic!("{other:?}"),
     };
-    assert_eq!(blockers, vec![&name("h"), &name("u")]);
+    // In declaration order, the order every lane lists variables in.
+    let mut want = vec![var(&doc, "h"), var(&doc, "u")];
+    want.sort_by_key(|id| doc.var_order().iter().position(|v| v == id));
+    assert_eq!(blockers, want);
     for p in &report.per_param {
         assert!(p.contribution.is_err(), "{:?}", p.param);
     }
@@ -910,7 +926,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     // The max kink: finite +1 at the tie, marked, contributing |1|·Δ.
     let entries = sensitivities(&doc, abs, None, Some(&verdict), false, None, Tol::witness())
         .expect("never a refusal");
-    match entry(&entries, "h") {
+    match entry(&doc, &entries, "h") {
         SensitivityOutcome::Derivative { value, chamber } => {
             assert_eq!(value.to_bits(), 1.0f64.to_bits());
             assert!(contains_nominal(chamber));
@@ -931,7 +947,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     let row = report
         .per_param
         .iter()
-        .find(|p| p.param == name("h"))
+        .find(|p| p.param == var(&doc, "h"))
         .expect("h");
     assert_eq!(row.contribution, Ok(half));
     assert!(report.worst_case.lo <= 0.0 && report.worst_case.hi >= half - 1e-18);
@@ -947,9 +963,13 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
 #[test]
 fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("a"),
-        value: continuous(Dimension::Scalar, 1.0, Some(uniform(-0.5, 0.5))),
+        def: editor_core::VarDef::Free(continuous(
+            Dimension::Scalar,
+            1.0,
+            Some(uniform(-0.5, 0.5)),
+        )),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let expr = MeasureExpr::sub(
@@ -1167,7 +1187,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     }
     assert_eq!(report.per_param.len(), 4);
     for p in &report.per_param {
-        let half = 0.5 * analyzed.get(&p.param).expect("axis").offsets.width();
+        let half = 0.5 * analyzed.get(p.param).expect("axis").offsets.width();
         assert_eq!(p.contribution, Ok(half), "{:?}", p.param);
         match &p.sensitivity {
             SensitivityOutcome::Derivative { value, chamber } => {
@@ -1206,13 +1226,16 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     .unwrap_or_else(|e| panic!("{e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
-            assert_eq!(
-                blockers,
-                &vec![
-                    Unavailable::BandHasNoMeasure { param: name("tn") },
-                    Unavailable::BandHasNoMeasure { param: name("u") },
-                ]
-            );
+            let mut want = vec![
+                Unavailable::BandHasNoMeasure {
+                    param: doc.spoken_var(var(&doc, "tn")),
+                },
+                Unavailable::BandHasNoMeasure {
+                    param: doc.spoken_var(var(&doc, "u")),
+                },
+            ];
+            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.param().id()));
+            assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),
     }
@@ -1238,7 +1261,7 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
     let f = measured_f64(&eval(&doc), m);
     assert!((f - 0.2).abs() < 1e-12, "gap {f}");
     let guided = measured(
-        &run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Guided)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Guided)),
         m,
     );
     assert_eq!(guided.value.to_bits(), f.to_bits());
@@ -1249,12 +1272,12 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
         guided.deriv
     );
     let pinned = measured(
-        &run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Pinned)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Pinned)),
         m,
     );
     assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
     let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&entries, "r") {
+    match entry(&doc, &entries, "r") {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, -1.0),
         other => panic!("{other:?}"),
     }
@@ -1275,7 +1298,7 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let f = measured_f64(&eval(&doc), m);
     assert_eq!(f.to_bits(), 2.0f64.to_bits(), "distance {f}");
     let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&entries, "w") {
+    match entry(&doc, &entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
             assert_eq!(
                 *value, 1.0,
@@ -1306,7 +1329,7 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 fn the_guided_dual_pass_evaluates_the_build_paths_nodes_over_the_corpus() {
     for cd in corpus::documents() {
         let f = eval(&cd.doc);
-        let d = run::<Dual64>(&cd.doc, None, &opts(None, ProfileLift::Guided));
+        let d = run::<Dual64>(&cd.doc, None, &opts(&cd.doc, None, ProfileLift::Guided));
         assert_eq!(f.order, d.order, "{}", cd.name);
         for id in &f.order {
             let fa = matches!(f.result(*id), Some(NodeResult::Ok(_)));
@@ -1344,9 +1367,9 @@ fn without_a_drive_every_mark_is_local_and_there_is_no_report_path() {
     // A verdict over a box that is not the analyzed one is refused
     // typed BEFORE any pass runs.
     let analyzed = analyzed_box(&s.doc, &AnalysisPolicy::default());
-    let mut axes: BTreeMap<VarName, BoxAxis> = ParamBox::of(&analyzed).axes().clone();
+    let mut axes: BTreeMap<editor_core::VarId, BoxAxis> = ParamBox::of(&analyzed).axes().clone();
     axes.insert(
-        name("w"),
+        var(&s.doc, "w"),
         BoxAxis::Varying {
             lo: -eps() / 8.0,
             hi: eps() / 8.0,

@@ -198,7 +198,10 @@ fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -461,6 +464,16 @@ fn sym_9_what_each_retry_recovers() {
 /// A row box inside its window reads Zero where its clearance read a
 /// numeric Negative. `registered` and `retried` do not move.
 ///
+/// The variable table (INTENT-VARS-1 PR 2) keys a variable's symbol by
+/// its minted id where it was keyed by a hash of its name, so the
+/// bracket's variables sort differently inside every canonical form.
+/// Two of its residuals that registered under the old order are left
+/// numeric under the new one, with and without the ladder alike
+/// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
+/// ladder's own six and every other document's row do not move.
+/// Measured by a probe binding each variable under its old name-hash
+/// symbol, which restores 156 and 162: the move is the order alone.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -490,8 +503,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ),
         (
             "r2_filleted_bracket",
-            [1259, 45, 156, 1068],
-            [1259, 45, 162, 1062],
+            [1259, 45, 154, 1070],
+            [1259, 45, 160, 1064],
             6,
         ),
         ("r2_link", [689, 0, 118, 735], [691, 0, 130, 721], 14),
@@ -611,11 +624,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 45, 162, 1062, 6],
+        [1259, 45, 160, 1064, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=162 retried=6\n"),
+        line.contains("registered=160 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -631,7 +644,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 45, 156, 1068, 0]
+        [1259, 45, 154, 1070, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

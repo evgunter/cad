@@ -62,9 +62,9 @@ fn widened_document(width: f64) -> ProfileDoc {
     let cd = corpus::part_select::document();
     apply(
         &cd.doc,
-        &DocEdit::SetDocParam {
-            name: VarName::from_static(corpus::part_select::H),
-            value: FreeVar::Continuous {
+        &DocEdit::DefineVar {
+            var: VarName::from_static(corpus::part_select::H).into(),
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -72,7 +72,7 @@ fn widened_document(width: f64) -> ProfileDoc {
                     lo: -width,
                     hi: width,
                 }),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

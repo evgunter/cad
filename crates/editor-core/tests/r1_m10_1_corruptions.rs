@@ -19,9 +19,13 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("r1-corrupt"), Tol::witness());
     editor_core::apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            value: FreeVar::continuous_with(Dimension::Length, 1.0, Distribution::Normal { sigma }),
+            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+                Dimension::Length,
+                1.0,
+                Distribution::Normal { sigma },
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -56,8 +60,8 @@ fn planted_snapshot_corruptions_refuse_typed_at_load() {
         let corrupt = text.replace("\"sigma\": 0.01", replacement);
         assert_ne!(corrupt, text, "{label}: the corruption must land");
         match load(&corrupt, Tol::witness()) {
-            Err(PersistError::Distribution { name, fault: got }) => {
-                assert_eq!(name.as_str(), "s", "{label}");
+            Err(PersistError::Distribution { var, fault: got }) => {
+                assert_eq!(var.name().map(VarName::as_str), Some("s"), "{label}");
                 assert_eq!(got, fault, "{label}");
             }
             other => panic!("{label}: must refuse typed, got {other:?}"),
@@ -73,13 +77,13 @@ fn a_planted_bounds_corruption_refuses_at_load() {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-corrupt-b"), Tol::witness());
         editor_core::apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("b"),
-                value: FreeVar::continuous_with(
+                def: editor_core::VarDef::Free(FreeVar::continuous_with(
                     Dimension::Length,
                     1.0,
                     Distribution::Uniform { lo: -0.25, hi: 0.5 },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -91,8 +95,8 @@ fn a_planted_bounds_corruption_refuses_at_load() {
     let corrupt = text.replace("\"lo\": -0.25", "\"lo\": 0.125");
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.as_str(), "b");
+        Err(PersistError::Distribution { var, fault }) => {
+            assert_eq!(var.name().map(VarName::as_str), Some("b"));
             assert_eq!(
                 fault,
                 DistributionFault::NominalOutsideSupport { lo: 0.125, hi: 0.5 }
@@ -108,13 +112,13 @@ fn a_planted_bounds_corruption_refuses_at_load() {
 #[test]
 fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
-    let edit = DocEdit::SetDocParam {
+    let edit = DocEdit::DeclareVar {
         name: VarName::from_static("s"),
-        value: FreeVar::continuous_with(
+        def: editor_core::VarDef::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Normal { sigma: 0.01 },
-        ),
+        )),
     };
     let text = save(&base, std::slice::from_ref(&edit), Tol::witness())
         .expect("a valid snapshot+log saves");
@@ -126,7 +130,14 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
             assert_eq!(
                 error,
                 EditError::InvalidDistribution {
-                    name: VarName::from_static("s"),
+                    var: base.spoken_declare(
+                        &VarName::from_static("s"),
+                        &editor_core::VarDef::Free(FreeVar::continuous_with(
+                            Dimension::Length,
+                            1.0,
+                            Distribution::Normal { sigma: -2.0 },
+                        )),
+                    ),
                     fault: DistributionFault::SigmaNotPositive { sigma: -2.0 },
                 }
             );
@@ -160,9 +171,9 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-corrupt-c"), Tol::witness());
         editor_core::apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("n"),
-                value: FreeVar::Count { value: 3 },
+                def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

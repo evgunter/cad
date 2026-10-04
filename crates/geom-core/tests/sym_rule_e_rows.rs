@@ -33,7 +33,7 @@ fn band() -> Band {
 }
 
 fn p(name: &str, v: f64) -> Sym<f64> {
-    Sym::param(ParamSymbol::of(name), v)
+    Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
 }
 
 fn label(
@@ -413,7 +413,7 @@ mod gated {
     fn the_clause_three_gate_survives_rule_e() {
         let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let x = Sym::param_over(
-                ParamSymbol::of("x"),
+                ParamSymbol::new(test_utils::symbol_id("x")),
                 Interval::from_bounds(2.0, 4.0),
                 2.0,
                 4.0,

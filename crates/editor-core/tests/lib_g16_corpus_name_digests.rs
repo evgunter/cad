@@ -129,33 +129,33 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x06e4_606e_3b5a_4deb),
+    ("die", 0xccbe_012c_1535_2cff),
     ("corner_table", 0xe29a_7605_d42b_6b99),
-    ("heat_sink", 0x3aaa_91e3_47ef_c27a),
+    ("heat_sink", 0xdd7f_7819_3ebe_e3b9),
     ("crossing_slots", 0xa504_5ebd_fc02_2177),
     ("nested_islands_105", 0xacc7_1b27_90de_1ff6),
     ("nested_islands_106_depth1", 0xa5ef_f96f_7c11_f8a8),
     ("nested_islands_106_depth2", 0xd1fb_7c2e_0b16_cbe9),
     ("declared_tangency", 0x9669_c317_71c9_2a49),
-    ("kitchen_sink", 0xd732_ebb4_45f9_d932),
+    ("kitchen_sink", 0x52f9_d8c1_1c71_30d5),
     ("cut_cylinder", 0x41db_1192_9026_3bed),
-    ("measured_web", 0x1721_fe2f_f026_bf22),
+    ("measured_web", 0x740e_7f17_afdd_410e),
     ("boss_union", 0x2c43_ee7d_87cb_6d6d),
     ("die_fillet", 0xf37b_a47b_ed71_31d2),
     ("die_chamfer", 0x33f7_333d_4be4_662e),
     ("die_pips", 0xa8a6_77b2_ab17_e12e),
-    ("heat_sink_fins", 0xd244_b58c_02dc_3b3f),
+    ("heat_sink_fins", 0x655d_543e_de0f_8144),
     ("die_tool", 0x2376_5b8f_0b08_085c),
     ("face_sketch", 0xe17f_467e_cf2c_0119),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0xe1c4_b5f0_17f3_eb7f),
+    ("part_select", 0x1a19_a17f_d8e3_9715),
     ("loft_prism", 0x74db_6889_4c07_172b),
     ("die_composed", 0x9708_fe3b_47e9_4d63),
     ("die_composed_tour", 0x1e94_e904_622c_8027),
-    ("plate_param", 0x826c_231e_04ba_1ab7),
+    ("plate_param", 0x9eff_9a37_39f7_d65e),
     ("kiss_carry", 0xd74f_677f_841f_f8b1),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only

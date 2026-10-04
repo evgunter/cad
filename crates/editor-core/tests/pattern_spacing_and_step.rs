@@ -35,9 +35,9 @@ use corpus::{eval, failures};
 fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
     if let Some((name, radians)) = th {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::continuous(Dimension::Angle, radians),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, radians)),
         });
     }
     let axis = r.insert(Node::Datum(editor_core::Datum::Axis {

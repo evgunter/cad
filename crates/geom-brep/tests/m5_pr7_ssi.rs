@@ -4871,17 +4871,23 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     }
 }
 
-/// **A curved dome's level loop fits the sample budget at ε 1e-9.** The
-/// level cut of `W(d)` is the same loop at every `d`, of 3-D curvature
-/// 1.4–4.7/m, and the wall's pcurve bends in its chart as much as the
-/// plane's. Its fit rung reads the carrier's curvature, so the loop
-/// takes about 1030 samples, inside `SSI_MAX_FIT_SAMPLES`, and
-/// certifies as one closed branch. The ℝ⁴ state curve's curvature over
-/// speed² is √2 the carrier's here; a rung read on it needs about 1335,
-/// over the budget.
+/// **A curved dome's level loop certifies inside the fit budget at
+/// ε 1e-6 and 1e-9, and refuses it at 1e-12.** The level cut of `W(d)`
+/// is the same loop at every `d`, of 3-D curvature 1.4–4.7/m, and the
+/// wall's pcurve bends in its chart as much as the plane's. Its fit rung
+/// reads the carrier's curvature, so the loop takes about 184 samples at
+/// 1e-6 and 1030 at 1e-9, inside `SSI_MAX_FIT_SAMPLES`, and certifies as
+/// one closed branch. The ℝ⁴ state curve's curvature over speed² is √2
+/// the carrier's here; a rung read on it needs about 1335 at 1e-9, over
+/// the budget.
+///
+/// The count goes as `ε^{-1/4}`, so at 1e-12 the march hands the fit
+/// 5787 samples and the loop refuses `FitSampleBudget` before any fit
+/// (cause 2 of
+/// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`).
 #[test]
-fn a_curved_domes_level_loop_fits_the_sample_budget() {
-    let b = band_at(1e-9);
+fn a_curved_domes_level_loop_certifies_or_refuses_the_fit_budget() {
+    let b = band();
     for d in [1.0, 3.0] {
         let (_, dom) = dome_tilt(d);
         let level = Surface::Plane {
@@ -4889,18 +4895,107 @@ fn a_curved_domes_level_loop_fits_the_sample_budget() {
             normal: Vec3::new(0.0, 1.0, 0.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let out = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, b)
-            .unwrap_or_else(|e| panic!("d = {d}: expected the loop certified, got {e:?}"));
-        let [branch] = out.branches.as_slice() else {
-            panic!("d = {d}: expected one branch, got {}", out.branches.len());
+        let at = format!("d = {d}, ε {:e}", eps());
+        let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, b);
+        let samples = match eps() {
+            1.0e-6 => 180..190,
+            1.0e-9 => 1000..1100,
+            1.0e-12 => {
+                assert!(
+                    matches!(
+                        r,
+                        Err(SsiError::FitSampleBudget {
+                            samples: 5700..5900,
+                            ..
+                        })
+                    ),
+                    "{at}: the march hands the fit about 5787 samples: {r:?}"
+                );
+                continue;
+            }
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the loop's sample count is measured at ε 1e-6, 1e-9 and 1e-12 only",
+                );
+                return;
+            }
         };
-        assert_eq!(branch.end, BranchEnd::Closed, "d = {d}: a loop");
-        let samples = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        let out = r.unwrap_or_else(|e| panic!("{at}: expected the loop certified, got {e:?}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        assert_eq!(branch.end, BranchEnd::Closed, "{at}: a loop");
+        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
         assert!(
-            (1000..1100).contains(&samples),
-            "d = {d}: {samples} samples, against about 1030 at the carrier's curvature"
+            samples.contains(&n),
+            "{at}: {n} samples, against {samples:?} at the carrier's curvature"
         );
     }
+}
+
+/// **A curved dome's oblique arc is refined across its inflections.**
+/// The plane `x + z = 1` cuts the dome `W(½)` (centre curvature 1/m) in
+/// the open arc `y = −2·(s(1−s))²` along the diagonal, whose curvature
+/// is zero at `s = (3 ∓ √3)/6 ≈ 0.211, 0.789`. The fit rung prices the
+/// gap between samples by `‖C⁗‖ ≈ κ³`, which vanishes there while
+/// `‖C⁗‖` does not, so the march steps across each inflection at its
+/// cap, a fifth of the distance between the arc's crossings (0.28 m,
+/// where its neighbours are 1–6 cm at ε 1e-9). Limbs 1 and 2 refuse the
+/// marched carrier there, and refinement halves those gaps until it
+/// certifies:
+/// - at 1e-6, 38 marched samples become about 49;
+/// - at 1e-9, 235 become about 270;
+/// - at 1e-12 the march's 1321 samples exceed the fit budget, which
+///   refuses before any fit (cause 2 of
+///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`).
+#[test]
+fn a_curved_domes_oblique_arc_is_refined_across_its_inflections() {
+    let d = 0.5;
+    let (_, dom) = dome_tilt(d);
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let oblique = Surface::Plane {
+        origin: dom.center,
+        normal: Vec3::new(s2, 0.0, s2),
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let at = format!("ε {:e}", eps());
+    let r = ssi::plane_nurbs_ssi(&oblique, &dome_wall(d), dom, band());
+    let samples = match eps() {
+        1.0e-6 => 45..55,
+        1.0e-9 => 260..280,
+        1.0e-12 => {
+            assert!(
+                matches!(
+                    r,
+                    Err(SsiError::FitSampleBudget {
+                        samples: 1300..1350,
+                        ..
+                    })
+                ),
+                "{at}: the march hands the fit about 1321 samples: {r:?}"
+            );
+            return;
+        }
+        _ => {
+            vacuity::stood_down(
+                &at,
+                "the arc's sample count is measured at ε 1e-6, 1e-9 and 1e-12 only",
+            );
+            return;
+        }
+    };
+    let out = r.unwrap_or_else(|e| panic!("{at}: the arc does not certify: {e:?}"));
+    let [branch] = out.branches.as_slice() else {
+        panic!("{at}: expected one branch, got {}", out.branches.len());
+    };
+    assert!(
+        matches!(branch.end, BranchEnd::Crossings { .. }),
+        "{at}: an arc between two crossings: {:?}",
+        branch.end
+    );
+    let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
 /// **The `z = 0.2` arc across a dome of curvature 4/m is refined where

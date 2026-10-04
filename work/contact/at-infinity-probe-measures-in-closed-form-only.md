@@ -102,3 +102,15 @@ Main already fails the gate the same way on its own tilted builds, and
 on a tilted ROUND pocket (`j3r2_tilted_rod_operand`); the tilted cutters
 themselves are legal operands (`j3r2_tilted_operands`, 89 of 90). No
 other non-operand kind appears.
+
+## Another witness (JOIN, PR 4008's fix pass)
+
+`crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_plate_rod_battery`: a thin plate pierced by a rod tilted θ from
+`z`, so every rod piece the plate leaves has elliptic planar caps. Every
+body that battery builds refuses to unite with a far brick,
+`Containment(VolumeUncertified)` (the differential `outcome`'s
+`operand=false`): 1 151 runs on main, 1 817 once the join pairs the
+steep ellipses along the conic. The rod and the plate alone unite with
+the brick. Probed at θ = 30° and 70°, plate ∩ rod.
+

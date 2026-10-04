@@ -1026,9 +1026,9 @@ pub fn faces() -> [Face; 6] {
 pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("pip_depth"),
-        value: FreeVar::continuous(Dimension::Length, DEPTH),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(

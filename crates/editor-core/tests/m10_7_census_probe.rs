@@ -67,7 +67,7 @@ fn split(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let opts = EvalOptions {

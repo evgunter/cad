@@ -97,7 +97,7 @@ use geom_core::{Sym, SymCounts, Tol};
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, VarName};
+use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
@@ -106,6 +106,7 @@ use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
 use crate::spoken::SpokenNode;
+use crate::var::VarId;
 // The two derived verdict forms live in one module (`resolve::vdiff`);
 // this driver is the strict form's certifying consumer, and names it at
 // `drive::` because that is where every consumer already reaches for it.
@@ -1597,7 +1598,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
 /// to reach it (the per-axis depth budget's currency).
 struct Box_ {
     box_: ParamBox,
-    depths: BTreeMap<VarName, u32>,
+    depths: BTreeMap<VarId, u32>,
 }
 
 /// What one leaf's replay decided.
@@ -1905,7 +1906,7 @@ pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> 
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
-/// lowest axis index, bisected at its midpoint.
+/// earliest-declared variable, bisected at its midpoint.
 ///
 /// # Errors
 ///
@@ -1919,7 +1920,7 @@ fn bisect(b: &Box_, root: &ParamBox, max_depth: u32) -> Result<(Box_, Box_), Bud
     if depth >= max_depth {
         return Err(BudgetKind::Depth { max_depth });
     }
-    let Some((lo, hi)) = b.box_.split(&axis) else {
+    let Some((lo, hi)) = b.box_.split(axis) else {
         return Err(BudgetKind::Resolution);
     };
     let mut depths = b.depths.clone();
@@ -1992,7 +1993,7 @@ fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, Measure
 /// the fold instead of rounding to a bit-exact zero).
 fn tail(analyzed: &AnalyzedBox) -> Result<f64, MeasureUnavailable> {
     let mut out = 0.0;
-    for name in analyzed.params().keys() {
+    for (name, _) in analyzed.in_order() {
         let t = match analyzed.axis_tail_mass(name) {
             Some(r) => r?,
             None => 0.0,
@@ -2038,16 +2039,16 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // population from the leaves it is supposed to describe: these are
     // the points the driver certified AROUND, and "around" is defined
     // by where it split.
-    let mid: BTreeMap<VarName, BoxAxis> = box_
+    let mid: BTreeMap<VarId, BoxAxis> = box_
         .axes()
         .iter()
-        .map(|(n, a)| {
+        .map(|(&n, a)| {
             let m = a.midpoint();
-            (n.clone(), BoxAxis::Varying { lo: m, hi: m })
+            (n, BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, box_.order()))),
         ..lane_opts()
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
@@ -2072,17 +2073,17 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 
-/// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
-/// name order, floats as exact bits.
+/// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in
+/// declaration order, every bit of the id and floats as exact bits.
 pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
-    for (name, axis) in b.axes() {
+    for (name, axis) in b.order().iter().filter_map(|n| Some((n, b.get(*n)?))) {
         let (lo, hi) = axis.span();
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.as_str(),
+            name.full(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -2164,7 +2165,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.as_str())
+            format!("refused band:{}", param.id().full())
         }
     }
 }

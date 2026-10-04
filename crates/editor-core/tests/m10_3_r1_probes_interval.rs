@@ -79,14 +79,14 @@ fn unit_square() -> LoopProgram {
 /// only as the substrate for boxes this reviewer sizes differently).
 fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("q"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -110,9 +110,9 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
 /// `m10_sym_drive_memo_interval`); nothing in this suite drives it.
 pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("q"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -120,7 +120,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -366,8 +366,9 @@ fn a_wrapped_escalation_never_certifies_inside_the_band() {
     // No certified leaf's absolute distance interval may sit wholly
     // inside the band (eps, K*eps), K = 10: there the extrusion is
     // genuinely undecidable and a certificate would be false.
+    let q = doc.var_named("q").expect("declared");
     for leaf in v.certified() {
-        let (lo, hi) = leaf.box_.get(&name("q")).unwrap().span();
+        let (lo, hi) = leaf.box_.get(q).unwrap().span();
         let (alo, ahi) = (20.0 * eps() + lo, 20.0 * eps() + hi);
         assert!(
             !(alo > eps() && ahi < 10.0 * eps()),
@@ -394,7 +395,10 @@ fn a_wrapped_escalation_never_certifies_inside_the_band() {
 fn evidence_only_a_negative_zero_axis_refuses_at_f64() {
     let doc = slab_with(Distribution::Uniform { lo: -1.0, hi: 1.0 }, 1.0);
     let mut axes = BTreeMap::new();
-    axes.insert(name("q"), BoxAxis::Varying { lo: -0.0, hi: 0.0 });
+    axes.insert(
+        doc.var_named("q").expect("declared"),
+        BoxAxis::Varying { lo: -0.0, hi: 0.0 },
+    );
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(axes))),
         ..EvalOptions::default()
@@ -419,9 +423,9 @@ fn evidence_only_a_negative_zero_axis_refuses_at_f64() {
 fn evidence_only_e2e_consumer_walk() {
     let mk = |half_r: f64, half_d: f64| {
         let mut r = Recorder::new();
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name("hole_r"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.25,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -429,16 +433,16 @@ fn evidence_only_e2e_consumer_walk() {
                     lo: -half_r,
                     hi: half_r,
                 }),
-            },
+            }),
         });
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name("depth"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Normal { sigma: half_d }),
-            },
+            }),
         });
         let xy_frame_3 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {

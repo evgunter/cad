@@ -40,9 +40,9 @@ use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 /// the chain vocabulary. `Err` carries the door's refusal.
 fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -50,7 +50,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let w = || Expr::param(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
@@ -93,7 +93,7 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let opts = EvalOptions {
@@ -185,7 +185,7 @@ fn r1_parametric_chain_at_a_point_box() {
                 ParamBox::of(&analyzed)
                     .axes()
                     .keys()
-                    .map(|n| (n.clone(), BoxAxis::Fixed))
+                    .map(|n| (*n, BoxAxis::Fixed))
                     .collect(),
             )
         } else {

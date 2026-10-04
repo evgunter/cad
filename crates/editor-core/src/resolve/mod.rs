@@ -2284,10 +2284,11 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
-        | DocEdit::SetDocParam { .. }
-        | DocEdit::SetDocParamValue { .. }
-        | DocEdit::SetDocParamUnit { .. }
-        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::DeclareVar { .. }
+        | DocEdit::DefineVar { .. }
+        | DocEdit::SetVarValue { .. }
+        | DocEdit::SetVarUnit { .. }
+        | DocEdit::SetVarDistribution { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
@@ -2525,7 +2526,7 @@ fn structural_param_change(
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
-    let changed_params: Vec<&crate::doc::VarName> = ddiff.params.iter().collect();
+    let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
         .order()
@@ -2554,7 +2555,10 @@ fn structural_param_change(
             if let Some(expr) = eb {
                 let mut refs = Vec::new();
                 expr.param_refs(&mut refs);
-                if refs.iter().any(|(name, _)| changed_params.contains(&name)) {
+                if refs.iter().any(|(name, _)| {
+                    new.var_named(name.as_str())
+                        .is_some_and(|id| changed_vars.contains(&id))
+                }) {
                     return Some((id, slot));
                 }
             }

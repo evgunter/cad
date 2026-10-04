@@ -13,8 +13,8 @@
 use editor_core::UnitSym;
 use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
-    DocumentId, FreeVar, MeasureUnavailable, OffsetInterval, ProfileDoc, VarName, analyzed_box,
-    apply, box_mass, tail_mass,
+    DocumentId, FreeVar, MeasureUnavailable, OffsetInterval, ProfileDoc, SpokenVar, VarId, VarName,
+    analyzed_box, apply, box_mass, tail_mass,
 };
 use geom_core::Tol;
 
@@ -23,9 +23,9 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
     for (name, value) in params {
         doc = apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                value: value.clone(),
+                def: editor_core::VarDef::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -45,8 +45,14 @@ fn annotated(value: f64, distribution: Distribution) -> FreeVar {
     }
 }
 
-fn p(name: &'static str) -> VarName {
-    VarName::from_static(name)
+/// A variable as the free mass doors' refusals speak it.
+fn p(name: &'static str) -> SpokenVar {
+    SpokenVar::new(VarId(0), Some(VarName::from_static(name)))
+}
+
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &ProfileDoc, name: &str) -> VarId {
+    doc.var_named(name).unwrap_or(VarId(0))
 }
 
 /// The default policy IS the ±3σ convention, and the box it draws for
@@ -59,7 +65,7 @@ fn the_default_policy_is_the_three_sigma_convention() {
     );
     let doc = doc_with(&[("n", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
     let b = analyzed_box(&doc, &AnalysisPolicy::default());
-    let axis = b.get(&p("n")).expect("the parameter is an axis");
+    let axis = b.get(v(&doc, "n")).expect("the parameter is an axis");
     assert!(
         (axis.offsets.hi - 0.03).abs() < 5e-6,
         "±3σ to the convention's own precision, got {}",
@@ -81,7 +87,7 @@ fn the_quantile_mass_is_a_checked_request_knob() {
     let width = |mass: f64| {
         let policy = AnalysisPolicy::new(mass).expect("a mass inside (0, 1)");
         analyzed_box(&doc, &policy)
-            .get(&p("n"))
+            .get(v(&doc, "n"))
             .expect("axis")
             .offsets
             .width()
@@ -118,14 +124,18 @@ fn opt_in_means_an_unannotated_param_is_fixed() {
     ]);
     let b = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(b.params().len(), 2, "Count is not a box axis");
-    assert!(b.get(&p("holes")).is_none());
-    let fixed = b.get(&p("plain")).expect("continuous params are axes");
+    assert!(b.get(v(&doc, "holes")).is_none());
+    let fixed = b.get(v(&doc, "plain")).expect("continuous params are axes");
     assert_eq!(fixed.offsets, OffsetInterval::FIXED);
     assert!(fixed.offsets.is_fixed());
     assert_eq!(fixed.absolute(), (2.0, 2.0), "width zero AT the nominal");
     assert_eq!(fixed.distribution, None);
-    let varying: Vec<&VarName> = b.varying().map(|(n, _)| n).collect();
-    assert_eq!(varying, vec![&p("varies")], "only the declared axis varies");
+    let varying: Vec<VarId> = b.varying().map(|(n, _)| n).collect();
+    assert_eq!(
+        varying,
+        vec![v(&doc, "varies")],
+        "only the declared axis varies"
+    );
 }
 
 /// The bounded forms ARE their own analyzed box, so nothing escapes:
@@ -143,7 +153,7 @@ fn the_bounded_forms_have_exactly_zero_tail() {
     ] {
         let doc = doc_with(&[("b", annotated(1.0, dist))]);
         let axis = analyzed_box(&doc, &AnalysisPolicy::default())
-            .get(&p("b"))
+            .get(v(&doc, "b"))
             .copied()
             .expect("axis");
         assert_eq!(axis.offsets, OffsetInterval { lo: -0.1, hi: 0.2 });
@@ -178,7 +188,7 @@ fn analyzed_and_tail_mass_sum_to_one_for_a_normal() {
     for mass in [0.5, 0.9, DEFAULT_QUANTILE_MASS, 0.999_999] {
         let policy = AnalysisPolicy::new(mass).expect("valid");
         let axis = analyzed_box(&doc, &policy)
-            .get(&p("n"))
+            .get(v(&doc, "n"))
             .copied()
             .expect("axis");
         let inside = box_mass(&p("n"), &dist, (axis.offsets.lo, axis.offsets.hi)).expect("priced");
@@ -415,11 +425,11 @@ fn the_name_keyed_doors_take_all_three_from_one_axis() {
         ("fixed", FreeVar::continuous(Dimension::Length, 1.0)),
     ]);
     let boxed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let wide_axis = boxed.get(&p("wide")).copied().expect("axis");
+    let wide_axis = boxed.get(v(&doc, "wide")).copied().expect("axis");
 
     // The keyed door agrees with the free one used correctly.
     let keyed = boxed
-        .axis_tail_mass(&p("wide"))
+        .axis_tail_mass(v(&doc, "wide"))
         .expect("a declared parameter")
         .expect("a normal prices");
     let free = tail_mass(&p("wide"), &wide, &wide_axis.offsets).expect("priced");
@@ -435,12 +445,18 @@ fn the_name_keyed_doors_take_all_three_from_one_axis() {
     );
 
     // A fixed axis leaves nothing out, and is a point mass at nominal.
-    assert_eq!(boxed.axis_tail_mass(&p("fixed")), Some(Ok(0.0)));
-    assert_eq!(boxed.axis_box_mass(&p("fixed"), (-1.0, 1.0)), Some(Ok(1.0)));
-    assert_eq!(boxed.axis_box_mass(&p("fixed"), (0.5, 1.0)), Some(Ok(0.0)));
+    assert_eq!(boxed.axis_tail_mass(v(&doc, "fixed")), Some(Ok(0.0)));
+    assert_eq!(
+        boxed.axis_box_mass(v(&doc, "fixed"), (-1.0, 1.0)),
+        Some(Ok(1.0))
+    );
+    assert_eq!(
+        boxed.axis_box_mass(v(&doc, "fixed"), (0.5, 1.0)),
+        Some(Ok(0.0))
+    );
     // And a name the document does not declare is not an axis at all.
-    assert_eq!(boxed.axis_tail_mass(&p("nope")), None);
-    assert_eq!(boxed.axis_box_mass(&p("nope"), (0.0, 1.0)), None);
+    assert_eq!(boxed.axis_tail_mass(v(&doc, "nope")), None);
+    assert_eq!(boxed.axis_box_mass(v(&doc, "nope"), (0.0, 1.0)), None);
 
     // The band still refuses through the keyed door — the pairing
     // guarantee is not a licence to answer.
@@ -450,7 +466,7 @@ fn the_name_keyed_doors_take_all_three_from_one_axis() {
     )]);
     let banded_box = analyzed_box(&banded, &AnalysisPolicy::default());
     assert!(matches!(
-        banded_box.axis_box_mass(&p("bore"), (-0.05, 0.05)),
+        banded_box.axis_box_mass(v(&banded, "bore"), (-0.05, 0.05)),
         Some(Err(MeasureUnavailable::BandHasNoMeasure { .. }))
     ));
 }
