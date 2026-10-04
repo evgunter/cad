@@ -64,7 +64,6 @@ from rather than this list.
 - non_finite (4): distribution_fault_tag expr_dimension_error_tag fmt_quantity_error_tag persist_error_tag
 - unknown_param (4): eval_error_tag param_box_error_tag parse_error_tag seed_error_tag
 - cap_plane (3): extrude_error_tag loft_error_tag revolve_error_tag
-- corrupt (3): shell_error_tag transform_error_tag unexaminable_tag
 - face (3): entity_id_tag entity_kind_tag shell_error_tag
 - join (3): boolean_error_tag cluster_maintenance_tag split_op_error_tag
 - node_not_evaluated (3): eval_reason_tag hit_test_error_tag interrogate_error_tag
@@ -77,8 +76,9 @@ from rather than this list.
 - assertion_dimension (2): edit_error_tag node_error_tag
 - certify (2): blend_error_tag transform_error_tag
 - contact_contradicted (2): boolean_error_tag validation_error_tag
+- corrupt (2): transform_error_tag unexaminable_tag — `shell_error_tag` no longer mints it (2026-10-04: `ShellError::Corrupt` is deleted)
 - cosurface_escalated (2): extrude_error_tag revolve_error_tag
-- dangling_geometry (2): readback_error_tag validation_error_tag
+- dangling_geometry (2): readback_error_tag validation_error_tag — `readback_error_tag` no longer mints it (2026-10-04: `DanglingRef` is deleted), so it is `validation_error_tag`'s alone
 - dimension (2): edit_error_tag parse_error_tag
 - edge (2): entity_id_tag entity_kind_tag
 - empty (2): band_error_tag subgroup_tag

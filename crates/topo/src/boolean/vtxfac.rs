@@ -63,10 +63,11 @@ use super::{
     PierceRingRecord, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
-use crate::body::Body;
+use crate::body::{Body, WALKS_CLOSE};
 use crate::contact::BooleanCoincidence;
-use crate::entity::HalfEdgeKey;
+use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{MevSite, RunSite};
+use crate::live::{Proven, linked, proven};
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -114,14 +115,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // The pierce point, read BEFORE the classification: on a curved
     // pierced face the oriented datum is point-dependent, so `p` is an
     // input to the sector algebra rather than only to Delta 3's ring.
-    let p = *piercing_body
-        .get_point(
-            piercing_body
-                .get_vertex(vertex)
-                .ok_or(BooleanError::corrupt_at(piercing, vertex))?
-                .point,
-        )
-        .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
+    let p = piercing_body.resolve_vertex_point(vertex, Proven);
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -600,7 +594,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
         let last = real.next_back().or(first);
-        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
         // `strut_corner`: the site is an empty fan, so `mev_null` splices
         // the null edge as a spike [he_plus, he_minus] into this corner: a
         // run holding every real edge of the orbit, which leaves the In
@@ -610,8 +603,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             (Some(first), Some(last)) => {
                 match piercing_body
                     .run_site(first.he, last.he)
-                    .ok_or_else(corrupt)?
-                {
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "the run {:?} ..= {:?} at {vertex:?} has no fan end: its keys are the \
+                         sector walk's, and {WALKS_CLOSE}",
+                            first.he, last.he
+                        )
+                    }) {
                     site @ RunSite::Fan { .. } => (site.mev_site(), None),
                     site @ RunSite::WholeOrbit { corner } => (site.mev_site(), Some(corner)),
                 }
@@ -639,11 +637,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let start_on_plus = match strut_corner {
             None => true,
             Some(corner) => {
-                let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
-                let arrival = piercing_body
-                    .get_half_edge(corner_half.prev)
-                    .ok_or_else(corrupt)?
-                    .edge;
+                let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
+                let arrival = linked(
+                    &piercing_body.half_edges,
+                    corner_half.prev,
+                    EntityId::HalfEdge,
+                    EntityId::HalfEdge(corner),
+                    "prev",
+                )
+                .edge;
                 let germ = |t: usize, (cells, dir): Germ<T>| (t, cells, dir);
                 let facing = super::insert::strut_faces_first(
                     piercing_body,
@@ -701,37 +703,29 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
 
     // Delta 3: the pierce ring in the pierced face (module docs).
     let pierced = pierced_op;
-    let face_data =
-        pierced_body
-            .get_face(contact.face)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "pierced face vanished",
-            })?;
-    let crate::entity::LoopBoundary::Cycle { first: anchor } = pierced_body
-        .get_loop(face_data.outer)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "pierced face outer loop vanished",
-        })?
-        .boundary
+    let face_data = proven(&pierced_body.faces, contact.face, EntityId::Face);
+    let crate::entity::LoopBoundary::Cycle { first: anchor } = linked(
+        &pierced_body.loops,
+        face_data.outer,
+        EntityId::Loop,
+        EntityId::Face(contact.face),
+        "outer",
+    )
+    .boundary
     else {
         return Err(BooleanError::ClassificationInvariant {
             what: "pierced face outer loop is not a cycle",
         });
     };
-    let u = pierced_body
-        .get_half_edge(anchor)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "anchor half-edge vanished",
-        })?
-        .start;
-    let p_u = *pierced_body
-        .get_point(
-            pierced_body
-                .get_vertex(u)
-                .ok_or(BooleanError::corrupt_at(pierced, u))?
-                .point,
-        )
-        .ok_or(BooleanError::corrupt_at(pierced, u))?;
+    let u = linked(
+        &pierced_body.half_edges,
+        anchor,
+        EntityId::HalfEdge,
+        EntityId::Loop(face_data.outer),
+        "first",
+    )
+    .start;
+    let p_u = pierced_body.linked_vertex_point(u, EntityId::HalfEdge(anchor), "start");
     // (1) chord strut u → pierce point (certified line, transient).
     let chord = pierced_body.mev(
         MevSite::Fan {

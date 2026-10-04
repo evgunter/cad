@@ -286,11 +286,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body
-        .vertex_points()
-        .map(|(_, p)| p.unwrap())
-        .map(|p| p.z)
-        .collect();
+    let mut z: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.z).collect();
     z.sort_by(f64::total_cmp);
     z.dedup();
     assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");

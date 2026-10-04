@@ -337,7 +337,10 @@ fn a_walk_from_a_member_panics_on_a_loop_it_strays_out_of() {
             Ok(walk) => panic!("the walk from {he:?} returned {walk:?}"),
         }
     }
-    let premise = format!("loop {wall:?} does not resolve, or its cycle walk does not close");
+    let premise = format!(
+        "the cycle walk of loop {wall:?} from {:?} does not close",
+        first_of(&body, wall)
+    );
     match capture.run(|| body.site_cycle(wall)) {
         Err(report) => assert!(
             report.contains(&premise) && report.contains(ROW_FOUR),
@@ -404,24 +407,31 @@ fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
 }
 
 /// The pcurve pass over a named face clears and re-derives that face's
-/// rows by the same walk ([`crate::pcurves::mint_pcurves_of`]): every
-/// other row of the body is left exactly as found, a diverted loop's
-/// stray included, and the pass refuses the torn loop as corrupt rather
-/// than as a geometry fault of the stray it walked.
+/// rows by the same walk ([`crate::pcurves::mint_pcurves_of`]): on a
+/// diverted loop it panics naming the walk (D2 row 4) rather than read
+/// a geometry fault off the stray it walked, and before it writes, so
+/// every row of the body — the stray's included — is left as found.
 #[test]
-fn the_pass_over_one_face_leaves_the_rows_of_a_loop_its_walk_strays_into() {
+fn the_pass_over_one_face_panics_on_a_loop_its_walk_strays_from() {
     let s = sheet();
     let (wall, split) = (outer(&s.body, s.wall), outer(&s.body, s.split));
     let mut body = s.body;
     divert(&mut body, wall, split);
-    let rows_before = rows_of_loop(&body, split);
-    let got = crate::pcurves::mint_pcurves_of(&mut body, &[s.wall], tol());
-    assert_eq!(
-        rows_of_loop(&body, split),
-        rows_before,
-        "the pass over the wall returned {got:?} and changed the split face's rows"
+    let walk = format!("the cycle walk of loop {wall:?}");
+    assert_torn_op_panics(
+        "mint_pcurves_of",
+        &mut body,
+        &[walk.as_str(), crate::body::CYCLES_ARE_CLAIMANTS, ROW_FOUR],
+        |b| crate::pcurves::mint_pcurves_of(b, &[s.wall], tol()),
     );
-    assert_eq!(got, Err(crate::PcurveMintError::Corrupt));
+    // The whole-body pass derives every face before it clears the map,
+    // so it too panics with every row as found.
+    assert_torn_op_panics(
+        "mint_pcurves",
+        &mut body,
+        &["the cycle walk of loop", crate::body::CYCLES_ARE_CLAIMANTS],
+        |b| crate::pcurves::mint_pcurves(b, tol()),
+    );
 }
 
 /// `kef` at every half-edge of the diverted sheet stops — a real

@@ -91,9 +91,7 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// Every vertex point of a body, refusing a torn point key rather
 /// than comparing a shorter cloud.
 fn vertex_points(body: &Body<f64>) -> Vec<Point3<f64>> {
-    body.vertex_points()
-        .map(|(_, p)| p.expect("a built body's vertex carries its point"))
-        .collect()
+    body.vertex_points().map(|(_, p)| p).collect()
 }
 
 /// How far apart the two blanks' feet actually land, and how many of

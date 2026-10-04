@@ -566,7 +566,7 @@ fn the_clamp_floor_clears_the_apex_escalation_shell() {
     let apex = Point3::new(0.0, 1.0, 0.0);
     let mut extent = 0.0_f64;
     for (_, p) in body.vertex_points() {
-        extent = extent.max(p.unwrap().distance(apex));
+        extent = extent.max(p.distance(apex));
     }
     assert!(
         (extent - CONE_SLANT).abs() < 1e-12,

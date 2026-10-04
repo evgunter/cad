@@ -19,10 +19,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::query::rim_of;
-use topo::{
-    Body, CurveKind, DanglingRef, EdgeKey, EntityId, FaceSurface, MefSite, MevSite, RimBreak,
-    RimError, query,
-};
+use topo::{Body, CurveKind, EdgeKey, FaceSurface, MefSite, MevSite, RimBreak, RimError, query};
 
 use crate::common;
 
@@ -336,9 +333,7 @@ fn a_line_and_a_dangling_key_refuse_typed() {
     let gone = EdgeKey::default();
     assert_eq!(
         rim_of(body, gone),
-        Err(RimError::NotIntact(DanglingRef::Entity(EntityId::Edge(
-            gone
-        )))),
-        "a key naming nothing is an intactness fault, never a panic"
+        Err(RimError::Stale(gone)),
+        "a key naming nothing is the caller's stale key, never a panic"
     );
 }

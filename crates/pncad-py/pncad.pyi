@@ -586,7 +586,7 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `vertex_without_point`,
+    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -790,12 +790,8 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
-
-    The two dangling tags stay apart because they are different facts
-    about the model: `dangling_entity` is a stale or foreign handle,
-    `dangling_geometry` is a live entity naming geometry the body
-    itself no longer has.
+    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than

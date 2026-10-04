@@ -64,3 +64,15 @@ means, then make both sites say that. Check whether any pin asserts
 either message; PR 2420 found that for two of three carriers in the
 same family **nothing did**, and recorded the missing pin as part of
 the defect rather than as a baseline.
+
+## The sites agree now; the arm's meaning stands
+
+`BooleanError::CorruptOperand` is gone (a torn operand panics, D2 row
+4), and `reduce::esc` maps `ContainError::Corrupt` to
+`ClassificationInvariant` as `ops.rs` does, with no fabricated vertex.
+It could not panic: `ContainError::Corrupt` also carries the curved
+doors' folded refusals (`contain::solid_err` sends every
+`PointInSolidError` but `Escalated` there, `WallOutlineUnsupported` and
+`RayExhausted` among them), and `contfp`'s own `get_face(face)` miss is
+a caller's key at that public door. What the arm means is still this
+row's question.

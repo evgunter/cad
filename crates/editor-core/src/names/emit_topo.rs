@@ -1911,12 +1911,8 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     if a == b {
         return Ok(None);
     }
-    let sides = topo::readback::edge_sides(body, e).map_err(|what| match what {
-        topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => {
-            bug("a crossed seam edge is not live in its body")
-        }
-        _ => bug("a crossed seam edge's half-edge lies on no face"),
-    })?;
+    let sides = topo::readback::edge_sides(body, e)
+        .map_err(|_| bug("a crossed seam edge is not live in its body"))?;
     let mut names = Vec::with_capacity(2);
     let (plus, minus) = sides.faces();
     for face in [plus, minus] {

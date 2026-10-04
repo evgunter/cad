@@ -208,7 +208,7 @@ fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
             let at_v: Vec<_> = bb
                 .body
                 .vertex_points()
-                .filter(|(_, p)| p.as_ref().is_ok_and(|p| [p.x, p.y, p.z] == V))
+                .filter(|(_, p)| [p.x, p.y, p.z] == V)
                 .map(|(k, _)| k)
                 .collect();
             let point = |k| bb.body.get_vertex(k).unwrap().point;

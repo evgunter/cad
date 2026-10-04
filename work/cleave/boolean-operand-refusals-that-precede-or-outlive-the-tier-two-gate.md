@@ -53,3 +53,15 @@ operand is wrong:
 Each needs tracing: which body it reads (a gated operand, or a
 pipeline-modified one), then either an invariant or a refusal that names
 the real cause.
+
+**Half 2 is settled** (`lane-c-boolean-graft`): `CorruptOperand` and
+`Corruption` are gone. A tier-1 finding at the gate, and every raise
+listed above, panic naming the record (D2 row 4): each reads a gated
+operand or the pipeline's working copy of one, and both are bodies every
+door keeps tier-1-valid. The `ContainError::Corrupt` mapping refuses
+`ClassificationInvariant`, as `ops.rs`'s does, naming no vertex
+(`work/issues/corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex.md`
+keeps what that arm means). `gate_maximal_faces` reads sides through
+`readback::edge_sides_of`, which panics on a torn edge. Half 1 stands
+for a scaffolding (tier-2) operand; a torn one panics whichever check
+reads it first.
