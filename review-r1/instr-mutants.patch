@@ -1,0 +1,62 @@
+diff --git a/crates/topo/src/boolean/finish.rs b/crates/topo/src/boolean/finish.rs
+index c33aff0a..e26cf50b 100644
+--- a/crates/topo/src/boolean/finish.rs
++++ b/crates/topo/src/boolean/finish.rs
+@@ -862,6 +862,9 @@ fn discarded<T: Decide>(
+         if let (Some(ku), Some(kw)) = (one_kept(&us), one_kept(&ws)) {
+             return Ok((ku, kw));
+         }
++        if std::env::var("R1_NOTWIN").is_ok() {
++            return Err(desync("a section vertex's null-edge copies have not exactly one kept end"));
++        }
+         // Several copies survive on the twin: a vertex several runs of
+         // one pierce cut, which the twin passes once per run. The
+         // stretch's kept ends are the two copies one edge of the twin
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index 7844db1a..b26d2934 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -609,8 +609,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         seam_edges.extend(rep.seam_edges);
+         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+     }
+-    let welds =
+-        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?;
++    let welds = if std::env::var("R1_NOWELD").is_ok() { Vec::new() } else {
++        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)? };
+     desc.absorb_fusions(&welds);
+     vertex_merges.extend(welds);
+     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
+diff --git a/crates/topo/src/boolean/vtxfac.rs b/crates/topo/src/boolean/vtxfac.rs
+index 464de8e5..7c641d2a 100644
+--- a/crates/topo/src/boolean/vtxfac.rs
++++ b/crates/topo/src/boolean/vtxfac.rs
+@@ -758,9 +758,27 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+     let sides = (0..runs.len())
+         .map(|i| {
+             let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
++            let walk = if runs.len() > 1 { let k = runs.len(); Some(super::insert::strut_order(
++                    run_germs[(i + 1) % k].0.1,
++                    n_pierced.vec(),
++                    (start, end),
++                    sectors[(runs[i].0 + n - 1) % n].arm,
++                    band,
++                )) } else { None };
++            let mode = std::env::var("R1_MODE").unwrap_or_default();
++            if runs.len() > 1 && std::env::var("R1_LOG").is_ok() {
++                eprintln!("R1RING k={} i={} both_in={} walk={:?} op={:?}", runs.len(), i, both_in, walk.as_ref().map(|r| r.as_ref().ok().copied()), op);
++            }
++            let both_in = match mode.as_str() {
++                "piercing_in" => super::finish::kept_side(op, piercing) == SideCode::In,
++                "pierced_in" => super::finish::kept_side(op, pierced) == SideCode::In,
++                "never" => false,
++                _ => both_in,
++            };
+             let leaving_faces_start = match runs.len() {
+                 1 => false,
+-                _ if both_in => true,
++                _ if mode == "nowalk" => false,
++                _ if both_in => mode != "inter_end",
+                 k => super::insert::strut_order(
+                     run_germs[(i + 1) % k].0.1,
+                     n_pierced.vec(),

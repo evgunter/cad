@@ -481,7 +481,7 @@ fn main() {
                     let ball = sweep::test_support::ball_poled(
                         r,
                         Vec3::new(c[0], c[1], c[2]),
-                        Vec3::new(u[0], u[1], u[2]),
+                        if std::env::var("R1_POLE_Z").is_ok() { Vec3::new(0.0, 0.0, 1.0) } else { Vec3::new(u[0], u[1], u[2]) },
                         tol(),
                     );
                     let vb = mass_properties(&ball, tol()).unwrap().volume;

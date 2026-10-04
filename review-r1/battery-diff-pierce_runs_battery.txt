@@ -1,0 +1,268 @@
+19,42c19,42
+< face i=0 j=3 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=3 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(32v7), vertex: VertexKey(10v1) })
+< face i=0 j=3 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=3 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=3 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(10v5), vertex: VertexKey(17v1) })
+< face i=0 j=3 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=4 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=4 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(35v5), vertex: VertexKey(10v1) })
+< face i=0 j=4 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=4 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=4 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(13v9), vertex: VertexKey(13v1) })
+< face i=0 j=4 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=5 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=5 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(28v7), vertex: VertexKey(10v1) })
+< face i=0 j=5 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=5 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=5 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(26v5), vertex: VertexKey(13v1) })
+< face i=0 j=5 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=6 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=6 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(23v5), vertex: VertexKey(10v1) })
+< face i=0 j=6 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=6 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=0 j=6 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(27v5), vertex: VertexKey(13v1) })
+< face i=0 j=6 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+---
+> face i=0 j=3 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.048786507 want=66.048786507
+> face i=0 j=3 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=3 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.048786507 want=2.048786507
+> face i=0 j=3 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.048786507 want=66.048786507
+> face i=0 j=3 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=3 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.048786507 want=63.048786507
+> face i=0 j=4 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.331196015 want=66.331196015
+> face i=0 j=4 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=4 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.331196015 want=2.331196015
+> face i=0 j=4 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.331196015 want=66.331196015
+> face i=0 j=4 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=4 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.331196015 want=63.331196015
+> face i=0 j=5 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.642480814 want=66.642480814
+> face i=0 j=5 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=5 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.642480814 want=2.642480814
+> face i=0 j=5 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.642480814 want=66.642480814
+> face i=0 j=5 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=0 j=5 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.642480814 want=63.642480814
+> face i=0 j=6 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.864772765 want=66.864772765
+> face i=0 j=6 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.135227235 want=0.135227235
+> face i=0 j=6 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.864772765 want=2.864772765
+> face i=0 j=6 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.864772765 want=66.864772765
+> face i=0 j=6 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.135227235 want=0.135227235
+> face i=0 j=6 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.864772765 want=63.864772765
+61,84c61,84
+< face i=1 j=3 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=3 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(13v5), vertex: VertexKey(10v1) })
+< face i=1 j=3 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=3 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=3 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(17v7), vertex: VertexKey(17v1) })
+< face i=1 j=3 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=4 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=4 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(4v5), vertex: VertexKey(10v1) })
+< face i=1 j=4 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=4 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=4 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(11v5), vertex: VertexKey(19v1) })
+< face i=1 j=4 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=5 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=5 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(8v5), vertex: VertexKey(10v1) })
+< face i=1 j=5 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=5 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=5 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(25v5), vertex: VertexKey(13v1) })
+< face i=1 j=5 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=6 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=6 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(8v5), vertex: VertexKey(10v1) })
+< face i=1 j=6 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=6 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=1 j=6 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(25v5), vertex: VertexKey(13v1) })
+< face i=1 j=6 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+---
+> face i=1 j=3 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.065564247 want=66.065564247
+> face i=1 j=3 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.934435753 want=0.934435753
+> face i=1 j=3 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.065564247 want=2.065564247
+> face i=1 j=3 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.065564247 want=66.065564247
+> face i=1 j=3 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.934435753 want=0.934435753
+> face i=1 j=3 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.065564247 want=63.065564247
+> face i=1 j=4 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.522192956 want=66.522192956
+> face i=1 j=4 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.477807044 want=0.477807044
+> face i=1 j=4 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.522192956 want=2.522192956
+> face i=1 j=4 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.522192956 want=66.522192956
+> face i=1 j=4 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.477807044 want=0.477807044
+> face i=1 j=4 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.522192956 want=63.522192956
+> face i=1 j=5 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.789825011 want=66.789825011
+> face i=1 j=5 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.210174989 want=0.210174989
+> face i=1 j=5 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.789825011 want=2.789825011
+> face i=1 j=5 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.789825011 want=66.789825011
+> face i=1 j=5 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.210174989 want=0.210174989
+> face i=1 j=5 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.789825011 want=63.789825011
+> face i=1 j=6 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.920503895 want=66.920503895
+> face i=1 j=6 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.079496105 want=0.079496105
+> face i=1 j=6 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.920503895 want=2.920503895
+> face i=1 j=6 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.920503895 want=66.920503895
+> face i=1 j=6 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.079496105 want=0.079496105
+> face i=1 j=6 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.920503895 want=63.920503895
+103,126c103,126
+< face i=2 j=3 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=3 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(13v5), vertex: VertexKey(10v1) })
+< face i=2 j=3 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=3 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=3 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(19v9), vertex: VertexKey(17v1) })
+< face i=2 j=3 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=4 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=4 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v5), vertex: VertexKey(10v1) })
+< face i=2 j=4 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=4 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=4 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(11v5), vertex: VertexKey(15v1) })
+< face i=2 j=4 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=5 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=5 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(23v5), vertex: VertexKey(10v1) })
+< face i=2 j=5 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=5 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=5 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(17v9), vertex: VertexKey(11v1) })
+< face i=2 j=5 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=6 psi=0 pc U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=6 psi=0 pc I: ERR Euler(SelfLoopEdge { edge: EdgeKey(23v5), vertex: VertexKey(10v1) })
+< face i=2 j=6 psi=0 pc S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=6 psi=0 cp U: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+< face i=2 j=6 psi=0 cp I: ERR Euler(SelfLoopEdge { edge: EdgeKey(15v7), vertex: VertexKey(11v1) })
+< face i=2 j=6 psi=0 cp S: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+---
+> face i=2 j=3 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.051531529 want=66.051531529
+> face i=2 j=3 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.948468471 want=0.948468471
+> face i=2 j=3 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.051531529 want=2.051531529
+> face i=2 j=3 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.051531529 want=66.051531529
+> face i=2 j=3 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.948468471 want=0.948468471
+> face i=2 j=3 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.051531529 want=63.051531529
+> face i=2 j=4 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.388215742 want=66.388215742
+> face i=2 j=4 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.611784258 want=0.611784258
+> face i=2 j=4 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.388215742 want=2.388215742
+> face i=2 j=4 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.388215742 want=66.388215742
+> face i=2 j=4 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.611784258 want=0.611784258
+> face i=2 j=4 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.388215742 want=63.388215742
+> face i=2 j=5 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.694244744 want=66.694244744
+> face i=2 j=5 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=2 j=5 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.694244744 want=2.694244744
+> face i=2 j=5 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.694244744 want=66.694244744
+> face i=2 j=5 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+> face i=2 j=5 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.694244744 want=63.694244744
+> face i=2 j=6 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=66.884351835 want=66.884351835
+> face i=2 j=6 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.115648165 want=0.115648165
+> face i=2 j=6 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=2.884351835 want=2.884351835
+> face i=2 j=6 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=66.884351835 want=66.884351835
+> face i=2 j=6 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.115648165 want=0.115648165
+> face i=2 j=6 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=63.884351835 want=63.884351835
+253,270c253,270
+< face i=6 j=0 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=0 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=0 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=0 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=0 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=0 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=1 psi=0 pc U: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=1 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=1 psi=0 pc S: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=1 psi=0 cp U: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=1 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=1 psi=0 cp S: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=6 j=2 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=2 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=2 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=2 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=2 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=6 j=2 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+---
+> face i=6 j=0 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.182133068 want=64.182133068
+> face i=6 j=0 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.817866932 want=2.817866932
+> face i=6 j=0 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.182133068 want=0.182133068
+> face i=6 j=0 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.182133068 want=64.182133068
+> face i=6 j=0 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.817866932 want=2.817866932
+> face i=6 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(39v3), vertex: VertexKey(13v1) })
+> face i=6 j=1 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.436742221 want=64.436742221
+> face i=6 j=1 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.563257779 want=2.563257779
+> face i=6 j=1 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.436742221 want=0.436742221
+> face i=6 j=1 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.436742221 want=64.436742221
+> face i=6 j=1 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.563257779 want=2.563257779
+> face i=6 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v3), vertex: VertexKey(15v1) })
+> face i=6 j=2 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.733156032 want=64.733156032
+> face i=6 j=2 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.266843968 want=2.266843968
+> face i=6 j=2 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.733156032 want=0.733156032
+> face i=6 j=2 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.733156032 want=64.733156032
+> face i=6 j=2 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.266843968 want=2.266843968
+> face i=6 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(32v3), vertex: VertexKey(13v1) })
+295,312c295,312
+< face i=7 j=0 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=0 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=0 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=0 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=0 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=0 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=1 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(9v3) })
+< face i=7 j=2 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+< face i=7 j=2 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+< face i=7 j=2 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+< face i=7 j=2 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+< face i=7 j=2 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+< face i=7 j=2 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(9v7) })
+---
+> face i=7 j=0 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.107070661 want=64.107070661
+> face i=7 j=0 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.892929339 want=2.892929339
+> face i=7 j=0 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.107070661 want=0.107070661
+> face i=7 j=0 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.107070661 want=64.107070661
+> face i=7 j=0 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.892929339 want=2.892929339
+> face i=7 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(13v1) })
+> face i=7 j=1 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.256816203 want=64.256816203
+> face i=7 j=1 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.743183797 want=2.743183797
+> face i=7 j=1 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.256816203 want=0.256816203
+> face i=7 j=1 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.256816203 want=64.256816203
+> face i=7 j=1 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.743183797 want=2.743183797
+> face i=7 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(13v1) })
+> face i=7 j=2 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.578335909 want=64.578335909
+> face i=7 j=2 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.421664091 want=2.421664091
+> face i=7 j=2 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.578335909 want=0.578335909
+> face i=7 j=2 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.578335909 want=64.578335909
+> face i=7 j=2 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.421664091 want=2.421664091
+> face i=7 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v3), vertex: VertexKey(19v1) })
+337,354c337,354
+< face i=8 j=0 psi=0 pc U: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=0 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=0 psi=0 pc S: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=0 psi=0 cp U: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=0 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=0 psi=0 cp S: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+< face i=8 j=1 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=1 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=1 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=1 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=1 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=1 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(7v1) })
+< face i=8 j=2 psi=0 pc U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=8 j=2 psi=0 pc I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=8 j=2 psi=0 pc S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=8 j=2 psi=0 cp U: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=8 j=2 psi=0 cp I: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+< face i=8 j=2 psi=0 cp S: ERR Join(SectionLoopMixed { face: FaceKey(11v1) })
+---
+> face i=8 j=0 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.155762670 want=64.155762670
+> face i=8 j=0 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.844237330 want=2.844237330
+> face i=8 j=0 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.155762670 want=0.155762670
+> face i=8 j=0 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.155762670 want=64.155762670
+> face i=8 j=0 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.844237330 want=2.844237330
+> face i=8 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(11v1) })
+> face i=8 j=1 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.373605495 want=64.373605495
+> face i=8 j=1 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.626394505 want=2.626394505
+> face i=8 j=1 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.373605495 want=0.373605495
+> face i=8 j=1 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.373605495 want=64.373605495
+> face i=8 j=1 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.626394505 want=2.626394505
+> face i=8 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v5), vertex: VertexKey(15v1) })
+> face i=8 j=2 psi=0 pc U: OK SOUND t2=true t3p=true cert=true operand=true v=64.686532638 want=64.686532638
+> face i=8 j=2 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=2.313467362 want=2.313467362
+> face i=8 j=2 psi=0 pc S: OK SOUND t2=true t3p=true cert=true operand=true v=0.686532638 want=0.686532638
+> face i=8 j=2 psi=0 cp U: OK SOUND t2=true t3p=true cert=true operand=true v=64.686532638 want=64.686532638
+> face i=8 j=2 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=2.313467362 want=2.313467362
+> face i=8 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(34v3), vertex: VertexKey(15v1) })
+1880c1880
+< edge i=8 j=1 psi=1 pc I: ERR JoinDesync { what: "a section vertex's null-edge copies have not exactly one kept end" }
+---
+> edge i=8 j=1 psi=1 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=1.095240909 want=1.095240909
