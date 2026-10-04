@@ -36,3 +36,14 @@ risk, the wire, is pinned by the golden tests. The Python classes keep
 their names until PR 3 reshapes that surface (the binding census now
 argues the three types by `BOUND_AS`). PRs 2 and 3 are H and draw a
 concurrent dual.
+
+## 2026-10-04 — open PRs triaged against D10
+
+At Ev's request a lane read every open PR against D10. Closed as fully
+superseded: #3929 (`[ev]`, a measured part stays a product root: the
+consume/read typing is moot once nothing consumes). Its row
+`a-measured-part-is-not-a-product-root` moved here from RECIPE, parked on
+the build (REACH's plate row still blocks on it by id); its one unfiled
+finding is `a-failed-requirement-refuses-the-whole-product`. Partly
+superseded and left open: FUSE's #3955 (note on FUSE's log). 22 others
+are not superseded.
