@@ -154,14 +154,16 @@ branch), every cut at 1e-12 certifies:
 
 | cut | d = 0.5 | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|---|
-| oblique | 1432 (1321+4r) | 2222 (2127+3r) | 3268 (3123+5r) | OBLIQUE3 | OBLIQUE4 |
+| oblique | 1432 (1321+4r) | 2222 (2127+3r) | 3268 (3123+5r) | 3927 (3675+5r) | 4371 (3994+4r) |
 | tilt | 1413 | 1965 (1816+8r) | 2740 (2616+4r) | 3552 (3266+8r) | — |
 | zcut | 843 | 1343 | 1943 | 2262 (2256+1r) | 2441 (2435+1r) |
 | level | 5787 at every d (0 rounds) | | | | |
 
 So at 1e-12 a dome of centre curvature up to 8/m needs up to 5787
-samples per branch (the loop) and 4000 per open arc. Refinement adds
-0–9% to the march's count.
+samples per branch (the loop) and up to 4371 per open arc. From
+κ = 1/m up, refinement adds 0–10% to the march's count. On the gently
+curved oblique it adds more (238 → 549 at d = 0.05), because the step
+across an inflection is longest there.
 
 **What it costs.** Most of the time is the fit, the dense
 O(n³) collocation solve that runs three times per round
