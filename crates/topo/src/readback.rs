@@ -142,15 +142,6 @@ impl From<DanglingRef> for ReadbackError {
     }
 }
 
-impl From<DanglingRef> for crate::euler::EulerOpError {
-    fn from(what: DanglingRef) -> Self {
-        match what {
-            DanglingRef::Entity(key) => Self::StaleKey { key },
-            DanglingRef::Geometry(key) => Self::StaleGeometry { key },
-        }
-    }
-}
-
 /// Typed refusal of a read-back (closed enum, D4 ¶3). Every arm is a
 /// fact about the model, not a lane to swallow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

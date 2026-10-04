@@ -338,7 +338,7 @@ use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
@@ -2920,15 +2920,6 @@ pub(crate) enum SiteRows<T: Real> {
     Clear(Vec<SiteHalf>),
 }
 
-/// Why [`site_rows_from`] could not read a face.
-#[derive(Debug)]
-pub(crate) enum SiteFromRefusal {
-    /// A loop of the face did not walk as its own ([`LoopRows::Corrupt`]).
-    LoopCycleBroken(LoopKey),
-    /// [`held_open`]'s.
-    Row(SiteRowRefusal),
-}
-
 /// A face as a site mint found it, and read further
 /// ([`site_rows_from`]).
 pub(crate) struct SiteFrom<T: Real> {
@@ -2950,23 +2941,30 @@ pub(crate) struct SiteFrom<T: Real> {
 ///
 /// # Errors
 ///
-/// [`SiteFromRefusal::LoopCycleBroken`] naming the first loop of the
-/// face that does not walk as its own ([`loop_rows`]): which rows it
-/// holds has no answer, so neither has whether the door re-mints the
-/// face. Then [`held_open`]'s.
+/// [`held_open`]'s.
+///
+/// # Panics
+///
+/// Where a loop of the face does not walk as its own ([`loop_rows`]):
+/// on a tier-1-valid body every loop's `next` cycle closes on the
+/// half-edges that claim it.
+#[track_caller]
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
     surface: &Surface<T>,
-) -> Result<Option<SiteFrom<T>>, SiteFromRefusal> {
+) -> Result<Option<SiteFrom<T>>, SiteRowRefusal> {
     if DescribedChart::minting(surface).is_none() {
         return Ok(None);
     }
     let rows = stored_rows(body, face);
     if let Some(r#loop) = rows.broken() {
-        return Err(SiteFromRefusal::LoopCycleBroken(r#loop));
+        unreachable!(
+            "loop {loop:?} of the face a site mint reads does not walk as its own: {CYCLES_ARE_CLAIMANTS}",
+            loop = r#loop
+        );
     }
-    let open = rows.open_loops(body).map_err(SiteFromRefusal::Row)?;
+    let open = rows.open_loops(body)?;
     Ok(rows
         .remints(&open, !open.is_empty())
         .then_some(SiteFrom { rows, open }))

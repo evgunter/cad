@@ -181,9 +181,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::StaleKey {
-                key: EntityId::Edge(EdgeKey::default()),
-            },
+            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
         },
     ]
 }

@@ -2,10 +2,12 @@
 id: cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link
 kind: issue
 title: A kill or make whose cycle walk meets a dangling next refuses LoopCycleBroken, where a dangling prev refuses StaleKey
-status: open
+status: closed
 opened: 2026-10-03
 priority: P4
 cost: E
+closed: 2026-10-04
+pr: 4029
 ---
 
 
@@ -54,3 +56,21 @@ the key), or `LoopCycleBroken` with `StaleKey`'s doc narrowed to say
 that a `next` followed by a cycle walk is not one of its keys. Both
 variants answer `reports_tier1_corruption` `true`, so no render
 changes class either way.
+
+## Closed 2026-10-04
+
+PR 4029. The question dissolved: neither variant decides a link that
+does not resolve, because only a torn body reaches one, and a torn
+body now panics naming the record (D2 row 4). `StaleKey`,
+`LoopCycleBroken` and `reports_tier1_corruption` are deleted.
+
+- A dangling `prev` panics in `live::linked` / `live::proven`
+  (`crates/topo/src/live.rs`), naming the holder, its link and the key.
+- A dangling `next` panics at the walk, naming the hop that broke
+  (`Walk::closed`, `crates/topo/src/body.rs`: `Walk::Broken { at }`).
+  `mef`'s plan, `movefac` and `merge_faces::outermost_survivor` read
+  through it directly; `kef` (`euler_kill.rs`), `kemr` and `mekr`'s
+  `ring_cycle` (`euler_ring.rs`) through `Body::loop_cycle_live`
+  (`live.rs`), which closes through it; the re-chart door's walk
+  (`attach.rs`) through `site_cycle_from` (`euler.rs`), which panics
+  naming the loop and the walk's first half-edge.

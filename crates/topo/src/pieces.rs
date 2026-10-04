@@ -188,7 +188,7 @@ pub(crate) fn sort_into_pieces<T: Decide + crate::props::AtRestPolicy>(
     }
     for piece in moves {
         body.move_shells_to_new_solid(&piece)
-            .map_err(PieceSortError::Move)?;
+            .map_err(|e| PieceSortError::Move(e.from_driver()))?;
     }
     Ok(())
 }

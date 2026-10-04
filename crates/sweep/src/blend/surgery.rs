@@ -273,10 +273,13 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 /// A plain function, not a closure factory: the step name is an
 /// argument at every call rather than a value captured once per phase,
 /// so `BlendError::Op` cannot be constructed here without naming its
-/// site, and the operator's own typed refusal — `StaleKey`,
-/// `Certification`, the whole vocabulary — travels intact.
+/// site, and the operator's own typed refusal travels intact
+/// ([`topo::EulerOpError::from_driver`]).
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
-    BlendError::Op { site, source }
+    BlendError::Op {
+        site,
+        source: source.from_driver(),
+    }
 }
 
 // ------------------------------------------------------------------
