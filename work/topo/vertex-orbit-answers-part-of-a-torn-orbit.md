@@ -57,6 +57,14 @@ pins that limit. Closing it needs a proof that reads neither link
 alone, e.g. a count of the half-edges starting at `v` (O(arena), or a
 per-vertex incidence count the body does not keep).
 
+That row is red under `--features per-op-postcondition` (and so under
+`--all-features`), on main `1c6e169b4` as on PR 3985's branch: the
+fan split's own `mev_null` tier-1 postcondition
+(`crates/topo/src/surgery.rs:294`) fires on the torn body the row
+builds, before the row reads the orbit error. Found by that PR's
+`--all-features` battery; the hosted CI's test job does not enable the
+feature, so it is green there.
+
 ## `chord_join::null_site` reads a refusal as "no null edges"
 
 `null_site` (`chord_join.rs`) spells
