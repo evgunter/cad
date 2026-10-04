@@ -273,3 +273,6 @@ mod sphere_circle_certificate;
 mod tcost_k1_budget_exit;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;
+mod rev4012_r1_probe;
+mod r2_rev4012_probes;
+mod rev4012_delta_probe;

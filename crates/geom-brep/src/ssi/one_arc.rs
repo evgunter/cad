@@ -65,6 +65,11 @@ use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, implicit_gradient_enc
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
 
+/// REVIEW PROBE: mutant switch.
+pub(crate) fn mutant(m: &str) -> bool {
+    std::env::var("REV_MUT").is_ok_and(|v| v == m)
+}
+
 /// The deepest a walk cuts one edge or face piece.
 pub(crate) const EXIT_DEPTH: u32 = 40;
 
@@ -412,6 +417,9 @@ fn side_piece<T: CertifiedBounds>(
     r: UvRect,
     band: Band,
 ) -> Option<ChartSide> {
+    if mutant("M1") {
+        return None;
+    }
     SIDES.into_iter().find(|&side| {
         on_side(r, domain, side)
             && reader_of(readers, side)
@@ -630,6 +638,9 @@ fn reaches_end<T: CertifiedBounds>(
 ) -> Result<(), Shortfall> {
     match piece {
         Piece::Side(side) => {
+            if mutant("M11") {
+                return Ok(());
+            }
             let t = split(q, side).1;
             let (a, b) = super::boundary::along(side, r);
             if !(a <= t && t <= b) {
@@ -678,6 +689,8 @@ fn link<T: CertifiedBounds>(
     (p, e): ((f64, f64), (f64, f64)),
 ) -> Result<(), Shortfall> {
     match (a, b) {
+        (Piece::Side(_), Piece::Side(_)) if mutant("M12") => Ok(()),
+        (Piece::Side(_), Piece::Crossing) | (Piece::Crossing, Piece::Side(_)) if mutant("M7") => Ok(()),
         (Piece::Side(s), Piece::Side(t)) => {
             if s != t || !on_side(overlap, domain, s) {
                 return Err(Shortfall::Unlinked);

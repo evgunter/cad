@@ -274,6 +274,19 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             rungs: 3,
             cause: geom_brep::ssi::OneArcRefusal::Undecided(diag()),
         },
+        // REVIEW PROBE: the at-rest Count/Unlinked ending, unsampled at head.
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 4 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Unlinked,
+        },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
             axis: geom_brep::ChartAxis::U,

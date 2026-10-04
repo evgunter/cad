@@ -1138,7 +1138,12 @@ fn limb_three<T: Decide>(
             continue;
         };
         match (rung.margin > 0.0, rung.one_arc) {
-            (true, Some(Ok(()))) => {
+            (true, Some(Ok(()))) | (true, None) if true => {
+                if rung.one_arc.is_none() && !super::one_arc::mutant("M15") {
+                    not_one_arc += 1;
+                    narrowest = Some(rung);
+                    continue;
+                }
                 let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
                 return Ok((rung, t));
             }

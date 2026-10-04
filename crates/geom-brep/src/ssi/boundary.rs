@@ -979,7 +979,7 @@ pub(crate) fn read_stretch<T: CertifiedBounds>(
         return Reading::Beyond;
     }
     for (piece, side_of_plane) in pieces {
-        if side_of_plane.is_some() {
+        if side_of_plane.is_some() && !super::one_arc::mutant("M10") {
             let q = cut_along(side, r, piece);
             let d = boxes.deriv_box(q.u.0, q.u.1, q.v.0, q.v.1, across_u);
             let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
@@ -1040,10 +1040,12 @@ pub(crate) fn side_stretch<T: CertifiedBounds>(
     r: UvRect,
     band: Band,
 ) -> bool {
-    if beyond_reach(boxes, normal, reader, (side, r), band.zero()) {
+    let m = |x| super::one_arc::mutant(x);
+    if !(m("M6") || m("EQB")) && beyond_reach(boxes, normal, reader, (side, r), band.zero()) {
         return false;
     }
     match read_stretch(boxes, normal, reader, (side, r), band.zero()) {
+        Reading::Within(_) if m("M6") || m("EQA") => true,
         Reading::Within(sup) => matches!(
             side_cover(boxes, normal, (side, domain), r, sup, band),
             SideCover::Within { .. }

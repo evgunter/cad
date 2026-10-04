@@ -560,3 +560,66 @@ pub(crate) fn settle_root(
 /// The fixed iteration count of [`settle_root`] (D9): enough bisections
 /// to cut any `f64` bracket to adjacent floats.
 const SECTION_SETTLE_ITERS: usize = 128;
+
+#[cfg(test)]
+mod delta_probe {
+    //! Review probe (PR 4012 delta): the side reader against the
+    //! boundary section on whole sides, bit for bit.
+    #![allow(clippy::unwrap_used)]
+    use super::{Pieces, SectionReader};
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Bounds, Interval, Point3, Vec3};
+
+    fn walls() -> Vec<NurbsSurface<f64>> {
+        let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let k2 = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let k2m = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0], 2).unwrap();
+        let wq = core::f64::consts::FRAC_1_SQRT_2;
+        let mut out = vec![
+            NurbsSurface::new(k1(), k1(), vec![
+                Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 1.0), Point3::new(1.0, 1.0, 2.0)], vec![1.0; 4]).unwrap(),
+        ];
+        for r1 in [1.0, 1.1, 2.0] {
+            out.push(NurbsSurface::new(k2(), k1(), vec![
+                Point3::new(1.0, 0.0, 0.0), Point3::new(r1, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 0.0), Point3::new(r1, r1, 1.0),
+                Point3::new(0.0, 1.0, 0.0), Point3::new(0.0, r1, 1.0)],
+                vec![1.0, 1.0, wq, wq, 1.0, 1.0]).unwrap());
+        }
+        let ctl: Vec<Point3<f64>> = (0..15).map(|k| {
+            let (i, j) = (k / 5, k % 5);
+            Point3::new(0.1 * i as f64 + 0.03, 0.37 * j as f64 - 0.11, 1e-10 * ((k * 7) % 5) as f64 - 3e-10 + 0.2 * i as f64)
+        }).collect();
+        out.push(NurbsSurface::new(k2(), k2m(), ctl, (0..15).map(|k| 1.0 + 0.1 * (k % 3) as f64).collect()).unwrap());
+        out
+    }
+
+    #[test]
+    fn delta_reader_is_boundary_section_bitwise_on_whole_sides() {
+        let planes = [
+            (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            (Point3::new(0.1, 0.2, 0.3), Vec3::new(0.6, 0.0, 0.8)),
+            (Point3::new(0.0, 0.1, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+        ];
+        let mut n = 0;
+        for w in walls() {
+            for high in [false, true] {
+                for row in [crate::nurbs_iso::boundary_iso_u(&w, high).unwrap(), crate::nurbs_iso::boundary_iso_v(&w, high).unwrap()] {
+                    for (o, nn) in planes {
+                        let a = Pieces::of(&row, o, nn).unwrap().distance();
+                        let control: Vec<[Interval; 3]> = row.control().iter().map(|c| [c.x, c.y, c.z].map(Interval::from_certified)).collect();
+                        let rd = SectionReader::of(row.knots(), &control, row.weights(), ([o.x, o.y, o.z].map(Interval::from_certified), [nn.x, nn.y, nn.z].map(Interval::from_certified))).unwrap();
+                        let (t0, t1) = row.knots().domain();
+                        let b = rd.over((t0, t1));
+                        assert_eq!((a.lo().to_bits(), a.hi().to_bits()), (b.lo().to_bits(), b.hi().to_bits()), "whole side differs: {a:?} vs {b:?}");
+                        n += 1;
+                    }
+                }
+            }
+        }
+        eprintln!("DPROBE reader bitwise: {n} whole sides identical");
+    }
+}
