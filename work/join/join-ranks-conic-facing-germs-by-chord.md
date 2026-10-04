@@ -61,3 +61,32 @@ head. A second shape of the same ranking, unmeasured: sites on one
 conic where the true partner lies more than a half turn away along the
 arc, and another opposed-sense site past it, nearer by chord
 (`2r·sin(Δ/2)` falls past `Δ = π`).
+
+## Built
+
+Both shapes are ranked by the turn along the conic now. `find_match`
+and `loose_partners` read each germ's candidates in the germ's own
+rotational sense: its half-turn first (`germ_arm`), then, within one
+half-turn, the side of the incumbent's axis plane the candidate lies on
+(`nearer_along`, `bool_join_arc_travel`). That angle is monotone along
+any centred conic, in either half-turn, where the chord is not.
+
+- **Back to back across a gap** (the first shape). A site behind the
+  germ is `Behind` and loses to every `Ahead` site. The U-plate fixture
+  (`crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+  `u_plate_battery`, 192 runs) goes from 66 sound, 30 bodies failing
+  tier 3′ and the certificate, and 96 refusals on main to 192 sound.
+- **The true partner more than a half-turn away** (the second shape).
+  Within `Behind` the turn orders the sites, so the nearer one along the
+  conic wins where the chord preferred the farther. No fixture reaches
+  it: review r2 of PR 4008 looked for a pose with only `Behind`
+  candidates left on a locus and found none. The steep-ellipse
+  batteries in that file check every germ's pick against its least turn
+  over both arms: none is off it across their 5 736 runs, where the
+  chord order makes 8 208 such picks on the plate battery alone. None of
+  those picks is known to be a choice between `Behind` sites only.
+
+The rotational facing test (`germs_face_each_other`) still ACCEPTS a
+back-to-back pair: the two senses oppose. The ranking is what puts such
+a pair after the true partner. It never filters it out.
+

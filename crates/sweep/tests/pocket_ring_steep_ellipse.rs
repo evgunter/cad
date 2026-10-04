@@ -20,7 +20,7 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::Body;
+use topo::{Body, BooleanError, BooleanResult};
 
 use crate::common::differential::{area, disc_clip_area, outcome};
 
@@ -463,4 +463,180 @@ fn u_plate_battery() {
             }
         }
     }
+}
+
+/// What a gating run must do.
+#[derive(Clone, Copy, Debug)]
+enum Want {
+    /// Build a sound body.
+    Sound,
+    /// Build a sound body, or refuse with anything but a join desync —
+    /// for runs whose travel-correct pairing reaches a frontier past the
+    /// join (`VolumeUnmeasured { RingOnCurvedFace }`, the volume lane's).
+    SoundOrRefused,
+}
+
+/// The run's failure, if it fails `want`: a desync, a refusal where a
+/// body is wanted, or a body that fails tier 2, tier 3′, the
+/// certificate or the volume (`vol_tol`, the oracle's accuracy).
+fn miss(
+    got: Result<BooleanResult<f64>, BooleanError>,
+    want: Want,
+    volume: f64,
+    vol_tol: f64,
+) -> Option<String> {
+    let r = match got {
+        Err(e @ BooleanError::JoinDesync { .. }) => return Some(format!("desync {e:?}")),
+        Err(e) => {
+            return match want {
+                Want::Sound => Some(format!("refused {e:?}")),
+                Want::SoundOrRefused => None,
+            };
+        }
+        Ok(r) => r,
+    };
+    let Some(bb) = r.body() else {
+        return Some("empty".into());
+    };
+    let t2 = topo::validate_closed(&bb.body).is_ok();
+    let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
+    let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
+    let v = topo::mass_properties(&bb.body, tol()).map(|m| m.volume);
+    match v {
+        Ok(v) if t2 && t3 && cert && (v - volume).abs() < vol_tol => None,
+        _ => Some(format!(
+            "body t2={t2} t3p={t3} cert={cert} v={v:?} want={volume}"
+        )),
+    }
+}
+
+/// **The poses the chord order paired wrongly build sound or refuse
+/// typed.** The quad prism poses are review r1's: at `k = 6`,
+/// `[200, 230, 300, 120]`, `ψ = 1.75`, ∩ AB, the chord paired a germ
+/// across its true partner and shipped a body failing tier 3′ and the
+/// certificate; at `[225, 240, 320, 110]` every op refused
+/// `RingHomingAmbiguous`; at `k = 0.5` the travel-correct pairing leaves
+/// a ring on the cylinder wall. The plate poses are review r2's, where
+/// the antipode of a germ near a minor end beat a nearer site by chord.
+///
+/// The plate's bodies are not asked to unite with a far brick (the
+/// differential `outcome`'s operand check), which every plate body of
+/// this shape refuses on main too.
+#[test]
+fn steep_ellipse_poses_build_sound_or_refuse_typed() {
+    use Want::{Sound, SoundOrRefused};
+    let ops = |op: &str, l: &Body<f64>, r: &Body<f64>| match op {
+        "U" => topo::union(l, r, tol()),
+        "S" => topo::subtract(l, r, tol()),
+        _ => topo::intersect(l, r, tol()),
+    };
+    let mut misses = Vec::new();
+
+    let cyl_z = (-8.0, 16.0);
+    let base = cylinder(1.0, cyl_z.0, cyl_z.1);
+    let vc = topo::mass_properties(&base, tol()).unwrap().volume;
+    let all = |w| {
+        [
+            ("U", "AB", w),
+            ("U", "BA", w),
+            ("S", "AB", w),
+            ("S", "BA", w),
+            ("I", "AB", w),
+            ("I", "BA", w),
+        ]
+    };
+    let quads: Vec<(f64, [f64; 4], f64, Vec<(&str, &str, Want)>)> = vec![
+        (
+            6.0,
+            [200.0, 230.0, 300.0, 120.0],
+            1.75,
+            vec![("I", "AB", Sound)],
+        ),
+        (
+            6.0,
+            [225.0, 240.0, 320.0, 110.0],
+            1.658,
+            all(Sound).to_vec(),
+        ),
+        (6.0, [225.0, 240.0, 320.0, 110.0], 4.8, all(Sound).to_vec()),
+        (
+            0.5,
+            [200.0, 230.0, 300.0, 120.0],
+            0.0,
+            vec![("U", "AB", SoundOrRefused)],
+        ),
+    ];
+    for (k, sites, psi, runs) in quads {
+        let (h, side) = (1.5, ExtrudeSide::Against);
+        let pr = prism_turned(k, sites, 2.0, h, side, psi);
+        let vp = topo::mass_properties(&pr, tol()).unwrap().volume;
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), psi);
+        let planes: Vec<_> = prism_planes(k, sites, 2.0, h, false)
+            .into_iter()
+            .map(|(n, d)| (turn.transform_vec(n), d))
+            .collect();
+        let vi = oracle_intersection(&planes, cyl_z.0, cyl_z.0 + cyl_z.1, 1200);
+        for (op, order, want) in runs {
+            let volume = match (op, order) {
+                ("U", _) => vc + vp - vi,
+                ("S", "AB") => vc - vi,
+                ("S", _) => vp - vi,
+                _ => vi,
+            };
+            let (l, r) = if order == "AB" {
+                (&base, &pr)
+            } else {
+                (&pr, &base)
+            };
+            if let Some(m) = miss(ops(op, l, r), want, volume, 2e-5) {
+                misses.push(format!(
+                    "k={k} sites={sites:?} psi={psi} {op} {order} ({want:?}): {m}"
+                ));
+            }
+        }
+    }
+
+    for (theta_deg, t, x1f, x2f, mirror, runs) in [
+        (60.0f64, 0.02, -0.95, 0.1, false, all(Sound)),
+        (70.0, 0.02, -0.8, -0.3, false, all(SoundOrRefused)),
+        (70.0, 0.02, -0.8, 0.1, true, all(Sound)),
+    ] {
+        let theta = theta_deg.to_radians();
+        let x = (x1f * R / theta.cos(), x2f * R);
+        let xs = if mirror { (-x.1, -x.0) } else { x };
+        let pl = plate(xs, t);
+        let rd = rod(
+            theta,
+            core::f64::consts::FRAC_PI_2,
+            t,
+            2.0 * ((R + t) / theta.cos() + 1.0),
+        );
+        let va = (xs.1 - xs.0) * 4.0 * t;
+        let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
+        let vi = want_i(theta, xs, t);
+        for (op, order, want) in runs {
+            let volume = match (op, order) {
+                ("U", _) => va + vb - vi,
+                ("S", "AB") => va - vi,
+                ("S", _) => vb - vi,
+                _ => vi,
+            };
+            let (l, r) = if order == "AB" {
+                (&pl, &rd)
+            } else {
+                (&rd, &pl)
+            };
+            if let Some(m) = miss(ops(op, l, r), want, volume, 1e-7) {
+                misses.push(format!(
+                    "theta={theta_deg} x={xs:?} mirror={mirror} {op} {order} ({want:?}): {m}"
+                ));
+            }
+        }
+    }
+    assert!(
+        misses.is_empty(),
+        "{} runs miss:\n{}",
+        misses.len(),
+        misses.join("\n")
+    );
 }

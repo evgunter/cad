@@ -49,15 +49,19 @@ their `through` siblings) reach the chart arm and refuse
 wrong partner: `boolean::join`'s `find_match` ranked partner sites by
 CHORD LENGTH, which on a conic germ line grows to the half-turn and
 shrinks again, so the site a major arc away read nearer than the next
-site along the section and the chord crossed it. Nearness is the germ's
-own half-turn first (`germ_arm`), then the chord within it (`nearer`).
+site along the section and the chord crossed it. Each germ now ranks
+its own candidates by its half-turn (`germ_arm`) and then by the turn
+along the conic within it (`nearer_along`, `bool_join_arc_travel`), and
+the matcher takes the nearest of those pairs by half-turn and chord
+(`nearer`).
 
 A second cause behind it: the planar side selects its chord arc against
 the partner WALL face's azimuth window, read from the face the germ was
 recorded against at insertion, which an earlier segment's `mef` may have
 divided — the window then covers a part of the wall the arc does not lie
 in and neither candidate is contained. `wall_region` reads the region
-that owns the segment's halves at call time.
+that owns the segment's halves at call time, within the recorded face's
+`mef` lineage.
 
 All 222 poses build sound at tier 2, tier 3′, the certificate and
 `assert_legal_operand`, at their closed-form volume
