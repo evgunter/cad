@@ -502,7 +502,13 @@ impl<T: Decide> Body<T> {
                 ChartSurface::New(surface) => Some(surface),
                 ChartSurface::Shared(_) => None,
             },
-            Slot::Kept(k) => self.surfaces.get(k),
+            Slot::Kept(k) => Some(self.surfaces.get(k).unwrap_or_else(|| {
+                unreachable!(
+                    "surface {k:?}, a face's kept chart, does not resolve: every public door \
+                     keeps the body tier-1-valid, and a tier-1-valid record names only live \
+                     records"
+                )
+            })),
         }
     }
 
