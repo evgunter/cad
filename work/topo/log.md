@@ -6762,3 +6762,12 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
 - Fix lane `session_015ZRAnih51VcqL2q3r1aMjG` dispatched on the PR branch; it reports by PR body and comment. Reviewer and implementer archived (unit 1 cost about $64).
 - Nothing new on PR 3970.
 - 13:26 check-in: fix lane `session_015ZRAnih51VcqL2q3r1aMjG` is still running (mutation-testing the hardened sweeps: both red). PR 4029 head unchanged. Nothing new on PR 3970. The incoming main commit touching work/topo is an empty merge.
+- 13:54: **PR 4029 merged** at `1ef3e52e1a` (CI green on fix head `142ef890`). The fix lane mapped every finding to a commit:
+  - a three-pattern driver re-sweep (one more wrapper found: `AdoptionAttempt`);
+  - "(kernel bug)" dropped from `Partition`, and the recourse leak filed on hone;
+  - 15 rows re-worded and 2 closed;
+  - the sweeps judge on a clone and go red under a hoisted-write mutation (shown), and reverted they are green at 45/45; a SIGABRT in `PanicCapture::drop` fixed on the way;
+  - `KeySource` makes a link miss uncatchable as a typed `Err`;
+  - premise text held in 3 constants; five panic helpers made one.
+
+  The V-notch row now answers `Ok`; it stays open, since the result shape was not checked. Fix lane archived (about $14). **Unit 2 dispatched** (`session_01Joyxfo4vH93BpLf9DyUbqC`): readback `DanglingRef`, `PcurveMint::Corrupt`, `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `corrupt_at`, the graft's `JoinDesync` / `VoidInsertError::Corrupt` split, and `TornLoop`'s `Result`. The R build waits for it, because both touch `pcurves.rs` and the rate window shows a warning.
