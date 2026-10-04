@@ -147,10 +147,9 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// the in-crate `Bridge::Recertify` path (the booleans') can.
 ///
 /// **Every refusal leaves `dst` deep-unchanged.** The transplant runs
-/// on a staged clone of `dst` and is committed only once it has
-/// succeeded in full — the shape `Body::merge_coplanar_faces` stages
-/// in — so a caller keeps the destination it had, and no refusal
-/// leaves a body tier-1-invalid.
+/// into a fresh staging body and is committed into `dst` only once it
+/// has succeeded in full, so a caller keeps the destination it had and
+/// no refusal leaves a body tier-1-invalid.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -257,13 +256,11 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     }
     #[cfg(debug_assertions)]
     let before = dst.arena_counts();
-    let mut stage = dst.clone();
     let (map, targets) = crate::boolean::combine::graft_solids_minted(
-        &mut stage,
+        dst,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
-    dst.adopt(stage);
     #[cfg(debug_assertions)]
     dst.assert_euler_postcondition(before, graft_delta(src), "graft_disjoint_all_keyed");
     Ok(GraftKeys {
@@ -545,6 +542,45 @@ mod tests {
         src.kev_describing(he0, &chords, tol)
             .expect("the first child dies");
         [e1, e2, e3]
+    }
+
+    /// **Staging moves no key.** A staged graft leaves `dst` exactly as
+    /// a transplant straight into it would, next keys included, and
+    /// returns the same bridge, onto minted and onto existing solids —
+    /// on a source whose records name dead
+    /// edges (so the dead-on-arrival keys are minted twice over) and a
+    /// destination with freed slots for the commit to reuse.
+    #[test]
+    fn a_staged_graft_is_key_for_key_the_unstaged_one() {
+        let mut src = cube();
+        let e0 = src.edges().next().unwrap().0;
+        split_thrice_and_kill_the_parent(&mut src, e0);
+        let mut dst = cube();
+        let d0 = dst.edges().nth(3).unwrap().0;
+        split_thrice_and_kill_the_parent(&mut dst, d0);
+        let mut unstaged = dst.clone();
+        let staged = graft_disjoint_all_keyed(&mut dst, &src).expect("the staged graft");
+        let (map, solids) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[], &src)
+            .expect("the unstaged graft");
+        assert!(!map.dead_edges.is_empty(), "the source names a dead edge");
+        assert_eq!(deep_snapshot(&dst), deep_snapshot(&unstaged), "minted");
+        assert_eq!(staged.solids, solids);
+        assert_eq!(format!("{:?}", staged.map), format!("{map:?}"));
+
+        // Onto an existing solid (the void door's and the booleans' shape).
+        let target = dst.solids().next().unwrap().0;
+        let mut unstaged = dst.clone();
+        let staged = crate::boolean::combine::graft_solids_with(
+            &mut dst,
+            &[target],
+            &src,
+            crate::boolean::combine::Bridge::RemapKeys,
+        )
+        .expect("the staged graft");
+        let (map, _) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[target], &src)
+            .expect("the unstaged graft");
+        assert_eq!(deep_snapshot(&dst), deep_snapshot(&unstaged), "existing");
+        assert_eq!(format!("{staged:?}"), format!("{map:?}"));
     }
 
     /// **A grafted split lineage chases inside the destination, to the

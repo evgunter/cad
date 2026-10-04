@@ -115,11 +115,10 @@
 //!
 //!   **The graft is a transplant, not an operator run.**
 //!   [`crate::instance`]'s grafts copy a whole source body into the
-//!   destination's arenas. The transplant runs on a staged clone of
-//!   the destination and is committed only once it has succeeded in
-//!   full, the shape [`Body::merge_coplanar_faces`] stages in, so a
-//!   refusal leaves the destination as it was; the committed body is
-//!   swept like any operator's.
+//!   destination's arenas. The transplant runs into a fresh staging
+//!   body and is committed into the destination only once it has
+//!   succeeded in full, so a refusal leaves the destination as it
+//!   was; the committed body is swept like any operator's.
 //!
 //!   The D9 taxonomy consequence therefore holds at every door: these
 //!   debug panics are **unreachable by input** through the public API
