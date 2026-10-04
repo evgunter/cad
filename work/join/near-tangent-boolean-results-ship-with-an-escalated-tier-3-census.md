@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P0
 cost: H
-refs: [boolean-door-adopts-the-finished-body-type]
+refs: [boolean-door-adopts-the-finished-body-type, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 ---
 
 
@@ -73,7 +73,7 @@ the near-tangent poses, `shallow200 nt e0 a3 d1e-7`, is a census false
 positive. It is filed on CONTACT
 (`the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`)
 and pinned by
-`join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band`.
+`join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies`.
 
 The same pose at ε = 1e-12 (the 1e-7 tilt is then 1e4 bands; CI's
 extra-ε pass) joins the class: main refuses both orders (`JoinDesync`,
@@ -83,6 +83,11 @@ swapped, cube ∪ prism and cube ∖ prism ship with `CensusEscalated` on
 `pm_census_ee_span` (margin 6.69e-12 against an escalate edge of
 1e-11). At ε = 1e-6 the 1e-7 tilt lies inside the band: both trees
 record a vertex-vertex contact there, and every op passes, identically.
+
+The census also passes, without escalating, an in-band edge pair at the
+copies of many of these poses' neighbours (116 tier-3′-SOUND lines at
+89 poses main refused). That is filed on CONTACT as
+`two-copies-of-a-pierce-carry-edges-that-run-within-the-band`.
 
 REACH's `boolean-door-adopts-the-finished-body-type` gates results at
 tier 3′. It lists 11 other `CensusEscalated` results as a prerequisite;

@@ -3256,9 +3256,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PierceRunsUnordered { operand, runs, .. } => write!(
                 f,
-                "a corner of the {} solid crosses a face of the other {runs} times at one \
-                 point, and the Boolean does not yet order more than two such crossings \
-                 round the point. There is no way through this in the kernel yet",
+                "a corner of the {} solid sits on a face of the other with {runs} separate \
+                 wedges of the corner outside that face, and the Boolean does not yet order \
+                 more than two such wedges round one point. There is no way through this in \
+                 the kernel yet",
                 operand_word(*operand)
             ),
             Self::NonManifoldResult { .. } => write!(

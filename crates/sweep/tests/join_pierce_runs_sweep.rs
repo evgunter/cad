@@ -437,18 +437,28 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 /// a cube whose face plane lies ten bands off the corner's edge toward
 /// `(4, 1)` (1e-7 rad at the default ε: review r1's
 /// `shallow200 nt e0 a3 d1e-7`; scaled with the band so that the pose
-/// is the same at every ε). Prism ∪ cube and
-/// prism ∖ cube build at the clipping oracle's volume, with tier 2 and
-/// the certificate, and no two edges of the body come within the band:
-/// edges that share no end point lie farther apart than it, and edges
-/// that share one part by more than it at the shorter one's far end,
-/// read here by segment distance, not by the census. Tier 3′ is not asserted:
-/// its edge-edge lane reads the section edge from `v` and the prism's
-/// edge piece near `(4, 1)` as an overlap, because it reads their line
-/// offset at the long edge's start, which lies on the short edge's line
+/// is the same at every ε). Prism ∪ cube and prism ∖ cube build at the
+/// clipping oracle's volume, with tier 2 and the certificate. Read by
+/// segment distance, not by the census, the body's edge pairs come
+/// within the band only at the pierce's copies:
+/// - edges that share no end point lie farther apart than the band;
+/// - edges that share an end vertex part by more than it at the
+///   shorter one's far end;
+/// - edges that end on one point at two vertices meet at `v`, where the
+///   pierce's copies stay apart (no face meets both, PR 3813). Those
+///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
+///   within the band for a
+///   stretch, which the census passes: that class is filed
+///   (`work/contact/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
+///   and this row does not claim them apart.
+///
+/// Tier 3′ is not asserted: its edge-edge lane reads the section edge
+/// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
+/// because it reads their line offset at the long edge's start, which
+/// lies on the short edge's line
 /// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
 #[test]
-fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
+fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];
     let e = unit([2.0, 0.4, 0.0]);
     let [p1, p2, _] = frame(e, 0.0);
@@ -470,11 +480,12 @@ fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
         })
         .sum();
     let (va, vb) = (vol(&prism), SIDE * SIDE * SIDE);
-    let ops: [(&str, Op, f64); 2] = [
-        ("union", topo::union_with, va + vb - common),
-        ("subtract", topo::subtract_with, va - common),
+    // Whether the op leaves the pierce's copies apart at `v`.
+    let ops: [(&str, Op, f64, bool); 2] = [
+        ("union", topo::union_with, va + vb - common, true),
+        ("subtract", topo::subtract_with, va - common, false),
     ];
-    for (op, run, want) in ops {
+    for (op, run, want, apart) in ops {
         let Ok(BooleanResult::Body(bb)) =
             run(&prism, &cube, &BooleanDeclarations::default(), tol())
         else {
@@ -487,36 +498,46 @@ fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
         );
         let got = vol(&bb.body);
         assert!((got - want).abs() < 1e-9, "{op}: volume {got}, want {want}");
+        let end = |he| {
+            let k = bb.body.get_half_edge(he).unwrap().start;
+            let p = topo::readback::vertex_point_ref(&bb.body, k).unwrap();
+            (k, [p.x, p.y, p.z])
+        };
         let ends: Vec<_> = bb
             .body
             .edges()
-            .map(|(_, ed)| {
-                let p = |he| {
-                    let k = bb.body.get_half_edge(he).unwrap().start;
-                    let p = topo::readback::vertex_point_ref(&bb.body, k).unwrap();
-                    [p.x, p.y, p.z]
-                };
-                (p(ed.he_plus), p(ed.he_minus))
-            })
+            .map(|(_, ed)| (end(ed.he_plus), end(ed.he_minus)))
             .collect();
         let len = |(a, b): ([f64; 3], [f64; 3])| {
             let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
             dot(d, d).sqrt()
         };
-        for (i, &g1) in ends.iter().enumerate() {
-            for &g2 in &ends[i + 1..] {
-                let shared = [g1.0, g1.1].into_iter().find(|p| [g2.0, g2.1].contains(p));
-                let gap = match shared {
-                    None => segment_distance(g1, g2),
-                    Some(p) => {
-                        let (short, long) = if len(g1) <= len(g2) {
-                            (g1, g2)
+        let mut at_copies = 0;
+        for (i, &(a0, a1)) in ends.iter().enumerate() {
+            for &(b0, b1) in &ends[i + 1..] {
+                let (g1, g2) = ((a0.1, a1.1), (b0.1, b1.1));
+                let vertex = [a0.0, a1.0].into_iter().find(|k| [b0.0, b1.0].contains(k));
+                let point = [g1.0, g1.1].into_iter().find(|p| [g2.0, g2.1].contains(p));
+                let gap = match (vertex, point) {
+                    (Some(k), _) => {
+                        let (short, long, near) = if len(g1) <= len(g2) {
+                            (g1, g2, a0.0 == k)
                         } else {
-                            (g2, g1)
+                            (g2, g1, b0.0 == k)
                         };
-                        let far = if short.0 == p { short.1 } else { short.0 };
+                        let far = if near { short.1 } else { short.0 };
                         point_segment_distance(far, long)
                     }
+                    (None, Some(p)) => {
+                        assert!(
+                            len((p, v)) <= band,
+                            "{op}: edges {g1:?} and {g2:?} end on one point at two \
+                             vertices away from the pierce"
+                        );
+                        at_copies += 1;
+                        continue;
+                    }
+                    (None, None) => segment_distance(g1, g2),
                 };
                 assert!(
                     gap > band,
@@ -524,5 +545,6 @@ fn a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band() {
                 );
             }
         }
+        assert_eq!(at_copies > 0, apart, "{op}: edges meeting at the copies");
     }
 }

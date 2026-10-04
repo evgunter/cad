@@ -535,9 +535,6 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
             let Some((u, w, joint)) = site else {
                 break;
             };
-            if let Joint::Chord { .. } = joint {
-                return Err(desync("a pierce's copies divide a face the zips kept"));
-            }
             let point = |v| {
                 crate::readback::vertex_point_ref(body, v)
                     .map_err(|_| desync("a pierce copy has no point"))
@@ -548,6 +545,9 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
                 diag,
             })? {
                 return Err(desync("a pierce's copies are not on one point"));
+            }
+            if let Joint::Chord { .. } = joint {
+                return Err(desync("a pierce's copies divide a face the zips kept"));
             }
             let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
             merges.push(fusion);

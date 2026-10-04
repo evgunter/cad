@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P0
 cost: M
-refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm]
+refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 ---
 
 
@@ -26,10 +26,12 @@ each other.
 **The witness.** The shallow prism (profile (0,0),(4,0),(4,1),(2,0.6),(0,1),
 height 1) with its reflex corner `v = (2, 0.6, 1)` on a cube of side
 4, whose face plane lies 1e-7 rad off the corner's edge toward
-`(4, 1)`: review r1's `shallow200 nt e0 a3 d1e-7`. Prism ∪ cube and
+`(4, 1)`: review r1's `shallow200 nt e0 a3 d1e-7` (the pinned row
+scales the tilt with the band, ten bands, so it is this pose at the
+default ε). Prism ∪ cube and
 prism ∖ cube build at the exact volume, with tier 2 and the
 certificate. Pinned by `sweep` `join_pierce_runs_sweep.rs`
-`a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band`.
+`a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies`.
 Tier 3′ refuses them `UndeclaredContact { EdgeEdgeOverlap }`:
 
 - `ea` is the prism top edge's last piece, `(4,1,1)` →
@@ -43,26 +45,36 @@ Tier 3′ refuses them `UndeclaredContact { EdgeEdgeOverlap }`:
 - The projected overlap is 1.2e-8, which is above the band
   (zero 1e-9, escalate 1e-8), so the census reports an undeclared overlap.
 
-The edges' nearby ends are 2.13e-7 apart, 21 bands. Every edge pair of
-the body parts by more than 2.0e-7 (segment distance, in the pinned
-row). **With the roles swapped**, the offset is read at the short edge's
+The edges' nearby ends are 2.13e-7 apart, 21 bands, so this pair is
+not an overlap. The body does hold edges within the band elsewhere:
+the union keeps the pierce's two copies apart at `v`, and the two edges
+that leave them run within the band for a stretch. That is a different
+pair and a different class, filed as
+`two-copies-of-a-pierce-carry-edges-that-run-within-the-band`.
+Outside the copies, every edge pair parts by more than the band
+(segment distance, in the pinned row). **With the roles swapped**, the offset is read at the short edge's
 start: 2.13e-7, not collinear, no finding. So the verdict depends on
 which edge comes first in arena order.
 
-**The converse.** When the long edge's start lies off the short edge's
-line by more than the band, but the long edge passes within the band
-along the short edge's span, the lane reads "not collinear" and misses
-a real overlap. Arithmetic witness: a short edge of length 1e-3, and a
-long edge of length 2 at 1e-7 rad to it, crossing its span. Parallel
-reads 1e-10, so Zero. The offset at the long edge's far start reads
-2e-7, so the lane says not collinear, though the edges run within 1e-10
-of each other along the short one. I did not build a closed body that
-holds such a pair, so whether a construction can reach it is unmeasured.
+**No converse.** This lane cannot miss a real overlap silently (PR
+4026's delta review, claim 1). A real collinear overlap has each bound
+at a vertex of one edge, lying on the other edge or on its vertex.
+Census passes 1 and 2 (`pair_vertex_vertex`, `pair_vertex_edge`) read
+each such vertex's own offset, with the same backing rungs as
+`ee_bound_backed`, so they report what this lane misses. The review
+executed that check over the near-tangent batteries: no body the head
+passes at tier 3′ holds an interior in-band edge pair, an unrecorded
+in-band vertex pair, or an in-band vertex–edge pair that main does not
+also ship.
 
 ## The shape to give
 
 Read the offset where the edges are near each other: both of the
 shorter edge's endpoints against the longer edge's line, levered as the
-parallel test is. The verdict is then symmetric in the pair. Rerun the
-pinned row with tier 3′ asserted. The near-tangent battery of PR 4026's
+parallel test is. The verdict is then symmetric in the pair, and the false positive goes.
+That door does not reach
+`two-copies-of-a-pierce-carry-edges-that-run-within-the-band`: there the
+two edges leave one point on two vertices and diverge, and what passes
+them is the parallel reading levered at the full arm. Rerun the pinned
+row with tier 3′ asserted. The near-tangent battery of PR 4026's
 review (`r1_pierce_probes`, `R1_NT_D`) is the corpus to diff.
