@@ -134,7 +134,7 @@ fn promote_solid<T: Decide>(
 /// typed error), else the uncut-shell verdict against the pristine
 /// other operand.
 #[allow(clippy::too_many_arguments)]
-fn classify_shell<T: Decide>(
+fn classify_shell<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     shell: ShellKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
@@ -169,7 +169,7 @@ fn classify_shell<T: Decide>(
 /// Distributes and classifies one solid's shells; returns every
 /// distributed shell with its verdict.
 #[allow(clippy::too_many_arguments)]
-fn classify_solid<T: Decide>(
+fn classify_solid<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     solid: SolidKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
