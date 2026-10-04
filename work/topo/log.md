@@ -6773,3 +6773,13 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
   The V-notch row now answers `Ok`; it stays open, since the result shape was not checked. Fix lane archived (about $14). **Unit 2 dispatched** (`session_01Joyxfo4vH93BpLf9DyUbqC`): readback `DanglingRef`, `PcurveMint::Corrupt`, `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `corrupt_at`, the graft's `JoinDesync` / `VoidInsertError::Corrupt` split, and `TornLoop`'s `Result`. The R build waits for it, because both touch `pcurves.rs` and the rate window shows a warning.
 - 14:50 check-in: unit 2 (`session_01Joyxfo4vH93BpLf9DyUbqC`) is still working on `topo/remaining-torn-body-refusals-unreachable` with sub-lanes; no PR yet; about $49 spent. Nothing new on PR 3970. No topo commits incoming.
 - 15:52 check-in: unit 2 is still running (merging its sub-lane branches, e.g. `lane-c-boolean-graft`); no PR yet; about $83 spent. Nothing new on PR 3970. No topo commits incoming.
+- 16:54: **unit 2 opened PR 4033** (about 8k lines, 175 files; about $83).
+  - It deletes `DanglingRef`, `TornLoop`, `PcurveMintError::Corrupt` (with its family), `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `SectorFaceError::Corrupt`, `corrupt_at`/`CorruptOperand` and `VoidInsertError::Corrupt`. A dead destination solid becomes typed `StaleSolid`.
+  - Legal states get honest variants (`NoCarrier`, `EmptyOuter`, `CarrierLaneUnsupported`, `EmptyGroup`).
+  - The pcurve mint becomes derive-then-write, so it is atomic.
+  - `vertex_points()` becomes infallible, and step-import's `VertexWithoutPoint` is deleted.
+  - Python tags `dangling_geometry`, `corrupt` and `corrupt_operand` are removed.
+  - It closes the readback, restfront check-6 and cleave strut-anchor rows. `ContainError::Corrupt` is left typed and filed.
+  - Judgement call: a boolean operand failing tier 1 panics.
+
+  Subscribed. Reviewer `session_012e9PDZ66Hjts93xjCzuE2x` dispatched; the checks it was asked to make: operand-gate reachability (persist, py, step), legal states, atomicity, mutation, and whether any removed Python tag is ratified API. Side branches `lane-a-pcurve`, `lane-b-shell-replace` and `lane-c-boolean-graft` remain on origin, left for Ev.
