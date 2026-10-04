@@ -537,10 +537,7 @@ impl core::fmt::Display for GeomRef {
 ///
 /// A read-back walks from a topological key to the geometry key it
 /// names; either step can come back empty, and which one did is the
-/// difference between a stale handle and a corrupt body. Callers with
-/// their own stale-reference vocabulary (the operator layer's
-/// `EulerOpError::StaleKey` / `StaleGeometry`) map the two arms
-/// straight across.
+/// difference between a stale handle and a corrupt body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DanglingRef {
     /// A topological key that does not resolve.

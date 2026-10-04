@@ -23,6 +23,8 @@ mod release_corruption;
 use crate::readback::euler_counts;
 use crate::{Body, EulerCounts, LoopBoundary};
 
+pub(crate) use crate::surgery::tests::panic_message;
+
 /// The coordinates of a half-edge's start vertex.
 pub(crate) fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {
     let v = body.get_half_edge(he).unwrap().start;

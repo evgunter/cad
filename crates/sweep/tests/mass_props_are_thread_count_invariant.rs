@@ -382,6 +382,15 @@ fn digest() -> String {
 /// `trim_containment`). Only `sym_arc_loft`'s `validate_geometric` row
 /// moves: two of its numeric decisions become theorems (`sz` 54 → 56,
 /// `num` 638 → 636). Every verdict, pad and other row is unchanged.
+///
+/// **Re-cut at all three ε when check 7 took a quadrature face about the
+/// body's corner** (`topo::props::certify_role`: a sign the walk's own
+/// enclosure leaves unresolved is read again with those faces measured
+/// about the corner). Only `sym_thin_strip`'s `validate_geometric` row
+/// moves, the strip whose sign the schedule never decides: its
+/// quadrature faces are measured once more, eight more decisions
+/// (`num` 654 → 662, `decisions` 692 → 700). Every verdict, pad and other row,
+/// `sym_arc_loft`'s included, is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

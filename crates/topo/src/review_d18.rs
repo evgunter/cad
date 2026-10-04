@@ -1,19 +1,20 @@
 //! Adversarial falsification probes for Track D unit **D18** (PR #736):
 //! the two `prev` proofs (`split_edge`'s `prev(he_minus)`, `kef`'s
-//! `prev(he)`) and the conversion of [`crate::Body::link_half_edges`]
-//! to the D2 addendum's row 4.
+//! `prev(he)`) and [`crate::Body::link_half_edges`]' row-4 arms.
 //!
 //! Written by the correctness-lane reviewer to BREAK the unit, not to
-//! describe it. The claim under attack is
-//! the headline the D2 addendum's taxonomy rests on — *the kernel never
-//! panics on any input* — which after this unit survives only because
-//! `link_half_edges`' two `unreachable!` arms are not input-reachable.
+//! describe it. The claim under attack is the D2 addendum's row 4: a
+//! state only a kernel bug reaches panics, in a plan phase, with a
+//! premise message naming the record and why it cannot occur — and no
+//! input reaches any OTHER panic. `link_half_edges`' two `unreachable!`
+//! arms sit in mutation phases and name no premise, so a plan phase
+//! that let a torn link through to them is a failure here.
 //!
 //! # What each row buys
 //!
-//! - The **atomicity** rows are deterministic gates: a corruption that
-//!   trips ONLY the new check must produce the typed `StaleKey` naming
-//!   that key, with the body byte-identical after. They fail if either
+//! - The **plan-phase** rows are deterministic gates: a corruption that
+//!   trips ONLY one of the two `prev` checks must panic naming that
+//!   link, with the body byte-identical after. They fail if either
 //!   check ever moves below a write.
 //! - The **coincidence** row enumerates the shapes in which
 //!   `split_edge`'s plan-phase `hm_prev` can differ from the value the
@@ -27,7 +28,10 @@
 //!   every key of a randomly torn body, plus `mfkrh_plug`, which is
 //!   driven and printed as evidence and is **not** in the class (`OPS`
 //!   against `LINK_OPS` below). A counterexample search: varying seed,
-//!   counts on `CAD_FUZZ_EFFORT`, monotone in the safe direction.
+//!   counts on `CAD_FUZZ_EFFORT`, monotone in the safe direction. Every
+//!   call ends in `Ok`, a typed refusal that is not a stale key (every
+//!   key it passes was read out of the body), or a panic whose message
+//!   carries a row-4 premise ([`ROW_FOUR`]); any other panic fails it.
 //!
 //!   **The driven set is not the whole class**, and this file claims
 //!   only the driven set. `mekr` reaches `link_half_edges` too, at every
@@ -37,12 +41,11 @@
 //!   row that owns the gap,
 //!   `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
 //!
-//!   **Calling is not reaching, and the two rows say which they did.**
-//!   Both print an exposure per operator and both ASSERT it, per
-//!   operator rather than in aggregate: the deterministic row pins every
-//!   operator's count exactly against `SPENT_GRAFT_EXPOSURE`, and the
-//!   sampling row floors EACH of `LINK_OPS` — a mutation phase being the
-//!   only place a row-4 arm can fire. `kemr` is the one that needed a
+//!   **Calling is not reaching, and the row says which it did.** It
+//!   prints an exposure per operator and ASSERTS it, per operator
+//!   rather than in aggregate: it floors EACH of `LINK_OPS` — a
+//!   mutation phase being the only place a `link_half_edges` arm can
+//!   fire. `kemr` is the one that needed a
 //!   fixture: its plan phase wants the two halves of ONE edge in ONE
 //!   loop, which no cube and no torn cube presents, so the sweep hammers
 //!   [`crate::fixtures::ops_ring_bridge`] (the holed box with its hole
@@ -53,44 +56,36 @@
 //!   a walked run, writes an anchor its torn input put elsewhere or
 //!   leaves a record naming one it removed:
 //!   [`valid_fixtures_never_refuse_a_kill_anchor`] enumerates valid
-//!   bodies for over-refusal, [`kill_anchors_on_a_few_torn_bodies`] is a
-//!   counterexample search over the tear kinds, and
-//!   `kill_anchors_on_torn_bodies` is its by-hand evidence run.
+//!   bodies for a panic or a stale-key refusal,
+//!   [`kill_anchors_on_a_few_torn_bodies`] is a counterexample search
+//!   over the tear kinds, and `kill_anchors_on_torn_bodies` is its
+//!   by-hand evidence run.
 //! - The **revert** rows do the same for `revert`'s start and anchor
 //!   writes.
-//! - The **removal** rows are deterministic witnesses: each kill refuses,
-//!   typed and with the body unchanged, a record it keeps naming one it
-//!   removes, through every door of its operator.
+//! - The **removal** rows are deterministic witnesses: each kill panics
+//!   in its plan phase, with the body unchanged, at a record it keeps
+//!   naming one it removes, through every door of its operator.
+//!
+//! # Reading a panic
+//!
+//! A panic's message is read through a hook ([`PanicCapture`]), since
+//! the `bit-identity punning` gate bans downcasting `catch_unwind`'s
+//! payload. The hook is process-global; the capture holds the crate's
+//! hook lock for its life and captures only on its own thread, so it
+//! neither races the other takers nor swallows another test's panic.
 //!
 //! # Why the sweep is release-only
 //!
-//! A torn body is ENTITLED to `Ok(garbage)` and to a typed error, and
-//! in a debug build it is also entitled to the postcondition assert —
-//! `release_corruption.rs` records that the "one legitimate panic site"
-//! sentence holds only under the tier-1-valid input assumption. So in a
-//! debug build a panic is ambiguous and has to be classified by its
-//! message, which means a process-global panic hook. That works once
-//! (`release_corruption::debug_postcondition_fires_on_corrupt_input`
-//! does it) but not tens of thousands of times: under threaded
-//! `cargo test` the window becomes the whole run, and the hook races
-//! both this file's own rows and that one — MEASURED, both directions,
-//! while this file was being written.
-//!
-//! In `--release` the postcondition is compiled out, so **any** panic
-//! from these calls is a row-4 arm firing and no classification is
-//! needed. The rows therefore carry `cfg(not(debug_assertions))`, catch
-//! nothing, and let a real panic fail the test with its own message and
-//! backtrace.
-//!
-//! **PROMOTION NOTE.** The only release-profile test invocation the
-//! kernel workspace has is `ci.yml`'s `corrupt input (release profile)`
-//! job, which selects rows BY NAME. Promoting a file means adding
-//! `review_d18` to that job's filter list and a `grep -q` line for
-//! [`torn_bodies_never_reach_a_row_four_unreachable`], or the sweep
-//! ships without ever running. The profile-independent rows above need
-//! nothing: they run on every job that runs this suite at all — which
-//! is not every job, since the whole module is `gated_to!` the files
-//! named below and a PR touching none of them does not run it.
+//! The sweep's floors count calls that ran their mutation phase, and in
+//! a debug build the tier-1 postcondition answers every torn `Ok`
+//! first. In `--release` it is compiled out, so the rows that need the
+//! `Ok` carry `cfg(not(debug_assertions))`. The only release-profile
+//! test invocation the kernel workspace has is `ci.yml`'s `corrupt input
+//! (release profile)` job, which selects `review_d18` by name. The
+//! profile-independent rows run on every job that runs this suite at
+//! all — which is not every job, since the whole module is `gated_to!`
+//! the files named below and a PR touching none of them does not run
+//! it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -113,11 +108,11 @@ use crate::body::Body;
 #[cfg(not(debug_assertions))]
 use crate::entity::VertexKey;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, SolidKey};
-use crate::euler::{EulerOpError, MefSite, MevSite};
+use crate::euler::{BadArgument, EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{
-    KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
-    ops_holed_box, ops_ring_bridge, ops_strut_cube, ops_two_ring_face, through_the_scalpel,
+    KillAnchorFault, deep_snapshot, kill_anchor_faults, ops_genus2, ops_holed_box, ops_ring_bridge,
+    ops_strut_cube, ops_two_ring_face,
 };
 use crate::null::NullFacePair;
 use crate::test_support_fixtures::declined_cube;
@@ -176,17 +171,178 @@ fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
     dead
 }
 
+/// The fragment every row-4 premise message carries: the invariant it
+/// rests on, spelled `tier-1-valid`. The debug postcondition spells it
+/// `tier-1 valid`, so it does not read as one.
+pub(crate) const ROW_FOUR: &str = "tier-1-valid";
+
+type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+std::thread_local! {
+    /// `Some` while this thread runs inside [`PanicCapture::run`]: where
+    /// the capture's hook leaves the report instead of printing it.
+    static CAPTURED: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// A panic hook that hands a panic's report back to the call that raised
+/// it, for as long as the guard lives.
+///
+/// A message is read through a hook because the `bit-identity punning`
+/// gate bans downcasting `catch_unwind`'s payload, test code included.
+/// The hook is process-global, so the guard holds
+/// [`crate::surgery::tests::PANIC_HOOK`], which every taker of the hook
+/// holds, for its whole life and restores the previous hook when it
+/// drops. It captures only on threads inside [`PanicCapture::run`] and
+/// hands every other thread's panic to the previous hook, so a test
+/// panicking concurrently on another thread prints and fails as it
+/// would have. `fixtures::through_the_scalpel` installs its own hook
+/// once, without that lock, so the guard has it install first and
+/// chains to it.
+pub(crate) struct PanicCapture {
+    previous: Option<std::sync::Arc<PanicHook>>,
+    _serialized: std::sync::MutexGuard<'static, ()>,
+}
+
+impl PanicCapture {
+    pub(crate) fn install() -> Self {
+        let serialized = crate::surgery::tests::PANIC_HOOK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _ = crate::fixtures::through_the_scalpel(&[], || ());
+        let previous = std::sync::Arc::new(std::panic::take_hook());
+        let chained = std::sync::Arc::clone(&previous);
+        std::panic::set_hook(Box::new(move |info| {
+            let held = CAPTURED.with(|slot| match slot.borrow_mut().as_mut() {
+                Some(report) => {
+                    *report = info.to_string();
+                    true
+                }
+                None => false,
+            });
+            if !held {
+                chained(info);
+            }
+        }));
+        Self {
+            previous: Some(previous),
+            _serialized: serialized,
+        }
+    }
+
+    /// `f`'s value, or the report of the panic it raised.
+    pub(crate) fn run<R>(&self, f: impl FnOnce() -> R) -> Result<R, String> {
+        CAPTURED.with(|slot| *slot.borrow_mut() = Some(String::new()));
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        let report = CAPTURED
+            .with(|slot| slot.borrow_mut().take())
+            .unwrap_or_default();
+        outcome.map_err(|_| report)
+    }
+}
+
+impl Drop for PanicCapture {
+    /// Restores the previous hook, except while the thread unwinds a
+    /// failed assertion: the hook cannot be changed from a panicking
+    /// thread (that aborts the whole test binary), and the capture's
+    /// hook already hands every panic outside [`PanicCapture::run`] to
+    /// the previous one.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        drop(std::panic::take_hook());
+        if let Some(previous) = self.previous.take() {
+            match std::sync::Arc::try_unwrap(previous) {
+                Ok(hook) => std::panic::set_hook(hook),
+                Err(shared) => std::panic::set_hook(Box::new(move |info| shared(info))),
+            }
+        }
+    }
+}
+
+/// Runs `op` on the torn `body` and asserts it panics with a report
+/// containing every fragment of `premise`, in its plan phase: the body
+/// is deep-equal afterwards. Returns the report. It runs inside a
+/// surgery scope, so that an `Ok` the plan should have refused fails
+/// here naming what it returned and wrote, rather than at a debug
+/// build's tier-1 postcondition. The crate's one such helper: a row
+/// that wants more on an `Ok` maps it in `op`.
+#[track_caller]
+pub(crate) fn assert_torn_op_panics<R: core::fmt::Debug>(
+    label: &str,
+    body: &mut Body<f64>,
+    premise: &[&str],
+    op: impl FnOnce(&mut Body<f64>) -> R,
+) -> String {
+    let before = deep_snapshot(body);
+    let planted = kill_anchor_faults(body);
+    let capture = PanicCapture::install();
+    let outcome = capture.run(|| {
+        let mut scope = body.begin_surgery();
+        format!("{:?}", op(&mut scope))
+    });
+    drop(capture);
+    match outcome {
+        Ok(returned) => {
+            let written: Vec<_> = kill_anchor_faults(body)
+                .into_iter()
+                .filter(|fault| !planted.contains(fault))
+                .collect();
+            panic!(
+                "{label}: expected a panic naming {premise:?}; it returned {returned}, \
+                 writing {written:?}"
+            )
+        }
+        Err(report) => {
+            assert!(
+                premise.iter().all(|fragment| report.contains(fragment)),
+                "{label}: expected a panic naming {premise:?}, got: {report}"
+            );
+            assert_eq!(
+                deep_snapshot(body),
+                before,
+                "{label}: the body changed before the panic: {report}"
+            );
+            report
+        }
+    }
+}
+
 // =====================================================================
-// C3 — atomicity of the two new plan-phase checks.
+// C3 — the two plan-phase `prev` checks.
 // =====================================================================
 
-/// `split_edge`'s new `prev(he_minus)` check: a corruption that trips
-/// ONLY it yields the typed `StaleKey` naming that key, and the body is
-/// byte-identical afterwards. Both the null key and a recycled slot are
-/// planted, and the control (the same call on the undamaged body)
-/// succeeds, so the row cannot pass by refusing everything.
+/// The premise a dangling `holder.field` panics with: [`crate::live`]'s
+/// message naming the record, the field and the key, and [`ROW_FOUR`].
+fn dangling_link_premise(holder: HalfEdgeKey, field: &str, key: HalfEdgeKey) -> [String; 2] {
+    [
+        format!(
+            "{}'s {field} names {}, which does not resolve",
+            EntityId::HalfEdge(holder),
+            EntityId::HalfEdge(key)
+        ),
+        ROW_FOUR.to_owned(),
+    ]
+}
+
+/// [`assert_torn_op_panics`] for an owned premise.
+fn assert_panics_naming<R: core::fmt::Debug>(
+    label: &str,
+    body: &mut Body<f64>,
+    premise: &[String],
+    op: impl FnOnce(&mut Body<f64>) -> R,
+) {
+    let premise: Vec<&str> = premise.iter().map(String::as_str).collect();
+    assert_torn_op_panics(label, body, &premise, op);
+}
+
+/// `split_edge`'s `prev(he_minus)` check: a corruption that trips ONLY
+/// it panics in the plan phase naming that link, with the body
+/// untouched. Both the null key and a recycled slot are planted, and the
+/// control (the same call on the undamaged body) succeeds, so the row
+/// cannot pass by refusing everything.
 #[test]
-fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
+fn split_edge_dangling_prev_of_he_minus_panics_before_any_write() {
     let tol = Tol::witness();
     let cube = declined_cube::<f64>(tol);
     let mut base = cube.body;
@@ -196,27 +352,19 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
         let mut body = base.clone();
         let hm = body.get_edge(edge).unwrap().he_minus;
         let hp = body.get_edge(edge).unwrap().he_plus;
-        // The mirror link must stay live, so the refusal is attributable
-        // to the NEW half of the check and not to the one #720 left.
+        // The mirror link must stay live, so the panic is attributable
+        // to the `prev(he_minus)` half of the check.
         assert!(
             body.get_half_edge(body.get_half_edge(hp).unwrap().next)
                 .is_some(),
             "fixture: next(he_plus) must stay live"
         );
         body.get_half_edge_mut(hm).unwrap().prev = dead;
-        let before = deep_snapshot(&body);
-        let err = body.split_edge(edge, 0.5, tol).unwrap_err();
-        assert_eq!(
-            err,
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(dead)
-            },
-            "the new check must name the key it refused"
-        );
-        assert_eq!(
-            deep_snapshot(&body),
-            before,
-            "split_edge's contract sentence: the body is untouched on Err"
+        assert_panics_naming(
+            &format!("split_edge, prev(he_minus) = {dead:?}"),
+            &mut body,
+            &dangling_link_premise(hm, "prev", dead),
+            |b| b.split_edge(edge, 0.5, tol),
         );
     }
     // Control: undamaged, the same call succeeds.
@@ -225,14 +373,14 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
     assert!(control.is_ok(), "control split: {control:?}");
 }
 
-/// `kef`'s new `prev(he)` check, same shape. The dying loop's cycle
-/// walk steps `next`, so tearing `prev` alone leaves every earlier
-/// precondition — the walk included — passing. That is exactly the gap
-/// D18 closes, and the row asserts the walk still closes both before
-/// and after the tear so a future change that made the walk read `prev`
-/// could not silently turn this into a walk test.
+/// `kef`'s `prev(he)` check, same shape. The dying loop's cycle walk
+/// steps `next`, so tearing `prev` alone leaves every earlier
+/// precondition — the walk included — passing, and the row asserts the
+/// walk still closes both before and after the tear so a change that
+/// made the walk read `prev` could not silently turn this into a walk
+/// test.
 #[test]
-fn kef_dangling_prev_of_he_is_typed_and_atomic() {
+fn kef_dangling_prev_of_he_panics_before_any_write() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();
@@ -284,19 +432,11 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
             body.loop_cycle(he).is_some(),
             "fixture: tearing prev must not disturb the next-walk"
         );
-        let before = deep_snapshot(&body);
-        let err = body.kef(he).unwrap_err();
-        assert_eq!(
-            err,
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(dead)
-            },
-            "kef's new check must name the key it refused"
-        );
-        assert_eq!(
-            deep_snapshot(&body),
-            before,
-            "kef's contract sentence: the body is untouched on Err"
+        assert_panics_naming(
+            &format!("kef, prev(he) = {dead:?}"),
+            &mut body,
+            &dangling_link_premise(he, "prev", dead),
+            |b| b.kef(he),
         );
     }
 }
@@ -306,13 +446,13 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
 //      differ from the value splice 2 actually reads.
 // =====================================================================
 
-/// Every such shape, each with `prev(he_minus)` torn: the refusal must
-/// be typed and atomic in ALL of them, never a panic and never a
-/// garbage `Ok`. Each shape carries a control split on the undamaged
-/// body, so a shape that silently stopped being buildable cannot pass
-/// vacuously.
+/// Every such shape, each with `prev(he_minus)` torn: the call must
+/// panic in its plan phase naming that link in ALL of them, never in a
+/// splice and never with a garbage `Ok`. Each shape carries a control
+/// split on the undamaged body, so a shape that silently stopped being
+/// buildable cannot pass vacuously.
 #[test]
-fn split_edge_new_check_covers_every_coincidence_shape() {
+fn split_edge_prev_check_covers_every_coincidence_shape() {
     let tol = Tol::witness();
     use core::f64::consts::PI;
 
@@ -405,18 +545,12 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         let hm = body.get_edge(edge).unwrap().he_minus;
         let dead = HalfEdgeKey::default();
         body.get_half_edge_mut(hm).unwrap().prev = dead;
-        let before = deep_snapshot(&body);
-        // Not caught: a panic here IS the finding and should carry its
-        // own message and backtrace.
-        let err = body.split_edge(edge, t, tol).unwrap_err();
-        assert_eq!(
-            err,
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(dead)
-            },
-            "{label}: typed refusal"
+        assert_panics_naming(
+            label,
+            &mut body,
+            &dangling_link_premise(hm, "prev", dead),
+            |b| b.split_edge(edge, t, tol),
         );
-        assert_eq!(deep_snapshot(&body), before, "{label}: body changed on Err");
     }
 }
 
@@ -925,34 +1059,6 @@ const KEMR_CYCLE_RING: &str = "kemr: cycle ring side";
 #[cfg(not(debug_assertions))]
 const KEMR_EMPTY_RING: &str = "kemr: empty ring side";
 
-/// Every operator's exposure on the spent graft destination,
-/// **exactly**, because that row is deterministic end to end — one
-/// fixture, one tear, one graft, one hammer, no `Rng` and no effort
-/// dial. Asserted rather than written in a comment: the comment this
-/// replaced named a per-operator count that nothing held, and it had
-/// been wrong for the row's whole life.
-///
-/// A change that moves one of these is not a failure to be edited back
-/// into line; re-derive the row and say in the PR what moved and why it
-/// is right.
-#[cfg(not(debug_assertions))]
-const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
-    ("kef", 16),
-    ("kemr", 2),
-    (KEMR_CYCLE_RING, 2),
-    (KEMR_EMPTY_RING, 0),
-    ("kev", 25),
-    ("mef_chord", 90),
-    ("mev_line", 54),
-    ("mfkrh_plug", 1),
-    ("split_edge", 93),
-];
-
-/// Calls the spent-destination row makes, exactly — see
-/// [`SPENT_GRAFT_EXPOSURE`] for why an exact number and not a floor.
-#[cfg(not(debug_assertions))]
-const SPENT_GRAFT_CALLS: usize = 1_420;
-
 /// Calls one ROUND of the torn sweep makes — every [`FIXTURES`] entry
 /// hammered once — exactly.
 ///
@@ -960,16 +1066,25 @@ const SPENT_GRAFT_CALLS: usize = 1_420;
 /// [`plant`] rewrites fields and never adds or removes an entity, and
 /// [`hammer`] iterates collections it took before the first call, so
 /// the count is `trials × TEARS.len() ×` this and does not depend on
-/// the draw. Asserted rather than floored, for the reason
-/// [`SPENT_GRAFT_EXPOSURE`] gives.
+/// the draw. Asserted rather than floored: a count that is a fact about
+/// the tree is checkable only as an exact number, and a change that
+/// moves it is not a failure to be edited back into line — re-derive
+/// it and say in the PR what moved and why it is right.
 #[cfg(not(debug_assertions))]
 const TORN_SWEEP_CALLS_PER_ROUND: usize = 1_928;
 
 #[cfg(not(debug_assertions))]
 const CALLS: &str = "operator calls";
 
-/// The bodies the TORN SWEEP is run over, by name. (The spent-graft row
-/// builds its own destination directly and reads nothing here.)
+/// The calls a typed refusal answered.
+#[cfg(not(debug_assertions))]
+const REFUSED: &str = "typed refusals";
+
+/// The calls a row-4 premise panic answered.
+#[cfg(not(debug_assertions))]
+const PREMISE: &str = "row-4 premise panics";
+
+/// The bodies the TORN SWEEP is run over, by name.
 ///
 /// **The cube alone cannot get `kemr` past its plan phase, and no
 /// amount of tearing changes that.** `kemr` wants the two halves of one
@@ -1077,37 +1192,62 @@ fn kev_either_door(
     }
 }
 
-/// Whether a kill at `he` ran [`Body::kev`]'s mutation phase, which
-/// both kill doors share ([`kev_either_door`]): the arms under attack
-/// sit behind the keys-only door's certified-member refusal, and a
-/// plan-phase refusal would otherwise be the whole of what the pass
-/// reaches there. One call to the census either way, since it is one
-/// kill.
+/// One call into a clone of the torn `body`, judged: `Some` with what
+/// an `Ok` returned, `None` for a typed refusal or a row-4 premise
+/// panic, each noted in `census` ([`REFUSED`], [`PREMISE`]). Fails on a
+/// panic whose report carries no [`ROW_FOUR`] premise, on a premise
+/// panic that fired after the call wrote to its clone (the clone is no
+/// longer `snapshot`, `body`'s [`deep_snapshot`]: a plan-phase read
+/// moved past a write), and on a stale-key [`EulerOpError::Argument`]:
+/// every key the sweep passes was read out of the body, so it resolves.
 #[cfg(not(debug_assertions))]
-fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) -> bool {
-    kev_either_door(&mut body.clone(), he, tol).is_ok()
+fn judge<R>(
+    capture: &PanicCapture,
+    census: &mut Exposure,
+    op: &str,
+    (body, snapshot): (&Body<f64>, &[String]),
+    call: impl FnOnce(&mut Body<f64>) -> Result<R, EulerOpError>,
+) -> Option<R> {
+    use crate::euler::BadArgument;
+    let mut trial = body.clone();
+    match capture.run(|| call(&mut trial)) {
+        Ok(Ok(out)) => Some(out),
+        Ok(Err(
+            stale @ EulerOpError::Argument(
+                BadArgument::Stale { .. } | BadArgument::StaleGeometry { .. },
+            ),
+        )) => panic!("{op} refused a key the sweep read out of the body as stale: {stale:?}"),
+        Ok(Err(_)) => {
+            census.note(REFUSED);
+            None
+        }
+        Err(report) if report.contains(ROW_FOUR) => {
+            assert!(
+                deep_snapshot(&trial) == snapshot,
+                "{op} panicked naming a row-4 premise after writing to the body: {report}"
+            );
+            census.note(PREMISE);
+            None
+        }
+        Err(report) => panic!("{op} panicked naming no row-4 premise: {report}"),
+    }
 }
 
-/// Calls every operator [`OPS`] names at every key of a torn body, and
-/// returns what the pass actually reached as an anti-vacuity exposure
-/// ([`test_utils::vacuity`]).
-///
-/// Nothing is caught: in this profile the postcondition is compiled out,
-/// so a panic escaping here is a row-4 arm and it should fail the test
-/// with its own message.
+/// Calls every operator [`OPS`] names at every key of a torn body, each
+/// call judged by [`judge`], and returns what the pass actually reached
+/// as an anti-vacuity exposure ([`test_utils::vacuity`]).
 ///
 /// **What it counts, and why per operator.** [`CALLS`] is every operator
 /// driven at a key; each operator's own category counts the calls that
-/// returned `Ok`, i.e. that RAN THEIR MUTATION PHASE, which is the only
-/// place a row-4 `unreachable!` can fire. A pass whose calls all died in
-/// a plan phase proves nothing about the arms under attack.
+/// returned `Ok`, i.e. that RAN THEIR MUTATION PHASE, which is where
+/// `link_half_edges`' arms sit and where no panic may fire. A pass whose
+/// calls all died in a plan phase proves nothing about those arms.
 ///
 /// Per operator, because a total does not distinguish *six operators
 /// exercised* from *one exercised and five refused at the door* — and on
 /// this fixture family that is not hypothetical: `mfkrh_plug` proves
-/// only that the ring it is handed walks as its own, so its count moves with how many
-/// rings walk as their own (once on today's destination, the figure
-/// [`SPENT_GRAFT_EXPOSURE`] holds) rather than with the arms under
+/// only that the ring it is handed walks as its own, so its count moves
+/// with how many rings walk as their own rather than with the arms under
 /// attack, and a floor on the total could be held up by it alone.
 /// [`LINK_OPS`] is therefore what the floor counts over, and
 /// `mfkrh_plug` is not in it.
@@ -1116,18 +1256,17 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
 /// free.** Every other operator here takes keys that may be drawn
 /// independently, and the arbitrary pairs below are the adversarial
 /// half of the pass — they attack each plan phase with keys no caller
-/// would pass. `kemr` refuses all of them at `NotSameEdge` or
-/// `NotSameLoop` before it reads anything else, so the arbitrary pairs
-/// alone can never carry it past its plan phase however many bodies
-/// they are run over. The MATE pair — an edge's own two halves, both
-/// argument orders, since the order selects which side becomes the ring
-/// — is the enumeration that can, and it is added rather than
-/// substituted so the refusal paths keep their attack. Each mate call
-/// that lands is also counted by ARM ([`KEMR_CYCLE_RING`],
-/// [`KEMR_EMPTY_RING`]), because the two write a different number of
-/// splices.
+/// would pass. `kemr` refuses all of them at `NotMates` or `NotSameLoop`
+/// before it reads anything else, so the arbitrary pairs alone can never
+/// carry it past its plan phase however many bodies they are run over.
+/// The MATE pair — an edge's own two halves, both argument orders, since
+/// the order selects which side becomes the ring — is the enumeration
+/// that can, and it is added rather than substituted so the refusal
+/// paths keep their attack. Each mate call that lands is also counted
+/// by ARM ([`KEMR_CYCLE_RING`], [`KEMR_EMPTY_RING`]), because the two
+/// write a different number of splices.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
+fn hammer(body: &Body<f64>, tol: Tol, capture: &PanicCapture) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
@@ -1136,91 +1275,78 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     for op in OPS {
         census.add(op, 0);
     }
-    // The two arms of `kemr`'s mutation phase, tallied beside the
-    // closure below and folded in after it: `note` holds the census.
     let mut cycle_ring = 0usize;
     let mut empty_ring = 0usize;
-    let mut note = |op: &str, ok: bool| {
+    let snapshot = deep_snapshot(body);
+    // Counts the call, judges it on a clone of `body`, and counts it
+    // under `op` where it ran to `Ok`.
+    let mut drive = |op: &str, call: &mut dyn FnMut(&mut Body<f64>) -> Result<(), EulerOpError>| {
         census.note(CALLS);
-        if ok {
+        if judge(capture, &mut census, op, (body, &snapshot), call).is_some() {
             census.note(op);
         }
     };
     for &he in &halves {
-        note("kef", body.clone().kef(he).is_ok());
-        note("kev", kill_reaches_its_mutation_phase(body, he, tol));
-        note(
-            "mev_line",
-            body.clone()
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
-                .is_ok(),
-        );
-        note(
-            "mef_chord",
-            body.clone()
-                .mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
-                .is_ok(),
-        );
+        drive("kef", &mut |b| b.kef(he).map(drop));
+        drive("kev", &mut |b| kev_either_door(b, he, tol).map(drop));
+        drive("mev_line", &mut |b| {
+            b.mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
+                .map(drop)
+        });
+        drive("mef_chord", &mut |b| {
+            b.mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
+                .map(drop)
+        });
         for &other in halves.iter().take(4) {
-            note("kemr", body.clone().kemr(he, other).is_ok());
-            note(
-                "mev_line",
-                body.clone()
-                    .mev_line(
-                        MevSite::Fan {
-                            he1: he,
-                            he2: other,
-                        },
-                        p(42.0),
-                        tol,
-                    )
-                    .is_ok(),
-            );
-            note(
-                "mef_chord",
-                body.clone()
-                    .mef_chord(
-                        MefSite::Chords {
-                            he1: he,
-                            he2: other,
-                        },
-                        tol,
-                    )
-                    .is_ok(),
-            );
+            drive("kemr", &mut |b| b.kemr(he, other).map(drop));
+            drive("mev_line", &mut |b| {
+                b.mev_line(
+                    MevSite::Fan {
+                        he1: he,
+                        he2: other,
+                    },
+                    p(42.0),
+                    tol,
+                )
+                .map(drop)
+            });
+            drive("mef_chord", &mut |b| {
+                b.mef_chord(
+                    MefSite::Chords {
+                        he1: he,
+                        he2: other,
+                    },
+                    tol,
+                )
+                .map(drop)
+            });
         }
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            note("split_edge", body.clone().split_edge(edge, t, tol).is_ok());
+            drive("split_edge", &mut |b| b.split_edge(edge, t, tol).map(drop));
         }
         let (hp, hm) = mate_halves(body, edge);
         for (he1, he2) in [(hp, hm), (hm, hp)] {
-            let mut trial = body.clone();
-            let out = trial.kemr(he1, he2);
-            note("kemr", out.is_ok());
-            if let Ok(out) = out {
-                match trial.get_loop(out.ring).map(|l| l.boundary) {
+            drive("kemr", &mut |b| {
+                let out = b.kemr(he1, he2)?;
+                match b.get_loop(out.ring).map(|l| l.boundary) {
                     Some(crate::LoopBoundary::Cycle { .. }) => cycle_ring += 1,
                     _ => empty_ring += 1,
                 }
-            }
+                Ok(())
+            });
         }
     }
     for &l in &loops {
-        note(
-            "mef_chord",
-            body.clone()
-                .mef_chord(MefSite::Lone { r#loop: l }, tol)
-                .is_ok(),
-        );
-        note(
-            "mev_line",
-            body.clone()
-                .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
-                .is_ok(),
-        );
-        note("mfkrh_plug", body.clone().mfkrh_plug(l, true).is_ok());
+        drive("mef_chord", &mut |b| {
+            b.mef_chord(MefSite::Lone { r#loop: l }, tol).map(drop)
+        });
+        drive("mev_line", &mut |b| {
+            b.mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
+                .map(drop)
+        });
+        drive("mfkrh_plug", &mut |b| b.mfkrh_plug(l, true).map(drop));
     }
     census.add(KEMR_CYCLE_RING, cycle_ring);
     census.add(KEMR_EMPTY_RING, empty_ring);
@@ -1228,8 +1354,11 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 }
 
 /// **The headline row.** Randomly torn bodies, every operator over
-/// every key, in the profile where the only panic available is a row-4
-/// `unreachable!`.
+/// every key, and every call ends in `Ok`, a typed refusal that is not a
+/// stale key, or a plan-phase panic naming its row-4 premise
+/// ([`judge`]). A panic in a mutation phase (`link_half_edges`' arms,
+/// the "resolved in the plan phase" re-reads), an index out of bounds or
+/// an unwrap on `None` names no premise and fails the row.
 ///
 /// A counterexample search (shape 1 in `test_utils::fuzz`'s taxonomy):
 /// varying seed, counts on `CAD_FUZZ_EFFORT`, monotone in the safe
@@ -1241,7 +1370,8 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 /// VALIDATED AGAINST ITS OWN NEGATIVE CONTROL at review time: with
 /// `kef`'s `[a, c, d]` reverted to `[c, d]` this row reds from `kef`,
 /// and with `split_edge`'s `[hp_next, hm_prev]` reverted to
-/// `[hp_next]` it reds from `split_edge`. Both gaps are independently
+/// `[hp_next]` it reds from `split_edge`: the dangling `prev` reaches
+/// `link_half_edges`, whose arms name no premise. Both gaps are independently
 /// reachable, so the two checks D18 adds are load-bearing rather than
 /// belt-and-braces.
 ///
@@ -1260,12 +1390,13 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 /// fixture's name.
 #[test]
 #[cfg(not(debug_assertions))]
-fn torn_bodies_never_reach_a_row_four_unreachable() {
+fn torn_bodies_panic_only_on_a_row_four_premise() {
     use test_utils::fuzz;
     let tol = Tol::witness();
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
     let mut census = Exposure::new("review_d18 torn sweep");
+    let capture = PanicCapture::install();
     for trial in 0..trials {
         for tear in TEARS {
             for (fixture, build) in FIXTURES {
@@ -1284,7 +1415,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
                         census.note(&tear_landed(kind));
                     }
                 }
-                let round = hammer(&body, tol);
+                let round = hammer(&body, tol, &capture);
                 // What this BODY put under the hammer, kept apart from
                 // the sweep's total so no other fixture can carry it.
                 census.add(&fixture_swept(fixture), round.count(CALLS));
@@ -1292,6 +1423,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
             }
         }
     }
+    drop(capture);
     census.report();
     // EVERY corruption shape must have landed somewhere: `plant` takes a
     // `Tear` and a drawn key and can quietly become a no-op for a shape
@@ -1379,77 +1511,6 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
              it runs are attacked by nothing — {}",
             fuzz::replay()
         ),
-    );
-}
-
-/// The spent-destination attack: `graft_disjoint_all_keyed` is a PUBLIC
-/// door whose own docs concede that a mid-transplant refusal leaves
-/// `dst` partially written and never resumable. Take a body through a
-/// failed graft, KEEP it, and run the operators over it.
-///
-/// The graft is made to fail in its cross-reference patch pass, which
-/// is the failure that leaves half-edges holding SOURCE-arena keys in
-/// `next`/`prev` — the #720 hazard, where such a key may resolve to an
-/// unrelated LIVE entity of `dst` rather than dangle. Tearing the
-/// source needs `pub(crate)` reach, so this row is a SUPERSET of what a
-/// public consumer can build, which is the right direction for a
-/// falsification attempt.
-#[test]
-#[cfg(not(debug_assertions))]
-fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
-    let tol = Tol::witness();
-    let cube = declined_cube::<f64>(tol);
-    let mut src = cube.body;
-    src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    // The DESTINATION carries the ring bridge, so the spent body still
-    // presents the one edge whose halves share a loop and `kemr` has an
-    // input here too; the source stays the cube, since what it has to be
-    // is torn enough to refuse mid-patch.
-    let mut dst = ops_ring_bridge(tol).body;
-    let before = deep_snapshot(&dst);
-    assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
-        "the torn source must refuse to graft"
-    );
-    assert_ne!(
-        deep_snapshot(&dst),
-        before,
-        "this row only means something if the refusal really did leave \
-         `dst` partially written; if the graft ever becomes atomic, retire it"
-    );
-    let census = hammer(&dst, tol);
-    census.report();
-    // THE EXACT TALLY, which this row alone can carry and which is the
-    // whole floor here: the row is deterministic, so every operator's
-    // exposure is a fact about the tree rather than about a draw, and a
-    // per-operator number is the only form in which the module doc's
-    // coverage claim is checkable at all. It sees `kemr` falling from
-    // its 2 back to 0, and a change that quietly halves `mef_chord`.
-    //
-    // No aggregate floor beside it: `require_nonzero_among(&LINK_OPS,
-    // …)` over the same census asserts strictly less than this loop
-    // does — every entry below is nonzero but `kemr`'s empty-ring arm,
-    // which no input on this destination reaches — so it would be a
-    // guard nothing could break alone.
-    //
-    // The floor a spent graft destination needs is a per-operator one
-    // for the reason the twin row gives: it is more structurally damaged
-    // than a randomly torn body, so it is the likelier of the two to
-    // have its calls refuse in a plan phase — the run that proves
-    // nothing about the arms under attack while passing green.
-    for (op, expected) in SPENT_GRAFT_EXPOSURE {
-        assert_eq!(
-            census.count(op),
-            expected,
-            "`{op}` reached {} mutation phases on the spent destination, against {expected} \
-             measured: {census}",
-            census.count(op)
-        );
-    }
-    assert_eq!(
-        census.count(CALLS),
-        SPENT_GRAFT_CALLS,
-        "the spent destination no longer presents the keys this row hammers: {census}"
     );
 }
 
@@ -1822,10 +1883,10 @@ fn valid_fixtures_never_refuse_a_fan_split_or_a_vertex_read() {
 
 /// No over-refusal of the anchor, run and removal proofs: on every
 /// [`VALID_BODIES`] body, every [`anchor_calls`] call, through each
-/// door its operator has ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
-/// nothing that reports a torn arena
-/// ([`EulerOpError::reports_tier1_corruption`]). An enumeration, not a
-/// sample. Every ringed face is marked as a null face
+/// door its operator has ([`AnchorCall::run_twin`]), and `movefac` at
+/// every shell, neither panics (a row-4 premise on a valid body is a
+/// false proof) nor refuses an argument it was handed out of the body
+/// ([`EulerOpError::Argument`]). An enumeration, not a sample. Every ringed face is marked as a null face
 /// ([`mark_ringed_faces`]), and each `Ok`, and `mfkrh` and `ring_move`
 /// (to every face of its shell, its own included) at every ring of a
 /// marked face, keeps exactly the records whose loops stay on their
@@ -1874,7 +1935,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         for (shell, _) in body.shells() {
             match body.clone().movefac(shell) {
                 Ok(_) => movefacs += 1,
-                Err(refusal) if refusal.reports_tier1_corruption() => {
+                Err(refusal @ EulerOpError::Argument(_)) => {
                     panic!("movefac({shell:?}) on the valid {fixture} refuses {refusal:?}")
                 }
                 Err(_) => {}
@@ -1889,7 +1950,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                         format!("{call:?}'s twin on {fixture}")
                     });
                 }
-                Some(Err(refusal)) if refusal.reports_tier1_corruption() => {
+                Some(Err(refusal @ EulerOpError::Argument(_))) => {
                     panic!("{call:?}'s twin door on the valid {fixture} refuses {refusal:?}")
                 }
                 Some(Err(_)) | None => {}
@@ -1943,7 +2004,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                         }] += 1;
                     }
                 }
-                Err(refusal) if refusal.reports_tier1_corruption() => {
+                Err(refusal @ EulerOpError::Argument(_)) => {
                     panic!("{call:?} on the valid {fixture} refuses {refusal:?}")
                 }
                 Err(_) => {}
@@ -2071,12 +2132,15 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// [`anchor_calls`] call, each on a
 /// clone. An `Ok` counts in a fault column where it leaves a
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
-/// operator wrote. Each call runs inside a surgery scope, so a debug
+/// operator wrote; a typed refusal and a row-4 premise panic count as
+/// `Err`, and any other panic, or a stale-key refusal of a key read out
+/// of the body, fails. Each call runs inside a surgery scope, so a debug
 /// build's tier-1 postcondition, which a torn input fails whatever the
-/// operator writes, does not answer first; under the scalpel, whose
-/// sweep answers after the operator's last write, a fired sweep counts
-/// as the `Ok` it stood in front of ([`through_the_scalpel`]).
-fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
+/// operator writes, does not answer first; under the
+/// `per-op-postcondition` scalpel, whose sweep answers after the
+/// operator's last write, a fired sweep counts as the `Ok` it stood in
+/// front of.
+fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
     let bodies: [(&str, BuildFixture); 11] = [
@@ -2110,14 +2174,37 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                         AnchorCall::Kev(_) => &["kev", "kev_describing"],
                         _ => &ANCHOR_OPS[call.op()..=call.op()],
                     };
-                    let mut scope = trial.begin_surgery();
-                    let outcome =
-                        through_the_scalpel(doors, || call.run(&mut scope, tol)).unwrap_or(Ok(()));
-                    drop(scope);
+                    let outcome = capture.run(|| call.run(&mut trial.begin_surgery(), tol));
                     cells[0] += 1;
-                    if outcome.is_err() {
-                        cells[1] += 1;
-                        continue;
+                    let swept = |report: &str| {
+                        doors.iter().any(|op| {
+                            report.contains(&format!(
+                                ": {op} postcondition: result is not tier-1 valid"
+                            ))
+                        })
+                    };
+                    match outcome {
+                        Ok(Ok(())) => {}
+                        Ok(Err(
+                            stale @ EulerOpError::Argument(
+                                BadArgument::Stale { .. } | BadArgument::StaleGeometry { .. },
+                            ),
+                        )) => panic!(
+                            "{call:?} under {tear:?} refused a key read out of the body as \
+                             stale: {stale:?}"
+                        ),
+                        Err(report) if swept(&report) => {}
+                        Ok(Err(_)) => {
+                            cells[1] += 1;
+                            continue;
+                        }
+                        Err(report) if report.contains(ROW_FOUR) => {
+                            cells[1] += 1;
+                            continue;
+                        }
+                        Err(report) => panic!(
+                            "{call:?} under {tear:?} panicked naming no row-4 premise: {report}"
+                        ),
                     }
                     let mut columns = [false; ANCHOR_COLUMNS.len()];
                     for fault in kill_anchor_faults(&trial) {
@@ -2190,7 +2277,9 @@ fn kill_anchors_on_a_few_torn_bodies() {
     let seeds: Vec<u64> = (0..test_utils::fuzz::scaled(2))
         .map(|_| rng.next_u64())
         .collect();
-    let table = ANCHOR_TEARS.map(|tear| kill_anchor_rows(tear, &seeds));
+    let capture = PanicCapture::install();
+    let table = ANCHOR_TEARS.map(|tear| kill_anchor_rows(tear, &seeds, &capture));
+    drop(capture);
     assert_no_anchor_written(&table, &test_utils::fuzz::replay());
 }
 
@@ -2207,6 +2296,7 @@ fn kill_anchors_on_a_few_torn_bodies() {
 fn kill_anchors_on_torn_bodies() {
     let range = 1..=2000_u64;
     let seeds: Vec<u64> = range.clone().collect();
+    let capture = PanicCapture::install();
     // Two tear kinds at a time, one thread each.
     let mut table: AnchorTable =
         [[[0usize; 2 + ANCHOR_COLUMNS.len()]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
@@ -2216,7 +2306,8 @@ fn kill_anchors_on_torn_bodies() {
                 .iter()
                 .map(|&tear| {
                     let seeds = &seeds;
-                    scope.spawn(move || kill_anchor_rows(tear, seeds))
+                    let capture = &capture;
+                    scope.spawn(move || kill_anchor_rows(tear, seeds, capture))
                 })
                 .collect();
             for (row, handle) in rows.iter_mut().zip(handles) {
@@ -2600,37 +2691,55 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
 // constructed case it names, and every one returns `Ok` with the name
 // left dangling where its proof is absent. Each runs through every door
 // that runs its operator's plan, inside a surgery scope
-// (`fixtures::assert_kill_refuses`), so it holds with debug assertions
-// off as on; the release-profile job runs this module.
+// ([`assert_torn_op_panics`]), so it holds with debug assertions off as
+// on; the release-profile job runs this module.
 // ----------------------------------------------------------------------
 
-/// Asserts that `kev(he)` refuses `torn` with the body deep-unchanged
-/// through each door: `kev_describing` with every merged member
-/// re-described as its chord where the plan reads members, which takes
-/// the describing door past its gates to the writes wherever the plan
-/// passes, then `kev`, and `kev_merged_members`.
-fn assert_kev_refuses(body: &mut Body<f64>, he: HalfEdgeKey, torn: &EulerOpError) {
-    let tol = Tol::witness();
-    let chords = crate::seqgen::try_chord_redescriptions(body, he).unwrap_or_default();
-    assert_kill_refuses(body, torn, |b| b.kev_describing(he, &chords, tol));
-    assert_kill_refuses(body, torn, |b| b.kev(he));
-    assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn.clone()));
+/// A row's premise: its own fragments, and [`ROW_FOUR`].
+fn premise(fragments: &[String]) -> Vec<String> {
+    fragments
+        .iter()
+        .cloned()
+        .chain([ROW_FOUR.to_owned()])
+        .collect()
 }
 
-/// Asserts that `kef(he)` and `kef_minting(he, tol)` refuse `torn` with
-/// the body deep-unchanged.
-fn assert_kef_refuses(body: &mut Body<f64>, he: HalfEdgeKey, torn: &EulerOpError) {
-    assert_kill_refuses(body, torn, |b| b.kef(he));
-    assert_kill_refuses(body, torn, |b| b.kef_minting(he, Tol::witness()));
+/// Asserts that `kev(he)` panics naming `premise` with the body
+/// deep-unchanged through each door: `kev_describing`, then `kev`, and
+/// `kev_merged_members`. Re-describing the merged members as chords
+/// reads them through `kev_merged_members`, which panics first, so the
+/// describing door is handed none.
+fn assert_kev_panics(body: &mut Body<f64>, he: HalfEdgeKey, premise: &[String]) {
+    let tol = Tol::witness();
+    let chords: Vec<(crate::entity::EdgeKey, geom_brep::EdgeCurveSpec<f64>)> = Vec::new();
+    assert_panics_naming("try_chord_redescriptions", body, premise, |b| {
+        crate::seqgen::try_chord_redescriptions(b, he).map(drop)
+    });
+    assert_panics_naming("kev_describing", body, premise, |b| {
+        b.kev_describing(he, &chords, tol)
+    });
+    assert_panics_naming("kev", body, premise, |b| b.kev(he));
+    assert_panics_naming("kev_merged_members", body, premise, |b| {
+        b.kev_merged_members(he).map(drop)
+    });
+}
+
+/// Asserts that `kef(he)` and `kef_minting(he, tol)` panic naming
+/// `premise` with the body deep-unchanged.
+fn assert_kef_panics(body: &mut Body<f64>, he: HalfEdgeKey, premise: &[String]) {
+    assert_panics_naming("kef", body, premise, |b| b.kef(he));
+    assert_panics_naming("kef_minting", body, premise, |b| {
+        b.kef_minting(he, Tol::witness())
+    });
 }
 
 /// Asserts that `mekr_chord(site)` and `mekr` handed the same chord
-/// refuse `torn` with the body deep-unchanged.
-fn assert_mekr_refuses(body: &mut Body<f64>, site: MekrSite, torn: &EulerOpError) {
+/// panic naming `premise` with the body deep-unchanged.
+fn assert_mekr_panics(body: &mut Body<f64>, site: MekrSite, premise: &[String]) {
     let tol = Tol::witness();
     let chord = mekr_site_chord(body, site).expect("the site's anchors resolve");
-    assert_kill_refuses(body, torn, |b| b.mekr_chord(site, tol));
-    assert_kill_refuses(body, torn, |b| b.mekr(site, chord, tol));
+    assert_panics_naming("mekr_chord", body, premise, |b| b.mekr_chord(site, tol));
+    assert_panics_naming("mekr", body, premise, |b| b.mekr(site, chord, tol));
 }
 
 /// The first half-edge in arena order that starts at `end(he)` and is
@@ -2651,7 +2760,7 @@ fn arena_halves(body: &Body<f64>) -> Vec<HalfEdgeKey> {
 }
 
 #[test]
-fn kev_refuses_a_far_vertex_a_torn_next_hides_from_its_walk() {
+fn kev_panics_at_a_far_vertex_a_torn_next_hides_from_its_walk() {
     // `kill_anchors_on_torn_bodies`' first `NextForeign` witness: two
     // `next` tears close the far vertex's orbit early, so the walk from
     // the mate misses a half-edge that starts there.
@@ -2661,11 +2770,11 @@ fn kev_refuses_a_far_vertex_a_torn_next_hides_from_its_walk() {
     body.get_half_edge_mut(halves[11]).unwrap().next = halves[1];
     let he = halves[0];
     let stray = stray_at_the_far_vertex(&body, he);
-    assert_kev_refuses(&mut body, he, &EulerOpError::OrbitBroken { he: stray });
+    assert_kev_panics(&mut body, he, &premise(&[keeps_starting_there(stray)]));
 }
 
 #[test]
-fn kev_refuses_a_far_vertex_a_torn_bijection_hides_from_its_walk() {
+fn kev_panics_at_a_far_vertex_a_torn_bijection_hides_from_its_walk() {
     // The strut cube with one `EdgeBijection` tear, `kev(halves[8])`:
     // the torn edge claims `halves[17]`, so the orbit walk through it
     // leaves the far vertex's fan short of a half-edge that starts there.
@@ -2676,11 +2785,11 @@ fn kev_refuses_a_far_vertex_a_torn_bijection_hides_from_its_walk() {
     (torn.he_plus, torn.he_minus) = (halves[23], halves[17]);
     let he = halves[8];
     let stray = stray_at_the_far_vertex(&body, he);
-    assert_kev_refuses(&mut body, he, &EulerOpError::OrbitBroken { he: stray });
+    assert_kev_panics(&mut body, he, &premise(&[keeps_starting_there(stray)]));
 }
 
 #[test]
-fn kev_refuses_a_far_vertex_a_torn_start_puts_a_half_edge_on() {
+fn kev_panics_at_a_far_vertex_a_torn_start_puts_a_half_edge_on() {
     // A `StartForeign` tear on the declined cube: a half-edge of another
     // vertex torn to start at the far vertex, where no walk reaches it.
     let mut body = declined_cube::<f64>(Tol::witness()).body;
@@ -2689,12 +2798,11 @@ fn kev_refuses_a_far_vertex_a_torn_start_puts_a_half_edge_on() {
     body.get_half_edge_mut(halves[0]).unwrap().start = vertices[1];
     let he = halves[3];
     assert_eq!(stray_at_the_far_vertex(&body, he), halves[0]);
-    let torn = EulerOpError::OrbitBroken { he: halves[0] };
-    assert_kev_refuses(&mut body, he, &torn);
+    assert_kev_panics(&mut body, he, &premise(&[keeps_starting_there(halves[0])]));
 }
 
 #[test]
-fn kev_refuses_a_far_vertex_a_torn_empty_loop_holds() {
+fn kev_panics_at_a_far_vertex_a_torn_empty_loop_holds() {
     // A loop of the declined cube torn `Empty` at the far vertex: the
     // kill would leave it holding a dead vertex.
     let mut body = declined_cube::<f64>(Tol::witness()).body;
@@ -2707,12 +2815,11 @@ fn kev_refuses_a_far_vertex_a_torn_empty_loop_holds() {
     let he = halves[1];
     let m = body.mate(he).unwrap();
     assert_eq!(body.get_half_edge(m).unwrap().start, vertices[0]);
-    let torn = dangling(EntityId::Loop(l), EntityId::Vertex(vertices[0]));
-    assert_kev_refuses(&mut body, he, &torn);
+    assert_kev_panics(&mut body, he, &premise(&[empty_there(vertices[0], l)]));
 }
 
 #[test]
-fn kev_refuses_a_mate_whose_own_edge_is_another() {
+fn kev_panics_at_a_mate_whose_own_edge_is_another() {
     // An `EdgeBijection` tear on the declined cube: `halves[0]`'s edge
     // claims `halves[3]`, whose own edge is another. Unchecked, the kill
     // removes that edge's half, and the half its edge used to claim is
@@ -2724,15 +2831,11 @@ fn kev_refuses_a_mate_whose_own_edge_is_another() {
     let torn = body.get_edge_mut(edge).unwrap();
     (torn.he_plus, torn.he_minus) = (he, m);
     assert_ne!(body.get_half_edge(m).unwrap().edge, edge);
-    assert_kev_refuses(
-        &mut body,
-        he,
-        &EulerOpError::NotSameEdge { he1: he, he2: m },
-    );
+    assert_kev_panics(&mut body, he, &premise(&[not_halves(he, m)]));
 }
 
 #[test]
-fn kef_refuses_a_mate_whose_own_edge_is_another() {
+fn kef_panics_at_a_mate_whose_own_edge_is_another() {
     // A theta: the digon pillow with its back face split by a chord
     // parallel to both edges. The front face's `a0` has its edge torn to
     // claim the chord's `v1 → v0` half, which lies in another face and
@@ -2750,15 +2853,11 @@ fn kef_refuses_a_mate_whose_own_edge_is_another() {
     let torn = body.get_edge_mut(pillow.edges[0]).unwrap();
     assert_eq!((torn.he_plus, torn.he_minus), (a0, b0));
     torn.he_minus = chord.he_plus;
-    let refusal = EulerOpError::NotSameEdge {
-        he1: a0,
-        he2: chord.he_plus,
-    };
-    assert_kef_refuses(&mut body, a0, &refusal);
+    assert_kef_panics(&mut body, a0, &premise(&[not_halves(a0, chord.he_plus)]));
 }
 
 #[test]
-fn kef_and_kev_refuse_an_edge_claiming_one_half_in_both_slots() {
+fn kef_and_kev_panic_at_an_edge_claiming_one_half_in_both_slots() {
     // Adopted from the kill-proof review's torn-slot probe: an edge of
     // the declined cube torn to claim `he` in both slots, so the mate the
     // kill reads from them is `he` itself. The pair check refuses the
@@ -2768,14 +2867,13 @@ fn kef_and_kev_refuse_an_edge_claiming_one_half_in_both_slots() {
     let edge = body.get_half_edge(he).unwrap().edge;
     let torn = body.get_edge_mut(edge).unwrap();
     (torn.he_plus, torn.he_minus) = (he, he);
-    let refusal = EulerOpError::NotSameEdge { he1: he, he2: he };
-    assert!(refusal.reports_tier1_corruption());
-    assert_kef_refuses(&mut body, he, &refusal);
-    assert_kev_refuses(&mut body, he, &refusal);
+    let torn = premise(&[not_halves(he, he)]);
+    assert_kef_panics(&mut body, he, &torn);
+    assert_kev_panics(&mut body, he, &torn);
 }
 
 #[test]
-fn kef_and_kev_refuse_a_third_half_edge_naming_the_killed_edge() {
+fn kef_and_kev_panic_at_a_third_half_edge_naming_the_killed_edge() {
     // A half-edge of the declined cube whose `edge` is torn to the edge
     // the kill removes. Unchecked, the kill leaves it naming the dead
     // edge.
@@ -2784,16 +2882,13 @@ fn kef_and_kev_refuse_a_third_half_edge_naming_the_killed_edge() {
     let halves = arena_halves(&cube);
     let edge = cube.get_half_edge(halves[2]).unwrap().edge;
     cube.get_half_edge_mut(halves[0]).unwrap().edge = edge;
-    let torn = EulerOpError::UnclaimedHalfEdge {
-        he: halves[0],
-        edge,
-    };
-    assert_kef_refuses(&mut cube, halves[2], &torn);
-    assert_kev_refuses(&mut cube, halves[2], &torn);
+    let torn = premise(&[unclaimed(halves[0], edge)]);
+    assert_kef_panics(&mut cube, halves[2], &torn);
+    assert_kev_panics(&mut cube, halves[2], &torn);
 }
 
 #[test]
-fn kemr_refuses_a_third_half_edge_naming_the_killed_edge() {
+fn kemr_panics_at_a_third_half_edge_naming_the_killed_edge() {
     // The strut cube with a half-edge's `edge` torn to the strut's, then
     // `kemr` at the strut. Unchecked, the kill leaves it naming the dead
     // edge.
@@ -2802,15 +2897,12 @@ fn kemr_refuses_a_third_half_edge_naming_the_killed_edge() {
     let (he1, he2) = (fixture.strut.he_plus, fixture.strut.he_minus);
     let stray = arena_halves(&body)[0];
     body.get_half_edge_mut(stray).unwrap().edge = fixture.strut.edge;
-    let torn = EulerOpError::UnclaimedHalfEdge {
-        he: stray,
-        edge: fixture.strut.edge,
-    };
-    assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
+    let torn = premise(&[unclaimed(stray, fixture.strut.edge)]);
+    assert_panics_naming("kemr", &mut body, &torn, |b| b.kemr(he1, he2));
 }
 
 #[test]
-fn kef_refuses_a_dying_face_or_loop_another_record_names() {
+fn kef_panics_at_a_dying_face_or_loop_another_record_names() {
     // The declined cube: a third loop's `face` torn to the dying face,
     // then a third face's `rings`, then its `outer`, torn to name the
     // dying loop, then another shell torn to list the dying face.
@@ -2829,11 +2921,8 @@ fn kef_refuses_a_dying_face_or_loop_another_record_names() {
     };
     let (mut body, he, _, f1, third) = build();
     body.get_loop_mut(third).unwrap().face = f1;
-    let torn = EulerOpError::KillLeavesDangling {
-        from: EntityId::Loop(third),
-        to: EntityId::Face(f1),
-    };
-    assert_kef_refuses(&mut body, he, &torn);
+    let torn = dangling(EntityId::Loop(third), EntityId::Face(f1));
+    assert_kef_panics(&mut body, he, &premise(&[torn]));
 
     type Tear = fn(&mut crate::entity::Face, crate::entity::LoopKey);
     let tears: [Tear; 2] = [|f, l1| f.rings.push(l1), |f, l1| f.outer = l1];
@@ -2841,21 +2930,15 @@ fn kef_refuses_a_dying_face_or_loop_another_record_names() {
         let (mut body, he, l1, _, third) = build();
         let face = body.get_loop(third).unwrap().face;
         tear(body.get_face_mut(face).unwrap(), l1);
-        let torn = EulerOpError::KillLeavesDangling {
-            from: EntityId::Face(face),
-            to: EntityId::Loop(l1),
-        };
-        assert_kef_refuses(&mut body, he, &torn);
+        let torn = dangling(EntityId::Face(face), EntityId::Loop(l1));
+        assert_kef_panics(&mut body, he, &premise(&[torn]));
     }
 
     let (mut body, he, _, f1, _) = build();
     let other = body.mvfs(p(9.0), true).unwrap();
     body.get_shell_mut(other.shell).unwrap().faces.push(f1);
-    let torn = EulerOpError::KillLeavesDangling {
-        from: EntityId::Shell(other.shell),
-        to: EntityId::Face(f1),
-    };
-    assert_kef_refuses(&mut body, he, &torn);
+    let torn = dangling(EntityId::Shell(other.shell), EntityId::Face(f1));
+    assert_kef_panics(&mut body, he, &premise(&[torn]));
 }
 
 /// A segment's solid beside a lone vertex's: the segment's `mvfs` keys,
@@ -2875,13 +2958,38 @@ fn segment_beside_a_lone_solid() -> (
     (body, seed, lone)
 }
 
-/// A kill's refusal of a record it keeps naming one it removes.
-fn dangling(from: EntityId, to: EntityId) -> EulerOpError {
-    EulerOpError::KillLeavesDangling { from, to }
+/// The premise of a kill that would leave `from`, a record it keeps,
+/// naming `to`, a record it removes.
+fn dangling(from: EntityId, to: EntityId) -> String {
+    format!("a kill removes {to}, which {from}, a record it keeps, still names")
+}
+
+/// The premise of a kill removing `vertex`, at which `r#loop`, which it
+/// keeps, is empty.
+fn empty_there(vertex: crate::entity::VertexKey, r#loop: crate::entity::LoopKey) -> String {
+    format!("a kill removes {vertex:?}, and loop {loop:?}, which it keeps, is empty there", loop = r#loop)
+}
+
+/// The premise of a kill that would leave `stray`, which it keeps,
+/// starting at the vertex it removes.
+fn keeps_starting_there(stray: HalfEdgeKey) -> String {
+    format!("and {stray:?}, which it keeps, starts there")
+}
+
+/// The premise of a kill reading `he` and `m` as one edge's halves when
+/// they are not.
+fn not_halves(he: HalfEdgeKey, m: HalfEdgeKey) -> String {
+    format!("{he:?} and {m:?}, read as edge")
+}
+
+/// The premise of a kill removing `edge`, which `he` names and its slots
+/// do not hold.
+fn unclaimed(he: HalfEdgeKey, edge: crate::entity::EdgeKey) -> String {
+    format!("{he:?} names edge {edge:?}, whose slots hold")
 }
 
 #[test]
-fn kvfs_refuses_a_lone_record_another_record_names() {
+fn kvfs_panics_at_a_lone_record_another_record_names() {
     // A segment's solid beside a lone solid, one tear at a time: the
     // segment's loop, face or shell torn to name the lone face, shell or
     // solid, the segment's face torn to list the lone loop as a ring and
@@ -2890,7 +2998,7 @@ fn kvfs_refuses_a_lone_record_another_record_names() {
     // solid's loop torn `Empty` at the lone vertex. Unchecked, each kill
     // leaves the torn record naming a dead one.
     use crate::euler::MvfsCreated;
-    type Tear = fn(&mut Body<f64>, &MvfsCreated, &MvfsCreated) -> EulerOpError;
+    type Tear = fn(&mut Body<f64>, &MvfsCreated, &MvfsCreated) -> String;
     let tears: [Tear; 8] = [
         |b, seg, lone| {
             b.get_loop_mut(seg.r#loop).unwrap().face = lone.face;
@@ -2925,18 +3033,18 @@ fn kvfs_refuses_a_lone_record_another_record_names() {
             b.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty {
                 vertex: lone.vertex,
             };
-            dangling(EntityId::Loop(third.r#loop), EntityId::Vertex(lone.vertex))
+            empty_there(lone.vertex, third.r#loop)
         },
     ];
     for tear in tears {
         let (mut body, seg, lone) = segment_beside_a_lone_solid();
-        let torn = tear(&mut body, &seg, &lone);
-        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+        let torn = premise(&[tear(&mut body, &seg, &lone)]);
+        assert_panics_naming("kvfs", &mut body, &torn, |b| b.kvfs(lone.solid));
     }
 }
 
 #[test]
-fn mekr_refuses_an_empty_ring_a_torn_half_edge_claims() {
+fn mekr_panics_at_an_empty_ring_a_torn_half_edge_claims() {
     // An `Empty` ring (the strut killed from its root), and two `Empty`
     // loops of one face (the segment killed), each beside a bystander
     // segment's solid whose plus half is torn to claim the ring.
@@ -2971,8 +3079,10 @@ fn mekr_refuses_an_empty_ring_a_torn_half_edge_claims() {
         body.get_half_edge_mut(bystander.he_plus)
             .unwrap()
             .parent_loop = ring;
-        let torn = EulerOpError::LoopCycleBroken { r#loop: ring };
-        assert_mekr_refuses(&mut body, site, &torn);
+        let torn = premise(&[format!(
+            "claims loop {ring:?} and its cycle walk does not reach it"
+        )]);
+        assert_mekr_panics(&mut body, site, &torn);
     }
 }
 
@@ -3036,7 +3146,7 @@ fn every_mekr_site(tol: Tol) -> [(Body<f64>, MekrSite, crate::entity::LoopKey); 
 }
 
 #[test]
-fn mekr_refuses_a_ring_another_face_lists() {
+fn mekr_panics_at_a_ring_another_face_lists() {
     // At each site, a bystander face's `rings`, then its `outer`, torn
     // to name the ring. Unchecked, the ring's own face drops it and the
     // bystander is left naming a dead loop.
@@ -3048,7 +3158,7 @@ fn mekr_refuses_a_ring_another_face_lists() {
             let bystander = body.mvfs(p(9.0), true).unwrap();
             tear(body.get_face_mut(bystander.face).unwrap(), ring);
             let torn = dangling(EntityId::Face(bystander.face), EntityId::Loop(ring));
-            assert_mekr_refuses(&mut body, site, &torn);
+            assert_mekr_panics(&mut body, site, &premise(&[torn]));
         }
     }
 }
@@ -3078,10 +3188,10 @@ fn far_loop(
 
 /// Every way a record a kill keeps can name one of the halves `[he, m]`
 /// it removes, each planted on its own copy of `body` away from every
-/// walk the kill takes ([`far_loop`]), with the refusal each earns: a
+/// walk the kill takes ([`far_loop`]), with the premise each panics on: a
 /// half-edge's `next`, then its `prev`, a loop's `first`, a vertex's
 /// `emanating`, and an edge's slot.
-fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, EulerOpError); 5] {
+fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, String); 5] {
     let start = |h| body.get_half_edge(h).unwrap().start;
     let (l, x) = far_loop(body, &[start(he), start(m)]);
     let (v, e) = (start(x), body.get_half_edge(x).unwrap().edge);
@@ -3115,7 +3225,7 @@ fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, 
 }
 
 #[test]
-fn kef_refuses_a_killed_half_another_record_names() {
+fn kef_panics_at_a_killed_half_another_record_names() {
     // The declined cube, a half-edge of a face away from both endpoints
     // torn to name a killed half, then a loop's `first`, a vertex's
     // `emanating` and an edge's slot. Unchecked, the kill leaves each
@@ -3124,41 +3234,45 @@ fn kef_refuses_a_killed_half_another_record_names() {
     let he = arena_halves(&cube)[6];
     let m = cube.mate(he).unwrap();
     for (mut body, torn) in half_edge_tears(&cube, [he, m]) {
-        assert_kef_refuses(&mut body, he, &torn);
+        assert_kef_panics(&mut body, he, &premise(&[torn]));
     }
 }
 
 #[test]
-fn kev_refuses_a_killed_half_another_record_names() {
-    // As `kef_refuses_a_killed_half_another_record_names`, for `kev`.
+fn kev_panics_at_a_killed_half_another_record_names() {
+    // As `kef_panics_at_a_killed_half_another_record_names`, for `kev`.
     let cube = declined_cube::<f64>(Tol::witness()).body;
     let he = arena_halves(&cube)[3];
     let m = cube.mate(he).unwrap();
     for (mut body, torn) in half_edge_tears(&cube, [he, m]) {
-        assert_kev_refuses(&mut body, he, &torn);
+        assert_kev_panics(&mut body, he, &premise(&[torn]));
     }
 }
 
 #[test]
-fn kemr_refuses_a_killed_half_another_record_names() {
-    // As `kef_refuses_a_killed_half_another_record_names`, for `kemr` at
+fn kemr_panics_at_a_killed_half_another_record_names() {
+    // As `kef_panics_at_a_killed_half_another_record_names`, for `kemr` at
     // the strut cube's strut.
     let fixture = ops_strut_cube(Tol::witness());
     let (he1, he2) = (fixture.strut.he_plus, fixture.strut.he_minus);
     for (mut body, torn) in half_edge_tears(&fixture.body, [he1, he2]) {
-        assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
+        let torn = premise(&[torn]);
+        assert_panics_naming("kemr", &mut body, &torn, |b| b.kemr(he1, he2));
     }
 }
 
-/// Asserts that `kfmrh(f1, f2)` and `kfmrh_minting(f1, f2, tol)` refuse
-/// `torn` with the body deep-unchanged.
-fn assert_kfmrh_refuses(body: &mut Body<f64>, f1: FaceKey, f2: FaceKey, torn: &EulerOpError) {
-    assert_kill_refuses(body, torn, |b| b.kfmrh(f1, f2));
-    assert_kill_refuses(body, torn, |b| b.kfmrh_minting(f1, f2, Tol::witness()));
+/// Asserts that `kfmrh(f1, f2)` and `kfmrh_minting(f1, f2, tol)` panic
+/// naming `torn`, a [`dangling`] premise, with the body deep-unchanged.
+fn assert_kfmrh_panics(body: &mut Body<f64>, f1: FaceKey, f2: FaceKey, torn: String) {
+    let torn = premise(&[torn]);
+    assert_panics_naming("kfmrh", body, &torn, |b| b.kfmrh(f1, f2));
+    assert_panics_naming("kfmrh_minting", body, &torn, |b| {
+        b.kfmrh_minting(f1, f2, Tol::witness())
+    });
 }
 
 #[test]
-fn kfmrh_refuses_a_face_another_record_names() {
+fn kfmrh_panics_at_a_face_another_record_names() {
     // The same-shell form on the declined cube: a loop other than the
     // ring torn to name `f2`, then another shell torn to list it.
     // Unchecked, the kill leaves each naming a dead face.
@@ -3176,17 +3290,17 @@ fn kfmrh_refuses_a_face_another_record_names() {
         .unwrap();
     body.get_loop_mut(third).unwrap().face = f2;
     let torn = dangling(EntityId::Loop(third), EntityId::Face(f2));
-    assert_kfmrh_refuses(&mut body, f1, f2, &torn);
+    assert_kfmrh_panics(&mut body, f1, f2, torn);
 
     let (mut body, f1, f2) = build();
     let other = body.mvfs(p(9.0), true).unwrap();
     body.get_shell_mut(other.shell).unwrap().faces.push(f2);
     let torn = dangling(EntityId::Shell(other.shell), EntityId::Face(f2));
-    assert_kfmrh_refuses(&mut body, f1, f2, &torn);
+    assert_kfmrh_panics(&mut body, f1, f2, torn);
 }
 
 #[test]
-fn kfmrh_refuses_in_its_fusion_form_a_face_or_shell_another_record_names() {
+fn kfmrh_panics_in_its_fusion_form_at_a_face_or_shell_another_record_names() {
     // The fusion form on two shells of one solid: `f1`'s own shell torn
     // to list `f2`, a face of `f1`'s shell torn to name `f2`'s, and
     // another solid torn to list `f2`'s shell. Unchecked, the fusion
@@ -3203,18 +3317,18 @@ fn kfmrh_refuses_in_its_fusion_form_a_face_or_shell_another_record_names() {
     let (mut body, a, _, fa, f2) = build();
     body.get_shell_mut(a).unwrap().faces.push(f2);
     let torn = dangling(EntityId::Shell(a), EntityId::Face(f2));
-    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+    assert_kfmrh_panics(&mut body, fa[0], f2, torn);
 
     let (mut body, _, b, fa, f2) = build();
     body.get_face_mut(fa[1]).unwrap().shell = b;
     let torn = dangling(EntityId::Face(fa[1]), EntityId::Shell(b));
-    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+    assert_kfmrh_panics(&mut body, fa[0], f2, torn);
 
     let (mut body, _, b, fa, f2) = build();
     let other = body.mvfs(p(9.0), true).unwrap();
     body.get_solid_mut(other.solid).unwrap().shells.push(b);
     let torn = dangling(EntityId::Solid(other.solid), EntityId::Shell(b));
-    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+    assert_kfmrh_panics(&mut body, fa[0], f2, torn);
 }
 
 /// A segment's solid beside a third solid whose loop is torn `Empty` at
@@ -3238,17 +3352,17 @@ fn segment_beside_a_torn_empty_loop() -> (
 }
 
 #[test]
-fn kev_refuses_an_empty_loop_another_loop_already_holds() {
+fn kev_panics_at_an_empty_loop_another_loop_already_holds() {
     // `kev` of the segment empties its loop at `seed`, where the torn
     // third loop is already `Empty`: two empty loops would hold one lone
     // vertex.
     let (mut body, seg, _, he) = segment_beside_a_torn_empty_loop();
-    let torn = EulerOpError::EmptyAnchorsCollide { vertex: seg.vertex };
-    assert_kev_refuses(&mut body, he, &torn);
+    let torn = format!("at {:?}, where loop", seg.vertex);
+    assert_kev_panics(&mut body, he, &premise(&[torn]));
 }
 
 #[test]
-fn an_empty_loop_write_refuses_a_broken_cycle_before_a_collision() {
+fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
     // `require_kill_anchors` handed `kev`'s segment arm, with and
     // without the torn third loop: an `Empty` write at a vertex no
     // `Lone` write anchors, or with the mate left in the loop, is a
@@ -3264,27 +3378,38 @@ fn an_empty_loop_write_refuses_a_broken_cycle_before_a_collision() {
     let v = seg.vertex;
     let loops = [(seg.r#loop, LoopBoundary::Empty { vertex: v })];
     let lone = [(v, KillAnchor::Lone, he)];
-    let broken = Err(EulerOpError::LoopCycleBroken { r#loop: seg.r#loop });
+    let broken = format!(
+        "the {:?} a kill writes for loop {:?} does not hold once the kill has run",
+        LoopBoundary::Empty { vertex: v },
+        seg.r#loop
+    );
+    let collision = format!("at {v:?}, where loop {:?} is already empty", third.r#loop);
+    let capture = PanicCapture::install();
+    let premise_of = |outcome: Result<(), String>| match outcome {
+        Ok(()) => None,
+        Err(report) => {
+            assert!(report.contains(ROW_FOUR), "a premise panic: {report}");
+            Some(report)
+        }
+    };
     for (body, collides) in [(&torn_body, true), (&clean, false)] {
+        for (label, writes, killed) in [
+            ("no Lone write at the vertex", &[][..], &[he, m][..]),
+            ("the mate stays in the loop", &lone[..], &[he][..]),
+        ] {
+            let report =
+                premise_of(capture.run(|| body.require_kill_anchors(writes, &loops, killed, None)));
+            assert!(
+                report.as_ref().is_some_and(|r| r.contains(&broken)),
+                "{label} (collides: {collides}): {report:?}"
+            );
+        }
+        let report =
+            premise_of(capture.run(|| body.require_kill_anchors(&lone, &loops, &[he, m], None)));
         assert_eq!(
-            body.require_kill_anchors(&[], &loops, &[he, m], None),
-            broken,
-            "no Lone write at the vertex (collides: {collides})"
-        );
-        assert_eq!(
-            body.require_kill_anchors(&lone, &loops, &[he], None),
-            broken,
-            "the mate stays in the loop (collides: {collides})"
-        );
-        let collision = if collides {
-            Err(EulerOpError::EmptyAnchorsCollide { vertex: v })
-        } else {
-            Ok(())
-        };
-        assert_eq!(
-            body.require_kill_anchors(&lone, &loops, &[he, m], None),
-            collision,
-            "both conjuncts hold (collides: {collides})"
+            report.as_ref().map(|r| r.contains(&collision)),
+            collides.then_some(true),
+            "both conjuncts hold (collides: {collides}): {report:?}"
         );
     }
 }

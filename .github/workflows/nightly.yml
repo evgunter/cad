@@ -507,7 +507,7 @@ jobs:
           set -o pipefail
           cargo test --release -p topo --lib -- \
             review_m1_pr2::release_corruption \
-            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_m1_pr4::kill_ops_on_torn_bodies_panic_only_naming_a_premise \
             review_d18 | tee release-corruption.log
           grep -qE '^test result: ok\. [1-9][0-9]* passed' release-corruption.log
 

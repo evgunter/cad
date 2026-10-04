@@ -520,7 +520,10 @@ fn real_study(tol: Tol) {
                 "     the drive: {} certified, {} refused",
                 receipt.certified, receipt.refused
             );
-            println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render(&doc)));
+            println!(
+                "{}",
+                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+            );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
                  study certifies (the module header carries the numbers). A refusal \
