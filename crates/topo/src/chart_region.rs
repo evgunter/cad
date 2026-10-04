@@ -2404,7 +2404,15 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         return Err(ChartRegionError::Corrupt); // an empty loop bounds no region
     };
     let mut poly = Vec::new();
-    for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
+    let cycle = body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)?;
+    // The minted rows as the loop's lift places them
+    // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
+    // here, and each half refuses or derives below.
+    let lifted = match read {
+        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
+        ChartRead::WorldCarrier => vec![None; cycle.len()],
+    };
+    for (he, image) in cycle.into_iter().zip(lifted) {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body
             .get_edge(he_data.edge)
@@ -2415,12 +2423,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = (read == ChartRead::Minted)
-            .then(|| body.pcurve(he))
-            .flatten();
-        let entry = if let Some(cache) = cache {
+        let cache = image.and_then(|image| body.pcurve(he).map(|cache| (cache, image)));
+        let entry = if let Some((cache, image)) = cache {
             let (t0, t1) = cache.params();
-            pcurve_entry(cache.pcurve(), t0, t1, forward).map_err(refuse)?
+            pcurve_entry(&image, t0, t1, forward).map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the

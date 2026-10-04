@@ -261,6 +261,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::live::{Arg, KeySource, Live, dangling_link, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
@@ -2536,25 +2537,27 @@ impl<T: Decide> Body<T> {
             (w, he2_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
+        let minted = Some((he_plus.key(), he_minus.key()));
 
         // Splice. Derived (module docs) rather than transcribed; the two
         // cases are the sequential "insert before he1, then before he2"
         // with the strut's second insertion landing between the first
-        // and he1.
+        // and he1. Every joint it writes is new, and its element is the
+        // site mint's, written after it.
         if he1 == he2 {
             // Strut: … → prev → he_plus → he_minus → he1 → …
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he_minus);
-            self.link_half_edges(he_minus, he1);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he_minus, None);
+            self.link_half_edges(he_minus, he1, None);
         } else {
             // … → prev(he1) → he_plus → he1 → …  (in he1's loop)
             // … → prev(he2) → he_minus → he2 → … (in he2's loop)
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he1);
-            self.link_half_edges(he2_prev, he_minus);
-            self.link_half_edges(he_minus, he2);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he1, None);
+            self.link_half_edges(he2_prev, he_minus, None);
+            self.link_half_edges(he_minus, he2, None);
         }
+        crate::pcurves::apply_site_rows(self, rows, minted);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Reassign the clockwise run to the new vertex.
@@ -2661,10 +2664,10 @@ impl<T: Decide> Body<T> {
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The two halves form the whole cycle: v → w → v.
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, he_minus, None);
+        self.link_half_edges(he_minus, he_plus, None);
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -2889,16 +2892,16 @@ impl<T: Decide> Body<T> {
         // he_plus closes he2's side into the old loop.
         if he1 == he2 {
             // Circular one-edge face: the new loop is he_minus alone.
-            self.link_half_edges(he_minus, he_minus);
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he1_live);
+            self.link_half_edges(he_minus, he_minus, None);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he1_live, None);
         } else {
             // New loop: … → prev(he2) → he_minus → he1 → … (he1's side)
             // Old loop: … → prev(he1) → he_plus → he2 → … (he2's side)
-            self.link_half_edges(he2_prev, he_minus);
-            self.link_half_edges(he_minus, he1_live);
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he2_live);
+            self.link_half_edges(he2_prev, he_minus, None);
+            self.link_half_edges(he_minus, he1_live, None);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he2_live, None);
         }
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
@@ -3027,12 +3030,12 @@ impl<T: Decide> Body<T> {
         let (new_loop, new_face) =
             self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
         // association as Chords — he1's "side" is the new loop).
-        self.link_half_edges(he_plus, he_plus);
-        self.link_half_edges(he_minus, he_minus);
+        self.link_half_edges(he_plus, he_plus, None);
+        self.link_half_edges(he_minus, he_minus, None);
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -4331,8 +4334,15 @@ impl<T: Decide> Body<T> {
     /// call site the way a per-site `unreachable!` does, a shared
     /// helper knowing none of its callers, so this is `#[track_caller]`
     /// and the panic reports the caller's location instead.
+    ///
+    /// **A link is a joint, and the write takes its element** (C4,
+    /// [`crate::joint`]): `element` is the element of the joint `a → b`,
+    /// stored on `b`, or `None` where the door decides none — a side of
+    /// the joint is rowless, or its element is the site mint's to derive,
+    /// which writes it after the splice ([`crate::pcurves::apply_site_rows`]).
+    /// A kill sums the elements it bridges ([`JointElement::then`]).
     #[track_caller]
-    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live, element: Option<JointElement>) {
         let Some(he) = self.get_half_edge_mut(a.key()) else {
             unreachable!("link_half_edges: `a`'s proof outlived its key")
         };
@@ -4341,6 +4351,23 @@ impl<T: Decide> Body<T> {
             unreachable!("link_half_edges: `b`'s proof outlived its key")
         };
         he.prev = a.key();
+        self.write_joint(b.key(), element);
+    }
+
+    /// **The element of the joint a kill makes by bridging a killed
+    /// edge** (C4, [`crate::joint`], "Kills are sums"): the elements of
+    /// the joints into `path`'s half-edges, summed in order
+    /// ([`JointElement::then`]). A kill's path enters a killed half and
+    /// leaves into a survivor — `e(x) · e(n)` — and crosses between the
+    /// killed edge's two halves where they meet, where their one image
+    /// makes the exit of the one the entry of the other, so that crossing
+    /// carries nothing; where the killed edge closes on itself the path
+    /// also takes the closed half's own joint. `None` where any element
+    /// is: a side of the bridge is rowless.
+    pub(crate) fn bridged_joint(&self, path: &[HalfEdgeKey]) -> Option<JointElement> {
+        let mut elements = path.iter().map(|&he| self.joint(he));
+        let first = elements.next()??;
+        elements.try_fold(first, |sum, next| Some(sum.then(next?)))
     }
 
     /// D1's ratified postcondition-assert clause: after a successful

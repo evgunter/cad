@@ -2093,6 +2093,7 @@ struct ArcSheet {
 fn arc_sheet(tied: bool) -> ArcSheet {
     let mut s = sheet();
     let saved: Vec<_> = s.body.pcurves().map(|(h, c)| (h, c.clone())).collect();
+    let joints: Vec<_> = s.body.joints().collect();
     assert_eq!(saved.len(), 8);
     let p = patch();
     let mut keys = Vec::new();
@@ -2127,6 +2128,9 @@ fn arc_sheet(tied: bool) -> ArcSheet {
     assert_eq!(rows_total(&s.body), 0, "the swaps dropped every row");
     for (h, c) in saved {
         s.body.attach_pcurve(h, c);
+    }
+    for (h, e) in joints {
+        s.body.attach_joint(h, e);
     }
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(rows_of(&s.body, s.up), (4, 0));

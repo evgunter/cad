@@ -843,10 +843,15 @@ pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
 pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
 
 /// One HALF-EDGE, as the window walk reads it: its stored certified
-/// pcurve cache, and whether the loop traverses it FORWARD (the
-/// `he_plus` side, so the certified span runs `t₀ → t₁`). `None` for a
-/// half-edge with no cache.
-pub(crate) type WindowStep<'a, T> = Option<(&'a geom_brep::PcurveCache<T>, bool)>;
+/// pcurve cache, its image as the loop's lift places it
+/// ([`crate::Body::loop_lift`]), and whether the loop traverses it
+/// FORWARD (the `he_plus` side, so the certified span runs `t₀ → t₁`).
+/// `None` for a half-edge of a loop with no lift.
+pub(crate) type WindowStep<'a, T> = Option<(
+    &'a geom_brep::PcurveCache<T>,
+    geom_brep::Pcurve<T>,
+    bool,
+)>;
 
 /// **A torus face's chart window, from its boundary's stored certified
 /// pcurves — the ONE walk, for every lane.**
@@ -1000,13 +1005,13 @@ impl<T: Real> TorusChartWindow<T> {
     /// images are harmonic (a cone-section image certifies on a cone
     /// only), so any other image abandons the window — which widens the
     /// box to the whole tube, never narrows it.
-    pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
-        let Some((cache, forward)) = step else {
+    pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
+        let Some((cache, image, forward)) = step else {
             self.ok = false;
             return;
         };
         let (t0, t1) = cache.params();
-        let Some(b) = cache.pcurve().closed_form_span_box(t0, t1) else {
+        let Some(b) = image.closed_form_span_box(t0, t1) else {
             self.ok = false;
             return;
         };
@@ -1018,7 +1023,7 @@ impl<T: Real> TorusChartWindow<T> {
             lo: b.v_min,
             hi: b.v_max,
         };
-        let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
+        let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
             self.ok = false;
             return;
         };
@@ -1115,7 +1120,7 @@ pub(crate) fn harmonic_travel<T: Real>(
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
-pub(crate) fn face_window_steps<T: Real>(
+pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<Vec<Vec<WindowStep<'_, T>>>> {
@@ -1125,9 +1130,15 @@ pub(crate) fn face_window_steps<T: Real>(
         let l = body.get_loop(lk)?;
         let mut steps = Vec::new();
         if let LoopBoundary::Cycle { first } = l.boundary {
-            for he in body.loop_cycle(first)? {
+            let cycle = body.loop_cycle(first)?;
+            let lifted = crate::pcurves::lifted_images(body, &cycle);
+            for (he, image) in cycle.into_iter().zip(lifted) {
                 let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-                steps.push(body.pcurve(he).map(|c| (c, edge.he_plus == he)));
+                steps.push(
+                    body.pcurve(he)
+                        .zip(image)
+                        .map(|(c, image)| (c, image, edge.he_plus == he)),
+                );
             }
         }
         out.push(steps);
@@ -1147,7 +1158,7 @@ pub(crate) fn torus_chart_window<T: Real>(
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        for &step in lp {
+        for step in lp {
             acc.step(step);
         }
         if lp.is_empty() {
@@ -4251,9 +4262,9 @@ pub(crate) mod tests {
             .into_iter()
             .flatten()
             .map(|step| {
-                let (cache, _) = step.expect("every half-edge stores a certified cache");
+                let (cache, image, _) = step.expect("every half-edge stores a certified cache");
                 let (t0, t1) = cache.params();
-                cache.pcurve().chart_box(t0, t1)
+                image.chart_box(t0, t1)
             })
             .reduce(geom_brep::ChartWindow::hull)
             .expect("the face has half-edges");

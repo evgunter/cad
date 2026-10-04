@@ -247,6 +247,7 @@ use crate::euler::{
     RunExtent, require_halves, shared_loop,
 };
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::live::{Arg, Live, link, linked, lookup, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
@@ -559,7 +560,15 @@ impl<T: Decide> Body<T> {
         );
         self.require_edge_unnamed(edge, [he1, he2]);
         // Each non-empty side closes from its last member onto its
-        // first: the ring side's, then the old loop's.
+        // first: the ring side's, then the old loop's. The joint it
+        // makes bridges the killed edge, and its element is the sum of
+        // the two it bridges ([`Body::bridged_joint`]): into the ring
+        // side's first member, `e(he2) · e(next(he1))`; into the old
+        // side's, `e(he1) · e(next(he2))`.
+        let elements: Vec<Option<JointElement>> = [(ring_ends, he2), (old_ends, he1)]
+            .into_iter()
+            .filter_map(|(ends, into)| ends.map(|(first, _)| self.bridged_joint(&[into, first.key()])))
+            .collect();
         let links: Vec<(Live, Live)> = [ring_ends, old_ends]
             .into_iter()
             .flatten()
@@ -605,8 +614,8 @@ impl<T: Decide> Body<T> {
         // one-half-edge loop), which needs a self-loop half flanked by
         // the killed halves on both sides — believed unreachable through
         // M1 operator sequences and verified by derivation only.
-        for (last, first) in links {
-            self.link_half_edges(last, first);
+        for ((last, first), element) in links.into_iter().zip(elements) {
+            self.link_half_edges(last, first, element);
         }
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("kemr: the loop resolved in the plan phase")
@@ -1472,11 +1481,17 @@ impl<T: Decide> Body<T> {
     /// longer HOLDS the wrong row for `props`, the tessellator or
     /// `chart_boundary` to read.
     ///
+    /// A row is the half-edge's image and the element of the joint into
+    /// it, and both go. The element of the joint OUT of a dropped half
+    /// is its successor's, which the caller's link write re-states where
+    /// the successor stays ([`Body::link_half_edges`]).
+    ///
     /// A key with no row is a no-op, so a caller hands over every key
     /// it moved and none of them has to be checked first.
     pub(crate) fn drop_rows(&mut self, half_edges: impl IntoIterator<Item = HalfEdgeKey>) {
         for half_edge in half_edges {
             self.pcurves.remove(half_edge);
+            self.joints.remove(half_edge);
         }
     }
 
@@ -1647,7 +1662,7 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target_loop, certified, rows);
+            self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
@@ -1659,10 +1674,10 @@ impl<T: Decide> Body<T> {
         }
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
-        self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, ring_live);
-        self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, target_live);
+        self.link_half_edges(target_prev, he_plus, None);
+        self.link_half_edges(he_plus, ring_live, None);
+        self.link_half_edges(ring_last, he_minus, None);
+        self.link_half_edges(he_minus, target_live, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(
@@ -1671,6 +1686,7 @@ impl<T: Decide> Body<T> {
             face_key,
             (u, w),
             (he_plus, he_minus),
+            rows,
         );
 
         Ok(MekrResult {
@@ -1739,16 +1755,16 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target_loop, certified, rows);
+            self.mekr_mint(site, u, w, target_loop, certified);
         // Splice: … prev(target) → he_plus → he_minus → target … (the
         // strut shape, re-created; inverse of kemr's ring-side-empty
         // case).
-        self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, target_live);
+        self.link_half_edges(target_prev, he_plus, None);
+        self.link_half_edges(he_plus, he_minus, None);
+        self.link_half_edges(he_minus, target_live, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus), rows);
 
         Ok(MekrResult {
             edge,
@@ -1815,7 +1831,7 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified, rows);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
@@ -1827,12 +1843,12 @@ impl<T: Decide> Body<T> {
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
         // this cycle — inverse of kemr's old-side-empty case).
-        self.link_half_edges(he_plus, ring_live);
-        self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, ring_live, None);
+        self.link_half_edges(ring_last, he_minus, None);
+        self.link_half_edges(he_minus, he_plus, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus), rows);
 
         Ok(MekrResult {
             edge,
@@ -1897,14 +1913,14 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified, rows);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         // The two halves form the whole cycle: u → w → u (the segment
         // loop — inverse of kemr's both-empty case).
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, he_minus, None);
+        self.link_half_edges(he_minus, he_plus, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus), rows);
 
         Ok(MekrResult {
             edge,
@@ -2023,9 +2039,7 @@ impl<T: Decide> Body<T> {
     /// `mekr`'s mint phase (documented minting order: curve — the
     /// certified `EdgeCurve` from the attachment gate — edge,
     /// `he_plus`, `he_minus`). Both halves land in the target loop;
-    /// `next`/`prev` are provisional for the caller's splice. `rows` is
-    /// what the plan phase decided the face stores
-    /// ([`Body::plan_site_rows`]), written as the halves are minted.
+    /// `next`/`prev` are provisional for the caller's splice.
     fn mekr_mint(
         &mut self,
         site: MekrSite,
@@ -2033,14 +2047,12 @@ impl<T: Decide> Body<T> {
         w: VertexKey,
         target_loop: LoopKey,
         certified: geom_brep::EdgeCurve<T>,
-        rows: Vec<SiteRows<T>>,
     ) -> (CurveKey, EdgeKey, Live, Live) {
         let provenance = Provenance::Mekr { site };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) =
             self.mint_halves(edge, (u, target_loop), (w, target_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         (curve, edge, he_plus, he_minus)
     }
 
@@ -2076,9 +2088,14 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         anchors: (VertexKey, VertexKey),
         halves: (HalfEdgeKey, HalfEdgeKey),
+        rows: Vec<SiteRows<T>>,
     ) {
         let (u, w) = anchors;
         let (he_plus, he_minus) = halves;
+        // What the plan phase decided the face stores
+        // ([`Body::plan_site_rows`]), written once the splice has made
+        // its joints.
+        crate::pcurves::apply_site_rows(self, rows, Some(halves));
         let Some(l) = self.get_loop_mut(target_loop) else {
             unreachable!(
                 "mekr: `target_loop` proven live by the caller's plan phase (mekr_cycles / mekr_empty_ring / mekr_empty_target / mekr_both_empty)"

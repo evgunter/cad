@@ -172,6 +172,7 @@ pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod joint;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -673,6 +674,7 @@ pub mod transform;
 pub mod validate;
 
 pub use body::Body;
+pub use joint::{Deck, JointElement};
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,

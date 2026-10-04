@@ -60,27 +60,18 @@
 //!   honest `false` from S11's concave/inward constructors, which is
 //!   the whole point: reverting a body with mixed senses must flip
 //!   each of them, not stamp a constant.
-//! - **Loop anchors**: every cycle's `first` moves to the half-edge
-//!   that PRECEDES it in the source — its successor once the cycle
-//!   runs the other way. The anchor is load-bearing on a minted
-//!   periodic chart ([`crate::entity::LoopBoundary::Cycle`]'s `first`
-//!   states the invariant: the one-branch walk can report a period
-//!   wrap only at the joint before `first`), and a reversal that kept
-//!   `first` would put that joint right after it — mid-chain, where
-//!   tier 3's stored-row continuity pass reports a
-//!   `LoopDiscontinuity`. Moved to the source predecessor, the same
-//!   joint is the closure again. No row is touched: a row is a
-//!   function of the carrier parameter, and a reversal does not touch
-//!   it. One rule for every loop — a plane loop has no period, so its
-//!   move is a no-op in meaning, and there is nothing a second rule
-//!   would protect. `prev` and `next` swap under the map, so the moved
-//!   anchor's `prev` in the result is its `next` in the source — the
-//!   anchor it came from — and the move is an exact involution with
-//!   nothing arithmetic in it.
-//! - Loops' membership, faces, shells, solids, points, every curve not
-//!   described in a plane's chart, provenance, and F9 null records are
-//!   copied unchanged (a re-anchored `Cycle::first` still names a
-//!   member of its cycle; outer/ring designation is a maintained
+//! - **Joint elements** ([`crate::joint`]): the element of the joint
+//!   `p → he` is stored on `he`, and the reversed cycle runs `he → p`,
+//!   so it moves onto `p` — the source predecessor — as its inverse:
+//!   the same deck transformation read from the other side. A row's
+//!   image is a function of the carrier parameter, which a reversal does
+//!   not touch, so every image stays where it is. Inversion is exact
+//!   integer arithmetic and its own inverse, so the involution holds
+//!   bit for bit. No loop's `first` moves: no stored byte depends on
+//!   it.
+//! - Loops' membership and anchors, faces, shells, solids, points,
+//!   every curve not described in a plane's chart, provenance, and F9
+//!   null records are copied unchanged (outer/ring designation is a maintained
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
 //!
@@ -112,18 +103,10 @@
 //! frames; every other description is invariant), every stored
 //! pcurve ROW is still a certified row of its edge (plane rows
 //! re-stated, curved rows untouched), and every loop's one-branch
-//! continuity survives. That last is an argument, not a measurement:
-//! the reversed cycle's joints are the source's joints read from the
-//! other side, so at each joint the stored-row continuity pass
-//! (`crate::pcurves`, `validate_pcurves` pass 3) meters the source's
-//! gap negated, at the lever read off the other side's `v` — and the
-//! two sides' `v` agree within the band that same pass pins the
-//! joint's height gap to. The closure moved with the anchor (the
-//! anchor bullet), so the one joint the forward walk may have left a
-//! period off is the closure still, where the pass does not read it;
-//! and `loop_closes` is symmetric in start and end (its `±τ`
-//! candidates, the sphere twin's `du ∓ π` and the torus's polar wrap
-//! all cover both signs). What the map deliberately does NOT give is
+//! continuity survives: each joint's element is the source's inverted,
+//! which carries the same two image points the other way, and a loop's
+//! winding is the source's inverted, which closes exactly when it does.
+//! What the map deliberately does NOT give is
 //! tier 3: it bounds the complement, so the +V invariant fails
 //! (`NegativeVolume`, pinned by test). That is correct, not a defect:
 //! `revert(B)` is ∖'s transient operand, never an at-rest solid
@@ -143,7 +126,7 @@ use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{HalfEdgeKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 
@@ -189,11 +172,9 @@ use crate::null::CurveGeom;
 pub enum RevertError {
     /// A link the reversal map follows does not resolve, or resolves to
     /// a start or an anchor the reversed body could not keep: a
-    /// half-edge's new start that is not its mate's start, a vertex's
-    /// new `emanating` that would start elsewhere, or a loop's new
-    /// `first` that lies in another loop or is not the old anchor's
-    /// predecessor. Tier-1-invalid input, surfaced typed (D9: never a
-    /// panic); the variant names the link.
+    /// half-edge's new start that is not its mate's start, or a vertex's
+    /// new `emanating` that would start elsewhere. Tier-1-invalid input,
+    /// surfaced typed (D9: never a panic); the variant names the link.
     Corrupt {
         /// Which link.
         link: RevertLink,
@@ -235,31 +216,6 @@ pub enum RevertLink {
         /// The new anchor.
         he: HalfEdgeKey,
     },
-    /// The loop's cycle anchor, or that anchor's `prev`, does not
-    /// resolve.
-    LoopAnchor {
-        /// The loop.
-        r#loop: LoopKey,
-        /// The half-edge key that did not resolve.
-        he: HalfEdgeKey,
-    },
-    /// `he`, the `prev` of the loop's cycle anchor and so its anchor
-    /// once reversed, lies in another loop.
-    LoopMember {
-        /// The loop.
-        r#loop: LoopKey,
-        /// The new anchor.
-        he: HalfEdgeKey,
-    },
-    /// `he`, the `prev` of the loop's cycle anchor and so its anchor
-    /// once reversed, is not the anchor's predecessor: its `next` is
-    /// another half-edge.
-    LoopPredecessor {
-        /// The loop.
-        r#loop: LoopKey,
-        /// The new anchor.
-        he: HalfEdgeKey,
-    },
 }
 
 impl fmt::Display for RevertError {
@@ -277,19 +233,6 @@ impl fmt::Display for RevertError {
                 f,
                 "vertex {vertex:?}'s new anchor {he:?} (its emanating half-edge's mate) \
                  would not start at it"
-            ),
-            RevertLink::LoopAnchor { r#loop, he } => write!(
-                f,
-                "loop {loop:?}'s anchor half-edge {he:?} (or its `prev`) does not resolve"
-            ),
-            RevertLink::LoopMember { r#loop, he } => write!(
-                f,
-                "loop {loop:?}'s new anchor {he:?} (its anchor's `prev`) lies in another loop"
-            ),
-            RevertLink::LoopPredecessor { r#loop, he } => write!(
-                f,
-                "loop {loop:?}'s new anchor {he:?} (its anchor's `prev`) is not the anchor's \
-                 predecessor"
             ),
         }?;
         write!(f, " (malformed body)")
@@ -316,11 +259,7 @@ impl<T: Real> Body<T> {
     ///    start (`Start`);
     /// 2. per vertex with an anchor: its `emanating` has a mate (`Mate`),
     ///    and that mate, its anchor once reversed, ends at the vertex, so
-    ///    starts there once reversed (`Emanating`);
-    /// 3. per cycle loop: its `first` and that half-edge's `prev` resolve
-    ///    (`LoopAnchor`), and that `prev`, its anchor once reversed,
-    ///    claims the loop (`LoopMember`) and has `first` as its `next`
-    ///    (`LoopPredecessor`).
+    ///    starts there once reversed (`Emanating`).
     pub fn revert(&self) -> Result<Self, RevertError> {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
@@ -373,39 +312,16 @@ impl<T: Real> Body<T> {
                 new_anchors.push((vertex_key, mate));
             }
         }
-        // Every cycle's anchor (module docs): `first` moves to its
-        // SOURCE predecessor, read here before `next` and `prev` swap.
-        let mut new_firsts = Vec::new();
-        for (loop_key, lp) in self.loops.iter() {
-            let LoopBoundary::Cycle { first } = lp.boundary else {
-                continue;
-            };
-            let anchor = |he| RevertError::Corrupt {
-                link: RevertLink::LoopAnchor {
-                    r#loop: loop_key,
-                    he,
-                },
-            };
-            let prev = self.get_half_edge(first).ok_or(anchor(first))?.prev;
-            let before = self.get_half_edge(prev).ok_or(anchor(prev))?;
-            if before.parent_loop != loop_key {
-                return Err(RevertError::Corrupt {
-                    link: RevertLink::LoopMember {
-                        r#loop: loop_key,
-                        he: prev,
-                    },
-                });
-            }
-            if before.next != first {
-                return Err(RevertError::Corrupt {
-                    link: RevertLink::LoopPredecessor {
-                        r#loop: loop_key,
-                        he: prev,
-                    },
-                });
-            }
-            new_firsts.push((loop_key, prev));
-        }
+        // Every joint element moves onto its source predecessor,
+        // inverted (module docs): the element on `next(he)` is the one of
+        // the joint `he → next(he)`, which the reversed cycle runs
+        // `next(he) → he`. Read here, before `next` and `prev` swap; every
+        // `next` resolves (the first pass proved it).
+        let new_joints: Vec<(HalfEdgeKey, Option<crate::JointElement>)> = self
+            .half_edges
+            .iter()
+            .map(|(he_key, he)| (he_key, self.joint(he.next).map(crate::JointElement::inverse)))
+            .collect();
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
@@ -432,11 +348,9 @@ impl<T: Real> Body<T> {
             };
             vertex.emanating = Some(anchor);
         }
-        for (loop_key, first) in new_firsts {
-            let Some(lp) = out.get_loop_mut(loop_key) else {
-                unreachable!("revert: `loop_key` was iterated out of the arena `out` clones")
-            };
-            lp.boundary = LoopBoundary::Cycle { first };
+        out.joints.clear();
+        for (he_key, element) in new_joints {
+            out.write_joint(he_key, element);
         }
         for (_, surface) in out.surfaces.iter_mut() {
             if let Surface::Plane { normal, .. } = surface {
@@ -566,62 +480,36 @@ mod tests {
         );
     }
 
-    /// **Every loop's anchor moves to its source predecessor.**
-    /// `declined_cube`'s faces all share the `mvfs` placeholder surface
-    /// (not a plane), and a one-face body whose face is a plane
-    /// carries a two-half-edge cycle: in both the reverted `first` is
-    /// the source's `prev(first)`, which — `next` and `prev` having
-    /// swapped — is the source anchor's successor in the reversed
-    /// cycle, so the source's anchor is now the cycle's last
-    /// half-edge and the second reversal lands back on it bit for
-    /// bit. One rule, no surface-kind partition (module docs, the
-    /// anchor bullet). Neither fixture stores a pcurve row, so this
-    /// row pins the structural move and the involution alone; the
-    /// wrap the move exists for is measured in `sweep`'s
-    /// `revert_periodic_wrap`.
+    /// **Every loop keeps its anchor.** `declined_cube`'s faces all
+    /// share the `mvfs` placeholder surface (not a plane), and a one-face
+    /// body whose face is a plane carries a two-half-edge cycle: in both
+    /// every reverted `first` is the source's, and the involution is
+    /// bitwise. No stored byte depends on `first` (module docs), so one
+    /// rule holds for every loop.
     #[test]
-    fn revert_re_anchors_every_loop_at_the_source_predecessor() {
-        use crate::LoopBoundary;
-        let assert_moved = |body: &crate::Body<f64>, reverted: &crate::Body<f64>| {
-            let mut moved = 0;
+    fn revert_keeps_every_loops_anchor() {
+        let assert_kept = |body: &crate::Body<f64>, reverted: &crate::Body<f64>| {
+            let mut kept = 0;
             for (lk, lp) in body.loops() {
-                let LoopBoundary::Cycle { first } = lp.boundary else {
-                    panic!("every loop here is a cycle")
-                };
-                let LoopBoundary::Cycle { first: after } = reverted.get_loop(lk).unwrap().boundary
-                else {
-                    panic!("a cycle stays a cycle")
-                };
                 assert_eq!(
-                    after,
-                    body.get_half_edge(first).unwrap().prev,
-                    "the reverted anchor is the source's predecessor"
+                    reverted.get_loop(lk).unwrap().boundary,
+                    lp.boundary,
+                    "the anchor stays"
                 );
-                assert_eq!(
-                    reverted.get_half_edge(first).unwrap().next,
-                    after,
-                    "which is the source anchor's successor in the reversed cycle"
-                );
-                assert_eq!(
-                    reverted.get_half_edge(after).unwrap().prev,
-                    first,
-                    "so the source's anchor closes the reversed cycle"
-                );
-                assert_ne!(after, first, "the cycle has more than one half-edge");
-                moved += 1;
+                kept += 1;
             }
             assert_eq!(
                 format!("{:?}", reverted.revert().unwrap()),
                 format!("{body:?}"),
                 "bitwise involution"
             );
-            moved
+            kept
         };
         let cube = declined_cube::<f64>(Tol::witness());
-        assert_eq!(assert_moved(&cube.body, &cube.body.revert().unwrap()), 6);
+        assert_eq!(assert_kept(&cube.body, &cube.body.revert().unwrap()), 6);
 
         let plane = lone_plane_face();
-        assert_eq!(assert_moved(&plane, &plane.revert().unwrap()), 1);
+        assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge
@@ -656,65 +544,16 @@ mod tests {
         plane
     }
 
-    /// **The anchor read resolves the link it follows.** The
-    /// precondition phase reads each cycle's `prev(first)` and pushes
-    /// it as the new anchor; a `prev` naming a dead key is tier-1
-    /// corruption, and the door refuses it typed — naming the loop and
-    /// the key — rather than returning an `Ok` body whose anchor names
-    /// no half-edge (which only the debug postcondition would catch,
-    /// and a release build not at all). A dead anchor itself is
-    /// refused the same way.
-    #[test]
-    fn revert_refuses_a_dangling_anchor_prev_typed() {
-        use crate::{HalfEdgeKey, LoopBoundary};
-        let cube = declined_cube::<f64>(Tol::witness());
-        let (lk, first) = cube
-            .body
-            .loops()
-            .find_map(|(lk, lp)| match lp.boundary {
-                LoopBoundary::Cycle { first } => Some((lk, first)),
-                LoopBoundary::Empty { .. } => None,
-            })
-            .unwrap();
-        let dead = HalfEdgeKey::default();
-
-        let mut body = cube.body.clone();
-        body.get_half_edge_mut(first).unwrap().prev = dead;
-        assert_eq!(
-            body.revert().err(),
-            Some(RevertError::Corrupt {
-                link: RevertLink::LoopAnchor {
-                    r#loop: lk,
-                    he: dead
-                }
-            }),
-            "a dangling `prev` on the anchor refuses typed, naming the dead key"
-        );
-
-        let mut body = cube.body.clone();
-        body.get_loop_mut(lk).unwrap().boundary = LoopBoundary::Cycle { first: dead };
-        assert_eq!(
-            body.revert().err(),
-            Some(RevertError::Corrupt {
-                link: RevertLink::LoopAnchor {
-                    r#loop: lk,
-                    he: dead
-                }
-            }),
-            "a dead anchor refuses typed, naming the loop"
-        );
-    }
-
     /// **Each refusal cause, typed.** One tear of `declined_cube` per
     /// cause, placed where no earlier check in `revert`'s order fires:
     /// the refusal names the link, and its `Display` names the keys.
-    /// `LoopAnchor` is the row above. A tear that faults two
+    /// A tear that faults two
     /// half-edges of the first pass is refused at whichever comes
     /// first in arena order. In a debug build a refusal that came
     /// after the build would panic at its tier-1 postcondition first.
     #[test]
     fn revert_refuses_each_corrupt_link_typed() {
-        use crate::{EdgeKey, HalfEdgeKey, LoopBoundary};
+        use crate::{EdgeKey, HalfEdgeKey};
         let cube = declined_cube::<f64>(Tol::witness());
         let body = &cube.body;
         let dead = HalfEdgeKey::default();
@@ -737,19 +576,6 @@ mod tests {
             .map(|(k, _)| k)
             .find(|&k| body.vertices().all(|(_, x)| x.emanating != Some(k)))
             .unwrap();
-        let (lk, first) = body
-            .loops()
-            .find_map(|(lk, lp)| match lp.boundary {
-                LoopBoundary::Cycle { first } => Some((lk, first)),
-                LoopBoundary::Empty { .. } => None,
-            })
-            .unwrap();
-        let elsewhere = body
-            .half_edges()
-            .find(|(_, h)| h.parent_loop != lk)
-            .map(|(k, _)| k)
-            .unwrap();
-        let inside = body.get_half_edge(first).unwrap().next;
         let torn = |tear: &dyn Fn(&mut crate::Body<f64>)| {
             let mut torn = body.clone();
             tear(&mut torn);
@@ -813,22 +639,6 @@ mod tests {
                     he: body.mate(foreign).unwrap(),
                 },
             ),
-            (
-                "a foreign `prev` at the loop anchor",
-                torn(&|b| b.get_half_edge_mut(first).unwrap().prev = elsewhere),
-                RevertLink::LoopMember {
-                    r#loop: lk,
-                    he: elsewhere,
-                },
-            ),
-            (
-                "a `prev` at the loop anchor naming another member",
-                torn(&|b| b.get_half_edge_mut(first).unwrap().prev = inside),
-                RevertLink::LoopPredecessor {
-                    r#loop: lk,
-                    he: inside,
-                },
-            ),
         ];
         for (cause, torn, link) in rows {
             let err = torn.revert().expect_err(cause);
@@ -839,11 +649,6 @@ mod tests {
                 RevertLink::Start { he, mate } => vec![format!("{he:?}"), format!("{mate:?}")],
                 RevertLink::Emanating { vertex, he } => {
                     vec![format!("{vertex:?}"), format!("{he:?}")]
-                }
-                RevertLink::LoopAnchor { r#loop, he }
-                | RevertLink::LoopMember { r#loop, he }
-                | RevertLink::LoopPredecessor { r#loop, he } => {
-                    vec![format!("{loop:?}"), format!("{he:?}")]
                 }
             };
             for key in keys {

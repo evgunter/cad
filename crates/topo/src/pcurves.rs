@@ -331,7 +331,7 @@
 use geom::Surface;
 use geom_brep::{
     BranchMiss, ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
-    whole_periods,
+    whole_period_count,
 };
 use geom_core::Tol;
 use geom_core::k_stats::decide;
@@ -341,6 +341,7 @@ use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, LoopKey};
+use crate::joint::{Deck, JointElement, Winding};
 use crate::live::{dangling_link, linked, proven};
 use crate::props::AtRestPolicy;
 
@@ -1817,7 +1818,7 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// shift); a fitted image (a sphere's general circle) translates its
 /// control net. Other variants answer themselves unchanged — the walk
 /// never computes a nonzero shift for them.
-fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
+pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
     match pcurve {
         Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
             p0: geom_core::Point2::new(p0.x, p0.y + k * period),
@@ -1856,7 +1857,7 @@ fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T>
 /// OTHER one on the far side — a π azimuth step no whole-period shift
 /// can produce. The torus has no such twin (R > 0 breaks the
 /// symmetry), and neither does the cone (cos α > 0).
-fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
+pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
     if !matches!(surface, Surface::Sphere { .. }) {
         return None;
     }
@@ -1880,79 +1881,18 @@ fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pc
     })
 }
 
-/// The loop-closure test of a chart walk: does `end` denote the same
-/// chart point as `start`, up to the chart's legitimate wraps?
-///
-/// - Every periodic chart may wrap the azimuth by one whole period
-///   (the seam case).
-/// - Where the second channel is an angle (sphere/torus) it may wrap
-///   by one whole period too (a torus annulus's meridian walk).
-/// - The SPHERE additionally closes through its involution
-///   (`sphere_twin`): a pole-crossing loop's walk legitimately ends on
-///   the twin representation of its start — azimuth off by π (mod τ)
-///   with the polar channel mirrored (`end.y + start.y ≡ π mod τ`).
-///
-/// All margins metered in metres through the channel's lever arm; the
-/// azimuth gap through the LOCAL arm at the meeting point
-/// ([`chart_u_arm`] — zero at a pole, where azimuth means nothing).
-fn loop_closes<T: Decide>(
-    chart: DescribedChart<'_, T>,
-    start: geom_core::Point2<T>,
-    end: geom_core::Point2<T>,
-    u_period: Option<T>,
-    band: Band,
-) -> bool {
-    let surface = chart.surface();
-    let arm = chart_u_arm(chart, start.y);
-    // A chart that does not wrap offers no period, and `wraps` below
-    // degenerates to the exact-closure test (`m ± 0`).
-    let tau = u_period.unwrap_or_else(T::zero);
-    let zero = |name: &'static str, m: Margin<T>| matches!(decide(name, m, band), Ok(Sign::Zero));
-    let wraps = |m: T, a: ChartArm<T>, name: &'static str| {
-        [m, m - tau, m + tau]
-            .into_iter()
-            .any(|c| zero(name, a.meter(c)))
-    };
-    let du = end.x - start.x;
-    let dv = end.y - start.y;
-    let direct = match polar_arm(surface) {
-        None => {
-            wraps(du, arm, "pcurve_loop_closure")
-                && zero("pcurve_loop_closure_height", Margin::of(dv))
-        }
-        // A polar `v` arm is metres per RADIAN, like an azimuth arm
-        // and unlike a spline chart's `v` rate ([`v_meter`]).
-        Some(v_arm) => {
-            wraps(du, arm, "pcurve_loop_closure")
-                && wraps(dv, ChartArm::Angular(v_arm), "pcurve_loop_closure_height")
-        }
-    };
-    if direct {
-        return true;
-    }
-    // The sphere involution arm (the azimuth gap still metered at the
-    // local arm — a pole-closing walk has no azimuth obligation).
-    let (Surface::Sphere { radius, .. }, false) = (surface, direct) else {
-        return false;
-    };
-    let pi = T::pi();
-    let mirrored_u = [du - pi, du + pi]
-        .into_iter()
-        .any(|m| wraps(m, arm, "pcurve_loop_closure"));
-    let sv = end.y + start.y - pi;
-    mirrored_u && wraps(sv, ChartArm::Angular(*radius), "pcurve_loop_closure_height")
-}
-
 /// One half-edge's minted chart curve, before certification: the
-/// branch-pinned image, its carrier and the carrier interval, keyed on
-/// whatever the walk names its half-edges by — a [`HalfEdgeKey`] in the
-/// pass, a [`SiteHalf`] in an Euler operator's plan.
+/// image, its carrier and the carrier interval, and the element of the
+/// joint into it, keyed on whatever the walk names its half-edges by — a
+/// [`HalfEdgeKey`] in the pass, a [`SiteHalf`] in an Euler operator's
+/// plan.
 pub(crate) struct Walked<T: Real, K = HalfEdgeKey> {
     key: K,
     carrier: geom::Curve3<T>,
     pcurve: Pcurve<T>,
     t0: T,
     t1: T,
+    element: Option<JointElement>,
 }
 
 /// The hull of `boxes`, `None` when there are none. The one fold every
@@ -1986,12 +1926,14 @@ pub(crate) struct StoredRows<T: Real> {
     /// has not been minted.
     pub(crate) window: Option<ChartWindow<T>>,
     /// The gaps in the row set, in walk order: each half-edge of a
-    /// loop with no row.
+    /// loop with no row — no image, or no element on the joint into it
+    /// from a predecessor that stores one.
     pub(crate) gaps: Vec<RowGap>,
 }
 
 /// One gap in a face's row set ([`StoredRows::gaps`]): a half-edge
-/// that stores no row.
+/// that stores no image, or no element on the joint into it from a
+/// predecessor that stores one.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RowGap {
     /// The half-edge.
@@ -2122,6 +2064,132 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
     }
 }
 
+/// One half-edge of a loop's lift ([`loop_lift`]).
+#[derive(Clone, Debug)]
+pub struct LiftedRow<'a, T: Real> {
+    /// The half-edge.
+    pub half_edge: HalfEdgeKey,
+    /// Its stored row: the edge's image in the face's chart, with its
+    /// interval and certificate.
+    pub row: &'a PcurveCache<T>,
+    /// The deck transformation the lift moves the image by: the joint
+    /// elements summed along the loop ([`lift_decks`]).
+    pub lift: Deck,
+    /// The image moved by `lift`: the chart curve the loop's chain
+    /// draws on this half-edge.
+    pub pcurve: Pcurve<T>,
+}
+
+/// Why a loop has no lift ([`loop_lift`]): the first half-edge, in
+/// cycle order from the loop's `first`, that stores no image or no
+/// element on the joint into it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LiftGap {
+    /// The half-edge.
+    pub half_edge: HalfEdgeKey,
+}
+
+/// **Each member's lift, from the elements of a cycle's joints** —
+/// `elements[i]` the element into member `i`, in cycle order. The
+/// lift composes the elements along the cycle ([`JointElement::follow`]):
+/// from the cycle's first member, at the identity, where no joint is a
+/// reset; and otherwise from the member after the last reset before the
+/// first, at the identity — so the chain the lift draws is continuous
+/// at every joint but a reset, where the first chart channel restarts.
+/// The winding is not the lift's: [`Winding`] reads it off the same
+/// elements.
+pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
+    let n = elements.len();
+    let start = elements.iter().rposition(|e| e.is_reset()).unwrap_or(0);
+    let mut decks = vec![Deck::IDENTITY; n];
+    let mut lift = Deck::IDENTITY;
+    for k in 1..n {
+        let i = (start + k) % n;
+        lift = elements[i].follow(lift);
+        decks[i] = lift;
+    }
+    decks
+}
+
+/// **A loop's lift** — the readers' one accessor for where a loop's
+/// rows sit in its face's chart ([`crate::Body::loop_lift`]): each
+/// half-edge of `r#loop` in cycle order from its `first`
+/// ([`loop_rows`]), its stored image moved by the deck transformation
+/// the elements sum to along the loop ([`lift_decks`]). Consecutive
+/// curves of the chain meet at every joint but a reset (a pole, an
+/// apex), and the loop's winding is the elements' ([`Winding`]): a
+/// wrapping loop's chain ends one period from where it starts.
+///
+/// Where the lift starts is gauge: the chain from another start is the
+/// same chain moved by one deck transformation, and every reader reads
+/// the chain, not its offset.
+///
+/// # Errors
+///
+/// [`LiftGap`] naming the first half-edge, in cycle order, that stores
+/// no image or no element on the joint into it.
+///
+/// # Panics
+///
+/// Where `r#loop`, its face or a member does not resolve, or its walk
+/// does not close on the half-edges that claim it ([`loop_rows`]).
+#[track_caller]
+pub fn loop_lift<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    let cycle = loop_rows(body, r#loop);
+    let face = proven(&body.loops, r#loop, EntityId::Loop).face;
+    let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+    let mut rows = Vec::with_capacity(cycle.len());
+    let mut elements = Vec::with_capacity(cycle.len());
+    for &half_edge in &cycle {
+        let (Some(row), Some(element)) = (body.pcurve(half_edge), body.joint(half_edge)) else {
+            return Err(LiftGap { half_edge });
+        };
+        rows.push(row);
+        elements.push(element);
+    }
+    Ok(cycle
+        .into_iter()
+        .zip(rows)
+        .zip(lift_decks(&elements))
+        .map(|((half_edge, row), lift)| LiftedRow {
+            half_edge,
+            row,
+            lift,
+            pcurve: lift.apply(row.pcurve(), surface),
+        })
+        .collect())
+}
+
+/// [`loop_lift`] for a reader that walks `halves` — members of one
+/// loop, in the reader's own order: each one's lifted image, or `None`
+/// for every one where that loop has no lift (a member stores no image,
+/// or no element on the joint into it). Empty for no halves.
+///
+/// # Panics
+///
+/// [`loop_lift`]'s, and where the first half does not resolve.
+#[track_caller]
+pub(crate) fn lifted_images<T: Decide>(
+    body: &Body<T>,
+    halves: &[HalfEdgeKey],
+) -> Vec<Option<Pcurve<T>>> {
+    let Some(&first) = halves.first() else {
+        return Vec::new();
+    };
+    let r#loop = proven(&body.half_edges, first, EntityId::HalfEdge).parent_loop;
+    let Ok(lift) = loop_lift(body, r#loop) else {
+        return vec![None; halves.len()];
+    };
+    let mut by_half: slotmap::SecondaryMap<HalfEdgeKey, Pcurve<T>> = slotmap::SecondaryMap::new();
+    for row in lift {
+        by_half.insert(row.half_edge, row.pcurve);
+    }
+    halves.iter().map(|&he| by_half.get(he).cloned()).collect()
+}
+
 /// The loops of `face` — a face of the body, an arena member or a key
 /// its door resolved — outer first, each with its cycle
 /// ([`loop_rows`]; empty for a loop whose boundary is a lone vertex).
@@ -2168,16 +2236,22 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: FaceKey) -> StoredRow
     let mut gaps = Vec::new();
     let mut boxes: Vec<ChartWindow<T>> = Vec::new();
     for (lk, cycle) in &loops {
-        for &he in cycle {
-            match body.pcurve(he) {
+        for (i, &he) in cycle.iter().enumerate() {
+            let before = cycle[(i + cycle.len() - 1) % cycle.len()];
+            let gap = match body.pcurve(he) {
                 Some(row) => {
                     let (t0, t1) = row.params();
                     boxes.push(row.pcurve().chart_box(t0, t1));
+                    // A joint between two stored images owes its element.
+                    body.pcurve(before).is_some() && body.joint(he).is_none()
                 }
-                None => gaps.push(RowGap {
+                None => true,
+            };
+            if gap {
+                gaps.push(RowGap {
                     half_edge: he,
                     r#loop: *lk,
-                }),
+                });
             }
         }
     }
@@ -2197,6 +2271,10 @@ pub(crate) struct CarriedRows<T: Real> {
     pub(crate) parent_half: PcurveCache<T>,
     /// The second child's row, for the half-edge minted beside it.
     pub(crate) new_half: PcurveCache<T>,
+    /// The element of the joint between the two children, at the split
+    /// point: the identity, the two children being one image — a reset
+    /// where that point is on the chart's singular set.
+    pub(crate) joint: JointElement,
 }
 
 /// Why [`split_cache`] could not state a restriction: the parent's
@@ -2345,9 +2423,19 @@ pub(crate) fn split_cache<T: Decide>(
             PcurveCache::certify(image, a, b, &carrier, &surface, window, band)
                 .map_err(|error| SplitRowError { half_edge, error })
         };
+        // The children meet at the image's own point at `t`, so the joint
+        // decides no period; it is decided as every joint is, which reads
+        // whether that point has a lever.
+        let joint = DescribedChart::of(&surface)
+            .and_then(|chart| {
+                let at = image.eval(t);
+                decide_joint(chart, &image, t, at, chart_u_period(&surface, band), band).ok()
+            })
+            .unwrap_or(JointElement::IDENTITY);
         rows[slot] = Some(CarriedRows {
             parent_half: certify(t0, t, image.clone())?,
             new_half: certify(t, t1, image)?,
+            joint,
         });
     }
     Ok(rows)
@@ -2383,8 +2471,9 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
     // row whose half-edge is dead is reachable from no face, so the
     // subset entry below clears through the faces it is given.
     body.pcurves.clear();
-    for (he, row) in rows {
-        body.pcurves.insert(he, row);
+    body.joints.clear();
+    for (he, row, element) in rows {
+        body.write_row(he, row, element);
     }
     Ok(())
 }
@@ -2455,12 +2544,10 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
         .flat_map(|&face| face_loop_cycles(body, face))
         .flat_map(|(_, cycle)| cycle)
         .collect();
-    for he in cleared {
-        body.pcurves.remove(he);
-    }
+    body.drop_rows(cleared);
     let before = body.pcurves.len();
-    for (he, row) in rows {
-        body.pcurves.insert(he, row);
+    for (he, row, element) in rows {
+        body.write_row(he, row, element);
     }
     Ok(body.pcurves.len() - before)
 }
@@ -2572,7 +2659,7 @@ fn carry_rows<T: AtRestPolicy>(
             half_edge: he,
             error,
         })?;
-        carried.push((he, restated));
+        carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
 }
@@ -2741,8 +2828,10 @@ fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError
     })
 }
 
-/// The rows [`certify_walked`] certified, in walk order.
-type Certified<T, K> = Vec<(K, PcurveCache<T>)>;
+/// The rows [`certify_walked`] certified, in walk order: each image's
+/// certified row, with the element of the joint into it where the walk
+/// decided one.
+type Certified<T, K> = Vec<(K, PcurveCache<T>, Option<JointElement>)>;
 
 /// A fitted-grade certifier for a `Fitted` or `General` image
 /// ([`certify_walked`]).
@@ -2806,7 +2895,7 @@ fn certify_walked<T: Decide, K: Copy>(
             ),
         };
         match cache {
-            Ok(cache) => rows.push((w.key, cache)),
+            Ok(cache) => rows.push((w.key, cache, w.element)),
             Err(error) => refused.push((w.key, error)),
         }
     }
@@ -3249,12 +3338,13 @@ pub(crate) fn site_rows<T: Decide>(
             return Ok(SiteRows::Clear(every_half()));
         };
         walked.extend(halves.iter().zip(carriers).zip(pinned).map(
-            |((&key, carrier), (pcurve, t0, t1))| Walked {
+            |((&key, carrier), (pcurve, t0, t1, element))| Walked {
                 key,
                 carrier,
                 pcurve,
                 t0,
                 t1,
+                element,
             },
         ));
     }
@@ -3287,8 +3377,8 @@ pub(crate) fn apply_site_rows<T: Decide>(
         match plan {
             SiteRows::Leave => {}
             SiteRows::Mint(rows) => {
-                for (at, cache) in rows {
-                    body.pcurves.insert(key(at), cache);
+                for (at, cache, element) in rows {
+                    body.write_row(key(at), cache, element);
                 }
             }
             SiteRows::Clear(halves) => body.drop_rows(halves.into_iter().map(key)),
@@ -3354,12 +3444,13 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
         WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
     })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
-        |((&key, carrier), (pcurve, t0, t1))| Walked {
+        |((&key, carrier), (pcurve, t0, t1, element))| Walked {
             key,
             carrier,
             pcurve,
             t0,
             t1,
+            element,
         },
     ));
     Ok(())
@@ -3420,12 +3511,13 @@ fn walk_runs<T: AtRestPolicy>(
         };
         match walk_cycle(chart, keys.len(), item, band, false) {
             Ok(pinned) => out.extend(keys.iter().zip(carriers).zip(pinned).map(
-                |((&key, carrier), (pcurve, t0, t1))| Walked {
+                |((&key, carrier), (pcurve, t0, t1, element))| Walked {
                     key,
                     carrier,
                     pcurve,
                     t0,
                     t1,
+                    element,
                 },
             )),
             Err(WalkFail::Miss {
@@ -3492,11 +3584,12 @@ pub(crate) struct WalkItem<T: Real> {
     plus: bool,
 }
 
-/// One image [`walk_cycle`] placed: the branch-pinned chart curve with
-/// its carrier interval.
-type Pinned<T> = (Pcurve<T>, T, T);
+/// One image [`walk_cycle`] placed: the image with its carrier
+/// interval, and the element of the joint into it — `None` only for the
+/// first item of an open run, which joins nothing.
+type Pinned<T> = (Pcurve<T>, T, T, Option<JointElement>);
 
-/// Why [`pin_branch`] placed no representation of an image.
+/// Why [`decide_joint`] decided no element.
 pub(crate) enum PinMiss {
     /// No representation meets the predecessor's exit on any branch.
     Discontinuity,
@@ -3515,25 +3608,32 @@ pub(crate) enum WalkFail<E> {
     /// The caller's item producer refused (a derivation that refused,
     /// or a half with no carrier).
     Item(E),
-    /// The branch pin placed item `index` nowhere.
+    /// No element joins item `index` to the item before it.
     Miss {
         /// The cycle position of the item.
         index: usize,
         /// Why.
         miss: PinMiss,
     },
-    /// The walk did not return to its start (module docs: exactly, or
-    /// by one whole period).
+    /// The loop does not close: no element joins its first item to its
+    /// last, or the elements compose to a winding no loop has
+    /// ([`Winding::closes`]).
     NotClosed,
 }
 
 /// **The one-branch walk, stated under `Decide`.** Walks `len` items in
 /// cycle order, asking `item` for each in turn (so an item's refusal
-/// is reported in cycle order, before any later item is read), pins
-/// each image's entry to its predecessor's exit ([`pin_branch`]), and
-/// checks the closure ([`loop_closes`]) when `closes` — an open run of
-/// a loop ([`walk_runs`]) has no closure to check. Returns each item's
-/// pinned image with its interval.
+/// is reported in cycle order, before any later item is read), decides
+/// the element of each joint between consecutive images
+/// ([`decide_joint`]), and — when `closes` — the closure joint into the
+/// first item and the loop's winding ([`Winding::closes`]); an open run
+/// of a loop ([`walk_runs`]) has no closure. Returns each item's image
+/// with its interval and the element into it.
+///
+/// Every joint is decided between two IMAGES, each a function of its
+/// edge and the chart, so no element depends on where the walk starts:
+/// the closure joint is decided exactly as every other, and the winding
+/// is read off conjugation invariants.
 ///
 /// This is the whole of the minting walk except the derivation, and
 /// none of it needs the fitted lane: both of its callers —
@@ -3550,118 +3650,107 @@ fn walk_cycle<T: Decide, E>(
     // azimuth chart, the knot-domain length on a NURBS chart closed in
     // u, and NO shift at all on a chart that does not wrap.
     let u_period = chart_u_period(chart.surface(), band);
-    // The walk's running exit point, in chart coordinates.
+    // The exit of the previous item's image, in chart coordinates, and
+    // the first item's entry parameter, for the closure joint.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
-    let mut first_entry: Option<geom_core::Point2<T>> = None;
-    let mut out = Vec::with_capacity(len);
+    let mut first_entry_t: Option<T> = None;
+    let mut out: Vec<Pinned<T>> = Vec::with_capacity(len);
     for index in 0..len {
         let WalkItem { base, t0, t1, plus } = item(index).map_err(WalkFail::Item)?;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
-        let pcurve = match prev_exit {
-            None => base,
-            Some(prev) => pin_branch(chart, base, entry_t, prev, u_period, band)
-                .map_err(|miss| WalkFail::Miss { index, miss })?,
+        let element = match prev_exit {
+            None => None,
+            Some(prev) => Some(
+                decide_joint(chart, &base, entry_t, prev, u_period, band)
+                    .map_err(|miss| WalkFail::Miss { index, miss })?,
+            ),
         };
-        let entry = pcurve.eval(entry_t);
-        if first_entry.is_none() {
-            first_entry = Some(entry);
-        }
-        prev_exit = Some(pcurve.eval(exit_t));
-        out.push((pcurve, t0, t1));
+        first_entry_t.get_or_insert(entry_t);
+        prev_exit = Some(base.eval(exit_t));
+        out.push((base, t0, t1, element));
     }
-    // Closure: the walk returns to its start, either exactly (an
-    // ordinary loop) or one full period around the chart (a loop that
-    // wraps the periodic chart — the seam case, where the seam edge's
-    // two half-edges take the two branches).
-    if closes
-        && let (Some(start), Some(end)) = (first_entry, prev_exit)
-        && !loop_closes(chart, start, end, u_period, band)
-    {
-        return Err(WalkFail::NotClosed);
+    if closes && let (Some(prev), Some(entry_t)) = (prev_exit, first_entry_t) {
+        // The closure joint: the first image's entry carried onto the
+        // last image's exit, decided exactly as every other joint.
+        let closure = decide_joint(chart, &out[0].0, entry_t, prev, u_period, band)
+            .map_err(|_| WalkFail::NotClosed)?;
+        out[0].3 = Some(closure);
+        if !Winding::of(out.iter().filter_map(|pinned| pinned.3)).closes() {
+            return Err(WalkFail::NotClosed);
+        }
     }
     Ok(out)
 }
 
-/// The ONE branch decision of one half-edge: the representation (the
-/// derivation's own or, on a sphere chart, its involution twin —
-/// `sphere_twin`) and the whole number of periods per angular channel
-/// that land its entry on the predecessor's exit `prev`. Exact by
-/// construction — the two chart points denote the SAME vertex — and
-/// CHECKED here, so a body where no representation is exact refuses
-/// rather than snapping to the nearest branch. Candidate order (base
-/// first) is fixed: D9.
-fn pin_branch<T: Decide>(
+/// **The ONE decision of one joint**: the element ([`JointElement`])
+/// that carries `image`'s entry (at `entry_t`) onto `prev`, the exit of
+/// the image before it. The representation is the image's own or, on a
+/// sphere chart, its involution twin (`sphere_twin`), and the whole
+/// number of periods per angular channel is read off the gap
+/// ([`geom_brep::whole_period_count`]). Exact by construction — the two
+/// chart points denote the SAME vertex — and CHECKED here, so a joint
+/// where no representation is exact refuses rather than snapping to the
+/// nearest branch. Candidate order (the image first) is fixed: D9.
+///
+/// Both points are images' — a function of their edges and the chart —
+/// so the element is too, and a joint reads the same from every walk
+/// of its loop.
+fn decide_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
-    base: Pcurve<T>,
+    image: &Pcurve<T>,
     entry_t: T,
     prev: geom_core::Point2<T>,
     u_period: Option<T>,
     band: Band,
-) -> Result<Pcurve<T>, PinMiss> {
+) -> Result<JointElement, PinMiss> {
     let tau = T::tau();
     // Gap metering: azimuth through the chart's lever arm; the
     // second channel directly where it is a length, through the
     // polar arm where it is an angle (sphere/torus, M6-3).
     let v_arm = polar_arm(chart.surface());
-    let v_meter = v_meter(chart);
-    let twin = sphere_twin(chart.surface(), &base);
-    // A WRONG candidate's escalation is not the loop's
-    // verdict: the base representation of a pole-crossing
-    // sphere pcurve sits π off, which puts its gap EXACTLY
-    // on a half-period mark of the branch decision
-    // (`whole_periods`), so no branch is decided for it.
-    // The twin still fits exactly.
-    // So escalations are DEFERRED per candidate and
-    // surfaced (first one, deterministically) only when
-    // no candidate fits — single-candidate charts keep
-    // their old escalate-immediately behavior through
-    // exactly that arm.
+    let twin = sphere_twin(chart.surface(), image);
+    // A WRONG candidate's escalation is not the joint's verdict: the
+    // image of a pole-crossing sphere edge sits π off its twin, which
+    // puts its gap EXACTLY on a half-period mark of the branch decision
+    // (`whole_period_count`), so no branch is decided for it, and the
+    // twin still fits exactly. So escalations are DEFERRED per
+    // candidate and surfaced (first one, deterministically) only when no
+    // candidate fits — single-candidate charts keep their
+    // escalate-immediately behavior through exactly that arm.
     let mut deferred: Option<Indeterminate> = None;
     let mut out_of_reach = false;
-    let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
-    for cand in candidates {
-        let raw = cand.eval(entry_t);
-        // An AZIMUTH-FREE joint (a pole / the apex / a
-        // spline chart whose whole u stretch sits under
-        // the band: the lever is zero in metres) has no
-        // branch to pick — every azimuth agrees there, and
-        // the gap need not be near a whole period at all, so
-        // the branch decision below could sit on a
-        // half-period mark. Skip the shift; downstream joints
-        // anchor their own branches.
-        //
-        // **The in-band arm takes the same skip, and this
-        // is the argument for it — which is NOT that a
-        // sub-tolerance lever is harmless.** An escalated
-        // arm means the lever's own size is undecided, so
-        // whether a period shift is even meaningful is
-        // undecided with it, and deciding a branch through an
-        // undecided lever would MANUFACTURE a branch choice
-        // from a measurement that refused. Skipping keeps the
-        // decision unmade. What makes that safe is not the
-        // skip: it is that the continuity margins below run
-        // unconditionally on the unshifted candidate and are
-        // metred by the same arm, so a joint that genuinely
-        // needed the shift fails them and the loop refuses
-        // or escalates rather than certifying. The skip
-        // defers; the margins decide.
-        let joint_arm = chart_u_arm(chart, prev.y);
-        let ku = match decide(
+    let joint_arm = chart_u_arm(chart, prev.y);
+    // An AZIMUTH-FREE joint (a pole, the apex, a spline chart whose
+    // whole u stretch sits under the band: the lever is zero in metres)
+    // has no first-channel branch to pick — every azimuth agrees there,
+    // and the gap need not be near a whole period at all. Its element
+    // is the reset marker, which carries the decided rest of the
+    // element (`crate::joint`). An escalated lever takes the same arm:
+    // its own size is undecided, so whether a period shift means
+    // anything is undecided with it, and deciding one through it would
+    // manufacture a branch from a measurement that refused. The
+    // continuity margins below run on the unshifted candidate, metred
+    // by the same arm, so a joint that needed a shift still fails them.
+    let reset = !matches!(
+        decide(
             "pcurve_loop_pole_joint",
             Margin::of(joint_arm.magnitude()),
             band,
-        ) {
-            Ok(Sign::Zero) | Err(_) => Ok(T::zero()),
-            Ok(Sign::Positive | Sign::Negative) => match u_period {
-                Some(p) => whole_periods(
-                    "pcurve_loop_branch",
-                    prev.x - raw.x,
-                    p,
-                    |gap| joint_arm.meter(gap),
-                    band,
-                ),
-                None => Ok(T::zero()),
-            },
+        ),
+        Ok(Sign::Positive | Sign::Negative)
+    );
+    let candidates = core::iter::once((image.clone(), false)).chain(twin.map(|t| (t, true)));
+    for (cand, is_twin) in candidates {
+        let raw = cand.eval(entry_t);
+        let ku = match (reset, u_period) {
+            (true, _) | (false, None) => Ok(0),
+            (false, Some(p)) => whole_period_count(
+                "pcurve_loop_branch",
+                prev.x - raw.x,
+                p,
+                |gap| joint_arm.meter(gap),
+                band,
+            ),
         };
         let ku = match ku {
             Ok(k) => k,
@@ -3670,43 +3759,48 @@ fn pin_branch<T: Decide>(
                 continue;
             }
         };
-        let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
+        let mut shifted = cand.shift_branch(
+            T::from_f64(f64::from(ku)),
+            u_period.unwrap_or_else(T::zero),
+        );
+        let mut kv = 0;
         if let Some(polar) = v_arm {
             let ry = shifted.eval(entry_t).y;
-            match whole_periods(
+            match whole_period_count(
                 "pcurve_loop_branch",
                 prev.y - ry,
                 tau,
                 |gap| Margin::levered(gap, polar),
                 band,
             ) {
-                Ok(kv) => shifted = shift_polar_branch(&shifted, kv, tau),
+                Ok(k) => {
+                    kv = k;
+                    shifted = shift_polar_branch(&shifted, T::from_f64(f64::from(k)), tau);
+                }
                 Err(miss) => {
                     defer(miss, &mut deferred, &mut out_of_reach);
                     continue;
                 }
             }
         }
-        let entry = shifted.eval(entry_t);
-        let arm = chart_u_arm(chart, prev.y);
-        let mut fits = true;
-        for margin in [
-            arm.meter(entry.x - prev.x),
-            Margin::metered_sup(entry.y - prev.y, v_meter),
-        ] {
-            match decide("pcurve_loop_continuity", margin, band) {
-                Ok(Sign::Zero) => {}
-                Ok(Sign::Positive | Sign::Negative) => fits = false,
-                Err(cause) => {
-                    fits = false;
-                    if deferred.is_none() {
-                        deferred = Some(cause);
-                    }
-                }
+        let fits = match continuous(chart, shifted.eval(entry_t), prev, band) {
+            Ok(fits) => fits,
+            Err(cause) => {
+                deferred.get_or_insert(cause);
+                false
             }
-        }
+        };
         if fits {
-            return Ok(shifted);
+            let deck = Deck {
+                u: ku,
+                v: kv,
+                twin: is_twin,
+            };
+            return Ok(if reset {
+                JointElement::Reset(deck)
+            } else {
+                JointElement::Shift(deck)
+            });
         }
     }
     Err(match deferred {
@@ -3716,7 +3810,56 @@ fn pin_branch<T: Decide>(
     })
 }
 
-/// A candidate's branch [`pin_branch`] could not decide: an undecided
+/// **Whether `entry` meets `prev`** across a joint: the azimuth gap
+/// metred through the chart's lever arm at `prev` (zero at a pole or an
+/// apex, where any azimuth meets), the second channel through its own
+/// rate. `Err` is the first margin that escalated.
+fn continuous<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    entry: geom_core::Point2<T>,
+    prev: geom_core::Point2<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut fits = true;
+    let mut escalated = None;
+    for margin in [
+        chart_u_arm(chart, prev.y).meter(entry.x - prev.x),
+        Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
+    ] {
+        match decide("pcurve_loop_continuity", margin, band) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => fits = false,
+            Err(cause) => {
+                fits = false;
+                escalated.get_or_insert(cause);
+            }
+        }
+    }
+    match escalated {
+        Some(cause) => Err(cause),
+        None => Ok(fits),
+    }
+}
+
+/// Whether a STORED element carries `image`'s entry onto `prev`
+/// ([`continuous`]) — the reading [`validate_pcurves`] gives an element
+/// other than the one [`decide_joint`] decides there.
+fn element_fits<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    element: JointElement,
+    image: &Pcurve<T>,
+    entry_t: T,
+    prev: geom_core::Point2<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    if element.deck().twin && sphere_twin(chart.surface(), image).is_none() {
+        return Ok(false);
+    }
+    let lifted = element.deck().apply(image, chart.surface());
+    continuous(chart, lifted.eval(entry_t), prev, band)
+}
+
+/// A candidate's branch [`decide_joint`] could not decide: an undecided
 /// mark is the first deferred cause, a gap past
 /// [`geom_brep::MAX_BRANCH_PERIODS`] is remembered by type, and a gap
 /// on a mark is the wrong candidate (a sphere's base image, π off its
@@ -3929,6 +4072,18 @@ pub fn chart_boundary<T: AtRestPolicy>(
     for (index, lp) in loops.iter().enumerate() {
         let mut walked: Vec<Walked<T>> = Vec::new();
         walk_loop(body, face, *lp, described, band, &mut walked)?;
+        // The chord polygon is drawn on the loop's lift: each image moved
+        // by the elements summed from the loop's first half-edge.
+        let elements: Vec<JointElement> = walked
+            .iter()
+            .map(|w| {
+                w.element
+                    .unwrap_or_else(|| unreachable!("a closed walk decides every joint"))
+            })
+            .collect();
+        for (w, lift) in walked.iter_mut().zip(lift_decks(&elements)) {
+            w.pcurve = lift.apply(&w.pcurve, chart);
+        }
         let (Some(first), Some(last)) = (walked.first(), walked.last()) else {
             // An empty loop bounds nothing to describe.
             continue;
@@ -4180,97 +4335,91 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 }
             }
         }
-        // The one-branch loop continuity of the STORED pcurves, read as
-        // the mint's walk reads a loop: every joint pinned exactly, except
-        // the one the walk lets wrap — into the cycle's first half-edge,
-        // whose image the walk takes on its own branch — which is read as
-        // the closure (it may wrap the chart by a whole period). The chain
-        // starts at the loop's first stored row and runs once around back
-        // to it. A half-edge that stores no row is carried by the image the
-        // mint would derive for it ([`derive_image`]), pinned to the chain
-        // as the walk pins it ([`pin_branch`]); where that half-edge is the
-        // cycle's first, the wrap passes to the next stored row the chain
-        // reaches. So the rows either side of a gap are measured across
-        // it, the wrap is read whenever the chain reaches it, and a loop's
-        // verdict does not hang on which half-edge is the gap, nor on the
-        // branch its rows stand on (a loop moved a whole period over reads
-        // as it did). A gap the derivation cannot place breaks the chain
-        // until the next stored row.
-        let v_meter = v_meter(chart);
+        // Each joint's element, re-decided between the two images it
+        // joins, and each loop's winding composed from them. A half that
+        // stores no image is carried by the image the mint would derive
+        // for it ([`derive_image`]), so the rows either side of a gap are
+        // measured across it; a gap the derivation cannot place leaves
+        // its two joints unread and the loop's winding unread with them.
+        // Every joint is read alike, the one into the cycle's `first`
+        // included, and the winding off conjugation invariants
+        // ([`Winding::closes`]), so no verdict hangs on which half-edge
+        // is `first`.
         let u_period = chart_u_period(surface, band);
-        let ends = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
+        let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             let plus = is_plus(body, he);
-            body.pcurve(he).map(|cache| {
-                let (t0, t1) = cache.params();
-                let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
-                (cache.pcurve().clone(), entry_t, exit_t)
-            })
-        };
-        let derived = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
-            let (_, t0, t1, base) = derive_image(body, he, surface, band).ok()?;
-            let (entry_t, exit_t) = if is_plus(body, he) {
-                (t0, t1)
-            } else {
-                (t1, t0)
+            let (image, t0, t1) = match body.pcurve(he) {
+                Some(cache) => {
+                    let (t0, t1) = cache.params();
+                    (cache.pcurve().clone(), t0, t1)
+                }
+                None => {
+                    let (_, t0, t1, base) = derive_image(body, he, surface, band).ok()?;
+                    (base, t0, t1)
+                }
             };
-            Some((base, entry_t, exit_t))
+            let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+            Some((image, entry_t, exit_t))
         };
         for cycle in &cycles {
             let n = cycle.len();
-            let rows: Vec<_> = cycle.iter().map(|&he| ends(he)).collect();
-            let Some(anchor) = rows.iter().position(Option::is_some) else {
-                continue;
-            };
-            let mut prev_exit: Option<geom_core::Point2<T>> = rows[anchor]
-                .as_ref()
-                .map(|(pcurve, _, exit_t)| pcurve.eval(*exit_t));
-            // Whether the chain has passed the cycle's first half-edge
-            // since its last stored row, so the next stored row's joint
-            // is the wrap.
-            let mut wrap_due = false;
-            for k in 1..=n {
-                let i = (anchor + k) % n;
-                if i == 0 {
-                    wrap_due = true;
-                }
-                let he = cycle[i];
-                let Some((pcurve, entry_t, exit_t)) = &rows[i] else {
-                    prev_exit = prev_exit.and_then(|prev| {
-                        let (base, entry_t, exit_t) = derived(he)?;
-                        pin_branch(chart, base, entry_t, prev, u_period, band)
-                            .ok()
-                            .map(|pinned| pinned.eval(exit_t))
-                    });
+            let images: Vec<Option<(Pcurve<T>, T, T)>> =
+                cycle.iter().map(|&he| image_of(he)).collect();
+            let mut elements: Vec<Option<JointElement>> = vec![None; n];
+            for (i, &he) in cycle.iter().enumerate() {
+                let (Some((image, entry_t, _)), Some((before, _, exit_t))) =
+                    (&images[i], &images[(i + n - 1) % n])
+                else {
                     continue;
                 };
-                let entry = pcurve.eval(*entry_t);
-                if let Some(prev) = prev_exit {
-                    if wrap_due {
-                        if !loop_closes(chart, entry, prev, u_period, band) {
-                            findings.push(PcurveMintError::LoopNotClosed { face: face_key });
-                        }
-                    } else {
-                        let arm = chart_u_arm(chart, prev.y);
-                        for margin in [
-                            arm.meter(entry.x - prev.x),
-                            Margin::metered_sup(entry.y - prev.y, v_meter),
-                        ] {
-                            match decide("pcurve_loop_continuity", margin, band) {
-                                Ok(Sign::Zero) => {}
-                                Ok(Sign::Positive | Sign::Negative) => {
-                                    findings
-                                        .push(PcurveMintError::LoopDiscontinuity { half_edge: he });
-                                }
-                                Err(cause) => findings.push(PcurveMintError::Escalated {
-                                    half_edge: he,
-                                    cause,
-                                }),
-                            }
+                let prev = before.eval(*exit_t);
+                let decided = decide_joint(chart, image, *entry_t, prev, u_period, band);
+                // A stored element is read only between two stored
+                // images: across a gap the chain is carried as the walk
+                // would carry it, by the element decided there.
+                let stored = body
+                    .joint(he)
+                    .filter(|_| body.pcurve(he).is_some() && body.pcurve(cycle[(i + n - 1) % n]).is_some());
+                let read = match (stored, decided) {
+                    (Some(stored), Ok(element)) if stored == element => Ok(stored),
+                    // Another element can carry the same two points only
+                    // where the chart's own symmetry fixes the joint (a
+                    // pole's twin), and only of the kind the lever decides.
+                    (Some(stored), Ok(element)) => {
+                        if stored.is_reset() == element.is_reset()
+                            && matches!(
+                                element_fits(chart, stored, image, *entry_t, prev, band),
+                                Ok(true)
+                            )
+                        {
+                            Ok(stored)
+                        } else {
+                            Err(PinMiss::Discontinuity)
                         }
                     }
+                    (None, decided) => decided,
+                    (Some(_), Err(miss)) => Err(miss),
+                };
+                match read {
+                    Ok(element) => elements[i] = Some(element),
+                    Err(PinMiss::Discontinuity) => {
+                        findings.push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                    }
+                    Err(PinMiss::Escalated(cause)) => findings.push(PcurveMintError::Escalated {
+                        half_edge: he,
+                        cause,
+                    }),
+                    Err(PinMiss::OutOfReach) => findings.push(PcurveMintError::Certify {
+                        half_edge: he,
+                        error: PcurveCertifyError::BranchOutOfReach,
+                    }),
                 }
-                wrap_due = false;
-                prev_exit = Some(pcurve.eval(*exit_t));
+            }
+            if n > 0
+                && elements.iter().all(Option::is_some)
+                && !Winding::of(elements.iter().flatten().copied()).closes()
+            {
+                findings.push(PcurveMintError::LoopNotClosed { face: face_key });
             }
         }
     }
@@ -4635,6 +4784,16 @@ pub(crate) mod staleness_posture {
              certifying this one is the caller's",
             ),
             ("detach_pcurve", Neither, "drops ONE row the caller chose"),
+            (
+                "attach_joint",
+                Neither,
+                "writes ONE joint element the caller chose; tier 3 re-decides it",
+            ),
+            (
+                "detach_joint",
+                Neither,
+                "drops ONE joint element the caller chose",
+            ),
             (
                 "set_face_surface",
                 Transfers,

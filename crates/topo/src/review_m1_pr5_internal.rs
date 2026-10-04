@@ -381,6 +381,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
+    ("attach_joint", "pcurve joint element; coherence is tier 3's"),
+    ("detach_joint", "pcurve joint element; coherence is tier 3's"),
     ("mint_pcurves", "pcurve caches only; no topology touched"),
     (
         "mint_pcurves_of",

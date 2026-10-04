@@ -321,6 +321,7 @@ use crate::euler::{
     Records, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::live::{Arg, Live, dangling_link, link, linked, lookup, proven};
 use crate::pcurves::SiteHalf;
 use crate::provenance::Provenance;
@@ -503,6 +504,29 @@ impl KevUnsplice {
         }
     }
 
+    /// For each link [`KevUnsplice::links`] writes, in order, the path
+    /// whose elements its joint's element sums ([`Body::bridged_joint`]),
+    /// from `he` and the mate `m`, and `he`'s `[prev, next]` and the
+    /// mate's (`[a, b, c, d]`). The strut's bridge `a → he → m → d`
+    /// enters at `he` and leaves into `d`, turning back at the tip where
+    /// the two halves meet on their one image; the mirror's is the same
+    /// from the mate's side. A general unsplice re-bases the merged fan
+    /// onto the survivor, which only a killed NULL edge does keys-only
+    /// (its two vertices hold one point), and a null edge has no row: no
+    /// path is summed and its two joints take no element.
+    fn bridges(
+        self,
+        [he, m]: [HalfEdgeKey; 2],
+        [_, b, _, d]: [HalfEdgeKey; 4],
+    ) -> Vec<Option<[HalfEdgeKey; 2]>> {
+        match self {
+            Self::Segment => Vec::new(),
+            Self::Strut => vec![Some([he, d])],
+            Self::Mirror => vec![Some([m, b])],
+            Self::General => vec![None, None],
+        }
+    }
+
     /// The loop anchors this arm writes (the loop rule, module docs), in
     /// order, where both name one loop the second winning: each loop
     /// re-anchors at the first survivor after its killed half in `next`
@@ -553,6 +577,22 @@ impl KefSplice {
             Self::Unsplice => vec![(c, d)],
             Self::MateAlone(b) => vec![(a, b)],
             Self::General(b) => vec![(c, b), (a, d)],
+        }
+    }
+
+    /// For each link [`KefSplice::links`] writes, in order, the path
+    /// whose elements its joint's element sums ([`Body::bridged_joint`]),
+    /// from `he`, the mate `m` and the mate's next `d`. Each enters a
+    /// killed half and crosses to the other where the two meet on their
+    /// one image: `c → m`, then `he → b`, for the joint `c → b`; `a →
+    /// he`, then `m → d`, for `a → d`. A killed half alone in its loop
+    /// closes on itself, and the path takes its own joint too.
+    fn bridges(self, he: HalfEdgeKey, m: HalfEdgeKey, d: HalfEdgeKey) -> Vec<Vec<HalfEdgeKey>> {
+        match self {
+            Self::Lone => Vec::new(),
+            Self::Unsplice => vec![vec![m, he, d]],
+            Self::MateAlone(b) => vec![vec![he, m, b.key()]],
+            Self::General(b) => vec![vec![m, b.key()], vec![he, d]],
         }
     }
 }
@@ -1305,8 +1345,13 @@ impl<T: Decide> Body<T> {
         }
         // Unsplice (derived as mev's exact inverse — module docs), then
         // the loop anchors the plan proved.
-        for (from, to) in unsplice.links([a, b, c, d]) {
-            self.link_half_edges(from, to);
+        let elements: Vec<Option<JointElement>> = unsplice
+            .bridges([he, m], [a, b, c, d].map(Live::key))
+            .into_iter()
+            .map(|path| path.and_then(|path| self.bridged_joint(&path)))
+            .collect();
+        for ((from, to), element) in unsplice.links([a, b, c, d]).into_iter().zip(elements) {
+            self.link_half_edges(from, to, element);
         }
         for (r#loop, boundary) in unsplice.loop_writes(loops, [b.key(), d.key()], v) {
             let Some(loop_data) = self.get_loop_mut(r#loop) else {
@@ -1680,14 +1725,30 @@ impl<T: Decide> Body<T> {
         // (`pcurves::loop_rows`) attributes to the moved half-edges
         // once spliced: that loop is its own survivors plus the
         // remnant, and its own rows are not this op's to touch.
+        //
+        // Each joint the splice makes bridges the killed edge, and its
+        // element is the sum of the elements it bridges, read before the
+        // drop (`Body::bridged_joint`). A remnant changing chart has no
+        // image on the surviving face, so neither joint has an element;
+        // the band door's site mint, written after the splice, re-mints
+        // the surviving face where it is owed.
+        let elements: Vec<Option<JointElement>> = splice
+            .bridges(he, m, d.key())
+            .iter()
+            .map(|path| {
+                (!remnant_changes_chart)
+                    .then(|| self.bridged_joint(path))
+                    .flatten()
+            })
+            .collect();
         if remnant_changes_chart {
             self.drop_rows(remnant.iter().map(|moved| moved.key()));
         }
-        crate::pcurves::apply_site_rows(self, rows, None);
         // Splice (derived as mef's exact inverse — module docs diagram).
-        for (from, to) in splice.links(a, [c, d]) {
-            self.link_half_edges(from, to);
+        for ((from, to), element) in splice.links(a, [c, d]).into_iter().zip(elements) {
+            self.link_half_edges(from, to, element);
         }
+        crate::pcurves::apply_site_rows(self, rows, None);
         let Some(loop_data) = self.get_loop_mut(l2) else {
             unreachable!("kef: `l2` resolved in the plan phase")
         };

@@ -754,6 +754,13 @@ impl FaceInputs {
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let walk = loop_half_edges(body, lk, fk)?;
+            // Each half-edge's image as the loop's lift places it — what
+            // the trimmed lane walks (`topo::Body::loop_lift`); none for
+            // a loop with no lift.
+            let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
+                .loop_lift(lk)
+                .map(|rows| rows.into_iter().map(|row| (row.half_edge, row.pcurve)).collect())
+                .unwrap_or_default();
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
                 let edge = body
@@ -789,7 +796,7 @@ impl FaceInputs {
                     positions: ids.iter().map(|&id| positions[id as usize]).collect(),
                     ids,
                     chord_params,
-                    pcurve: body.pcurve(hek).map(|cache| cache.pcurve().clone()),
+                    pcurve: lifted.remove(&hek),
                     seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.seam),
                     lineage,
                 });
