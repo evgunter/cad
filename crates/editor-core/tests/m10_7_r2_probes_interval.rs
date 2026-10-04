@@ -60,14 +60,14 @@ const BORE_B_X: f64 = 2.2e-3;
 pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     // The arm is a uniform tolerance; the fillet radius is a uniform
@@ -445,7 +445,7 @@ fn r2_what_a_real_study_gets_today() {
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let _ = Arc::new(nominal);
@@ -459,9 +459,9 @@ fn r2_what_a_real_study_gets_today() {
 #[cfg(feature = "probe")]
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -469,7 +469,7 @@ fn collinear_walls() -> ProfileDoc {
                 lo: -1.0e-5,
                 hi: 1.0e-5,
             }),
-        },
+        }),
     });
     let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
@@ -525,7 +525,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
             ParamBox::of(&analyzed)
                 .axes()
                 .keys()
-                .map(|n| (n.clone(), BoxAxis::Fixed))
+                .map(|n| (*n, BoxAxis::Fixed))
                 .collect(),
         );
         let opts = editor_core::EvalOptions {

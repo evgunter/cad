@@ -63,9 +63,9 @@
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
 // `CarryForwardDoor` rides with `EditError` by that same rule at the
-// carry-forward arm: it is what `EditError::DocParamNotDeclared`
-// carries beside the name, and which of the two doors was refused is
-// the whole of what that arm says beyond the parameter.
+// unknown-variable arm: it is what `EditError::UnknownVar` carries
+// beside the address, and which door was refused is the whole of what
+// that arm says beyond the variable.
 // `Maintenance` rides with `Applied` by the same rule: it is what
 // `Applied::maintenance` answers in — the offset the mate door cleared
 // (A11 (2)) and the references a delete stranded (DM7) — and a
@@ -116,8 +116,8 @@ pub use editor_core::{
 // beside a refusal it carries whole, and the full-width id a machine
 // channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, held_by, node_kind_noun,
-    spoken_by,
+    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -189,26 +189,30 @@ pub use editor_core::{
 // curate.
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
-// Named document parameters.
-// `VarName` is a parameter's name — a string newtype admissible by
-// construction (one identifier an expression reads back), whose
-// fallible constructor answers `VarNameFault` — and
-// `FreeVar` its declared dimension plus exact stored value: recipe
-// vocabulary, plain values, no arena key anywhere in either. They
-// complete doors this module already carried: `DocEdit::SetDocParam`
-// takes both and `Expr::param` takes a `VarName`, so without them
-// the parametric flagship (`plate_param`, guide §3.2) could not be
-// authored façade-only.
-// `FreeValue` is the value half of one, and the reason it is
-// curated is the door it opens: `DocEdit::SetDocParamValue` writes a
-// new number into an already-declared parameter and carries the whole
-// declaration — dimension AND distribution — forward. Rebuilding a
-// `FreeVar` from `(dim, value)` to move a value is the natural
-// spelling and it silently DELETES an annotation, because
-// `SetDocParam` is create-or-replace; a façade that curated only the
-// deleting door would be handing every caller that trap.
+// Document variables (VARIABLES-DESIGN VR1–VR3).
+// `VarId` is a variable's minted identity and `VarName` the unique name
+// held beside it — a string newtype admissible by construction (one
+// identifier an expression reads back), whose fallible constructor
+// answers `VarNameFault`. `Var` is the variable a document holds, of a
+// `VarKind` fixed at minting and defined by a `VarDef`; `FreeVar` is a
+// free definition's dimension plus exact stored value. `VarRef` is how
+// an edit addresses a variable, by id or by name. Recipe vocabulary,
+// plain values, no arena key anywhere: they complete doors this module
+// already carries — `DocEdit::DeclareVar` takes a name and a
+// definition, the variable edits take a `VarRef`, and `Expr::param`
+// takes a `VarName` — so without them the parametric flagship
+// (`plate_param`, guide §3.2) could not be authored façade-only.
+// `SpokenVar` is a variable as a refusal speaks it.
+// `FreeValue` is the value half of a free variable, and the reason it is
+// curated is the door it opens: `DocEdit::SetVarValue` writes a new
+// number into a standing variable and carries the whole definition —
+// kind AND distribution — forward. Rebuilding a `FreeVar` from
+// `(dim, value)` for `DocEdit::DefineVar` is the natural spelling and it
+// silently DELETES an annotation, because a definition is replaced
+// whole; a façade that curated only the deleting door would be handing
+// every caller that trap.
 // `UnitSym` is the display-unit CODE a `FreeVar::Continuous` carries
-// beside its dimension — the notation the parameter was authored in.
+// beside its dimension — the notation the variable was authored in.
 // It rides here for `Distribution`'s reason: the field is `pub`, so a
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
@@ -220,8 +224,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // `DistributionRefusal` is the same thing at the third field, for
 // `FreeVar::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, VarName, VarNameFault,
-    VarNameReason,
+    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, Var, VarDef, VarId,
+    VarKind, VarName, VarNameFault, VarNameReason, VarRef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the

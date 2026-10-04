@@ -95,9 +95,9 @@ fn seated(
 fn declare_slide(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: slide(),
-            value: FreeVar::continuous(Dimension::Length, value),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -193,8 +193,8 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     assert_eq!(min_corner(&body_of(&first, top)), [1.5, 1.0, 1.0]);
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: slide(),
+        DocEdit::SetVarValue {
+            var: slide().into(),
             value: FreeValue::Continuous(1.0),
         },
     );
@@ -228,9 +228,9 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let (unmated, _) = step(doc.clone(), DocEdit::DeleteNode { id: m });
     let (unmated, _) = step(
         unmated,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("tilt"),
-            value: FreeVar::continuous(Dimension::Angle, 0.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let named = |name: &'static str, dim| -> Placement {
@@ -455,7 +455,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(
-        out.part.params().contains_key(&slide()),
+        out.part.var_named(slide().as_str()).is_some(),
         "the cut seat's parameter goes with it"
     );
     let mut store = p.store.clone();
@@ -527,11 +527,11 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(
-        !out.part.params().contains_key(&slide()),
+        !out.part.var_named(slide().as_str()).is_some(),
         "nothing cut reads it"
     );
     assert!(
-        out.remainder.params().contains_key(&slide()),
+        out.remainder.var_named(slide().as_str()).is_some(),
         "the kept mate's parameter stays"
     );
 }

@@ -770,6 +770,18 @@ pub(crate) fn corrupt_vertex(vertex: VertexKey) -> SplitJoinError {
 /// order (naming emission, M4 PR 3).
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
 
+/// `face` and every fragment the rows divide off it or off one of its
+/// fragments: the faces a key read before those mefs may now name.
+pub(crate) fn lineage(face: FaceKey, rows: &[(FaceKey, FaceKey)]) -> Vec<FaceKey> {
+    let mut out = vec![face];
+    for &(new, from) in rows {
+        if out.contains(&from) {
+            out.push(new);
+        }
+    }
+    out
+}
+
 /// The point of a vertex. Either empty lookup means the same thing
 /// here — a body that reached this lane corrupt — so the read-back
 /// door's discriminated reference collapses to one verdict.
@@ -835,6 +847,11 @@ impl ChordJoiner {
     /// (naming emission; see the field docs).
     pub(crate) fn take_fragments(&mut self) -> FragmentRows {
         core::mem::take(&mut self.fragments)
+    }
+
+    /// The rows recorded so far, left in place.
+    pub(crate) fn fragments(&self) -> &[(FaceKey, FaceKey)] {
+        &self.fragments
     }
 }
 

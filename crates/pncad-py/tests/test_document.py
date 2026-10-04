@@ -1968,7 +1968,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
                 Expr.literal(0.0),
             ), Expr.length_in(2, m)))
         )
-        doc.apply(DocEdit.set_doc_param(ParamName("len"), DocParam.length(1 * m)))
+        doc.apply(DocEdit.declare_var(ParamName("len"), DocParam.length(1 * m)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
         refusal = caught.exception
@@ -1986,7 +1986,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # fabrication this surface refuses elsewhere.
         with self.assertRaises(EditError) as offered:
             doc.apply(
-                DocEdit.set_doc_param_value(ParamName("len"), DocParamValue.count(3))
+                DocEdit.set_var_value(ParamName("len"), DocParamValue.count(3))
             )
         self.assertEqual(offered.exception.variant, "doc_param_value_kind_mismatch")
         self.assertEqual(offered.exception.expected, "length")

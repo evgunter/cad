@@ -62,9 +62,9 @@ fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: FreeVar::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -113,13 +113,7 @@ fn measuring_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
 /// it.
 fn undeclare(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery is aimed at the declaration the payload reads"
-        );
+        crate::wire::wire_undeclare(wire, name.as_str());
     })
 }
 
@@ -128,14 +122,7 @@ fn undeclare(text: &str, name: &VarName) -> String {
 /// declaration and the dimension an expression reads it at.
 fn retype_to_angle(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
-        assert_eq!(
-            decl["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the declared dimension"
-        );
-        decl["dim"] = serde_json::json!("Angle");
-        decl["display_unit"] = serde_json::json!("rad");
+        crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     })
 }
 
@@ -181,36 +168,31 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
 }
 
 /// **A measured expression reading a parameter at another dimension
-/// than it is declared with — both doors.** The edit door re-asks the
-/// rule of every node when a declaration lands, so the redeclaration
-/// is what it refuses; the load door reads the same broken pairing off
-/// a file whose declaration was retyped after the fact.
+/// than it is declared with — both doors.** The edit door cannot write
+/// the pairing at all: a variable's kind is fixed, so the retyping is
+/// what it refuses; the load door reads the broken pairing off a file
+/// whose declaration was retyped after the fact.
 #[test]
 fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: name.clone(),
-            value: FreeVar::continuous(Dimension::Angle, 1.0),
+        &DocEdit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadDocParamDimension {
-            name: n,
-            node,
-            declared,
-            referenced,
-        }) => {
-            assert_eq!((n, node.id()), (name.clone(), measure));
+        Err(EditError::VarKindFixed { var, kind, offered }) => {
+            assert_eq!(var.name(), Some(&name));
             assert_eq!(
-                (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (kind, offered),
+                (editor_core::VarKind::Length, editor_core::VarKind::Angle)
             );
         }
-        other => panic!("the edit door must refuse the redeclaration, got {other:?}"),
+        other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -422,13 +404,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
             "the surgery is aimed at the assertion's target"
         );
         *field = serde_json::json!(extrude.0);
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery also removes the declaration the bound reads"
-        );
+        crate::wire::wire_undeclare(wire, name.as_str());
     });
 
     match load(&corrupt, Tol::witness()) {

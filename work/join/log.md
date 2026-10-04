@@ -431,3 +431,61 @@ CONTACT's tube-rim tangent tier-3′ row, an issues row on a tilted tube
 cut 1.2e-7 off its oracle.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4008 lands: a germ ranks its partners by the turn along the conic
+
+Two rows are closed: `a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face`
+and `join-ranks-conic-facing-germs-by-chord`.
+
+**Cause 1.** Ring re-homing was not the cause. `find_match` ranked
+partner sites by chord length. On a conic germ line the chord grows to
+the half-turn and then shrinks, so the matcher picked a partner a major
+arc away and the chord walled the run off. Each germ now ranks its own
+candidates by half-turn (`germ_arm`), then by the turn along the conic
+(`nearer_along`, `bool_join_arc_travel`). The chord is kept only as the
+tie-break, for straight lines, and for ordering pairs. `loose_partners`
+reads the same rule.
+
+**Cause 2.** `wall_region` takes the wall window from the region that
+owns the halves. It is lineage-guarded: `chord_join::lineage`, which
+`rest::fragment_holding` now shares.
+
+**Review tier: DUAL, H / ARCHITECTURAL (DR-74).**
+- R1: NOT-MERGEABLE-AS-IS, 1/3/6. Its MAJOR: within one arm the chord
+  is not monotone on a steep ellipse (k² > 2). One pose shipped a
+  `LoopRoleInverted` body where main refused.
+- R2: APPROVE-WITH-FIXES, 0/3/3. It found the same defect as 300
+  refusals.
+- Coded by a blinded coder: bilateral, tally 0.
+
+**Fix pass (cloud session).** It ranks by the turn rather than an
+in-arm chord, and adds the gating row
+`steep_ellipse_poses_build_sound_or_refuse_typed`, red on the frozen
+head with 25 misses.
+
+**Delta review** on `42bc54e5`: single FULL, no MAJOR, 0/2/3.
+- An atan2 instrument found 0 mispicks in about 800k selections, at k
+  from 0.05 to 10.
+- The PR body's tables reproduce exactly.
+- MINOR 1: the travel margin is not arc length on a steep ellipse.
+  Filed as `a-steep-ellipse-travel-margin-ties-band-apart-sites-and-falls-back-to-the-chord`.
+- MINOR 2: the conic row was left open. It is closed here.
+
+**Measured.**
+- Steep-ellipse batteries against main: the scan goes from 22 SOUND
+  and 20 BAD to 1 303 SOUND and 0 BAD. The plate battery goes from
+  1 151 to 1 817 built right. U-plate goes from 66 to 192 of 192.
+- Across the 14 batteries: 0 SOUND→refusal and 0 new BAD.
+- One main-SOUND pose now refuses: k = 0.5, ∪ AB. Main's body was right
+  by luck, on two wrong chords. The pose is now a witness on FLUX's
+  `an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane`.
+
+**Filed:**
+- `a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef`
+- cleave's `which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways`
+- cleave's `site-census-attributes-a-parents-decisions-to-its-nested-fn`
+
+**HOLD (D10).** The `wall_region` branch with one half on the recorded
+face is left as it was: that pose is declared ground.
+
+Signed (JOIN orchestrator).

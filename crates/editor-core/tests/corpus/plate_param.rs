@@ -24,7 +24,7 @@
 //!   plate wall → the VALIDATE ladder refuses (a different door from
 //!   the replay one);
 //! - the §4d authoring door: an edit that writes a refusing radius
-//!   INTO the program is refused at the door, while `SetDocParam` — by
+//!   INTO the program is refused at the door, while `DefineVar` — by
 //!   design — is not.
 
 use editor_core::ExtrudeSide;
@@ -96,9 +96,9 @@ pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
 
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static(HOLE_R),
-        value: FreeVar::continuous(Dimension::Length, HOLE_R_VALUE),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
     });
 
     let plate_plane = r.insert(xy_frame());

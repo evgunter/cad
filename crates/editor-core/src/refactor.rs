@@ -863,12 +863,12 @@ impl core::fmt::Display for SplitError {
                     format!(
                         "promote {cut_node} (Promote), so its offset stays in this document; or \
                          put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 } else {
                     format!(
                         "put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 })
             ),
@@ -1247,7 +1247,7 @@ impl core::fmt::Display for InlineError {
                 "inline: parameter {param} is declared by both documents with different \
                  values. {}",
                 Recourse(&format!(
-                    "set this document's {param} to the referenced document's (SetDocParam), \
+                    "define this document's {param} as the referenced document's (DefineVar), \
                      then inline"
                 ))
             ),
@@ -1527,7 +1527,10 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::AssertionTarget { .. }
             | EditError::AssertionDimension { .. }
             | EditError::ContinuousParamCannotBeCount { .. }
-            | EditError::DocParamNotDeclared { .. }
+            | EditError::UnknownVar { .. }
+            | EditError::VarNameTaken { .. }
+            | EditError::VarIdCollides { .. }
+            | EditError::VarKindFixed { .. }
             | EditError::DocParamCountHasNoUnit { .. }
             | EditError::DocParamCountHasNoDistribution { .. }
             | EditError::DocParamUnitMismatch { .. }
@@ -2704,18 +2707,30 @@ pub fn split(
     if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
-    for param in cut_refs.keys() {
-        // The reference was validated against this table, so the
-        // declaration exists; a miss would refuse at the insert below.
-        if let Some(value) = doc.params().get(param) {
-            part_apply(
-                &mut part,
-                DocEdit::SetDocParam {
-                    name: param.clone(),
-                    value: value.clone(),
-                },
-            )?;
-        }
+    // Declared in the PARENT's declaration order, so the part lists its
+    // variables as the parent's author did rather than by their names'
+    // spelling. The reference was validated against this table, so each
+    // variable exists; a miss would refuse at the insert below.
+    let carried: std::collections::BTreeSet<crate::var::VarId> = cut_refs
+        .keys()
+        .filter_map(|param| doc.var_named(param.as_str()))
+        .collect();
+    for id in doc
+        .var_order()
+        .iter()
+        .copied()
+        .filter(|id| carried.contains(id))
+    {
+        let (Some(var), Some(name)) = (doc.var(id), doc.var_name(id)) else {
+            continue;
+        };
+        part_apply(
+            &mut part,
+            DocEdit::DeclareVar {
+                name: name.clone(),
+                def: var.def().clone(),
+            },
+        )?;
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
@@ -3331,9 +3346,14 @@ pub fn inline(
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
     // Parameters merge only when they already agree bit for bit; a
     // disagreeing shared name refuses (no silent pick).
-    for (name, value) in part.params() {
-        match doc.params().get(name) {
-            Some(existing) if existing.bit_eq(value) => {}
+    // In the PART's declaration order, so the host lists the part's
+    // variables as the part's author declared them.
+    for id in part.var_order() {
+        let (Some(var), Some(name)) = (part.var(*id), part.var_name(*id)) else {
+            continue;
+        };
+        match doc.var_named(name.as_str()).and_then(|held| doc.var(held)) {
+            Some(existing) if existing.bit_eq(var) => {}
             Some(_) => {
                 return Err(InlineError::ParamConflict {
                     param: name.clone(),
@@ -3341,9 +3361,9 @@ pub fn inline(
             }
             None => step(
                 &mut current,
-                DocEdit::SetDocParam {
+                DocEdit::DeclareVar {
                     name: name.clone(),
-                    value: value.clone(),
+                    def: var.def().clone(),
                 },
             )?,
         }

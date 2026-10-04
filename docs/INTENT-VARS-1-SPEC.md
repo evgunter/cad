@@ -283,4 +283,11 @@ The design pair's PRs (2 and 3) each draw the dual review (`work/intent/plan.md`
   mint nor any content key). Two declares of one definition still mint
   distinct ids because the chain extends.
 - **Q6**: a new `VarKind`.
+- **The declare preimage is the KIND only** (ruled on PR 2's dual
+  review, amending §3's arm): not the name (Q5), not the value, not the
+  distribution, not the display unit. A distribution enters no
+  evaluation, no content key and no predicate, and an initial value in
+  identity would move every later node id and cached verdict with a
+  nominal or an annotation. Two declares of one kind still mint
+  distinct ids because the chain extends.
 

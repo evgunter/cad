@@ -25,7 +25,12 @@ fn one_i() -> Sym<Interval> {
 /// A bracketed parameter at the INTERVAL lift, for the rows that need a
 /// box rather than a point (clause 1 answers on a box).
 fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+    Sym::param_over(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
 }
 /// [`how`] at the interval lift: the answer, and the margin's
 /// enclosure.

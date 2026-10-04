@@ -50,7 +50,7 @@ use std::sync::Arc;
 use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
-use crate::doc::{Doc, VarName};
+use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
 };
@@ -58,6 +58,8 @@ use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The shipped sample count — a recorded run dial, not a constant of
 /// nature.
@@ -392,8 +394,8 @@ pub fn monte_carlo(
     // rather than at the first draw keeps the refusal a property of the
     // document instead of a property of which parameter came first.
     let laws = laws_of(analyzed)?;
-    for (name, dist) in &laws {
-        sample_offset(name, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
+    for (_, spoken, dist) in &laws {
+        sample_offset(spoken, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
     }
 
     // The sinks, in the document's own node order — which is the order
@@ -413,7 +415,7 @@ pub fn monte_carlo(
         let mut rng = Rng::for_sample(config.seed, index);
         let mut axes = std::collections::BTreeMap::new();
         let mut outside = false;
-        for (name, dist) in &laws {
+        for (name, spoken, dist) in &laws {
             // `sample_offset` was proved total for these laws above, so
             // a refusal here is a kernel bug rather than a document
             // fault — and it is announced as one rather than silently
@@ -425,19 +427,16 @@ pub fn monte_carlo(
             // sample the sample it is, so a door that re-derived it
             // beside this one would be a second stream the moment
             // either changed.
-            let Ok(offset) = sample_offset(name, dist, rng.unit()) else {
-                unreachable!(
-                    "every law was proved sampleable before the run, yet {} refused",
-                    name.as_str()
-                )
+            let Ok(offset) = sample_offset(spoken, dist, rng.unit()) else {
+                unreachable!("every law was proved sampleable before the run, yet {spoken} refused")
             };
-            if let Some(p) = analyzed.get(name)
+            if let Some(p) = analyzed.get(*name)
                 && (offset < p.offsets.lo || offset > p.offsets.hi)
             {
                 outside = true;
             }
             axes.insert(
-                name.clone(),
+                *name,
                 BoxAxis::Varying {
                     lo: offset,
                     hi: offset,
@@ -450,7 +449,7 @@ pub fn monte_carlo(
         // door a point-scalar replay over a parameter value has, and
         // the MC lane uses it rather than a second binding path.
         let opts = EvalOptions {
-            param_box: Some(Arc::new(ParamBox::from_axes(axes))),
+            param_box: Some(Arc::new(ParamBox::from_axes_in(axes, analyzed.order()))),
             ..lane_opts()
         };
         let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
@@ -665,17 +664,17 @@ impl Rng {
 /// One spelling, called by [`monte_carlo`] and by [`sample_offsets`],
 /// because the ORDER is what makes sample `i` the sample it is: two
 /// derivations of this list are two streams as soon as either moves.
-fn laws_of(
-    analyzed: &AnalyzedBox,
-) -> Result<Vec<(VarName, crate::distribution::Distribution)>, McRefusal> {
+type Law = (VarId, SpokenVar, crate::distribution::Distribution);
+
+fn laws_of(analyzed: &AnalyzedBox) -> Result<Vec<Law>, McRefusal> {
     analyzed
         .varying()
-        .map(|(name, p)| {
-            p.distribution.map(|d| (name.clone(), d)).ok_or_else(|| {
-                MeasureUnavailable::BandHasNoMeasure {
-                    param: name.clone(),
-                }
-            })
+        .map(|(id, p)| {
+            let spoken = analyzed.spoken(id);
+            match p.distribution {
+                Some(d) => Ok((id, spoken, d)),
+                None => Err(MeasureUnavailable::BandHasNoMeasure { param: spoken }),
+            }
         })
         .collect::<Result<_, _>>()
         .map_err(McRefusal::BandHasNoMeasure)
@@ -689,7 +688,7 @@ fn laws_of(
 /// document there, tessellate it, draw it — needs the draw itself, and
 /// before this door the only way to one was to re-transcribe
 /// `xorshift64*` and its `[0, 1)` reduction outside this crate. The
-/// offsets are keyed by parameter name and are offsets FROM THE
+/// offsets are keyed by variable and are offsets FROM THE
 /// NOMINAL, the same quantity [`crate::analysis::sample_offset`]
 /// returns and the same one a `ParamBox` axis carries.
 ///
@@ -707,13 +706,14 @@ pub fn sample_offsets(
     analyzed: &AnalyzedBox,
     config: &McConfig,
     index: usize,
-) -> Result<std::collections::BTreeMap<VarName, f64>, McRefusal> {
+) -> Result<std::collections::BTreeMap<VarId, f64>, McRefusal> {
     let laws = laws_of(analyzed)?;
     let mut rng = Rng::for_sample(config.seed, index);
     let mut out = std::collections::BTreeMap::new();
-    for (name, dist) in &laws {
-        let offset = sample_offset(name, dist, rng.unit()).map_err(McRefusal::BandHasNoMeasure)?;
-        out.insert(name.clone(), offset);
+    for (id, spoken, dist) in &laws {
+        let offset =
+            sample_offset(spoken, dist, rng.unit()).map_err(McRefusal::BandHasNoMeasure)?;
+        out.insert(*id, offset);
     }
     Ok(out)
 }

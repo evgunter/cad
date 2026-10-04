@@ -129,9 +129,9 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
     let tol = Tol::witness();
     let (doc, _) = common::edited(
         &Doc::empty_derived("frame-labels-driven", tol),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("height"),
-            value: FreeVar::continuous(Dimension::Length, 0.001),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );
@@ -221,9 +221,9 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels-other", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("unused"),
-            value: FreeVar::continuous(Dimension::Length, 0.001),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );

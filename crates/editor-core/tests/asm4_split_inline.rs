@@ -542,9 +542,12 @@ fn row3_uncut_param_reference_refuses() {
     let doc = ProfileDoc::empty(DocumentId::derive("asm4-r3p"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("h"),
-            value: FreeVar::continuous(editor_core::Dimension::Length, 1.5),
+            def: editor_core::VarDef::Free(FreeVar::continuous(
+                editor_core::Dimension::Length,
+                1.5,
+            )),
         },
     );
     let h = || Expr::param(VarName::from_static("h"), editor_core::Dimension::Length);
@@ -602,7 +605,7 @@ fn row3_uncut_param_reference_refuses() {
         None,
     )
     .expect("a cut containing every referencing node carries the parameter");
-    assert!(out.part.params().contains_key(&VarName::from_static("h")));
+    assert!(out.part.var_named("h").is_some());
 }
 
 /// Row 3c — inline of a stale pin is the resolver's PinMismatch,
@@ -1376,18 +1379,24 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let part_doc = part("asm4-min2-param-part", 0.0, 1.0);
     let (part_doc, _) = step(
         part_doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            value: FreeVar::continuous(editor_core::Dimension::Length, 2.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(
+                editor_core::Dimension::Length,
+                2.0,
+            )),
         },
     );
     let doc_ref = store.insert(part_doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"), Tol::witness());
     let (host, _) = step(
         host,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            value: FreeVar::continuous(editor_core::Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(
+                editor_core::Dimension::Length,
+                1.0,
+            )),
         },
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));

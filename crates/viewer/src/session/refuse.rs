@@ -254,7 +254,7 @@ pub enum Refusal {
     /// gesture, its value and unit to seed a range probe — and neither
     /// commits an edit, so no door below refuses on their behalf. The
     /// value door does refuse an undeclared name, and says so in
-    /// editor-core's words ([`EditError::DocParamNotDeclared`], reached
+    /// editor-core's words ([`EditError::UnknownVar`], reached
     /// through [`Self::Edit`]).
     ///
     /// **One mistake reaches two sentences, and that is decided rather
@@ -274,7 +274,7 @@ pub enum Refusal {
     ///
     /// **A document parameter holds a number, not an expression** —
     /// `FreeVar::Continuous` holds an `f64` — so there is no
-    /// `SetDocParamExpression` for such text to reach and no partial
+    /// `SetVarExpression` for such text to reach and no partial
     /// reading of it that would be honest. A slot's field takes the
     /// expression door here; a parameter's says why it has none, which
     /// is itself the affordance.
@@ -289,11 +289,12 @@ pub enum Refusal {
     },
     /// The CREATE door was asked for a name that is already declared.
     ///
-    /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
-    /// API; this refusal is the session keeping "create" and
-    /// "replace" distinct ACTS — see [`super::SessionOp::CreateParam`]. The
-    /// payload carries the existing declaration's dimension so the
-    /// offer can name what already stands there.
+    /// `DocEdit::DeclareVar` refuses a taken name too
+    /// (`EditError::VarNameTaken`); this refusal is the session's
+    /// reading of it ahead of the door — see
+    /// [`super::SessionOp::CreateParam`]. The payload carries the
+    /// existing declaration's dimension so the offer can name what
+    /// already stands there.
     ParamExists {
         /// The name, as asked for.
         name: VarName,

@@ -191,7 +191,7 @@ class TestTheExpressionLanguage(unittest.TestCase):
         the checking parser, and a `MeasureExpr` leaf carries what it
         answered."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("pad"), DocParam.length(1 * mm)))
+        doc.apply(DocEdit.declare_var(ParamName("pad"), DocParam.length(1 * mm)))
         leaf = MeasureExpr.value(doc.parse_expr("pad"))
         self.assertEqual(leaf.dimension, "length")
         # A value leaf holds no primitive: it reaches out of the
@@ -216,7 +216,7 @@ class TestTheExpressionLanguage(unittest.TestCase):
 
     def test_the_product_and_quotient_rules_are_the_kernels(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("half"), DocParam.scalar(0.5)))
+        doc.apply(DocEdit.declare_var(ParamName("half"), DocParam.scalar(0.5)))
         length = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
         scalar = MeasureExpr.value(doc.parse_expr("half"))
         self.assertEqual(MeasureExpr.mul(length, scalar).dimension, "length")
@@ -353,7 +353,7 @@ class TestTheClosedForms(unittest.TestCase):
         doc = Doc()
         offset, radius = 0.30, 0.2
         doc.apply(
-            DocEdit.set_doc_param(ParamName("hole_r"), DocParam.length(radius * m))
+            DocEdit.declare_var(ParamName("hole_r"), DocParam.length(radius * m))
         )
         left = cylinder(doc, -offset, radius)
         right = cylinder(doc, offset, radius)
@@ -509,7 +509,7 @@ class TestTheAssertion(unittest.TestCase):
         walls, and an assertion whose bound is a PARAMETER."""
         doc = Doc()
         doc.apply(
-            DocEdit.set_doc_param(ParamName("bound"), DocParam.length(bound_mm * mm))
+            DocEdit.declare_var(ParamName("bound"), DocParam.length(bound_mm * mm))
         )
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
@@ -541,7 +541,7 @@ class TestTheAssertion(unittest.TestCase):
         self.assertAlmostEqual(holds.bound, 0.5, places=12)
 
         doc.apply(
-            DocEdit.set_doc_param_value(
+            DocEdit.set_var_value(
                 ParamName("bound"), DocParamValue.length(700 * mm)
             )
         )
@@ -559,7 +559,7 @@ class TestTheAssertion(unittest.TestCase):
         )
         self.assertEqual(verdict(doc, assertion).status, "Holds")
         doc.apply(
-            DocEdit.set_doc_param_value(
+            DocEdit.set_var_value(
                 ParamName("bound"), DocParamValue.length(500 * mm)
             )
         )
@@ -588,7 +588,7 @@ class TestTheAssertion(unittest.TestCase):
         nothing, so the assertion is poisoned rather than
         `Unevaluated`."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("s"), DocParam.scalar(0.0)))
+        doc.apply(DocEdit.declare_var(ParamName("s"), DocParam.scalar(0.0)))
         # `13 m / s` with `s` bound to zero — the DIVISION is the
         # measure language's, so each leaf evaluates fine and the
         # measure arithmetic is what goes non-finite.
@@ -825,7 +825,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
 
     def authored(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("bound"), DocParam.length(1 * mm)))
+        doc.apply(DocEdit.declare_var(ParamName("bound"), DocParam.length(1 * mm)))
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
