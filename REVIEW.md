@@ -1,5 +1,3 @@
-IN PROGRESS (spot-check batteries running)
-
 # Delta review: PR 4026 fix pass, frozen head `f88ad91e`
 
 **Verdict: APPROVE-WITH-FIXES** · MAJOR 0 · MINOR 3 · NOTE 4
@@ -62,7 +60,7 @@ Other probes:
 
 **N2.** The 0-BAD subset row passes refusals by design. So it stays green under `M_RUNS1` (every two-run pose refuses) and under ∩-follows-the-walk. `join_pierce_strut_facing` is what catches those. The subset row alone does not guard reach.
 
-**N3.** I did not re-run the other 14 JOIN batteries. Spot check, base vs head: `rc_wide_battery`, `join1_r1_reflex_battery` and `rw_battery` (SPOT-RESULT).
+**N3.** I did not re-run the other 14 JOIN batteries. Spot check, base vs head, line-identical: `rc_wide_battery` (40 320), `join1_r1_reflex_battery` (1 152) and `rw_battery` (2 250).
 
 **N4 (dispatch premise).** "Origin/main" is `c860806e`; the PR merged `095ea377`, and the two differ only outside `crates/topo` and `crates/sweep`. The brief's r1 repro equals the row's pose bit for bit at ε = 1e-9: `DP_ROWASSOC` gives identical keys and witness. The row's "ten bands" is 1e-4 at ε = 1e-6, not 1e-5: I first ran 1e-5, where every op refuses `Escalated(SectorSide)`.
 
