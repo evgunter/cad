@@ -1788,6 +1788,18 @@ fn fit_branch(
             budget: SSI_MAX_FIT_SAMPLES,
         });
     }
+    let fit_t0 = std::time::Instant::now();
+    let r = fit_branch_inner(points, charts);
+    if std::env::var_os("CAD_SCRATCH_REFINE").is_some() {
+        eprintln!("FIT n={} secs={:.3}", points.len(), fit_t0.elapsed().as_secs_f64());
+    }
+    r
+}
+
+fn fit_branch_inner(
+    points: &[Point3<f64>],
+    charts: Option<ChartSamples<'_>>,
+) -> Result<FittedBranch, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
