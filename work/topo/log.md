@@ -6687,3 +6687,11 @@ Merged 4021 as `f4a478cb3a` (two ignored witness rows and the row text only, CI 
 The fork is dispatched: blinding byte 81 (Fable=A, Opus=B) on `analysis/design-fork/topo-kill-re-anchor-rows`,
 brief `/home/user/topo-orch/design-reanchor-problem.md` (no candidates; the designers are told not to read 4021's
 body or the row).
+
+## Re-anchor rows fork: [ev] PR 4024 opened (2026-10-04)
+
+The first reports split. A kept `first` as the lift origin, dropped the byte contract, and had keys-only kef refuse.
+B proposed an image plus an integer joint element, with the lift derived. Round 1: A moved to B's representation and
+corrected its kill formula; B kept it, made `first` the accessor origin, and adopted A's anchor analysis as the
+fallback. They converged. PR 4024 edits C4's seam sentence (Ev's ratified text) as the question; fork-log row 65
+holds the recommendation half. Before either answer lands, one probe should confirm the mixed-merge LoopDiscontinuity.
