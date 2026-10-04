@@ -1447,6 +1447,82 @@ pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     face
 }
 
+/// What [`kill_under_a_null_strut`] hands `Body::kev_describing` to
+/// re-describe.
+pub type NullStrutListing = Vec<(crate::EdgeKey, EdgeCurveSpec<f64>)>;
+
+/// The minted [`cyl_wall_sheet`] over `[0.2, 1.4] x [0, 1]` of the
+/// canonical unit [`CylFrame`] with its bottom rim split at the ruling
+/// `u = 0.8`, a `mev_line` strut up the ruling to `v = 0.5`, and a
+/// `mev_null` strut at its tip: the wall missing the null edge's two
+/// rows. Killing the strut toward its tip merges the tip into the rim
+/// vertex, and the tip's fan is the null edge alone, so the listing is
+/// that edge with the ruling line between its merged ends — the null
+/// edge's first description.
+///
+/// Returns the body, the wall, the null edge, the half that kills the
+/// strut toward its tip, and the kill's listing.
+pub fn kill_under_a_null_strut(
+    tol: Tol,
+) -> (
+    Body<f64>,
+    FaceKey,
+    MevCreated,
+    HalfEdgeKey,
+    NullStrutListing,
+) {
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+    // The bottom rim is the one circle edge whose interval is `[0.2,
+    // 1.4]`, the ascending one, whose parameter IS the azimuth.
+    let rim = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(crate::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+        })
+        .unwrap();
+    let m = body.split_edge(rim, 0.8, tol).unwrap().vertex;
+    let leaving = |body: &Body<f64>, v: crate::VertexKey| {
+        let f = body.get_face(face).unwrap();
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            unreachable!("the wall's outer loop is a cycle")
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&h| body.get_half_edge(h).unwrap().start == v)
+            .unwrap()
+    };
+    let he = leaving(&body, m);
+    let strut = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(0.8, 0.5), tol)
+        .unwrap();
+    let he = leaving(&body, strut.vertex);
+    let null = body
+        .mev_null(
+            MevSite::Fan { he1: he, he2: he },
+            crate::NewVertexSide::Above,
+        )
+        .unwrap();
+    let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {
+        strut.he_plus
+    } else {
+        strut.he_minus
+    };
+    let members = body.kev_merged_members(toward_tip).unwrap();
+    assert_eq!(members.len(), 1, "the tip's fan is the null edge alone");
+    assert_eq!(members[0].edge, null.edge, "the tip's fan is the null edge");
+    let line = EdgeCurveSpec::line_between(members[0].start, members[0].end);
+    let listing = vec![(null.edge, line)];
+    (body, face, null, toward_tip, listing)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

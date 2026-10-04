@@ -68,11 +68,8 @@ pub fn collinear_cap_drum() -> Body<f64> {
 
 /// The vertex of `body` at `p`.
 fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
-    body.vertices()
-        .find(|(_, v)| {
-            body.get_point(v.point)
-                .is_some_and(|q| q.distance(p) <= 1e-12)
-        })
+    body.vertex_points()
+        .find(|(_, q)| q.unwrap().distance(p) <= 1e-12)
         .unwrap_or_else(|| panic!("no vertex at {p:?}"))
         .0
 }

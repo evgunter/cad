@@ -25,7 +25,7 @@
 
 use geom_core::{Band, Point3, Tol};
 use topo::pcurves::validate_pcurves;
-use topo::test_support::{CylFrame, cyl_wall_sheet};
+use topo::test_support::{CylFrame, cyl_wall_sheet, kill_under_a_null_strut};
 use topo::{Body, FaceKey, HalfEdgeKey, MekrSite, MevSite, PcurveMintError, VertexKey};
 
 fn tol() -> Tol {
@@ -1054,4 +1054,109 @@ fn a_null_edge_described_on_an_unminted_wall_leaves_it_rowless() {
         .unwrap();
     assert_eq!(rows_of(&body, face), (0, 9));
     assert_eq!(rows_deep(&body), elsewhere);
+}
+
+/// **A kill that gives a listed null member its first description
+/// completes the wall**, as `set_edge_curve` does: the null edge's
+/// halves leave with rows, and the rows are the minting pass's. At
+/// this unit's merge base the two `MissingCache` findings survived the
+/// kill.
+#[test]
+fn a_kill_that_describes_a_null_member_completes_the_wall() {
+    let (mut body, face, null, toward_tip, listed) = kill_under_a_null_strut(tol());
+    body.kev_describing(toward_tip, &listed, tol()).unwrap();
+    assert_eq!(
+        missing_rows(&body),
+        vec![],
+        "the kill's description mints the null member's rows"
+    );
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(body.pcurve(null.he_plus).is_some());
+    assert!(body.pcurve(null.he_minus).is_some());
+    assert_eq!(rows_of(&body, face), (7, 0));
+    let minted = live_rows_deep(&body, face);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        live_rows_deep(&body, face),
+        minted,
+        "the rows are the pass's"
+    );
+}
+
+/// [`rows_deep`] over the half-edges `face`'s loops hold: a kill
+/// leaves its killed halves' rows in the map (the stale-row
+/// consequence, `topo::pcurves`' module docs), which the pass clears.
+fn live_rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+    let mut out: Vec<String> = halves_of(body, face)
+        .into_iter()
+        .map(|he| {
+            let c = body.pcurve(he).unwrap();
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                c.certificate()
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// **Every listed member is walked under the curve the kill installs.**
+/// The tip carries a second strut on up the ruling beside the null
+/// strut, and the kill lists both: the null edge with the ruling line
+/// from `m` to its far end, the upper strut with the ruling line from
+/// `m` to `(UM, 0.8)`. The wall leaves complete with the pass's rows;
+/// walked under the upper strut's stored carrier, which still starts
+/// at the dying tip, the loop would not close.
+#[test]
+fn a_kill_that_describes_a_null_member_beside_a_certified_one_completes_the_wall() {
+    let (mut body, face, m) = wall();
+    let made = strut(&mut body, face, m);
+    let he = leaving(&body, face, made.vertex);
+    let upper = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, at(UM, 0.8), tol())
+        .unwrap();
+    let he = if body.get_half_edge(upper.he_plus).unwrap().start == made.vertex {
+        upper.he_plus
+    } else {
+        upper.he_minus
+    };
+    let null = null_at(&mut body, he);
+    let toward_tip = if body.get_half_edge(made.he_plus).unwrap().start == m {
+        made.he_plus
+    } else {
+        made.he_minus
+    };
+    let listed: Vec<_> = body
+        .kev_merged_members(toward_tip)
+        .unwrap()
+        .into_iter()
+        .map(|member| {
+            (
+                member.edge,
+                geom_brep::EdgeCurveSpec::line_between(member.start, member.end),
+            )
+        })
+        .collect();
+    let mut edges: Vec<_> = listed.iter().map(|(e, _)| *e).collect();
+    edges.sort();
+    let mut want = vec![null.edge, upper.edge];
+    want.sort();
+    assert_eq!(
+        edges, want,
+        "the tip's fan is the upper strut and the null edge"
+    );
+    body.kev_describing(toward_tip, &listed, tol()).unwrap();
+    assert_eq!(missing_rows(&body), vec![]);
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert_eq!(rows_of(&body, face), (9, 0));
+    let minted = live_rows_deep(&body, face);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        live_rows_deep(&body, face),
+        minted,
+        "the rows are the pass's"
+    );
 }

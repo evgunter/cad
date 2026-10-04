@@ -236,9 +236,9 @@ fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
     let mut records = ContactRecords::default();
     for corner in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
         let hits: Vec<VertexKey> = body
-            .vertices()
-            .filter(|(_, v)| {
-                let p = body.get_point(v.point).unwrap();
+            .vertex_points()
+            .filter(|(_, p)| {
+                let p = p.unwrap();
                 (p.x - corner.0).abs() < 1e-12
                     && (p.y - corner.1).abs() < 1e-12
                     && (p.z - 1.0).abs() < 1e-12

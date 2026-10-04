@@ -217,8 +217,8 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let pole = pole.expect("a sphere face");
     assert!(radius > 0.0);
     let nearest = body
-        .vertices()
-        .map(|(_, v)| (*body.get_point(v.point).unwrap() - pole).norm())
+        .vertex_points()
+        .map(|(_, p)| (p.unwrap() - pole).norm())
         .fold(f64::INFINITY, f64::min);
     assert!(
         (0.9e-9..=1.1e-9).contains(&nearest),
