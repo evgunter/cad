@@ -2,11 +2,14 @@
 id: ssi-a-step-capped-by-a-neighbouring-crossing-can-spend-the-step-budget
 kind: issue
 title: ssi: a plane × NURBS branch's step is capped by the nearest unused crossing, which may be another branch's, so a long branch beside a close crossing can spend SSI_MAX_STEPS
-status: spec
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 needs_ev: true
+pr: 4034
+branch: ssi/neighbour-cap
+closed: 2026-10-04
 ---
 
 
@@ -134,3 +137,27 @@ Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG
 **Not in scope, file separately:**
 - `match_exit` picks the nearest crossing to the chord's meeting point. Uncapped chords make it worth settling by identity (Newton the exit onto the side).
 - The march's per-state transversality lever reads the chart, not the geometry. This is covered by `ssi-transversality-at-a-point-is-spelled-three-ways`.
+
+## Built (PR 4034, 2026-10-04)
+
+- `StepCap::Crossing` and its ending retire; so do the ℝ³ lane's
+  short-branch re-march (`StepCap::ShortBranch`, `SHORT_BRANCH_STEPS`),
+  which was the same class, and the march's `cap` parameter: the caps
+  left are the domain's diagonal and the idealized step.
+- `refine::fit_minimum` gives every polyline the cubic's four samples,
+  halving its longest gap whose midpoint settles, before any certificate
+  (inside `refine_by_certificate`, so `Ends::finish`, the at-rest door
+  through `Ends::through_seed`, and `finish_r3`). Where half a gap falls
+  in the band it stops, and that stop is `ShortBranchUncertified`
+  (`ssi_short_branch` retires); `neither` asks it of the branch's two
+  ends where the march refused for want of step.
+- Found in the build: with the cap gone, a straight carrier on a chart
+  that bends (a rational flat wall) was predicted a domain diagonal
+  ahead in state space and lost (`CrossingUnmatched`). The carrier rungs
+  do not read the chart's bending, and the cap had been bounding the
+  predictor. The march now also bounds its step by Hoffmann's relative
+  heuristic on the state it advances (`h·‖d₂‖ ≤ 2ρ`,
+  `h²·‖d₃‖ ≤ 6ρ`), which reads only the branch's own chart.
+- Filed: `ssi-match-exit-picks-the-crossing-nearest-a-chord` (P3) and
+  `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short`
+  (P3).
