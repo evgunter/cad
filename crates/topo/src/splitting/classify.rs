@@ -39,7 +39,7 @@ use crate::validate::decide;
 /// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
 /// `Nurbs` carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key does not resolve is a
-/// corrupt body and refuses as one; null scaffolding refuses as ever.
+/// torn body and panics; null scaffolding refuses as ever.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -47,13 +47,7 @@ pub(super) fn gate_operand<T: Decide>(
 ) -> Result<(), SplitReduceError> {
     let frame = BoxFrame::aimed(plane.normal);
     for (face_key, face) in body.faces() {
-        let Some(surface) = body.get_surface(face.surface) else {
-            return Err(SplitReduceError::Euler(
-                crate::euler::EulerOpError::StaleGeometry {
-                    key: crate::entity::GeomRef::Surface(face.surface),
-                },
-            ));
-        };
+        let surface = body.face_surface_linked(face_key, face);
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}
@@ -377,7 +371,6 @@ pub(super) fn classify_vertices<T: Decide>(
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let p = p.map_err(|_| SplitReduceError::CorruptOperand { vertex: vertex_key })?;
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),
@@ -811,20 +804,18 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     // precomputed root list below).
     let snapshot: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in snapshot {
-        let start = |body: &Body<T>, he| {
-            body.get_half_edge(he)
-                .map(|h: &crate::entity::HalfEdge| h.start)
+        let start = |body: &Body<T>, he, slot| {
+            crate::live::linked(
+                &body.half_edges,
+                he,
+                crate::entity::EntityId::HalfEdge,
+                crate::entity::EntityId::Edge(edge_key),
+                slot,
+            )
+            .start
         };
-        let u = start(body, edge.he_plus).ok_or(SplitReduceError::Euler(
-            crate::euler::EulerOpError::StaleKey {
-                key: crate::entity::EntityId::Edge(edge_key),
-            },
-        ))?;
-        let v = start(body, edge.he_minus).ok_or(SplitReduceError::Euler(
-            crate::euler::EulerOpError::StaleKey {
-                key: crate::entity::EntityId::Edge(edge_key),
-            },
-        ))?;
+        let u = start(body, edge.he_plus, "he_plus");
+        let v = start(body, edge.he_minus, "he_minus");
         let curve = match body.get_curve_geom(edge.curve) {
             Some(CurveGeom::Certified(c)) => c.clone(),
             _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
@@ -890,7 +881,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),
-                    source,
+                    source: source.from_driver(),
                 }
             })?;
             sides.insert(created.vertex, PlaneSide::On);

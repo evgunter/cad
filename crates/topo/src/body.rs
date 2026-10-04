@@ -76,8 +76,8 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
-    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
+    ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
@@ -106,14 +106,51 @@ pub(crate) enum Walk {
     /// The walk returned to its starting half-edge; the members are in
     /// walk order, starting with the start itself.
     Closed(Vec<HalfEdgeKey>),
-    /// A link failed to resolve mid-walk (stale key, or a mate that
-    /// does not exist), an orbit walk reached a half-edge that does
-    /// not start at its first member's vertex, or a claimed loop walk
-    /// ([`Body::loop_cycle_of`]) one that does not claim its loop.
-    Broken,
+    /// The step from `at` failed: a link did not resolve (stale key, or
+    /// a mate that does not exist), an orbit walk reached a half-edge
+    /// that does not start at its first member's vertex, or a claimed
+    /// loop walk ([`Body::loop_cycle_of`]) one that does not claim its
+    /// loop. `at` is the walk's first key where that key itself does
+    /// not resolve.
+    Broken {
+        /// The member whose step failed.
+        at: HalfEdgeKey,
+    },
     /// Every link resolved but the walk did not return to its start
     /// within the arena-length bound.
     Overrun,
+}
+
+/// The premise a walk that does not close breaks: every such panic
+/// names it ([`Walk::closed`]), and the rows that drive a torn body
+/// match on it.
+pub(crate) const WALKS_CLOSE: &str =
+    "every public door keeps the body tier-1-valid, where every such walk closes";
+
+/// The premise a loop walk that strays from its loop's claimants breaks.
+pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
+    "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
+
+impl Walk {
+    /// The members of a walk a tier-1-valid body closes: the `what` walk
+    /// from `first`, which every public door keeps closing (each `next`
+    /// and mate resolves, an orbit stays at its vertex, and a cycle is no
+    /// longer than its arena), so a walk that does not is a kernel bug
+    /// and panics naming the hop.
+    #[track_caller]
+    pub(crate) fn closed(self, what: &str, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+        match self {
+            Self::Closed(members) => members,
+            Self::Broken { at } => unreachable!(
+                "the {what} walk from {first:?} breaks at {at:?}: its step from there does not \
+                 resolve or leaves the walk, and {WALKS_CLOSE}"
+            ),
+            Self::Overrun => unreachable!(
+                "the {what} walk from {first:?} does not close within the half-edge arena's \
+                 length, and {WALKS_CLOSE}"
+            ),
+        }
+    }
 }
 
 /// A manifold B-rep body: topology arenas (scalar-free) plus geometry
@@ -1109,11 +1146,10 @@ impl<T: Real> Body<T> {
     ///
     /// - **A refusal that distinguishes the hops.**
     ///   `offset_together::scope_of_moves` names the caller's own
-    ///   stale face key on hop 1 and the body's incoherence on hop 2;
-    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
-    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
-    ///   `EntityId::Shell` on hop 2.
-    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   stale face key on hop 1 and panics naming the face's `shell`
+    ///   link on hop 2; [`Body::kfmrh`](crate::Body::kfmrh) does it
+    ///   twice, the same way.
+    ///   `offset_together::scope_walks::the_two_hops_answer_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
     /// - **A caller still using the intermediate shell key.**
     ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
@@ -1435,7 +1471,7 @@ impl<T: Real> Body<T> {
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1465,7 +1501,7 @@ impl<T: Real> Body<T> {
         });
         match walk {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1500,7 +1536,7 @@ impl<T: Real> Body<T> {
     pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.orbit_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
@@ -1526,6 +1562,100 @@ impl<T: Real> Body<T> {
         }
         self.vertex_orbit(first)
             .filter(|orbit| self.orbit_inverts(orbit))
+    }
+
+    /// [`Body::vertex_orbit_of`] for a vertex this call resolved or read
+    /// out of a record: on a tier-1-valid body every hop of it resolves
+    /// and the walk closes, so each miss panics naming the hop.
+    #[track_caller]
+    pub(crate) fn vertex_orbit_linked(&self, vertex: VertexKey) -> Vec<HalfEdgeKey> {
+        let data = crate::live::proven(&self.vertices, vertex, EntityId::Vertex);
+        let Some(first) = data.emanating else {
+            return Vec::new();
+        };
+        let start = crate::live::linked(
+            &self.half_edges,
+            first,
+            EntityId::HalfEdge,
+            EntityId::Vertex(vertex),
+            "emanating",
+        )
+        .start;
+        if start != vertex {
+            unreachable!(
+                "{}'s emanating {} starts at {}: {}",
+                EntityId::Vertex(vertex),
+                EntityId::HalfEdge(first),
+                EntityId::Vertex(start),
+                crate::live::NAMES_ONLY_LIVE
+            );
+        }
+        let orbit = self.orbit_walk(first).closed("orbit", first);
+        if !self.orbit_inverts(&orbit) {
+            unreachable!(
+                "the orbit walk from {first:?} does not walk back by mate(prev), and {WALKS_CLOSE}"
+            );
+        }
+        orbit
+    }
+
+    /// [`Body::edges_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s.
+    #[track_caller]
+    pub(crate) fn edges_of_vertex_linked(&self, vertex: VertexKey) -> Vec<EdgeKey> {
+        let mut out: Vec<EdgeKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+        out
+    }
+
+    /// [`Body::faces_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s,
+    /// and each member's loop and face are links of the record before.
+    #[track_caller]
+    pub(crate) fn faces_of_vertex_linked(&self, vertex: VertexKey) -> Vec<FaceKey> {
+        let mut out: Vec<FaceKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let face = self.face_of_linked(he);
+            if !out.contains(&face) {
+                out.push(face);
+            }
+        }
+        out
+    }
+
+    /// The face of `he`'s loop, for a half-edge this call resolved or
+    /// read out of a record: its `parent_loop` and that loop's `face`
+    /// are links, and the face lists the loop; a miss of either panics
+    /// naming the record.
+    #[track_caller]
+    pub(crate) fn face_of_linked(&self, he: HalfEdgeKey) -> FaceKey {
+        let parent = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).parent_loop;
+        let face = crate::live::linked(
+            &self.loops,
+            parent,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face;
+        let data = crate::live::linked(
+            &self.faces,
+            face,
+            EntityId::Face,
+            EntityId::Loop(parent),
+            "face",
+        );
+        assert!(
+            data.outer == parent || data.rings.contains(&parent),
+            "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
+             body a loop's face lists it"
+        );
+        face
     }
 
     /// The edges meeting `vertex`, each ONCE — or `None` where the
@@ -1612,7 +1742,7 @@ impl<T: Real> Body<T> {
     /// `Closed` walk is proven to stay at `first`'s vertex.
     pub(crate) fn orbit_walk(&self, first: HalfEdgeKey) -> Walk {
         let Some(origin) = self.half_edges.get(first).map(|half_edge| half_edge.start) else {
-            return Walk::Broken;
+            return Walk::Broken { at: first };
         };
         self.bounded_walk(first, |body, he| {
             let next = body.orbit_step(he)?;
@@ -1675,17 +1805,17 @@ impl<T: Real> Body<T> {
         step: impl Fn(&Self, HalfEdgeKey) -> Option<HalfEdgeKey>,
     ) -> Walk {
         if !self.half_edges.contains_key(first) {
-            return Walk::Broken;
+            return Walk::Broken { at: first };
         }
         let cap = self.half_edges.len();
         let mut members = vec![first];
         let mut current = first;
         loop {
             let Some(next) = step(self, current) else {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             };
             if !self.half_edges.contains_key(next) {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             }
             if next == first {
                 return Walk::Closed(members);
@@ -1741,36 +1871,25 @@ impl<T: Real> Body<T> {
 
     /// **Every live vertex with its point**, in vertex slot-index order
     /// (deterministic per D9): [`Body::vertices`], then each record's
-    /// point through [`Body::get_point`], made once.
+    /// point, made once.
     ///
-    /// The vertex key is live by construction; only the point read can
-    /// fail. A vertex whose point key does not resolve is a torn body —
-    /// a record of the body names nothing — and its row carries that
-    /// refusal beside the key, rather than being skipped.
+    /// # Panics
     ///
-    /// # Errors
-    ///
-    /// A row's point is [`DanglingRef::Geometry`] naming the point key
-    /// the live vertex holds and the point arena does not.
-    pub fn vertex_points(
-        &self,
-    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
-        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    /// Where a live vertex's point key does not resolve: every public
+    /// door keeps the body tier-1-valid (D2 row 4).
+    pub fn vertex_points(&self) -> impl Iterator<Item = (VertexKey, Point3<T>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(k, v)))
     }
 
     /// The point `vertex`'s record names: the one read of a vertex's
     /// point key, behind both [`Body::vertex_points`] and
-    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
-    ///
-    /// # Errors
-    ///
-    /// [`DanglingRef::Geometry`] naming the point key when the point
-    /// arena does not hold it.
-    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
-        self.points
-            .get(vertex.point)
-            .copied()
-            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
+    /// [`readback::vertex_point`](crate::readback::vertex_point). A
+    /// miss panics naming the vertex (D2 row 4).
+    #[track_caller]
+    pub(crate) fn point_of(&self, key: VertexKey, vertex: &Vertex) -> Point3<T> {
+        self.points.get(vertex.point).copied().unwrap_or_else(|| {
+            crate::live::dangling_link(EntityId::Vertex(key), "point", GeomRef::Point(vertex.point))
+        })
     }
 
     /// All points, in slot-index order (deterministic per D9).
@@ -1871,7 +1990,6 @@ impl<T: Real> Default for Body<T> {
 mod tests {
     use super::*;
     use crate::EntityId;
-    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
@@ -2189,16 +2307,17 @@ mod tests {
         assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
     }
 
-    /// All three refusal postures over the one door, because a fold
-    /// that flattened any of them into another leaves every other row
-    /// green.
+    /// The walk consumers over one torn `parent_loop`: the public edge
+    /// door names WHICH faces on a sound body, and every consumer —
+    /// that door, the vertex fan, and the sector walk — panics naming
+    /// the torn link (D2 row 4) rather than answering a refusal a caller
+    /// could mistake for one about its own keys.
     #[test]
-    fn the_walk_consumers_keep_their_own_refusal() {
+    fn the_walk_consumers_panic_naming_the_torn_link() {
         let mut t = pillow(Tol::witness());
-        // Typed `DanglingRef`: the edge door names WHICH faces, in
-        // `he_plus`-then-`he_minus` order. `is_ok()` would pass on an
-        // `(f_plus, f_plus)` — the typo a re-spelling of two
-        // near-identical lines makes — so the pair is asserted.
+        // `is_ok()` would pass on an `(f_plus, f_plus)` — the typo a
+        // re-spelling of two near-identical lines makes — so the pair
+        // is asserted.
         let e = t.body.get_edge(t.edges[0]).unwrap().clone();
         assert_eq!(e.he_plus, t.hes_a[0]);
         assert_eq!(e.he_minus, t.hes_b[0]);
@@ -2206,28 +2325,29 @@ mod tests {
         assert_eq!(faces(&t.body), Ok((t.face_a, t.face_b)));
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
-        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
         assert_eq!(
-            faces(&t.body),
-            Err(crate::readback::DanglingRef::Entity(
-                crate::entity::EntityId::Loop(LoopKey::default())
-            ))
+            t.body.faces_of_vertex_linked(v).len(),
+            2,
+            "both faces meet the untorn vertex"
         );
-        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
-        // REFUSAL, not a `None` a caller may drop.
-        assert!(matches!(
-            crate::offset_together::faces_at_vertex(&t.body, v),
-            Err(ReplaceFaceError::Corrupt)
-        ));
-        // Typed `Result` that NAMES the entity. This is the arm the
-        // door cannot express, so it is the arm a fold would flatten
-        // silently; the agnostic arm above is never at risk.
-        assert!(matches!(
-            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
-            Err(crate::sector_face::SectorFaceError::Corrupt(
-                EntityId::Loop(_)
-            ))
-        ));
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        let premise = format!(
+            "{}'s parent_loop names {}",
+            EntityId::HalfEdge(t.hes_a[0]),
+            EntityId::Loop(LoopKey::default())
+        );
+        let edge_door = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = faces(&t.body);
+        }));
+        let fan = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.faces_of_vertex_linked(v);
+        }));
+        let sector = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = crate::sector_face::resolve(&t.body, v, t.hes_b[0]);
+        }));
+        for (label, report) in [("edge door", edge_door), ("fan", fan), ("sector", sector)] {
+            assert!(report.contains(&premise), "{label}: {report}");
+        }
     }
 
     /// The door removes the one entity and repairs nothing: the
@@ -2647,9 +2767,9 @@ mod tests {
     /// The door against the chain it replaces, on the validator's own
     /// point tear (`validate`'s `dangling_geometry_is_reported`): the
     /// `filter_map` chain loses the torn vertex and reports a shorter
-    /// cloud; the door names the dangling key.
+    /// cloud; the door panics naming the vertex and its dangling key.
     #[test]
-    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+    fn vertex_points_panics_on_a_torn_point_where_the_chain_drops_it() {
         let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
             b.vertices()
                 .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
@@ -2660,12 +2780,7 @@ mod tests {
         let read: Vec<_> = t
             .body
             .vertex_points()
-            .map(|(k, p)| {
-                (
-                    k,
-                    p.expect("an untorn pillow reads every vertex").to_array(),
-                )
-            })
+            .map(|(k, p)| (k, p.to_array()))
             .collect();
         assert_eq!(
             read,
@@ -2682,14 +2797,22 @@ mod tests {
             t.vertices.len() - 1,
             "the chain silently drops the torn vertex"
         );
-        assert_eq!(
-            t.body
-                .vertex_points()
-                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
-                .collect::<Vec<_>>(),
-            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
-            "exactly the torn vertex refuses, naming itself and the dangling point key"
-        );
+        let report = crate::surgery::tests::panic_message(|| {
+            t.body.vertex_points().for_each(drop);
+        });
+        for fragment in [
+            format!(
+                "{}'s point names {}",
+                EntityId::Vertex(t.vertices[0]),
+                GeomRef::Point(dead)
+            ),
+            crate::live::NAMES_ONLY_LIVE.to_owned(),
+        ] {
+            assert!(
+                report.contains(&fragment),
+                "the torn vertex panics naming itself and its point key: {report}"
+            );
+        }
     }
 
     #[test]

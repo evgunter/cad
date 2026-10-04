@@ -139,7 +139,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
     };
     // Pass 1: the f64 elaboration, and its record.
     let nominal = program
-        .resolve(&doc.doc.param_env::<f64>())
+        .resolve(&doc.doc.var_env::<f64>())
         .expect("resolves at f64");
     let mut records = Vec::new();
     for steps in &nominal {
@@ -147,7 +147,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
         records.push(record);
     }
     // Pass 2: the same program at Dual, seeded on the hole radius.
-    let mut env = doc.doc.param_env::<Dual64>();
+    let mut env = doc.doc.var_env::<Dual64>();
     let seeded = env
         .bindings
         .iter_mut()
@@ -191,7 +191,6 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
     use crate::fixture;
-    use editor_core::VarName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
@@ -206,21 +205,24 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         panic!("the plate's profile node is a profile node")
     };
     let nominal = program
-        .resolve(&doc.doc.param_env::<f64>())
+        .resolve(&doc.doc.var_env::<f64>())
         .expect("resolves at f64");
     let mut records = Vec::new();
     for steps in &nominal {
         let (_, record) = profile::replay_recording(steps, Tol::witness()).expect("replays");
         records.push(record);
     }
-    let mut env = doc.doc.param_env::<Interval>();
+    let mut env = doc.doc.var_env::<Interval>();
     // The hole radius BY NAME. Widening every continuous parameter
     // would make the row's own subject unclear: the claim is about a
     // box on the dimension that drives this profile, and a helper that
     // clobbers whatever else the document happens to carry would keep
     // passing if the plate grew a second parameter that did the
     // refusing instead.
-    let hole_r = VarName::from_static(corpus::plate_param::HOLE_R);
+    let hole_r = doc
+        .doc
+        .var_named(corpus::plate_param::HOLE_R)
+        .expect("the plate declares its hole radius");
     let Some(ParamValue::Continuous { value, .. }) = env.bindings.get_mut(&hole_r) else {
         panic!("the plate's hole radius is a continuous parameter named hole_r")
     };
@@ -334,7 +336,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
 /// and does not move the value channel.
 ///
 /// What this row does NOT show is a seeded tangent, and the reason is
-/// worth stating rather than leaving as an absence: `Doc::param_env`
+/// worth stating rather than leaving as an absence: `Doc::var_env`
 /// embeds every parameter through `from_f64`, so a document evaluation
 /// has no seed to carry — putting one there is the seeding surface,
 /// which is another unit's. The seam this unit opened is that a seed
@@ -344,7 +346,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
 /// exact call `wire_profile` makes.
 ///
 /// What this row does show is that the whole lifted path — resolving
-/// the program at `ParamEnv<Dual64>`, elaborating it guided, feeding
+/// the program at `VarEnv<Dual64>`, elaborating it guided, feeding
 /// both dual channels into the content key — runs at `Dual` and leaves
 /// the value channel exactly where the pinned lane put it.
 #[test]

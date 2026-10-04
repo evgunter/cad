@@ -142,6 +142,18 @@ pub fn thickness_param() -> VarName {
     VarName::from_static("thickness")
 }
 
+/// The variable `doc` names `name` — the id every variable-keyed op
+/// and row addresses it by.
+pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
+    doc.var_named(name)
+        .unwrap_or_else(|| panic!("the document names a variable {name}"))
+}
+
+/// The parametric fixture's driving parameter, by its id in `doc`.
+pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
+    var_of(doc, thickness_param().as_str())
+}
+
 /// A document whose extrude distance is DRIVEN by a document
 /// parameter — the expression-driven-dimension fixture.
 ///
@@ -164,7 +176,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // `thickness / 2` — a composed expression over a
             // parameter, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
+            distance: Expr::div(Expr::named(thickness_param(), Dimension::Length), scl(2.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

@@ -77,7 +77,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 /// `validate_geometric`'s internals; a single flipped sense bit or a
 /// wrongly-folded chart normal reddens it.
 fn assert_every_face_outward(body: &Body<f64>) {
-    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p.unwrap()).collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let interior = Point3::new(
         pts.iter().map(|p| p.x).sum::<f64>() / n,
@@ -349,22 +349,8 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         )
         .expect("the ball translates")
     };
-    let dimpled = {
-        use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
-        boolean_op_with(
-            BooleanOp::Subtract,
-            &cube,
-            &ball,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            Tol::witness(),
-        )
-        .expect("the dimple subtracts")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
-    };
+    let dimpled =
+        sweep::test_support::realized(topo::BooleanOp::Subtract, &cube, &ball, Tol::witness());
     let surviving: Vec<EdgeKey> = box_edges
         .into_iter()
         .filter(|k| dimpled.get_edge(*k).is_some())

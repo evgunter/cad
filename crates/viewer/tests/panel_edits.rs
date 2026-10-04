@@ -14,7 +14,7 @@
 use crate::common;
 use editor_core::ExtrudeSide;
 
-use pncad::document::{Dimension, DocEdit, FreeVar, SlotId, VarName};
+use pncad::document::{Dimension, DocEdit, EditError, FreeVar, SlotId, VarName};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
@@ -30,7 +30,7 @@ fn a_property_edit_emits_exactly_one_committed_docedit() {
     let before = session.history().len();
 
     let outcome = session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.011),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -371,7 +371,11 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
                 params,
-                vec![common::thickness_param()],
+                vec![
+                    session
+                        .committed_doc()
+                        .spoken_var(common::thickness_var(session.committed_doc()))
+                ],
                 "the affordance names what to edit instead"
             );
             assert_eq!(current, Some(SlotValue::Continuous(0.004)));
@@ -396,15 +400,15 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
     else {
         panic!("expected the driven refusal");
     };
-    let name = params.first().expect("one driving parameter").clone();
+    let var = params.first().expect("one driving parameter").id();
 
     // The affordance's navigate half: selecting the parameter is a
     // typed operation, and editing it there moves the slot the direct
     // edit refused to touch.
-    session.perform(SessionOp::Select(Selection::Param(name.clone())));
-    assert_eq!(session.selection(), &Selection::Param(name.clone()));
+    session.perform(SessionOp::Select(Selection::Param(var)));
+    assert_eq!(session.selection(), &Selection::Param(var));
     let outcome = session.perform(SessionOp::SetParam {
-        name,
+        var,
         value: SlotValue::Continuous(0.020),
     });
     assert_eq!(outcome.committed.len(), 1);
@@ -547,11 +551,11 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let before = session.history().len();
-    let name = common::thickness_param();
+    let var = common::thickness_var(session.committed_doc());
 
     assert!(
         session
-            .perform(SessionOp::BeginParamGesture { name: name.clone() })
+            .perform(SessionOp::BeginParamGesture { var })
             .refusal
             .is_none()
     );
@@ -559,17 +563,14 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     let mut last = 0.0;
     for step in 1..=5 {
         last = 0.008 + f64::from(step) * 0.002;
-        let outcome = session.perform(SessionOp::PreviewParamGesture {
-            name: name.clone(),
-            value: last,
-        });
+        let outcome = session.perform(SessionOp::PreviewParamGesture { var, value: last });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
         previews += outcome.previewed.len();
         assert_eq!(session.history().len(), before, "and mints no history");
     }
     assert_eq!(previews, 5);
 
-    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
+    let outcome = session.perform(SessionOp::CommitParamGesture { var });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
@@ -607,13 +608,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::VarName::from_static("no_such_parameter"),
+        var: pncad::document::VarId(0x6e6f_7375_6368),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                name: pncad::document::VarName::from_static("no_such_parameter"),
+                var: pncad::document::VarId(0x6e6f_7375_6368),
                 value: 1.0
             })
             .refusal,
@@ -676,7 +677,6 @@ test_utils::f6_variants! {
         NoSuchSlot,
         NoSuchParam,
         ParamNotANumber,
-        ParamExists,
         EmptyName,
         WrongNodeKind,
         Duplicate,
@@ -771,27 +771,30 @@ fn refusals_render_as_sentences() {
         "the io arm names what happened: {io}"
     );
 
-    // The arm that motivated the widening: an undeclared name typed
-    // into the value field goes to the EDIT door, whose sentence the
-    // status line renders verbatim.
+    // The arm that motivated the widening: a value typed into the
+    // field of a variable the document does not hold goes to the EDIT
+    // door, whose sentence the status line renders verbatim.
+    let absent = pncad::document::VarId(0x7461_7070_6572);
     let edit = session
         .perform(SessionOp::SetParam {
-            name: pncad::document::VarName::from_static("tapper"),
+            var: absent,
             value: SlotValue::Continuous(1.0),
         })
         .refusal
         .expect("an undeclared parameter refuses");
     assert!(
-        edit.to_string().contains("tapper"),
-        "the edit arm names the parameter: {edit}"
+        edit.to_string().contains(&absent.to_string()),
+        "the edit arm names the variable: {edit}"
     );
 
     let lookup = session
-        .perform(SessionOp::BeginParamGesture {
-            name: pncad::document::VarName::from_static("tapper"),
-        })
+        .perform(SessionOp::BeginParamGesture { var: absent })
         .refusal
         .expect("dragging an absent parameter refuses");
+    assert!(
+        lookup.to_string().contains(&absent.to_string()),
+        "the lookup arm names the variable: {lookup}"
+    );
     let kind = session
         .perform(SessionOp::AddExtrude {
             profile: extrude,
@@ -808,19 +811,10 @@ fn refusals_render_as_sentences() {
         .refusal
         .expect("a profile has no radius slot");
 
-    // The arm whose sentence is composed OUTSIDE `Display` — through
-    // `Refusal::exists_wording`, shared with the add-parameter form's
-    // pre-click notice — and therefore outside the source census,
-    // which reads `impl Display` bodies.
-    //
-    // **The ASKED-for dimension differs from the declared one**, and
-    // it has to: this arm exists to name what already stands there
-    // (`create_param` reads `existing.dim()`), and a fixture that
-    // asks for the dimension it declared cannot tell that apart from
-    // an arm forwarding the request — which is the one mistake the
-    // refusal guards. `thickness` is declared a length; this asks for an angle.
+    // A declare over a taken name, refused by the declare door and
+    // forwarded through `Refusal::Edit` in that door's words.
     let exists = session
-        .perform(SessionOp::CreateParam {
+        .perform(SessionOp::DeclareVar {
             name: common::thickness_param(),
             value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Angle, 1.0),
         })
@@ -828,12 +822,8 @@ fn refusals_render_as_sentences() {
         .expect("creating over a declared name refuses");
     let shown = exists.to_string();
     assert!(
-        shown.contains("(length)"),
-        "the dimension is the quantity's noun, not its variant identifier: {shown}"
-    );
-    assert!(
-        !shown.contains("angle"),
-        "and it is the EXISTING declaration's, not the one asked for: {shown}"
+        shown.contains("thickness"),
+        "the refusal names the taken name: {shown}"
     );
 
     for refusal in [&io, &edit, &lookup, &kind, &slot, &exists] {
@@ -844,7 +834,7 @@ fn refusals_render_as_sentences() {
     // the typed route and the dragged route name the same thing to do.
     // Asserted against the CONST both renderings read, so the clause
     // cannot come back as a second literal without this row reddening.
-    let recourse = editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+    let recourse = editor_core::edit::UNKNOWN_VAR_RECOURSE;
     assert!(
         edit.to_string().contains(recourse) && lookup.to_string().contains(recourse),
         "typed {edit}\ndragged {lookup}"
@@ -981,7 +971,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
 
     // Create: exactly one committed DeclareVar — the CREATE door
     // really is authoring a declaration — and one undo step.
-    let outcome = session.perform(SessionOp::CreateParam {
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: margin.clone(),
         value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Length, 0.005),
     });
@@ -994,7 +984,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     assert_eq!(session.history().len(), before + 1, "one undo step");
     let row = props::param_rows(session.committed_doc())
         .into_iter()
-        .find(|row| row.name == margin)
+        .find(|row| row.label.name() == Some(&margin))
         .expect("the parameter exists");
     assert_eq!(row.dimension, pncad::document::Dimension::Length);
     assert_eq!(row.value, SlotValue::Continuous(0.005));
@@ -1021,61 +1011,66 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     assert!(
         props::param_rows(session.committed_doc())
             .into_iter()
-            .any(|row| row.name == margin),
+            .any(|row| row.label.name() == Some(&margin)),
         "the first undo returns only the expression edit"
     );
     session.perform(SessionOp::Undo);
     assert!(
         !props::param_rows(session.committed_doc())
             .into_iter()
-            .any(|row| row.name == margin),
+            .any(|row| row.label.name() == Some(&margin)),
         "one more undo removes the creation"
     );
 }
 
-/// **Create is not replace.** The panel's create door refuses an
-/// already-declared name typed, with the existing declaration's
-/// dimension in the payload — and the replace act stays spellable
-/// through the door that says so (`SetParam`).
+/// **Create is not replace.** The panel's create door is the declare
+/// door, which refuses a taken name itself (`EditError::VarNameTaken`,
+/// naming the holder); the viewer forwards that refusal through
+/// `Refusal::Edit` and adds no reading of its own. The replace act
+/// stays spellable through the door that says so (`SetParam`).
 #[test]
-fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
+fn the_create_door_forwards_the_declares_name_taken_and_setparam_still_replaces() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let before = session.history().len();
+    let thickness = common::thickness_var(session.committed_doc());
 
     // Creating over "thickness" — even at a DIFFERENT dimension, the
     // riskier half of a silent replace — refuses typed and unchanged.
-    let outcome = session.perform(SessionOp::CreateParam {
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: common::thickness_param(),
         value: pncad::document::FreeVar::Count { value: 3 },
     });
-    match outcome.refusal {
-        Some(Refusal::ParamExists {
-            ref name,
-            dimension,
-        }) => {
-            assert_eq!(name, &common::thickness_param());
-            assert_eq!(
-                dimension,
-                pncad::document::Dimension::Length,
-                "the payload carries what already stands there"
-            );
-        }
-        ref other => panic!("expected the already-exists refusal, got {other:?}"),
+    match outcome.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => match error.as_ref() {
+            EditError::VarNameTaken { name, holder } => {
+                assert_eq!(name, &common::thickness_param());
+                assert_eq!(
+                    holder.id(),
+                    thickness,
+                    "the refusal names the variable already holding the name"
+                );
+            }
+            other => panic!("expected the declare's name-taken refusal, got {other:?}"),
+        },
+        other => panic!("expected the forwarded edit refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
-    let rendered = outcome.refusal.expect("asserted above").to_string();
-    assert!(
-        rendered.contains("already exists") && rendered.contains("edit it instead?"),
-        "the refusal offers the edit door: {rendered}"
+    assert_eq!(
+        session
+            .committed_doc()
+            .free(thickness)
+            .map(|free| free.dim()),
+        Some(pncad::document::Dimension::Length),
+        "the standing declaration is untouched"
     );
 
     // The REPLACE door still replaces — same underlying edit, spelled
     // as what it is.
     let outcome = session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.012),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1104,7 +1099,7 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
     let before = session.history().len();
 
     let outcome = session.perform(SessionOp::SetParamText {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         text: "50 mm".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1153,7 +1148,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     );
     let before = session.history().len();
     let outcome = session.perform(SessionOp::SetParamText {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         text: "50 mm".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1163,7 +1158,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     // The same value, said in another notation: the notation moves and
     // the value does not.
     let outcome = session.perform(SessionOp::SetParamText {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         text: "0.05 m".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1201,7 +1196,7 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     let before = session.history().len();
     for text in ["base_r * 2.0", "base_r"] {
         let outcome = session.perform(SessionOp::SetParamText {
-            name: name.clone(),
+            var: common::var_of(session.committed_doc(), name.as_str()),
             text: text.to_owned(),
         });
         let refusal = outcome.refusal.expect("a parameter takes no expression");
@@ -1219,7 +1214,7 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     // the parser, and carries the parser's own sentence.
     let refusal = session
         .perform(SessionOp::SetParamText {
-            name: name.clone(),
+            var: common::var_of(session.committed_doc(), name.as_str()),
             text: "base_r * 2".to_owned(),
         })
         .refusal
@@ -1248,7 +1243,7 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
         tol,
     );
     let outcome = session.perform(SessionOp::SetParamText {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         text: "50 furlong".to_owned(),
     });
     let refusal = outcome.refusal.expect("furlong is not a table row");
@@ -1286,7 +1281,7 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
     );
     let before = session.history().len();
     let outcome = session.perform(SessionOp::SetParamText {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         text: "50 mm".to_owned(),
     });
     let refusal = outcome
@@ -1324,7 +1319,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
         tol,
     );
     let outcome = session.perform(SessionOp::SetParamUnit {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         unit: MM.def(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1350,7 +1345,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     );
     let refusal = counted
         .perform(SessionOp::SetParamUnit {
-            name: holes,
+            var: common::var_of(counted.committed_doc(), holes.as_str()),
             unit: MM.def(),
         })
         .refusal
@@ -1382,7 +1377,7 @@ fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let before = session.history().len();
     let refusal = session
         .perform(SessionOp::SetParamText {
-            name: holes.clone(),
+            var: common::var_of(session.committed_doc(), holes.as_str()),
             text: "8 mm".to_owned(),
         })
         .refusal
@@ -1404,7 +1399,7 @@ fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
 fn param_row(session: &DocSession, name: &VarName) -> props::ParamRow {
     props::param_rows(session.doc())
         .into_iter()
-        .find(|row| &row.name == name)
+        .find(|row| row.label.name() == Some(name))
         .expect("the parameter row")
 }
 
@@ -1482,5 +1477,166 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     assert!(
         matches!(carried, SlotValue::Continuous(v) if v.is_nan()),
         "the continuous arm answered {carried:?} instead of carrying its value          to the literal door"
+    );
+}
+
+/// **A rename moves the name and nothing keyed by the id.**
+///
+/// `RenameVar` commits exactly one `DocEdit::RenameVar` and one undo
+/// step. The parameters panel keys its rows by `VarId`, so the row for
+/// the renamed variable is the same row — same id, same place in the
+/// list, same value — under its new label; the selection on it stays
+/// selected and still denotes; and the slot that reads it is written
+/// by the new name, because a reader holds the id and not the name.
+/// One undo puts the old name back on the same row.
+#[test]
+fn a_rename_keeps_the_parameter_row_and_its_selection_and_is_one_undo_step() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    // A second row, declared after `thickness` and named between the
+    // old name and the new one: under a name sort the renamed row would
+    // move from second to first, so "the same place" can go red.
+    let (doc, _) = viewer::test_support::edited(
+        &doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("mid"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    let thickness = common::thickness_var(session.committed_doc());
+    session.perform(SessionOp::Select(Selection::Param(thickness)));
+    let rows_before = props::param_rows(session.committed_doc());
+    assert!(rows_before.len() >= 2, "a re-sort has a row to move past");
+    let at = rows_before
+        .iter()
+        .position(|row| row.var == thickness)
+        .expect("the parameter has a row");
+    let before = session.history().len();
+    let depth = VarName::from_static("depth");
+
+    let outcome = session.perform(SessionOp::RenameVar {
+        var: thickness,
+        name: Some(depth.clone()),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(
+            outcome.committed.as_slice(),
+            [DocEdit::RenameVar { var, name: Some(name) }]
+                if *var == thickness.into() && *name == depth
+        ),
+        "exactly one rename edit: {:?}",
+        outcome.committed
+    );
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+
+    let rows = props::param_rows(session.committed_doc());
+    assert_eq!(rows.len(), rows_before.len(), "no row came or went");
+    let row = &rows[at];
+    assert_eq!(
+        row.var, thickness,
+        "the row at the same place is the same variable"
+    );
+    assert_eq!(row.label.name(), Some(&depth), "under its new name");
+    assert_eq!(row.value, rows_before[at].value, "with its value untouched");
+    assert_eq!(
+        session.selection(),
+        &Selection::Param(thickness),
+        "the selection rides the id"
+    );
+    assert!(
+        matches!(
+            session.standing(),
+            viewer::session::Standing::Param { ref var, present: true }
+                if var.name() == Some(&depth)
+        ),
+        "and still denotes, spoken by the new name: {:?}",
+        session.standing()
+    );
+    let source = props::slot_rows(session.committed_doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .and_then(|row| row.source)
+        .expect("the driven slot shows its source");
+    assert!(
+        source.contains("depth") && !source.contains("thickness"),
+        "the reader is written by the name its variable holds now: {source}"
+    );
+
+    session.perform(SessionOp::Undo);
+    let row = &props::param_rows(session.committed_doc())[at];
+    assert_eq!(row.var, thickness);
+    assert_eq!(
+        row.label.name(),
+        Some(&common::thickness_param()),
+        "one undo returns the old name to the same row"
+    );
+}
+
+/// **A delete removes the variable and leaves its readers unresolved,
+/// typed.**
+///
+/// `DeleteVar` commits exactly one `DocEdit::DeleteVar`. The row goes,
+/// and the slot that read the variable does not evaluate: its value is
+/// `EvalError::UnresolvedVar` naming the deleted id, both in the
+/// panel's row and in the evaluated node's own refusal.
+#[test]
+fn a_delete_removes_the_parameter_and_its_reader_refuses_unresolved() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let thickness = common::thickness_var(session.committed_doc());
+    let before = session.history().len();
+
+    let outcome = session.perform(SessionOp::DeleteVar { var: thickness });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(
+            outcome.committed.as_slice(),
+            [DocEdit::DeleteVar { var }] if *var == thickness.into()
+        ),
+        "exactly one delete edit: {:?}",
+        outcome.committed
+    );
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+    assert!(
+        props::param_rows(session.committed_doc())
+            .iter()
+            .all(|row| row.var != thickness),
+        "the row is gone"
+    );
+
+    let value = props::slot_rows(session.committed_doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the slot is listed")
+        .value;
+    assert_eq!(
+        value,
+        Err(props::SlotFault::Eval(
+            pncad::document::EvalError::UnresolvedVar { var: thickness }
+        )),
+        "the reader's row says which variable it can no longer read"
+    );
+
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let error = eval
+        .result(extrude)
+        .and_then(pncad::document::NodeResult::error)
+        .expect("the reader fails");
+    assert!(
+        matches!(
+            &error.kind,
+            pncad::document::NodeErrorKind::Expr {
+                slot: SlotId::Distance,
+                source: pncad::document::EvalError::UnresolvedVar { var },
+            } if *var == thickness
+        ),
+        "the evaluated node refuses typed, naming the variable: {:?}",
+        error.kind
     );
 }

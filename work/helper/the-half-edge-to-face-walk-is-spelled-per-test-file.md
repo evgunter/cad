@@ -90,8 +90,9 @@ population is untouched, so it stays open.
 ## The edge-level twin now has a door (TQUERY, 2026-10-02)
 
 `topo::readback::edge_sides(body, edge)` answers BOTH sides of an edge —
-each side's face and its surface key, `he_plus`'s first — refusing with
-the `DanglingRef` of whichever lookup missed. Many sites above walk both
+each side's face and its surface key, `he_plus`'s first — refusing
+typed (`ReadbackError::Dangling`) only for the caller's stale edge; a
+record hop that misses panics naming the record (D2 row 4). Many sites above walk both
 half-edges of one edge, and those fold onto it rather than onto
 `face_of_half_edge` twice. The tquery branch routed the three test
 files `work/tquery/edge-side-surfaces-have-no-door.md` named

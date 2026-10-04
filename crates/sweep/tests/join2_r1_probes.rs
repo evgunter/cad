@@ -21,6 +21,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
+/// `body` finished for the boolean doors (the panic names the
+/// validator's findings where it does not finish).
+fn fin(body: &topo::Body<f64>) -> topo::AtRestBody<f64> {
+    sweep::test_support::finished("an operand", body.clone(), tol())
+}
+
 /// tan(π/8): a quarter-circle's bulge.
 const Q: f64 = 0.414_213_562_373_095_03;
 
@@ -141,19 +147,35 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
             };
         out.push(format!(
             "{label} {order} U {} [{join}]",
-            outcome(topo::union_with(a, b, &dab, tol()), va + vb, tol())
+            outcome(
+                topo::union_with(&fin(a), &fin(b), &dab, tol()),
+                va + vb,
+                tol()
+            )
         ));
         out.push(format!(
             "{label} {order} S_ab {}",
-            outcome(topo::subtract_with(a, b, &dab, tol()), va, tol())
+            outcome(
+                topo::subtract_with(&fin(a), &fin(b), &dab, tol()),
+                va,
+                tol()
+            )
         ));
         out.push(format!(
             "{label} {order} S_ba {}",
-            outcome(topo::subtract_with(b, a, &dba, tol()), vb, tol())
+            outcome(
+                topo::subtract_with(&fin(b), &fin(a), &dba, tol()),
+                vb,
+                tol()
+            )
         ));
         out.push(format!(
             "{label} {order} I {}",
-            outcome(topo::intersect_with(a, b, &dab, tol()), 0.0, tol())
+            outcome(
+                topo::intersect_with(&fin(a), &fin(b), &dab, tol()),
+                0.0,
+                tol()
+            )
         ));
     }
     out
@@ -494,7 +516,11 @@ fn unions_through_ring_vertices_and_like_far_ends_build_sound() {
             (&lower, &upper)
         };
         let d = topo::test_support::flush_declarations(a, b, tol());
-        let line = outcome(topo::union_with(a, b, &d, tol()), vol(a) + vol(b), tol());
+        let line = outcome(
+            topo::union_with(&fin(a), &fin(b), &d, tol()),
+            vol(a) + vol(b),
+            tol(),
+        );
         println!("{label} {order} U {line}");
         if !line.starts_with("OK SOUND") {
             failed.push(format!("{label} {order}: {line}"));

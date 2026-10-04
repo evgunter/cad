@@ -413,7 +413,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
 /// param env never differs, and a distribution-only edit round-tripped
 /// through persistence still evaluates to the same environment.
 #[test]
-fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
+fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
     let plain = {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-env"), Tol::witness());
         apply(
@@ -450,14 +450,14 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
         .doc
     };
     assert_eq!(
-        plain.param_env::<f64>().bindings,
-        annotated.param_env::<f64>().bindings
+        plain.var_env::<f64>().bindings,
+        annotated.var_env::<f64>().bindings
     );
     let text = editor_core::save(&annotated, &[], Tol::witness()).expect("saves");
     let back = editor_core::load(&text, Tol::witness()).expect("loads").doc;
     assert_eq!(
-        plain.param_env::<f64>().bindings,
-        back.param_env::<f64>().bindings,
+        plain.var_env::<f64>().bindings,
+        back.var_env::<f64>().bindings,
         "the annotation survives the file, the environment never sees it"
     );
 }

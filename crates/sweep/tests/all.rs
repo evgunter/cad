@@ -640,6 +640,10 @@ mod join3_r2_probes;
 mod join3_r2_r1copy;
 #[path = "join3_review_r1.rs"]
 mod join3_review_r1;
+#[path = "join_pierce_runs_sweep.rs"]
+mod join_pierce_runs_sweep;
+#[path = "join_pierce_strut_facing.rs"]
+mod join_pierce_strut_facing;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "join_reflex_wedge_probes.rs"]
@@ -896,5 +900,7 @@ mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "far_thin_disc_sign.rs"]
+mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;

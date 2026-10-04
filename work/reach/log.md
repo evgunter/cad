@@ -775,3 +775,27 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **The fix pass.** The last pass added spiric rows, which the M5 and M6 mutants turn red. It gave the unreachable variant one recourse text, rewrote the gate's stated reason, and filed the join's residue sites.
 - **Verification.** An independent verifier session found the pass VERIFIED. The gate-deletion attempt is exactly reverted, the five mutants are red, and the suites ran 7177/7177 at all three ε.
 — (REACH orchestrator)
+
+## 2026-10-04 — check 7 reads the interval enclosure (PR 3977)
+
+- **The change.** Check 7 now decides the volume sign from an interval re-derivation. Every walk is recentred about the body's least corner. Planar faces are fans from their own loop points. Quadrature, NURBS and Approx faces are carried by −c. Both signs are certified.
+  - A sign the re-derivation cannot decide refuses typed: `VolumeSignUnresolved`, and `ShellRoleUndecided` at check 10.
+  - `at_infinity_side` reads its sign through the scalar's lane.
+  - The backstop makes its exact-or-bracket choice in one place, and the `_structural` doors keep deciding on the sums. That divergence is stated at the door.
+- **Review.** The dual review froze at `1d4f235512` and both reviews came back NOT-MERGEABLE-AS-IS. Each lane raised a MAJOR the other did not: the side at infinity misread (R2) and check 10 skipping a straddling shell (R1). Both enter the tally.
+- **Delta 1.** Planar walks were closed, but curved walks kept the world-origin centre, so nine inside-out discs at 1–20 km passed.
+- **Delta 2.** No MAJOR. A valid tilted cylinder∩slab whose wall takes the quadrature lane was refused in domain. The settled-residue row pinned fan-anchor noise.
+- **The last pass.** It recentred the quadrature faces, pinned `VolumeSignUnresolved`, and rewrote the settled-residue row to assert only what the geometry decides.
+- **Verification.** An independent verifier session found the pass VERIFIED. No inside-out body passes in any family at 1e-9 or 1e-12, and no valid in-domain body that main accepts is refused beyond the sliver fixture main also refuses. All seven mutants behave as stated. One digest line moved, `sym_thin_strip`, and the move is explained.
+- **Its notes.** The backstop's interval confirm now re-runs quadrature faces about c, a cost change outside check 7. `validate_geometric` costs about 1.3–2.5× main on curved bodies.
+— (REACH orchestrator)
+
+## 2026-10-04 — the boolean door takes finished bodies (PR 3987)
+
+- **The change.** The boolean doors take `&AtRestBody<T>`, and `ops::gate` is the one result gate (tier 3 via `T::gate_at_rest_kept`) at every site that builds a `BooleanBody`. A sub-tier-3 operand refuses where it is finished, naming its own entities. The editor finishes each operand once at the seat. The census half is parked on `boolean-door-runs-the-census-over-its-result`. The seat's second tier-3 run is filed as `the-evaluator-carries-kept-bodies`.
+- **Review.** The dual review froze at `b8eb4dd0eb` and both reviews came back NOT-MERGEABLE-AS-IS. Both raised the merge order ahead of #3977 (the contact9 row red at 1e-12). Only R2 raised that an inside-out operand at a dual ships its complement, a regression from main. That enters the tally.
+- **Fix pass 1.** At duals the door runs main's operand gate and `validate::inside_out_solids` (`reduce::gate_unverdicted_operand`) and main's structural result gate. The public `boolean_reduce` doors take `&AtRestBody`. **Delta review:** APPROVE-WITH-FIXES, 0/2/5, the dual MAJOR closed by execution.
+- **The last pass.** It restored the public `NonMaximalFaces`/`CoplanarNeighbours` rows and pinned the public reduction with compile-fail doctests and a dual row. Then it merged main after #3977.
+- **Verification.** An independent verifier session found the pass VERIFIED. Mutants MA, MC and MD go red on the rows stated. The workspace runs 11651/11651 at 1e-9, 1e-6 and 1e-12. Main's new door callers refuse nothing main built.
+- **Its notes.** The nightly dev-probe k-lint count is 104 on both trees against the current base, not 100; `k-lint-reads-the-boolean-doors-tier-3-at-probe` is updated.
+— (REACH orchestrator)

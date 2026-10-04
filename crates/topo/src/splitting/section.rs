@@ -294,7 +294,6 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
             Ok(outline) => outline,
-            Err(SenseFault::Torn) => return Err(SectionError::Corrupt),
             Err(SenseFault::Undecided(diag)) => {
                 return Err(SectionError::WindingUndecided { corner, diag });
             }

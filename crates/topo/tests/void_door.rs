@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::{Sign, Tol};
 use topo::{
     Body, BooleanResult, BooleanResultKind, SolidContainment, VoidContainment, VoidEvidence,
@@ -92,6 +92,10 @@ fn door_accepts_carried_strict_evidence() {
 fn door_agrees_with_the_subtract_fallback() {
     let (mut dst, cavity) = outer_and_cavity();
     let (a, b) = outer_and_cavity();
+    let (a, b) = (
+        finished("the outer block", a, Tol::witness()),
+        finished("the cavity block", b, Tol::witness()),
+    );
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
     insert_void(&mut dst, solid, cavity, &evidence).unwrap();
@@ -229,13 +233,21 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
 fn door_refuses_a_hollow_cavity() {
     let dst_of = || brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness());
     let hollow = match subtract(
-        &brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        &finished(
+            "the block",
+            brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+            Tol::witness(),
+        ),
+        &finished(
+            "the cavity",
+            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     {
-        BooleanResult::Body(b) => b.body,
+        BooleanResult::Body(b) => b.body.into_body(),
         other => panic!("a hollow cube, got {other:?}"),
     };
     let hollow_solid = hollow.solids().next().unwrap().0;
@@ -347,22 +359,32 @@ fn two_destinations_each_take_their_own_cavity() {
     );
 }
 
-/// **A destination count that does not match the cavity's solid count
-/// refuses typed**, before any mutation — the door never guesses which
-/// solid a cavity belongs in.
+/// **A destination count that does not match the cavity's solid count,
+/// or a cavity of no solid, refuses typed**, before any mutation — the
+/// door never guesses which solid a cavity belongs in.
 #[test]
 fn a_wrong_destination_arity_refuses_typed() {
     let (mut dst, cavity) = outer_and_cavity();
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
     let before = reading(&dst);
+    let count = |destinations, cavity_solids| VoidInsertError::SolidCount {
+        destinations,
+        cavity_solids,
+    };
 
     // Two destinations for one cavity solid.
     let e = topo::insert_voids(&mut dst, &[solid, solid], cavity.clone(), &evidence).unwrap_err();
-    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
+    assert_eq!(e, count(2, 1), "{e}");
 
     // None at all.
     let e = topo::insert_voids(&mut dst, &[], cavity, &evidence).unwrap_err();
-    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
-    assert_eq!(reading(&dst), before, "the body is untouched on both");
+    assert_eq!(e, count(0, 1), "{e}");
+
+    // A cavity of no solid, under no destination: the counts agree and
+    // still nothing would be inserted.
+    let empty = VoidEvidence::default();
+    let e = topo::insert_voids(&mut dst, &[], topo::Body::new(), &empty).unwrap_err();
+    assert_eq!(e, count(0, 0), "{e}");
+    assert_eq!(reading(&dst), before, "the body is untouched on all three");
 }

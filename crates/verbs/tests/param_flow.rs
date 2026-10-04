@@ -242,6 +242,8 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     let a = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(Vec3::new(0.5, 0.5, 0.5));
     let b = topo::transform_rigid(&a, &map, tol()).expect("a translation is rigid");
+    let a = topo::AtRestBody::validate(a, tol()).expect("the unit cube is a finished body");
+    let b = topo::AtRestBody::validate(b, tol()).expect("the shifted cube is a finished body");
     let out = Verb::Boolean {
         op: BooleanOp::Union,
         declare: BooleanDeclarations::none(),

@@ -14,18 +14,19 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::AtRestBody;
 
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
     (Point2::new(x, y), bulge)
 }
 
-fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
+fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, loops).validate(tol).unwrap();
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: z1 - z0,
@@ -34,24 +35,25 @@ fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the extrusion", body, tol)
 }
 
-fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
+fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     body_of(vec![lp.into()], z0, z1)
 }
 
 /// An annular cap: outer circle `ro`, coaxial bore `ri`.
-fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> Body<f64> {
+fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(0.0, 0.0), ro, tol).unwrap();
     let bore = profile::circle(Point2::new(0.0, 0.0), ri, tol).unwrap();
     body_of(vec![outer.into(), bore.into()], z0, z1)
 }
 
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
+fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     body_of(
         vec![RawLoop::polygon([
             Point2::new(x0, y0),
@@ -64,7 +66,7 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
     )
 }
 
-fn report(name: &str, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
+fn report(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Option<f64> {
     let tol = Tol::witness();
     match topo::union(a, b, tol) {
         Err(e) => {

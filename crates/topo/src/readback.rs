@@ -63,7 +63,7 @@ use geom::SurfaceKind;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use geom::CurveKind;
 
@@ -134,33 +134,18 @@ impl<T: Real> Pose<T> {
     }
 }
 
-pub use crate::entity::DanglingRef;
-
-impl From<DanglingRef> for ReadbackError {
-    fn from(what: DanglingRef) -> Self {
-        Self::Dangling { what }
-    }
-}
-
-impl From<DanglingRef> for crate::euler::EulerOpError {
-    fn from(what: DanglingRef) -> Self {
-        match what {
-            DanglingRef::Entity(key) => Self::StaleKey { key },
-            DanglingRef::Geometry(key) => Self::StaleGeometry { key },
-        }
-    }
-}
-
 /// Typed refusal of a read-back (closed enum, D4 ¶3). Every arm is a
 /// fact about the model, not a lane to swallow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReadbackError {
-    /// A key does not resolve in this body — a stale key, or a key
-    /// from another body's lineage that happens not to land on a live
-    /// slot (see [stale vs. foreign keys](crate::body#key-validity-stale-vs-foreign)).
+    /// The key the caller passed does not resolve in this body — a
+    /// stale key, or a key from another body's lineage that happens not
+    /// to land on a live slot (see [stale vs. foreign keys](crate::body#key-validity-stale-vs-foreign)).
+    /// A key a live record names always resolves (D2 row 4), so the
+    /// walk on from the caller's key never refuses.
     Dangling {
-        /// Which lookup came back empty.
-        what: DanglingRef,
+        /// The caller's key.
+        what: EntityId,
     },
     /// The carrier stores no canonical frame, so there is none to
     /// report: a NURBS patch or curve has no distinguished origin or
@@ -177,29 +162,17 @@ pub enum ReadbackError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in read-back's own vocabulary — which lookup came back
-// empty, and what that emptiness means about the model. The two
-// `Dangling` lanes are kept apart in the prose because they are
-// different facts about the model, which `DanglingRef`'s docs state.
-// The keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
-// crate's noun functions, so a read-back refusal reads exactly like
-// the euler-layer stale-key refusal its arms map across to.
+// the PROBLEM in read-back's own vocabulary. The key renders through
+// [`EntityId`]'s own `Display`, this crate's noun function, so a
+// read-back refusal reads exactly like the euler layer's stale-argument
+// refusal.
 impl core::fmt::Display for ReadbackError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Dangling {
-                what: DanglingRef::Entity(key),
-            } => write!(
+            Self::Dangling { what } => write!(
                 f,
-                "{key} does not resolve in this body — the handle is \
+                "{what} does not resolve in this body — the handle is \
                  stale, or it belongs to another body's lineage"
-            ),
-            Self::Dangling {
-                what: DanglingRef::Geometry(key),
-            } => write!(
-                f,
-                "a live entity names {key}, which does not resolve — \
-                 the body's own geometry reference is dangling"
             ),
             Self::NoCanonicalFrame { carrier } => write!(
                 f,
@@ -223,17 +196,17 @@ impl std::error::Error for ReadbackError {}
 /// [`edge_carrier_ref`]'s refusal, with one arm per thing that can be
 /// absent rather than one per door that asked.
 ///
-/// A stale edge key and a dangling curve key are both [`DanglingRef`]s
-/// and say which; scaffolding that certifies no carrier at all is a
-/// third fact, and the enum keeps it apart because a reader that
-/// renames these (see [`crate::query::rim_of`]) renames them
-/// differently. [`ReadbackError`] is the read-back door's own
-/// spelling of the same three, reached through the `From` below.
+/// A stale edge key is the caller's; scaffolding that certifies no
+/// carrier at all is a fact about the edge, and the enum keeps the two
+/// apart because a reader that renames these (see
+/// [`crate::query::rim_of`]) renames them differently. The curve key a
+/// live edge names always resolves (D2 row 4: a miss panics naming the
+/// edge). [`ReadbackError`] is the read-back door's own spelling of
+/// the same two, reached through the `From` below.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarrierAbsence {
-    /// A key on the way does not resolve: the edge itself, or the
-    /// curve entry a live edge names.
-    Dangling(DanglingRef),
+    /// The edge the caller passed does not resolve.
+    Dangling(EdgeKey),
     /// The curve entry resolves and certifies nothing — M3 null-edge
     /// scaffolding, which has no carrier to read.
     NoCarrier,
@@ -242,7 +215,9 @@ pub enum CarrierAbsence {
 impl From<CarrierAbsence> for ReadbackError {
     fn from(absence: CarrierAbsence) -> Self {
         match absence {
-            CarrierAbsence::Dangling(what) => Self::Dangling { what },
+            CarrierAbsence::Dangling(edge) => Self::Dangling {
+                what: EntityId::Edge(edge),
+            },
             CarrierAbsence::NoCarrier => Self::NoCarrier,
         }
     }
@@ -261,11 +236,9 @@ fn carrier_surface<T: Real>(
     face: FaceKey,
 ) -> Result<(&Surface<T>, bool), ReadbackError> {
     let f = body.get_face(face).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Face(face)),
+        what: EntityId::Face(face),
     })?;
-    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Geometry(GeomRef::Surface(f.surface)),
-    })?;
+    let surface = body.face_surface_linked(face, f);
     Ok((surface, f.sense))
 }
 
@@ -427,13 +400,14 @@ pub fn face_carrier_kind<T: Real>(
 /// **A vertex's position** — the stored point, copied out. The
 /// simplest definitional re-read there is.
 ///
-/// This is the one body for the two-step walk vertex → point: the
-/// operator layer reaches it through [`vertex_point_ref`] and renames
-/// the refusal in its own vocabulary.
-///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale vertex or point key.
+/// [`ReadbackError::Dangling`] for a stale vertex key.
+///
+/// # Panics
+///
+/// Where the live vertex's point key does not resolve: every public
+/// door keeps the body tier-1-valid (D2 row 4).
 ///
 /// ```
 /// use geom_core::Point3;
@@ -449,32 +423,16 @@ pub fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Point3<T>, ReadbackError> {
-    Ok(vertex_point_ref(body, vertex)?)
-}
-
-/// [`vertex_point`] with the refusal left as the unresolved reference
-/// itself, for callers whose own error vocabulary names stale
-/// topological and geometry keys separately.
-///
-/// # Errors
-///
-/// The [`DanglingRef`] naming whichever of the two lookups — vertex,
-/// then its point — came back empty.
-pub fn vertex_point_ref<T: Real>(
-    body: &Body<T>,
-    vertex: VertexKey,
-) -> Result<Point3<T>, DanglingRef> {
-    let v = body
-        .get_vertex(vertex)
-        .ok_or(DanglingRef::Entity(EntityId::Vertex(vertex)))?;
-    body.point_of(v)
+    let v = body.get_vertex(vertex).ok_or(ReadbackError::Dangling {
+        what: EntityId::Vertex(vertex),
+    })?;
+    Ok(body.point_of(vertex, v))
 }
 
 /// **The walk to an edge's certified carrier** — edge, then its
 /// curve-arena entry, then the carrier the entry certifies — with the
 /// refusal left as the absence itself, for callers whose own error
-/// vocabulary names these three misses differently
-/// ([`vertex_point_ref`]'s shape, one entity kind over).
+/// vocabulary names these two misses differently.
 ///
 /// What it guarantees is exactly this and no more: every reader of an
 /// edge's carrier in this crate can make ONE walk, so WHICH lookup
@@ -485,23 +443,18 @@ pub fn vertex_point_ref<T: Real>(
 ///
 /// # Errors
 ///
-/// The [`CarrierAbsence`] naming whichever of the three lookups —
-/// edge, its curve entry, then that entry's certified carrier — came
-/// back empty.
+/// The [`CarrierAbsence`] naming whichever came back empty: the edge,
+/// or its curve entry's certified carrier.
+///
+/// # Panics
+///
+/// Where the live edge's curve key does not resolve (D2 row 4).
 pub fn edge_carrier_ref<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<&Curve3<T>, CarrierAbsence> {
-    let e = body
-        .get_edge(edge)
-        .ok_or(CarrierAbsence::Dangling(DanglingRef::Entity(
-            EntityId::Edge(edge),
-        )))?;
-    let geom = body
-        .get_curve_geom(e.curve)
-        .ok_or(CarrierAbsence::Dangling(DanglingRef::Geometry(
-            GeomRef::Curve(e.curve),
-        )))?;
+    let e = body.get_edge(edge).ok_or(CarrierAbsence::Dangling(edge))?;
+    let geom = body.edge_curve_linked(edge, e);
     Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
 }
 
@@ -513,30 +466,29 @@ pub fn edge_carrier_ref<T: Real>(
 ///
 /// # Errors
 ///
-/// The [`CarrierAbsence`] naming whichever lookup came back empty: the
-/// edge, a half or end vertex or point on the way to its ends, or its
-/// curve entry; or the entry's certifying no carrier.
+/// The [`CarrierAbsence`] naming whichever came back empty: the edge,
+/// or its curve entry's certified carrier.
+///
+/// # Panics
+///
+/// Where a record on the way from the live edge to its ends or its
+/// curve entry does not resolve (D2 row 4).
 pub(crate) fn edge_extent<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<T, CarrierAbsence> {
-    let e = body
-        .get_edge(edge)
-        .ok_or(CarrierAbsence::Dangling(DanglingRef::Entity(
+    let e = body.get_edge(edge).ok_or(CarrierAbsence::Dangling(edge))?;
+    let end = |he: HalfEdgeKey, field: &'static str| -> Point3<T> {
+        let start = crate::live::linked(
+            &body.half_edges,
+            he,
+            EntityId::HalfEdge,
             EntityId::Edge(edge),
-        )))?;
-    let end = |he: HalfEdgeKey| -> Result<Point3<T>, DanglingRef> {
-        let start = body
-            .get_half_edge(he)
-            .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?
-            .start;
-        vertex_point_ref(body, start)
+            field,
+        )
+        .start;
+        body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
     };
-    let chord = (end(e.he_minus).map_err(CarrierAbsence::Dangling)?
-        - end(e.he_plus).map_err(CarrierAbsence::Dangling)?)
-    .norm();
+    let chord = (end(e.he_minus, "he_minus") - end(e.he_plus, "he_plus")).norm();
     let curve = body
-        .get_curve_geom(e.curve)
-        .ok_or(CarrierAbsence::Dangling(DanglingRef::Geometry(
-            GeomRef::Curve(e.curve),
-        )))?
+        .edge_curve_linked(edge, e)
         .certified()
         .ok_or(CarrierAbsence::NoCarrier)?;
     let (t0, t1) = curve.params();
@@ -707,19 +659,14 @@ impl EdgeSides {
 /// scaffolding too. A reader that resolves the key meets a dangling
 /// one there, as [`face_carrier_kind`] reports it.
 ///
-/// The refusal is the unresolved reference itself, as
-/// [`vertex_point_ref`]'s is, under the plain name: the `_ref` suffix
-/// marks the narrowed twin of a door that also answers
-/// [`ReadbackError`], and this door has no second form to tell apart —
-/// a dangling key is its only refusal, and it converts to
-/// [`ReadbackError::Dangling`] through `From`, so a `ReadbackError`
-/// caller writes `?`.
-///
 /// # Errors
 ///
-/// The [`DanglingRef::Entity`] naming whichever lookup — the edge,
-/// then on each side its half-edge, loop and face, `he_plus`'s first —
-/// came back empty.
+/// [`ReadbackError::Dangling`] for a stale edge key.
+///
+/// # Panics
+///
+/// Where a record on the walk from the live edge — each side's
+/// half-edge, its loop, the loop's face — does not resolve (D2 row 4).
 ///
 /// ```
 /// use geom_core::{Point3, Tol};
@@ -744,32 +691,58 @@ impl EdgeSides {
 /// assert_eq!(sides.surfaces().0, sides.surfaces().1);
 /// assert_ne!(sides.plus.half_edge, sides.minus.half_edge);
 /// ```
-pub fn edge_sides<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeSides, DanglingRef> {
-    let e = body
-        .get_edge(edge)
-        .ok_or(DanglingRef::Entity(EntityId::Edge(edge)))?;
-    Ok(EdgeSides {
-        plus: side_of(body, e.he_plus)?,
-        minus: side_of(body, e.he_minus)?,
-    })
+pub fn edge_sides<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeSides, ReadbackError> {
+    let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
+        what: EntityId::Edge(edge),
+    })?;
+    Ok(edge_sides_of(body, edge, e))
 }
 
-/// The side `he` bounds: half-edge, loop, face, each refused by key.
-fn side_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeSide, DanglingRef> {
-    let h = body
-        .get_half_edge(he)
-        .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?;
-    let l = body
-        .get_loop(h.parent_loop)
-        .ok_or(DanglingRef::Entity(EntityId::Loop(h.parent_loop)))?;
-    let f = body
-        .get_face(l.face)
-        .ok_or(DanglingRef::Entity(EntityId::Face(l.face)))?;
-    Ok(EdgeSide {
+/// [`edge_sides`] of `edge`, whose record `e` the caller resolved.
+#[track_caller]
+pub(crate) fn edge_sides_of<T: Real>(body: &Body<T>, edge: EdgeKey, e: &Edge) -> EdgeSides {
+    EdgeSides {
+        plus: side_of(body, edge, e.he_plus, "he_plus"),
+        minus: side_of(body, edge, e.he_minus, "he_minus"),
+    }
+}
+
+/// The side `he`, `edge`'s field `field`, bounds: half-edge, loop,
+/// face, each a link of the record before it.
+#[track_caller]
+fn side_of<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    he: HalfEdgeKey,
+    field: &'static str,
+) -> EdgeSide {
+    use crate::live::linked;
+    let h = linked(
+        &body.half_edges,
+        he,
+        EntityId::HalfEdge,
+        EntityId::Edge(edge),
+        field,
+    );
+    let l = linked(
+        &body.loops,
+        h.parent_loop,
+        EntityId::Loop,
+        EntityId::HalfEdge(he),
+        "parent_loop",
+    );
+    let f = linked(
+        &body.faces,
+        l.face,
+        EntityId::Face,
+        EntityId::Loop(h.parent_loop),
+        "face",
+    );
+    EdgeSide {
         half_edge: he,
         face: l.face,
         surface: f.surface,
-    })
+    }
 }
 
 /// **The Euler–Poincaré census** — the five arena counts the identity
@@ -935,11 +908,11 @@ mod tests {
     use geom_core::{Point3, Tol};
 
     use super::{
-        CarrierAbsence, DanglingRef, EulerCounts, EulerParityError, ReadbackError,
-        edge_carrier_kind, edge_carrier_ref, edge_pose, edge_sides, euler_counts,
+        CarrierAbsence, EulerCounts, EulerParityError, ReadbackError, edge_carrier_kind,
+        edge_carrier_ref, edge_pose, edge_sides, euler_counts,
     };
     use crate::body::Body;
-    use crate::entity::{GeomRef, Vertex};
+    use crate::entity::{EntityId, GeomRef, Vertex};
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{ops_genus2, ops_holed_box, prov};
     use crate::geometry::CurveKey;
@@ -1130,70 +1103,71 @@ mod tests {
         assert!(text.contains("v=9 e=12 f=6 r=0 s=1"), "{text}");
     }
 
-    /// **A live edge whose curve key does not resolve refuses
-    /// `Dangling { Geometry(Curve) }`, at both edge doors and the
-    /// seat** — the third way the shared walk can come back empty, and
-    /// the one no public door can reach.
-    ///
-    /// It is rowed HERE, beside `torn_store_refuses_typed`, for the
-    /// same reason that one is: minting the state needs a crate-private
-    /// arena writer (`get_edge_mut`), so a `tests/` row could not build
-    /// it. What it pins is that the two doors refuse it identically —
-    /// the one walk — and that the flattening still answers an honest
-    /// `None`.
+    /// **A live edge whose curve key does not resolve panics naming
+    /// the edge, at both edge doors, the seat and the rim door** — the
+    /// one walk, so one premise (D2 row 4). No public door can reach the
+    /// state; minting it needs a crate-private arena writer, so the row
+    /// lives here rather than in `tests/`.
     #[test]
-    fn a_live_edge_with_a_torn_curve_key_refuses_dangling_geometry_on_both_doors() {
+    fn a_live_edge_with_a_torn_curve_key_panics_naming_the_edge_on_every_door() {
         let mut body = declined_cube::<f64>(Tol::witness()).body;
         let edge = body.edges().next().expect("a cube has edges").0;
         let torn = CurveKey::default();
         body.get_edge_mut(edge).expect("a live edge").curve = torn;
-
-        let want = ReadbackError::Dangling {
-            what: DanglingRef::Geometry(GeomRef::Curve(torn)),
-        };
-        assert_eq!(edge_carrier_kind(&body, edge), Err(want));
+        let want = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(edge),
+            GeomRef::Curve(torn)
+        );
+        type Door<'a> = &'a dyn Fn(&Body<f64>);
+        let doors: [(&str, Door<'_>); 5] = [
+            ("edge_carrier_kind", &|b| {
+                let _ = edge_carrier_kind(b, edge);
+            }),
+            ("edge_pose", &|b| {
+                let _ = edge_pose(b, edge);
+            }),
+            ("edge_carrier_ref", &|b| {
+                let _ = edge_carrier_ref(b, edge);
+            }),
+            ("query::edge_carrier_kind", &|b| {
+                let _ = crate::query::edge_carrier_kind(b, edge);
+            }),
+            ("rim_of", &|b| {
+                let _ = crate::query::rim_of(b, edge);
+            }),
+        ];
+        for (door, read) in doors {
+            let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+                read(&body);
+            }));
+            assert!(
+                report.contains(&want) && report.contains(crate::live::NAMES_ONLY_LIVE),
+                "{door}: {report}"
+            );
+        }
+        let stale = crate::entity::EdgeKey::default();
         assert_eq!(
-            edge_pose(&body, edge).err(),
-            Some(want),
-            "one walk, one refusal"
+            edge_carrier_ref(&body, stale).err(),
+            Some(CarrierAbsence::Dangling(stale)),
+            "the caller's stale edge stays typed"
         );
         assert_eq!(
-            edge_carrier_ref(&body, edge).err(),
-            Some(CarrierAbsence::Dangling(DanglingRef::Geometry(
-                GeomRef::Curve(torn)
-            ))),
-            "the walk's own vocabulary, before either door renames it"
-        );
-        assert_eq!(crate::query::edge_carrier_kind(&body, edge), None);
-    }
-
-    /// **The rim door names the same torn curve key as an intactness
-    /// fault**, not as a seed with no carrier: a null scaffold and a
-    /// dangling geometry reference are different facts, and
-    /// `RimError::NotIntact` carries the reference that did not
-    /// resolve.
-    #[test]
-    fn the_rim_door_refuses_a_torn_curve_key_as_not_intact() {
-        let mut body = declined_cube::<f64>(Tol::witness()).body;
-        let edge = body.edges().next().expect("a cube has edges").0;
-        let torn = CurveKey::default();
-        body.get_edge_mut(edge).expect("a live edge").curve = torn;
-        assert_eq!(
-            crate::query::rim_of(&body, edge),
-            Err(crate::query::RimError::NotIntact(DanglingRef::Geometry(
-                GeomRef::Curve(torn)
-            )))
+            edge_pose(&body, stale).err(),
+            Some(ReadbackError::Dangling {
+                what: EntityId::Edge(stale)
+            })
         );
     }
 
     /// The two sides come back in half-edge order, each its half-edge,
-    /// the face its loop bounds and that face's own surface key; and
-    /// each of the seven lookups refuses by its own key, in the
-    /// documented order — the edge, then `he_plus`'s half-edge, loop and
-    /// face, then `he_minus`'s.
+    /// the face its loop bounds and that face's own surface key. A stale
+    /// edge refuses typed; each of the six record hops after it panics
+    /// naming the record that holds the dangling key, `he_plus`'s side
+    /// first.
     #[test]
     fn edge_sides_reads_both_sides_in_half_edge_order_and_names_each_miss() {
-        use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
+        use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
         use crate::fixtures::{NgonPillow, pillow};
         let fresh = || pillow(Tol::witness());
         let t = fresh();
@@ -1215,72 +1189,83 @@ mod tests {
             "the fixture tells the sides apart"
         );
 
-        let miss = |t: &NgonPillow| edge_sides(&t.body, e).expect_err("a torn walk refuses");
-        let stale_he = HalfEdgeKey::default();
-        let stale_loop = LoopKey::default();
-        let stale_face = FaceKey::default();
-
-        // 1. The edge.
         let stale = crate::entity::EdgeKey::default();
         assert_eq!(
             edge_sides(&t.body, stale),
-            Err(DanglingRef::Entity(EntityId::Edge(stale))),
-            "a stale edge"
+            Err(ReadbackError::Dangling {
+                what: EntityId::Edge(stale)
+            }),
+            "a stale edge is the caller's"
         );
-        // 2-4. The plus side: half-edge, loop, face — each torn while
-        // the minus side is torn too, so the plus miss is the one named.
+
+        let stale_he = HalfEdgeKey::default();
+        let stale_loop = LoopKey::default();
+        let stale_face = FaceKey::default();
+        let panics = |label: &str, t: &NgonPillow, holder: EntityId, link: &str, key: EntityId| {
+            let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+                let _ = edge_sides(&t.body, e);
+            }));
+            let want = format!("{holder}'s {link} names {key}, which does not resolve");
+            assert!(report.contains(&want), "{label}: {report}");
+        };
+        // The plus side: half-edge, loop, face — each torn while the
+        // minus side is torn too, so the plus miss is the one named.
         let mut t2 = fresh();
         t2.body.get_half_edge_mut(t2.hes_b[0]).unwrap().parent_loop = stale_loop;
         t2.body.get_edge_mut(e).unwrap().he_plus = stale_he;
-        assert_eq!(
-            miss(&t2),
-            DanglingRef::Entity(EntityId::HalfEdge(stale_he)),
-            "plus half-edge"
+        let edge = EntityId::Edge(e);
+        panics(
+            "plus half-edge",
+            &t2,
+            edge,
+            "he_plus",
+            EntityId::HalfEdge(stale_he),
         );
         let mut t3 = fresh();
         t3.body.get_half_edge_mut(t3.hes_b[0]).unwrap().parent_loop = stale_loop;
         t3.body.get_half_edge_mut(t3.hes_a[0]).unwrap().parent_loop = stale_loop;
-        assert_eq!(
-            miss(&t3),
-            DanglingRef::Entity(EntityId::Loop(stale_loop)),
-            "plus loop"
+        let plus = EntityId::HalfEdge(t.hes_a[0]);
+        panics(
+            "plus loop",
+            &t3,
+            plus,
+            "parent_loop",
+            EntityId::Loop(stale_loop),
         );
         let mut t4 = fresh();
         t4.body.get_edge_mut(e).unwrap().he_minus = stale_he;
         t4.body.get_loop_mut(t4.loop_a).unwrap().face = stale_face;
-        assert_eq!(
-            miss(&t4),
-            DanglingRef::Entity(EntityId::Face(stale_face)),
-            "plus face"
-        );
-        // 5-7. The minus side, with the plus side intact.
+        let loop_a = EntityId::Loop(t.loop_a);
+        panics("plus face", &t4, loop_a, "face", EntityId::Face(stale_face));
+        // The minus side, with the plus side intact.
         let mut t5 = fresh();
         t5.body.get_edge_mut(e).unwrap().he_minus = stale_he;
-        assert_eq!(
-            miss(&t5),
-            DanglingRef::Entity(EntityId::HalfEdge(stale_he)),
-            "minus half-edge"
+        panics(
+            "minus half-edge",
+            &t5,
+            edge,
+            "he_minus",
+            EntityId::HalfEdge(stale_he),
         );
         let mut t6 = fresh();
         t6.body.get_half_edge_mut(t6.hes_b[0]).unwrap().parent_loop = stale_loop;
-        assert_eq!(
-            miss(&t6),
-            DanglingRef::Entity(EntityId::Loop(stale_loop)),
-            "minus loop"
+        let minus = EntityId::HalfEdge(t.hes_b[0]);
+        panics(
+            "minus loop",
+            &t6,
+            minus,
+            "parent_loop",
+            EntityId::Loop(stale_loop),
         );
         let mut t7 = fresh();
         t7.body.get_loop_mut(t7.loop_b).unwrap().face = stale_face;
-        assert_eq!(
-            miss(&t7),
-            DanglingRef::Entity(EntityId::Face(stale_face)),
-            "minus face"
-        );
-
-        assert_eq!(
-            ReadbackError::from(DanglingRef::Entity(EntityId::Edge(stale))),
-            ReadbackError::Dangling {
-                what: DanglingRef::Entity(EntityId::Edge(stale))
-            }
+        let loop_b = EntityId::Loop(t.loop_b);
+        panics(
+            "minus face",
+            &t7,
+            loop_b,
+            "face",
+            EntityId::Face(stale_face),
         );
     }
 }

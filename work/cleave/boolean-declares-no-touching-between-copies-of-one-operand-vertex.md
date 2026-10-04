@@ -102,3 +102,17 @@ copies apart at rest, so the `same_point` rung was never exercised on a
 boolean result. Its only row is split's
 `notched_block_halves_pass_the_pseudomanifold_door_with_no_records`.
 Recommendation: the item stays closed.
+
+## Reached since (2026-10-04, PR 4026)
+
+"Never reached" no longer holds. PR 4026 (`join/pierce-two-out-runs`)
+builds pierces with two Out runs. Where no face of the result meets
+both of a pierce's copies, `boolean::finish::weld_pierce_copies` leaves
+them apart on their one point, and the census clears them by the
+`same_point` rung, as this item's closure expects. Reached by:
+- prism ∖ cube where only the L-prism corner's +x and +y edges read Out
+  (`sweep` `join_pierce_strut_facing.rs`, `EDGE_RUNS`);
+- the PR's dual review r2: a holed block's inner corner closing an
+  island, ∪ (`join_pierce_r2_probes.rs` `r2_holed_inspect`).
+
+The closure still stands: those bodies pass tier 3′ with no records.

@@ -115,7 +115,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 /// Two unit blocks whose facing walls stand `gap` apart, the gap a

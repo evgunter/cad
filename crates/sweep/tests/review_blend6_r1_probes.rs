@@ -177,13 +177,13 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Certify {
             site: "blend face pcurves",
-            source: topo::PcurveMintError::Corrupt,
+            source: topo::PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::StaleKey {
-                key: EntityId::Edge(EdgeKey::default()),
-            },
+            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
         },
     ]
 }

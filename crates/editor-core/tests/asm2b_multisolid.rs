@@ -84,11 +84,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// comparing the two sorted lists pairs each vertex with its own moved
 /// self, and every difference must be the translation exactly.
 fn xs(body: &topo::Body<f64>) -> Vec<f64> {
-    let mut v: Vec<f64> = body
-        .vertex_points()
-        .map(|(_, p)| p.unwrap())
-        .map(|p| p.x)
-        .collect();
+    let mut v: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
     v.sort_by(f64::total_cmp);
     v
 }

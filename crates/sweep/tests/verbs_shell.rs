@@ -2587,8 +2587,8 @@ fn the_record_is_a_function_of_the_construction() {
 }
 
 // **The ring-edge lookup's refusal has no row here, deliberately.** A
-// ring edge with no `inner_edges` row is `ShellError::Corrupt`, and it
-// is not constructible through these doors: the ring `kfmrh` returns is
+// ring edge with no `inner_edges` row is a kernel bug the verb panics
+// on, naming the edge (D2 row 4), and it is not constructible through these doors: the ring `kfmrh` returns is
 // the cavity counterpart's own outer loop, and the graft map wrote a
 // row for every cavity entity before the surgery began. Reaching it
 // would take a hand-built body planted past the doors, which would pin

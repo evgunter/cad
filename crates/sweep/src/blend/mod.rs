@@ -1525,7 +1525,7 @@ pub enum BlendError {
     },
     /// **An Euler operator refused during assembly.**
     ///
-    /// The operator's own refusal is nested whole — `StaleKey`,
+    /// The operator's own refusal is nested whole — `Argument`,
     /// `Certification`, and the rest of its vocabulary reach the caller
     /// typed rather than as prose. `site` names the surgery step that
     /// ran the operator.
@@ -1989,13 +1989,13 @@ mod recourse_tests {
             },
             BlendError::Certify {
                 site: "blend face pcurves",
-                source: topo::PcurveMintError::Corrupt,
+                source: topo::PcurveMintError::LoopNotClosed {
+                    face: FaceKey::default(),
+                },
             },
             BlendError::Op {
                 site: "strut mev",
-                source: topo::EulerOpError::StaleKey {
-                    key: EntityId::Edge(EdgeKey::default()),
-                },
+                source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
             },
         ];
         seeds.extend(BlendDecision::ALL.map(|decision| BlendError::Escalated {

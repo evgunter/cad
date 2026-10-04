@@ -354,19 +354,19 @@ impl<'a> Ends<'a> {
         seed: [f64; 4],
         crossings: &[Crossing],
     ) -> Result<(Vec<[f64; 4]>, BranchEnd), SsiError> {
-        let run = |direction| {
+        let run = |direction, ctx| {
             march(
                 self.sys,
                 &RectExit,
                 seed,
-                self.ctx,
+                ctx,
                 StepperMode::Realized,
                 direction,
                 self.band,
                 Cap::NONE,
             )
         };
-        let fwd = run(1.0)?;
+        let fwd = run(1.0, self.ctx)?;
         let RectEnd::Left {
             inside: f_in,
             outside: f_out,
@@ -374,7 +374,7 @@ impl<'a> Ends<'a> {
         else {
             return Ok((fwd.states, BranchEnd::Closed));
         };
-        let bwd = run(-1.0)?;
+        let bwd = run(-1.0, self.ctx.rest(&fwd))?;
         let RectEnd::Left {
             inside: b_in,
             outside: b_out,

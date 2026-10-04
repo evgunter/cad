@@ -53,7 +53,7 @@ use super::{
 };
 use crate::doc::Doc;
 use crate::eval::NodeRefusal;
-use crate::expr::ParamEnv;
+use crate::expr::VarEnv;
 use crate::node::{Node, RecipeNodeId};
 use crate::placement::{Frame, Motion};
 
@@ -586,7 +586,7 @@ impl SolvedPoses {
         }
         let band = Band::linear(self.tol)
             .map_err(|error| PoseRefusal::Mate(Box::new(MateFault::Band { error })))?;
-        let env = doc.param_env::<f64>();
+        let env = doc.var_env::<f64>();
         let frame = group_frame(doc, root, &env, band)
             .map_err(|(node, error)| PoseRefusal::Placement { node, error })?;
         let pose = self
@@ -758,7 +758,7 @@ pub fn gauge_chain<P>(
 pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
     doc: &Doc<P>,
     gauge: Option<RecipeNodeId>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
 ) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
     let chain = gauge_chain(doc, gauge).map_err(|dead| {
@@ -793,7 +793,7 @@ pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
 pub(crate) fn group_frame<P, T: geom_core::Decide>(
     doc: &Doc<P>,
     root: RecipeNodeId,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
 ) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
     let Some(Node::InstantiatePart { gauge, offset, .. }) = doc.node(root) else {
@@ -1049,7 +1049,7 @@ pub fn root_of<P>(doc: &Doc<P>, instance: RecipeNodeId) -> RecipeNodeId {
 /// be a second answer to a question the document already answers.
 struct Solve<'a, P, T: Real> {
     doc: &'a Doc<P>,
-    env: &'a ParamEnv<T>,
+    env: &'a VarEnv<T>,
     reach: &'a dyn MateReach<T>,
     band: Band,
     tol: Tol,
@@ -1398,7 +1398,7 @@ impl<T: SolveScalar> SideFrame<T> {
 fn resolve_side<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,
     reach: Option<&dyn MateReach<T>>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
     tol: Tol,
     mate: RecipeNodeId,
@@ -1499,7 +1499,7 @@ fn compose_offset<T: SolveScalar>(
     side: MateSide,
     base: Option<OrthoFrame<T>>,
     offset: &crate::placement::Placement,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
 ) -> Result<SideFrame<T>, Box<MateFault>> {
     let (before, base) = match base {
@@ -1550,7 +1550,7 @@ fn compose_offset<T: SolveScalar>(
 /// is a member to itself.
 fn check_references<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
-    env: &ParamEnv<S>,
+    env: &VarEnv<S>,
     mate: RecipeNodeId,
     wa: &Walk,
     wb: &Walk,
@@ -1639,7 +1639,7 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     node: &Node<P>,
-    env: &ParamEnv<f64>,
+    env: &VarEnv<f64>,
     reach: Option<&dyn MateReach>,
     tol: Tol,
 ) -> Result<(), Box<MateFault>> {
@@ -1996,20 +1996,20 @@ pub fn solve_document<P: crate::ProfilePayload>(
     reach: &dyn MateReach,
     tol: Tol,
 ) -> SolvedPoses {
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     solve(doc, &env, reach, tol, Record::Caller)
 }
 
 /// **[`solve_document`] at a run's own scalar**, for a caller outside
 /// an evaluation that holds the run's environment — a box's
-/// (`crate::analysis::param_env_over`), a seed's
+/// (`crate::analysis::var_env_over`), a seed's
 /// (`crate::analysis::seed_env`) — and a reach at that scalar
 /// (`eval::mate_reach`): the answer an evaluation in that lane solves
 /// to, its decisions recorded into the caller's frame as
 /// [`solve_document`]'s are.
 pub fn solve_document_at<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     reach: &dyn MateReach<T>,
     tol: Tol,
 ) -> SolvedPoses<T> {
@@ -2029,7 +2029,7 @@ pub fn solve_document_at<P: crate::ProfilePayload, T: SolveScalar>(
 /// caller's frame: each mate's node splices its own.
 pub(crate) fn solve_with_env<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     reach: &dyn MateReach<T>,
     tol: Tol,
 ) -> SolvedPoses<T> {
@@ -2044,7 +2044,7 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload, T: SolveScalar>(
 
 fn solve<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     reach: &dyn MateReach<T>,
     tol: Tol,
     record: Record,
@@ -2519,7 +2519,7 @@ mod tests {
     #[test]
     fn a_composed_axis_is_decided_against_the_length_band() {
         let tol = Tol::witness();
-        let env = ParamEnv::<f64>::default();
+        let env = VarEnv::<f64>::default();
         let frame =
             MateFrame::authored([0.0; 3], [0.0, 0.0, 1e4], [1e4, 0.0, 0.0], tol).expect("a frame");
         let fine = Band::linear_at(tol, 1e-3).expect("a band");
@@ -2560,7 +2560,7 @@ mod tests {
     fn an_authored_side_composes_to_its_literal_with_its_column_as_axis() {
         let tol = Tol::witness();
         let eps = tol.eps();
-        let env = ParamEnv::<f64>::default();
+        let env = VarEnv::<f64>::default();
         let vals = [
             0.0,
             -0.0,

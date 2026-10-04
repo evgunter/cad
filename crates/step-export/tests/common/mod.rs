@@ -12,7 +12,8 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
+use topo::test_support::finished;
+use topo::{AtRestBody, Body, BooleanResult, BooleanResultKind, subtract, union};
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
@@ -46,13 +47,13 @@ pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
 /// Two pocketed dies kissing at the corner `(1,1,1)` — the M3 R6
 /// assembly: one solid, TWO shells (both outward), exact volume 1.75.
 pub fn kiss_assembly() -> Body<f64> {
-    let d1 = die(0.0, 0.0, 0.0);
-    let d2 = die(1.0, 1.0, 1.0);
+    let d1 = finished("die 1", die(0.0, 0.0, 0.0), Tol::witness());
+    let d2 = finished("die 2", die(1.0, 1.0, 1.0), Tol::witness());
     let BooleanResult::Body(assembly) = union(&d1, &d2, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
     assert_eq!(assembly.body.shells().count(), 2, "two kissing shells");
-    assembly.body
+    assembly.body.into_body()
 }
 
 /// A∖B with B strictly inside A: `[0,3]³` minus `[1,2]³` — the Voided
@@ -60,11 +61,13 @@ pub fn kiss_assembly() -> Body<f64> {
 pub fn voided() -> Body<f64> {
     let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = finished("the outer brick", a, Tol::witness());
+    let b = finished("the inner brick", b, Tol::witness());
     let BooleanResult::Body(result) = subtract(&a, &b, Tol::witness()).unwrap() else {
         panic!("voided subtract is a body");
     };
     assert_eq!(result.kind, BooleanResultKind::Voided, "B inside A voids");
-    result.body
+    result.body.into_body()
 }
 
 // ---- the curved corpus (M5 PR 13) ------------------------------------
@@ -309,10 +312,12 @@ pub fn boss_union() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let plate = finished("the plate", plate, Tol::witness());
+    let boss = finished("the boss", boss, Tol::witness());
     let BooleanResult::Body(bb) = union(&plate, &boss, Tol::witness()).unwrap() else {
         panic!("the boss union yields a body");
     };
-    bb.body
+    bb.body.into_body()
 }
 
 /// The S11 notched prism: a 2×1.5 rectangle with a CONVEX 45° bulge on
@@ -392,10 +397,12 @@ pub fn two_stub_complement() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let plate = finished("the plate", plate, Tol::witness());
+    let boss = finished("the boss", boss, Tol::witness());
     let BooleanResult::Body(stubs) = subtract(&boss, &plate, Tol::witness()).unwrap() else {
         panic!("boss minus plate is a body");
     };
-    stubs.body
+    stubs.body.into_body()
 }
 
 /// **The writer's emission order, mirrored** (faces, then edges by
@@ -592,7 +599,7 @@ pub fn die_pips() -> Body<f64> {
     };
     // The same ball, rotated so its pole lies along `pole`, then moved
     // to `c`.
-    let poled = |c: Vec3<f64>, pole: Vec3<f64>| -> Body<f64> {
+    let poled = |c: Vec3<f64>, pole: Vec3<f64>| -> AtRestBody<f64> {
         let b = unit_ball();
         let y = Vec3::new(0.0, 1.0, 0.0);
         let axis = y.cross(pole);
@@ -620,7 +627,9 @@ pub fn die_pips() -> Body<f64> {
             )
             .unwrap()
         };
-        topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
+        let placed =
+            topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap();
+        finished("a pip ball", placed, Tol::witness())
     };
     // The classical 2-D pip layout of face value `n`, in units of
     // PIP_D about the face centre.
@@ -677,9 +686,11 @@ pub fn die_pips() -> Body<f64> {
         .clone();
     }
     assert_eq!(tool.shells().count(), 21, "21 disjoint sphere shells");
+    let cube = brick((0.0, L), (0.0, L), (0.0, L), Tol::witness());
+    let cube = finished("the die cube", cube, Tol::witness());
     boolean_op_with(
         BooleanOp::Subtract,
-        &brick((0.0, L), (0.0, L), (0.0, L), Tol::witness()),
+        &cube,
         &tool,
         &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
@@ -690,6 +701,7 @@ pub fn die_pips() -> Body<f64> {
     .expect("a body")
     .body
     .clone()
+    .into_body()
 }
 
 /// The body's `(faces, edges, vertices)` — the kernel-side oracle the

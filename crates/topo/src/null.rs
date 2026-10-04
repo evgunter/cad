@@ -312,7 +312,7 @@ impl<T: Real> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if the face or a role loop does not
+    /// [`crate::BadArgument::Stale`] if the face or a role loop does not
     /// resolve; [`EulerOpError::SameLoop`] if the two role loops are
     /// one loop; [`EulerOpError::NullPairForeignLoop`] naming the first
     /// role loop, in declaration order, that is not the face's own. The
@@ -322,18 +322,11 @@ impl<T: Real> Body<T> {
         face: FaceKey,
         pair: NullFacePair,
     ) -> Result<(), EulerOpError> {
-        let Some(face_data) = self.faces.get(face) else {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Face(face),
-            });
-        };
+        let face_data =
+            crate::live::lookup(&self.faces, face, EntityId::Face, crate::live::Arg("face"))?;
         let [a, b] = pair.loops();
         for l in [a, b] {
-            if !self.loops.contains_key(l) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Loop(l),
-                });
-            }
+            crate::live::require_key(&self.loops, l, EntityId::Loop, crate::live::Arg("pair"))?;
         }
         if a == b {
             return Err(EulerOpError::SameLoop { r#loop: a });
@@ -459,7 +452,13 @@ mod tests {
                 NewVertexSide::Above,
             )
             .unwrap_err();
-        assert!(matches!(err, EulerOpError::StaleKey { .. }));
+        assert_eq!(
+            err,
+            EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "he1",
+                key: EntityId::HalfEdge(crate::HalfEdgeKey::default()),
+            })
+        );
         assert_eq!(deep_snapshot(&body), before);
     }
 
@@ -540,9 +539,10 @@ mod tests {
                     below_loop: outer1,
                 },
             ),
-            Err(EulerOpError::StaleKey {
+            Err(EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "pair",
                 key: EntityId::Loop(outer2),
-            })
+            }))
         );
         // ...so the stale state is built directly on the arena map.
         body.null_faces.insert(
@@ -900,15 +900,15 @@ mod tests {
         }
     }
 
-    /// **A refusal inside the re-mint leaves the body untouched.** A
-    /// null strut on a minted cylinder wall, described by the wall's
-    /// own circle through its vertex: the description re-mints the
-    /// wall, and a half-edge of the loop it walks whose curve entry is
-    /// gone is tier 1's corruption, refused typed before the door
-    /// writes — the null edge keeps its scaffolding entry and every
-    /// row stays where it was.
+    /// **A torn record inside the re-mint panics before the door
+    /// writes.** A null strut on a minted cylinder wall, described by
+    /// the wall's own circle through its vertex: the description
+    /// re-mints the wall, and a half-edge of the loop it walks whose
+    /// curve entry is gone is a torn body, which panics naming the
+    /// edge's dangling `curve` (D2 row 4) — the null edge keeps its
+    /// scaffolding entry and every row stays where it was.
     #[test]
-    fn a_refused_null_description_leaves_the_body_untouched() {
+    fn a_torn_null_description_panics_before_the_door_writes() {
         use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
@@ -946,25 +946,28 @@ mod tests {
         assert!(control.pcurve(null.he_plus).is_some());
         assert!(control.pcurve(null.he_minus).is_some());
 
-        let torn = body
-            .get_edge(body.get_half_edge(first).unwrap().edge)
-            .unwrap()
-            .curve;
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let torn = body.get_edge(edge).unwrap().curve;
         body.curves.remove(torn).unwrap();
-        let before = deep_snapshot(&body);
-        let err = body.set_edge_curve(null.edge, spec(), tol).unwrap_err();
-        assert_eq!(
-            err,
-            EulerOpError::PcurveMint {
-                face,
-                refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-            }
+        let premise = torn_curve_premise(edge, torn);
+        crate::review_d18::assert_torn_op_panics(
+            "set_edge_curve",
+            &mut body,
+            &[premise.as_str(), crate::review_d18::ROW_FOUR],
+            |b| b.set_edge_curve(null.edge, spec(), tol),
         );
-        assert_eq!(
-            deep_snapshot(&body),
-            before,
-            "the body is untouched, every pcurve row included"
-        );
+    }
+
+    /// The premise a panic on `edge`'s dangling `curve` link names.
+    fn torn_curve_premise(
+        edge: crate::entity::EdgeKey,
+        curve: crate::geometry::CurveKey,
+    ) -> String {
+        format!(
+            "{}'s curve names {}, which does not resolve",
+            crate::entity::EntityId::Edge(edge),
+            crate::entity::GeomRef::Curve(curve)
+        )
     }
 
     /// A null edge between the two faces of the minted wall sheet — the
@@ -1106,19 +1109,19 @@ mod tests {
         assert_eq!(rows_deep(&body), described, "the rows are the pass's");
     }
 
-    /// **A refusal on the second face leaves both untouched.** The wall
-    /// is planned first and plans fine; the seed face's spur has lost
-    /// its curve entry, so its re-mint refuses — and the wall's plan is
-    /// not written either.
+    /// **A torn record on the second face leaves both untouched.** The
+    /// wall is planned first and plans fine; the seed face's spur has
+    /// lost its curve entry, so its re-mint panics naming it — and the
+    /// wall's plan is not written either.
     #[test]
-    fn a_refusal_on_the_second_face_leaves_the_body_untouched() {
+    fn a_torn_second_face_panics_with_the_body_untouched() {
         let TwoFaced {
             mut body,
             wall,
-            seed,
             null,
             spur,
             spec,
+            ..
         } = two_faced_null_edge();
         assert_eq!(
             face_of(&body, null.he_plus),
@@ -1127,21 +1130,12 @@ mod tests {
         );
         let torn = body.get_edge(spur.edge).unwrap().curve;
         body.curves.remove(torn).unwrap();
-        let before = deep_snapshot(&body);
-        let err = body
-            .set_edge_curve(null.edge, spec, Tol::witness())
-            .unwrap_err();
-        assert_eq!(
-            err,
-            EulerOpError::PcurveMint {
-                face: seed,
-                refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-            }
-        );
-        assert_eq!(
-            deep_snapshot(&body),
-            before,
-            "the body is untouched, every pcurve row included"
+        let premise = torn_curve_premise(spur.edge, torn);
+        crate::review_d18::assert_torn_op_panics(
+            "set_edge_curve",
+            &mut body,
+            &[premise.as_str(), crate::review_d18::ROW_FOUR],
+            |b| b.set_edge_curve(null.edge, spec, Tol::witness()),
         );
     }
 
@@ -1340,15 +1334,15 @@ mod tests {
         );
     }
 
-    /// **A half of the cut wall that does not resolve refuses typed,
-    /// and leaves the body untouched.** The same cut, with the curve
-    /// entry of a half-edge gone — tier 1's corruption — on either side
-    /// of the chord: on the side the cut releases, whose loop the site
-    /// mint walks, and on the side the strut still holds open, whose
-    /// loop it never walks but reads for the null edge. Either way the
-    /// `mef` refuses naming the wall, before it mutates.
+    /// **A half of the cut wall that does not resolve panics, and
+    /// leaves the body untouched.** The same cut, with the curve entry
+    /// of a half-edge gone — a torn body — on either side of the chord:
+    /// on the side the cut releases, whose loop the site mint walks, and
+    /// on the side the strut still holds open, whose loop it never walks
+    /// but reads for the null edge. Either way the `mef` panics naming
+    /// the edge's dangling `curve` (D2 row 4), before it mutates.
     #[test]
-    fn a_torn_half_on_either_side_of_the_cut_refuses_before_the_mef_mutates() {
+    fn a_torn_half_on_either_side_of_the_cut_panics_before_the_mef_mutates() {
         for side in ["released", "held"] {
             let RulingCut {
                 mut body,
@@ -1381,27 +1375,15 @@ mod tests {
                 .iter()
                 .find(|he| !scaffolding.contains(he))
                 .unwrap();
-            let torn = body
-                .get_edge(body.get_half_edge(torn_half).unwrap().edge)
-                .unwrap()
-                .curve;
+            let edge = body.get_half_edge(torn_half).unwrap().edge;
+            let torn = body.get_edge(edge).unwrap().curve;
             body.curves.remove(torn).unwrap();
-            let before = deep_snapshot(&body);
-            let err = body
-                .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
-                .unwrap_err();
-            assert_eq!(
-                err,
-                EulerOpError::PcurveMint {
-                    face: wall,
-                    refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-                },
-                "torn on the {side} side"
-            );
-            assert_eq!(
-                deep_snapshot(&body),
-                before,
-                "{side}: the body is untouched, every pcurve row included"
+            let premise = torn_curve_premise(edge, torn);
+            crate::review_d18::assert_torn_op_panics(
+                &format!("mef, torn on the {side} side"),
+                &mut body,
+                &[premise.as_str(), crate::review_d18::ROW_FOUR],
+                |b| b.mef(site, chord, crate::FaceSurface::Inherit, Tol::witness()),
             );
         }
     }
@@ -1541,30 +1523,33 @@ mod tests {
         );
     }
 
-    /// **A face with a loop that does not walk refuses the site mint.**
-    /// The ringed wall, held open by its null strut, is read further by
-    /// the site mint. With its ring's loop record gone — tier 1's
-    /// corruption — which rows it holds has no answer, so the read
-    /// refuses naming the ring.
+    /// **A face with a loop that does not resolve panics the site
+    /// mint.** The ringed wall, held open by its null strut, is read
+    /// further by the site mint. With its ring's loop record gone — a
+    /// torn body — which rows it holds has no answer, so the read panics
+    /// naming the wall's `rings` link to the ring (D2 row 4).
     #[test]
-    fn a_held_open_face_with_a_loop_that_does_not_walk_refuses() {
+    fn a_held_open_face_with_a_loop_that_does_not_resolve_panics() {
         let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
         let read = |body: &Body<f64>| {
             let face = body.get_face(wall).unwrap();
             let surface = body.get_surface(face.surface).unwrap();
-            crate::pcurves::site_rows_from(body, face, surface).map(|from| from.is_some())
+            crate::pcurves::site_rows_from(body, wall, surface).is_some()
         };
-        assert!(
-            matches!(read(&body), Ok(true)),
-            "the held-open wall is read further"
-        );
+        assert!(read(&body), "the held-open wall is read further");
         body.loops.remove(ring).unwrap();
+        let message = crate::review_m1_pr2::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = read(&body);
+        }));
+        let premise = format!(
+            "{}'s rings names {}, which does not resolve: {}",
+            crate::entity::EntityId::Face(wall),
+            crate::entity::EntityId::Loop(ring),
+            crate::live::NAMES_ONLY_LIVE
+        );
         assert!(
-            matches!(
-                read(&body),
-                Err(crate::pcurves::SiteFromRefusal::LoopCycleBroken(lk)) if lk == ring
-            ),
-            "a loop that does not walk refuses the read, naming it"
+            message.contains(&premise),
+            "a ring that does not resolve panics the read, naming it: {message}"
         );
     }
 }

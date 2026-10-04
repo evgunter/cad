@@ -125,7 +125,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         doc,
         Node::Pattern {
             input: body,
-            count: Expr::param(p("n"), Dimension::Count),
+            count: Expr::named(p("n"), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -269,11 +269,19 @@ const WORDLESS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        // Tier 3's +V reading (check 7), which the boolean door's
-        // volume backstop runs on its result: the kernel checking its
-        // own result through tier 3's rule, so no model question either.
-        "tier 3's +V read, at the boolean door",
-        &["positive_volume", "positive_volume_enclosure"],
+        // Tier 3 at the boolean door: the at-rest gate the door runs on
+        // its result and the boolean seat runs on each operand it
+        // finishes (`AtRestPolicy::gate_at_rest_kept`), and its +V
+        // reading (check 7) with its interval re-derivation, which the
+        // volume backstop also runs. The kernel checking its own bodies
+        // through tier 3's rules, so no model question either.
+        "tier 3, at the boolean door",
+        &[
+            "planar_boundary_residual",
+            "planar_face_residual",
+            "positive_volume",
+            "positive_volume_exact",
+        ],
     ),
     (
         // Raised under two decisions — the Boolean contact sweep's
@@ -282,6 +290,15 @@ const WORDLESS: &[(&str, &[&str])] = &[
         // (`topo::decision_words`).
         "one name, two decisions",
         &["bool_contact_vertex"],
+    ),
+    (
+        // Raised by the loop-winding lane for every caller that asks a
+        // ring's turning (`topo::loop_winding`): the join's ring roles,
+        // the face merge, the chord join, and tier 3's role check at the
+        // boolean door — so, as above, no one decision's words are true
+        // of it.
+        "one name, several decisions",
+        &["bool_ring_run_winding"],
     ),
     (
         // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
@@ -298,6 +315,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_advance",
             "bool_point_in_solid_denom",
             "bool_point_in_solid_infinity",
+            "bool_point_in_solid_infinity_enclosure",
             "bool_point_in_solid_order",
             "carrier_endpoint_end",
             "carrier_endpoint_start",

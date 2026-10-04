@@ -146,9 +146,8 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, Chords, CutOutcome, JoinLane, SegmentCurve, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
-use crate::loop_winding::{RunClosing, TornLoop};
+use crate::loop_winding::{RunClosing, RunMissesEnd};
 use crate::null::NullFacePair;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -2400,18 +2399,7 @@ fn ring_run_ccw<T: Decide>(
     let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
-        .map_err(|torn| match torn {
-            TornLoop::Dangling(what) => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
-            }
-            TornLoop::Unclaimed { he, edge } => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::UnclaimedHalfEdge {
-                    he,
-                    edge,
-                }))
-            }
-            TornLoop::Unclosed => desync("ring-run arc did not close"),
-        })?
+        .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
         // The operand gate refuses a spiric or spline carrier and no
         // section lane mints one on a plane, so a run carrying one is
         // the gate's invariant broken: the chord joiner's own reading
@@ -2580,7 +2568,7 @@ fn cut_pair<T: Decide>(
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
-fn resolve_roles_geometric<T: Decide>(
+fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other_pristine: &Body<T>,
     face: FaceKey,

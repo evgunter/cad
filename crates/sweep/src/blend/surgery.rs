@@ -273,10 +273,13 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 /// A plain function, not a closure factory: the step name is an
 /// argument at every call rather than a value captured once per phase,
 /// so `BlendError::Op` cannot be constructed here without naming its
-/// site, and the operator's own typed refusal — `StaleKey`,
-/// `Certification`, the whole vocabulary — travels intact.
+/// site, and the operator's own typed refusal travels intact
+/// ([`topo::EulerOpError::from_driver`]).
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
-    BlendError::Op { site, source }
+    BlendError::Op {
+        site,
+        source: source.from_driver(),
+    }
 }
 
 // ------------------------------------------------------------------
@@ -4600,15 +4603,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let sides = topo::readback::edge_sides(body, edge).map_err(|what| match what {
-        topo::DanglingRef::Entity(EntityId::Edge(_)) => {
-            not_intact(EntityId::Edge(edge), "an edge awaiting its description")
-        }
-        _ => not_intact(
-            EntityId::Edge(edge),
-            "the two faces a described edge separates, or their surfaces",
-        ),
-    })?;
+    let sides = topo::readback::edge_sides(body, edge)
+        .map_err(|_| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
     let (p0, p1) = {

@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, resolve_loops, unparse,
+    StepId, ValuePayload, VarEnv, resolve_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -390,12 +390,14 @@ pub fn held_loops(
             node: doc.spoken(node),
         });
     };
-    held_program(doc.spoken(node), program, &doc.param_env::<f64>())
+    held_program(doc.spoken(node), program, doc)
 }
 
 /// [`held_loops`] of a program in hand — `node` only names it in a
 /// refusal, spoken by the caller from the document that holds it, and
-/// `env` is the parameter environment it resolves under.
+/// `doc` is the document whose variables it reads: they resolve under
+/// its environment, and a driven argument's source is written by its
+/// names.
 ///
 /// # Errors
 ///
@@ -404,7 +406,7 @@ pub fn held_loops(
 pub fn held_program(
     node: SpokenNode,
     program: &ProfileProgram,
-    env: &ParamEnv<f64>,
+    doc: &Doc<ProfileProgram>,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let held = Node::Profile(program.clone());
     // Every argument, asked of the node's own slot walk. An address
@@ -416,7 +418,7 @@ pub fn held_program(
         .into_iter()
         .filter_map(|slot| match held.expr(slot) {
             Some(expr) if expr.literal_value().is_some() => None,
-            Some(expr) => Some((slot, unparse(expr))),
+            Some(expr) => Some((slot, doc.unparse(expr))),
             None => Some((slot, String::new())),
         })
         .collect();
@@ -426,7 +428,7 @@ pub fn held_program(
             slots: driven,
         });
     }
-    resolve_loops(&program.loops, env)
+    resolve_loops(&program.loops, &doc.var_env::<f64>())
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
@@ -1074,7 +1076,7 @@ pub fn preview(
     // program: a preview has no plane node and does not need one — the
     // plane it draws on arrives as a placement, from the frame the
     // form is pointed at.
-    let env = ParamEnv::default();
+    let env = VarEnv::default();
     let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
