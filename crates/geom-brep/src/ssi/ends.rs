@@ -374,7 +374,9 @@ impl<'a> Ends<'a> {
         else {
             return Ok((fwd.states, BranchEnd::Closed));
         };
+        eprintln!("PROBE fwd steps {} states {}", fwd.steps, fwd.states.len());
         let bwd = run(-1.0, self.ctx.rest(&fwd.states)).map_err(|e| self.ctx.whole_budget(e))?;
+        eprintln!("PROBE bwd steps {} states {}", bwd.steps, bwd.states.len());
         let RectEnd::Left {
             inside: b_in,
             outside: b_out,

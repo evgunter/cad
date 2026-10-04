@@ -5326,3 +5326,132 @@ fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// REVIEW PROBES for PR 4028 (not for merge)
+// ---------------------------------------------------------------------
+mod rev4028 {
+    use super::*;
+
+    fn recert_plane_nurbs(at: &str, plane: &Surface<f64>, wall: &NurbsSurface<f64>, extent: f64, b: geom_core::Band, out: &geom_brep::SsiOutcome) {
+        for (i, br) in out.branches.iter().enumerate() {
+            let geom::Curve3::Nurbs(c) = &br.carrier else { panic!("{at}: nurbs carrier") };
+            let n = c.control().len();
+            let t0 = std::time::Instant::now();
+            let wop = SsiOperand::nurbs(wall).unwrap(); let r = ssi::certify_rung3(c, br.pcurve_b.as_ref(), &SsiOperand::Analytic(plane), &wop, TubeScale::uniform(extent), b);
+            let dt = t0.elapsed().as_secs_f64();
+            match r {
+                Ok(l) => {
+                    let cert = &br.certificate;
+                    let same = l.on_locus_max.to_bits() == cert.on_locus_max.to_bits()
+                        && l.hull_sup.to_bits() == cert.hull_sup.to_bits()
+                        && l.tube_transversality.to_bits() == cert.tube_transversality.to_bits()
+                        && format!("{:?}", l.tube) == format!("{:?}", cert.tube)
+                        && l.tube_boxes == cert.tube_boxes && l.tube_one_arc == cert.tube_one_arc;
+                    println!(
+                        "PROBE {at} branch {i}: n={n} RECERT OK ({dt:.1}s) bit-identical={same} on_locus {:e}/{:e} hull {:e}/{:e} tube {:?}/{:?} boxes {}/{} tt {:e}/{:e} one_arc {}/{}",
+                        l.on_locus_max, cert.on_locus_max, l.hull_sup, cert.hull_sup, l.tube, cert.tube, l.tube_boxes, cert.tube_boxes, l.tube_transversality, cert.tube_transversality, l.tube_one_arc, cert.tube_one_arc
+                    );
+                    assert!(l.on_locus_max <= b.zero() && l.hull_sup <= b.zero(), "{at}: recert limbs within band zero");
+                }
+                Err(e) => println!("PROBE {at} branch {i}: n={n} RECERT REFUSED ({dt:.1}s): {e:?}"),
+            }
+        }
+    }
+
+    fn level(dom: &SsiDomain) -> Surface<f64> {
+        Surface::Plane { origin: dom.center, normal: Vec3::new(0.0, 1.0, 0.0), u_ref: Vec3::new(1.0, 0.0, 0.0) }
+    }
+    fn zcut(d: f64) -> Surface<f64> {
+        Surface::Plane { origin: Point3::new(0.5, -d / 8.0, 0.2), normal: Vec3::new(0.0, 0.0, 1.0), u_ref: Vec3::new(1.0, 0.0, 0.0) }
+    }
+    fn oblique(dom: &SsiDomain) -> Surface<f64> {
+        let s2 = std::f64::consts::FRAC_1_SQRT_2;
+        Surface::Plane { origin: dom.center, normal: Vec3::new(s2, 0.0, s2), u_ref: Vec3::new(0.0, 1.0, 0.0) }
+    }
+
+    fn dome_case(cut: &str, d: f64, b: geom_core::Band) {
+        let (tilt, dom) = dome_tilt(d);
+        let plane = match cut { "level" => level(&dom), "zcut" => zcut(d), "oblique" => oblique(&dom), _ => tilt };
+        let wall = dome_wall(d);
+        let at = format!("dome {cut} d={d} eps={:e}", b.zero());
+        let t0 = std::time::Instant::now();
+        let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, b);
+        let dt = t0.elapsed().as_secs_f64();
+        match &r {
+            Ok(out) => {
+                println!("PROBE {at}: OK {} branches in {dt:.1}s", out.branches.len());
+                recert_plane_nurbs(&at, &plane, &wall, dom.extent, b, out);
+            }
+            Err(SsiError::RefinementExhausted { stop, samples, rounds, .. }) => {
+                println!("PROBE {at}: RefinementExhausted {stop:?} samples={samples} rounds={} in {dt:.1}s", rounds.len());
+                for rr in rounds { println!("   round {rr:?}"); }
+                println!("   rendered: {}", r.as_ref().unwrap_err().render(geom_brep::recourse::Reading::Build));
+            }
+            Err(e) => println!("PROBE {at}: Err {e:?} in {dt:.1}s"),
+        }
+    }
+
+    #[test]
+    fn probe_dome_rows_recertify_at_run_eps() {
+        let b = band();
+        for (cut, d) in [("level", 1.0), ("level", 3.0), ("oblique", 0.5), ("tilt", 1.0), ("tilt", 2.0), ("zcut", 1.0), ("zcut", 2.0)] {
+            dome_case(cut, d, b);
+        }
+    }
+
+    #[test]
+    fn probe_dome_at_env_band() {
+        let cut = std::env::var("PROBE_CUT").unwrap_or_else(|_| "level".into());
+        let d: f64 = std::env::var("PROBE_D").ok().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+        let e: f64 = std::env::var("PROBE_EPS").ok().and_then(|s| s.parse().ok()).unwrap_or(1e-13);
+        dome_case(&cut, d, band_at(e));
+    }
+
+    #[test]
+    fn probe_rational_walls_recertify() {
+        let eps = band().zero();
+        let mut walls = Vec::from(rational_walls());
+        walls.push(("w1", weighted_wall(1.0, [1.0, 3.0, 0.5, 2.5])));
+        walls.push(("w2", weighted_wall(1.0, [2.0, 0.5, 1.0, 4.0])));
+        for (name, wall) in &walls {
+            for x in [3.0 * eps, 1.0e-3] {
+                let plane = edge_plane(x);
+                let dom = wall_box(1.0, 1.0);
+                let at = format!("{name} x={x:e}");
+                let out = ssi::plane_nurbs_ssi(&plane, wall, dom, band()).unwrap_or_else(|e| panic!("{at}: {e}"));
+                recert_plane_nurbs(&at, &plane, wall, dom.extent, band(), &out);
+            }
+        }
+    }
+
+    #[test]
+    fn probe_planted_fixture_recertifies() {
+        let (s, c) = (sphere(), threaded_cylinder());
+        let t0 = std::time::Instant::now();
+        let out = match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) { Ok(o) => o, Err(e) => { println!("PROBE planted eps={:e}: Err in {:.1}s: {e:?}", eps(), t0.elapsed().as_secs_f64()); println!("PROBE rendered: {}", e.render(geom_brep::recourse::Reading::Build)); return; } };
+        println!("PROBE planted eps={:e}: OK {} branches in {:.1}s", eps(), out.branches.len(), t0.elapsed().as_secs_f64());
+        for (i, br) in out.branches.iter().enumerate() {
+            let geom::Curve3::Nurbs(carrier) = &br.carrier else { panic!() };
+            let r = certify_against(carrier);
+            match r {
+                Ok(cert) => println!(
+                    "PROBE planted branch {i}: n={} recert OK on_locus {:e}/{:e} hull {:e}/{:e} same={}",
+                    carrier.control().len(), cert.on_locus_max, br.certificate.on_locus_max, cert.hull_sup, br.certificate.hull_sup,
+                    cert.on_locus_max.to_bits() == br.certificate.on_locus_max.to_bits() && cert.hull_sup.to_bits() == br.certificate.hull_sup.to_bits()
+                ),
+                Err(e) => panic!("PROBE planted branch {i}: recert refused {e:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn probe_through_seed_budget() {
+        let d = 1.0;
+        let (plane, dom) = dome_tilt(d);
+        let e: f64 = std::env::var("PROBE_EPS").ok().and_then(|s| s.parse().ok()).unwrap_or(1e-9);
+        let b = band_at(e);
+        let r = ssi::trace_plane_nurbs_uncertified(&plane, &dome_wall(d), (0.5, 0.1464), dom, b.zero(), b);
+        match r { Ok(t) => println!("PROBE door Ok, carrier ctrl {}", t.0.control().len()), Err(e) => println!("PROBE door Err {e:?}") }
+    }
+}

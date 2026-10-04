@@ -2621,7 +2621,7 @@ pub fn trace_plane_nurbs_uncertified(
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
         tol,
-        max_steps: SSI_MAX_STEPS,
+        max_steps: std::env::var("PROBE_MAX").ok().and_then(|s| s.parse().ok()).unwrap_or(SSI_MAX_STEPS),
     };
     // A branch through the seed ends at the crossings the boundary pass
     // certifies, as every plane × NURBS branch does.
@@ -2631,7 +2631,7 @@ pub fn trace_plane_nurbs_uncertified(
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let (states, _) = ends.through_seed(state, &pass.crossings)?;
+    let (states, _) = match ends.through_seed(state, &pass.crossings) { Ok(x) => { eprintln!("PROBE through_seed: {} samples, {} gaps, max_steps {}", x.0.len(), x.0.len() - 1, ctx.max_steps); x } Err(e) => { eprintln!("PROBE through_seed refused: {e:?}"); return Err(e); } };
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
