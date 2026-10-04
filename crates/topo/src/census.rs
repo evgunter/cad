@@ -6848,7 +6848,7 @@ mod tests {
             .collect();
         for &f in &seeds {
             // Lifts RechartUnvouched: the census reads the masquerade patch on each seed, wherever its boundary lies.
-            body.set_face_surface_stranding_for_tests(
+            body.set_face_surface_unvouched_for_tests(
                 f,
                 FaceSurface::New {
                     surface: masquerade_like_placeholder(),

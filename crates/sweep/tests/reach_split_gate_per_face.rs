@@ -416,7 +416,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
         })
         .expect("the wedge has a sphere face");
     reverted
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             zone,
             topo::FaceSurface::New {
                 surface,

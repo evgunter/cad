@@ -118,7 +118,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
         // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: flipped,
@@ -147,7 +147,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     };
     // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
