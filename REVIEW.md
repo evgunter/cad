@@ -37,7 +37,7 @@ The PR does what it says on its own battery, and I reproduced that exactly. Off 
 - Fix: file the near-tangent tier-3′ class (P0) naming these 9 poses, and scope the PR body's "0 BAD".
 
 **m1 (MINOR, executed): the weld's own refusals are unfiled residue.**
-- `JoinDesync "a pierce's copies divide a face the zips kept"` (`finish.rs:529`): 214 shapes lines, all ∪, both orders, every one on the 315°/225° corners (R315 82, R315m 70, R225m 32, R225 30). On main they were `kept_end` refusals.
+- `JoinDesync "a pierce's copies divide a face the zips kept"` (`finish.rs:530`): 214 shapes lines, all ∪, both orders, every one on the 315°/225° corners (R315 82, R315m 70, R225m 32, R225 30). On main they were `kept_end` refusals.
 - `"two fragments of a pierced face meet one pinch"` (`pinch_site`, through the weld): holed ∖ cube, edge-run family.
 - None of the four filed rows names either message.
 
