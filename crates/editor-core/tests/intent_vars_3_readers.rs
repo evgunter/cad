@@ -1,5 +1,5 @@
 //! **Readers read ids** — INTENT-VARS-1 PR 3's rows of the spec's §4
-//! test plan (`docs/INTENT-VARS-1-SPEC.md`).
+//! test plan (`docs/doc-ledger/intent-vars-1-spec.md`).
 //!
 //! Rows here: 1 (a rename moves nothing that identifies), 2 (a delete
 //! leaves its readers unresolved), 3's rename half (a name stays

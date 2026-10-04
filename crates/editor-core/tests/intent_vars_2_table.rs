@@ -1,5 +1,5 @@
 //! **The variable table, keyed by minted id** — INTENT-VARS-1 PR 2's
-//! rows of the spec's §4 test plan (`docs/INTENT-VARS-1-SPEC.md`).
+//! rows of the spec's §4 test plan (`docs/doc-ledger/intent-vars-1-spec.md`).
 //!
 //! Rows here: 3 (a declared name is unique, at the door and at load),
 //! 4's document half (two declares of one definition are two
