@@ -958,10 +958,17 @@ impl core::fmt::Display for SsiError {
                 let refusal = refusal.to_string();
                 let refusal = refusal.strip_prefix("ssi: ").unwrap_or(&refusal);
                 match (stop, earlier.len()) {
-                    (RefineStop::NothingToHalve { in_band, unsettled }, _) => write!(
+                    (RefineStop::NothingToHalve { in_band, unsettled }, 0) => write!(
                         f,
-                        "ssi: refined to {samples} samples, no refused gap halves further \
+                        "ssi: no refused gap of the branch's {samples} samples halves \
                          ({in_band} within the tolerance, {unsettled} not settling): {refusal}"
+                    ),
+                    (RefineStop::NothingToHalve { in_band, unsettled }, rounds) => write!(
+                        f,
+                        "ssi: refined over {rounds} round{} to {samples} samples, then no \
+                         refused gap halved further ({in_band} within the tolerance, \
+                         {unsettled} not settling): {refusal}",
+                        if rounds == 1 { "" } else { "s" }
                     ),
                     (RefineStop::StepBudget { budget }, 0) => write!(
                         f,
@@ -3139,6 +3146,62 @@ mod ending_tests {
             super::STEP_BUDGET_CURVATURE_RECOURSE,
             "one round shows no margin stopping"
         );
+        let SsiError::RefinementExhausted { stop, refusal, .. } = unrefined else {
+            unreachable!()
+        };
+        let once = SsiError::RefinementExhausted {
+            stop,
+            samples: 19_000,
+            refusal,
+            earlier: vec![RefusedRound {
+                samples: 18_299,
+                limb: SsiLimb::HullSup,
+                margin: RoundMargin::Over(1.3e-14),
+            }],
+        };
+        assert!(
+            once.to_string()
+                .starts_with("ssi: refined over 1 round to 19000 samples, then the 20000-step"),
+            "one round, singular: {once}"
+        );
+        let halving = |earlier: usize| {
+            SsiError::RefinementExhausted {
+                stop: RefineStop::NothingToHalve {
+                    in_band: 2,
+                    unsettled: 0,
+                },
+                samples: 348,
+                refusal: Box::new(SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    value: 2.4e-9,
+                }),
+                earlier: (0..earlier)
+                    .map(|_| RefusedRound {
+                        samples: 346,
+                        limb: SsiLimb::HullSup,
+                        margin: RoundMargin::Over(3.1e-9),
+                    })
+                    .collect(),
+            }
+            .to_string()
+        };
+        for (earlier, opens) in [
+            (
+                0,
+                "ssi: no refused gap of the branch's 348 samples halves (",
+            ),
+            (
+                1,
+                "ssi: refined over 1 round to 348 samples, then no refused gap",
+            ),
+            (
+                2,
+                "ssi: refined over 2 rounds to 348 samples, then no refused gap",
+            ),
+        ] {
+            let shown = halving(earlier);
+            assert!(shown.starts_with(opens), "{earlier} rounds: {shown}");
+        }
 
         // Sign-certain: the lever alone, never a tolerance.
         let tube_extent = format!("Recourse: {}", super::TUBE_EXTENT.lever);

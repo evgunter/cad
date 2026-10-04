@@ -1731,6 +1731,49 @@ pub(crate) mod tests {
         }
     }
 
+    /// **A second half's refusal names the rungs that held both halves.**
+    /// A first half of 1000 steps the curvature held, then an idealized
+    /// second half the wall stops at 100 steps: the curvature held 1000
+    /// of the branch's 1100 steps and the idealized cap under a quarter,
+    /// so the bound is the curvature's, where the second half alone
+    /// would name the cap.
+    #[test]
+    fn a_second_halfs_refusal_names_the_rungs_that_held_both_halves() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = MarchContext {
+            max_steps: 1100,
+            ..unit_ctx(band)
+        };
+        let first = super::Trace {
+            states: Vec::new(),
+            end: super::SlabEnd::Slab,
+            steps: 1000,
+            longest_step: 0.0,
+            held: super::Held {
+                curvature: 1000,
+                caps: [0; 4],
+            },
+        };
+        let r = march(
+            &sys,
+            &super::SlabExit,
+            [0.0, 0.0, 0.0],
+            ctx.rest(&first),
+            StepperMode::Idealized,
+            -1.0,
+            band,
+            super::Cap::NONE,
+        );
+        match r {
+            Err(SsiError::StepBudget { budget, bound, .. }) => {
+                assert_eq!(budget, 1100, "the branch's budget, named");
+                assert_eq!(bound, super::StepBound::Curvature, "both halves' rungs");
+            }
+            other => panic!("expected the step budget, got {other:?}"),
+        }
+    }
+
     /// **The stepper's speed guard**: only a POSITIVE FINITE speed
     /// converts a state step into meters, and every value that is not
     /// one is refused by the speed's own name.
