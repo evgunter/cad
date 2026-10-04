@@ -2,10 +2,11 @@
 id: ssi-a-step-capped-by-a-neighbouring-crossing-can-spend-the-step-budget
 kind: issue
 title: ssi: a plane × NURBS branch's step is capped by the nearest unused crossing, which may be another branch's, so a long branch beside a close crossing can spend SSI_MAX_STEPS
-status: open
+status: spec
 opened: 2026-10-02
 priority: P2
 cost: M
+needs_ev: true
 ---
 
 
@@ -109,3 +110,27 @@ Each changes what C3 states of the march ("its step capped at a fifth
 of the distance to the nearest crossing not yet used"), and the first
 changes which crossing the Hermite is tried to, so the choice is a
 design fork, not a defect fix.
+
+## Design (converged, 2026-10-04; `[ev]` PR for the C3 sentence)
+
+Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG.md`, and the probes are on `analysis/design-fork/neighbour-cap-{a,b}`.
+
+1. **Retire the crossing cap** (`StepCap::Crossing`, its "a fifth", and its ending). Between known crossings the march's step is the curvature's against ε, no longer than the domain's diagonal.
+2. **Keep the candidate order Ev agreed on PR 3862.** The Hermite cubic goes to the nearest unused crossing first, then the march, uncapped, which pairs by its exit. A wrong guess costs one refused certificate: limb 3 (PR 3999) makes every certified candidate's pairing the locus's own, so the order never changes a certified answer. March-first was weighed and withdrawn. It loses a branch whose curvature step falls in the band, such as `a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length`, unless it grows a second, nearest-crossing path.
+3. **The fit's minimum is the fit's.** A polyline with fewer than `SSI_FIT_DEGREE + 1` samples has its gaps halved, each midpoint settled onto the locus, until it has four. Halving stops when half a gap falls in the band (`ssi_refine_halving`). `ShortBranchUncertified` is minted from that stop. The separate `ssi_short_branch` decision and `SHORT_BRANCH_STEPS` retire on this lane.
+4. **Likely, to be confirmed in the build:** the ℝ³ lane's `march_both` re-march at `length/5` (`StepCap::ShortBranch`) is the same class, and the same minimum rule retires it. `Ends::through_seed`, which can hand the fit fewer than four states today, is covered by the same rule.
+
+**Measured on the probes:**
+- On the transversal two-arm witness, every gap from 1e-4 to 0.2 m certifies, and each branch takes its curvature's count: 262 + 262 samples at gap 1e-4, where main refuses `StepBudget`; 285 + 285 at gap 1e-3 and h = 2, where main takes 10 281 samples and 13 s.
+- The bent-chart warp row certifies with the uncapped march.
+
+**Done when:**
+- the cap is retired and the fit minimum is in `Ends::finish`, or wherever the fit runs, for every polyline;
+- the arms witness, at gaps 1e-4 / 1e-3 / 0.2 and ε 1e-6 / 1e-9 / 1e-12, certifies as a row; the `Cap` arm of `a_spent_step_budget…` moves to it;
+- the rows the designers listed are re-pinned: the straight-marched row, the δ-short row and the rung-naming row;
+- the semicircle keeps its sized refusal;
+- C3 reads as on this PR.
+
+**Not in scope, file separately:**
+- `match_exit` picks the nearest crossing to the chord's meeting point. Uncapped chords make it worth settling by identity (Newton the exit onto the side).
+- The march's per-state transversality lever reads the chart, not the geometry. This is covered by `ssi-transversality-at-a-point-is-spelled-three-ways`.

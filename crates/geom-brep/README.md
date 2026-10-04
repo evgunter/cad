@@ -209,8 +209,8 @@ states taking the march's transversality decision. Where anything
 refuses it (that decision at either end, the march tolerance, or the
 certificate), a march runs from the crossing to the unused
 crossing on the side it leaves, the one nearest where its last step
-meets that side, its step capped at a fifth of the distance to the
-nearest crossing not yet used, so at most a fifth of the branch's; a
+meets that side, its step the curvature's against ε and no longer than
+the domain's diagonal, so nothing it reads belongs to another branch; a
 march that leaves where no crossing matches refuses as the march's
 limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
@@ -224,11 +224,13 @@ rectangle, and a cubic to another branch's crossing either leaves the
 locus, which limbs 1 and 2 refuse, or holds more than one arc in its
 tube, which limb 3 refuses. The Hermite is one span, not a polyline of
 samples, so refinement has nothing to halve in it: a refused Hermite is
-marched, and the march's carrier is refined as any is. Where neither
+marched, and the march's carrier is refined as any is. The fit is given
+the cubic's four samples where the march gave fewer, by halving gaps at
+their midpoints settled onto the locus; nothing else sets a sample count
+but the curvature and the certificate. Where neither candidate
 certifies, the march's refusal stands, except on a branch too short for
-a fifth of it to clear the band whose march refused for want of step,
-which is a sized refusal in the branch's length
-(`SsiError::ShortBranchUncertified`). The extent sizes no realized
+its gaps to be halved, half of one falling in the band, which is a sized
+refusal in the branch's length (`SsiError::ShortBranchUncertified`). The extent sizes no realized
 step; it is the lever arm's clamp, the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
