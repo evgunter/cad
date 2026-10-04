@@ -751,25 +751,27 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
         //   poking-but-not-crossing shape): the operand is RE-CUT —
-        //   the closed group is rigidly re-charted about the escape
+        //   a closed group is rigidly re-charted about the escape
         //   normal (a rotation about its own center: the same point
-        //   set, seams now transverse to the escape planes) and the
-        //   pipeline re-enters once; the ordinary crossing layer then
-        //   finds the section circles and the (Plane, Sphere) germ arm
-        //   joins them exactly.
-        // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
+        //   set, seams now transverse to the escape planes), a
+        //   trimmed group's face takes a ring edge across the circle
+        //   ([`SphereCutIn`]), and the pipeline re-enters once; the
+        //   ordinary crossing layer then finds the section circles and
+        //   the (Plane, Sphere) germ arm joins them exactly.
+        // - **uncertifiable** (NURBS re-gate,
         //   sphere faces meeting other than across a verified `Rest`,
         //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
         let recuts = sphere_extent_scan(a, b, &red.rest_contacts, band)?;
-        if !recuts.is_empty() {
+        if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
             if !recut {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "re-cut sphere operands still produced no crossings",
                 });
             }
-            let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
+            let (mut a2, mut b2) = apply_recuts(a, b, &recuts.rechart, tol)?;
+            apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
             return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
@@ -1433,10 +1435,11 @@ pub(crate) fn no_crossings_certificates(
     let band = Band::linear(tol)?;
     let no_rest: &[(FaceKey, FaceKey)] = &[];
     let recuts = sphere_extent_scan(a, b, no_rest, band)?;
-    if recuts.is_empty() {
+    let asked = recuts.rechart.len() + recuts.cut_in.len();
+    if asked == 0 {
         section_extent_pass(a, b, no_rest, band)?;
     }
-    Ok(recuts.len())
+    Ok(asked)
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**
@@ -2942,6 +2945,43 @@ fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     }
 }
 
+/// What the extent scan asks of the operands before the pipeline
+/// re-enters: closed groups to re-chart, trimmed faces to cut.
+struct Recuts<T: Real> {
+    /// Closed groups, rotated about their centres ([`apply_recuts`]).
+    rechart: Vec<SphereRecut<T>>,
+    /// Trimmed faces, cut across their section circles
+    /// ([`apply_cut_ins`]).
+    cut_in: Vec<SphereCutIn<T>>,
+}
+
+/// A sphere face of a TRIMMED group that a plane face's carrier cuts in
+/// a circle certified inside both faces with no event (the section
+/// certificate's R-loop). The face takes a ring edge across the circle:
+/// the sphere's circle about a point `q` of the section circle, inside
+/// the face, which the section circle crosses at two points inside the
+/// plane face. The face's two sides stay one surface key, the maximal
+/// form a curved operand takes, and the re-entered crossing layer meets
+/// the circle at those two points.
+struct SphereCutIn<T: Real> {
+    /// The operand holding the face.
+    operand: Operand,
+    /// The sphere face the section circle lies inside.
+    face: FaceKey,
+    /// The sphere's center.
+    center: Point3<T>,
+    /// Its radius.
+    radius: T,
+    /// The section circle's center, on the plane.
+    foot: Point3<T>,
+    /// The section circle's radius.
+    rho: T,
+    /// The plane's normal (the section circle's axis).
+    normal: Vec3<T>,
+    /// The plane's reference direction, which places `q`.
+    u_ref: Vec3<T>,
+}
+
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
 /// about `align` (the first escape plane's normal) so its seam
 /// meridians run pole-to-pole TRANSVERSE to the escape planes and the
@@ -2990,7 +3030,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     rest: &[(FaceKey, FaceKey)],
     band: Band,
-) -> Result<Vec<SphereRecut<T>>, BooleanError> {
+) -> Result<Recuts<T>, BooleanError> {
     let esc = |question| {
         move |diag| BooleanError::Escalated {
             decision: BooleanDecision::Sphere(question),
@@ -3011,6 +3051,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
+    let mut cut_ins: Vec<SphereCutIn<T>> = Vec::new();
     for (x_is, x, x_rows, y, y_rows) in [
         (Operand::A, a, &rows[0], b, &rows[1]),
         (Operand::B, b, &rows[1], a, &rows[0]),
@@ -3043,9 +3084,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // ESCAPE conclusion: it reasons about the whole section
             // circle of the sphere CARRIER, and it hands the result to
             // a re-chart that rotates the group about its own centre —
-            // neither statement survives trimming. So the refusal lives
-            // at that conclusion, and a trimmed group whose extent
-            // clears everything gets its answer like any other.
+            // neither statement survives trimming. A trimmed group's
+            // escape is read off its faces instead, and cut in.
             let group = closed_sphere_group(x, face, &charts);
             let ball_box = centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
@@ -3089,12 +3129,20 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
-                            // A TRIMMED group's faces may never reach
-                            // the circle the carrier cuts: certified
-                            // apart from this face, they pose no escape
-                            // through it.
-                            NonzeroSign::Positive if group.is_none() && faces().is_none() => {}
                             NonzeroSign::Positive => {
+                                // A TRIMMED group's faces may never reach
+                                // the circle the carrier cuts: certified
+                                // apart from this face, they pose no
+                                // escape through it. Otherwise `held` is
+                                // the face of the group the certificate
+                                // refused, with its reason.
+                                let held = match group {
+                                    Some(_) => None,
+                                    None => match faces() {
+                                        None => continue,
+                                        held => held,
+                                    },
+                                };
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
                                 // circle against the FACE. Certified
@@ -3143,28 +3191,38 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     // (it crosses the carrier plane
                                     // elsewhere).
                                     FaceContainment::Out => {}
-                                    FaceContainment::In => {
-                                        // The escape is the one
-                                        // conclusion the closed group
-                                        // is load-bearing for: the
-                                        // whole-circle membership just
-                                        // decided is the CARRIER's, and
-                                        // the re-chart it feeds rotates
-                                        // the group about its centre.
-                                        if group.is_none() {
+                                    // The whole-circle membership just
+                                    // decided is the CARRIER's. A closed
+                                    // group wears all of the carrier, so
+                                    // the circle is its escape, and the
+                                    // re-chart rotates it about its
+                                    // centre. A trimmed group escapes
+                                    // only where the certificate placed
+                                    // the circle inside one of its faces
+                                    // (R-loop), and that face takes the
+                                    // cut instead ([`SphereCutIn`]).
+                                    FaceContainment::In => match held {
+                                        None => escape_normals.push(normal),
+                                        Some((holder, SectionRefusal::Loop)) => {
+                                            cut_ins.push(SphereCutIn {
+                                                operand: x_is,
+                                                face: holder,
+                                                center,
+                                                radius,
+                                                foot,
+                                                rho,
+                                                normal,
+                                                u_ref,
+                                            });
+                                        }
+                                        Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
-                                                what: "a TRIMMED sphere face group escapes \
-                                                           through a plane face — the whole \
-                                                           section circle is the carrier's, not \
-                                                           the trimmed face's, and the re-chart \
-                                                           that would follow rotates a closed \
-                                                           group about its own centre",
+                                                what: refusal.what(),
                                             });
                                         }
-                                        escape_normals.push(normal);
-                                    }
+                                    },
                                     // Boxes cleared yet the witness is
                                     // ON the boundary: contradictory
                                     // enclosures, loudly.
@@ -3262,14 +3320,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     }
                                     Some(verdict @ Refused::Negative { .. }) => match faces() {
                                         None => {}
-                                        Some(SectionRefusal::Loop) => {
+                                        Some((_, SectionRefusal::Loop)) => {
                                             return Err(BooleanError::SpheresMeet {
                                                 operand: x_is,
                                                 face,
                                                 verdict,
                                             });
                                         }
-                                        Some(refusal) => {
+                                        Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
@@ -3322,8 +3380,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            // An escape was recorded, so the group is closed (the arm
-            // above refuses otherwise) and has a representative.
+            // An escape was recorded only on a closed group (a trimmed
+            // one records cut-ins), which has a representative.
             if let (Some((&align, rest)), Some(representative)) =
                 (escape_normals.split_first(), group)
             {
@@ -3373,21 +3431,24 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
         }
     }
-    Ok(out)
+    Ok(Recuts {
+        rechart: out,
+        cut_in: cut_ins,
+    })
 }
 
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
-/// pairs on the no-event path. `None` when every pair clears, else the first
-/// pair's refusal, which is the cause.
+/// pairs on the no-event path. `None` when every pair clears, else the
+/// first refusing pair's face of `x` and its refusal, which is the cause.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
     (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
-) -> Option<SectionRefusal> {
+) -> Option<(FaceKey, SectionRefusal)> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -3411,7 +3472,13 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             true,
         ),
     };
-    pairs.into_iter().find_map(|p| p.verdict.err())
+    pairs.into_iter().find_map(|p| {
+        let held = match x_is {
+            Operand::A => p.a_face,
+            Operand::B => p.b_face,
+        };
+        p.verdict.err().map(|refusal| (held, refusal))
+    })
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -3534,6 +3601,128 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
+}
+
+/// Applies the scan's cut-ins ([`SphereCutIn`]): each face takes a ring
+/// edge on its own sphere, the circle of chordal radius `r` about a
+/// point `q` of the section circle, which the section circle crosses at
+/// two points. The circle's cap must clear every boundary edge of the
+/// face by certified boxes; `q` is tried at four quarter turns of the
+/// section circle from the plane's `u_ref`, at `r = ρ` and halved after
+/// each round, and a face no candidate clears refuses typed.
+///
+/// The ring is `mev` + `kemr` (a lone vertex inside the face, as the
+/// pierce ring is minted) and `mef(Lone)` along the circle, its plus
+/// half turning clockwise about the face's outward normal so the ring
+/// is the face's hole and the cap its new face, on the same surface.
+fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &mut Body<T>,
+    b: &mut Body<T>,
+    cut_ins: &[SphereCutIn<T>],
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    /// Rounds of halving before the face refuses.
+    const ROUNDS: usize = 8;
+    let pad = boxes::sweep_pad(band);
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    for cut in cut_ins {
+        let body = match cut.operand {
+            Operand::A => &mut *a,
+            Operand::B => &mut *b,
+        };
+        let v_ref = cut.normal.cross(cut.u_ref);
+        let mut r = cut.rho;
+        let mut found = None;
+        'rounds: for _ in 0..ROUNDS {
+            for d in [cut.u_ref, v_ref, -cut.u_ref, -v_ref] {
+                let q = cut.foot + d * cut.rho;
+                if !face_boundary_meets(body, cut.face, &centred_box(q, r, pad), pad) {
+                    found = Some((q, r));
+                    break 'rounds;
+                }
+            }
+            r = r / T::from_f64(2.0);
+        }
+        let Some((q, r)) = found else {
+            return Err(BooleanError::FallbackExtentUnsupported {
+                operand: cut.operand,
+                face: cut.face,
+                what: "a trimmed sphere face meets a plane face in a circle interior to both, \
+                       and no ring across the circle clears the sphere face's boundary",
+            });
+        };
+        let outward = match crate::face_normal::face_outward_normal_at(body, cut.face, q, band) {
+            Ok(Some(n)) => n.vec(),
+            Ok(None) | Err(_) => return Err(corrupt("cut-in: no outward normal at the ring")),
+        };
+        // The ring's plane: normal to the radius through `q`, at the
+        // depth where the sphere's points lie `r` from `q`.
+        let axis = -outward / outward.norm();
+        let m = (q - cut.center) / cut.radius;
+        let depth = cut.radius - r * r / (cut.radius + cut.radius);
+        let origin = cut.center + m * depth;
+        let ring_radius = (cut.radius * cut.radius - depth * depth).sqrt();
+        // The ring's vertex sits where the ring leaves the section
+        // plane farthest, midway between the two crossings.
+        let lean = cut.normal - axis * cut.normal.dot(axis);
+        let u_ring = lean / lean.norm();
+        let start = origin + u_ring * ring_radius;
+        let fd = proven(&body.faces, cut.face, EntityId::Face);
+        let sphere = fd.surface;
+        let LoopBoundary::Cycle { first: anchor } = linked(
+            &body.loops,
+            fd.outer,
+            EntityId::Loop,
+            EntityId::Face(cut.face),
+            "outer",
+        )
+        .boundary
+        else {
+            return Err(corrupt("cut-in: the sphere face's outer loop is not a cycle"));
+        };
+        let from = body.resolve_vertex_point(
+            proven(&body.half_edges, anchor, EntityId::HalfEdge).start,
+            crate::live::Proven,
+        );
+        let strut = body.mev(
+            crate::euler::MevSite::Fan {
+                he1: anchor,
+                he2: anchor,
+            },
+            start,
+            geom_brep::EdgeCurveSpec::line_between(from, start),
+            tol,
+        )?;
+        let ring = body.kemr(strut.he_plus, strut.he_minus)?.ring;
+        let plane = body.add_surface(geom::Surface::Plane {
+            origin,
+            normal: axis,
+            u_ref: u_ring,
+        });
+        let carrier = geom::Curve3::Circle {
+            center: origin,
+            axis,
+            radius: ring_radius,
+            u_ref: u_ring,
+        };
+        body.mef(
+            crate::euler::MefSite::Lone { r#loop: ring },
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: plane,
+                    witness: carrier.mid_point(T::zero(), T::tau()),
+                },
+                carrier,
+                param_start: T::zero(),
+                param_end: T::tau(),
+            },
+            crate::euler::FaceSurface::Inherit,
+            tol,
+        )?;
+    }
+    Ok(())
 }
 
 /// Per-shell classification of one operand's clone against the other
