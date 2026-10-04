@@ -6644,3 +6644,11 @@ carried by `99cc678bfd`). I asked Ev one scope question on the PR: does the pani
 corrupt-input job, or only the new record-read misses? On confirm: edit the PR in place (the D2 note in Ev's rule;
 the row's final state: record miss → unreachable!, Argument typed, drivers' Argument → unreachable!, no
 KernelCalled), fill row 63, merge, then file S14 staging as the first unit, followed by the conversion.
+
+## PR 4006 ruled; recorded in place (2026-10-04 06:55)
+
+Ev confirmed the panic covers the whole torn-body class. Recorded at `0a6a27d97d`: the D2 rows 4/5 note in Ev's rule
+(the "same call" clause is retired as agent-written); the torn-body bullet is now row 4; D9 states the graft is
+staged; S14 closed with Ev quoted; `graft-stages-into-a-fresh-body-and-commits-on-success` (P1) filed as the
+first unit; the stale-key row carries the conversion, blocked on the graft; fork-log row 64 (renumbered) filled.
+Merge on green. Then dispatch the graft unit, followed by the conversion split by door family.
