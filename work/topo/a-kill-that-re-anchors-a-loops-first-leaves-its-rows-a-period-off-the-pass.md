@@ -5,9 +5,7 @@ title: A kill that re-anchors a minted loop's first leaves its rows a whole peri
 status: open
 opened: 2026-09-30
 priority: P3
-cost: M
-design: true
-needs_ev: true
+cost: H
 ---
 
 Found by the fix pass of `a-null-edge-that-is-killed-leaves-its-face-half-minted`
@@ -120,10 +118,14 @@ The options:
   site-mint contract ("the pass's byte for byte") stays a claim about
   the minting doors.
 
-## The question
+## Ruled
 
-Two designers weighed this, blind, then were each shown the other's report,
-and converged on one recommendation.
+Ev, PR 4024, 2026-10-04, on the recommendation below (R): "this sounds
+good!". Two designers had weighed it blind, then each was shown the
+other's report, and they converged on R. The fallback is recorded here
+as the alternative that was not taken.
+
+## The final state
 
 **The premise, as corrected.**
 - A loop whose rows all stand one whole period over is not a defect: tier 3
@@ -134,7 +136,7 @@ and converged on one recommendation.
 - The text that gives `first` its row meaning (`entity.rs`, `revert.rs`,
   PR 2573) is agent-written.
 
-**Recommended final state (R).**
+**The final state (R).**
 - A row is an **image** (the edge's certified chart curve, a function of
   the edge and the chart alone) plus the half-edge's **joint element**: the
   integer carrying its image onto the end of the half-edge before it, or a
@@ -160,9 +162,9 @@ and converged on one recommendation.
 
 **Ratified text it changes:** one sentence of C4 (`crates/geom-brep/README.md`),
 the seam's "two chart images (u = α and u = α + 2π)", which becomes "one
-image, two joint elements". This PR makes that edit.
+image, two joint elements". PR 4024 made that edit.
 
-**Fallback (if the representation change is not wanted).** Keep `first` as
+**Not taken: the fallback.** Keep `first` as
 the lift origin and drop the byte contract for tier 3's "valid lift from
 `first`":
 - `kev` keeps the anchor unless its half dies;
@@ -170,5 +172,7 @@ the lift origin and drop the byte contract for tier 3's "valid lift from
   across sides of different winding);
 - keys-only `kef` refuses on a complete periodic face, and its twin re-walks.
 
-Before either lands, run one probe: `validate_pcurves` after each mixed
-`kef_minting`, to confirm the `LoopDiscontinuity`.
+Before building, read the probe of `validate_pcurves` after each kill that
+keeps rows (report on `analysis/probe/topo-kill-rows-tier3`). It measures
+how many of today's mixed merges are tier-3-loud, which is the regression
+the build has to remove.
