@@ -132,9 +132,11 @@
 //!
 //! **`mev`, `mef` and `mekr` leave no complete face half-minted.**
 //! These operators, with their sugar, add half-edges to an existing
-//! loop, and on a face whose rows are COMPLETE they re-mint the loops
-//! they rewire with the new halves in them, before they mutate
-//! ([`site_rows`], which states the rule and its two edges: a spline
+//! loop, and on a face whose rows are COMPLETE they mint, before they
+//! mutate, what they create on the loops they rewire — the new halves'
+//! images and the elements of the joints they make — and every other
+//! row of those loops stands ([`site_rows`], which states the rule and
+//! its two edges: a spline
 //! chart refuses typed, and a face the closed-form lane cannot mint as
 //! the surgery leaves it stores nothing). A face that stores no row is
 //! the minting pass's and stays rowless. `mev_null` adds halves too,
@@ -3059,11 +3061,18 @@ pub(crate) enum SiteRows<T: Real> {
     /// every loop the door rewires still runs through a null edge — and
     /// the door leaves its rows exactly as found.
     Leave,
-    /// Every row of the loops the door rewires that run through no null
-    /// edge, its two halves' among them. A loop the door keeps keeps
-    /// its rows, and a rewired loop a null edge still holds open keeps
-    /// the rows it has.
-    Mint(Certified<T, SiteHalf>),
+    /// What the door creates on the loops it rewires that run through
+    /// no null edge: the image of every half it adds, describes, moves
+    /// or finds rowless, and the element of every joint it makes or
+    /// finds missing. Everything else those loops hold, the loops it
+    /// keeps, and a rewired loop a null edge still holds open keep what
+    /// they have.
+    Mint {
+        /// The certified images, by half.
+        images: Vec<(SiteHalf, PcurveCache<T>)>,
+        /// The joint elements, by the half each joint enters.
+        joints: Vec<(SiteHalf, JointElement)>,
+    },
     /// The face as the surgery leaves it has no closed-form row set
     /// that certifies, so it stores nothing ([`site_rows`] says when).
     /// Every half-edge of the face after the surgery.
@@ -3207,15 +3216,21 @@ pub(crate) fn site_rows_owed<T: Decide>(
 /// it: the face as found runs through one and the face as the door
 /// leaves it through none.
 ///
-/// - **The loops the surgery rewires are re-minted whole**, exactly as
-///   [`mint_pcurves_of`] would re-mint them after the surgery: the same
-///   walk from each loop's `first` ([`walk_cycle`]) and the same
-///   certification ([`certify_walked`]). A loop the surgery keeps keeps
-///   its rows: its walk reads only its own half-edges, their carriers
-///   and the chart, none of which the surgery touches, and the window
-///   enters a certificate's verdicts, never its bits. So on a
-///   face whose stored rows are the pass's, the rows after the op are
-///   the pass's, byte for byte.
+/// - **On the loops the surgery rewires, it mints what the surgery
+///   creates**, exactly as [`mint_pcurves_of`] would after the surgery:
+///   the image of every half it adds, describes or finds rowless,
+///   derived by the closed form ([`chart_pcurve`]) and certified
+///   ([`PcurveCache::certify`]), and the element of every joint it makes
+///   or finds missing, decided between the two images
+///   ([`decide_joint`]); and the loop must still close ([`Winding`]).
+///   Every other image and element stands: an image is a function of
+///   its edge and the chart, an element of its two images, and the
+///   surgery changes none of them. A loop the surgery keeps keeps its
+///   rows. The window the new images certify against is the hull of
+///   every image of the rewired loops, as the pass's is, and it enters
+///   a certificate's verdicts, never its bits. So on a face whose
+///   stored rows are the pass's, the rows after the op are the pass's,
+///   byte for byte.
 /// - **A rewired loop that still runs through a null edge keeps the
 ///   rows it has** ([`held_open`]): the null halves have no carrier,
 ///   so the loop cannot be walked, and its new halves go rowless until
@@ -3249,14 +3264,16 @@ pub(crate) fn site_rows_owed<T: Decide>(
 ///   loud at tier 3, which re-derives the rowless face and reports the
 ///   refusal the mint would raise ([`validate_pcurves`]).
 ///
-/// **Cost.** One walk and one certification per half-edge of the loops
-/// the surgery rewires, and one presence read per half-edge of the rest
-/// of the face ([`site_rows_from`]); on a face missing a row, three
-/// lookups more per half-edge of the face as found — its half, edge and
-/// curve — for which loops a null edge holds open, and as many again
-/// per half-edge of the rewired loops. So N operators on one minted
-/// face whose loop grows with each cost O(N²)
-/// (`work/topo/euler-site-mint-re-walks-the-rewired-loop-on-every-op`).
+/// **Cost.** One derivation and certification per image the surgery
+/// creates and one joint decision per joint it makes, whatever the
+/// loop's length; a moved loop's images are all derived. Beside them,
+/// reads: per half-edge of the rewired loops a presence read, its
+/// image's chart box (for the window) and its element (for the
+/// winding), and per half-edge of the rest of the face one presence
+/// read ([`site_rows_from`]); on a face missing a row, three lookups
+/// more per half-edge of the face as found — its half, edge and curve —
+/// for which loops a null edge holds open, and as many again per
+/// half-edge of the rewired loops.
 ///
 /// # Errors
 ///
@@ -3345,35 +3362,110 @@ pub(crate) fn site_rows<T: Decide>(
             }
         }
     };
-    let mut walked: Vec<Walked<T, SiteHalf>> = Vec::new();
+    // A half the door keeps, on a face whose images stand, keeps its
+    // image: an image is a function of its edge and the chart, and the
+    // door changes neither. A moved loop's images are stated in the chart
+    // it left, or missing, and are all derived.
+    let reused = |at: SiteHalf| match at {
+        SiteHalf::Existing(he) if !face.moved => body.pcurve(he),
+        SiteHalf::Existing(_) | SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => {
+            None
+        }
+    };
+    let u_period = chart_u_period(&face.surface, band);
+    // The images the door creates, to certify, and every image of the
+    // rewired loops, for the window they hull out to.
+    let mut derived: Vec<Walked<T, SiteHalf>> = Vec::new();
+    let mut boxes: Vec<ChartWindow<T>> = Vec::new();
+    let mut joints: Vec<(SiteHalf, JointElement)> = Vec::new();
     for halves in walks {
-        let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
-        let item = |i: usize| -> Result<WalkItem<T>, PcurveCertifyError> {
-            let (carrier, t0, t1, plus) = traversal(halves[i]);
-            let base = chart_pcurve(&carrier, &face.surface, band)?;
-            carriers.push(carrier);
-            Ok(WalkItem { base, t0, t1, plus })
-        };
-        // The closed-form derivation refusing, a branch meeting no
-        // neighbour, or a loop that does not close: the face is cleared.
-        let Ok(pinned) = walk_cycle(chart, halves.len(), item, band, true) else {
+        let n = halves.len();
+        // Each half's image with its entry and exit parameters.
+        let mut images: Vec<(Pcurve<T>, T, T)> = Vec::with_capacity(n);
+        for &at in halves {
+            let (image, t0, t1, plus) = match (reused(at), at) {
+                (Some(cache), SiteHalf::Existing(he)) => {
+                    let (t0, t1) = cache.params();
+                    (cache.pcurve().clone(), t0, t1, is_plus(body, he))
+                }
+                _ => {
+                    let (carrier, t0, t1, plus) = traversal(at);
+                    // The closed-form derivation refusing: the face is
+                    // cleared.
+                    let Ok(base) = chart_pcurve(&carrier, &face.surface, band) else {
+                        return Ok(SiteRows::Clear(every_half()));
+                    };
+                    derived.push(Walked {
+                        key: at,
+                        carrier,
+                        pcurve: base.clone(),
+                        t0,
+                        t1,
+                        element: None,
+                    });
+                    (base, t0, t1, plus)
+                }
+            };
+            boxes.push(image.chart_box(t0, t1));
+            let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+            images.push((image, entry_t, exit_t));
+        }
+        // Each joint: kept where the door keeps both halves and the link
+        // between them, decided where it creates the joint. A branch
+        // meeting no neighbour, or a loop that does not close: the face
+        // is cleared.
+        let mut elements: Vec<JointElement> = Vec::with_capacity(n);
+        for i in 0..n {
+            let before = halves[(i + n - 1) % n];
+            let kept = match (before, halves[i]) {
+                (SiteHalf::Existing(p), SiteHalf::Existing(he))
+                    if reused(before).is_some()
+                        && reused(halves[i]).is_some()
+                        && half_edge_record(body, he).prev == p =>
+                {
+                    body.joint(he)
+                }
+                _ => None,
+            };
+            let element = match kept {
+                Some(element) => element,
+                None => {
+                    let (image, entry_t, _) = &images[i];
+                    let (prev, _, exit_t) = &images[(i + n - 1) % n];
+                    let Ok(element) =
+                        decide_joint(chart, image, *entry_t, prev.eval(*exit_t), u_period, band)
+                    else {
+                        return Ok(SiteRows::Clear(every_half()));
+                    };
+                    joints.push((halves[i], element));
+                    element
+                }
+            };
+            elements.push(element);
+        }
+        if !Winding::of(elements).closes() {
             return Ok(SiteRows::Clear(every_half()));
-        };
-        walked.extend(halves.iter().zip(carriers).zip(pinned).map(
-            |((&key, carrier), (pcurve, t0, t1, element))| Walked {
-                key,
-                carrier,
-                pcurve,
-                t0,
-                t1,
-                element,
-            },
-        ));
+        }
     }
-    match certify_walked(walked, &face.surface, band, None) {
-        Ok(rows) => Ok(SiteRows::Mint(rows)),
-        Err(_) => Ok(SiteRows::Clear(every_half())),
+    let Some(window) = hull_of(boxes) else {
+        return Ok(SiteRows::Leave);
+    };
+    let mut images = Vec::with_capacity(derived.len());
+    for w in derived {
+        match PcurveCache::certify(
+            w.pcurve,
+            w.t0,
+            w.t1,
+            &w.carrier,
+            &face.surface,
+            window,
+            band,
+        ) {
+            Ok(cache) => images.push((w.key, cache)),
+            Err(_) => return Ok(SiteRows::Clear(every_half())),
+        }
     }
+    Ok(SiteRows::Mint { images, joints })
 }
 
 /// Writes what [`site_rows`] decided, once its door has mutated.
@@ -3398,9 +3490,12 @@ pub(crate) fn apply_site_rows<T: Decide>(
     for plan in plans {
         match plan {
             SiteRows::Leave => {}
-            SiteRows::Mint(rows) => {
-                for (at, cache, element) in rows {
-                    body.write_row(key(at), cache, element);
+            SiteRows::Mint { images, joints } => {
+                for (at, cache) in images {
+                    body.pcurves.insert(key(at), cache);
+                }
+                for (at, element) in joints {
+                    body.write_joint(key(at), Some(element));
                 }
             }
             SiteRows::Clear(halves) => body.drop_rows(halves.into_iter().map(key)),
@@ -4500,9 +4595,10 @@ pub(crate) mod staleness_posture {
         /// **The site mint is not the subset pass, and differs from it
         /// in two places.** What it shares with the pass is that no row
         /// the operator could have staled survives: on a face whose rows
-        /// were complete, the loops it rewires are re-derived exactly
-        /// as the pass derives them, and the loops it keeps held rows
-        /// the surgery did not touch; on a face whose only gaps a null
+        /// were complete, what the operator creates on the loops it
+        /// rewires — new images, new joints' elements — is derived
+        /// exactly as the pass derives it, and every other row stood
+        /// the surgery untouched; on a face whose only gaps a null
         /// edge holds open, or that the operator takes the last null
         /// edge off, so are the loops it rewires and leaves running
         /// through no null edge, and a loop still held open keeps what
