@@ -2292,6 +2292,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
+    (
+        "finish.rs",
+        "weld_pierce_copies",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
