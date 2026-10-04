@@ -6500,3 +6500,11 @@ Dispatched (2026-10-04 00:14): `kev-describing-a-null-member-leaves-its-face-mis
 not covered by the D10 hold) to cloud lane session_015ZfwN2bbh26FjE3ZrtM1mM on branch
 `topo/kev-describing-null-member-remints`. The lane chooses, with a witness, between planning the re-mint
 over the loop the kill leaves and refusing a listed null member at the gate.
+
+## 00:17 check-in (2026-10-04)
+
+Merged main. The boxed-rotation row conflicted with MSOLVE's re-measure: took main's text and kept the D10
+park. The fan-split proof is PR 4007. Its lane report: `Body::orbit_inverts` (O(valence) predecessor check);
+minted-key orbit faults in the 1.26M-call torn sweep went 965 → 0, with 2,074 new refusals on torn input
+only; 4 mutants red. It filed `vertex-orbit-answers-part-of-a-torn-orbit` (P4). A cloud reviewer was
+dispatched and the implementer archived. No Ev reply on 3970 or 4006 yet. Next check-in at 01:10.
