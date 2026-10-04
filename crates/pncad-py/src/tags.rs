@@ -1600,7 +1600,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
-        BooleanErrorKind::CorruptOperand => "corrupt_operand",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",

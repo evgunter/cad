@@ -39,6 +39,9 @@ boolean's ground.
 
 ## The shape to give
 
-Make `successor` refuse `BooleanError::corrupt_at(operand, vertex)`
-when the half it lands on does not start at `vertex`, in both
-functions.
+Make the step panic naming the record (D2 row 4) when the half it
+lands on does not start at `vertex`, in both functions.
+
+Built on `lane-c-boolean-graft`: both strut steps go through
+`insert::orbit_step_at`, which panics naming the half and the vertex it
+starts at.

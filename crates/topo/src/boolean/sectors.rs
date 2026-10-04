@@ -49,8 +49,9 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
-use crate::body::Body;
+use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{NAMES_ONLY_LIVE, Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -140,10 +141,6 @@ impl<T: geom_core::Real> BoolSector<T> {
     }
 }
 
-fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
-    BooleanError::corrupt_at(operand, vertex)
-}
-
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
@@ -154,52 +151,52 @@ pub(super) fn build_sectors<T: Decide>(
     let orbit = body
         .vertex_orbit_of(vertex)
         .filter(|orbit| !orbit.is_empty())
-        .ok_or_else(|| corrupt(operand, vertex))?;
+        .unwrap_or_else(|| {
+            unreachable!(
+                "{operand:?}'s vertex {vertex:?}, met through a contact, has no orbit that \
+                 walks: a gated operand holds no lone vertex, and {WALKS_CLOSE}"
+            )
+        });
     // The outgoing direction of an orbit half-edge, scaled to the
     // edge's honest extent — the M3 chord for `Line` carriers
     // (bit-identical), the carrier's outgoing TANGENT at the base
     // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
     // ON-set machinery consumes curved carrier tangents instead of
     // assuming straight edges — the splitting lane's C12.2 idiom).
-    let chord = |he: HalfEdgeKey| -> Result<(Vec3<T>, Reach<T>), BooleanError> {
-        let end = body
-            .half_edge_end(he)
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let p_base = *body
-            .get_point(
-                body.get_vertex(vertex)
-                    .ok_or_else(|| corrupt(operand, vertex))?
-                    .point,
-            )
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let p_end = *body
-            .get_point(
-                body.get_vertex(end)
-                    .ok_or_else(|| corrupt(operand, vertex))?
-                    .point,
-            )
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let he_data = body
-            .get_half_edge(he)
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or_else(|| corrupt(operand, vertex))?;
+    let chord = |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+        let end = body.proven_half_edge_end(he);
+        let p_base = body.resolve_vertex_point(vertex, Proven);
+        let p_end = body.resolve_vertex_point(end, Proven);
+        let he_data = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let edge = linked(
+            &body.edges,
+            he_data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
         let curve = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .ok_or_else(|| corrupt(operand, vertex))?;
+            .edge_curve_linked(he_data.edge, edge)
+            .certified()
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
+                     gated operand holds none, and the boolean reads a vertex's sectors before \
+                     it hangs one there",
+                    he_data.edge
+                )
+            });
         match curve.carrier() {
-            geom::Curve3::Line { .. } => Ok((
+            geom::Curve3::Line { .. } => (
                 p_end - p_base,
                 Reach::Chord {
                     base: p_base,
                     far: p_end,
                 },
-            )),
+            ),
             geom::Curve3::Nurbs(_) => {
                 let d = p_end - p_base;
-                Ok((d, Reach::Extent(d.norm())))
+                (d, Reach::Extent(d.norm()))
             }
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
@@ -208,15 +205,15 @@ pub(super) fn build_sectors<T: Decide>(
                 let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
                 let extent =
                     geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                Ok((tangent.normalize() * extent, Reach::Extent(extent)))
+                (tangent.normalize() * extent, Reach::Extent(extent))
             }
         }
     };
     let mut sectors = Vec::with_capacity(orbit.len() + 2);
     for (i, &he) in orbit.iter().enumerate() {
         let next_he = orbit[(i + 1) % orbit.len()];
-        let (dir_end, reach_end) = chord(he)?; // this entry's own chord = CCW-last
-        let (dir_start, reach_start) = chord(next_he)?; // next chord = CCW-first
+        let (dir_end, reach_end) = chord(he); // this entry's own chord = CCW-last
+        let (dir_start, reach_start) = chord(next_he); // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
@@ -314,13 +311,10 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        // The shared walk names the entity that did not resolve; this
-        // lane's corruption arm carries the operand and a VERTEX, so
-        // the payload is narrowed here the same way the splitting
-        // lane's is — a vertex names itself, anything else falls back
-        // to the base vertex (issue #695).
-        SectorFaceError::Corrupt(EntityId::Vertex(v)) => corrupt(operand, v),
-        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
+        SectorFaceError::Corrupt(entity) => unreachable!(
+            "the sector walk at {operand:?}'s vertex {vertex:?} from {he:?} meets {entity}, \
+             which does not resolve: the walk reads links of the operand, and {NAMES_ONLY_LIVE}"
+        ),
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,

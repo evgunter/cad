@@ -4727,7 +4727,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "containment",
             "continuation_contradicted",
             "coplanar_neighbours",
-            "corrupt_operand",
             "crossing_carrier_unsupported",
             "crossing_insertion",
             "curved_boolean_unsupported",

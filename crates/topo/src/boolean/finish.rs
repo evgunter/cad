@@ -503,12 +503,9 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 if u == w || body.get_vertex(u).is_none() || body.get_vertex(w).is_none() {
                     continue;
                 }
-                let point = |v| {
-                    body.get_vertex(v)
-                        .map(|data| body.point_of(v, data))
-                        .ok_or(desync("a kept pierce vertex has no point"))
-                };
-                let pu = point(u)?;
+                // Both resolved just above, so only the point is a read.
+                let point = |v| body.resolve_vertex_point(v, crate::live::Proven);
+                let pu = point(u);
                 // No row reaches the escalation: two pierces a band
                 // apart need the piercing operand's two edges a band
                 // apart. Seen from one germ the two sites lie in one
@@ -519,7 +516,7 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 // the profile insert refuses at the operand's build. An
                 // operand built elsewhere, or two sites the half-turn
                 // parts, can still bring them here.
-                if !one_vertex(pu, point(w)?, band).map_err(|diag| BooleanError::Escalated {
+                if !one_vertex(pu, point(w), band).map_err(|diag| BooleanError::Escalated {
                     decision: super::BooleanDecision::VertexOnVertex,
                     diag,
                 })? {
