@@ -1,0 +1,28 @@
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-6  OK  2 branches samples [41, 42]    0.41s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-9  OK  2 branches samples [197, 199]    1.36s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=0       ε 1e-6  OK  2 branches samples [44, 38]    0.61s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=0       ε 1e-9  OK  2 branches samples [220, 192]    0.94s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.21s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-9  OK  2 branches samples [120, 114]    1.32s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.22s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 1 })   18.21s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  OK  2 branches samples [36, 34]    1.33s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=0       ε 1e-9  ERR CrossingUnmatched                           0.60s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.19s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.12s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.18s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 2, unsettled: 1 })   59.47s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=0       ε 1e-9  ERR CrossingUnmatched                           0.51s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.24s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.21s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR TubeStraddles                               0.12s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.10s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=0       ε 1e-6  ERR TubeStraddles                               0.09s
+DONE pairing 143
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [61]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [176]

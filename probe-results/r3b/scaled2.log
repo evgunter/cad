@@ -1,0 +1,104 @@
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=347    ε 1e-6  OK  2 branches samples [95, 97]    0.79s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=1938   ε 1e-9  OK  2 branches samples [533, 534]    1.44s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=363     ε 1e-6  OK  2 branches samples [97, 93]    0.62s
+hyperbola c=1e-2 [bent] n=4 sep=5.4e-1 h=2049    ε 1e-9  OK  2 branches samples [539, 516]    1.06s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=1615 ε 1e-6  ERR Escalated(StepProgress)                     0.18s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=3252 ε 1e-9  ERR Escalated(StepProgress)                     0.27s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=494    ε 1e-6  OK  2 branches samples [81, 81]    1.92s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=2863   ε 1e-9  OK  2 branches samples [457, 459]    3.03s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=313     ε 1e-6  OK  2 branches samples [84, 78]    2.58s
+hyperbola c=1e-4 [bent] n=4 sep=5.0e-1 h=1759    ε 1e-9  OK  2 branches samples [449, 449]    4.11s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=794 ε 1e-6  ERR Escalated(StepProgress)                     0.16s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=7331 ε 1e-9  ERR Escalated(StepProgress)                     0.24s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=315    ε 1e-6  ERR CertificateEscalated                        0.41s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=2088   ε 1e-9  ERR CellBudget                                  4.28s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=140     ε 1e-6  ERR CertificateEscalated                        0.20s
+hyperbola c=1e-6 [bent] n=4 sep=5.0e-1 h=827     ε 1e-9  ERR CellBudget                                  5.20s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=487 ε 1e-6  ERR Escalated(StepProgress)                     0.19s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=3131 ε 1e-9  ERR Escalated(StepProgress)                     0.18s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=84     ε 1e-6  ERR TubeStraddles                               0.33s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=999    ε 1e-9  ERR CellBudget                                  3.71s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=26      ε 1e-6  ERR TubeStraddles                               0.25s
+hyperbola c=1e-8 [bent] n=4 sep=5.0e-1 h=371     ε 1e-9  ERR CellBudget                                  4.10s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=110 ε 1e-6  ERR TubeStraddles                               0.32s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2731 ε 1e-9  ERR Escalated(StepProgress)                     0.20s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=515   ε 1e-6  OK  2 branches samples [96, 97]    3.53s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=2973  ε 1e-9  OK  2 branches samples [545, 546]    4.41s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=316    ε 1e-6  OK  2 branches samples [96, 92]    3.36s
+hyperbola c=-1e-4 [bent] n=4 sep=5.0e-1 h=1872   ε 1e-9  OK  2 branches samples [543, 526]    4.43s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=1626 ε 1e-6  ERR Escalated(StepProgress)                     0.27s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=1613 ε 1e-9  ERR Escalated(StepProgress)                     0.12s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=323   ε 1e-6  ERR CellBudget                                  4.22s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=2092  ε 1e-9  ERR CellBudget                                  4.37s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=152    ε 1e-6  ERR CellBudget                                  4.18s
+hyperbola c=-1e-6 [bent] n=4 sep=5.0e-1 h=837    ε 1e-9  ERR CellBudget                                  5.60s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=1530 ε 1e-6  ERR Escalated(StepProgress)                     0.24s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=5199 ε 1e-9  ERR Escalated(StepProgress)                     0.34s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=43    ε 1e-6  ERR Escalated(Transversality)                   0.15s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=1016  ε 1e-9  ERR CellBudget                                  3.02s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=9      ε 1e-6  ERR Escalated(StepProgress)                     0.08s
+hyperbola c=-1e-8 [bent] n=4 sep=5.0e-1 h=362    ε 1e-9  ERR CellBudget                                  5.46s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=37 ε 1e-6  ERR Escalated(StepProgress)                     0.21s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=3765 ε 1e-9  ERR Escalated(StepProgress)                     0.22s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 153.38s
+
+DONE pairing 0
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [81]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [412]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [2119]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [95]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [474]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [2574]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [99]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [501]
+test zz_rev4034_probes::probe_bend_single_detail has been running for over 60 seconds
+β=-6 ε 1e-12: Ok 1 branch(es), samples [2714]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [102]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [512]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [2731]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [119]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [598]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [3202]
+test zz_rev4034_probes::probe_bend_single_detail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 137.76s
+
+DONE bend 0
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-6: samples [144, 143] halvings 596
+ARMS gap 1e-3 at ε 1e-6: samples [144, 143] halvings 1194
+ARMS gap 2e-1 at ε 1e-6: samples [101, 101] halvings 1712
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 2.06s
+
+DONE arms 1e-6 0 2.079167455
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-9: samples [804, 806] halvings 3406
+ARMS gap 1e-3 at ε 1e-9: samples [803, 802] halvings 6804
+ARMS gap 2e-1 at ε 1e-9: samples [559, 559] halvings 9708
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 6.57s
+
+DONE arms 1e-9 0 6.587749732
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-12: samples [4521, 4518] halvings 19174
+ARMS gap 1e-3 at ε 1e-12: samples [4516, 4510] halvings 38347
+ARMS gap 2e-1 at ε 1e-12: samples [3134, 3136] halvings 54673
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 41.22s
+
+DONE arms 1e-12 0 41.238054654
+ALLDONE
