@@ -6565,3 +6565,18 @@ rows; two production silent drops (offset_axial's extent, reduce's vertex-on-ver
 typed; about 100 test and demo sites moved; 76 files. Its reviewer is session_01198wYWjdeWvf2PByLvLJS9, asked
 especially about the two behaviour changes and step-import's `.ok()`. The implementer is archived. The row-drop
 walks lane is running. No Ev reply on 3970 or 4006.
+
+## 03:47 check-in (2026-10-04)
+
+- PR 4014 review: fix first.
+  - M1: `offset_axial::is_axial_in` swallows `axial_frame`'s errors into `Ok(false)`, so on a torn body the
+    new `Corrupt` flips `is_axial` from `Ok(true)` to `Ok(false)` and `shell` takes the PerChart branch. Probed.
+  - Ruled: match only the not-axial arms; fold in `attach.rs push_out_top_and_front` (fence lifted); use
+    `corrupt_at` in reduce; give the vertex-to-point read one home with `readback::vertex_point_ref`.
+  - Fix lane session_018WgYRGNUYFk4bLdvsfCQkh.
+  - N2 is evidence for the stale-key fork (PR 4006): `ReplaceFaceError::Corrupt` and shell's "(kernel bug)"
+    are reached from a caller's torn input, so the defect claim is false there.
+- PR 4016 (row-drop walks) is up: the torn-sweep "wrote another face's row" count goes 510 → 0; 11 rows,
+  10 mutants red, 2 equivalent survivors; files shell, band and hone rows and a topo P4 residue. CI is still
+  running in-lane; a reviewer will be dispatched when the lane is idle.
+- No Ev reply on 3970 or 4006.
