@@ -5583,7 +5583,7 @@ mod neighbour_extent_rows {
         let host = body.get_face(top).expect("the top").clone();
         let plane = body.get_surface(host.surface).expect("its plane").clone();
         // Lifts RechartStrandsDescriptions: the triangle's sides are the row, not their descriptions.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             ring.membrane.face,
             crate::euler::FaceSurface::New {
                 surface: plane,

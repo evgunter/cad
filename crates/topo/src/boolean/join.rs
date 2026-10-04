@@ -89,11 +89,12 @@
 //!    anti-correlation. Insertion mints attributes to this rule
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
-//!    The angular strut spike order (`insert::strut_order`) ranks a
-//!    strut's two germs by their angle from the splice corner's
-//!    arrival edge, measured inside the sector at any width and read
-//!    as distances at the sector's arm; where nothing orders them it
-//!    refuses.
+//!    A strut faces its germs by one rule
+//!    (`insert::strut_faces_first`): a germ along the splice corner's
+//!    edge names its half; otherwise the corner's walk orders them,
+//!    by their sector entries, and two in one entry by their angle
+//!    (`insert::strut_order`), read as distances at the sector's arm;
+//!    where nothing orders them it refuses.
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:
@@ -2153,7 +2154,7 @@ fn resolve_roles_geometric<T: Decide>(
 /// to the wrong germs — each chord then lies on the wrong side of its
 /// rim and both loops' regions are pieces of one cap
 /// (`join1_delta_probes::overlapping_lens_prisms_declared_union_builds`
-/// pins the pose; `insert::strut_facing` is the rule it holds).
+/// pins the pose; `insert::strut_faces_first` is the rule it holds).
 ///
 /// **Neither deciding** is the curved-face frontier, refused
 /// [`SplitJoinError::SectionLoopUndecided`]: every witness of both

@@ -123,7 +123,7 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
     // Lifts RechartStrandsDescriptions: the poisoned described net is the surface check's subject.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Nurbs(Arc::new(net)),
