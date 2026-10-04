@@ -2,10 +2,11 @@
 id: the-mate-solve-reads-the-platform-atan2
 kind: issue
 title: The mate solve's two angle reads take the platform's atan2, not the kernel's libm door (D9)
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the MSOLVE-14 lane while making the solve generic.
