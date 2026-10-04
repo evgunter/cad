@@ -555,7 +555,7 @@ fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>,
         return Ok(std::borrow::Cow::Borrowed(body));
     }
     let mut flat = body.clone();
-    flat.merge_all_solids().map_err(BooleanError::Euler)?;
+    flat.merge_all_solids()?;
     Ok(std::borrow::Cow::Owned(flat))
 }
 

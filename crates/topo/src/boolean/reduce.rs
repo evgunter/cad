@@ -3672,7 +3672,7 @@ fn split_at<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|source| BooleanError::CrossingInsertion {
             operand: x_is,
             edge,
-            source,
+            source: source.from_driver(),
         })
 }
 

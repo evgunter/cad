@@ -32,8 +32,8 @@ builds one through the public doors and fuses it, and since `S69`
 `OpChoice::Movefac`.
 
 The consequence is not a wrong test — the fixture's three rows
-(`kfmrh_refuses_a_dangling_face_in_f2s_shell`,
-`kfmrh_refuses_a_dead_shared_solid`, and the corruption they plant on
+(`kfmrh_panics_on_a_dangling_face_in_f2s_shell`,
+`kfmrh_panics_on_a_dead_shared_solid`, and the corruption they plant on
 top) still test what they say. It is that a reader is told the shape
 is unreachable, and that a raw in-crate write is being paid for a
 posture the ops no longer require. The two guard rows corrupt the

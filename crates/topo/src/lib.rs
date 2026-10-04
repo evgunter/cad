@@ -716,7 +716,8 @@ pub use entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{
-    EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, RechartDoor,
+    BadArgument, EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
+    RechartDoor,
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
