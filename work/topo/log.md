@@ -6633,3 +6633,14 @@ less sure on the second. for 2 and 3 i am still unsure". Recorded 1 = B (field p
 is dispatched to both designers (brief /home/user/topo-orch/design-kef-r4-brief.md): re-weigh 2 and 3 given 1 = B,
 and say whether to go direct to B. I acknowledged on the PR and will post the reports, then edit the row in
 place.
+
+## PR 4006: Ev ruled panic + close S14 (2026-10-04 06:45)
+
+Ev: "closing s14 and making this panic is the right end state. i'm not sure where the \"same call\" rule came from,
+but it's ok to use unreachable even for complex questions … as long as the current best understanding is that
+it's only reachable if there's a kernel bug". The "same call" rule is agent-written (`0286c64bac`, 2026-08-20, D18;
+carried by `99cc678bfd`). I asked Ev one scope question on the PR: does the panic cover the whole torn-body class
+(LoopCycleBroken, OrbitBroken, ... ShellError::Corrupt), which inverts the review_d18 sweeps and the release
+corrupt-input job, or only the new record-read misses? On confirm: edit the PR in place (the D2 note in Ev's rule;
+the row's final state: record miss → unreachable!, Argument typed, drivers' Argument → unreachable!, no
+KernelCalled), fill row 63, merge, then file S14 staging as the first unit, followed by the conversion.
