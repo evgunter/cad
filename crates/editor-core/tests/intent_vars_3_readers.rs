@@ -784,3 +784,432 @@ fn split_and_inline_carry_readers_by_id() {
         other => panic!("an anonymous variable does not cross an inline, got {other:?}"),
     }
 }
+
+// ---- The review's rows (PR 3's dual review: each pins a mechanism a
+// mutant of the shipped suite survived, or a refusal the review drove).
+
+/// `names`, in the order `doc` declares them.
+fn declared_names(doc: &ProfileDoc) -> Vec<String> {
+    doc.var_order()
+        .iter()
+        .map(|&var| doc.var_name(var).expect("named").as_str().to_owned())
+        .collect()
+}
+
+/// A part that declares `d` and `e` and reads both, published to a
+/// store: the part and its reference.
+fn part_reading_d_and_e() -> (ProfileDoc, PartStore, editor_core::DocRef) {
+    let part = ProfileDoc::empty(DocumentId::derive("intent-vars-3-inline"), Tol::witness());
+    let part = declare(&part, "d", 1.0);
+    let part = declare(&part, "e", 0.5);
+    let (part, _) = block(part, 0.0, named("d"));
+    let (part, _) = block(part, 4.0, named("e"));
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part.clone(), Tol::witness());
+    (part, store, doc_ref)
+}
+
+/// Every variable the extrudes of `doc` read.
+fn extrude_reads(doc: &ProfileDoc) -> BTreeSet<VarId> {
+    let mut seen = BTreeSet::new();
+    for &node in doc.order() {
+        if let Some(Node::Extrude { distance, .. }) = doc.node(node) {
+            let mut reads = Vec::new();
+            distance.var_reads(&mut reads);
+            seen.extend(reads.into_iter().map(|(var, _)| var));
+        }
+    }
+    seen
+}
+
+/// Row 12's inline half: the carried readers read the HOST's ids — the
+/// id a bit-equal variable of the same name already holds there, and the
+/// id the host mints for one it did not hold — and the host loads and
+/// builds.
+#[test]
+fn inline_repoints_readers_at_the_hosts_ids() {
+    let (part, store, doc_ref) = part_reading_d_and_e();
+    let store: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-inline-host"),
+        Tol::witness(),
+    );
+    let host = declare(&host, "pad", 9.0);
+    let host = declare(&host, "d", 1.0);
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
+    let (host_d, host_e) = (id(&out.doc, "d"), id(&out.doc, "e"));
+    assert_eq!(host_d, id(&host, "d"), "a bit-equal d merges by name");
+    assert_ne!(host_e, id(&part, "e"), "the host mints its own e");
+    assert_eq!(
+        extrude_reads(&out.doc),
+        BTreeSet::from([host_d, host_e]),
+        "every carried reader reads a host id"
+    );
+    let text = save(&out.doc, &[], Tol::witness()).expect("the host saves");
+    assert!(
+        load(&text, Tol::witness())
+            .expect("and loads")
+            .doc
+            .bit_eq(&out.doc)
+    );
+    assert!(failures(&eval_after(&out.doc, None)).is_empty());
+}
+
+/// Split declares in the PARENT's declaration order and inline in the
+/// PART's, so each document lists its variables as its author did, not
+/// in id order (ids are digest output).
+#[test]
+fn split_and_inline_declare_in_declaration_order() {
+    let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-order"), Tol::witness());
+    let doc = ["p", "q", "r", "s"]
+        .into_iter()
+        .fold(doc, |doc, name| declare(&doc, name, 0.25));
+    let mut by_id = doc.var_order().to_vec();
+    by_id.sort_unstable();
+    assert_ne!(
+        doc.var_order(),
+        by_id.as_slice(),
+        "the fixture's premise: declaration order is not id order"
+    );
+    let sum = ["q", "r", "s"].into_iter().fold(named("p"), |sum, name| {
+        Expr::add(sum, named(name)).expect("lengths add")
+    });
+    let (doc, cut) = block(doc, 0.0, sum);
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let out = split(
+        &doc,
+        &BTreeSet::from(cut),
+        DocumentId::derive("intent-vars-3-order-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect("the cut alone reads the four");
+    assert_eq!(declared_names(&out.part), declared_names(&doc));
+
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(out.part.clone(), Tol::witness());
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-order-host"),
+        Tol::witness(),
+    );
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let inlined = inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the part inlines");
+    let mut part_by_id = out.part.var_order().to_vec();
+    part_by_id.sort_unstable();
+    assert_ne!(
+        out.part.var_order(),
+        part_by_id.as_slice(),
+        "the premise again"
+    );
+    assert_eq!(declared_names(&inlined.doc), declared_names(&out.part));
+}
+
+/// A split or an inline across a reader of a DELETED variable refuses
+/// at its own door, naming the reader: the document is legal (VR7), and
+/// there is no variable to carry.
+#[test]
+fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
+    let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-dead-cut"), Tol::witness());
+    let doc = declare(&doc, "h", 1.5);
+    let (doc, cut) = block(doc, 0.0, named("h"));
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let h = id(&doc, "h");
+    let doc = step(&doc, DocEdit::DeleteVar { var: h.into() }).doc;
+    match split(
+        &doc,
+        &BTreeSet::from(cut),
+        DocumentId::derive("intent-vars-3-dead-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(e @ SplitError::UnresolvedVarCrossesCut { .. }) => {
+            let SplitError::UnresolvedVarCrossesCut { var, node } = &e else {
+                unreachable!()
+            };
+            assert_eq!((var.id(), node.id()), (h, cut[2]));
+            let said = e.to_string();
+            assert!(
+                said.contains("repoint") && !said.contains("defect"),
+                "{said}"
+            );
+        }
+        other => panic!("a reader of a deleted variable refuses at the split, got {other:?}"),
+    }
+
+    let (part, store, doc_ref) = part_reading_d_and_e();
+    let d = id(&part, "d");
+    let part = step(&part, DocEdit::DeleteVar { var: d.into() }).doc;
+    let mut store = store;
+    let doc_ref_dead = store.insert(part.clone(), Tol::witness());
+    assert_ne!(doc_ref, doc_ref_dead);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-dead-host"),
+        Tol::witness(),
+    );
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
+    match inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
+        Err(InlineError::UnresolvedVarCrossesCut { var, node }) => {
+            assert_eq!(var.id(), d);
+            assert_eq!(part.var_readers(d), vec![node.id()]);
+        }
+        other => panic!("a reader of a deleted variable refuses at the inline, got {other:?}"),
+    }
+}
+
+/// Row 2 on the incremental path: an evaluation from the one before
+/// the delete serves no stale memo — the reader refuses, and after a
+/// re-declare of the name it still reads the dead id.
+#[test]
+fn a_delete_leaves_its_readers_unresolved_incrementally() {
+    let (doc, _, blend) = blended_by_w();
+    let first = eval_after(&doc, None);
+    assert!(failures(&first).is_empty());
+    let w = id(&doc, "w");
+    let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
+    let after = eval_after(&gone, Some(&first));
+    match after.result(blend) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                &e.kind,
+                NodeErrorKind::Expr { source: EvalError::UnresolvedVar { var }, .. } if *var == w
+            ),
+            "{e:?}"
+        ),
+        other => panic!("the blend's reader is unresolved, got {other:?}"),
+    }
+    let again = declare(&gone, "w", R);
+    let redeclared = eval_after(&again, Some(&after));
+    assert!(matches!(
+        redeclared.result(blend),
+        Some(NodeResult::Failed(_))
+    ));
+}
+
+/// The insert path `Recording::insert` takes lowers the node before it
+/// mints, as `apply` does: one id, one document.
+#[test]
+fn recording_insert_lowers_as_apply_does() {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-recording"),
+        Tol::witness(),
+    );
+    let doc = declare(&doc, "w", 1.0);
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let node = Node::Extrude {
+        profile,
+        distance: named("w"),
+        side: ExtrudeSide::Along,
+    };
+    let by_apply = step(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(node.clone()),
+        },
+    );
+    let mut recording =
+        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+    let minted = recording.insert(node).expect("the recording inserts");
+    assert_eq!(Some(minted), by_apply.record.minted);
+    assert!(recording.doc().bit_eq(&by_apply.doc));
+    assert_eq!(
+        slot(recording.doc(), minted, SlotId::Distance),
+        &Expr::var(id(&doc, "w"), Dimension::Length)
+    );
+}
+
+/// The door refuses an id-authored reader of a variable it cannot
+/// answer — a deleted one, or one never minted — at a slot and in a
+/// payload, rather than storing a reader `save` would refuse.
+#[test]
+fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-dead-door"),
+        Tol::witness(),
+    );
+    let doc = declare(&doc, "w", 1.0);
+    let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
+    let w = id(&doc, "w");
+    let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
+    for var in [w, VarId(12_345)] {
+        match try_step(
+            &gone,
+            DocEdit::SetParam {
+                node: extrude,
+                slot: SlotId::Distance,
+                expr: Expr::var(var, Dimension::Length),
+            },
+        ) {
+            Err(EditError::SlotUnresolvedVar {
+                var: said,
+                node,
+                slot,
+            }) => {
+                assert_eq!(
+                    (said.id(), node.id(), slot),
+                    (var, extrude, SlotId::Distance)
+                );
+            }
+            other => panic!("a slot reader of {var:?} refuses, got {other:?}"),
+        }
+        match try_step(
+            &gone,
+            DocEdit::InsertNode {
+                node: Box::new(Node::Measure {
+                    expr: editor_core::MeasureExpr::value(Expr::var(var, Dimension::Length)),
+                    refs: Vec::new(),
+                }),
+            },
+        ) {
+            Err(EditError::PayloadUnresolvedVar { var: said, .. }) => assert_eq!(said.id(), var),
+            other => panic!("a payload reader of {var:?} refuses, got {other:?}"),
+        }
+    }
+}
+
+/// A measure's content key reads which variable a value leaf reads, not
+/// only what it evaluates to: two measures over two variables of one
+/// value are two keys, so a seed or a box on one serves no memo of the
+/// other.
+#[test]
+fn the_measure_key_reads_the_variable_not_its_value() {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-measure-key"),
+        Tol::witness(),
+    );
+    let doc = declare(&declare(&doc, "a", 0.25), "b", 0.25);
+    let measure = |name| Node::Measure {
+        expr: editor_core::MeasureExpr::value(named(name)),
+        refs: Vec::new(),
+    };
+    let (doc, on_a) = insert(doc, measure("a"));
+    let (doc, on_b) = insert(doc, measure("b"));
+    let evaluation = eval_after(&doc, None);
+    let key = |node| {
+        evaluation
+            .value(node)
+            .unwrap_or_else(|| panic!("the measure evaluates: {:?}", evaluation.result(node)))
+            .content_key
+    };
+    assert_ne!(key(on_a), key(on_b));
+}
+
+/// A refusal naming a variable, spoken again from a later version of
+/// the document, says the name that version holds — as it already said
+/// a relabelled node's label.
+#[test]
+fn a_respoken_refusal_says_the_variables_new_name() {
+    let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-respoken"), Tol::witness());
+    let doc = step(
+        &doc,
+        DocEdit::DeclareVar {
+            name: n("ang_old"),
+            def: VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+        },
+    )
+    .doc;
+    let (doc, _, blend) = filleted(doc, 0.0, len(R));
+    let refused = try_step(
+        &doc,
+        DocEdit::SetParam {
+            node: blend,
+            slot: SlotId::Radius,
+            expr: Expr::var(id(&doc, "ang_old"), Dimension::Length),
+        },
+    )
+    .expect_err("a reader at the wrong kind refuses");
+    assert!(
+        matches!(refused, EditError::SlotVarKind { .. }),
+        "{refused:?}"
+    );
+    let later = step(
+        &doc,
+        DocEdit::RenameVar {
+            var: n("ang_old").into(),
+            name: Some(n("ang_new")),
+        },
+    )
+    .doc;
+    let later = step(
+        &later,
+        DocEdit::SetLabel {
+            node: blend,
+            label: Some(editor_core::Label::new("blend").expect("a label")),
+        },
+    )
+    .doc;
+    let said = refused.respoken(&later).to_string();
+    assert!(
+        said.contains("\"blend\""),
+        "the node is spoken again: {said}"
+    );
+    assert!(
+        said.contains("ang_new") && !said.contains("ang_old"),
+        "the variable is spoken again: {said}"
+    );
+}
+
+/// An analyzed box taken before a rename compares equal after it, and a
+/// lane run over the renamed document speaks the name it holds — the
+/// box's own spoken forms are not what the refusal says.
+#[test]
+fn a_box_from_before_a_rename_speaks_the_new_name() {
+    let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-box-name"), Tol::witness());
+    let doc = declare(&doc, "w", 1.0);
+    let (doc, _) = block(doc, 0.0, named("w"));
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: n("w").into(),
+            distribution: Some(Distribution::Band {
+                lo: -0.01,
+                hi: 0.01,
+            }),
+        },
+    )
+    .doc;
+    let policy = AnalysisPolicy::default();
+    let before = analyzed_box(&doc, &policy);
+    let renamed = step(
+        &doc,
+        DocEdit::RenameVar {
+            var: n("w").into(),
+            name: Some(n("v")),
+        },
+    )
+    .doc;
+    assert_eq!(
+        before,
+        analyzed_box(&renamed, &policy),
+        "a rename moves no axis"
+    );
+    let refused = editor_core::mc::monte_carlo(
+        &renamed,
+        &before,
+        &editor_core::mc::McConfig::default(),
+        Tol::witness(),
+    )
+    .expect_err("a band has no measure to sample");
+    let said = refused.to_string();
+    assert!(
+        said.contains("parameter v ") && !said.contains("parameter w "),
+        "{said}"
+    );
+}

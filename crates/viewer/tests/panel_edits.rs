@@ -1493,10 +1493,22 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
 fn a_rename_keeps_the_parameter_row_and_its_selection_and_is_one_undo_step() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
+    // A second row, declared after `thickness` and named between the
+    // old name and the new one: under a name sort the renamed row would
+    // move from second to first, so "the same place" can go red.
+    let (doc, _) = viewer::test_support::edited(
+        &doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("mid"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+        },
+        tol,
+    );
     let mut session = DocSession::inline(doc, tol);
     let thickness = common::thickness_var(session.committed_doc());
     session.perform(SessionOp::Select(Selection::Param(thickness)));
     let rows_before = props::param_rows(session.committed_doc());
+    assert!(rows_before.len() >= 2, "a re-sort has a row to move past");
     let at = rows_before
         .iter()
         .position(|row| row.var == thickness)
