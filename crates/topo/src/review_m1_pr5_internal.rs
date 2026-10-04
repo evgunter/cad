@@ -262,7 +262,7 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
-        "set_face_surface_stranding_for_tests",
+        "set_face_surface_unvouched_for_tests",
         "the failure-injection twin of `set_face_surface`: the same door run inside \
          `lifting_rechart_refusals_for_tests`, so the same postcondition",
     ),
@@ -315,6 +315,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "plant_ring_face",
         "plants a ring face through `mev_line`, `kemr` and `mef_chord` and writes no arena \
          itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "plant_disc_face",
+        "plants a disc face through `mev_line`, `kemr` and `mef` and writes no arena itself — \
+         every mutation is one of those, each asserting",
     ),
     (
         "drill_hole",

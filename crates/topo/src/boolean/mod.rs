@@ -1529,6 +1529,13 @@ pub enum Corruption {
         /// The vertex.
         vertex: VertexKey,
     },
+    /// This edge's sides or extent could not be read.
+    Edge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The lookup that came back empty.
+        absence: crate::readback::CarrierAbsence,
+    },
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -2188,6 +2195,9 @@ pub enum BooleanError {
     /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
     /// the decided refusal of [`SphereQuestion::Nested`], and ends as
     /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// One sphere touching the other on one carrier is not asked when
+    /// every face of it is a verified `Rest` against the other face:
+    /// such a pair touches without overlapping (`ops::Exempt::Rest`).
     SpheresMeet {
         /// The operand whose sphere face the scan stopped at.
         operand: Operand,
@@ -2833,6 +2843,11 @@ impl core::fmt::Display for Corruption {
             Self::Vertex { vertex } => write!(
                 f,
                 "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+            Self::Edge { edge, absence } => write!(
+                f,
+                "edge {edge:?} could not be read: {}",
+                crate::readback::ReadbackError::from(*absence)
             ),
         }
     }
@@ -5156,7 +5171,7 @@ mod tests {
         };
         // Lifts both refusals: a cap whose offset datum is infinite is
         // the row's premise, and no edge certifies against it.
-        a.set_face_surface_stranding_for_tests(fa, surface).unwrap();
+        a.set_face_surface_unvouched_for_tests(fa, surface).unwrap();
         let band = Band::linear(tol).unwrap();
         let err = verify_tangency_declaration(&a, fa, &b, fb, Tangency::Contact, band)
             .map(|_| ())
