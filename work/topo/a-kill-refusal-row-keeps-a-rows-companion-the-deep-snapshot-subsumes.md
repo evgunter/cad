@@ -2,11 +2,13 @@
 id: a-kill-refusal-row-keeps-a-rows-companion-the-deep-snapshot-subsumes
 kind: issue
 title: euler_ring.rs's torn-loop refusal row compares a pcurve-rows companion beside deep_snapshot, which walks the pcurve table
-status: open
+status: closed
 opened: 2026-09-30
 priority: P4
 cost: E
 refs: [refusal-rows-that-count-instead-of-snapshot]
+closed: 2026-10-04
+branch: topo/kill-refusal-row-drops-rows-companion
 ---
 
 ## What
