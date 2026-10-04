@@ -384,11 +384,11 @@ pub enum ShellError<T: Real> {
         outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
-    /// solid of their own refused. Its preconditions hold by
-    /// construction — the void is one of the sealed arm's decided void
-    /// list, its twin is the graft map's answer for it, both sit under
-    /// the void's OWN operand solid beside that solid's outer shell and
-    /// its twin — so this is a kernel bug surfaced typed.
+    /// solid of their own refused. The keys are the shell op's own —
+    /// the void is one of the sealed arm's decided void list, its twin
+    /// is the graft map's answer for it — so the ownership door's
+    /// refusal is an operation refusal, never an argument miss
+    /// ([`EulerOpError::from_driver`]).
     Partition {
         /// The operand void whose thin solid could not be minted.
         shell: ShellKey,
@@ -585,8 +585,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::Partition { shell, error } => write!(
                 f,
-                "the thin solid around void {shell:?} could not be partitioned out (kernel \
-                 bug): {error}"
+                "the thin solid around void {shell:?} could not be partitioned out: {error}"
             ),
             Self::WallClearance { gap, needed, .. } => write!(
                 f,

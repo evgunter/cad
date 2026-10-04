@@ -631,6 +631,55 @@ mod payloads {
     }
 }
 
+/// The chains that carry an operator's refusal out of a kernel
+/// driver. None is filed short of a recourse: a driver's keys are ones
+/// it read or minted, so an argument miss never reaches one typed
+/// ([`topo::EulerOpError::from_driver`] panics on it), and what reaches
+/// them is an operation refusal, which states its own recourse. That
+/// recourse is addressed to the driver's call, not to the person at
+/// the GUI — on [`payloads::euler`] it reads "describe it against the
+/// surfaces its faces wear" — which is
+/// `work/hone/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
+const DRIVER_CARRIED: &[&str] = &[
+    "Blend/Op",
+    "Boolean/Join/Euler",
+    "Extrude/Op",
+    "Loft/Euler",
+    "Revolve/Op",
+    "Shell/Partition",
+    "Shell/Rim",
+    "Split/Finish/Euler",
+    "Split/Join/Euler",
+    "Split/Reduce/CrossingInsertion",
+    "Split/Reduce/Euler",
+];
+
+#[test]
+fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
+    let carried = payloads::euler().to_string();
+    let (_, recourse) = carried
+        .split_once("Recourse: ")
+        .expect("the sample operation refusal states a recourse");
+    let rows: Vec<(String, String)> = node_refusals()
+        .into_iter()
+        .filter(|(name, _)| DRIVER_CARRIED.contains(&name.as_str()))
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    assert_eq!(
+        rows.len(),
+        DRIVER_CARRIED.len(),
+        "every driver-carried chain is rendered: {:?}",
+        rows.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+    for (name, text) in &rows {
+        assert!(
+            text.ends_with(recourse) && !text.contains("kernel bug"),
+            "{name} draws the carried operation refusal's recourse, and no kernel-bug \
+             claim beside it: {text}"
+        );
+    }
+}
+
 #[test]
 fn every_node_refusal_renders_within_the_budget() {
     let rows: Vec<(String, String)> = node_refusals()
