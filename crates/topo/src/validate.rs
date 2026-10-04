@@ -1376,9 +1376,9 @@ pub enum ValidationError {
     },
     /// Tier 3, check 7 — **the sign is unresolved.** The solid's volume
     /// enclosure straddles zero, and it was taken partly about the world
-    /// origin (a quadrature face's flux keeps the width it was measured
-    /// with), so the straddle may be that width rather than a volume in
-    /// the band. Escalated rather than exempted: exempting it would pass
+    /// origin (a face the re-derivation could not measure about the
+    /// body keeps the width it was measured with), so the straddle may be
+    /// that width rather than a volume in the band. Escalated rather than exempted: exempting it would pass
     /// an inside-out body whose enclosure is merely wide
     /// (escalate-never-guess, D4 paragraph 3).
     VolumeSignUnresolved {
@@ -3344,9 +3344,9 @@ impl fmt::Display for ValidationError {
             ),
             Self::VolumeSignUnresolved { .. } => f.write_str(
                 "the sign of a solid's volume cannot be read: its enclosure straddles zero, and \
-                 a face measured through the certified quadrature keeps the width it was measured \
-                 with far from the world origin. Recourse: model the part nearer the origin, or \
-                 tighten the tolerance",
+                 a face that could not be measured about the solid itself keeps the width it was \
+                 measured with far from the world origin. Recourse: model the part nearer the \
+                 origin, or tighten the tolerance",
             ),
             Self::ShellRoleUndecided { error, .. } => write!(
                 f,
@@ -4479,19 +4479,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             tol,
             quad,
             quad,
-            |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
-                Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
-                Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
-                Certified::Open(_) => {
-                    unresolved.set(false);
-                    None
-                }
-                Certified::Unresolved(_) => {
-                    unresolved.set(true);
-                    None
-                }
-                Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
-            },
+            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &unresolved),
             |refusal| plus_v_at_target(refusal, unresolved.get()),
         ) {
             Ok((verdict, certificate)) => {
@@ -4982,8 +4970,9 @@ pub(crate) enum PlusVVerdict {
     /// is that refusal.
     Uncomputable(crate::props::MassPropsError),
     /// The sign is unresolved: the enclosure straddles zero, and it kept
-    /// a quadrature face's world-origin width, so the straddle is not
-    /// known to be the body's own rounding.
+    /// a face's world-origin width (one the re-derivation could not
+    /// measure about the body), so the straddle is not known to be the
+    /// body's own rounding.
     Unresolved,
 }
 
@@ -5016,7 +5005,7 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 /// the quadrature still owes a refusal: it never produced an enclosure
 /// tight enough to decide, and the body is exactly as unvalidatable as
 /// the reporting door says it is. Nor is it a pass when the enclosure
-/// kept a quadrature face's world-origin width: a straddle there may be
+/// kept a face's world-origin width: a straddle there may be
 /// that width and not the body, and is escalated. A sign in band or
 /// straddling zero by the body's own rounding is what the invariant
 /// exempts.
@@ -5028,6 +5017,26 @@ fn plus_v_at_target(
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
         (None, true) => PlusVVerdict::Unresolved,
         (None, false) => PlusVVerdict::Pass,
+    }
+}
+
+/// **Check 7's reading of one round** ([`plus_v_by_sign`]'s `settle`):
+/// a certified role decides; an open round decides nothing, and
+/// `unresolved` records whether it was in band or unresolved, for
+/// [`plus_v_at_target`] to read once the schedule runs out.
+fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Option<PlusVVerdict> {
+    match certified {
+        Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
+        Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
+        Certified::Open(_) => {
+            unresolved.set(false);
+            None
+        }
+        Certified::Unresolved(_) => {
+            unresolved.set(true);
+            None
+        }
+        Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
     }
 }
 
@@ -9063,6 +9072,44 @@ mod tests {
     };
     use crate::seqgen;
     use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
+
+    /// **An unresolved sign refuses where an in-band one passes.** Check
+    /// 7's last round, read through [`plus_v_round`] and
+    /// [`plus_v_at_target`] as [`plus_v_by_sign`] reads it: a straddle
+    /// the re-derivation took about the body (`Open`) is the body's own
+    /// rounding and passes, and one it could not (`Unresolved`) refuses
+    /// [`ValidationError::VolumeSignUnresolved`] rather than passing.
+    /// Pinned here because no shipped surface kind reaches `Unresolved`
+    /// now that every face is taken about the body's corner
+    /// ([`crate::props::rederive`]); the arm is what keeps a face that
+    /// someday cannot be from reading an inside-out straddle as a pass.
+    #[test]
+    fn an_unresolved_sign_refuses_where_an_in_band_one_passes() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let unread = || match crate::props::read_role(
+            crate::props::SignReading::exact(0.0_f64, 1.0),
+            PLUS_V,
+            band,
+        ) {
+            crate::props::RoleRead::Unread(unread) => unread,
+            crate::props::RoleRead::Decided(role) => panic!("a zero volume read {role:?}"),
+        };
+        let solid = SolidKey::default();
+        let at_target = |certified| {
+            let unresolved = core::cell::Cell::new(false);
+            assert!(
+                plus_v_round(certified, &unresolved).is_none(),
+                "an open round decides nothing"
+            );
+            plus_v_errors(solid, &plus_v_at_target(None, unresolved.get()))
+        };
+        assert_eq!(at_target(Certified::Open(unread())), Vec::new(), "in band");
+        assert_eq!(
+            at_target(Certified::Unresolved(unread())),
+            vec![ValidationError::VolumeSignUnresolved { solid }],
+            "unresolved"
+        );
+    }
 
     /// **Check 1's analytic verdicts at BOTH scalars**, one surface
     /// lifted from `f64` to `Interval` through `Surface::map_scalar`

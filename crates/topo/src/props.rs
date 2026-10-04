@@ -412,7 +412,7 @@ fn round_hook<T: Decide>(
 + Copy {
     move |body, surface, outer, hes, band, tol, window| match quad {
         Some(lane) => {
-            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window).map(Some)
+            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window, None).map(Some)
         }
         None => Ok(None),
     }
@@ -518,6 +518,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
         let reading = Round {
             body,
             band,
+            tol,
             certify,
             runs: &runs,
         };
@@ -653,7 +654,7 @@ impl<T: Decide> PastTarget<'_, T> {
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
         let walk = &self.walk;
         let lane = walk.quad?;
-        Some(rederive(walk.body, walk.band, lane, &walk.runs).map(|r| (r.volume, r.area)))
+        Some(rederive(walk.body, walk.band, walk.tol, lane, &walk.runs).map(|r| (r.volume, r.area)))
     }
 
     /// **One round further** on every face that met the target at a
@@ -711,6 +712,7 @@ impl<T: Decide> PastTarget<'_, T> {
 pub(crate) struct Round<'r, 'b, T: Decide> {
     body: &'b Body<T>,
     band: Band,
+    tol: Tol,
     /// The lane the round's closed forms are re-derived through.
     certify: Option<QuadLane<T>>,
     runs: &'r [FaceRun<T>],
@@ -730,7 +732,7 @@ impl<T: Decide> Round<'_, '_, T> {
             self.reading(),
             || {
                 self.certify
-                    .map(|lane| rederived(self.body, self.band, lane, self.runs))
+                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs))
             },
             names,
             certified,
@@ -926,8 +928,9 @@ pub(crate) enum Certified {
     /// No role: the sign is in band, or straddles zero by less than the
     /// body's own rounding — the interval was taken about the body.
     Open(RoleUnread),
-    /// No role, and the interval was NOT taken about the body (a
-    /// quadrature face kept the world-origin width), so a straddle may be
+    /// No role, and the interval was NOT taken about the body (a face
+    /// its lane could not measure about the body kept the world-origin
+    /// width), so a straddle may be
     /// that width rather than the body: the sign is unresolved, not in
     /// band.
     Unresolved(RoleUnread),
@@ -985,10 +988,12 @@ pub(crate) fn certify_role<T: Decide>(
 fn rederived<T: Decide>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<(SignReading<Interval>, bool), MassPropsError> {
-    rederive(body, band, lane, runs).map(|r| (SignReading::exact(r.volume, r.area), r.recentred))
+    rederive(body, band, tol, lane, runs)
+        .map(|r| (SignReading::exact(r.volume, r.area), r.recentred))
 }
 
 /// **A walk's runs re-derived in interval arithmetic**, about the least
@@ -999,14 +1004,18 @@ fn rederived<T: Decide>(
 /// geometry: each closed-form face's flux about `c` from its surface and
 /// loops lifted exactly and moved by `−c` (a plane by its loops fanned
 /// from one of their points: `quad_lane::planar_face_about`), and each
-/// quadrature face's enclosure as its lane returned it, less `c · A⃗`.
+/// quadrature face measured again about `c`, at the round the walk
+/// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
+/// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
 /// A plane's fan reads no carrier origin, so the planar faces sum to the
 /// volume of the closed surface their loops bound, whatever in-band
-/// distance the stored vertices stand off their planes. Taken about a point of the body, no closed-form face's
-/// width is scaled by the body's distance from the world origin; a
-/// quadrature face keeps the width it was measured with, and says so.
-/// A walk with no faces, or a quadrature face whose vector area has no
-/// closed form, is taken about the world origin, unrecentred.
+/// distance the stored vertices stand off their planes. Taken about a
+/// point of the body, no face's width is scaled by the body's distance
+/// from the world origin. A quadrature face whose lane refuses about `c`
+/// keeps the enclosure it was measured with less `c · A⃗`, at the
+/// world-origin width, and says so; a walk with no faces, or such a face
+/// whose vector area has no closed form, is taken about the world
+/// origin, unrecentred.
 ///
 /// # Errors
 ///
@@ -1017,18 +1026,19 @@ fn rederived<T: Decide>(
 fn rederive<T: Decide>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
     if runs.is_empty() {
-        return rederive_about(body, band, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
+        return rederive_about(body, band, tol, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
             what: "a walk about the world origin asked for a recentring",
         });
     }
     let centre = corner_of(body, lane, runs)?;
-    match rederive_about(body, band, lane, runs, Some(centre))? {
+    match rederive_about(body, band, tol, lane, runs, Some(centre))? {
         Some(rederived) => Ok(rederived),
-        None => rederive_about(body, band, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
+        None => rederive_about(body, band, tol, lane, runs, None)?.ok_or(MassPropsError::Corrupt {
             what: "a walk about the world origin asked for a recentring",
         }),
     }
@@ -1041,6 +1051,7 @@ fn rederive<T: Decide>(
 fn rederive_about<T: Decide>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
     centre: Option<Point3<Interval>>,
@@ -1057,13 +1068,41 @@ fn rederive_about<T: Decide>(
         let (f, a) = match (run.contribution.enclosure, centre) {
             (Some(enclosure), None) => enclosure,
             (Some(enclosure), Some(centre)) => {
-                match (lane.closed_form)(surface, &loops, face.sense, band, centre, Some(enclosure))
-                {
-                    Ok((c, _)) => {
-                        recentred = false;
-                        (c.flux, c.area)
+                // The quadrature again, about `centre`, at the round the
+                // walk reached; failing that, the walk's enclosure less
+                // `centre · A⃗`, which keeps the world-origin width.
+                let window = run
+                    .open_at
+                    .or(run.converged_at)
+                    .map_or(RoundWindow::SCHEDULE, RoundWindow::at);
+                let (outer, hes) = loop_edges(body, face.outer)?;
+                match (lane.cut_face_rounds)(
+                    body,
+                    surface,
+                    &outer,
+                    &hes,
+                    band,
+                    tol,
+                    window,
+                    Some(centre),
+                ) {
+                    Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
+                        (b.flux, b.area)
                     }
-                    Err(_) => return Ok(None),
+                    Err(_) => match (lane.closed_form)(
+                        surface,
+                        &loops,
+                        face.sense,
+                        band,
+                        centre,
+                        Some(enclosure),
+                    ) {
+                        Ok((c, _)) => {
+                            recentred = false;
+                            (c.flux, c.area)
+                        }
+                        Err(_) => return Ok(None),
+                    },
                 }
             }
             (None, _) => {
@@ -1093,16 +1132,22 @@ struct Rederived {
     area: Interval,
     /// Whether every face was taken about the body's own centre, so the
     /// width is the body's own rounding: `false` where a quadrature face
-    /// (or a face whose geometry has no translated twin) kept the
-    /// world-origin width ([`quad_lane::closed_form`]).
+    /// whose lane refused about the centre (or a face whose geometry has
+    /// no translated twin) kept the world-origin width
+    /// ([`quad_lane::closed_form`]).
     recentred: bool,
 }
 
 /// The least corner of the runs' loop points, lifted through `lane`: a
 /// point within the body's own extent of every face, exact (a lattice
 /// `min`, so a point interval), and the same point for the same geometry
-/// whatever order its faces are stored in — so two bodies that store one
-/// boundary re-derive one value about it.
+/// whatever order its faces are stored in. The centre is order-free; the
+/// value about it is not quite: a plane's flux is read from its loop's
+/// first point (`quad_lane::planar_face_about`), and where a loop's
+/// points stand off their plane two bodies storing one boundary from
+/// different first points re-derive values that differ by up to
+/// `Σ δ·|A⃗|` over those faces — within the band's metering of a sign,
+/// not of a bound read at the exact band.
 fn corner_of<T: Decide>(
     body: &Body<T>,
     lane: QuadLane<T>,
@@ -2850,7 +2895,7 @@ fn classify_shells_via<T: Decide>(
         let (volume, volume_pad) = (sums.volume, sums.volume_pad);
         let role = match certify_role(
             sums.reading(),
-            || quad.map(|lane| rederived(body, band, lane, &runs)),
+            || quad.map(|lane| rederived(body, band, tol, lane, &runs)),
             SHELL_ROLE_NAMES,
             SHELL_ROLE_ENCLOSURE_NAMES,
             band,
@@ -2970,8 +3015,9 @@ fn shell_role_refusal(
 #[allow(clippy::type_complexity)]
 pub struct QuadLane<T: Decide> {
     /// The certified flux/area enclosures of one curved-cut face, over
-    /// the round window it is handed — `quad_lane::cut_face_rounds`,
-    /// and nothing else can be written here (`wiring_rows` pins the
+    /// the round window it is handed, its flux about the world origin
+    /// (`None`) or about a centre — `quad_lane::cut_face_rounds`, and
+    /// nothing else can be written here (`wiring_rows` pins the
     /// pointer).
     cut_face_rounds: fn(
         &Body<T>,
@@ -2981,6 +3027,7 @@ pub struct QuadLane<T: Decide> {
         Band,
         Tol,
         RoundWindow,
+        Option<Point3<Interval>>,
     ) -> Result<RoundOutcome, PropsError>,
     /// One closed-form face's flux about a centre and its area,
     /// re-derived in interval arithmetic over its stored geometry —
@@ -3118,7 +3165,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }

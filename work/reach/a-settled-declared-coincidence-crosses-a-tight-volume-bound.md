@@ -112,3 +112,26 @@ the MAJ-1 plate refuses every planted component down to a 2.7e-17 m³
 cube at 1 mm scale, with or without declarations; the rounded stack's
 thickened ∩ passes at no δ; declarations, duplicated or not, no longer
 reach the backstop (`gate_volume_backstop` takes none).
+
+### The confirm also depends on the fan's anchor (PR 3977's last pass)
+
+PR 3977's second delta review re-measured the result bodies of this
+fixture in exact rationals of their stored data and found the confirm's
+reading depends on WHICH loop point each plane is fanned from, not only
+on the standoff. The glued block-top face's ring stands δ = 1.0e-10
+(θ = ±1.2ε) to 1.7e-10 (±2ε) off its carrier at ε 1e-9, so its `A⃗`
+has an off-normal part of order δ × its size, and `(anchor − c)·A⃗`
+moves with the anchor: over the outer loop's corners by 0 or +1.57e-10
+(in V), over the ring's by −3.90e-10 or +8.02e-11, against crossings of
+±8.0e-11 and a gap of 4.6e-12. Anchoring the fan at the loop's second
+point (same geometry, carrier and centre) flipped every refusal the row
+then pinned. Two bodies storing one boundary from different first
+points re-derive values up to `Σ δ·|A⃗|` apart (1.4e-9 m³ on the
+result here).
+
+So the row (`door_backstop_settled_residue`) now asserts only what the
+geometry decides: every op that builds is within the gap of the box
+arithmetic, and only an op whose intended result crosses may refuse,
+naming that bound. Whether it refuses is not pinned. Any design for
+this item has to read the bound at a resolution the representation
+supports, which on this fixture is coarser than the gap.

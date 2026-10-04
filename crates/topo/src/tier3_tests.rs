@@ -2779,7 +2779,13 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
 /// `(cx, cy, z0)`**: a two-sided prism whose cross-section is the half of
 /// the circle on `+y` and its chord, so one wall is a cylinder and the
 /// walk is not all-planar. Its exact volume is `π r² h / 2`.
-fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), tol: Tol) -> Body<f64> {
+///
+/// `far` stores the same geometry with every carrier anchored at a far
+/// point of itself (the planes at their feet on the world's axes, the
+/// cylinder at `z = 0` on its axis), as a construction that places
+/// its carriers' origins away from the body does.
+fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol) -> Body<f64> {
+    let k = if far { 0.0 } else { 1.0 };
     let mut p = crate::fixtures::raw_prism(2, tol);
     let xy = [(cx + r, cy), (cx - r, cy)];
     for (i, (x, y)) in xy.into_iter().enumerate() {
@@ -2789,23 +2795,23 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), tol: Tol) -> Body<f6
         }
     }
     let wall = Surface::Cylinder {
-        origin: Point3::new(cx, cy, z0),
+        origin: Point3::new(cx, cy, k * z0),
         axis: Vec3::unit_z(),
         radius: r,
         u_ref: Vec3::unit_x(),
     };
     let chord = Surface::Plane {
-        origin: Point3::new(cx, cy, z0),
+        origin: Point3::new(k * cx, cy, k * z0),
         normal: -Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
     let top = Surface::Plane {
-        origin: Point3::new(cx, cy, z0 + h),
+        origin: Point3::new(k * cx, k * cy, z0 + h),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
     let bottom = Surface::Plane {
-        origin: Point3::new(cx, cy, z0),
+        origin: Point3::new(k * cx, k * cy, z0),
         normal: -Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
@@ -2898,12 +2904,12 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), tol: Tol) -> Body<f6
 /// **A curved walk's sign is read off its exact volume too.** A 1 mm
 /// half-disc 1 µm thick, 5 km from the world origin (exact volume
 /// `π·(1e-3)²·1e-6/2`): upright it passes check 7 and reads `Outer`,
-/// inside out it is refused `NegativeVolume` and reads `Void`. Taken
-/// about the world origin its cylinder wall's closed form is wide enough
-/// to straddle zero, and the inside-out body passed.
+/// inside out it is refused `NegativeVolume` and reads `Void`, whether
+/// its carriers are anchored at the body or far along themselves. Taken
+/// about the world origin, the far-anchored disc's enclosure straddles
+/// zero, and the inside-out body passed.
 #[test]
 fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
-    use crate::ShellRole::{Outer, Void};
     let tol = Tol::witness();
     if tol.eps() > 1e-9 {
         test_utils::vacuity::stood_down(
@@ -2912,35 +2918,56 @@ fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
         );
         return;
     }
+    for far in [false, true] {
+        if far && tol.eps() < 1e-9 {
+            test_utils::vacuity::stood_down(
+                "a far-anchored half-disc below ε 1e-9",
+                "its edge curves do not certify on carriers anchored kilometres away",
+            );
+            continue;
+        }
+        far_thin_half_disc_reads(far, tol);
+    }
+}
+
+fn far_thin_half_disc_reads(far: bool, tol: Tol) {
+    use crate::ShellRole::{Outer, Void};
     let d = 5e3;
-    let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), tol);
+    let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
     let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
-    let read = crate::mass_properties(&upright, tol).expect("the half-disc measures");
-    assert!(
-        (read.volume - exact).abs() <= 1e-3 * exact,
-        "the oracle: {read:?} vs {exact:e}"
-    );
-    assert_eq!(
-        validate_geometric(&upright, tol),
-        Ok(()),
-        "upright: check 7"
-    );
-    assert_eq!(
-        roles_of(&upright, tol),
-        (Outer, Outer),
-        "upright: the roles"
-    );
+    // The far-anchored disc's `f64` sum is the filed measurement
+    // (`work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+    // not this row's subject; the sign is read off the certified walk.
+    if !far {
+        let read = crate::mass_properties(&upright, tol).expect("the half-disc measures");
+        assert!(
+            (read.volume - exact).abs() <= 1e-3 * exact,
+            "the oracle: {read:?} vs {exact:e}"
+        );
+    }
+    // Check 7 on the inside-out body first: an enclosure that lets it
+    // pass is the defect this row exists to see.
     let inverted = upright.revert().expect("the half-disc reverts");
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
         Err(vec![ValidationError::NegativeVolume { solid }]),
-        "inside-out: check 7"
+        "far {far}, inside-out: check 7"
+    );
+    assert_eq!(
+        validate_geometric(&upright, tol),
+        Ok(()),
+        "far {far}, upright: check 7"
+    );
+    assert_eq!(
+        roles_of(&upright, tol),
+        (Outer, Outer),
+        "far {far}, upright: the roles"
     );
     assert_eq!(
         roles_of(&inverted, tol),
         (Void, Void),
-        "inside-out: the roles"
+        "far {far}, inside-out: the roles"
     );
 }
 

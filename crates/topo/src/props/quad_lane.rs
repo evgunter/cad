@@ -140,12 +140,14 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// ([`planar_face_about`]).
 ///
 /// A quadrature face (`quadrature` is its lane's flux and area
-/// enclosures, about the world origin): the flux less `centre · A⃗`, with
-/// `A⃗` the face's vector area from its own loops — the same value, at
-/// the width the quadrature returned it with.
+/// enclosures, about the world origin) arrives here only where its lane
+/// refused to measure it about `centre` (`rederive` asks
+/// [`cut_face_rounds`] first): the flux less `centre · A⃗`, with `A⃗` the
+/// face's vector area from its own loops — the same value, at the width
+/// the quadrature returned it with.
 ///
 /// The second half says whether the face was RECENTRED, its width the
-/// body's own: `false` for a quadrature face, and for a closed-form face
+/// body's own: `false` for such a quadrature face, and for a closed-form face
 /// whose geometry has no translated twin here, whose flux is then the
 /// closed form about the world origin less `centre · A⃗`.
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
@@ -410,6 +412,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     // The NURBS-patch lane (M6-3): a described NURBS face routes
     // to the patch engine over its stored iso-line pcurves.
@@ -420,7 +423,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
-        return nurbs_face(body, payload, outer, hes, band, tol, window);
+        return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
@@ -432,7 +435,28 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     };
     let eps = tol.eps();
     let va = loop_vector_area(outer, *origin)?;
-    let o_dot_va = Interval::from_certified((*origin - Point3::origin()).dot(va));
+    // The flux about the chart's own origin, `r²·A_s`, is where the
+    // face is; only this term carries its position. Taken about a centre
+    // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
+    // size of the body rather than of its distance from the world origin.
+    let o_dot_va = match centre {
+        None => Interval::from_certified((*origin - Point3::origin()).dot(va)),
+        Some(c) => {
+            let lift = |p: Point3<T>| {
+                Point3::new(
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                )
+            };
+            let va = geom_core::Vec3::new(
+                Interval::from_certified(va.x),
+                Interval::from_certified(va.y),
+                Interval::from_certified(va.z),
+            );
+            (lift(*origin) - c).dot(va)
+        }
+    };
     let mut edges = Vec::with_capacity(outer.len());
     for (le, he) in outer.iter().zip(hes) {
         let Some(cache) = body.pcurve(*he) else {
@@ -502,6 +526,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     if payload.is_placeholder() {
         return Err(PropsError::QuadratureUnsupported {
@@ -521,7 +546,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         .filter_map(|he| body.pcurve(*he))
         .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
     {
-        return trimmed_face(body, payload, outer, hes, band, tol, window);
+        return trimmed_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let eps = tol.eps();
     // Exact-structure read of a T scalar (point bracket required).
@@ -631,17 +656,20 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
                    region is outside the rectangle lane (the cut-loft unit's)",
         });
     };
-    let control: Vec<quad::RVec3> = payload
-        .control()
-        .iter()
-        .map(|p| {
-            [
-                Interval::from_certified(p.x),
-                Interval::from_certified(p.y),
-                Interval::from_certified(p.z),
-            ]
-        })
-        .collect();
+    let control = about(
+        payload
+            .control()
+            .iter()
+            .map(|p| {
+                [
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                ]
+            })
+            .collect(),
+        centre,
+    );
     let out = quad::nurbs_patch_face_rounds::<T>(
         payload.knots_u(),
         payload.knots_v(),
@@ -723,6 +751,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
@@ -849,11 +878,14 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         chords[i].b = merged;
         chords[j].a = merged;
     }
-    let control: Vec<quad::RVec3> = payload
-        .control()
-        .iter()
-        .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
-        .collect();
+    let control = about(
+        payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect(),
+        centre,
+    );
     quad::trimmed_patch_face_rounds::<T>(
         payload.knots_u(),
         payload.knots_v(),
@@ -864,6 +896,21 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         band,
         window,
     )
+}
+
+/// A patch's lifted control net carried by `−centre`, when the flux is
+/// taken about a centre. The net is stored Euclidean, weights apart, so
+/// the translated net is the translated patch, rational or not; and the
+/// flux pad's position bound, read off the net's hull, becomes the bound
+/// on `|x − centre|` it should be.
+fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<quad::RVec3> {
+    match centre {
+        None => control,
+        Some(c) => control
+            .into_iter()
+            .map(|x| [x[0] - c.x, x[1] - c.y, x[2] - c.z])
+            .collect(),
+    }
 }
 
 /// The vertex POINT at a half-edge's carrier-interval start (its

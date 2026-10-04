@@ -7,11 +7,11 @@
 //! classification, in point containment and in a boolean. Oracle: the
 //! disc's volume `π r² h` and its membership, read off the construction.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-use geom_core::{Band, Point2, Point3, Tol};
+use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, cylinder_of_arcs_at};
 use topo::{
-    Body, ShellRole, SolidContainment, ValidationError, classify_shells, point_in_solid, subtract,
-    validate_geometric,
+    Body, ShellRole, SolidContainment, ValidationError, classify_shells, intersect, point_in_solid,
+    subtract, transform_rigid, validate_geometric,
 };
 
 /// The discs these rows read: `(h, d)`, every height thin enough that
@@ -149,5 +149,115 @@ fn a_box_less_a_far_thin_disc_is_a_valid_hollow() {
         validate_geometric(body, tol),
         Ok(()),
         "the hollow passes tier 3"
+    );
+}
+
+/// The disc cut from a 1 mm cylinder by a slab `h` thick tilted `tilt`
+/// about x, at the origin: its wall is trimmed by two ellipses, so the
+/// walk measures it through the certified quadrature, not a closed form.
+/// `None`, standing down loudly, where the fixture does not build.
+fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
+    let built = std::panic::catch_unwind(|| {
+        let cylinder = cylinder_of_arcs_at(4, R, Point2::new(0.0, 0.0), -3e-3, 6e-3, tol);
+        let slab = brick::<f64>((-4e-3, 4e-3), (-4e-3, 4e-3), (0.0, h), tol);
+        let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), tilt);
+        let slab = transform_rigid(&slab, &tilt, tol).expect("the slab tilts");
+        intersect(&cylinder, &slab, tol)
+            .expect("the cut answers")
+            .body()
+            .expect("a body")
+            .body
+            .clone()
+    });
+    built.map_or_else(
+        |_| {
+            test_utils::vacuity::stood_down(
+                "a tilted cut the fixture cannot build",
+                "the cylinder ∩ slab does not build at this ε",
+            );
+            None
+        },
+        Some,
+    )
+}
+
+/// **A far tilted cut disc is read by its exact volume**, its wall
+/// through the quadrature lane: the upright disc passes check 7 and
+/// reads `Outer`, the inside-out one is refused `NegativeVolume` and
+/// reads `Void`. Its volume `π r² h / cos tilt` is some 500× the band's
+/// escalation over its area at ε 1e-9, so the sign is far from the band;
+/// a quadrature face taken about the world origin used to leave the
+/// valid disc refused `VolumeSignUnresolved` 5 km out.
+#[test]
+fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
+    let tol = Tol::witness();
+    let mut read = 0;
+    for h in [1e-6, 1e-5] {
+        if !buildable(h, tol) {
+            continue;
+        }
+        for tilt in [0.3, 0.8] {
+            let Some(cut) = tilted_cut(h, tilt, tol) else {
+                continue;
+            };
+            for d in [5e3, 2e4] {
+                for angle in [0.0, 0.7] {
+                    let what = format!("h {h:e}, tilt {tilt}, {d:e} m, turned {angle}");
+                    let turn = Affine3::rotation_about_axis(
+                        Point3::origin(),
+                        Vec3::new(0.3, 0.5, 0.81),
+                        angle,
+                    );
+                    let out = Affine3::translation(Vec3::new(0.6 * d, 0.48 * d, 0.64 * d));
+                    let Ok(upright) = transform_rigid(&cut, &turn, tol)
+                        .and_then(|b| transform_rigid(&b, &out, tol))
+                    else {
+                        test_utils::vacuity::stood_down(
+                            "a placement the rigid map refuses",
+                            "the cut disc does not place at this ε",
+                        );
+                        continue;
+                    };
+                    read += 1;
+                    let inverted = upright.revert().expect("the disc reverts");
+                    let solid = inverted.solids().next().expect("one solid").0;
+                    for (body, name, check7, role) in [
+                        (&upright, "upright", Ok(()), ShellRole::Outer),
+                        (
+                            &inverted,
+                            "inside out",
+                            Err(vec![ValidationError::NegativeVolume { solid }]),
+                            ShellRole::Void,
+                        ),
+                    ] {
+                        assert_eq!(
+                            validate_geometric(body, tol),
+                            check7,
+                            "{what}, {name}: check 7"
+                        );
+                        let roles: Vec<ShellRole> = classify_shells(body, tol)
+                            .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
+                            .iter()
+                            .map(|c| c.role)
+                            .collect();
+                        assert_eq!(roles, vec![role], "{what}, {name}: the shell's role");
+                    }
+                }
+            }
+        }
+    }
+    // Two of the four cuts build at ε 1e-9 and 1e-12 (the other two run
+    // their own quadrature out of budget at the origin); at 1e-9 each
+    // places at all four positions, at 1e-12 at half of them; at 1e-6
+    // none is a body.
+    let floor = match tol.eps() {
+        e if e <= 1e-12 => 4,
+        e if e <= 1e-9 => 8,
+        _ => 0,
+    };
+    assert!(
+        read >= floor,
+        "only {read} cut discs were read at ε {:e}",
+        tol.eps()
     );
 }
