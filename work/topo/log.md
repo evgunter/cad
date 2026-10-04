@@ -6819,3 +6819,16 @@ Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and
   Subscribed. Reviewer `session_01KiZYQJiYUBLPTVuYdBx6zs` dispatched: deck-group laws, kill sums including the `kev_describing` turn (D9), tier-3 acceptance looseness, `first`-independence, the `revert` involution, readers missed, staging honesty. The implementer is already on part 2 and its status says "checking CI before merge"; it may self-merge before review. If so, the review is fixed forward.
 - 21:37: PR 4037 `test` job red on `b076ce4b` (nextest exit 100; logs unreachable from here, annotations do not name the test). Left to the implementer, which is live and watching its CI. The reviewer also runs the suite.
 - 22:00: PR 4037 got a new head `843fcb69` (the implementer fixed the `test` job); `demos` is now red there, and the implementer is polling CI on both its PRs. Part 2 is **PR 4039** (`topo/joint-site-mint`, base main): the site-mint shrink and row closures. Subscribed; to be reviewed after part 1's verdict.
+
+## 22:23 check-in (2026-10-04)
+
+**PR 4037 review: fix first, three BLOCKING findings.**
+1. CI is red, and two moved goldens are unexplained (the thread-count digest: `sym_arc_loft` and `sym_thin_strip` decision counts; the demos chaintol fraction).
+2. Tier 3's "same kind and fits" arm accepts a wrong pole element: a planted `Reset(σ)` on a lune validates clean and the lift draws outside the chart region. The arm is otherwise dead, so it becomes strict equality.
+3. About 20 "rows are the pass's" helpers stopped comparing the branch, since the element is not in their output.
+
+Minor findings: no kev/kemr sum witness; `Deck::apply` and `shift_polar_branch` fail quietly on `General`; `lift_decks` reset inconsistency; the reset invariant is unpinned; the closure escalation is reported as `NotClosed`; `turn_element` swallows escalation; DESIGN.md D1's revert bullet is stale (the re-wording lands with R); staging gaps, including keys-only `kev` General unsplice leaving a face half-minted.
+
+It confirmed: the acceptance table reproduces (`kef`/`kef_minting` exact, the snowman clean); the witnesses are green; the removed `RevertLink` variants have no readers; arithmetic is deterministic.
+
+The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupted and archived** mid-chaintol fix. It could not receive the review, and a second lane on the same branch would collide; it might also have self-merged with the blockers open. Reviewer archived (about $7). **Fix lane `session_01M66dcYc3UYLm1j7WJ4WNsJ` takes over both PRs**: all findings on 4037, then carry 4039 (merge 4037 in, the same test strictness, zero complete-to-incomplete transitions). It merges nothing; the orchestrator merges. Nothing new on PR 3970.
