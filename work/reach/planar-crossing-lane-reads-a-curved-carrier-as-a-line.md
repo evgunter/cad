@@ -2,13 +2,14 @@
 id: planar-crossing-lane-reads-a-curved-carrier-as-a-line
 kind: unit
 title: the sweep's planar crossing lane reads a spiric or NURBS carrier as a line
-status: review
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 branch: reach/planar-lane-curved-carrier
 refs: [boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule]
 pr: 3984
+closed: 2026-10-04
 ---
 
 
@@ -57,3 +58,7 @@ Class residue filed: `a-nurbs-edges-sector-departure-is-its-chord`,
 `shell/replace-face-transports-a-nurbs-edge-as-a-ruling`; from the dual
 review, `split-insert-crossings-second-edge-clears-arm-is-unpinned` and
 `rod-minus-brick-minus-slab-refuses-solids-do-not-cross`.
+
+## Closed
+
+PR 3984. The planar crossing lane no longer reads a spiric or spline carrier as a line. The sweep's planar and curved arms refuse it typed, through one `plane_crossing_lane` with three outcomes. `gate_operand_edges` stays. Deleting it is `delete-the-boolean-operand-edge-gate`.
