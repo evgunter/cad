@@ -3467,8 +3467,8 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
-            .vertices()
-            .filter_map(|(_, v)| b.get_point(v.point))
+            .vertex_points()
+            .map(|(_, p)| p.unwrap())
             .map(|p| p.x)
             .fold(f64::INFINITY, f64::min),
         other => panic!("an instance's value is a body, got {other:?}"),
@@ -3999,10 +3999,8 @@ fn asm2b_outer(
 /// this pins WHICH SOLID CAME FIRST, not merely the aggregate volume.
 fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
     let mut s = String::new();
-    for (_, v) in body.vertices() {
-        if let Some(p) = body.get_point(v.point) {
-            s.push_str(&format!("{};", p.x.to_bits()));
-        }
+    for (_, p) in body.vertex_points() {
+        s.push_str(&format!("{};", p.unwrap().x.to_bits()));
     }
     s
 }
@@ -4045,8 +4043,8 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
         Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b
-                .vertices()
-                .filter_map(|(_, e)| b.get_point(e.point))
+                .vertex_points()
+                .map(|(_, p)| p.unwrap())
                 .map(|p| p.x)
                 .collect();
             v.sort_by(f64::total_cmp);

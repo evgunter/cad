@@ -311,15 +311,13 @@ fn tessellate_impl(
     // Mesh vertex ids: topology vertices first, arena order (D9).
     let mut positions = Vec::new();
     let mut vids = HashMap::new();
-    for (vk, v) in body.vertices() {
-        let p = body
-            .get_point(v.point)
-            .ok_or(TessellateError::MissingEntity {
-                what: "vertex point",
-            })?;
+    for (vk, p) in body.vertex_points() {
+        let p = p.map_err(|_| TessellateError::MissingEntity {
+            what: "vertex point",
+        })?;
         #[allow(clippy::cast_possible_truncation)]
         vids.insert(vk, positions.len() as u32);
-        positions.push(*p);
+        positions.push(p);
     }
 
     // Certified whole-patch NURBS bounds, assembled once per face and

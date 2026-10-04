@@ -85,8 +85,8 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// self, and every difference must be the translation exactly.
 fn xs(body: &topo::Body<f64>) -> Vec<f64> {
     let mut v: Vec<f64> = body
-        .vertices()
-        .filter_map(|(_, e)| body.get_point(e.point))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| p.x)
         .collect();
     v.sort_by(f64::total_cmp);

@@ -122,10 +122,9 @@ mod rows {
             tol,
         );
         let p = y
-            .vertices()
-            .find(|(_, v)| {
-                y.get_point(v.point)
-                    .is_some_and(|q| (*q - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12)
+            .vertex_points()
+            .find(|(_, q)| {
+                (q.expect("an untorn sheet") - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12
             })
             .map(|(k, _)| k)
             .expect("the sheet's corner");

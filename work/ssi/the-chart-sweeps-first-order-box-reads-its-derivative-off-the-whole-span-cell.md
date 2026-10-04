@@ -58,6 +58,15 @@ region at every ε, measured 2026-10-03. `a_walls_weights_move_no_answer`
 (`crates/geom-brep/tests/m5_pr7_ssi.rs`) carries the milder net
 `2, ½, 1, 4`; add `8, ¼, 1, 4` to it when this lands.
 
+A third sighting, not diagnosed (`ssi/hermite-first`, 2026-10-03):
+the 41-column `zigzag_wall` (`m5_pr7_ssi.rs`) cut by the vertical
+planes `y = 0` and `y = 0.045` refuses `plane_nurbs_ssi` on the
+200 000-cell budget at ε = 1e-9, at extents 1 m and 4 m, before any
+branch is traced. The nine-column wall cut the same way certifies in
+seconds (`converging_crossings_certify_no_wrong_pairing`). Measure it
+on the cut box when this lands; if the budget still binds, it is a
+row of its own.
+
 ## Next
 
 - Call `deriv_box` from `rect_box`, and delete `cell_deriv_box`.

@@ -95,8 +95,8 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 /// `body`'s distinct corners in that half-plane.
 fn corners(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut out: Vec<(f64, f64)> = Vec::new();
-    for (_, v) in body.vertices() {
-        let c = axial(*body.get_point(v.point).expect("a vertex carries a point"));
+    for (_, p) in body.vertex_points() {
+        let c = axial(p.expect("a vertex carries a point"));
         if !out
             .iter()
             .any(|q| (q.0 - c.0).abs() < 1e-12 && (q.1 - c.1).abs() < 1e-12)
@@ -312,12 +312,12 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
             .body;
         let want: Vec<Point3<f64>> = posed_after
-            .vertices()
-            .map(|(_, v)| *posed_after.get_point(v.point).expect("point"))
+            .vertex_points()
+            .map(|(_, p)| p.expect("point"))
             .collect();
         let mut pool: Vec<Point3<f64>> = hollow_after
-            .vertices()
-            .map(|(_, v)| *hollow_after.get_point(v.point).expect("point"))
+            .vertex_points()
+            .map(|(_, p)| p.expect("point"))
             .collect();
         assert_eq!(want.len(), pool.len(), "{what}: vertex count under re-pose");
         for w in &want {
@@ -369,12 +369,12 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let operand = transform_rigid(&barrel, &map, tol()).expect("the operand re-poses");
     let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
     let on_operand: Vec<Point3<f64>> = operand
-        .vertices()
-        .map(|(_, v)| *operand.get_point(v.point).expect("point"))
+        .vertex_points()
+        .map(|(_, p)| p.expect("point"))
         .collect();
     let mut cavity = 0;
-    for (_, v) in posed.vertices() {
-        let q = *posed.get_point(v.point).expect("point");
+    for (_, q) in posed.vertex_points() {
+        let q = q.expect("point");
         if on_operand.iter().any(|p| (*p - q).norm() < 1e-12) {
             continue;
         }
@@ -765,12 +765,12 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     .expect("the posed lune offsets");
 
     let want: Vec<Point3<f64>> = posed_after
-        .vertices()
-        .map(|(_, v)| *posed_after.get_point(v.point).expect("point"))
+        .vertex_points()
+        .map(|(_, p)| p.expect("point"))
         .collect();
     let mut pool: Vec<Point3<f64>> = offset_after
-        .vertices()
-        .map(|(_, v)| *offset_after.get_point(v.point).expect("point"))
+        .vertex_points()
+        .map(|(_, p)| p.expect("point"))
         .collect();
     assert_eq!(want.len(), pool.len(), "vertex count under re-pose");
     for w in &want {

@@ -339,8 +339,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         4,
         "the 4 that ask are the Krawczyk test's own centre, image and containment reads, which \
          refuse a piece unless every enclosure is certified. The other 6 do not ask: \
-         `one_arc`'s 2 are `T: Bounds` reads of the pcurve's evaluation scalar, the midpoint \
-         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' 4 \
+         `one_arc`'s 1 is a `T: Bounds` read of the pcurve's evaluation scalar, the midpoint \
+         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' 5 \
          read the sides of a box its one caller, `one_arc_r3`, met with the slab through \
          `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
          cut from those finite ends",

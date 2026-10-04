@@ -120,9 +120,9 @@ fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
 fn pinch_copies_do_not_reach_rest() {
     assert_pinches_pass::<f64>();
     let at = |b: &Body<f64>, (x, y, z)| {
-        b.vertices()
-            .filter(|(_, v)| {
-                let p = *b.get_point(v.point).unwrap();
+        b.vertex_points()
+            .filter(|(_, p)| {
+                let p = p.unwrap();
                 (p.x, p.y, p.z) == (x, y, z)
             })
             .count()
