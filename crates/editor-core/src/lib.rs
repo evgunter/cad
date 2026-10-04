@@ -88,6 +88,7 @@ pub mod step_handle;
 pub mod test_support;
 mod tree;
 pub mod update;
+pub mod var;
 mod verbs;
 pub mod witness;
 
@@ -137,8 +138,8 @@ pub use eval::{
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, held_by, node_kind_noun,
-    spoken_by,
+    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -235,6 +236,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use var::{Var, VarDef, VarId, VarKind, VarRef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

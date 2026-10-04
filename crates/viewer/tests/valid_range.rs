@@ -552,9 +552,11 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);
     let (doc, _) = common::edited(
         &doc,
-        pncad::document::DocEdit::SetDocParam {
+        pncad::document::DocEdit::DeclareVar {
             name: common::thickness_param(),
-            value: pncad::document::FreeVar::written_length(WrittenLength::in_unit(8.0, MM)),
+            def: pncad::document::VarDef::Free(pncad::document::FreeVar::written_length(
+                WrittenLength::in_unit(8.0, MM),
+            )),
         },
         tol,
     );
@@ -600,8 +602,8 @@ fn every_seed_brackets_the_half_line_floor() {
         let bounds = probe(BoundsProbe::new(0.008, seed, false), |v| {
             let (moved, _) = common::edited(
                 &doc,
-                pncad::document::DocEdit::SetDocParamValue {
-                    name: common::thickness_param(),
+                pncad::document::DocEdit::SetVarValue {
+                    var: common::thickness_param().into(),
                     value: pncad::document::FreeValue::Continuous(v),
                 },
                 tol,

@@ -1344,8 +1344,8 @@ fn set_value(
 ) -> editor_core::Applied<ProfileProgram> {
     apply(
         doc,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static(name),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static(name).into(),
             value: editor_core::FreeValue::Continuous(v),
         },
         tol(),
@@ -1357,9 +1357,9 @@ fn set_value(
 fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived(label, tol()),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: VarName::from_static(name),
-            value: FreeVar::continuous(Dimension::Length, v),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, v)),
         },
     );
     doc

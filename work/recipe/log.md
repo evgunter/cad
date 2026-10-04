@@ -75,3 +75,7 @@ coincidence is now a margined verdict (no declarations), checked by the
 ## 2026-10-03 — three rows move to INTENT
 
 `d10-one-way-to-say-intent-is-unbuilt`, `equal-literals-lower-to-one-identity-token` and `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion` move to the new INTENT program (`work/intent/`), which builds D10. Ids are unchanged, so rows parked on the first still resolve. INTENT shares this program's ground (doc.rs, edit.rs, node.rs, persist) and announces each crossing here.
+
+## 2026-10-04 — #3929 closed as superseded by D10
+
+`[ev]` #3929 (a measured part stays a product root) was closed as superseded by DESIGN.md D10 (#3990): nothing consumes, and the product is an explicit list. Its row `a-measured-part-is-not-a-product-root` moved to INTENT, parked on the build.

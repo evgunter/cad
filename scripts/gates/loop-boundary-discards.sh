@@ -194,7 +194,6 @@ REGISTER=(
   "crates/topo/src/merge_faces.rs|delete_lone_ring||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
   "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds is LoopCycleBroken) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
-  "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
   # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
   # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry
   # and the loop-re-parenting doors' drop all read it, and none of them

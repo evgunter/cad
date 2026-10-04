@@ -168,8 +168,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
-            // numeric decisions reach the door, verdicts unchanged.
-            registered: 156,
+            // numeric decisions reach the door, verdicts unchanged. 156
+            // until the variable table (the `symbolic_zero` note below).
+            registered: 154,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -185,7 +186,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // read settles); the other twelve exist only since the
             // extrude closes with the pcurve mint, and which predicates
             // they are is not read off a split here.
-            symbolic_zero: [1283, 1283, 1283],
+            // 1283 (and `registered` 156) at every row until a
+            // variable's symbol became its minted id (INTENT-VARS-1 PR 2)
+            // rather than a hash of its name: the bracket's variables
+            // sort differently inside the forms, and one theorem and two
+            // registrations go numeric at every row — the same reorder
+            // that leaves two of the bracket's registrations numeric in
+            // `sym_9_retry_interval`. Measured by a probe binding each
+            // variable under its old name-hash symbol, which restores
+            // 1283/156 here (and 156/162 there): the move is the order
+            // alone. How much the tier reaches depends on symbol order;
+            // the orchestrator files that.
+            symbolic_zero: [1282, 1282, 1282],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

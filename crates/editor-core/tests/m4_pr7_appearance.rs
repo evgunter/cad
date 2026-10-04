@@ -260,7 +260,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     // diff: appearance-only change is reported, and only it.
     let d = doc2.diff(&doc3);
     assert!(d.appearance_changed);
-    assert!(d.nodes.is_empty() && d.params.is_empty() && !d.metadata_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
@@ -328,9 +328,9 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // dyadic, still-shallow pip depth).
     let (doc2, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: VarName::from_static("pip_depth"),
-            value: FreeVar::continuous(Dimension::Length, DEPTH * 1.5),
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
         },
     );
     let ev2 = rerun(&doc2, &ev1);

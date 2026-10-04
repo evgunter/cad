@@ -8,7 +8,7 @@
 
 use crate::fixture;
 
-use editor_core::{CancelToken, EvalOptions, Evaluation, FreeVar, ProfileDoc, VarName, evaluate};
+use editor_core::{CancelToken, EvalOptions, Evaluation, ProfileDoc, VarName, evaluate};
 use fixture::{DEPTH, die, step};
 use geom_core::Tol;
 
@@ -90,12 +90,15 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// subtracts carry their declared pairs as their own payload, so every
 /// subtract's id, and every id minted after one, is the chain's
 /// without a declaration node in it; and every extrude carries its side
-/// as payload, which moves every extrude's id and every id after it.
-const DIE_TABLE_DIGEST: u64 = 0x06e4_606e_3b5a_4deb;
+/// as payload, which moves every extrude's id and every id after it;
+/// and declaring the die's variables mints their ids on the chain,
+/// which moves every id minted after a declare (ids only: no name's
+/// wording moved).
+const DIE_TABLE_DIGEST: u64 = 0xccbe_012c_1535_2cff;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x9601_4ff6_7212_5945;
+const DIE_NAMES_DIGEST: u64 = 0xfb43_7923_8c7c_9bf3;
 
 #[test]
 fn die_name_tables_are_golden() {
@@ -126,10 +129,10 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
     // A dyadic, still-shallow depth: no verdict flips anywhere.
     let (doc2, _) = step(
         d.doc,
-        editor_core::DocEdit::SetDocParam {
-            name: VarName::from_static("pip_depth"),
+        editor_core::DocEdit::SetVarValue {
+            var: VarName::from_static("pip_depth").into(),
             // 0.1875, dyadic.
-            value: FreeVar::continuous(editor_core::Dimension::Length, DEPTH * 1.5),
+            value: editor_core::FreeValue::Continuous(DEPTH * 1.5),
         },
     );
     let ev2 = evaluate::<f64>(

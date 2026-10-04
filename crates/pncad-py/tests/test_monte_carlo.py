@@ -91,7 +91,7 @@ def slab(doc, distribution=None, nominal=NOMINAL):
     the parameter, by construction and not by coincidence.
     """
     doc.apply(
-        DocEdit.set_doc_param(
+        DocEdit.declare_var(
             ParamName("h"), DocParam.length(nominal * m, distribution)
         )
     )

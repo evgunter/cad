@@ -77,14 +77,14 @@ fn r2_measure_free_content_keys() {
     let d0 = ProfileDoc::empty(DocumentId::derive("r2-keydiff"), Tol::witness());
     let d1 = push(
         &d0,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("t"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 0.0, 3.0);

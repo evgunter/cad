@@ -1170,21 +1170,17 @@ impl Hash128 {
     }
 }
 
-/// The symbol a document parameter enters the DAG as: a hash of its
-/// name, so two evaluations of the same document agree on it without
-/// carrying a string into a `Copy` scalar.
+/// The symbol a document variable enters the DAG as: its minted id
+/// (VARIABLES-DESIGN VR8), so two evaluations of the same document agree
+/// on it, and a rename, which moves no id, moves no symbol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ParamSymbol(u64);
 
 impl ParamSymbol {
-    /// The symbol for a parameter name.
+    /// The symbol for the variable whose id is `id`.
     #[must_use]
-    pub fn of(name: &str) -> Self {
-        let mut h = Hash128::new().word(0x5359_4d5f_5041_5241);
-        for b in name.as_bytes() {
-            h = h.word(u64::from(*b));
-        }
-        Self(h.finish() as u64)
+    pub const fn new(id: u64) -> Self {
+        Self(id)
     }
 }
 
@@ -5405,7 +5401,7 @@ mod tests {
 
     /// The parameter, at `f64`: a point value with a symbol on it.
     fn p(name: &str, v: f64) -> Sym<f64> {
-        Sym::param(ParamSymbol::of(name), v)
+        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
     }
 
     fn decides_zero(m: Sym<f64>) -> bool {
@@ -6089,7 +6085,7 @@ mod tests {
     /// A parameter with its bracket recorded, at `f64` — the door rule C
     /// reads through ([`Sym::param_over`]).
     fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
-        Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+        Sym::param_over(ParamSymbol::new(test_utils::symbol_id(name)), v, lo, hi)
     }
 
     /// **Rule C, clause 3: `sqrt(r²) − r` is a theorem CONDITIONAL on

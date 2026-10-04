@@ -101,9 +101,13 @@ fn declare(
 ) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            value: FreeVar::continuous_with(Dimension::Length, value, distribution),
+            def: pncad::document::VarDef::Free(FreeVar::continuous_with(
+                Dimension::Length,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,

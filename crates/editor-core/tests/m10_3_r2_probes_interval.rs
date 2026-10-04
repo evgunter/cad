@@ -67,14 +67,14 @@ fn unit_square() -> LoopProgram {
 /// `depth` carrying `dist`.
 fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -413,10 +413,11 @@ fn a_degenerate_varying_axis_is_one_leaf_and_never_a_silent_partial() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let mut axes = BTreeMap::new();
-    axes.insert(name("depth"), BoxAxis::Varying { lo: 0.0, hi: 0.0 });
+    let depth = doc.var_named("depth").expect("declared");
+    axes.insert(depth, BoxAxis::Varying { lo: 0.0, hi: 0.0 });
     let degenerate = ParamBox::from_axes(axes);
-    assert_eq!(degenerate.split_axis(&degenerate), Some(name("depth")));
-    assert_eq!(degenerate.split(&name("depth")), None);
+    assert_eq!(degenerate.split_axis(&degenerate), Some(depth));
+    assert_eq!(degenerate.split(depth), None);
     // And it binds at Interval as the nominal exactly.
     let env = param_env_over::<Interval, _>(&doc, &degenerate).expect("a point axis binds");
     let editor_core::ParamValue::Continuous { value, .. } = env.bindings[&name("depth")] else {
@@ -606,9 +607,9 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
     let plate = |scale: f64| -> ProfileDoc {
         let mut r = Recorder::new();
         for (n, nominal) in [("hole_r", 0.25_f64), ("plate_h", 0.5)] {
-            r.push(DocEdit::SetDocParam {
+            r.push(DocEdit::DeclareVar {
                 name: name(n),
-                value: FreeVar::Continuous {
+                def: editor_core::VarDef::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -616,7 +617,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                         lo: -scale * eps(),
                         hi: scale * eps(),
                     }),
-                },
+                }),
             });
         }
         let xy_frame_1 = r.insert(xy_frame());

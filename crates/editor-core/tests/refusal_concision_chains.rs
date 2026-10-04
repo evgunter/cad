@@ -1124,7 +1124,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "SeedPinnedSection",
             NodeErrorKind::SeedPinnedSection {
                 section: RecipeNodeId(tagged(3)),
-                param: VarName::from_static("width"),
+                param: editor_core::VarId(tagged(7)),
             },
         ),
         row(
@@ -2893,13 +2893,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             ParamBoxError::UnknownParam {
-                param: VarName::from_static("width"),
+                param: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("width")),
+                ),
             },
         ),
         (
             "AxisUnrepresentable",
             ParamBoxError::AxisUnrepresentable {
-                param: VarName::from_static("width"),
+                param: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("width")),
+                ),
                 lo: 1.0,
                 hi: 0.0,
             },
@@ -2909,19 +2915,28 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             SeedError::UnknownParam {
-                param: VarName::from_static("width"),
+                param: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("width")),
+                ),
             },
         ),
         (
             "CountParam",
             SeedError::CountParam {
-                param: VarName::from_static("n"),
+                param: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("n")),
+                ),
             },
         ),
         (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
-                param: VarName::from_static("width"),
+                param: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("width")),
+                ),
             },
         ),
     ];

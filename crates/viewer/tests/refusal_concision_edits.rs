@@ -55,6 +55,11 @@ fn param() -> VarName {
     VarName::from_static("width")
 }
 
+/// `param()` as a refusal speaks it.
+fn spoken_var() -> pncad::document::SpokenVar {
+    pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), Some(param()))
+}
+
 fn n(id: u64) -> RecipeNodeId {
     RecipeNodeId(tagged(id))
 }
@@ -292,27 +297,48 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "ContinuousParamCannotBeCount",
-            EditError::ContinuousParamCannotBeCount { name: param() },
+            EditError::ContinuousParamCannotBeCount { var: spoken_var() },
         ),
         (
-            "DocParamNotDeclared",
-            EditError::DocParamNotDeclared {
-                name: param(),
+            "UnknownVar",
+            EditError::UnknownVar {
+                var: param().into(),
                 door: CarryForwardDoor::Notation,
             },
         ),
         (
+            "VarNameTaken",
+            EditError::VarNameTaken {
+                name: param(),
+                holder: spoken_var(),
+            },
+        ),
+        (
+            "VarIdCollides",
+            EditError::VarIdCollides {
+                id: pncad::document::VarId(tagged(7)),
+            },
+        ),
+        (
+            "VarKindFixed",
+            EditError::VarKindFixed {
+                var: spoken_var(),
+                kind: pncad::document::VarKind::Count,
+                offered: pncad::document::VarKind::Length,
+            },
+        ),
+        (
             "DocParamCountHasNoUnit",
-            EditError::DocParamCountHasNoUnit { name: param() },
+            EditError::DocParamCountHasNoUnit { var: spoken_var() },
         ),
         (
             "DocParamCountHasNoDistribution",
-            EditError::DocParamCountHasNoDistribution { name: param() },
+            EditError::DocParamCountHasNoDistribution { var: spoken_var() },
         ),
         (
             "DocParamUnitMismatch",
             EditError::DocParamUnitMismatch {
-                name: param(),
+                var: spoken_var(),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
             },
@@ -320,7 +346,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "DocParamValueKindMismatch",
             EditError::DocParamValueKindMismatch {
-                name: param(),
+                var: spoken_var(),
                 declared: Dimension::Count,
                 offered: FreeValue::Continuous(2.5),
             },
@@ -374,14 +400,14 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "NonFiniteDocParam",
             EditError::NonFiniteDocParam {
-                name: param(),
+                var: spoken_var(),
                 field: DocParamField::Offset(DistributionField::Sigma),
             },
         ),
         (
             "InvalidDistribution",
             EditError::InvalidDistribution {
-                name: param(),
+                var: spoken_var(),
                 fault: DistributionFault::NominalOutsideSupport { lo: 1.0, hi: 0.5 },
             },
         ),
@@ -992,7 +1018,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("InvalidDistribution({})", variant(&fault)),
             EditError::InvalidDistribution {
-                name: param(),
+                var: spoken_var(),
                 fault,
             },
         ));

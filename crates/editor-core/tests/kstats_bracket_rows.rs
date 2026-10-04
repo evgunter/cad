@@ -579,9 +579,9 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-pre-pass-fails"), tol);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: edge.clone(),
-            value: FreeVar::continuous(Dimension::Length, 0.25),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
@@ -611,8 +611,8 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: edge,
+        DocEdit::SetVarValue {
+            var: edge.into(),
             value: FreeValue::Continuous(0.5 - in_band),
         },
     );
@@ -656,9 +656,9 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-expr-refusal"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: divisor.clone(),
-            value: FreeVar::continuous(Dimension::Scalar, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
@@ -679,8 +679,8 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: divisor,
+        DocEdit::SetVarValue {
+            var: divisor.into(),
             value: FreeValue::Continuous(0.0),
         },
     );
