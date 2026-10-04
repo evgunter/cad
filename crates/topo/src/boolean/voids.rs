@@ -482,7 +482,7 @@ mod torn_cavity_rows {
         {
             use crate::entity::{EntityId, GeomRef};
             let want = format!(
-                "graft source: {}'s point names {}, which does not resolve",
+                "{}'s point names {}, which does not resolve",
                 EntityId::Vertex(vertex),
                 GeomRef::Point(point)
             );

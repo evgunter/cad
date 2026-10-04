@@ -138,15 +138,7 @@ fn image<K: Key, I: core::fmt::Display>(
 ) -> K {
     map.get(key)
         .copied()
-        .unwrap_or_else(|| torn_source(holder, field, id(key)))
-}
-
-/// The panic for a source record whose link does not resolve.
-#[track_caller]
-fn torn_source(holder: impl core::fmt::Display, field: &str, key: impl core::fmt::Display) -> ! {
-    unreachable!(
-        "graft source: {holder}'s {field} names {key}, which does not resolve: {NAMES_ONLY_LIVE}"
-    )
+        .unwrap_or_else(|| crate::live::dangling_link(holder, field, id(key)))
 }
 
 /// `key`'s record in the destination arena it was minted into by this

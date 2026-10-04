@@ -426,7 +426,7 @@ mod tests {
                 "a dangling `next` (cross-reference pass)",
                 next,
                 format!(
-                    "graft source: {}'s next names {}",
+                    "{}'s next names {}",
                     EntityId::HalfEdge(he),
                     EntityId::HalfEdge(HalfEdgeKey::default())
                 ),
@@ -435,7 +435,7 @@ mod tests {
                 "a dead shell in the solid's list (attachment)",
                 shell,
                 format!(
-                    "graft source: {}'s shells names {}",
+                    "{}'s shells names {}",
                     EntityId::Solid(solid),
                     EntityId::Shell(ShellKey::default())
                 ),

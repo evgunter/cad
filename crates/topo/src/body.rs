@@ -1599,6 +1599,20 @@ impl<T: Real> Body<T> {
         orbit
     }
 
+    /// [`Body::edges_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s.
+    #[track_caller]
+    pub(crate) fn edges_of_vertex_linked(&self, vertex: VertexKey) -> Vec<EdgeKey> {
+        let mut out: Vec<EdgeKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+        out
+    }
+
     /// [`Body::faces_of_vertex`] for a vertex this call resolved or read
     /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s,
     /// and each member's loop and face are links of the record before.

@@ -49,7 +49,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
-use crate::body::{Body, WALKS_CLOSE};
+use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
@@ -148,15 +148,13 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let orbit = body
-        .vertex_orbit_of(vertex)
-        .filter(|orbit| !orbit.is_empty())
-        .unwrap_or_else(|| {
-            unreachable!(
-                "{operand:?}'s vertex {vertex:?}, met through a contact, has no orbit that \
-                 walks: a gated operand holds no lone vertex, and {WALKS_CLOSE}"
-            )
-        });
+    let orbit = body.vertex_orbit_linked(vertex);
+    if orbit.is_empty() {
+        unreachable!(
+            "{operand:?}'s vertex {vertex:?}, met through a contact, is a lone vertex: a gated \
+             operand holds none"
+        );
+    }
     // The outgoing direction of an orbit half-edge, scaled to the
     // edge's honest extent — the M3 chord for `Line` carriers
     // (bit-identical), the carrier's outgoing TANGENT at the base

@@ -708,12 +708,12 @@ pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, Ri
         });
     }
     let pair = (plus.min(minus), plus.max(minus));
-    let lower_side = if plus == pair.0 {
-        sides.plus.half_edge
+    let (lower_side, field) = if plus == pair.0 {
+        (sides.plus.half_edge, "he_plus")
     } else {
-        sides.minus.half_edge
+        (sides.minus.half_edge, "he_minus")
     };
-    let (start, mut frontier) = half_edge_ends(body, lower_side, EntityId::Edge(edge), "half-edge");
+    let (start, mut frontier) = half_edge_ends(body, lower_side, EntityId::Edge(edge), field);
     let mut walked = vec![edge];
     loop {
         let arrived = *walked.last().unwrap_or(&edge);
@@ -745,14 +745,7 @@ fn continuation<T: Real>(
     };
     let mut ends = 0usize;
     let mut next = None;
-    let orbit = body.edges_of_vertex(at).unwrap_or_else(|| {
-        unreachable!(
-            "{}'s orbit does not walk, and the rim walk reached it from a live edge: {}",
-            EntityId::Vertex(at),
-            crate::body::WALKS_CLOSE
-        )
-    });
-    for k in orbit {
+    for k in body.edges_of_vertex_linked(at) {
         if !on_pair(side_surfaces(body, k), pair) {
             continue;
         }

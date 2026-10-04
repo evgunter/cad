@@ -213,7 +213,11 @@ fn unproven(key: impl core::fmt::Display) -> ! {
 /// The panic for a link that does not resolve: `holder`'s field `link`
 /// names `key`. Only a kernel bug reaches it ([`NAMES_ONLY_LIVE`]).
 #[track_caller]
-pub(crate) fn dangling_link(holder: EntityId, link: &str, key: impl core::fmt::Display) -> ! {
+pub(crate) fn dangling_link(
+    holder: impl core::fmt::Display,
+    link: &str,
+    key: impl core::fmt::Display,
+) -> ! {
     unreachable!("{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}")
 }
 

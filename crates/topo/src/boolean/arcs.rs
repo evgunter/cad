@@ -4,7 +4,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
-use crate::body::{Body, WALKS_CLOSE};
+use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, VertexKey};
 use crate::live::{linked, proven};
 use crate::validate::decide;
@@ -38,9 +38,7 @@ pub(super) fn arcs_along<T: Decide>(
     dir: Vec3<T>,
     band: Band,
 ) -> Result<Vec<ArcStep<T>>, Indeterminate> {
-    let orbit = body
-        .vertex_orbit_of(u)
-        .unwrap_or_else(|| unreachable!("the orbit of {u:?} does not walk: {WALKS_CLOSE}"));
+    let orbit = body.vertex_orbit_linked(u);
     let d = dir.normalize();
     let mut found: Vec<ArcStep<T>> = Vec::new();
     for he in orbit {
