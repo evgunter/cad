@@ -60,9 +60,9 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    EvalOptions, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
+    UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -82,8 +82,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn half() -> f64 {
@@ -131,7 +131,7 @@ fn measure_value<T: geom_core::Decide>(
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -578,6 +578,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -1119,7 +1120,7 @@ fn the_bracket_walk_through_the_public_doors() {
     );
 
     eprintln!("== stackup(web)");
-    let report = stackup(&doc, web, &analyzed, &verdict, None, true, tol).expect("a stackup");
+    let report = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
     eprintln!("{}", report.render(&doc, &analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
@@ -1132,7 +1133,7 @@ fn the_bracket_walk_through_the_public_doors() {
     // forfeits by name.
     eprintln!("== stackup(min_clearance)");
     let clearance_report =
-        stackup(&doc, clearance, &analyzed, &verdict, None, true, tol).expect("a stackup");
+        stackup(&doc, clearance, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
     eprintln!("{}", clearance_report.render(&doc, &analyzed));
     assert!(
         clearance_report.worst_case.leaves > 0,
@@ -1247,7 +1248,7 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("== band budget\n{}", budget.render());
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
     assert!(monte_carlo(&doc, &analyzed, &McConfig::default(), tol).is_err());
-    if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, tol) {
+    if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         eprintln!("== band stackup\n{}", report.render(&doc, &analyzed));
     }
 }
@@ -1396,7 +1397,8 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let verdict = drive(&r.doc, &analyzed, &numeric_lane(), tol).expect("builds");
     assert!(!verdict.certified().is_empty());
-    let report = stackup(&r.doc, measure, &analyzed, &verdict, None, true, tol).expect("stackup");
+    let report =
+        stackup(&r.doc, measure, &analyzed, &verdict, None, true, None, tol).expect("stackup");
     eprintln!(
         "stop 2: worst_case [{:e}, {:e}] bound {bound:e} (lo − bound = {:e}, ε = {:e})",
         report.worst_case.lo,

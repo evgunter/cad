@@ -1822,7 +1822,7 @@ edit.
 ### 3.2 The flagship, façade-only
 
 Named document parameters were LIB-U10's headline finding: the façade
-did not re-export `ParamName` or `DocParam`, so `DocEdit::SetDocParam`
+did not re-export `VarName` or `FreeVar`, so `DocEdit::SetDocParam`
 and `Expr::param` were doors a `pncad`-only consumer could see and not
 open, and a `compile_fail` doctest sat here pinning the hole.
 R1-PARAMS cured it — both names are curated through `pncad::document`
@@ -1833,10 +1833,10 @@ north-star audit rather than worked around, and closing it flips this
 section from a pin to a demonstration.
 
 One parameter, referenced by two loops, moved by one edit.
-`ParamName::from_static` takes a name written in source; a name that
-arrives as text at runtime goes through `ParamName::new`, which
+`VarName::from_static` takes a name written in source; a name that
+arrives as text at runtime goes through `VarName::new`, which
 refuses one an expression could not read back (blank, padded, not
-one identifier) with a `ParamNameFault`:
+one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
@@ -1847,7 +1847,7 @@ let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
+    radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1855,8 +1855,8 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::from_static("hole_r"),
-    value: DocParam::continuous(Dimension::Length, 0.25),
+    name: VarName::from_static("hole_r"),
+    value: FreeVar::continuous(Dimension::Length, 0.25),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1936,8 +1936,8 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::from_static("hole_r"),
-    value: DocParam::continuous(Dimension::Length, 0.4),
+    name: VarName::from_static("hole_r"),
+    value: FreeVar::continuous(Dimension::Length, 0.4),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -1965,7 +1965,7 @@ crosses as a number and the parameter link is lost.
 ### 3.3 Distributions: saying how much a parameter varies
 
 A parameter's value is one number. What a real part has is a number
-*and* a spread, and `DocParam::Continuous` carries an optional
+*and* a spread, and `FreeVar::Continuous` carries an optional
 `Distribution` to say so — offsets from the parameter's own nominal, in
 the parameter's own dimension. Four forms, and the differences between
 them are claims, not conveniences:
@@ -1993,24 +1993,24 @@ any sub-interval).
 ```
 use pncad::prelude::*;
 use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
-use pncad::document::{Distribution, DocParamValue};
+use pncad::document::{Distribution, FreeValue};
 
 let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
-let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::from_static(name), value }, tol, &pncad::document::RefusingReach)
+let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
+    apply(doc, &DocEdit::SetDocParam { name: VarName::from_static(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
 // A measured bore: 4 mm, one micron of spread, normal.
-doc = declare(&doc, "bore_r", DocParam::continuous_with(
+doc = declare(&doc, "bore_r", FreeVar::continuous_with(
     Dimension::Length, 0.004, Distribution::Normal { sigma: 1e-6 }));
 // Vendor stock: the catalogue gives limits and states no shape.
-doc = declare(&doc, "plate_t", DocParam::continuous_with(
+doc = declare(&doc, "plate_t", FreeVar::continuous_with(
     Dimension::Length, 0.010, Distribution::Band { lo: -1e-4, hi: 1e-4 }));
 // Unannotated: FIXED, on purpose.
-doc = declare(&doc, "web_t", DocParam::continuous(Dimension::Length, 0.003));
+doc = declare(&doc, "web_t", FreeVar::continuous(Dimension::Length, 0.003));
 
 // The box, under the ±3σ default policy (0.9973 per parameter).
 let policy = AnalysisPolicy::default();
@@ -2018,34 +2018,34 @@ let boxed = analyzed_box(&doc, &policy);
 
 // The normal's box is the symmetric quantile interval, so it is
 // roughly ±3σ and it leaves the rest OUTSIDE.
-let bore = boxed.get(&ParamName::from_static("bore_r")).expect("an axis");
+let bore = boxed.get(&VarName::from_static("bore_r")).expect("an axis");
 assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
-let tail = tail_mass(&ParamName::from_static("bore_r"),
+let tail = tail_mass(&VarName::from_static("bore_r"),
                      &bore.distribution.expect("annotated"), &bore.offsets)
     .expect("a normal prices");
 assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 
 // The band's box IS its support, so nothing escapes it...
-let plate = boxed.get(&ParamName::from_static("plate_t")).expect("an axis");
+let plate = boxed.get(&VarName::from_static("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
 // ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(&ParamName::from_static("web_t")).expect("an axis").offsets.is_fixed());
+assert!(boxed.get(&VarName::from_static("web_t")).expect("an axis").offsets.is_fixed());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
 // refusal NAMES the parameter rather than quietly assuming uniform.
-let refusal = box_mass(&ParamName::from_static("plate_t"),
+let refusal = box_mass(&VarName::from_static("plate_t"),
                        &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
 assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
 assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 
 // Moving a value KEEPS the annotation — use the value door, never a
-// rebuilt `DocParam`.
+// rebuilt `FreeVar`.
 doc = apply(&doc, &DocEdit::SetDocParamValue {
-    name: ParamName::from_static("bore_r"),
-    value: DocParamValue::Continuous(0.0045),
+    name: VarName::from_static("bore_r"),
+    value: FreeValue::Continuous(0.0045),
 }, tol, &pncad::document::RefusingReach)?.doc;
-assert!(doc.params()[&ParamName::from_static("bore_r")].distribution().is_some());
+assert!(doc.params()[&VarName::from_static("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -2064,7 +2064,7 @@ decision you can rely on:
   typed, naming the parameter. Promoting a band to a uniform would be a
   strictly stronger claim than the author made.
 - **Value edits carry the annotation.** `SetDocParam` is
-  create-or-replace: handing it a `DocParam` you rebuilt from a
+  create-or-replace: handing it a `FreeVar` you rebuilt from a
   dimension and a number replaces the declaration and silently deletes
   the distribution. `SetDocParamValue` writes the number and carries
   the declaration forward, which is why the panel, the drag gesture and

@@ -13,18 +13,18 @@
 use editor_core::UnitSym;
 use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
-    DocParam, DocumentId, MeasureUnavailable, OffsetInterval, ParamName, ProfileDoc, analyzed_box,
+    DocumentId, FreeVar, MeasureUnavailable, OffsetInterval, ProfileDoc, VarName, analyzed_box,
     apply, box_mass, tail_mass,
 };
 use geom_core::Tol;
 
-fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
+fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-analysis"), Tol::witness());
     for (name, value) in params {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static(name),
+                name: VarName::from_static(name),
                 value: value.clone(),
             },
             Tol::witness(),
@@ -36,8 +36,8 @@ fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
     doc
 }
 
-fn annotated(value: f64, distribution: Distribution) -> DocParam {
-    DocParam::Continuous {
+fn annotated(value: f64, distribution: Distribution) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -45,8 +45,8 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     }
 }
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 /// The default policy IS the ±3σ convention, and the box it draws for
@@ -109,8 +109,8 @@ fn the_quantile_mass_is_a_checked_request_knob() {
 #[test]
 fn opt_in_means_an_unannotated_param_is_fixed() {
     let doc = doc_with(&[
-        ("plain", DocParam::continuous(Dimension::Length, 2.0)),
-        ("holes", DocParam::Count { value: 4 }),
+        ("plain", FreeVar::continuous(Dimension::Length, 2.0)),
+        ("holes", FreeVar::Count { value: 4 }),
         (
             "varies",
             annotated(1.0, Distribution::Band { lo: -0.1, hi: 0.1 }),
@@ -124,7 +124,7 @@ fn opt_in_means_an_unannotated_param_is_fixed() {
     assert!(fixed.offsets.is_fixed());
     assert_eq!(fixed.absolute(), (2.0, 2.0), "width zero AT the nominal");
     assert_eq!(fixed.distribution, None);
-    let varying: Vec<&ParamName> = b.varying().map(|(n, _)| n).collect();
+    let varying: Vec<&VarName> = b.varying().map(|(n, _)| n).collect();
     assert_eq!(varying, vec![&p("varies")], "only the declared axis varies");
 }
 
@@ -327,7 +327,7 @@ fn a_uniform_answers_exactly_where_the_band_refuses() {
 /// evaluator reads is bit-identical with and without one.
 #[test]
 fn a_distribution_does_not_reach_the_parameter_environment() {
-    let plain = doc_with(&[("d", DocParam::continuous(Dimension::Length, 0.75))]);
+    let plain = doc_with(&[("d", FreeVar::continuous(Dimension::Length, 0.75))]);
     let annotated_doc = doc_with(&[("d", annotated(0.75, Distribution::Normal { sigma: 0.01 }))]);
     assert_eq!(
         plain.param_env::<f64>().bindings,
@@ -412,7 +412,7 @@ fn the_name_keyed_doors_take_all_three_from_one_axis() {
     let doc = doc_with(&[
         ("wide", annotated(0.0, wide)),
         ("narrow", annotated(0.0, narrow)),
-        ("fixed", DocParam::continuous(Dimension::Length, 1.0)),
+        ("fixed", FreeVar::continuous(Dimension::Length, 1.0)),
     ]);
     let boxed = analyzed_box(&doc, &AnalysisPolicy::default());
     let wide_axis = boxed.get(&p("wide")).copied().expect("axis");

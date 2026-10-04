@@ -56,9 +56,9 @@ use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, DocParamValue,
-    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, PatternKind, ProfileProgram,
-    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate, parse_expr,
+    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
+    Expr, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
+    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_expr,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -112,8 +112,8 @@ struct Recipe {
 
 /// The parameter table every expression in this document resolves
 /// against — one entry, which is the scene's whole point.
-fn params() -> BTreeMap<ParamName, Dimension> {
-    [(ParamName::from_static("blades"), Dimension::Count)]
+fn params() -> BTreeMap<VarName, Dimension> {
+    [(VarName::from_static("blades"), Dimension::Count)]
         .into_iter()
         .collect()
 }
@@ -169,8 +169,8 @@ fn build_doc(tol: Tol) -> Recipe {
     let applied = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("blades"),
-            value: DocParam::Count { value: COUNTS[0] },
+            name: VarName::from_static("blades"),
+            value: FreeVar::Count { value: COUNTS[0] },
         },
         tol,
         &RefusingReach,
@@ -296,8 +296,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let applied = apply(
             &doc,
             &DocEdit::SetDocParamValue {
-                name: ParamName::from_static("blades"),
-                value: DocParamValue::Count(n),
+                name: VarName::from_static("blades"),
+                value: FreeValue::Count(n),
             },
             tol,
             &RefusingReach,

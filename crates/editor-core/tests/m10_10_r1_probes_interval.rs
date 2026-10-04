@@ -28,10 +28,10 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
-    UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
@@ -51,7 +51,7 @@ const BORE_R: f64 = 0.3e-3;
 const BULGE: f64 = 2.0;
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::param(VarName::from_static(n), Dimension::Length)
 }
 
 /// **R1's circular-segment boss**, as a function of the SCALE of its
@@ -77,8 +77,8 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::Continuous {
+            name: VarName::from_static(n),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -217,8 +217,9 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     v.receipt(),
                     v.decisions()
                 );
-                let stack =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let stack = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 match &stack {
                     Ok(rep) => println!(
                         "   stackup: worst case {:?} over {} leaves, nominal {:?}",

@@ -94,8 +94,8 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Frame,
-    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
+    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
+    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -171,7 +171,7 @@ fn alignment() -> Alignment {
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
 pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
-    let param = ParamName::from_static("thickness");
+    let param = VarName::from_static("thickness");
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -215,7 +215,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::CreateParam {
             name: param.clone(),
-            value: DocParam::continuous(Dimension::Length, 0.005),
+            value: FreeVar::continuous(Dimension::Length, 0.005),
         },
         SessionOp::BeginGesture {
             node,
@@ -544,7 +544,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = ParamName::from_static("no_such_parameter");
+    let undeclared = VarName::from_static("no_such_parameter");
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -967,8 +967,8 @@ fn sample_names() -> Vec<GestureName> {
             node: RecipeNodeId(4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName::from_static("h"))),
-        GestureName::Value(ValueGestureName::Param(ParamName::from_static("w"))),
+        GestureName::Value(ValueGestureName::Param(VarName::from_static("h"))),
+        GestureName::Value(ValueGestureName::Param(VarName::from_static("w"))),
         GestureName::FreeMove(FreeMoveName {
             instance: RecipeNodeId(3),
         }),
@@ -1131,7 +1131,7 @@ fn a_names_cancel_is_its_own_drags() {
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName::from_static("h"))),
+        GestureName::Value(ValueGestureName::Param(VarName::from_static("h"))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1616,7 +1616,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
 /// parameter beside the first: the two shapes a field that is not the
 /// one being dragged can have, and the two doors a value gesture opens
 /// through.
-fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
+fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view-gesture-identity", tol);
     let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, first) = common::inserted(
@@ -1638,12 +1638,12 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
-    let param = ParamName::from_static("thickness");
+    let param = VarName::from_static("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {
                 name: param.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.004),
+                value: FreeVar::continuous(Dimension::Length, 0.004),
             })
             .refusal
             .is_none(),
@@ -2090,12 +2090,12 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
 fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     let tol = Tol::witness();
     let (mut session, extrude) = fixture(tol);
-    let param = ParamName::from_static("thickness");
+    let param = VarName::from_static("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {
                 name: param.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.004),
+                value: FreeVar::continuous(Dimension::Length, 0.004),
             })
             .refusal
             .is_none()

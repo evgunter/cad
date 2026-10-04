@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
-    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -73,7 +73,7 @@ pub(crate) struct Drafts {
     /// The name an unknown-parameter refusal offered to create
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
-    pub(crate) new_param_offer: Option<ParamName>,
+    pub(crate) new_param_offer: Option<VarName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`crate::matetool::admitted_classes`], an index into
     /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state

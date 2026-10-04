@@ -39,9 +39,9 @@ use crate::m10_8_harness::{atom_census, distinct_atoms, head};
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeridianEnd, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, UnitSym, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    FreeVar, LoopProgram, MeridianEnd, Node, NodeResult, ProfileDoc, ProfileLift, ProfileProgram,
+    RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymBudget, SymRules, Tol};
 
@@ -103,8 +103,8 @@ fn sym(
 
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(name),
-        value: DocParam::Continuous {
+        name: VarName::from_static(name),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -127,7 +127,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::param(ParamName::from_static("w"), Dimension::Length);
+    let w = Expr::param(VarName::from_static("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -212,8 +212,8 @@ fn sym5_tilted_width_parameter_ladder() {
 pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("t"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("t"),
+        value: FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -223,7 +223,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
+    let t = Expr::param(VarName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -728,8 +728,8 @@ enum Place {
 fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("t"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("t"),
+        value: FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -739,7 +739,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
+    let t = Expr::param(VarName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,

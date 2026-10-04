@@ -18,7 +18,7 @@
 use crate::common;
 
 use common::{session_insert, shape};
-use pncad::document::{Dimension, Doc, DocParam, ParamName};
+use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
     DocEdit, EditError, Expr, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId,
     StepArg, StepId, apply,
@@ -447,8 +447,8 @@ fn a_kept_driven_argument_is_not_written_over() {
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::CreateParam {
-        name: ParamName::from_static("side"),
-        value: DocParam::continuous(Dimension::Length, 0.01),
+        name: VarName::from_static("side"),
+        value: FreeVar::continuous(Dimension::Length, 0.01),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let driven = SlotId::Profile {
@@ -520,8 +520,8 @@ fn a_driven_argument_refuses_to_load() {
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::CreateParam {
-        name: ParamName::from_static("side"),
-        value: DocParam::continuous(Dimension::Length, 0.01),
+        name: VarName::from_static("side"),
+        value: FreeVar::continuous(Dimension::Length, 0.01),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let slot = SlotId::Profile {

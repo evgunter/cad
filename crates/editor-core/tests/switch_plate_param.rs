@@ -21,8 +21,8 @@ use corpus::plate_param::{
 };
 use corpus::{body_of, eval};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOutcome, Node, NodeErrorKind, NodeResult, ParamName,
-    ProfileDoc, RecipeNodeId, SlotId, StepArg, apply,
+    Dimension, DocEdit, EvalOutcome, FreeVar, Node, NodeErrorKind, NodeResult, ProfileDoc,
+    RecipeNodeId, SlotId, StepArg, VarName, apply,
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
@@ -44,8 +44,8 @@ fn scene() -> Scene {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
+            name: VarName::from_static(HOLE_R),
+            value: FreeVar::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -99,8 +99,8 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParam::continuous(Dimension::Length, value),
+            name: VarName::from_static(HOLE_R),
+            value: FreeVar::continuous(Dimension::Length, value),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

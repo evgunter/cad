@@ -3,7 +3,7 @@
 //! `SetTolerance` audit and the naming layer's edit diagnosis will
 //! consume. Deliberately NO expression-level cleverness yet.
 
-use crate::doc::{Doc, ParamName};
+use crate::doc::{Doc, VarName};
 use crate::node::RecipeNodeId;
 
 /// One node-level difference (spec D7).
@@ -25,7 +25,7 @@ pub struct DocDiff {
     pub nodes: Vec<NodeChange>,
     /// Doc-param names added, removed, or changed (value or
     /// dimension), ascending.
-    pub params: Vec<ParamName>,
+    pub params: Vec<VarName>,
     /// Whether the two insertion orders differ (reorder is not an
     /// edit in v1, but the diff reports it rather than assuming).
     pub order_changed: bool,

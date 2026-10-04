@@ -1581,6 +1581,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
+        BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
@@ -1837,7 +1838,6 @@ pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
         FacePoseRefusal::Ambiguous { .. } => "ambiguous",
         FacePoseRefusal::NotAFace { .. } => "not_a_face",
         FacePoseRefusal::Readback(_) => "readback",
-        FacePoseRefusal::Unpinned => "unpinned",
     }
 }
 

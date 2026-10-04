@@ -162,7 +162,7 @@ use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::{Doc, VarName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
 use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
@@ -330,7 +330,7 @@ impl Default for ClearanceConfig {
 /// promise the implementor keeps, not one this module enforces.
 pub trait MonotoneOracle {
     /// The sign of `∂d/∂p` over the whole leaf, or `None`.
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign>;
+    fn monotone_in(&self, param: &VarName) -> Option<Sign>;
 }
 
 /// The oracle that certifies nothing: E9's state, and the shipped
@@ -339,7 +339,7 @@ pub trait MonotoneOracle {
 pub struct NoTangents;
 
 impl MonotoneOracle for NoTangents {
-    fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
         None
     }
 }
@@ -363,6 +363,13 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// The seam a document's instantiated parts resolve through, as
+    /// an evaluation over options carrying it would
+    /// ([`EvalOptions::resolver`]); `None` for a document that
+    /// instantiates none. An assembly's mates solve over the leaf's box
+    /// at its scalar (`ASSEMBLY.md` A11 (5)), so a face frame's pose
+    /// encloses over the box like any other geometry.
+    pub resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
 }
 
 impl ClearanceQuery<'_> {
@@ -374,6 +381,7 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
         }
     }
 
@@ -384,6 +392,19 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
+        }
+    }
+}
+
+impl<'a> ClearanceQuery<'a> {
+    /// The same question over a document whose parts resolve through
+    /// `resolver` ([`ClearanceQuery::resolver`]).
+    #[must_use]
+    pub fn resolved_by(self, resolver: &'a Arc<dyn crate::part::PartResolver>) -> Self {
+        Self {
+            resolver: Some(resolver),
+            ..self
         }
     }
 }
@@ -491,7 +512,7 @@ pub struct Violation {
 pub struct ParamWitness {
     /// Per parameter, the OFFSET from the document's nominal (the
     /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]).
-    pub offsets: BTreeMap<ParamName, f64>,
+    pub offsets: BTreeMap<VarName, f64>,
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -1265,6 +1286,7 @@ pub fn clearance_with(
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
+        resolver: query.resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
@@ -1296,6 +1318,7 @@ pub fn clearance_with(
         band,
         config: query.config,
         deepest: 0,
+        resolver: query.resolver.cloned(),
     };
     sweep.run(doc, &queried, &windows_a, &windows_b, same_body, query.tol)
 }
@@ -2750,6 +2773,9 @@ struct Sweep {
     band: Band,
     config: ClearanceConfig,
     deepest: u32,
+    /// The query's part resolver, which the `f64` witness rebuild
+    /// resolves the same parts through.
+    resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Sweep {
@@ -2929,6 +2955,7 @@ impl Sweep {
                             (x, pair.a, y, pair.b),
                             self.bound,
                             self.band,
+                            self.resolver.as_ref(),
                             tol,
                         ) {
                             Ok(w) => {
@@ -2974,6 +3001,7 @@ impl Sweep {
                                 (x, pair.a, y, pair.b),
                                 self.bound,
                                 self.band,
+                                self.resolver.as_ref(),
                                 tol,
                             )
                         {
@@ -3219,10 +3247,11 @@ fn verify_witness(
     at: (&Window, Cell, &Window, Cell),
     bound: ClearanceBound,
     band: Band,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let (x, ca, y, cb) = at;
-    let mid: BTreeMap<ParamName, BoxAxis> = leaf
+    let mid: BTreeMap<VarName, BoxAxis> = leaf
         .axes()
         .iter()
         .map(|(n, a)| {
@@ -3232,6 +3261,7 @@ fn verify_witness(
         .collect();
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        resolver: resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

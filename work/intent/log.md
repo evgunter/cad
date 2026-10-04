@@ -24,3 +24,15 @@ so it did not go to Ev; the design is `docs/VARIABLES-DESIGN.md`, with
 a companion-table row. Stage 1 is re-sliced: the build starts with
 `variables-replace-the-parameter-table`; the literal retirement, derived
 variables and the GUI row are parked behind it.
+
+## 2026-10-03 — VARS PR 1: the renames (orchestrator's read)
+
+`docs/INTENT-VARS-1-SPEC.md` sliced `variables-replace-the-parameter-table`
+into three PRs, each green. PR 1 renames `ParamName`→`VarName`,
+`DocParam`→`FreeVar`, `DocParamValue`→`FreeValue` and the name-fault
+types, with no behaviour or wire change (golden fixtures untouched).
+Review tier: the orchestrator's read — a mechanical rename whose only
+risk, the wire, is pinned by the golden tests. The Python classes keep
+their names until PR 3 reshapes that surface (the binding census now
+argues the three types by `BOUND_AS`). PRs 2 and 3 are H and draw a
+concurrent dual.
