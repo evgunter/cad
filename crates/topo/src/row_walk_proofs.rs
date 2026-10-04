@@ -320,6 +320,23 @@ fn the_loop_doors_refuse_a_walk_that_skips_a_member() {
     assert_refuses_the_walk(&mut torn.clone(), wall, split, |b| {
         b.kfmrh(seed, w).map(|_| ())
     });
+    let cylinder = torn
+        .get_surface(torn.get_face(w).unwrap().surface)
+        .unwrap()
+        .clone();
+    assert_refuses_the_walk(&mut torn, wall, split, |b| {
+        // Lifts RechartUnvouched: the wall's meridian lines name the cylinder's own key, and a re-chart onto a fresh key of it is the chart change whose drop is the row.
+        b.lifting_rechart_refusals_for_tests(|b| {
+            b.set_face_surface(
+                w,
+                FaceSurface::New {
+                    surface: cylinder,
+                    sense: true,
+                },
+            )
+            .map(|_| ())
+        })
+    });
     let mut ringed = s.body;
     ringed.kfmrh(seed, w).unwrap();
     skip(&mut ringed, wall);
