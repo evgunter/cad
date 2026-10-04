@@ -2,11 +2,12 @@
 id: conic-quadric-doors-choose-their-first-harmonic-arm-two-ways
 kind: issue
 title: The circle x cylinder and ellipse root doors pick their first-harmonic arm by two different predicates over one algebra
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [non-circle-conic-edge-refuses-against-every-curved-face]
+branch: reach/conic-quadric-one-door
 ---
 
 Found by the REACH lane that gave the ELLIPSE carrier its root lane
