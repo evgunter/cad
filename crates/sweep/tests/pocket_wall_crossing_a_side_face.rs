@@ -4,10 +4,11 @@
 //! entering from the top, the bottom and through, under ∪, ∖ and ∩ in
 //! both operand orders.
 //!
-//! The 37 poses are the ones JOIN-3's R2 pocket battery
-//! (`join3_r2_probes::j3r2_pocket_battery`) refused on: ring re-homing
-//! on the divided wall, then the wall window of a face an earlier chord
-//! had divided. The battery prints them with no oracle — the cutter
+//! The 57 poses (19 placements at three entries each) are JOIN-3's R2
+//! pocket battery's (`join3_r2_probes::j3r2_pocket_battery`) poses whose
+//! wall crosses a side face, where it refused: ring re-homing on the
+//! divided wall, then the wall window of a face an earlier chord had
+//! divided. The battery prints them with no oracle — the cutter
 //! leaves the block, so its own area is not the pocket's — and this
 //! suite supplies one: the D's profile is a disc cut by a half-plane, so
 //! the pocket's cross-section is that disc against a convex polygon (the
@@ -23,7 +24,7 @@ use sweep::test_support::{ROD_R, rod_chord_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::Body;
 
-use crate::common::differential::{area, ccw, clip_convex, outcome};
+use crate::common::differential::{area, ccw, clip_convex, disc_clip_area, outcome};
 
 /// The block's half-width, metres.
 const HALF: f64 = 1.0;
@@ -147,70 +148,6 @@ fn square() -> Vec<(f64, f64)> {
         (HALF, HALF),
         (-HALF, HALF),
     ])
-}
-
-/// The signed area between the chord `a → b` and the origin.
-fn chord_triangle(a: (f64, f64), b: (f64, f64)) -> f64 {
-    (a.0 * b.1 - a.1 * b.0) / 2.0
-}
-
-/// The signed area of the circular sector of radius `r` from `a`'s
-/// direction to `b`'s, the turn read in `(−π, π]`.
-fn sector(r: f64, a: (f64, f64), b: (f64, f64)) -> f64 {
-    let cross = a.0 * b.1 - a.1 * b.0;
-    let dot = a.0 * b.0 + a.1 * b.1;
-    r * r * cross.atan2(dot) / 2.0
-}
-
-/// **The area of the disc of radius `r` about the origin against the
-/// polygon `poly`**, closed form: each edge contributes the area its
-/// own chord or arc sweeps about the origin — a chord triangle where the
-/// edge is inside the disc, a sector where it is outside, and the split
-/// of the two at the edge's crossings, which are the roots of a
-/// quadratic. The sum over a closed polygon is the enclosed area,
-/// signed by the winding.
-fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
-    let n = poly.len();
-    let mut total = 0.0;
-    for i in 0..n {
-        let (a, b) = (poly[i], poly[(i + 1) % n]);
-        let d = (b.0 - a.0, b.1 - a.1);
-        let ra = a.0.hypot(a.1);
-        let (qa, qb, qc) = (
-            d.0 * d.0 + d.1 * d.1,
-            2.0 * (a.0 * d.0 + a.1 * d.1),
-            a.0 * a.0 + a.1 * a.1 - r * r,
-        );
-        let disc = qb * qb - 4.0 * qa * qc;
-        // The crossing parameters inside the edge, in order.
-        let hits: Vec<f64> = if qa <= 0.0 || disc <= 0.0 {
-            Vec::new()
-        } else {
-            let root = disc.sqrt();
-            [(-qb - root) / (2.0 * qa), (-qb + root) / (2.0 * qa)]
-                .into_iter()
-                .filter(|t| *t > 0.0 && *t < 1.0)
-                .collect()
-        };
-        let at = |t: f64| (a.0 + t * d.0, a.1 + t * d.1);
-        let piece = |p: (f64, f64), q: (f64, f64), inside: bool| {
-            if inside {
-                chord_triangle(p, q)
-            } else {
-                sector(r, p, q)
-            }
-        };
-        let mut from = a;
-        let mut inside = ra <= r;
-        for t in hits {
-            let p = at(t);
-            total += piece(from, p, inside);
-            from = p;
-            inside = !inside;
-        }
-        total += piece(from, b, inside);
-    }
-    total
 }
 
 /// The pocket's cross-section: the D's disc against the block's square
