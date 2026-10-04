@@ -2,13 +2,14 @@
 id: boolean-door-adopts-the-finished-body-type
 kind: issue
 title: The boolean door adopts the finished-body type: AtRestBody operands, the result gated at tier 3' over its own contacts
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: H
 refs: [boolean-door-tier-3-waits-on-the-description-gap, census-cross-solid-curved-pairs-undecidable-on-shell-results, volume-door-reads-a-tiny-valid-boolean-result-wrong, boolean-door-runs-the-census-over-its-result]
 branch: reach/door-finished-body
 pr: 3987
+closed: 2026-10-04
 ---
 
 
@@ -129,3 +130,15 @@ Merge order: after PR #3977 (check 7's interval re-derivation), merged
 into this branch, so
 `contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex`
 is green at ε 1e-12 (§Sequencing 1).
+
+## Closed (2026-10-04)
+
+Merged by PR 3987. The dual review's MAJOR (an inside-out operand at a
+dual shipped its complement) is closed: `reduce::gate_unverdicted_operand`
+runs `validate::inside_out_solids` wherever no verdict rides the
+operand, and the public `boolean_reduce`/`boolean_reduce_declared` take
+`&AtRestBody` (compile-fail doctests). An independent verifier
+(`analysis/reach-verify/3987`) found the last pass VERIFIED: mutants
+MA, MC and MD red on the rows stated, the workspace 11651/11651 at
+1e-9, 1e-6 and 1e-12, and the contact9 row green at 1e-12 with #3977
+merged in.

@@ -54,7 +54,14 @@ sweep with the gate in.
 
 ## Closed (2026-10-03): red on main by the same flags, not this door's
 
-**Current count (2026-10-04): 100 flags on both trees, identical.**
+**Current count (2026-10-04): 104 flags on both trees, identical.**
+PR 3987's verifier (`analysis/reach-verify/3987`) re-ran
+`delta3987_ksweep.sh` at 1e-6 and 1e-9 on head 149ed1091 and its base
+main c860806e: both GATE FAILED with 104 margins (rule 1: 82, rule 2: 3,
+rule 3: 20; 105 FLAG lines), identical once line numbers are stripped
+(5.75 M samples on the head, 3.17 M on main). The 100 below is the
+delta review's same measurement against the older base 46ce5d4d4.
+
 The delta review of PR 3987 (`analysis/reach-delta/3987`, NOTE 3)
 re-ran the measurement against the head's own main base. It ran the
 nightly's dev-probe dumps (`m4_pr8_k_probe`, `demo-tour k-probe`) at
