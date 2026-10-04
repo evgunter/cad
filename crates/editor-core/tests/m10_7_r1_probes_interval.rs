@@ -27,7 +27,7 @@ use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is

@@ -46,7 +46,7 @@ fn shift(t: [Expr; 3]) -> Step {
 /// The shift along the base cap's local +Y — its reference, world +x —
 /// by the document's `slide`.
 fn slid_by_the_parameter() -> Placement {
-    shift([len(0.0), Expr::param(slide(), Dimension::Length), len(0.0)]).into()
+    shift([len(0.0), Expr::named(slide(), Dimension::Length), len(0.0)]).into()
 }
 
 /// "Seat the top on the base": the top's lower cap (the mover) on its
@@ -236,7 +236,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let named = |name: &'static str, dim| -> Placement {
         shift([
             len(0.0),
-            Expr::param(VarName::from_static(name), dim),
+            Expr::named(VarName::from_static(name), dim),
             len(0.0),
         ])
         .into()
@@ -502,7 +502,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     )
     .expect_err("both sides read `slide`");
     assert!(
-        matches!(&err, SplitError::UncutParamReference { param, .. } if *param == slide()),
+        matches!(&err, SplitError::UncutVarReference { var, .. } if var.name() == Some(&slide())),
         "{err:?}"
     );
     // The cut seat re-authored to read nothing: the parameter stays.

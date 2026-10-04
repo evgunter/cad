@@ -74,7 +74,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::param(name.clone(), Dimension::Count),
+            count: Expr::named(name.clone(), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -151,7 +151,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     let name = VarName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
     let fault = MeasureExpr::add(
-        MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
+        MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
         MeasureExpr::value(ang(1.0)),
     );
     assert!(
@@ -161,7 +161,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 
     // The param TABLE, which construction never asks: reading a
     // declared LENGTH parameter as an ANGLE builds fine.
-    let leaf = MeasureExpr::value(Expr::param(name.clone(), Dimension::Angle));
+    let leaf = MeasureExpr::value(Expr::named(name.clone(), Dimension::Angle));
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs-f1"),
@@ -236,9 +236,14 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
-        SnapshotError::PayloadUnknownVarName {
+        SnapshotError::PayloadVarKind {
             node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
-            name: VarName::from_static("depth"),
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(3),
+                Some(VarName::from_static("depth")),
+            ),
+            declared: editor_core::Dimension::Angle,
+            referenced: editor_core::Dimension::Length,
         }
     );
     assert!(

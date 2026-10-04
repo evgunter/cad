@@ -38,7 +38,7 @@ use geom_core::Tol;
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -476,7 +476,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(VarName::from_static("w"), Dimension::Length);
+    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

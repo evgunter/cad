@@ -25,9 +25,9 @@ use std::sync::Arc;
 
 use editor_core::{
     DimensionError, DocEdit, EditError, EvalOptions, Expr, ExprPath, LoopProgram, MeasureExpr,
-    Node, NodeResult, VarEnv, ParseError, PersistError, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, content_pin,
-    eval, eval_count, parse_expr, unparse,
+    Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
+    eval_count, parse_expr, unparse,
 };
 use fixture::{Recorder, len, run, scl, xy_frame};
 use geom_core::{Interval, Tol};
@@ -223,7 +223,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             let copy = e.clone();
             assert!(copy.bit_eq(&e), "{label} clones bit for bit");
             assert!(format!("{e:?}").contains("Literal"), "{label} prints");
-            let text = unparse(&e);
+            let text = unparse(&e, &|_| None);
             let back = parse_expr(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} reads back through the text door: {err}"));
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
@@ -462,7 +462,7 @@ fn a_negative_leaf_at_the_bound_reads_back() {
                 ("a count", deep_count(-3, levels)),
                 ("the least count", deep_count(i64::MIN, levels)),
             ] {
-                let text = unparse(&e);
+                let text = unparse(&e, &|_| None);
                 let back = parse_expr(&text, &BTreeMap::new()).unwrap_or_else(|err| {
                     panic!("{label} {levels} deep reads back from {text:.40}…: {err}")
                 });
@@ -470,7 +470,7 @@ fn a_negative_leaf_at_the_bound_reads_back() {
                     back.bit_eq(&e),
                     "{label} {levels} deep reads back as itself"
                 );
-                assert_eq!(unparse(&back), text, "{label} {levels} deep");
+                assert_eq!(unparse(&back, &|_| None), text, "{label} {levels} deep");
             }
         }
     });

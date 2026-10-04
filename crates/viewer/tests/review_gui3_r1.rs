@@ -76,7 +76,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::mul(Expr::param(depth_param(), Dimension::Length), scl(3.0))
+            distance: Expr::mul(Expr::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
             side: ExtrudeSide::Along,
         },

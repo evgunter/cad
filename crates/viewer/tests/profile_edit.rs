@@ -20,8 +20,8 @@ use crate::common;
 use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
-    DocEdit, EditError, Expr, LoopProgram, Node, VarEnv, ProfileProgram, RecipeNodeId, SlotId,
-    StepArg, StepId, apply,
+    DocEdit, EditError, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId, StepArg,
+    StepId, VarEnv, apply,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};

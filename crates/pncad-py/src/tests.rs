@@ -1930,8 +1930,7 @@ fn expression_evaluation_tags_are_stable() {
     // The expression's reference recorded a length; this document
     // declares the same name as a count.
     assert_eq!(
-        tag(&eval(&parse("width"), &counts.var_env::<f64>())
-            .expect_err("the dimensions disagree")),
+        tag(&eval(&parse("width"), &counts.var_env::<f64>()).expect_err("the dimensions disagree")),
         "param_dimension_mismatch"
     );
 

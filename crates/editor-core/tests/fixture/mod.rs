@@ -1051,7 +1051,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+            distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));

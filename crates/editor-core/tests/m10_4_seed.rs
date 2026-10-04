@@ -54,7 +54,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 fn continuous(value: f64) -> FreeVar {
@@ -340,7 +340,7 @@ fn the_seed_is_exactly_one_and_zero_by_construction() {
     let doc = two_param_web();
     let env = seed_env::<Dual64, _>(&doc, doc.var_env::<Dual64>(), var(&doc, "hole_r"))
         .expect("hole_r is continuous");
-    let binding = |n: &'static str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&var(&doc, n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };
@@ -442,7 +442,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
-            Some(Node::Profile(p)) => p.references(&name("hole_r")),
+            Some(Node::Profile(p)) => doc.var_named("hole_r").is_some_and(|v| p.reads(v)),
             _ => false,
         })
         .flat_map(|id| corpus::cone(&doc, id))

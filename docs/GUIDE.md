@@ -1796,7 +1796,7 @@ form is a **named document parameter** that several places reference,
 so one edit moves all of them coherently. That is
 `crates/editor-core/tests/corpus/plate_param.rs`, and it is the
 corpus document to read after this guide: a plate with **two** holes
-whose radii are both `Expr::param("hole_r")` — one parameter, two
+whose radii are both `Expr::named("hole_r")` — one parameter, two
 loops, one edit.
 
 Its acceptance rows (`crates/editor-core/tests/switch_plate_param.rs`)
@@ -1847,7 +1847,7 @@ let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+    radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1958,7 +1958,7 @@ DocParam.length(…))`, demonstrated against this exact document in
 above from Python now awaits exactly ONE door. Circles came with the
 audit's G1 and the three-loop profile with G9; what is left is a
 profile step whose argument is an EXPRESSION rather than a literal —
-the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
+the holes above are `LoopProgram::Circle { radius: Expr::named(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
 

@@ -735,10 +735,10 @@ pub use stl::{
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
-    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, VarEnv, ParseError,
-    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
-    VarDef, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
+    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError, PatternKind,
+    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDef,
+    VarEnv, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

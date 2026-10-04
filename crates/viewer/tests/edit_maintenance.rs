@@ -476,7 +476,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
-        radius: pncad::document::Expr::param(hole_r.clone(), Dimension::Length),
+        radius: pncad::document::Expr::named(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));

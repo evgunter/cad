@@ -799,7 +799,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             Node::Extrude {
                 profile,
-                distance: Expr::param(name.clone(), Dimension::Length),
+                distance: Expr::named(name.clone(), Dimension::Length),
                 side: ExtrudeSide::Along,
             },
             tol,

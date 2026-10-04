@@ -26,8 +26,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, NodeStanding, VarEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
-    SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
+    GeomPred, NamePat, Node, NodeStanding, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
+    Selector, SurfaceKindSet, VarEnv, evaluate, select, select_where,
 };
 use geom::SurfaceKind;
 

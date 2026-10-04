@@ -11,7 +11,7 @@ use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::distribution::{Distribution, DistributionFault, DistributionField};
-use crate::expr::{Dimension, Expr, ExprPath, VarEnv, ParamValue};
+use crate::expr::{Dimension, Expr, ExprPath, ParamValue, VarEnv};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
@@ -1099,20 +1099,22 @@ impl<P> Doc<P> {
         names
             .into_iter()
             .map(|(name, _)| VarReadFault::Name { name })
-            .chain(reads.into_iter().filter_map(|(var, referenced)| {
-                match self.vars.get(&var) {
-                    None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
-                    None => Some(VarReadFault::Unminted { var }),
-                    Some(held) if held.kind().dimension() != referenced => {
-                        Some(VarReadFault::Kind {
-                            var,
-                            declared: held.kind().dimension(),
-                            referenced,
-                        })
-                    }
-                    Some(_) => None,
-                }
-            }))
+            .chain(
+                reads
+                    .into_iter()
+                    .filter_map(|(var, referenced)| match self.vars.get(&var) {
+                        None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
+                        None => Some(VarReadFault::Unminted { var }),
+                        Some(held) if held.kind().dimension() != referenced => {
+                            Some(VarReadFault::Kind {
+                                var,
+                                declared: held.kind().dimension(),
+                                referenced,
+                            })
+                        }
+                        Some(_) => None,
+                    }),
+            )
             .collect()
     }
 

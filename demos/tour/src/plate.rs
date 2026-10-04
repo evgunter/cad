@@ -75,7 +75,7 @@ fn scl(v: f64) -> Expr {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {

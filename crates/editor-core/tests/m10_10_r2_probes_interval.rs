@@ -305,7 +305,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(VarName::from_static("bulge"), Dimension::Scalar)
+        Expr::named(VarName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -335,10 +335,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(VarName::from_static("hole_x"), Dimension::Length),
+                Expr::named(VarName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+            radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

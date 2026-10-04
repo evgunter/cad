@@ -16,7 +16,7 @@ use crate::doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, FreeValue, FreeVar, GaugeRefFault, NameCarrier,
     VarName, VarReadFault, WitnessSiteFault,
 };
-use crate::expr::{Dimension, DimensionError, Expr, ExprPath, NameFault};
+use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
@@ -671,31 +671,24 @@ enum ExprSite {
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
-    /// **Every expression this edit carries, with where it sits** — the
-    /// expressions the edit door lowers. Exhaustive with no wildcard
-    /// arm, so an arm added to [`DocEdit`] says here which of its
-    /// expressions lower, or does not compile.
-    fn exprs_mut(&mut self) -> Vec<(ExprSite, &mut Expr)> {
+    /// **Every expression this edit carries** — the expressions the
+    /// edit door lowers. Exhaustive with no wildcard arm, so an arm
+    /// added to [`DocEdit`] says here which of its expressions lower,
+    /// or does not compile.
+    fn exprs_mut(&mut self) -> Vec<&mut Expr> {
         match self {
             Self::InsertNode { node } => node_exprs_mut(node),
-            Self::SetParam { slot, expr, .. } | Self::SetStructuralParam { slot, expr, .. } => {
-                vec![(ExprSite::Slot(*slot), expr)]
-            }
-            Self::SetExpression { path, expr } => vec![(ExprSite::Slot(path.slot), expr)],
+            Self::SetParam { expr, .. }
+            | Self::SetStructuralParam { expr, .. }
+            | Self::SetExpression { expr, .. } => vec![expr],
             Self::SetProgram { loops, .. } => loops
                 .iter_mut()
-                .enumerate()
-                .flat_map(|(li, lp)| {
-                    let loop_ = crate::program::program_index(li);
-                    lp.rows_mut().into_iter().map(move |((step, arg), e)| {
-                        (ExprSite::Slot(SlotId::Profile { loop_, step, arg }), e)
-                    })
-                })
+                .flat_map(|lp| lp.rows_mut().into_iter().map(|(_, e)| e))
                 .collect(),
             Self::SetOffset { offset, .. } => offset
                 .iter_mut()
                 .flat_map(crate::placement::Placement::rows_mut)
-                .map(|(slot, e)| (ExprSite::Slot(slot), e))
+                .map(|(_, e)| e)
                 .collect(),
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
@@ -724,122 +717,60 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::SetLabel { .. } => Vec::new(),
         }
     }
-
-    /// The live node whose expressions [`Self::exprs_mut`] answers,
-    /// `None` for an insert, whose node has no id until it is minted.
-    fn expr_subject(&self) -> Option<RecipeNodeId> {
-        match self {
-            Self::SetParam { node, .. }
-            | Self::SetStructuralParam { node, .. }
-            | Self::SetProgram { node, .. } => Some(*node),
-            Self::SetExpression { path, .. } => Some(path.node),
-            Self::SetOffset { instance, .. } => Some(*instance),
-            _ => None,
-        }
-    }
 }
 
-/// Every expression `node` carries, with where it sits: its payload
-/// expressions for the two nodes that carry them, which carry no slot,
-/// and its slots for every other.
-fn node_exprs_mut<P: crate::ProfilePayload>(node: &mut Node<P>) -> Vec<(ExprSite, &mut Expr)> {
+/// Every expression `node` carries: its payload expressions for the two
+/// nodes that carry them, which carry no slot, and its slots for every
+/// other.
+fn node_exprs_mut<P: crate::ProfilePayload>(node: &mut Node<P>) -> Vec<&mut Expr> {
     if matches!(node, Node::Measure { .. } | Node::Assertion { .. }) {
         crate::node::payload_exprs_mut(node)
             .into_iter()
             .flatten()
-            .map(|e| (ExprSite::Payload, e))
             .collect()
     } else {
-        node.rows_mut()
-            .into_iter()
-            .map(|(slot, e)| (ExprSite::Slot(slot), e))
-            .collect()
+        node.rows_mut().into_iter().map(|(_, e)| e).collect()
     }
 }
 
 /// **The edit as the door writes it: every name leaf lowered** to a
-/// reader of the variable `doc` names (VR6's lowering, for the one
-/// authored form this build has). An edit with no name leaf is
-/// answered as handed in. An edit whose subject node is not live is
-/// answered as handed in too: its arm refuses the node first, and a
-/// name it carried is never written.
+/// reader of the variable `doc` names, where that variable has the kind
+/// the leaf reads it at (VR6's lowering, for the one authored form this
+/// build has). A name that does not lower stays, and the door refuses
+/// it where it checks the expression it writes ([`check_reads`]), in
+/// the order its other checks run. An edit with no name leaf is
+/// answered as handed in.
 ///
 /// An insert's preimage is the node AFTER lowering, so a node authored
 /// by name and the same node authored by id mint one id.
 fn lowered<'e, P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &'e DocEdit<P>,
-) -> Result<std::borrow::Cow<'e, DocEdit<P>>, EditError> {
+) -> std::borrow::Cow<'e, DocEdit<P>> {
     let mut probe = edit.clone();
-    let named = probe.exprs_mut().into_iter().any(|(_, e)| {
+    let mut named = false;
+    for e in probe.exprs_mut() {
         let mut names = Vec::new();
         e.named_reads(&mut names);
-        !names.is_empty()
-    });
-    let subject = edit.expr_subject();
-    if !named || subject.is_some_and(|id| doc.node(id).is_none()) {
-        return Ok(std::borrow::Cow::Borrowed(edit));
-    }
-    let speaker = || match (subject, edit) {
-        (Some(id), _) => doc.spoken(id),
-        (None, DocEdit::InsertNode { node }) => {
-            // The id the node as authored would draw: the one a refusal
-            // can speak, since the lowered node it would mint under
-            // does not exist.
-            let id = doc
-                .mint
-                .clone()
-                .insert(&**node)
-                .unwrap_or_else(|crate::NodeIdCollides { id }| id);
-            SpokenNode::entering(id, node)
+        if !names.is_empty() {
+            named = true;
+            e.lower_names(&|name| doc.lowering_scope(name));
         }
-        (None, _) => unreachable!("an edit carrying expressions names their node, or inserts it"),
-    };
-    let scope = |name: &VarName| doc.lowering_scope(name);
-    for (site, e) in probe.exprs_mut() {
-        e.lower_names(&scope)
-            .map_err(|fault| lowering_refusal(doc, speaker(), site, fault))?;
     }
-    Ok(std::borrow::Cow::Owned(probe))
+    if named {
+        std::borrow::Cow::Owned(probe)
+    } else {
+        std::borrow::Cow::Borrowed(edit)
+    }
 }
 
-/// A name that did not lower, in this door's vocabulary.
-fn lowering_refusal<P>(doc: &Doc<P>, node: SpokenNode, site: ExprSite, fault: NameFault) -> EditError {
-    match (site, fault) {
-        (ExprSite::Slot(slot), NameFault::Unknown { name }) => {
-            EditError::SlotUnknownVarName { name, node, slot }
-        }
-        (ExprSite::Payload, NameFault::Unknown { name }) => {
-            EditError::PayloadUnknownVarName { name, node }
-        }
-        (
-            ExprSite::Slot(slot),
-            NameFault::Kind {
-                var,
-                declared,
-                referenced,
-            },
-        ) => EditError::SlotVarKind {
-            var: doc.spoken_var(var),
-            node,
-            slot,
-            declared,
-            referenced,
-        },
-        (
-            ExprSite::Payload,
-            NameFault::Kind {
-                var,
-                declared,
-                referenced,
-            },
-        ) => EditError::PayloadVarKind {
-            var: doc.spoken_var(var),
-            node,
-            declared,
-            referenced,
-        },
-    }
+/// The dimension `expr` first reads `name` at, if it reads it.
+fn expr_dim_of(expr: &Expr, name: &VarName) -> Option<Dimension> {
+    let mut names = Vec::new();
+    expr.named_reads(&mut names);
+    names
+        .into_iter()
+        .find_map(|(read, dim)| (read == *name).then_some(dim))
 }
 
 /// **The reads of one expression an edit writes**, against the
@@ -857,6 +788,21 @@ fn check_reads<P>(
         return Ok(());
     };
     let node = node.clone();
+    // A name that did not lower is one no variable holds, or one held
+    // by a variable of another kind ([`lowered`]).
+    let fault = match fault {
+        VarReadFault::Name { name } => {
+            match (doc.lowering_scope(&name), expr_dim_of(expr, &name)) {
+                (Some((var, declared)), Some(referenced)) => VarReadFault::Kind {
+                    var,
+                    declared,
+                    referenced,
+                },
+                _ => VarReadFault::Name { name },
+            }
+        }
+        other => other,
+    };
     Err(match (site, fault) {
         (ExprSite::Slot(slot), VarReadFault::Name { name }) => {
             EditError::SlotUnknownVarName { name, node, slot }
@@ -864,14 +810,13 @@ fn check_reads<P>(
         (ExprSite::Payload, VarReadFault::Name { name }) => {
             EditError::PayloadUnknownVarName { name, node }
         }
-        (
-            ExprSite::Slot(slot),
-            VarReadFault::Unminted { var } | VarReadFault::Dead { var },
-        ) => EditError::SlotUnresolvedVar {
-            var: doc.spoken_var(var),
-            node,
-            slot,
-        },
+        (ExprSite::Slot(slot), VarReadFault::Unminted { var } | VarReadFault::Dead { var }) => {
+            EditError::SlotUnresolvedVar {
+                var: doc.spoken_var(var),
+                node,
+                slot,
+            }
+        }
         (ExprSite::Payload, VarReadFault::Unminted { var } | VarReadFault::Dead { var }) => {
             EditError::PayloadUnresolvedVar {
                 var: doc.spoken_var(var),
@@ -4627,7 +4572,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
-    let edit = lowered(doc, edit)?;
+    let edit = lowered(doc, edit);
     let (doc, record, maintenance) = door(doc, tol, |new, reported| {
         write_edit(doc, new, reported, &edit, tol, reach)
     })?;
@@ -4650,7 +4595,7 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     let edit = DocEdit::InsertNode {
         node: Box::new(node.clone()),
     };
-    let DocEdit::InsertNode { node } = &*lowered(doc, &edit)? else {
+    let DocEdit::InsertNode { node } = &*lowered(doc, &edit) else {
         unreachable!("lowering keeps an edit's arm")
     };
     let (doc, id, maintenance) = door(doc, tol, |new, reported| {
@@ -5222,13 +5167,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 DisplayUnitRefusal::CountHasNoNotation => EditError::VarCountHasNoUnit {
                     var: spoken.clone(),
                 },
-                DisplayUnitRefusal::Mismatch { unit, declared } => {
-                    EditError::VarUnitMismatch {
-                        var: spoken.clone(),
-                        unit,
-                        declared,
-                    }
-                }
+                DisplayUnitRefusal::Mismatch { unit, declared } => EditError::VarUnitMismatch {
+                    var: spoken.clone(),
+                    unit,
+                    declared,
+                },
             })?;
             write_free(new, id, &spoken, written)?
         }

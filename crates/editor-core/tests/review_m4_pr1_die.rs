@@ -182,7 +182,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -241,7 +241,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

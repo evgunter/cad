@@ -192,7 +192,7 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     let measure = common::insert_into(
         &mut doc,
         Node::measure(
-            MeasureExpr::value(Expr::param(gap.clone(), Dimension::Length)),
+            MeasureExpr::value(Expr::named(gap.clone(), Dimension::Length)),
             Vec::new(),
         )
         .expect("a value measure references nothing"),

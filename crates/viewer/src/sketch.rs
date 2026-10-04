@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, VarEnv,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, resolve_loops, unparse,
+    StepId, ValuePayload, VarEnv, resolve_loops, unparse,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{

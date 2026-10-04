@@ -170,7 +170,7 @@ pub use editor_core::{
 // `DocEdit::SetExpression` takes, so without it a consumer cannot spell
 // which expression the edit replaces.
 pub use editor_core::{
-    Dimension, DimensionError, Expr, ExprPath, VarEnv, ParseError, parse_expr, unparse,
+    Dimension, DimensionError, Expr, ExprPath, ParseError, VarEnv, parse_expr, unparse,
 };
 
 // The expression READ side: an expression's current value under a

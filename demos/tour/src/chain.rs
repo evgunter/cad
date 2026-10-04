@@ -466,7 +466,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     pncad::document::Step::Rigid {
                         translation: [len(step), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                        angle: Expr::named(joint_name(j), Dimension::Angle),
                     },
                 ),
                 tol,

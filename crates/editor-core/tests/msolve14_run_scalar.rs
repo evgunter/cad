@@ -267,7 +267,7 @@ fn bolted(label: &str, slab_frame: MateFrame) -> Bolted {
             count: Expr::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: Expr::param(spacing(), Dimension::Length),
+                spacing: Expr::named(spacing(), Dimension::Length),
             },
         },
     );
@@ -313,7 +313,7 @@ fn lifted(label: &str) -> Lifted {
         Node::transform(
             bolt,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(gap(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(gap(), Dimension::Length)],
                 axis: [1.0, 0.0, 0.0].map(scl),
                 angle: ang(0.4),
             },
@@ -405,7 +405,7 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
             b: MateFrame::on_part(Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(rise(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(rise(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             }),
@@ -572,9 +572,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Expr::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -882,7 +882,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the box's corners, each tangent against its central difference —
 /// held across the change untouched.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb153_489f_9dd3_2b7c),
+    (1e-9, 0xf48f_16a4_8637_1664),
     (1e-6, 0xd0bb_1a90_cc72_c974),
     (1e-12, 0x38fb_a2c0_f9e0_65a3),
 ];
@@ -1399,12 +1399,12 @@ fn slid(label: &str) -> Slid {
     let doc = declare(doc, spin(), SPIN, Dimension::Angle);
     let frame = MateFrame::on_part(Step::Rigid {
         translation: [
-            Expr::param(slide(), Dimension::Length),
+            Expr::named(slide(), Dimension::Length),
             len(3.0),
             len(SLAB_HEIGHT),
         ],
         axis: [0.0, 0.0, 1.0].map(scl),
-        angle: Expr::param(spin(), Dimension::Angle),
+        angle: Expr::named(spin(), Dimension::Angle),
     });
     let (doc, mate) = insert(
         doc,

@@ -565,7 +565,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(common::thickness_param(), Dimension::Length),
+            distance: Expr::named(common::thickness_param(), Dimension::Length),
             side: ExtrudeSide::Along,
         },
         tol,

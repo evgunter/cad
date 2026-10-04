@@ -19,8 +19,8 @@ test_utils::gated_to![
 
 use crate::fixture::{self, insert, tol};
 use editor_core::{
-    AuthoredStep, DocEdit, EditError, LoopProgram, Node, VarEnv, PieceRole, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, keep_grid,
+    AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,
 };
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step, Verb};

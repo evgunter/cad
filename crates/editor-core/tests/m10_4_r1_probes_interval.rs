@@ -37,7 +37,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn eps() -> f64 {

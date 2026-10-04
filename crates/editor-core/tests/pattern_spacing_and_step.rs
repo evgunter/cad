@@ -110,19 +110,30 @@ impl Built {
     fn refusal(&self) -> (NodeErrorClass, String) {
         let ev = eval::<f64>(&self.doc);
         match ev.result(self.node) {
-            Some(NodeResult::Failed(e)) => (e.kind.class(), e.to_string()),
+            Some(NodeResult::Failed(e)) => (e.kind.class(), e.spoken(&self.doc)),
             other => panic!("the pattern refuses, got {other:?}"),
         }
     }
 
-    /// A full-range step's landing, and whether it carries a reading.
+    /// A full-range step's landing, as the document speaks it, and
+    /// whether it carries a reading.
     fn full_range_step(&self) -> (StepTurns, bool) {
         let ev = eval::<f64>(&self.doc);
         match ev.result(self.node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
+                // A reader is stored by its id, and said by the name the
+                // document holds.
                 NodeErrorKind::FullRangeStep {
                     turns, evaluated, ..
-                } => (turns.clone(), evaluated.is_some()),
+                } => match turns {
+                    StepTurns::Within(text) => (
+                        StepTurns::Within(
+                            editor_core::spoken::Speaker::of(&self.doc).formula(text),
+                        ),
+                        evaluated.is_some(),
+                    ),
+                    other => (other.clone(), evaluated.is_some()),
+                },
                 other => panic!("a full-range step, got {other:?}"),
             },
             other => panic!("the pattern refuses, got {other:?}"),
@@ -244,7 +255,7 @@ fn a_whole_number_of_turns_refuses_as_coinciding_copies() {
         ang(2.0 * TAU),
         ang(-3.0 * TAU),
     ] {
-        let shown = editor_core::unparse(&step);
+        let shown = editor_core::unparse(&step, &|_| None);
         let built = patterned(3, circular(step), false);
         let (_, text) = built.refusal();
         let (turns, evaluated) = built.full_range_step();

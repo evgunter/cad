@@ -48,7 +48,7 @@ use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are

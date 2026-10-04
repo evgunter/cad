@@ -2547,7 +2547,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     use pncad::document::{BooleanOp, FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+        radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());

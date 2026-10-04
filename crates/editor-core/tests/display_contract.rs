@@ -855,12 +855,12 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::PayloadVarKind {
-            name: name.clone(),
+            var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
             node: held(3, "Measure"),
             declared: Dimension::Length,
             referenced: Dimension::Count,
         },
-        &["is declared length", "references it as count"],
+        &["is declared length", "reads it as count"],
         &dumps,
     );
     assert_f6(
@@ -878,13 +878,13 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::SlotVarKind {
-            name: name.clone(),
+            var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
             declared: Dimension::Scalar,
             referenced: Dimension::Length,
         },
-        &["is declared scalar", "references it as length"],
+        &["is declared scalar", "reads it as length"],
         &dumps,
     );
     assert_f6(
@@ -956,12 +956,12 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
 
     // The evaluator.
     assert_f6(
-        &EvalError::ParamDimensionMismatch {
-            name: name.clone(),
-            expected: Dimension::Length,
-            found: Dimension::Angle,
+        &EvalError::VarKindMismatch {
+            var: editor_core::VarId(7),
+            bound: Dimension::Angle,
+            read: Dimension::Length,
         },
-        &["referenced as length", "bound as angle"],
+        &["read as length", "bound as angle"],
         &dumps,
     );
     assert_f6(
@@ -1041,15 +1041,15 @@ test_utils::f6_variants! {
         LabelOnMissingNode,
         VarKind,
         VarNotMinted,
-        VarUnnamed,
         VarOrderMismatch,
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
-        SlotUnknownVarName,
+        NamedReaderInSnapshot,
+        ReaderOfUnmintedVar,
         SlotVarKind,
-        PayloadUnknownVarName,
         PayloadVarKind,
+        AnonymousVarUnread,
         EpsilonInvalid,
         Roots,
         NotAGauge,
@@ -1191,10 +1191,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::VarUnnamed {
-                var: editor_core::VarId(tagged(7)),
+            SnapshotError::AnonymousVarUnread {
+                var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
             },
-            vec!["variable 000000000007 has no name", "read by its name"],
+            vec![
+                "variable 000000000007 has no name and nothing reads it",
+                "one something reads",
+            ],
         ),
         (
             SnapshotError::VarOrderMismatch,
@@ -1231,42 +1234,42 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::SlotUnknownVarName {
+            SnapshotError::NamedReaderInSnapshot { node: node() },
+            vec![
+                "Extrude \"base plate\" (000000000005) reads a variable by name",
+                "reads variables by id",
+            ],
+        ),
+        (
+            SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
-                slot: SlotId::Radius,
-                name: VarName::from_static("fillet"),
+                var: editor_core::VarId(tagged(7)),
             },
             vec![
-                "Extrude \"base plate\" (000000000005): slot radius",
-                "fillet",
-                "does not declare",
+                "Extrude \"base plate\" (000000000005) reads variable 000000000007",
+                "never minted",
             ],
         ),
         (
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                name: VarName::from_static("depth"),
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             vec!["depth", "as a length", "declared angle"],
         ),
         (
-            SnapshotError::PayloadUnknownVarName {
-                node: held(5, "Measure"),
-                name: VarName::from_static("depth"),
-            },
-            vec![
-                "Measure 000000000005: its payload expression",
-                "depth",
-                "does not declare",
-            ],
-        ),
-        (
             SnapshotError::PayloadVarKind {
                 node: held(5, "Measure"),
-                name: VarName::from_static("depth"),
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1514,30 +1517,29 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
 }
 
-/// **The param-ref convention, measured in both halves** — the four
+/// **The variable-read convention, measured in both halves** — the
 /// names at each door, and the MAPPING of name to address.
 ///
 /// The rule the two doors follow is stated once, on `EditError`'s own
 /// enum doc; this row is its guard and states none of it again.
 ///
-/// **Half one, the set.** The eight names are read back off `Debug`,
-/// the one runtime value that carries them, and each door's four are
-/// compared with the `{address} x {fact}` product written as a product
-/// rather than as a third list of four names. A door that re-mints a
-/// name of its own reds here, and so does a rename applied at one door
-/// only.
+/// **Half one, the set.** The names are read back off `Debug`, the one
+/// runtime value that carries them, and each door's are compared with
+/// the `{address} x {fact}` product written as a product rather than as
+/// a third list of names: the edit door refuses all three facts, the
+/// load door the kind fact alone (a name leaf and an unminted reader
+/// are refusals of a FILE, with walks of their own). A door that
+/// re-mints a name of its own reds here, and so does a rename applied
+/// at one door only.
 ///
 /// **Half two, the mapping.** A set has no opinion about WHICH arm
-/// carries which member, so half one alone survives swapping the edit
-/// door's slot pair with its payload pair — measured: that swap leaves
-/// every row in this file green. Half two ties each name to its
-/// address through the one place the address is externally visible,
-/// the rendered sentence, which names a slot at a slot arm and says
-/// "payload expression" at a payload arm, at both doors. That is what
-/// makes `{Slot,Payload}` a convention rather than four interchangeable
-/// tokens spelled the same at both doors.
+/// carries which member, so half one alone survives swapping a slot arm
+/// with its payload twin. Half two ties each name to its address
+/// through the one place the address is externally visible, the
+/// rendered sentence, which names a slot at a slot arm and says
+/// "payload expression" at a payload arm, at both doors.
 #[test]
-fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address() {
+fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_address() {
     /// The variant identifier a `Debug` dump opens with, up to the
     /// first byte that cannot be part of one, paired with what the arm
     /// renders. `Debug` carries the name and `Display` carries the
@@ -1552,65 +1554,65 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
 
     let node = || held(5, "Extrude");
     let name = VarName::from_static("width");
+    let var = || editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone()));
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownVarName {
             name: name.clone(),
-            node: held(5, "Extrude"),
+            node: node(),
             slot: SlotId::Radius,
         }),
         arm(&EditError::SlotVarKind {
-            name: name.clone(),
-            node: held(5, "Extrude"),
+            var: var(),
+            node: node(),
             slot: SlotId::Radius,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
+        }),
+        arm(&EditError::SlotUnresolvedVar {
+            var: var(),
+            node: node(),
+            slot: SlotId::Radius,
         }),
         arm(&EditError::PayloadUnknownVarName {
             name: name.clone(),
-            node: held(5, "Extrude"),
+            node: node(),
         }),
         arm(&EditError::PayloadVarKind {
-            name: name.clone(),
-            node: held(5, "Extrude"),
+            var: var(),
+            node: node(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
+        }),
+        arm(&EditError::PayloadUnresolvedVar {
+            var: var(),
+            node: node(),
         }),
     ];
     let load_door: Vec<(String, String)> = vec![
-        arm(&SnapshotError::SlotUnknownVarName {
-            node: node(),
-            slot: SlotId::Radius,
-            name: name.clone(),
-        }),
         arm(&SnapshotError::SlotVarKind {
             node: node(),
             slot: SlotId::Radius,
-            name: name.clone(),
+            var: var(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
-        arm(&SnapshotError::PayloadUnknownVarName {
-            node: node(),
-            name: name.clone(),
-        }),
         arm(&SnapshotError::PayloadVarKind {
             node: node(),
-            name,
+            var: var(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
     ];
 
-    let mut convention: Vec<String> = ["Slot", "Payload"]
-        .into_iter()
-        .flat_map(|address| {
-            ["UnknownDocParam", "DocParamDimension"]
-                .into_iter()
-                .map(move |fact| format!("{address}{fact}"))
-        })
-        .collect();
-    convention.sort();
+    let product = |facts: &[&'static str]| {
+        let mut names: Vec<String> = ["Slot", "Payload"]
+            .into_iter()
+            .flat_map(|address| facts.iter().map(move |fact| format!("{address}{fact}")))
+            .collect();
+        names.sort();
+        names
+    };
 
     let names_of = |arms: &[(String, String)]| {
         let mut names: Vec<String> = arms.iter().map(|(variant, _)| variant.clone()).collect();
@@ -1619,13 +1621,13 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     };
     assert_eq!(
         names_of(&edit_door),
-        convention,
-        "the edit door's four param-ref refusals have left the address-then-fact convention"
+        product(&["UnknownVarName", "VarKind", "UnresolvedVar"]),
+        "the edit door's variable-read refusals have left the address-then-fact convention"
     );
     assert_eq!(
         names_of(&load_door),
-        convention,
-        "the load door's four param-ref refusals have left the address-then-fact convention"
+        product(&["VarKind"]),
+        "the load door's variable-read refusals have left the address-then-fact convention"
     );
 
     for (door, arms) in [("edit", &edit_door), ("load", &load_door)] {
@@ -2941,7 +2943,13 @@ fn a_program_fault_states_its_lattice_coordinate() {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, LabelDropped];
+    const MAINTENANCE: Maintenance = [
+        OffsetCleared,
+        Strand,
+        StrandedAppearance,
+        LabelDropped,
+        AnonymousVarRemoved,
+    ];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
@@ -3005,6 +3013,15 @@ fn maintenance_display_says_what_the_edit_did() {
             vec![
                 "the fold took Gauge 000000000004 out of the document",
                 "its label \"bench\" went with it",
+            ],
+        ),
+        (
+            Maintenance::AnonymousVarRemoved {
+                var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+            },
+            vec![
+                "nothing reading variable 000000000007",
+                "went with its last reader",
             ],
         ),
     ];
@@ -3348,22 +3365,20 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             .to_string(),
         ),
         (
-            "SnapshotError::SlotUnknownVarName",
-            SnapshotError::SlotUnknownVarName {
+            "SnapshotError::SlotVarKind",
+            SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Radius,
-                name: name.clone(),
+                var: spoken.clone(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
             }
             .to_string(),
         ),
         (
-            "EvalError::UnknownParam",
-            EvalError::UnknownParam(name.clone()).to_string(),
-        ),
-        (
-            "SplitError::UncutParamReference",
-            SplitError::UncutParamReference {
-                param: name.clone(),
+            "SplitError::UncutVarReference",
+            SplitError::UncutVarReference {
+                var: spoken.clone(),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
                 promote: false,
@@ -3371,11 +3386,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             .to_string(),
         ),
         (
-            "InlineError::ParamConflict",
-            InlineError::ParamConflict {
-                param: name.clone(),
-            }
-            .to_string(),
+            "InlineError::VarNameConflict",
+            InlineError::VarNameConflict { name: name.clone() }.to_string(),
         ),
         (
             "SeedError::UnknownParam",

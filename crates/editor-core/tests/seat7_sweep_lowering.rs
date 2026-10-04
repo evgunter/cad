@@ -80,7 +80,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(VarName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -299,11 +299,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xd700_1ed1_9074_909d),
+        ("die", 0x63de_edf2_4dee_ef58),
         ("corner_table", 0xd8b1_634f_074f_de08),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
         ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0xcf76_ad0e_efcd_7abc),
+        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

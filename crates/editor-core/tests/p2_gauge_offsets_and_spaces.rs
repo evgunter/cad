@@ -332,7 +332,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.25),
             },
@@ -1085,7 +1085,7 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
 
 /// **A parametric root offset moves with the cut, and `Promote` keeps
 /// it in the host** (A4): the root's offset is a cut node's, so a
-/// parameter a kept gauge reads too refuses `UncutParamReference`;
+/// parameter a kept gauge reads too refuses `UncutVarReference`;
 /// promoted, the offset is a kept gauge's placement, the group is cut
 /// leaving that gauge behind, and the part gets no copy of a parameter
 /// nothing in it reads.
@@ -1100,15 +1100,17 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), Expr::param(lift(), Dimension::Length), len(0.0)],
+                translation: [len(0.0), Expr::named(lift(), Dimension::Length), len(0.0)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },
         ),
     );
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    // By id, so the stored offset compares to it as written.
+    let lift_id = doc.var_named(lift().as_str()).expect("lift is declared");
     let offset = Placement::from(Step::Rigid {
-        translation: [Expr::param(lift(), Dimension::Length), len(0.0), len(0.0)],
+        translation: [Expr::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
     });
@@ -1127,8 +1129,8 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     };
     let err = split(&doc).expect_err("the cut root's offset reads a kept node's parameter");
     assert!(
-        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, promote: true, .. }
-            if *param == lift() && cut_node.id() == base),
+        matches!(&err, editor_core::SplitError::UncutVarReference { var, cut_node, promote: true, .. }
+            if var.name() == Some(&lift()) && cut_node.id() == base),
         "{err:?}"
     );
     assert!(
@@ -1177,7 +1179,7 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },

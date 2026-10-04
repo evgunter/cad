@@ -833,7 +833,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(VarName::from_static("nope"), Dimension::Length);
+    let nope = Expr::named(VarName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -1366,7 +1366,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
 }
 
 fn param_len(name: &'static str) -> Expr {
-    Expr::param(VarName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.

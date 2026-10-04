@@ -203,7 +203,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(name.clone(), Dimension::Length),
+            expr: editor_core::Expr::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -225,7 +225,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(missing.clone(), Dimension::Length),
+            expr: editor_core::Expr::named(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -242,18 +242,15 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
+    let id = doc.var_named(name.as_str()).expect("a declared variable");
     let corrupt = doctored(&text, |wire| {
-        crate::wire::wire_undeclare(wire, name.as_str());
+        crate::wire::wire_unmint(wire, name.as_str());
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownVarName {
-            node,
-            slot,
-            name: n,
-        })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (extrude, id));
         }
-        other => panic!("the load door must refuse an undeclared parameter, got {other:?}"),
+        other => panic!("the load door must refuse an unminted reader, got {other:?}"),
     }
 }
 
@@ -294,11 +291,14 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            name: n,
+            var,
             declared,
             referenced,
         })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+            assert_eq!(
+                (node.id(), slot, var.name()),
+                (extrude, SlotId::Distance, Some(&name))
+            );
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)

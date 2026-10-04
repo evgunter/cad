@@ -95,8 +95,8 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, var_env_over, sample_offset, seed_env, std_deviation,
-    tail_mass,
+    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    var_env_over,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -146,7 +146,7 @@ pub use spoken::{
 // than through the module path.
 pub use eval::entity_door::Found;
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, VarEnv, ParamValue, UnitSym, eval,
+    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamValue, UnitSym, VarEnv, eval,
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};

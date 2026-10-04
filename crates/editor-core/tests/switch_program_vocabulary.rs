@@ -118,8 +118,8 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Expr, LoopProgram, Node, VarEnv, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, SlotId, StepArg, VarName,
+    Expr, LoopProgram, Node, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, SlotId, StepArg, VarEnv, VarName,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -1169,7 +1169,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::param(unbound.clone(), expr.dim());
+        *expr = Expr::named(unbound.clone(), expr.dim());
         let Node::Profile(broken) = broken else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };

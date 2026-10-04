@@ -241,8 +241,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
-    "Expr/ParamDimensionMismatch",
-    "Expr/UnknownParam",
+    "Expr/UnloweredName",
+    "Expr/UnresolvedVar",
+    "Expr/VarKindMismatch",
     "FaceFrameKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
@@ -938,14 +939,16 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, SlotId, VarName};
+    use editor_core::{Dimension, EvalError, SlotId};
     use payloads::*;
     vec![
         row(
             "Expr",
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
-                source: EvalError::UnknownParam(VarName::from_static("width")),
+                source: EvalError::UnresolvedVar {
+                    var: editor_core::VarId(tagged(7)),
+                },
             },
         ),
         row(
@@ -2877,15 +2880,23 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     };
     let eval: Vec<(&str, EvalError)> = vec![
         (
-            "UnknownParam",
-            EvalError::UnknownParam(VarName::from_static("width")),
+            "UnresolvedVar",
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId(tagged(7)),
+            },
         ),
         (
-            "ParamDimensionMismatch",
-            EvalError::ParamDimensionMismatch {
+            "VarKindMismatch",
+            EvalError::VarKindMismatch {
+                var: editor_core::VarId(tagged(7)),
+                bound: Dimension::Angle,
+                read: Dimension::Length,
+            },
+        ),
+        (
+            "UnloweredName",
+            EvalError::UnloweredName {
                 name: VarName::from_static("width"),
-                expected: Dimension::Length,
-                found: Dimension::Angle,
             },
         ),
         (

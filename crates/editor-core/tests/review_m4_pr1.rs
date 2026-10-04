@@ -7,8 +7,8 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, VarEnv, RecipeNodeId, SitedRef, SlotId,
-    VarName, eval, eval_count,
+    Dimension, DocEdit, EditError, Expr, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv, VarName,
+    eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -253,22 +253,31 @@ fn r2_dimension_smuggling_probes() {
 /// caller); both `apply` and `eval` must catch it downstream.
 #[test]
 fn r2_contradictory_param_dims_caught_downstream() {
-    let p_scl = Expr::param(VarName::from_static("q"), Dimension::Scalar);
-    let p_len = Expr::param(VarName::from_static("q"), Dimension::Length);
-    // mul(Scalar, Length) → Length: constructible with BOTH refs.
-    let expr = Expr::mul(p_scl, p_len).unwrap();
-    // eval: whichever binding "q" has, one ref mismatches — typed.
+    // mul(Scalar, Length) → Length: constructible with BOTH reads, by
+    // id or by name.
+    let q = editor_core::VarId(1);
+    let by_id = Expr::mul(
+        Expr::var(q, Dimension::Scalar),
+        Expr::var(q, Dimension::Length),
+    )
+    .unwrap();
+    let expr = Expr::mul(
+        Expr::named(VarName::from_static("q"), Dimension::Scalar),
+        Expr::named(VarName::from_static("q"), Dimension::Length),
+    )
+    .unwrap();
+    // eval: whichever binding q has, one read mismatches — typed.
     let mut env: VarEnv<f64> = VarEnv::default();
     env.bindings.insert(
-        VarName::from_static("q"),
+        q,
         editor_core::ParamValue::Continuous {
             dim: Dimension::Length,
             value: 2.0,
         },
     );
     assert!(matches!(
-        eval::<f64>(&expr, &env),
-        Err(editor_core::EvalError::ParamDimensionMismatch { .. })
+        eval::<f64>(&by_id, &env),
+        Err(editor_core::EvalError::VarKindMismatch { .. })
     ));
     // apply: a slot carrying the contradiction is refused whichever
     // dimension the doc table declares.
@@ -647,7 +656,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[point_edit(Expr::param(name.clone(), Dimension::Length))],
+        &[point_edit(Expr::named(name.clone(), Dimension::Length))],
     );
     // Dimension flip under the referencing slot: refused, because a
     // variable's kind is fixed whatever reads it.
@@ -905,7 +914,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // Count slot referencing the Count doc param: accepted.
     let a = doc
         .apply(
-            &pattern(Expr::param(cnt_param.clone(), Dimension::Count)),
+            &pattern(Expr::named(cnt_param.clone(), Dimension::Count)),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -917,7 +926,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::param(VarName::from_static("d_len"), Dimension::Length);
+    let smuggle = Expr::named(VarName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,

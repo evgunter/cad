@@ -22,8 +22,8 @@ use geom_core::Real;
 use geom_core::predicate::{Band, Decide, Sign};
 
 use crate::doc::VarName;
-use crate::var::VarId;
 use crate::node::{RecipeNodeId, SlotId};
+use crate::var::VarId;
 
 /// The v1 quantity-dimension lattice (ratified F1, GQ5's banked
 /// decision): four dimensions, no products of dimensions.
@@ -119,28 +119,6 @@ impl Dimension {
             Self::Angle => "an",
         }
     }
-}
-
-/// **Why a name leaf did not lower** ([`Expr::lower_names`]): the
-/// scope holds no variable by that name, or holds one of another kind.
-/// Each edit door names the answer at its own address.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NameFault {
-    /// No variable holds the name.
-    Unknown {
-        /// The name.
-        name: VarName,
-    },
-    /// The variable holding the name is of another kind than the leaf
-    /// reads it at.
-    Kind {
-        /// The variable the name resolved to.
-        var: VarId,
-        /// Its kind's dimension.
-        declared: Dimension,
-        /// The dimension the leaf reads it at.
-        referenced: Dimension,
-    },
 }
 
 /// Typed refusal from the construction-time dimension checker (spec D4).
@@ -1217,37 +1195,26 @@ impl Expr {
         reads.iter().any(|&(read, _)| read == var)
     }
 
-    /// **Lower every name leaf** to a reader of the variable `scope`
-    /// resolves it to, in pre-order, stopping at the first name it
-    /// cannot lower: one `scope` does not hold, or holds at a kind
-    /// other than the leaf reads it at.
-    ///
-    /// # Errors
-    ///
-    /// [`NameFault`], naming the leaf.
-    pub fn lower_names(
-        &mut self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
-    ) -> Result<(), NameFault> {
+    /// **Lower every name leaf `scope` resolves** to a reader of the
+    /// variable it resolves to, when the variable's kind is the one the
+    /// leaf reads it at. A name `scope` does not hold, or holds at
+    /// another kind, stays a name leaf, for the door that writes the
+    /// expression to refuse at its address.
+    pub fn lower_names(&mut self, scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>) {
         let dim = self.dim;
         match &mut self.kind {
-            ExprKind::Name(name) => match scope(name) {
-                None => Err(NameFault::Unknown { name: name.clone() }),
-                Some((var, declared)) if declared != dim => Err(NameFault::Kind {
-                    var,
-                    declared,
-                    referenced: dim,
-                }),
-                Some((var, _)) => {
+            ExprKind::Name(name) => {
+                if let Some((var, declared)) = scope(name)
+                    && declared == dim
+                {
                     self.kind = ExprKind::Var(var);
-                    Ok(())
                 }
-            },
-            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) => Ok(()),
+            }
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) => {}
             unary_kind!(a) => a.lower_names(scope),
             binary_kind!(a, b) => {
-                a.lower_names(scope)?;
-                b.lower_names(scope)
+                a.lower_names(scope);
+                b.lower_names(scope);
             }
         }
     }
@@ -1520,10 +1487,9 @@ impl core::fmt::Display for EvalError {
                 "variable {var} has no binding in the evaluation environment — it was \
                  deleted, or never declared here; point the reader at a live variable"
             ),
-            Self::VarKindMismatch { var, bound, read } => write!(
-                f,
-                "variable {var} is read as {read} but bound as {bound}"
-            ),
+            Self::VarKindMismatch { var, bound, read } => {
+                write!(f, "variable {var} is read as {read} but bound as {bound}")
+            }
             Self::UnloweredName { name } => write!(
                 f,
                 "the name {name} was never resolved to a variable — an expression \

@@ -427,7 +427,11 @@ impl HeldNodes {
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
         Self {
             nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
-            vars: self.vars.iter().map(|var| doc.spoken_var(var.id())).collect(),
+            vars: self
+                .vars
+                .iter()
+                .map(|var| doc.spoken_var(var.id()))
+                .collect(),
         }
     }
 }
@@ -569,7 +573,9 @@ impl<'a> Speaker<'a> {
         while let Some(at) = rest.find('#') {
             out.push_str(&rest[..at]);
             let tail = &rest[at + 1..];
-            let hex = tail.get(..16).filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
+            let hex = tail
+                .get(..16)
+                .filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
             match hex
                 .and_then(|h| u64::from_str_radix(h, 16).ok())
                 .and_then(|bits| doc.speak_var(crate::var::VarId(bits)))

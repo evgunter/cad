@@ -690,11 +690,12 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::*;
-    use crate::doc::VarName;
     use crate::test_support::len;
+    use crate::var::VarId;
 
-    fn p(name: &'static str) -> Expr {
-        Expr::param(VarName::from_static(name), Dimension::Length)
+    /// A reader of the length variable `id`.
+    fn p(id: u64) -> Expr {
+        Expr::var(VarId(id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -748,8 +749,8 @@ mod tests {
         }
     }
 
-    /// **The alphabet is the whole encoder**: one row per AST arm plus
-    /// the two scope tags. The match is exhaustive, so a new expression
+    /// **The alphabet is the whole encoder**: one row per stored AST arm
+    /// plus the two scope tags. The match is exhaustive, so a new expression
     /// node fails this file until it is visited, and visiting it means
     /// naming its row.
     #[test]
@@ -770,6 +771,9 @@ mod tests {
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
             | ExprKind::CountToScalar(_) => 15,
+            // No row: a name leaf never reaches the encoder, which
+            // refuses it (the edit door lowers every one).
+            ExprKind::Name(_) => 15,
         };
         assert_eq!(
             ALPHABET.len(),
@@ -806,18 +810,19 @@ mod tests {
     }
 
     /// A small expression family: every leaf kind, every operator, two
-    /// levels deep, plus the name-boundary and sign-of-zero pairs. Built
+    /// levels deep, plus ids that differ only in high bytes and the
+    /// sign-of-zero pairs. Built
     /// through the dimension-checked doors, so only well-typed
     /// combinations enter (a length plus an angle is not an expression).
     fn family() -> Vec<Expr> {
         let count = Expr::count(3);
         let leaves = vec![
-            p("a"),
-            p("b"),
-            p("ab"),
-            p("c"),
-            p("bc"),
-            Expr::param(VarName::from_static("a"), Dimension::Angle),
+            p(1),
+            p(2),
+            p(3),
+            p(1 << 32),
+            p(u64::MAX),
+            Expr::var(VarId(6), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -837,7 +842,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::param(VarName::from_static("th"), Dimension::Angle);
+        let angle = Expr::var(VarId(7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());
@@ -877,9 +882,8 @@ mod tests {
     /// **Token equality is `bit_eq`, over the whole family**: the
     /// injectivity claim executed pairwise rather than asserted. Both
     /// directions — two expressions equal by bits share a token, and
-    /// two that differ do not — with the name-boundary pair
-    /// (`ab + c` vs `a + bc`), operand order, the sign of zero, and a
-    /// name's dimension all inside the family.
+    /// two that differ do not — with ids that differ only in their high
+    /// bytes, operand order and the sign of zero all inside the family.
     #[test]
     fn token_equality_is_expression_equality() {
         let family = family();
@@ -914,7 +918,7 @@ mod tests {
         let b = DocumentId::derive("b");
         let pin1 = crate::ident::ContentPin::of_bytes(b"one");
         let pin2 = crate::ident::ContentPin::of_bytes(b"two");
-        let r = p("r");
+        let r = p(1);
         assert_ne!(
             lower(ParamScope::Root(a), &r),
             lower(ParamScope::Root(b), &r)

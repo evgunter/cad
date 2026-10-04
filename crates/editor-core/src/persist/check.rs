@@ -37,8 +37,8 @@
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{DocParamField, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault};
-use crate::expr::Expr;
 use crate::edit::DocEdit;
+use crate::expr::Expr;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
@@ -288,7 +288,12 @@ impl Walk {
                 })
             }),
             Walk::SlotRead => first_slot_read_fault(snapshot).map(|(node, slot, fault)| {
-                read_refusal(snapshot, snapshot.spoken(node), ReadAddress::Slot(slot), fault)
+                read_refusal(
+                    snapshot,
+                    snapshot.spoken(node),
+                    ReadAddress::Slot(slot),
+                    fault,
+                )
             }),
             Walk::PayloadRead => first_payload_read_fault(snapshot).map(|(node, fault)| {
                 read_refusal(snapshot, snapshot.spoken(node), ReadAddress::Payload, fault)
@@ -442,10 +447,12 @@ fn read_refusal(
 /// The first fault of `expr`'s readers this door refuses: a name leaf
 /// is [`Walk::NamedReader`]'s, and a dead reader is legal.
 fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
-    snapshot
-        .var_read_faults(expr)
-        .into_iter()
-        .find(|fault| matches!(fault, VarReadFault::Unminted { .. } | VarReadFault::Kind { .. }))
+    snapshot.var_read_faults(expr).into_iter().find(|fault| {
+        matches!(
+            fault,
+            VarReadFault::Unminted { .. } | VarReadFault::Kind { .. }
+        )
+    })
 }
 
 /// The first document parameter whose authored display unit does not

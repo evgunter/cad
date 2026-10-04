@@ -27,8 +27,8 @@ use test_utils::refusal::tagged;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, VarEnv,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate, select,
+    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select,
     select_where,
 };
 

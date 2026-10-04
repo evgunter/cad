@@ -3954,7 +3954,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Count,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -3995,7 +3995,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Instance,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4024,7 +4024,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::VDegree,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }

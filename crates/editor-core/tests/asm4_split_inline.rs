@@ -550,7 +550,7 @@ fn row3_uncut_param_reference_refuses() {
             )),
         },
     );
-    let h = || Expr::param(VarName::from_static("h"), editor_core::Dimension::Length);
+    let h = || Expr::named(VarName::from_static("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row
@@ -582,18 +582,19 @@ fn row3_uncut_param_reference_refuses() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::UncutParamReference {
-            param,
+        Err(SplitError::UncutVarReference {
+            var,
             cut_node,
             kept_node,
             promote,
         }) => {
             assert!(!promote, "an extrude's distance is no offset to promote");
-            assert_eq!(param, VarName::from_static("h"));
+            assert_eq!(var.name(), Some(&VarName::from_static("h")));
+            assert_eq!(Some(var.id()), doc.var_named("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));
         }
-        other => panic!("expected UncutParamReference, got {other:?}"),
+        other => panic!("expected UncutVarReference, got {other:?}"),
     }
     // A parameter referenced ONLY by the cut side is copied, and the
     // split is legal.
@@ -1406,15 +1407,15 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
         Tol::witness(),
     ) {
-        Err(InlineError::ParamConflict { param }) => {
-            assert_eq!(param, VarName::from_static("L"));
-            let msg = format!("{}", InlineError::ParamConflict { param });
+        Err(InlineError::VarNameConflict { name }) => {
+            assert_eq!(name, VarName::from_static("L"));
+            let msg = format!("{}", InlineError::VarNameConflict { name });
             assert!(
-                msg.contains("parameter L is declared by both"),
-                "the message names the parameter: {msg}"
+                msg.contains("both documents hold a variable named L"),
+                "the message names the variable: {msg}"
             );
         }
-        other => panic!("expected ParamConflict, got {other:?}"),
+        other => panic!("expected VarNameConflict, got {other:?}"),
     }
 
     // EpsilonSeam: the referenced document records a different ε (the

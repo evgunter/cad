@@ -188,7 +188,11 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
     within.map_or_else(
         |_| {
             let op = if positive { '-' } else { '+' };
-            format!("{} {op} {} deg", crate::expr::unparse(authored, &|_| None), 360 * held)
+            format!(
+                "{} {op} {} deg",
+                crate::expr::unparse(authored, &|_| None),
+                360 * held
+            )
         },
         |e| crate::expr::unparse(&e, &|_| None),
     )

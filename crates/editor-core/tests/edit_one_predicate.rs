@@ -1320,7 +1320,7 @@ fn agrees(text: &str, replay: &str) {
             assert!(read_back, "{shown} is admitted but not read back{replay}");
             let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
             assert!(
-                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                parse_expr(text, &table) == Ok(Expr::named(name, Dimension::Scalar)),
                 "{shown} is admitted, but declared it does not read back as itself{replay}"
             );
         }

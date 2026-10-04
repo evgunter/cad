@@ -164,7 +164,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // `thickness / 2` — a composed expression over a
             // parameter, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
+            distance: Expr::div(Expr::named(thickness_param(), Dimension::Length), scl(2.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

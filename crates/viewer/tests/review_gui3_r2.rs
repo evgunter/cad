@@ -86,7 +86,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             extrude,
             pncad::document::Step::Rigid {
                 translation: [
-                    Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
+                    Expr::mul(Expr::named(width_param(), Dimension::Length), scl(2.0))
                         .expect("length * scalar is a length"),
                     len(0.0),
                     len(0.0),

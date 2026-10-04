@@ -26,7 +26,7 @@ use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     Dimension, Distribution, DocEdit, EditError, Expr, FreeValue, FreeVar, MeasureExpr, Node,
     ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDef, VarId,
-    VarKind, VarName, apply, load, var_env_over, save,
+    VarKind, VarName, apply, load, save, var_env_over,
 };
 use geom_core::Tol;
 use geom_core::predicate::{Band, Margin, Sign};
@@ -71,8 +71,8 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 /// the two variables apart.
 fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
     let doc = twins();
-    let w = Expr::param(n("w"), Dimension::Length);
-    let v = Expr::param(n("v"), Dimension::Length);
+    let w = Expr::named(n("w"), Dimension::Length);
+    let v = Expr::named(n("v"), Dimension::Length);
     let two = Expr::literal(2.0, Dimension::Scalar).unwrap();
     let sum = Expr::add(w, Expr::mul(two, v).unwrap()).unwrap();
     let applied = apply(
@@ -188,11 +188,11 @@ fn decide(m: Sym<f64>) -> Result<Sign, geom_core::predicate::Indeterminate> {
     )
 }
 
-/// The value `env` binds `name` to.
-fn bound(name: &'static str, env: &editor_core::VarEnv<Sym<f64>>) -> Sym<f64> {
-    match env.bindings[&n(name)] {
+/// The value `env` binds `var` to.
+fn bound(var: VarId, env: &editor_core::VarEnv<Sym<f64>>) -> Sym<f64> {
+    match env.bindings[&var] {
         editor_core::ParamValue::Continuous { value, .. } => value,
-        ref other => panic!("{name}: {other:?}"),
+        ref other => panic!("{var}: {other:?}"),
     }
 }
 
@@ -206,7 +206,7 @@ fn the_symbol_is_the_variables_id() {
     let leaf = ParamBox::from_axes(BTreeMap::new());
     let (same, counts) = session(|| {
         let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
-        let w = bound("w", &env);
+        let w = bound(w_id, &env);
         decide(w - w)
     });
     assert_eq!(same, Ok(Sign::Zero));
@@ -214,7 +214,7 @@ fn the_symbol_is_the_variables_id() {
 
     let (_, counts) = session(|| {
         let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
-        decide(bound("w", &env) - bound("v", &env))
+        decide(bound(w_id, &env) - bound(v_id, &env))
     });
     assert_eq!(
         counts.symbolic_zero, 0,
@@ -226,7 +226,7 @@ fn the_symbol_is_the_variables_id() {
             let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
             let by_hand = Sym::<f64>::from_f64(VALUE)
                 + Sym::param_over(ParamSymbol::new(var.0), 0.0, 0.0, 0.0);
-            decide(bound(name, &env) - by_hand)
+            decide(bound(var, &env) - by_hand)
         });
         assert_eq!(counts.symbolic_zero, 1, "{name}'s symbol is its id");
     }
@@ -440,20 +440,22 @@ fn a_name_on_no_variable_refuses_at_load() {
     );
 }
 
-/// `VarUnnamed`: a variable with no name — no door of this build makes
-/// one, and readers read names, so the load door refuses it rather than
-/// let the lanes disagree on whether it exists.
+/// `AnonymousVarUnread`: a variable with no name that nothing reads —
+/// the edit that detaches an anonymous variable's last reader removes
+/// it, so the load door refuses one rather than let the lanes disagree
+/// on whether it exists.
 #[test]
-fn an_unnamed_variable_refuses_at_load() {
+fn an_unread_unnamed_variable_refuses_at_load() {
     let err = load_doctored(|snap, _, v| {
         let names = snap["var_names"].as_object_mut().expect("the name table");
         assert!(names.remove(&v.0.to_string()).is_some(), "v had a name");
     });
-    let PersistError::Snapshot(SnapshotError::VarUnnamed { var }) = err else {
-        panic!("not VarUnnamed: {err:?}")
+    let PersistError::Snapshot(SnapshotError::AnonymousVarUnread { var }) = err else {
+        panic!("not AnonymousVarUnread: {err:?}")
     };
     let doc = twins();
-    assert_eq!(var, id(&doc, "v"));
+    assert_eq!(var.id(), id(&doc, "v"));
+    assert_eq!(var.name(), None);
 }
 
 /// `VarOrderMismatch`: a declaration order that drops a variable.

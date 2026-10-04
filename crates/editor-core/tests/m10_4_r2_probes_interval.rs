@@ -67,7 +67,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
@@ -515,7 +515,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     let s = slab(None, None);
     let env = seed_env::<Dual64, _>(&s.doc, s.doc.var_env::<Dual64>(), var(&s.doc, "w"))
         .expect("w is continuous");
-    let binding = |n: &'static str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&var(&s.doc, n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };

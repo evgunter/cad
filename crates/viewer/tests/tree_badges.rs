@@ -1255,7 +1255,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         Node::Datum(Datum::Frame {
             origin: common::len3([0.0; 3]),
             u: [
-                Expr::param(span.clone(), Dimension::Scalar),
+                Expr::named(span.clone(), Dimension::Scalar),
                 common::scl(0.0),
                 common::scl(0.0),
             ],

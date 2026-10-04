@@ -23,20 +23,23 @@ test_utils::gated_to![
 ];
 
 use editor_core::test_support::{ang, len, scl};
-use editor_core::{Dimension, EvalError, Expr, VarEnv, ParamValue, VarName, eval, eval_count};
+use editor_core::{
+    Dimension, EvalError, Expr, ParamValue, VarEnv, VarId, VarName, eval, eval_count,
+};
 
-fn env_with(name: &'static str, v: ParamValue<f64>) -> VarEnv<f64> {
+fn env_with(var: VarId, v: ParamValue<f64>) -> VarEnv<f64> {
     let mut env = VarEnv::default();
-    env.bindings.insert(VarName::from_static(name), v);
+    env.bindings.insert(var, v);
     env
 }
 
 #[test]
 fn param_lookup_and_typed_failures() {
-    let depth = Expr::param(VarName::from_static("depth"), Dimension::Length);
+    let id = VarId(0x3fa9_c1d2_a0b1_0001);
+    let depth = Expr::var(id, Dimension::Length);
     // Bound correctly: the raw kernel-unit value comes back.
     let env = env_with(
-        "depth",
+        id,
         ParamValue::Continuous {
             dim: Dimension::Length,
             value: 0.002,
@@ -46,11 +49,11 @@ fn param_lookup_and_typed_failures() {
     // Unbound: typed.
     assert_eq!(
         eval(&depth, &VarEnv::<f64>::default()).unwrap_err(),
-        EvalError::UnknownParam(VarName::from_static("depth"))
+        EvalError::UnresolvedVar { var: id }
     );
     // Bound at a different dimension: typed.
     let wrong = env_with(
-        "depth",
+        id,
         ParamValue::Continuous {
             dim: Dimension::Angle,
             value: 0.002,
@@ -58,18 +61,30 @@ fn param_lookup_and_typed_failures() {
     );
     assert_eq!(
         eval(&depth, &wrong).unwrap_err(),
-        EvalError::ParamDimensionMismatch {
-            name: VarName::from_static("depth"),
-            expected: Dimension::Length,
-            found: Dimension::Angle,
+        EvalError::VarKindMismatch {
+            var: id,
+            bound: Dimension::Angle,
+            read: Dimension::Length,
+        }
+    );
+    // An authored name leaf never reaches evaluation from a document;
+    // handed in directly, it refuses typed.
+    assert_eq!(
+        eval(
+            &Expr::named(VarName::from_static("depth"), Dimension::Length),
+            &env
+        )
+        .unwrap_err(),
+        EvalError::UnloweredName {
+            name: VarName::from_static("depth")
         }
     );
 }
 
 #[test]
 fn count_param_is_exact_i64() {
-    let n = Expr::param(VarName::from_static("n"), Dimension::Count);
-    let env = env_with("n", ParamValue::Count(7));
+    let n = Expr::var(VarId(7), Dimension::Count);
+    let env = env_with(VarId(7), ParamValue::Count(7));
     assert_eq!(eval_count(&n, &env).unwrap(), 7);
     // A Count param under continuous eval is a typed refusal.
     assert_eq!(
@@ -179,10 +194,10 @@ mod interval_lane {
 
     #[test]
     fn interval_var_env_embeds_exactly() {
-        let depth = Expr::param(VarName::from_static("d"), Dimension::Length);
+        let depth = Expr::var(VarId(3), Dimension::Length);
         let mut env: VarEnv<Interval> = VarEnv::default();
         env.bindings.insert(
-            VarName::from_static("d"),
+            VarId(3),
             ParamValue::Continuous {
                 dim: Dimension::Length,
                 value: <Interval as Real>::from_f64(0.003),

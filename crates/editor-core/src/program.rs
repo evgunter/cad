@@ -38,10 +38,10 @@ use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
-use crate::var::VarId;
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
-use crate::expr::{Dimension, DimensionError, EvalError, Expr, VarEnv, UnitSym, eval};
+use crate::expr::{Dimension, DimensionError, EvalError, Expr, UnitSym, VarEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
+use crate::var::VarId;
 use geom_core::Tol;
 
 /// **One declaration, two projections** — a document vocabulary's enum,

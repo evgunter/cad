@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(VarName::from_static(HOLE_R), Dimension::Length),
+                radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -135,7 +135,7 @@ pub fn document() -> CorpusDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let radius =
-        || MeasureExpr::value(Expr::param(VarName::from_static(HOLE_R), Dimension::Length));
+        || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius(), radius()).expect("Length + Length"),
