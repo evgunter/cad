@@ -2,13 +2,15 @@
 id: limb3-at-rest-proves-the-graph-not-the-arc
 kind: issue
 title: at rest, limb 3 proves its chain a graph, short of the ratified one arc; a declared plane x NURBS carrier joining two separate arcs certifies
-status: spec
+status: closed
 opened: 2026-10-03
+closed: 2026-10-04
+pr: 4012
+branch: ssi/limb3-at-rest
 priority: P1
 cost: M
 design: true
 refs: [limb-3-tube-banks-a-second-arc-as-accounted]
-needs_ev: true
 ---
 
 ## The ratified text
@@ -115,3 +117,27 @@ Unprobed by both designers, so the build must cover them:
 - C2 reads as on this PR.
 
 Not in scope: whether a carrier must lie within ε of the *locus* rather than within ε of each surface. Both designers name this as a separate D4 question. The certified bound 2·residual/margin reaches 10⁴ε on correct shallow carriers the search mints.
+
+## Closed (PR 4012)
+
+Ev took the converged design ("sounds good, then!"), and it landed on
+the same branch:
+
+- `one_arc` (`ssi/one_arc.rs`) proves one piece per window (the count,
+  or the side cover through `boundary.rs`'s `side_cover`, the door
+  `side_region` reads too), links consecutive windows (a side's
+  stretch to its own side, a side to an arc through a shared solution),
+  and reaches both ends of the carrier (the end slice, or a solution
+  within ε of the end on it or a slice beside it). `one_arc_r3` reaches
+  both ends by Krawczyk on the end box's slice, or a box of diameter ε
+  about the end.
+- `certify_branch` runs it at every door; `Lane` selects no proof, the
+  at-rest ℝ³ chain is cut to nothing. `SsiCertificate::tube_one_arc`
+  retired, always true now.
+- `OneArcRefusal::Short`; `PlaneNurbsRefusal::TubeNotOneArc` with the
+  SSI door's ending; `pcurve_cache::ssi_refusal` names it.
+
+The fold, half fold and tail fold refuse at rest
+(`ssi_limb3_one_arc.rs`); the 9 band-flush rows certify; the rail-end
+branch certifies on the search lane. The mutant table is in the PR body.
+

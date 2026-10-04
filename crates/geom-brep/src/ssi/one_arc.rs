@@ -407,12 +407,12 @@ fn beyond_reach<T: CertifiedBounds>(
     let across_u = side.fixed == ChartAxis::U;
     let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, across_u);
     let n = plane.0;
+    if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
+        return false;
+    }
     let rise = magnitude(n[0] * d.x + n[1] * d.y + n[2] * d.z);
     let mig = |i: Interval| super::enclose::zero_free_lower_bound(i);
-    let run = (mig(d.x).powi(2) + mig(d.y).powi(2) + mig(d.z).powi(2))
-        .next_down()
-        .sqrt()
-        .next_down();
+    let run = norm3([mig(d.x), mig(d.y), mig(d.z)]).lo();
     if !(rise.is_finite() && run > 0.0) {
         return false;
     }
@@ -492,24 +492,38 @@ fn found(reading: Option<bool>, missing: Shortfall) -> Result<(), Shortfall> {
     }
 }
 
-/// How far any point of `a` can lie from any point of `b`, rounded up.
-fn reach(a: Box3, b: Box3) -> f64 {
-    let d = |x: Interval, y: Interval| (x.hi() - y.lo()).max(y.hi() - x.lo()).next_up();
-    let (dx, dy, dz) = (d(a.x, b.x), d(a.y, b.y), d(a.z, b.z));
-    (dx * dx + dy * dy + dz * dz).next_up().sqrt().next_up()
+/// The Euclidean norm of a vector of three non-negative bounds, as an
+/// enclosure.
+fn norm3(c: [f64; 3]) -> Interval {
+    use geom_core::Real as _;
+    let [x, y, z] = c.map(pt);
+    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
 }
 
-/// How near any point of `a` can lie to any point of `b`, rounded down.
+/// How far any point of `a` can lie from any point of `b`, rounded up;
+/// `∞` where a side is not certified.
+fn reach(a: Box3, b: Box3) -> f64 {
+    if ![a.x, a.y, a.z, b.x, b.y, b.z]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return f64::INFINITY;
+    }
+    let d = |x: Interval, y: Interval| (x.hi() - y.lo()).max(y.hi() - x.lo()).next_up();
+    norm3([d(a.x, b.x), d(a.y, b.y), d(a.z, b.z)]).hi()
+}
+
+/// How near any point of `a` can lie to any point of `b`, rounded down;
+/// `0` where a side is not certified.
 fn gap(a: Box3, b: Box3) -> f64 {
-    let g = |x: Interval, y: Interval| {
-        (x.lo() - y.hi())
-            .max(y.lo() - x.hi())
-            .max(0.0)
-            .next_down()
-            .max(0.0)
-    };
-    let (gx, gy, gz) = (g(a.x, b.x), g(a.y, b.y), g(a.z, b.z));
-    (gx * gx + gy * gy + gz * gz).next_down().sqrt().next_down()
+    if ![a.x, a.y, a.z, b.x, b.y, b.z]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return 0.0;
+    }
+    let g = |x: Interval, y: Interval| (x.lo() - y.hi()).max(y.lo() - x.hi()).next_down().max(0.0);
+    norm3([g(a.x, b.x), g(a.y, b.y), g(a.z, b.z)]).lo()
 }
 
 /// Whether the chord of `r` through `p` along `e` holds a solution
@@ -898,11 +912,6 @@ fn krawczyk<T: CertifiedBounds>(
     }
 }
 
-/// The midpoint of an enclosure.
-fn mid(i: Interval) -> f64 {
-    0.5 * (i.lo() + i.hi())
-}
-
 /// **The box `r`'s piece reaches the carrier's end `at`**, `k` the
 /// axis the carrier runs most along there.
 /// - The slice of `r` through the end across axis `k`, its coordinate
@@ -915,6 +924,13 @@ fn r3_reaches_end<T: CertifiedBounds>(
     (at, k): (Box3, usize),
     eps: f64,
 ) -> Result<(), Shortfall> {
+    if ![at.x, at.y, at.z, side(r, k)]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return Err(Shortfall::Undecided);
+    }
+    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
     let c = mid(side(at, k)).clamp(side(r, k).lo(), side(r, k).hi());
     let mut roots = Vec::new();
     let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut 0);

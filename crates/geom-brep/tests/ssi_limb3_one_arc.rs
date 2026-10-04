@@ -411,6 +411,22 @@ fn declared(
     geom_brep::plane_nurbs_limbs::<f64>(&carrier, &plane, wall, 1.0, band())
 }
 
+/// A declared carrier that must not certify: refused by limb 3's one-arc
+/// proof, or, below the default ε where β = ε sits at limb 1's rounding,
+/// by an earlier limb, which this row then stands down on, loudly.
+fn refuses_by_its_tube(
+    at: &str,
+    got: Result<geom_brep::PlaneNurbsLimbs<f64>, geom_brep::PlaneNurbsRefusal>,
+) {
+    match got {
+        Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. }) => {}
+        Err(e @ geom_brep::PlaneNurbsRefusal::Escalated { .. }) if eps() < DEFAULT_EPS => {
+            vacuity::stood_down(at, &format!("an earlier limb escalated: {e}"));
+        }
+        other => panic!("{at}: {other:?}"),
+    }
+}
+
 /// **At rest, a carrier joining the fold's two arcs refuses** (C2: one
 /// arc at every door). The straight carrier `(0, 0, 0) → (0, L, 0)`
 /// lies within ε of the plane and of the wall, so limbs 1 and 2 pass,
@@ -421,12 +437,8 @@ fn declared(
 fn a_declared_carrier_joining_the_folds_two_arcs_refuses_at_rest() {
     for scale in [1.0, 0.25] {
         let (wall, l) = fold_at_rest(scale, 0.28, true);
-        let got = declared(&wall, (0.0, l));
-        assert!(
-            matches!(got, Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. })),
-            "the fold at β = {scale}ε, ε {:e}: {got:?}",
-            eps()
-        );
+        let at = format!("the fold at β = {scale}ε, ε {:e}", eps());
+        refuses_by_its_tube(&at, declared(&wall, (0.0, l)));
     }
 }
 
@@ -460,12 +472,7 @@ fn a_declared_carrier_overrunning_its_arc_refuses_at_rest_at_either_end() {
             (tail.1, 0.0),
         ),
     ] {
-        let got = declared(wall, ends);
-        assert!(
-            matches!(got, Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. })),
-            "{name}, ε {:e}: {got:?}",
-            eps()
-        );
+        refuses_by_its_tube(&format!("{name}, ε {:e}", eps()), declared(wall, ends));
     }
 }
 

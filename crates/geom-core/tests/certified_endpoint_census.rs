@@ -310,15 +310,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        11,
+        12,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
-         positive finite",
+         positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
+         chain's axis at each end, which selects the axis the end's slice is cut \
+         across (structure)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -335,10 +337,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
-        10,
-        4,
-        "the 4 that ask are the Krawczyk test's own centre, image and containment reads, which \
-         refuse a piece unless every enclosure is certified. The other 6 do not ask: \
+        18,
+        12,
+        "the 12 that ask are the Krawczyk test's own centre, image and containment reads, which \
+         refuse a piece unless every enclosure is certified; `beyond_reach`'s, `reach`'s and \
+         `gap`'s, which refuse an uncertified box by name before reading it; and \
+         `r3_reaches_end`'s, which refuse an uncertified end or box side. The other 6 do not ask: \
          `one_arc`'s 1 is a `T: Bounds` read of the pcurve's evaluation scalar, the midpoint \
          of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' 5 \
          read the sides of a box its one caller, `one_arc_r3`, met with the slab through \

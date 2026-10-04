@@ -1275,20 +1275,6 @@ pub(crate) fn certify_located(
     certify_branch(carrier, lane, scale, band, &mut at).map_err(|error| Located { error, at })
 }
 
-/// The carrier's two ends, enclosed.
-fn carrier_ends<T: Decide + Bounds + CertifiedEnclosure>(carrier: &NurbsCurve3<T>) -> [Box3; 2] {
-    let (t0, t1) = carrier.domain();
-    [t0, t1].map(|t| {
-        let p = carrier.eval(T::from_f64(t));
-        let i = |c: T| Interval::from_bounds(c.lo(), c.hi());
-        Box3 {
-            x: i(p.x),
-            y: i(p.y),
-            z: i(p.z),
-        }
-    })
-}
-
 /// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in
 /// order, refusing typed at the first failure.
 ///
@@ -1364,7 +1350,16 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         Lane::Spatial { slab, .. } => Some(slab),
         Lane::AtRest { .. } | Lane::Chart { .. } => None,
     };
-    let ends = carrier_ends(carrier);
+    // The carrier's two ends, enclosed.
+    let (t0, t1) = carrier.domain();
+    let ends = [t0, t1].map(|t| {
+        let p = carrier.eval(T::from_f64(t));
+        Box3 {
+            x: Interval::from_certified(p.x),
+            y: Interval::from_certified(p.y),
+            z: Interval::from_certified(p.z),
+        }
+    });
     let TubeScale { arm, extent } = scale;
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
@@ -1960,7 +1955,7 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Margin, Point3, Vec3};
 
-        use super::{SsiTube, carrier_ends, chart_tube_windows, probe_tube_chart};
+        use super::{Box3, Interval, SsiTube, chart_tube_windows, probe_tube_chart};
         use crate::ssi::{ChartedNurbs, SsiDomain, branch_chart_tubes, plane_nurbs_ssi};
 
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
@@ -2027,7 +2022,17 @@ mod tests {
             let geom::Curve3::Nurbs(carrier) = &b.carrier else {
                 panic!("branch {i}: a fitted carrier is a NURBS curve");
             };
-            let ends = (carrier_ends(carrier), band);
+            let (t0, t1) = carrier.domain();
+            let ends = [t0, t1].map(|t| {
+                let p = carrier.eval(t);
+                let i = |c: f64| Interval::from_bounds(c, c);
+                Box3 {
+                    x: i(p.x),
+                    y: i(p.y),
+                    z: i(p.z),
+                }
+            });
+            let ends = (ends, band);
             let probe = probe_tube_chart(pc, &wall, (origin, n), (rung, (pad_u, pad_v)), ends)
                 .unwrap()
                 .expect("the recorded pad probes");
