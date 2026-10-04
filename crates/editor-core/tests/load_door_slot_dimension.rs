@@ -15,12 +15,10 @@
 //! shared answer onto the wrong arm reds it too, because each refusal
 //! is read by arm and by payload — node, slot and both dimensions.
 //!
-//! The PARAM TABLE's half of the same address is here too
-//! (`Doc::param_ref_fault`): a slot expression names a declared
-//! parameter and reads it at the dimension it was declared with, at
-//! both doors, because a redeclaration that moves a dimension breaks
-//! every expression referencing it and a file can be written with the
-//! pairing already broken.
+//! The variable table's half of the same address is here too
+//! (`Doc::var_read_faults`): a slot expression reads a minted variable,
+//! and a live one at its kind, at both doors, because a file can be
+//! written with the pairing already broken.
 //!
 //! The kinds below are the two the narrowed walk could not see: an
 //! extrude and a frame datum. A PROFILE program's own step argument is

@@ -687,7 +687,7 @@ impl PartialEq for Lit {
 /// operand sub-patterns.
 ///
 /// Four matches partition `ExprKind` by arity — `Expr::child`'s two
-/// arms, `param_refs` and `literal_bits` — and each wrote the same
+/// arms, `var_reads` and `literal_bits` — and each wrote the same
 /// seven names out. Sharing them as patterns keeps every one of those
 /// matches exhaustive: a new variant absent from this macro breaks all
 /// four builds, and its arity is one decision at one site.

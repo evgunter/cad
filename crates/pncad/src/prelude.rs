@@ -721,7 +721,7 @@ pub use stl::{
 // `select_where` takes a `VarEnv`, so both are needed to write a
 // position filter at all.
 // `VarName`, `FreeVar` and `VarDef` ride here because they are what
-// `DocEdit::DeclareVar` and `Expr::param` take, so a prelude user
+// `DocEdit::DeclareVar` and `Expr::named` take, so a prelude user
 // could otherwise hold the variable doors and not open them — the
 // parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other

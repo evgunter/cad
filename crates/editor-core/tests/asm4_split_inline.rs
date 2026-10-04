@@ -1375,7 +1375,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
 /// Inline's parameter, tolerance, and metadata refusals.
 #[test]
 fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
-    // ParamConflict: both documents declare "L", bit-different values.
+    // VarNameConflict: both documents declare "L", bit-different values.
     let mut store = PartStore::default();
     let part_doc = part("asm4-min2-param-part", 0.0, 1.0);
     let (part_doc, _) = step(
