@@ -72,9 +72,9 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 
 /// Bitwise vertex lookup.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             p.x == x && p.y == y && p.z == z
         })
         .count()

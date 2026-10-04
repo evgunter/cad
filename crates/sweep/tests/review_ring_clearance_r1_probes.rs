@@ -135,8 +135,8 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         );
         // The dome's pole: the one vertex on the axis away from the rim's plane.
         let pole_y = body
-            .vertices()
-            .map(|(_, v)| *body.get_point(v.point).unwrap())
+            .vertex_points()
+            .map(|(_, p)| p.unwrap())
             .find(|p| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && (p.y - 1.0).abs() > 0.1)
             .expect("the pole vertex")
             .y;

@@ -66,7 +66,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::pcurves::{SiteHalf, SiteRows};
+use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
@@ -927,7 +927,7 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
-        let rows = self.null_description_rows(edge, &certified, tol)?;
+        let rows = self.null_description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.replace_edge_curve(edge, certified);
@@ -1002,50 +1002,65 @@ impl<T: Decide> Body<T> {
     }
 
     /// **The rows a null edge's first description writes**, decided
-    /// before [`Body::set_edge_curve`] mutates: one plan per face
-    /// the edge's halves are on, for [`crate::pcurves::apply_site_rows`].
+    /// before its door mutates: one plan per face the halves of a null
+    /// edge in `described` are on, for [`crate::pcurves::apply_site_rows`].
+    /// `described` is every edge the door describes, with the curve it
+    /// installs; `rewired` reads every loop the door's own surgery
+    /// rewires, as the door leaves it (none for [`Body::set_edge_curve`],
+    /// whose description moves no key; the loops the kill unsplices for
+    /// [`Body::kev_describing`]), and runs only where a null edge is
+    /// described. Every other loop is read as found.
     ///
-    /// Empty unless `edge` is a null edge ([`crate::CurveGeom::NullScaffold`]):
-    /// a certified edge's description moves no key, so no row goes
-    /// missing (the door's docs), and a face it finds half-minted is
-    /// left as found. A null edge's description is the first door that
-    /// can derive its halves' rows, so on each face they are on that the
-    /// site mint selects it re-walks every loop, through the Euler
-    /// operators' site mint ([`Body::plan_site_mint`]), and mints each
-    /// one no other null edge runs through; on a spline chart the face
-    /// is left as found.
+    /// Empty unless an edge in `described` is a null edge
+    /// ([`crate::CurveGeom::NullScaffold`]): a certified edge's
+    /// description moves no key, so no row goes missing (the door's
+    /// docs), and a face it finds half-minted is left as found. A null
+    /// edge's description is the first door that can derive its halves'
+    /// rows, so on each face they are on that the site mint selects it
+    /// re-walks every loop, through the Euler operators' site mint
+    /// ([`Body::plan_site_mint`]), each half of a described edge under
+    /// the curve the door installs, and mints each loop no other null
+    /// edge runs through; on a spline chart the face is left as found.
     ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
-    /// a half, loop, face or surface does not resolve;
-    /// [`EulerOpError::Certification`] where `tol` builds no band;
+    /// an edge, half, loop, face or surface does not resolve; what
+    /// `rewired` raises; [`EulerOpError::Certification`] where `tol`
+    /// builds no band;
     /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
-    fn null_description_rows(
+    pub(crate) fn null_description_rows(
         &self,
-        edge: EdgeKey,
-        curve: &EdgeCurve<T>,
+        described: &[(EdgeKey, &EdgeCurve<T>)],
+        rewired: impl FnOnce(&Self) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let is_null = self
-            .get_curve_geom(edge_data.curve)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(edge_data.curve),
-            })?
-            .null_scaffold()
-            .is_some();
-        if !is_null {
+        let mut halves: Vec<HalfEdgeKey> = Vec::with_capacity(2 * described.len());
+        let mut touched: Vec<LoopKey> = Vec::new();
+        for &(edge, _) in described {
+            let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge),
+            })?;
+            let pair = [edge_data.he_plus, edge_data.he_minus];
+            halves.extend(pair);
+            let is_null = self
+                .get_curve_geom(edge_data.curve)
+                .ok_or(EulerOpError::StaleGeometry {
+                    key: GeomRef::Curve(edge_data.curve),
+                })?
+                .null_scaffold()
+                .is_some();
+            if is_null {
+                for he in pair {
+                    touched.push(self.resolve_half_edge(he)?.parent_loop);
+                }
+            }
+        }
+        if touched.is_empty() {
             return Ok(Vec::new());
         }
-        let halves = [edge_data.he_plus, edge_data.he_minus];
-        let touched = [
-            self.resolve_half_edge(halves[0])?.parent_loop,
-            self.resolve_half_edge(halves[1])?.parent_loop,
-        ];
+        let rewired = rewired(self)?;
         let site_half = |h: HalfEdgeKey| {
             if halves.contains(&h) {
                 SiteHalf::Described(h)
@@ -1064,17 +1079,18 @@ impl<T: Decide> Body<T> {
                             .loops
                             .iter()
                             .filter_map(|(lk, cycle)| {
-                                Some((
-                                    *lk,
-                                    cycle.as_deref()?.iter().copied().map(site_half).collect(),
-                                ))
+                                let cycle = match rewired.iter().find(|(k, _)| k == lk) {
+                                    Some((_, after)) => after.as_slice(),
+                                    None => cycle.as_deref()?,
+                                };
+                                Some((*lk, cycle.iter().copied().map(site_half).collect()))
                             })
                             .collect();
                         body.site_face(*face, &every_loop, None)
                     })
                     .collect()
             },
-            Some(curve),
+            SiteCarriers::Described(described),
             tol,
         )
     }
@@ -2130,9 +2146,9 @@ mod tests {
     /// `z = 1 + d`: the brick's front and top pushed out by `d`, their
     /// charts not yet moved.
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
-        let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
-        for v in vertices {
-            let mut p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let rows: Vec<_> = body.vertex_points().collect();
+        for (v, p) in rows {
+            let mut p = p.unwrap();
             if p.y == 0.0 {
                 p.y = -d;
             }

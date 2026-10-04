@@ -407,3 +407,27 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-04 — PR 4004 lands: the fan end has one home; strut facing has one rule
+
+`whole-orbit-fan-end-has-three-spellings` closed. `Body::run_site` →
+`RunSite::{Fan, WholeOrbit}` is the one reading of `next(mate(last))`
+(splitter, `vtxfac`, `run_degenerates`, `mint_run`); `strut_faces_first`
+is the one facing rule (the structural vote, then the walk —
+`walk_faces_first`: `precedes` across entries, `strut_order` within
+one). One behaviour change: `vtxfac`'s unvoted bare-bisector arm faced
+`he_minus` at the start germ by default, which was wrong there; an
+L-prism's reflex corner on a tilted cube refused `JoinDesync` in every
+op and now builds sound at the exact volume. The closed edge's lone
+vertex keeps main's typed refusal (no row reaches it).
+
+Review tier: single FULL, cloud session. APPROVE-WITH-FIXES, 0/2/4: the
+closed-edge path had turned a refusal into an unverified answer (now
+refuses again) and stale rule prose. On the review's prism battery
+1 356 `JoinDesync` lines move: 678 to SOUND, the rest to the filed
+two-run P0; 0 SOUND→refusal; BAD sets identical. JOIN-1's and the delta
+batteries byte-identical. Filed: `strut-side-follows-facing-is-spelled-three-times`,
+CONTACT's tube-rim tangent tier-3′ row, an issues row on a tilted tube
+cut 1.2e-7 off its oracle.
+
+Signed (JOIN orchestrator).

@@ -122,6 +122,7 @@ mod ends;
 pub mod exhaust;
 pub mod jet;
 pub mod march;
+mod one_arc;
 mod refine;
 pub mod section;
 pub mod system;
@@ -139,7 +140,9 @@ use crate::recourse::{
 };
 
 pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
-pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
+pub use certify::{
+    OneArcRefusal, SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube,
+};
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
@@ -480,6 +483,17 @@ pub enum SsiError {
         /// Boxes in the chain.
         boxes: u32,
     },
+    /// Limb 3, where a search banks the tube (either arm): at every rung
+    /// whose boxes made the locus a graph, the chain was not proved to
+    /// hold the traced arc alone, and the narrowest such rung is the
+    /// narrowest probed. Its `cause` says what that rung found.
+    TubeNotOneArc {
+        /// How many rungs were graphs over their chain but not proved
+        /// one arc.
+        rungs: u32,
+        /// What the narrowest of them found.
+        cause: OneArcRefusal,
+    },
     /// A certified foot point would not converge, so limb 1 has no
     /// residual to check against a NURBS operand.
     FootPointInconclusive {
@@ -550,9 +564,8 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch the march could not progress along, its step in the
-    /// band, took the Hermite candidate through its two ends, and the
-    /// certificate refused it.
+    /// A branch too short for the march, its step in the band, whose
+    /// Hermite candidate through its two ends the certificate refused.
     ShortBranchUncertified {
         /// The distance between the branch's ends, in metres.
         length: f64,
@@ -854,6 +867,28 @@ impl core::fmt::Display for SsiError {
                  branch may lie inside the tube",
                 verdict.margin()
             ),
+            Self::TubeNotOneArc { rungs, cause } => {
+                write!(
+                    f,
+                    "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one \
+                     arc; at the narrowest, "
+                )?;
+                match cause {
+                    OneArcRefusal::Count { solutions } => write!(
+                        f,
+                        "a box cut to the searched region holds {solutions} boundary solutions, \
+                         not two: a second arc, or the locus leaving and re-entering the region"
+                    ),
+                    OneArcRefusal::Unlinked => f.write_str(
+                        "two consecutive boxes each hold one piece, and no shared solution joins \
+                         them",
+                    ),
+                    OneArcRefusal::Undecided(_) => f.write_str(
+                        "a box's boundary walk resolved no count: a solution tangent to it, on a \
+                         corner, or below the walk's resolution",
+                    ),
+                }
+            }
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
                 "ssi: the certified foot point at t = {t} would not converge (last \
@@ -1031,6 +1066,18 @@ impl SsiError {
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
             }
+            // A certified count or a certified missing link is a second
+            // arc or a graze of the region, and moving either clears it;
+            // a walk that resolved nothing escalates, with no tolerance
+            // to name, since it read no margin.
+            Self::TubeNotOneArc { cause, .. } => match cause {
+                OneArcRefusal::Undecided(cause) => {
+                    TUBE_ONE_ARC.recourse(RefusedArm::Undecided(cause), reading)
+                }
+                OneArcRefusal::Count { .. } | OneArcRefusal::Unlinked => {
+                    TUBE_ONE_ARC.recourse(RefusedArm::SignCertain, reading)
+                }
+            },
             Self::TubeStraddles { verdict, .. } => {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
             }
@@ -1424,11 +1471,10 @@ pub struct SsiBranch {
     pub pcurve_a: Option<NurbsCurve2<f64>>,
     /// The second operand's pcurve, same contract.
     pub pcurve_b: Option<NurbsCurve2<f64>>,
-    /// The smallest transversality margin the march saw, in meters.
-    pub min_transversality: f64,
-    /// The generator's step tolerance this carrier was marched at, in
-    /// meters — the receipt that makes the tie observable rather than
-    /// merely intended. Equal to the run band's coincidence threshold
+    /// The generator's tolerance the carrier's states were settled at,
+    /// in meters (a marched carrier's every state, a Hermite carrier's
+    /// two crossings) — the receipt that makes the tie observable rather
+    /// than merely intended. Equal to the run band's coincidence threshold
     /// on every certified door, enforced at the certifying seam
     /// ([`SsiError::MarchTolMismatch`]).
     pub march_tol: f64,
@@ -1935,6 +1981,19 @@ const OPEN_END: SizedDecision = SizedDecision {
 /// the trace comes back across or against the way it left: the locus
 /// cusps or crosses itself. Read on its sign-certain arm alone, since
 /// the closure angle is the march's own.
+/// Limb 3's one-arc proof where a search banks the tube
+/// ([`SsiError::TubeNotOneArc`]): a second arc of the locus in the tube,
+/// or the locus grazing the searched region inside it, clears by moving
+/// either the geometry or the region.
+const TUBE_ONE_ARC: SizedDecision = SizedDecision {
+    lever: "move the geometry, or the searched region, until no second arc or graze of the \
+            region's boundary lies in the traced branch's tube",
+    size: "clearance",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
 const SELF_CROSSING: SizedDecision = SizedDecision {
     lever: "move the surfaces so their intersection does not cusp or cross itself",
     size: "closure angle",
@@ -2207,9 +2266,10 @@ fn finish_r3(
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
                 &carrier,
-                None,
-                &SsiOperand::Analytic(a),
-                &SsiOperand::Analytic(b),
+                certify::Lane::Spatial {
+                    pair: (a, b),
+                    slab: domain.slab(),
+                },
                 TubeScale::split(arm, domain.extent),
                 band,
             )?;
@@ -2226,7 +2286,6 @@ fn finish_r3(
         witness,
         pcurve_a: None,
         pcurve_b: None,
-        min_transversality: trace.min_transversality,
         march_tol,
     })
 }
@@ -2387,7 +2446,7 @@ pub fn plane_nurbs_ssi(
     let seed_count = seeds.len() as u32;
 
     // ---- the open branches, between the crossings ----
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let mut branches = ends.branches(&pass.crossings)?;
     let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
 
@@ -2435,7 +2494,7 @@ pub fn plane_nurbs_ssi(
         let RectEnd::Closed = trace.end else {
             continue;
         };
-        let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
+        let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
@@ -2598,11 +2657,11 @@ pub fn trace_plane_nurbs_uncertified(
     // certifies, as every plane × NURBS branch does.
     let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
     let wall_op = SsiOperand::Nurbs(charted);
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let (states, _, _) = ends.through_seed(state, &pass.crossings)?;
+    let (states, _) = ends.through_seed(state, &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
@@ -2610,9 +2669,11 @@ pub fn trace_plane_nurbs_uncertified(
         let fitted = ends::fit_states(&sys, states)?;
         match certify::certify_located(
             &fitted.0,
-            fitted.2.as_ref(),
-            &SsiOperand::Analytic(plane),
-            &wall_op,
+            certify::Lane::AtRest {
+                a: &SsiOperand::Analytic(plane),
+                b: &wall_op,
+                pcurve_b: fitted.2.as_ref(),
+            },
             TubeScale::uniform(domain.extent),
             band,
         ) {
@@ -2668,7 +2729,13 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, scale, band, &mut Vec::new())
+    certify::certify_branch(
+        carrier,
+        certify::Lane::AtRest { a, b, pcurve_b },
+        scale,
+        band,
+        &mut Vec::new(),
+    )
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
@@ -3180,7 +3247,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 38;
+    const ARMS: usize = 39;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3224,7 +3291,8 @@ mod ending_tests {
             SsiError::CrossingUnmatched { .. } => 34,
             SsiError::ShortBranchUncertified { .. } => 35,
             SsiError::WindowShortOfWall { .. } => 36,
-            SsiError::RefinementExhausted { .. } => 37,
+            SsiError::TubeNotOneArc { .. } => 37,
+            SsiError::RefinementExhausted { .. } => 38,
         }
     }
 
@@ -3435,6 +3503,20 @@ mod ending_tests {
                 },
             ),
             ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            (
+                "tube not one arc, count",
+                SsiError::TubeNotOneArc {
+                    rungs: 3,
+                    cause: super::OneArcRefusal::Count { solutions: 4 },
+                },
+            ),
+            (
+                "tube not one arc, unlinked",
+                SsiError::TubeNotOneArc {
+                    rungs: 3,
+                    cause: super::OneArcRefusal::Unlinked,
+                },
+            ),
             (
                 "tube straddles",
                 SsiError::TubeStraddles {
