@@ -8,6 +8,7 @@ priority: P1
 cost: H
 refs: [non-circle-conic-edge-refuses-against-every-curved-face, slab-cut-cylinder-refuses-sector-side]
 branch: join/parallel-cylinder-arm
+pr: 4031
 ---
 
 
