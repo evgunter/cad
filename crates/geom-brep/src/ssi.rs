@@ -483,10 +483,10 @@ pub enum SsiError {
         /// Boxes in the chain.
         boxes: u32,
     },
-    /// Limb 3, where a search banks the tube (either arm): at every rung
-    /// whose boxes made the locus a graph, the chain was not proved to
-    /// hold the traced arc alone, and the narrowest such rung is the
-    /// narrowest probed. Its `cause` says what that rung found.
+    /// Limb 3, at every door (either arm): at every rung whose boxes made
+    /// the locus a graph, the chain was not proved to hold one arc
+    /// spanning the carrier and nothing else, and the narrowest such rung
+    /// is the narrowest probed. Its `cause` says what that rung found.
     TubeNotOneArc {
         /// How many rungs were graphs over their chain but not proved
         /// one arc.
@@ -867,28 +867,11 @@ impl core::fmt::Display for SsiError {
                  branch may lie inside the tube",
                 verdict.margin()
             ),
-            Self::TubeNotOneArc { rungs, cause } => {
-                write!(
-                    f,
-                    "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one \
-                     arc; at the narrowest, "
-                )?;
-                match cause {
-                    OneArcRefusal::Count { solutions } => write!(
-                        f,
-                        "a box cut to the searched region holds {solutions} boundary solutions, \
-                         not two: a second arc, or the locus leaving and re-entering the region"
-                    ),
-                    OneArcRefusal::Unlinked => f.write_str(
-                        "two consecutive boxes each hold one piece, and no shared solution joins \
-                         them",
-                    ),
-                    OneArcRefusal::Undecided(_) => f.write_str(
-                        "a box's boundary walk resolved no count: a solution tangent to it, on a \
-                         corner, or below the walk's resolution",
-                    ),
-                }
-            }
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one arc; \
+                 at the narrowest, {cause}"
+            ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
                 "ssi: the certified foot point at t = {t} would not converge (last \
@@ -1066,15 +1049,16 @@ impl SsiError {
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
             }
-            // A certified count or a certified missing link is a second
-            // arc or a graze of the region, and moving either clears it;
+            // A certified count, a certified missing link or a certified
+            // short end is a second arc, a graze of the region or a
+            // carrier overrunning its arc, and moving either clears it;
             // a walk that resolved nothing escalates, with no tolerance
             // to name, since it read no margin.
             Self::TubeNotOneArc { cause, .. } => match cause {
                 OneArcRefusal::Undecided(cause) => {
                     TUBE_ONE_ARC.recourse(RefusedArm::Undecided(cause), reading)
                 }
-                OneArcRefusal::Count { .. } | OneArcRefusal::Unlinked => {
+                OneArcRefusal::Count { .. } | OneArcRefusal::Unlinked | OneArcRefusal::Short => {
                     TUBE_ONE_ARC.recourse(RefusedArm::SignCertain, reading)
                 }
             },
@@ -3515,6 +3499,13 @@ mod ending_tests {
                 SsiError::TubeNotOneArc {
                     rungs: 3,
                     cause: super::OneArcRefusal::Unlinked,
+                },
+            ),
+            (
+                "tube not one arc, short",
+                SsiError::TubeNotOneArc {
+                    rungs: 3,
+                    cause: super::OneArcRefusal::Short,
                 },
             ),
             (

@@ -84,7 +84,8 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{
-    ChartSpeedRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3,
+    ChartSpeedRefusal, OneArcRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    certify_rung3,
 };
 
 /// What the plane × NURBS lane proved, in metres unless noted.
@@ -178,6 +179,16 @@ pub enum PlaneNurbsRefusal {
         /// How many boxes of the tube's chain the clearance above was
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
+    },
+    /// The uniqueness tube was a graph at some rung, but at none was its
+    /// chain proved to hold one arc spanning the carrier and nothing
+    /// else: the declared carrier may join two arcs of the intersection,
+    /// or overrun its arc's end.
+    TubeNotOneArc {
+        /// How many rungs were graphs but not proved one arc.
+        rungs: u32,
+        /// What the narrowest of them found.
+        cause: OneArcRefusal,
     },
     /// The per-sample transversality margin escalated: the same
     /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
@@ -318,6 +329,9 @@ impl PlaneNurbsRefusal {
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::TubeNotOneArc { rungs, cause } = *self {
+            return Some(SsiError::TubeNotOneArc { rungs, cause }.ending(reading));
+        }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
     }
@@ -342,7 +356,10 @@ impl PlaneNurbsRefusal {
                 RefusedArm::Undecided(cause),
             ),
             Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
+            // The one-arc proof is the SSI door's own decision, and
+            // `ending` reads it there.
             Self::FootPointInconclusive { .. }
+            | Self::TubeNotOneArc { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
             | Self::Unsupported { .. } => {
@@ -393,6 +410,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Escalated { limb, cause } => {
                 write!(f, "{} escalated: {}", limb.name(), cause.payload())
             }
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "at {rungs} rungs the uniqueness tube was a graph but not proved to hold one arc \
+                 spanning the declared carrier; at the narrowest, {cause}"
+            ),
             Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
                 "every interior sample decided the plane and the NURBS wall cross, yet \
@@ -818,6 +840,9 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         }
         SsiError::CertificateEscalated { limb, cause } => {
             PlaneNurbsRefusal::Escalated { limb, cause }
+        }
+        SsiError::TubeNotOneArc { rungs, cause } => {
+            PlaneNurbsRefusal::TubeNotOneArc { rungs, cause }
         }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a

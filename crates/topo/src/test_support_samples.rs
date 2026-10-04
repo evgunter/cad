@@ -266,6 +266,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Undecided(diag()),
+        },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
             axis: geom_brep::ChartAxis::U,

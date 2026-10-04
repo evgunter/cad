@@ -2322,6 +2322,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
         | P::TubeStraddles { .. }
+        | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)) => unreachable!(
@@ -2713,6 +2714,14 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::UnsupportedCertificate { what } => (None, what, None),
         E::ChartSpeed(r) => (None, r.what(), None),
         E::TubeDegenerate(d) => (Some(SsiLimb::Tube), d.what(), None),
+        // Limb 3 proves one arc spanning the carrier at this door too.
+        E::TubeNotOneArc { .. } => (
+            Some(SsiLimb::Tube),
+            "the uniqueness tube's chain was a graph but not proved to hold one arc spanning \
+             the carrier: the edge may join two arcs of the intersection, or overrun its arc's \
+             end",
+            None,
+        ),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. These are the structural
@@ -2744,10 +2753,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::InvalidMarchTol { .. }
-        | E::MarchTolMismatch { .. }
-        // Raised only where a search banks the tube; this lane certifies
-        // at rest, where limb 3 is not asked for one arc.
-        | E::TubeNotOneArc { .. } => (
+        | E::MarchTolMismatch { .. } => (
             None,
             "the rung-3 certificate refused structurally (see geom_brep::SsiError for the \
              full text at the SSI door)",

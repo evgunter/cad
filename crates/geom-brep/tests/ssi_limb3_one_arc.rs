@@ -94,8 +94,8 @@ fn ground() -> (Surface<f64>, SsiDomain) {
 /// The Hermite candidate from `(0, 0)` is that cubic, `(0, L)` being the
 /// nearest crossing, and it passes limbs 1 and 2; only limb 3's one-arc
 /// proof on the chart lane refuses it, after which the march pairs the
-/// fold as the locus does. Certified at rest, which proves the graph
-/// alone, it answers the wrong pairing and this row goes red. At
+/// fold as the locus does. Certified on the graph alone, it answers the
+/// wrong pairing and this row goes red. At
 /// L = 1.2w the fold answers at every ε; at L = 1.5w it answers or
 /// refuses (at ε 1e-6 limb 3's margin is too close to call), and never
 /// answers another pairing.
@@ -143,10 +143,6 @@ fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {
             panic!("{at}: {why}");
         }
 
-        assert!(
-            out.branches.iter().all(|b| b.certificate.tube_one_arc),
-            "{at}: a search's certificate reports its one-arc proof"
-        );
         let far = far_zeros(&f.phi, f.xr, f.l, &out, 0.3 * f.w);
         assert_eq!(far, 0, "{at}: zeros 0.3w from every carrier");
     }
@@ -249,16 +245,9 @@ fn a_short_arc_in_a_long_arcs_end_box_is_traced() {
         })
     });
     assert!(
-        carried
-            && out.branches.len() == 2
-            && out.branches.iter().all(|b| b.certificate.tube_one_arc),
-        "the clipped circle: {} branches, the short arc carried: {carried}, one-arc proofs \
-         {:?}",
+        carried && out.branches.len() == 2,
+        "the clipped circle: {} branches, the short arc carried: {carried}",
         out.branches.len(),
-        out.branches
-            .iter()
-            .map(|b| b.certificate.tube_one_arc)
-            .collect::<Vec<_>>()
     );
 }
 
@@ -385,4 +374,139 @@ fn paired_as_the_locus(
         ));
     }
     Ok(())
+}
+
+/// A fold wall at rest: `z = c·x + a·x² + h(y)` over
+/// `x ∈ [−1.5w, 1.8w]`, `y ∈ [0, L]`, with β = `scale`·ε, c = 800ε,
+/// a = `ak`·c²/β, w = β/c, L = 1.2w, and `h` the gap's height across `y`:
+/// `4β·y(L − y)/L²` (two arcs, the fold) or `β(y/L)²` (one arc leaving
+/// the low `u` side short of `y = L`).
+fn fold_at_rest(scale: f64, ak: f64, two_arcs: bool) -> (NurbsSurface<f64>, f64) {
+    let beta = scale * eps();
+    let c = 800.0 * eps();
+    let a = ak * c * c / beta;
+    let w = beta / c;
+    let l = 1.2 * w;
+    let xr = (-1.5 * w, 1.8 * w);
+    let g = move |x: f64| c * x + a * x * x;
+    let wall = if two_arcs {
+        let h = move |y: f64| 4.0 * beta * y * (l - y) / (l * l);
+        graph_wall(xr, l, (g, c + 2.0 * a * xr.0), (h, 4.0 * beta / l))
+    } else {
+        let h = move |y: f64| beta * (y / l) * (y / l);
+        graph_wall(xr, l, (g, c + 2.0 * a * xr.0), (h, 0.0))
+    };
+    (wall, l)
+}
+
+/// The declared carrier `from → to` on the line `x = 0` of a fold wall,
+/// against `z = 0`, through the public at-rest door.
+fn declared(
+    wall: &NurbsSurface<f64>,
+    (from, to): (f64, f64),
+) -> Result<geom_brep::PlaneNurbsLimbs<f64>, geom_brep::PlaneNurbsRefusal> {
+    let (plane, _) = ground();
+    let carrier =
+        crate::shared::fixture::segment(Point3::new(0.0, from, 0.0), Point3::new(0.0, to, 0.0));
+    geom_brep::plane_nurbs_limbs::<f64>(&carrier, &plane, wall, 1.0, band())
+}
+
+/// **At rest, a carrier joining the fold's two arcs refuses** (C2: one
+/// arc at every door). The straight carrier `(0, 0, 0) → (0, L, 0)`
+/// lies within ε of the plane and of the wall, so limbs 1 and 2 pass,
+/// and its midpoint `(0, L/2, 0)` lies where `φ = β > 0` and there is no
+/// intersection. On the graph alone it certifies, at β = ε and ¼ε: red
+/// under the at-rest door proving the graph alone.
+#[test]
+fn a_declared_carrier_joining_the_folds_two_arcs_refuses_at_rest() {
+    for scale in [1.0, 0.25] {
+        let (wall, l) = fold_at_rest(scale, 0.28, true);
+        let got = declared(&wall, (0.0, l));
+        assert!(
+            matches!(got, Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. })),
+            "the fold at β = {scale}ε, ε {:e}: {got:?}",
+            eps()
+        );
+    }
+}
+
+/// **At rest, a carrier overrunning its arc refuses, at either end.**
+/// The half fold (a = 0.28c²/β, `h = β(y/L)²`, β = ε) has one arc, from
+/// `(0, 0)` to the low `u` side near `y = 0.93L`; the tail fold
+/// (a = 0.24c²/β) leaves that side near `y = 0.98L`. The carrier along
+/// `x = 0` reaches `y = L`, where `φ = β > 0` and the nearest solution
+/// lies millimetres off: no slice through that end holds one, and the
+/// count alone certifies it. The tail fold's carrier is declared both
+/// ways, so the overrun end is its last and then its first: red under
+/// either end's coverage check removed.
+#[test]
+fn a_declared_carrier_overrunning_its_arc_refuses_at_rest_at_either_end() {
+    let half = fold_at_rest(1.0, 0.28, false);
+    let tail = fold_at_rest(1.0, 0.24, false);
+    for (name, (wall, _), ends) in [
+        (
+            "the half fold, overrun at its last end",
+            &half,
+            (0.0, half.1),
+        ),
+        (
+            "the tail fold, overrun at its last end",
+            &tail,
+            (0.0, tail.1),
+        ),
+        (
+            "the tail fold, overrun at its first end",
+            &tail,
+            (tail.1, 0.0),
+        ),
+    ] {
+        let got = declared(wall, ends);
+        assert!(
+            matches!(got, Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc { .. })),
+            "{name}, ε {:e}: {got:?}",
+            eps()
+        );
+    }
+}
+
+/// **A branch leaving the domain obliquely through a side its slices
+/// run along certifies.** A straight locus from `(0.5, 0)` to `(1, 0.7)`
+/// on the unit chart: the search's carrier ends at the crossing on the
+/// `u = 1` side, which is the end window's rail, and that end counts
+/// because the carrier's end lies within ε of the locus there.
+#[test]
+fn a_branch_leaving_obliquely_through_a_rail_side_certifies() {
+    let k = 0.5;
+    let g = move |x: f64| k * (x - 0.5);
+    let h = move |y: f64| -k * y / 1.4;
+    let wall = graph_wall((0.0, 1.0), 1.0, (g, k), (h, -k / 1.4));
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band())
+        .unwrap_or_else(|e| panic!("the rail-end branch, ε {:e}: {e}", eps()));
+    let sides: Vec<_> = out
+        .branches
+        .iter()
+        .map(|b| match b.end {
+            BranchEnd::Crossings { from, to } => {
+                let mut s = [from.side, to.side].map(|s| (s.fixed, s.end));
+                s.sort_by_key(|x| format!("{x:?}"));
+                s
+            }
+            other => panic!("the rail-end branch ended {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        sides,
+        vec![[
+            (ChartAxis::U, ChartEnd::High),
+            (ChartAxis::V, ChartEnd::Low)
+        ]],
+        "one branch, from the low v side to the high u side"
+    );
 }

@@ -45,7 +45,7 @@ use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Interval, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, CertifiedBounds, Interval, Margin, Point3, Sign, Vec3};
 
 use super::enclose::{ChartSpeeds, NurbsBoxes};
 use super::exhaust::UvRect;
@@ -207,8 +207,15 @@ pub(crate) struct PassPlane {
     pub u_ref: Vec3<f64>,
 }
 
+impl PassPlane {
+    /// Its normal, as point intervals.
+    fn normal_interval(&self) -> [Interval; 3] {
+        [self.normal.x, self.normal.y, self.normal.z].map(Interval::point)
+    }
+}
+
 /// The four sides, in the pass's fixed order (D9).
-const SIDES: [ChartSide; 4] = [
+pub(crate) const SIDES: [ChartSide; 4] = [
     ChartSide {
         fixed: ChartAxis::U,
         end: ChartEnd::Low,
@@ -474,9 +481,9 @@ impl Pass<'_> {
             ChartAxis::V => self.speeds.v,
         };
         let ((u0, u1), (v0, v1)) = self.domain();
-        let across_domain = match side.fixed {
-            ChartAxis::U => (u0, u1),
-            ChartAxis::V => (v0, v1),
+        let domain = UvRect {
+            u: (u0, u1),
+            v: (v0, v1),
         };
         let rungs = self.rungs();
         let mut classified = false;
@@ -513,93 +520,25 @@ impl Pass<'_> {
                     return Err(SsiError::BoundaryTangent { side, verdict });
                 }
             }
-            let (depth, distance) = self.strip_reach(side, strip, sup);
-            let pad_across = match side.fixed {
-                ChartAxis::U => pad.0,
-                ChartAxis::V => pad.1,
-            };
-            let inside = depth < pad_across || !cut_inside(across_domain, pad_across);
-            if inside && distance <= self.band.zero() {
-                return Ok(Some(SideClass::Region {
-                    strip,
-                    reach: distance + self.band.zero(),
-                }));
+            match side_cover(
+                &NurbsBoxes::new(self.wall),
+                self.plane.normal_interval(),
+                (side, domain),
+                strip,
+                sup,
+                self.band,
+            ) {
+                SideCover::Within { distance } => {
+                    return Ok(Some(SideClass::Region {
+                        strip,
+                        reach: distance + self.band.zero(),
+                    }));
+                }
+                SideCover::Apart => covered = true,
+                SideCover::Spills => {}
             }
-            covered |= inside;
         }
         Ok((classified && covered).then_some(SideClass::Apart))
-    }
-
-    /// How deep in from `side` a zero of `strip` lies, in parameter, and
-    /// how far from the side, in metres: the strip cut along the side
-    /// into `2^j` pieces, `j` up to [`STRIP_PIECES_LOG2`], until the
-    /// distance is within ε.
-    /// A zero at `(t⊥, t)` in a piece is reached from the side at the
-    /// same `t` inside the piece, where the wall's slope across is at
-    /// least the piece's `inf|φ⊥|` and its speed across at most the
-    /// piece's `s⊥`, so it lies at most `sup / inf|φ⊥|` in and
-    /// `sup · s⊥ / inf|φ⊥|` from the side; the strip's bounds are the
-    /// largest over its pieces. The rational wall's derivative boxes
-    /// over a whole side pair its least slope with its greatest speed,
-    /// which pieces part. `(∞, ∞)` where a piece's slope is not
-    /// one-signed.
-    fn strip_reach(&self, side: ChartSide, strip: UvRect, sup: f64) -> (f64, f64) {
-        let boxes = NurbsBoxes::new(self.wall);
-        let along_u = side.fixed == ChartAxis::U;
-        let along = if along_u { strip.v } else { strip.u };
-        let mut best = (f64::INFINITY, f64::INFINITY);
-        for j in 0..=STRIP_PIECES_LOG2 {
-            let n = 1u32 << j;
-            let mut bound = (0.0_f64, 0.0_f64);
-            for k in 0..n {
-                let t = |i: u32| along.0 + (along.1 - along.0) * f64::from(i) / f64::from(n);
-                let piece = if k + 1 == n {
-                    (t(k), along.1)
-                } else {
-                    (t(k), t(k + 1))
-                };
-                let piece = if along_u {
-                    UvRect {
-                        u: strip.u,
-                        v: piece,
-                    }
-                } else {
-                    UvRect {
-                        u: piece,
-                        v: strip.v,
-                    }
-                };
-                let d = boxes.deriv_box(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
-                let n_ = [
-                    self.plane.normal.x,
-                    self.plane.normal.y,
-                    self.plane.normal.z,
-                ]
-                .map(Interval::point);
-                let across = n_[0] * d.x + n_[1] * d.y + n_[2] * d.z;
-                let inf = if one_signed(across) {
-                    super::enclose::zero_free_lower_bound(across)
-                } else {
-                    0.0
-                };
-                let speed = boxes.speed_sup(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
-                if !(inf > 0.0 && speed.is_finite()) {
-                    bound = (f64::INFINITY, f64::INFINITY);
-                    break;
-                }
-                bound = (
-                    max_bound(bound.0, div_up(sup, inf)),
-                    max_bound(bound.1, div_up(sup, div_down(inf, speed))),
-                );
-            }
-            if bound.1 < best.1 {
-                best = bound;
-            }
-            if best.1 <= self.band.zero() {
-                break;
-            }
-        }
-        best
     }
 
     /// **A corner within the band of the plane**, classified by the
@@ -959,6 +898,129 @@ impl Pass<'_> {
             crossings,
         })
     }
+}
+
+/// What a strip beside a side of the wall's domain certifies of the
+/// locus in it: its **cover**. The one door C3's `Side` regions and
+/// limb 3's side arm read.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SideCover {
+    /// Every zero of `φ` in the strip lies inside it, at most
+    /// `distance ≤ ε` metres from the side.
+    Within {
+        /// The certified distance, in metres.
+        distance: f64,
+    },
+    /// Every zero lies inside the strip, but none is certified within ε
+    /// of the side.
+    Apart,
+    /// No cover: the slope across the side is not one-signed over some
+    /// piece of the strip, or the cover reaches the strip's far face.
+    Spills,
+}
+
+/// **The side cover.** `strip` has one edge on `side` of `domain`, and
+/// `|φ| ≤ sup` along that edge, in metres. A zero of the strip lies at
+/// most `depth` in from the side and `distance` from it
+/// ([`strip_reach`]). The cover lies inside the strip where `depth` is
+/// short of the strip's far face, or that face is the domain's opposite
+/// side (no zero lies beyond it): then the strip's zeros are all within
+/// `distance` of the side, and they end on the domain's sides.
+pub(crate) fn side_cover<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    normal: [Interval; 3],
+    (side, domain): (ChartSide, UvRect),
+    strip: UvRect,
+    sup: f64,
+    band: Band,
+) -> SideCover {
+    let (depth, distance) = strip_reach(boxes, normal, side, strip, sup, band);
+    let (across, whole) = match side.fixed {
+        ChartAxis::U => (strip.u, domain.u),
+        ChartAxis::V => (strip.v, domain.v),
+    };
+    let (far, opposite) = match side.end {
+        ChartEnd::Low => (across.1, whole.1),
+        ChartEnd::High => (across.0, whole.0),
+    };
+    let inside = depth < (across.1 - across.0).next_down() || far == opposite;
+    match (inside, distance <= band.zero()) {
+        (true, true) => SideCover::Within { distance },
+        (true, false) => SideCover::Apart,
+        (false, _) => SideCover::Spills,
+    }
+}
+
+/// How deep in from `side` a zero of `strip` lies, in parameter, and
+/// how far from the side, in metres: the strip cut along the side into
+/// `2^j` pieces, `j` up to [`STRIP_PIECES_LOG2`], until the distance is
+/// within ε.
+///
+/// A zero at `(t⊥, t)` in a piece is reached from the side at the same
+/// `t` inside the piece, where the wall's slope across is at least the
+/// piece's `inf|φ⊥|` and its speed across at most the piece's `s⊥`, so
+/// it lies at most `sup / inf|φ⊥|` in and `sup · s⊥ / inf|φ⊥|` from the
+/// side; the strip's bounds are the largest over its pieces. The
+/// rational wall's derivative boxes over a whole side pair its least
+/// slope with its greatest speed, which pieces part. `(∞, ∞)` where a
+/// piece's slope is not one-signed.
+fn strip_reach<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    n: [Interval; 3],
+    side: ChartSide,
+    strip: UvRect,
+    sup: f64,
+    band: Band,
+) -> (f64, f64) {
+    let along_u = side.fixed == ChartAxis::U;
+    let along = if along_u { strip.v } else { strip.u };
+    let mut best = (f64::INFINITY, f64::INFINITY);
+    for j in 0..=STRIP_PIECES_LOG2 {
+        let count = 1u32 << j;
+        let mut bound = (0.0_f64, 0.0_f64);
+        for k in 0..count {
+            let t = |i: u32| along.0 + (along.1 - along.0) * f64::from(i) / f64::from(count);
+            let piece = if k + 1 == count {
+                (t(k), along.1)
+            } else {
+                (t(k), t(k + 1))
+            };
+            let piece = if along_u {
+                UvRect {
+                    u: strip.u,
+                    v: piece,
+                }
+            } else {
+                UvRect {
+                    u: piece,
+                    v: strip.v,
+                }
+            };
+            let d = boxes.deriv_box(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+            let inf = if one_signed(across) {
+                super::enclose::zero_free_lower_bound(across)
+            } else {
+                0.0
+            };
+            let speed = boxes.speed_sup(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            if !(inf > 0.0 && speed.is_finite()) {
+                bound = (f64::INFINITY, f64::INFINITY);
+                break;
+            }
+            bound = (
+                max_bound(bound.0, div_up(sup, inf)),
+                max_bound(bound.1, div_up(sup, div_down(inf, speed))),
+            );
+        }
+        if bound.1 < best.1 {
+            best = bound;
+        }
+        if best.1 <= band.zero() {
+            break;
+        }
+    }
+    best
 }
 
 /// Whether a chart point lies in a rectangle.
