@@ -759,7 +759,7 @@ BOUND_AS = {
     # target has no constructor in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
     # pairing cannot be mis-asserted. The carrier-projection rule reads
-    # out the same way it did for `DanglingRef` above: a payload's
+    # out the same way it does for `RootFault` below: a payload's
     # category follows what its CARRIER does at the crossing, the
     # carrier here is the door's `targets` argument, and that argument
     # crosses holding `NodePick`s.
@@ -767,9 +767,8 @@ BOUND_AS = {
     "pick_face": "Evaluation.pick_face",
     # `MeshPickError` is `NodePickError::Index`'s payload, and it
     # crosses by the same rule and at a different spelling from
-    # `DanglingRef`'s. `ReadbackError`'s arm had no word of its own, so
-    # its payload's two arms BECAME the carrier's two tags. This
-    # carrier's arm does: `mesh_index` says which door's invariant
+    # `RootFault`'s. `EditError::Roots` has no word of its own, so its
+    # payload's arms ARE the carrier's tags. This carrier's arm does: `mesh_index` says which door's invariant
     # broke, and a caller branching on the standing ladder needs it to
     # stay put. So the payload's discriminant arrives BESIDE the
     # carrier's rather than in place of it, at `index_variant`, `None`
@@ -1186,7 +1185,7 @@ BOUND_AS = {
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
-    # theirs — the `DanglingRef` reading, on a carrier that is a VALUE
+    # theirs — the `RootFault` reading, on a carrier that is a VALUE
     # rather than a refusal.
     #
     # The two enums are one attribute between them, and the merge is
@@ -1640,9 +1639,9 @@ FAMILIES: dict[str, str] = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS — and for
-#:   `DanglingRef`, the `Dangling` arm's payload, whose two arms are
-#:   the two `dangling_*` tags;
+#:   because the two doors refuse different CALLS; `EditError.variant`
+#:   for `RootFault`, the `Roots` arm's payload, whose four arms are
+#:   the four `root_*` tags;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -2418,7 +2417,7 @@ NOT_BOUND = {
     # the keys themselves and for exactly their reason: a Python
     # caller holds opaque NAME text and never a key, so a sum over
     # keys has nothing to project either. What the sums' arms say
-    # DOES reach Python, at the two doors where the arm is the answer
+    # DOES reach Python, at the one door where the arm is the answer
     # rather than the site: `ValidationFinding.entity_kind` is which
     # KIND of carrier a census refusal's entity subject is. It projects
     # the discriminant and not the key, which is why this row
@@ -2606,11 +2605,11 @@ NOT_BOUND = {
     "BlendKind": INTERIOR,
     # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
     # prelude-carried `BlendError` is matchable THROUGH the prelude.
-    # `INTERIOR` by the rule the two CUR3/CUR4 cases together settle:
-    # **a payload's category follows what its CARRIER does at the
-    # crossing.** `ReadbackError` projects its arms as tags, so CUR3's
-    # `DanglingRef` is in `BOUND_AS` at `ReadbackError.variant` and its
-    # arms ARE two tags. `BlendError` projects no arms at all —
+    # `INTERIOR` by the rule the `RootFault` and CUR4 cases together
+    # settle: **a payload's category follows what its CARRIER does at
+    # the crossing.** `EditError` projects its arms as tags, so
+    # `RootFault` is in `BOUND_AS` at `EditError.variant` and its arms
+    # ARE four tags. `BlendError` projects no arms at all —
     # `node_error_tag` reads the VERB, so the whole refusal arrives as
     # one `fillet`/`chamfer` tag plus the kernel's `Display` prose — so
     # there is no tag to split, none to pin, and nothing for a Python
