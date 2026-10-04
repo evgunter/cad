@@ -2,12 +2,11 @@
 id: stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body
 kind: issue
 title: StaleKey, StaleGeometry and NotSameEdge are one variant each for a caller's key and a torn body, so reports_tier1_corruption answers true for a caller's mistake
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P3
 cost: M
-design: true
-blocked_on: [graft-stages-into-a-fresh-body-and-commits-on-success]
+blocked_on: []
 refs: [euler-op-corruption-refusals-end-in-a-tag, cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link, S14]
 ---
 

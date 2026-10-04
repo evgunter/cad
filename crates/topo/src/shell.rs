@@ -384,11 +384,11 @@ pub enum ShellError<T: Real> {
         outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
-    /// solid of their own refused. Its preconditions hold by
-    /// construction — the void is one of the sealed arm's decided void
-    /// list, its twin is the graft map's answer for it, both sit under
-    /// the void's OWN operand solid beside that solid's outer shell and
-    /// its twin — so this is a kernel bug surfaced typed.
+    /// solid of their own refused. The keys are the shell op's own —
+    /// the void is one of the sealed arm's decided void list, its twin
+    /// is the graft map's answer for it — so the ownership door's
+    /// refusal is an operation refusal, never an argument miss
+    /// ([`EulerOpError::from_driver`]).
     Partition {
         /// The operand void whose thin solid could not be minted.
         shell: ShellKey,
@@ -585,8 +585,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::Partition { shell, error } => write!(
                 f,
-                "the thin solid around void {shell:?} could not be partitioned out (kernel \
-                 bug): {error}"
+                "the thin solid around void {shell:?} could not be partitioned out: {error}"
             ),
             Self::WallClearance { gap, needed, .. } => write!(
                 f,
@@ -1308,7 +1307,10 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 key: EntityId::Shell(shell),
             })?;
             out.move_shells_to_new_solid(&[twin, shell])
-                .map_err(|error| ShellError::Partition { shell, error })?
+                .map_err(|error| ShellError::Partition {
+                    shell,
+                    error: error.from_driver(),
+                })?
         } else {
             data.solid
         };
@@ -1572,9 +1574,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             // windings on every planar face, and check 7 reads the
             // volume the same windings integrate, so a flip either way
             // reds at the verb's own closing `validate_geometric`.
-            let rim_error = |error| ShellError::Rim {
+            let rim_error = |error: EulerOpError| ShellError::Rim {
                 face: designated,
-                error,
+                error: error.from_driver(),
             };
             let made = out
                 .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
@@ -1662,7 +1664,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // genus surgery).
         let fused = out.kfmrh(host, guest).map_err(|error| ShellError::Rim {
             face: designated,
-            error,
+            error: error.from_driver(),
         })?;
         naming.dead.faces.push(fused.killed_face);
         naming.dead.surfaces.extend(fused.killed_surface);
@@ -1722,7 +1724,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             out.ring_move(host_ring, face)
                 .map_err(|error| ShellError::Rim {
                     face: designated,
-                    error,
+                    error: error.from_driver(),
                 })?;
         }
 
@@ -1917,7 +1919,7 @@ fn canonicalize_chart<T: Decide>(
             };
             let killed = body.kef(he).map_err(|error| ShellError::Rim {
                 face: anchor,
-                error,
+                error: error.from_driver(),
             })?;
             dead.faces.push(killed.killed_face);
             dead.edges.push(killed.killed_edge);
@@ -1951,7 +1953,7 @@ fn canonicalize_chart<T: Decide>(
         if tip(body, he1)? {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
-                error,
+                error: error.from_driver(),
             })?;
             dead.edges.push(killed.killed_edge);
             dead.vertices.push(killed.killed_vertex);
@@ -1960,7 +1962,7 @@ fn canonicalize_chart<T: Decide>(
         if tip(body, he2)? {
             let killed = body.kev(he2).map_err(|error| ShellError::Rim {
                 face: anchor,
-                error,
+                error: error.from_driver(),
             })?;
             dead.edges.push(killed.killed_edge);
             dead.vertices.push(killed.killed_vertex);
@@ -1990,7 +1992,7 @@ fn canonicalize_chart<T: Decide>(
         let (a, b) = if ring_first { (he1, he2) } else { (he2, he1) };
         let made = body.kemr(a, b).map_err(|error| ShellError::Rim {
             face: anchor,
-            error,
+            error: error.from_driver(),
         })?;
         dead.edges.push(made.killed_edge);
         // The role assignment is verified, not assumed: the ring must
@@ -2333,7 +2335,10 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), ShellError<T>> {
     for (edge, spec) in loop_rekeyed(body, r#loop, dead, live)? {
         body.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ShellError::Rim { face: rim, error })?;
+            .map_err(|error| ShellError::Rim {
+                face: rim,
+                error: error.from_driver(),
+            })?;
     }
     Ok(())
 }

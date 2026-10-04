@@ -2104,9 +2104,10 @@ pub enum BooleanError {
     ///   with it.** `join::pair_section_frame` — the pair-general
     ///   SECTION-FRAME dispatch — additionally names
     ///   `(Sphere, Sphere)`, `(Cylinder, Cylinder)` (as a proven
-    ///   STRAIGHT locus, or its own pinch door) and, behind a DECLARED
-    ///   coaxiality no production caller can supply,
-    ///   `(Cylinder, Sphere)`. But a frame is not a join arm: that
+    ///   STRAIGHT locus, or its own pinch door) and `(Cylinder, Sphere)`
+    ///   off the cylinder's axis (on it, only behind a DECLARED
+    ///   coaxiality no production caller can supply). But a frame is
+    ///   not a join arm: that
     ///   dispatch names the locus's centre and axis for the rotational
     ///   facing test, which is a strictly smaller thing than a seam
     ///   lane. Naming a frame for a pair does not move this refusal.
@@ -2234,13 +2235,15 @@ pub enum BooleanError {
     /// **A germ pair whose section frame has no arm.** The join's
     /// matcher asks each germ pair for the LOCUS its germ line rides,
     /// and the answer drives which facing test runs: a straight locus
-    /// takes the chord test, a conic locus the rotational-sense test.
+    /// takes the chord test, a locus that turns about an axis (a conic,
+    /// or a cylinder × sphere loop) the rotational-sense test.
     /// "No frame" therefore MEANS "the locus is straight", and a pair
     /// EARNS that answer only by proof: a plane×plane section is a line
     /// by construction, a plane×cylinder one is a line where the C5
     /// table says so, and a cylinder pair's is rulings exactly when its
     /// axes are parallel. Every other pair either has a section arm
-    /// that names its conic, or has no arm at all; the second case is
+    /// that names the centre and axis its locus turns about, or has no
+    /// arm at all; the second case is
     /// refused here rather than defaulting into the straight-chord
     /// test, which would mint a wrong chord silently the moment the
     /// germ-pair dispatch widens.
@@ -2808,7 +2811,7 @@ impl From<BandError> for BooleanError {
 
 impl From<EulerOpError> for BooleanError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
@@ -3662,6 +3665,30 @@ pub(crate) fn join_refusal(
     red.leave_join_surgery(connected.is_ok());
     Ok(connected.err())
 }
+
+/// The join's section segments of `op` ([`join::section_segments`]):
+/// how many pair records the reduction registered, and each segment's
+/// two germ sites, read on the A clone. `None` where the reduction
+/// registers no pair.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn section_segment_sites(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Option<SegmentSites>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let red = boolean_reduce(op, a, b, tol)?;
+    if red.null_pairs.is_empty() {
+        return Ok(None);
+    }
+    join::segment_sites(&red, band).map(Some)
+}
+
+/// [`section_segment_sites`]' product: the pair-record count and the
+/// segments' site pairs.
+#[cfg(any(test, feature = "test-support"))]
+pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always

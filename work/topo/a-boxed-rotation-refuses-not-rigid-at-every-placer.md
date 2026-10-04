@@ -2,11 +2,12 @@
 id: a-boxed-rotation-refuses-not-rigid-at-every-placer
 kind: issue
 title: transform_rigid at Interval refuses a boxed placer — a widened rotation NotRigid, a translation boxed wider than about eps at its endpoint certification — so every boxed placer, instance or tilted mate frame refuses in a box run
-status: open
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by a designer weighing MSOLVE's plan item 19 (the mate solve on

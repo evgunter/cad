@@ -502,18 +502,16 @@ pub(crate) mod tests {
     /// first's and one of them reads an empty or foreign message. That
     /// is a flake, not a failure, and it is the kind that arrives once
     /// the third such row lands. Every taker of the hook holds this
-    /// first: [`panic_message`] here, and
-    /// `review_m1_pr2::release_corruption`'s own capture.
+    /// first: [`caught`] here, and `review_d18::PanicCapture`.
     pub(crate) static PANIC_HOOK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    /// The message of the panic `f` raises, captured through a panic
-    /// HOOK rather than by downcasting `catch_unwind`'s payload — the
-    /// `bit-identity punning` gate bans `Any` downcasts outside
-    /// `geom_core::bit_identity`, test code included. The hook is
-    /// process-global, so [`PANIC_HOOK`] serializes the takers, it is
-    /// restored immediately, and a foreign or empty capture fails the
-    /// caller's assertion loudly rather than passing quietly.
-    fn panic_message(f: impl FnOnce() + std::panic::UnwindSafe) -> String {
+    /// The message of the panic `f` raises, or `None` where it returns,
+    /// captured through a panic HOOK rather than by downcasting
+    /// `catch_unwind`'s payload — the `bit-identity punning` gate bans
+    /// `Any` downcasts outside `geom_core::bit_identity`, test code
+    /// included. The hook is process-global, so [`PANIC_HOOK`]
+    /// serializes the takers, and it is restored immediately.
+    pub(crate) fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
         let _serialized = PANIC_HOOK.lock().unwrap_or_else(|e| e.into_inner());
         let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let sink = std::sync::Arc::clone(&captured);
@@ -525,8 +523,15 @@ pub(crate) mod tests {
         }));
         let outcome = std::panic::catch_unwind(f);
         std::panic::set_hook(previous);
-        assert!(outcome.is_err(), "expected a panic and got none");
         let message = captured.lock().map(|slot| slot.clone()).unwrap_or_default();
+        outcome.err().map(|_| message)
+    }
+
+    /// [`caught`] for a row that expects the panic: a missing, foreign
+    /// or empty capture fails the caller loudly rather than passing
+    /// quietly.
+    pub(crate) fn panic_message(f: impl FnOnce() + std::panic::UnwindSafe) -> String {
+        let message = caught(f).expect("expected a panic and got none");
         assert!(!message.is_empty(), "the hook captured no message");
         message
     }

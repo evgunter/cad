@@ -836,19 +836,21 @@ pub(crate) fn build_run_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpErr
     Ok(RunWalls { faces, tops })
 }
 
-/// Resolves a face's surface key (total: a stale key surfaces as the
-/// operator-layer typed error, which every sweep verb's error enum
-/// absorbs through its `From<EulerOpError>`).
-pub(crate) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, EulerOpError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
+/// The surface key of `face`, a face the calling driver minted.
+///
+/// # Panics
+///
+/// If `face` is not live: every caller passes a face its own driver
+/// minted and never killed, so a miss is a kernel bug.
+#[track_caller]
+pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> SurfaceKey {
+    body.get_face(face)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "face {face:?} was minted by this driver and no step kills it before this read"
+            )
+        })
+        .surface
 }
 
 /// Every edge of `face` still described through the **scaffolding
@@ -875,27 +877,41 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     face: FaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let chart = face_surface_key(body, face)?;
-    let stale = || EulerOpError::StaleKey {
-        key: topo::EntityId::Face(face),
-    };
-    let face_data = body.get_face(face).ok_or_else(stale)?.clone();
+    let chart = face_surface_key(body, face);
+    let face_data = body
+        .get_face(face)
+        .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
+        .clone();
     let mut edges: Vec<topo::EdgeKey> = Vec::new();
     for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body.get_loop(*lk).ok_or_else(stale)?.boundary
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(*lk)
+            .unwrap_or_else(|| {
+                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
+            })
+            .boundary
         else {
             continue;
         };
-        for he in body.loop_cycle(first).ok_or_else(stale)? {
-            edges.push(body.get_half_edge(he).ok_or_else(stale)?.edge);
+        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
+            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
+        });
+        for he in cycle {
+            edges.push(
+                body.get_half_edge(he)
+                    .unwrap_or_else(|| {
+                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
+                    })
+                    .edge,
+            );
         }
     }
     for edge in edges {
         let curve_key = body
             .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+            })
             .curve;
         let scaffolded = body
             .get_curve_geom(curve_key)
