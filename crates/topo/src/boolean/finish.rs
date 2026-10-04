@@ -535,12 +535,10 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
             let Some((u, w, joint)) = site else {
                 break;
             };
-            let point = |v| {
-                crate::readback::vertex_point_ref(body, v)
-                    .map_err(|_| desync("a pierce copy has no point"))
-            };
-            let p = point(u)?;
-            if !one_vertex(p, point(w)?, band).map_err(|diag| BooleanError::Escalated {
+            // Both live by the filter above, so only the point is a read.
+            let point = |v| body.resolve_vertex_point(v, crate::live::Proven);
+            let p = point(u);
+            if !one_vertex(p, point(w), band).map_err(|diag| BooleanError::Escalated {
                 decision: super::BooleanDecision::VertexOnVertex,
                 diag,
             })? {
@@ -625,7 +623,6 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Welds, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
     // A pierce survives as whichever of its null-edge copies the kept
     // side holds.
     let copies = super::NullCopies::of_operand(&red.null_edges, operand);
