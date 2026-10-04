@@ -397,7 +397,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
     let half_edge = HalfEdgeKey::default();
     let r#loop = LoopKey::default();
     let mut v = vec![
-        PcurveMintError::Corrupt,
+        PcurveMintError::Stale {
+            role: "half_edge",
+            key: EntityId::HalfEdge(half_edge),
+        },
+        PcurveMintError::NoCarrier { half_edge },
+        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {

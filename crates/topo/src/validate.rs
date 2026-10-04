@@ -2891,8 +2891,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = "the boundary is too close to call at this tolerance";
     let (why, recourse) = match e {
-        M::Corrupt
-        | M::LoopDiscontinuity { .. }
+        M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
@@ -2914,11 +2913,22 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
-        // Never produced at rest (the pass skips a placeholder face);
-        // classified as its Display states it.
+        // A null edge at rest is tier 2's finding, and a row stored on
+        // one of its halves is the producer's.
+        M::NoCarrier { .. } => ("an edge of the face has no curve yet", DEFECT),
+        // Never produced at rest: the pass takes no key from a caller,
+        // so a key it named that did not resolve would be its own.
+        M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
+        // Never produced at rest (the pass skips a placeholder face, and
+        // describes no face's boundary); classified as its Display
+        // states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
+        M::EmptyOuter { .. } => (
+            "the face's outline is a lone vertex, so it bounds no region",
+            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             let (why, own) = match error {

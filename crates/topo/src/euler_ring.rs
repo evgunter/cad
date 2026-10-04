@@ -3815,18 +3815,17 @@ mod tests {
         assert_eq!(by_sugar, by_mekr, "the sugar panics where `mekr` does");
     }
 
-    /// **A band door's re-mint refuses before the door moves
-    /// anything.** The minted cylinder-wall sheet: the wall face and
-    /// the seed face bound one another on one cylinder key, so every
-    /// loop moved below lands on a complete face on its own chart, and
-    /// one row taken off the moved loop is what sends the door to the
-    /// site mint. With the curve of that half's edge torn out, the
-    /// mint's walk of the moved loop cannot read it, and
-    /// `kfmrh_minting`, `kef_minting` and `mfkrh_minting` each refuse
-    /// `PcurveMint { Corrupt }` naming the wall, with the arenas and the
-    /// pcurve map as found.
+    /// **A band door's re-mint panics before the door moves anything.**
+    /// The minted cylinder-wall sheet: the wall face and the seed face
+    /// bound one another on one cylinder key, so every loop moved below
+    /// lands on a complete face on its own chart, and one row taken off
+    /// the moved loop is what sends the door to the site mint. With the
+    /// curve of that half's edge torn out, the mint's walk of the moved
+    /// loop cannot read it, and `kfmrh_minting`, `kef_minting` and
+    /// `mfkrh_minting` each panic naming the edge whose curve link
+    /// dangles (D2 row 4), with the arenas and the pcurve map as found.
     #[test]
-    fn a_torn_half_on_a_moved_loop_refuses_before_the_door_moves_it() {
+    fn a_torn_half_on_a_moved_loop_panics_before_the_door_moves_it() {
         use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
         let tol = Tol::witness();
         let sheet = || {
@@ -3853,48 +3852,45 @@ mod tests {
             };
             body.loop_cycle(first).unwrap()
         };
-        let tear = |body: &mut Body<f64>, gap: HalfEdgeKey| {
+        // The premise the panic names: the torn edge's `curve` link.
+        let tear = |body: &mut Body<f64>, gap: HalfEdgeKey| -> String {
             body.pcurves.remove(gap).expect("the sheet is minted");
-            let torn = body
-                .get_edge(body.get_half_edge(gap).unwrap().edge)
-                .unwrap()
-                .curve;
+            let edge = body.get_half_edge(gap).unwrap().edge;
+            let torn = body.get_edge(edge).unwrap().curve;
             body.curves.remove(torn).unwrap();
+            format!(
+                "{}'s curve names {}, which does not resolve",
+                EntityId::Edge(edge),
+                crate::entity::GeomRef::Curve(torn)
+            )
         };
-        let refuses = |body: &mut Body<f64>,
-                       wall: FaceKey,
-                       door: &str,
-                       op: &dyn Fn(&mut Body<f64>) -> EulerOpError| {
-            let before = deep_snapshot(body);
-            assert_eq!(
-                op(body),
-                EulerOpError::PcurveMint {
-                    face: wall,
-                    refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-                },
-                "{door}"
-            );
-            assert_eq!(
-                deep_snapshot(body),
-                before,
-                "{door}: the body is untouched, every pcurve row included"
-            );
-        };
+        let panics =
+            |body: &mut Body<f64>,
+             door: &str,
+             premise: &str,
+             op: &dyn Fn(&mut Body<f64>) -> Result<(), EulerOpError>| {
+                crate::review_d18::assert_torn_op_panics(
+                    door,
+                    body,
+                    &[premise, crate::review_d18::ROW_FOUR],
+                    op,
+                );
+            };
 
         // `kfmrh`: the seed's outer loop demotes into the wall.
         let (mut body, wall, seed) = sheet();
         let gap = outer_cycle(&body, seed)[0];
-        tear(&mut body, gap);
-        refuses(&mut body, wall, "kfmrh", &|b| {
-            b.kfmrh_minting(wall, seed, tol).unwrap_err()
+        let premise = tear(&mut body, gap);
+        panics(&mut body, "kfmrh", &premise, &|b| {
+            b.kfmrh_minting(wall, seed, tol).map(|_| ())
         });
 
         // `kef`: the seed dies and its remnant joins the wall's loop.
-        let (mut body, wall, seed) = sheet();
+        let (mut body, _, seed) = sheet();
         let cycle = outer_cycle(&body, seed);
-        tear(&mut body, cycle[1]);
-        refuses(&mut body, wall, "kef", &|b| {
-            b.kef_minting(cycle[0], tol).unwrap_err()
+        let premise = tear(&mut body, cycle[1]);
+        panics(&mut body, "kef", &premise, &|b| {
+            b.kef_minting(cycle[0], tol).map(|_| ())
         });
 
         // `mfkrh`: the demoted ring is promoted back out of the wall.
@@ -3903,10 +3899,9 @@ mod tests {
         let LoopBoundary::Cycle { first } = body.get_loop(ring).unwrap().boundary else {
             panic!("the demoted ring is a cycle")
         };
-        tear(&mut body, first);
-        refuses(&mut body, wall, "mfkrh", &|b| {
-            b.mfkrh_minting(ring, FaceSurface::Inherit, tol)
-                .unwrap_err()
+        let premise = tear(&mut body, first);
+        panics(&mut body, "mfkrh", &premise, &|b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol).map(|_| ())
         });
     }
 }
