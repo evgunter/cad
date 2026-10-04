@@ -1081,13 +1081,30 @@ where
                 // midpoint inside and accepted the same way. Otherwise
                 // halve, down to the band (where `ssi_step_progress`
                 // speaks).
-                let thr = probe_k() * SSI_STEP_DEVIATION * ctx.tol.meters();
+                let (n1, n2) = sys.normals(&x);
+                let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+                let mode_p = std::env::var("PROBE_MODE").unwrap_or_default();
+                let claim = SSI_STEP_DEVIATION * ctx.tol.meters();
+                let thr = match mode_p.as_str() {
+                    // corrector move against k·δε / sin θ
+                    "scaled" => probe_k() * claim / sin_theta,
+                    _ => probe_k() * claim,
+                };
+                // residual mode: the predicted state's residual against
+                // twice the step rule's claimed deviation plus the
+                // residual the start state already carries.
+                let thr_res = 2.0 * claim + ctx.tol.settling();
                 let at = |h: f64| -> [f64; N] {
                     core::array::from_fn(|i| {
                         x[i] + h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i]
                     })
                 };
                 let accepts = |pred: [f64; N]| -> bool {
+                    if mode_p == "resid" {
+                        let r = sys.residual(&pred);
+                        let n = r.iter().map(|v| v * v).sum::<f64>().sqrt();
+                        return n <= thr_res;
+                    }
                     newton_refine(sys, pred, ctx.tol)
                         .is_some_and(|r| distance_meters(sys, &pred, &r) <= thr)
                 };
