@@ -1769,7 +1769,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRimNotExpressible { .. } => "open_face_rim_not_expressible",
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
-        ShellError::Corrupt { .. } => "corrupt",
         ShellError::Pcurve { .. } => "pcurve",
         ShellError::NotValid { .. } => "not_valid",
     }

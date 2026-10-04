@@ -1565,6 +1565,146 @@ impl<T: Real> Body<T> {
             .filter(|orbit| self.orbit_inverts(orbit))
     }
 
+    /// [`Body::vertex_orbit_of`] for a vertex this call resolved or read
+    /// out of a record: on a tier-1-valid body every hop of it resolves
+    /// and the walk closes, so each miss panics naming the hop.
+    #[track_caller]
+    pub(crate) fn vertex_orbit_linked(&self, vertex: VertexKey) -> Vec<HalfEdgeKey> {
+        let data = crate::live::proven(&self.vertices, vertex, EntityId::Vertex);
+        let Some(first) = data.emanating else {
+            return Vec::new();
+        };
+        let start = crate::live::linked(
+            &self.half_edges,
+            first,
+            EntityId::HalfEdge,
+            EntityId::Vertex(vertex),
+            "emanating",
+        )
+        .start;
+        if start != vertex {
+            unreachable!(
+                "{}'s emanating {} starts at {}: {}",
+                EntityId::Vertex(vertex),
+                EntityId::HalfEdge(first),
+                EntityId::Vertex(start),
+                crate::live::NAMES_ONLY_LIVE
+            );
+        }
+        let orbit = self.orbit_walk(first).closed("orbit", first);
+        if !self.orbit_inverts(&orbit) {
+            unreachable!(
+                "the orbit walk from {first:?} does not walk back by mate(prev), and {WALKS_CLOSE}"
+            );
+        }
+        orbit
+    }
+
+    /// [`Body::faces_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s,
+    /// and each member's loop and face are links of the record before.
+    #[track_caller]
+    pub(crate) fn faces_of_vertex_linked(&self, vertex: VertexKey) -> Vec<FaceKey> {
+        let mut out: Vec<FaceKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let face = self.face_of_linked(he);
+            if !out.contains(&face) {
+                out.push(face);
+            }
+        }
+        out
+    }
+
+    /// The face of `he`'s loop, for a half-edge this call resolved or
+    /// read out of a record: its `parent_loop` and that loop's `face`
+    /// are links, and a miss panics naming the record.
+    #[track_caller]
+    pub(crate) fn face_of_linked(&self, he: HalfEdgeKey) -> FaceKey {
+        let parent = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).parent_loop;
+        crate::live::linked(
+            &self.loops,
+            parent,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face
+    }
+
+    /// The mate of `he` for a half-edge this call resolved or read out
+    /// of a record: its `edge` is a link, and on a tier-1-valid body
+    /// that edge claims it, so either miss panics naming the record.
+    #[track_caller]
+    pub(crate) fn mate_linked(&self, he: HalfEdgeKey) -> HalfEdgeKey {
+        let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+        let data = crate::live::linked(
+            &self.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let claim = data.claim(he).unwrap_or_else(|| {
+            unreachable!(
+                "{}'s edge {} does not claim it in either slot: on a tier-1-valid body \
+                 an edge claims the two half-edges that name it",
+                EntityId::HalfEdge(he),
+                EntityId::Edge(edge)
+            )
+        });
+        let field = if claim.plus { "he_minus" } else { "he_plus" };
+        crate::live::linked(
+            &self.half_edges,
+            claim.mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            field,
+        );
+        claim.mate
+    }
+
+    /// The end vertex of `he` (`start(next(he))`) for a half-edge this
+    /// call resolved or read out of a record: its `next` is a link, and
+    /// a miss panics naming it.
+    #[track_caller]
+    pub(crate) fn half_edge_end_linked(&self, he: HalfEdgeKey) -> VertexKey {
+        let next = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).next;
+        crate::live::linked(
+            &self.half_edges,
+            next,
+            EntityId::HalfEdge,
+            EntityId::HalfEdge(he),
+            "next",
+        )
+        .start
+    }
+
+    /// The members of every cycle bounding `face` (outer loop, then its
+    /// rings, each in `next` order), for a face this call resolved or
+    /// read out of a record: each loop is a link of the face and each
+    /// walk closes, so a miss panics naming the record or the hop.
+    #[track_caller]
+    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
+        let data = crate::live::proven(&self.faces, face, EntityId::Face);
+        let loops = core::iter::once(("outer", data.outer))
+            .chain(data.rings.iter().map(|&ring| ("rings", ring)));
+        let mut out = Vec::new();
+        for (field, r#loop) in loops {
+            let boundary = crate::live::linked(
+                &self.loops,
+                r#loop,
+                EntityId::Loop,
+                EntityId::Face(face),
+                field,
+            )
+            .boundary;
+            if let crate::entity::LoopBoundary::Cycle { first } = boundary {
+                out.extend(self.loop_walk(first).closed("loop", first));
+            }
+        }
+        out
+    }
+
     /// The edges meeting `vertex`, each ONCE — or `None` where the
     /// vertex key is stale, its stored [`Vertex::emanating`] starts at
     /// another vertex, or its orbit does not walk
@@ -1897,7 +2037,6 @@ impl<T: Real> Default for Body<T> {
 mod tests {
     use super::*;
     use crate::EntityId;
-    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
@@ -2215,16 +2354,17 @@ mod tests {
         assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
     }
 
-    /// All three refusal postures over the one door, because a fold
-    /// that flattened any of them into another leaves every other row
-    /// green.
+    /// The walk consumers over one torn `parent_loop`: the public edge
+    /// door names WHICH faces on a sound body, and every consumer —
+    /// that door, the vertex fan, and the sector walk — panics naming
+    /// the torn link (D2 row 4) rather than answering a refusal a caller
+    /// could mistake for one about its own keys.
     #[test]
-    fn the_walk_consumers_keep_their_own_refusal() {
+    fn the_walk_consumers_panic_naming_the_torn_link() {
         let mut t = pillow(Tol::witness());
-        // Typed `DanglingRef`: the edge door names WHICH faces, in
-        // `he_plus`-then-`he_minus` order. `is_ok()` would pass on an
-        // `(f_plus, f_plus)` — the typo a re-spelling of two
-        // near-identical lines makes — so the pair is asserted.
+        // `is_ok()` would pass on an `(f_plus, f_plus)` — the typo a
+        // re-spelling of two near-identical lines makes — so the pair
+        // is asserted.
         let e = t.body.get_edge(t.edges[0]).unwrap().clone();
         assert_eq!(e.he_plus, t.hes_a[0]);
         assert_eq!(e.he_minus, t.hes_b[0]);
@@ -2232,33 +2372,29 @@ mod tests {
         assert_eq!(faces(&t.body), Ok((t.face_a, t.face_b)));
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        assert_eq!(
+            t.body.faces_of_vertex_linked(v).len(),
+            2,
+            "both faces meet the untorn vertex"
+        );
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
-        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+        let premise = format!(
+            "{}'s parent_loop names {}",
+            EntityId::HalfEdge(t.hes_a[0]),
+            EntityId::Loop(LoopKey::default())
+        );
+        let edge_door = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
             let _ = faces(&t.body);
         }));
-        assert!(
-            report.contains(&format!(
-                "{}'s parent_loop names {}",
-                EntityId::HalfEdge(t.hes_a[0]),
-                EntityId::Loop(LoopKey::default())
-            )),
-            "{report}"
-        );
-        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
-        // REFUSAL, not a `None` a caller may drop.
-        assert!(matches!(
-            crate::offset_together::faces_at_vertex(&t.body, v),
-            Err(ReplaceFaceError::Corrupt)
-        ));
-        // Typed `Result` that NAMES the entity. This is the arm the
-        // door cannot express, so it is the arm a fold would flatten
-        // silently; the agnostic arm above is never at risk.
-        assert!(matches!(
-            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
-            Err(crate::sector_face::SectorFaceError::Corrupt(
-                EntityId::Loop(_)
-            ))
-        ));
+        let fan = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.faces_of_vertex_linked(v);
+        }));
+        let sector = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = crate::sector_face::resolve(&t.body, v, t.hes_b[0]);
+        }));
+        for (label, report) in [("edge door", edge_door), ("fan", fan), ("sector", sector)] {
+            assert!(report.contains(&premise), "{label}: {report}");
+        }
     }
 
     /// The door removes the one entity and repairs nothing: the

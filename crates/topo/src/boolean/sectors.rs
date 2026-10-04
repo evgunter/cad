@@ -50,7 +50,7 @@ use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -314,13 +314,6 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        // The shared walk names the entity that did not resolve; this
-        // lane's corruption arm carries the operand and a VERTEX, so
-        // the payload is narrowed here the same way the splitting
-        // lane's is — a vertex names itself, anything else falls back
-        // to the base vertex (issue #695).
-        SectorFaceError::Corrupt(EntityId::Vertex(v)) => corrupt(operand, v),
-        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,

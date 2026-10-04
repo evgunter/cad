@@ -5811,7 +5811,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "chart_sense_mixed",
-            "corrupt",
             "escalated",
             "face",
             "insert",
