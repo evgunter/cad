@@ -43,7 +43,14 @@ fn sheet() -> (Body<f64>, FaceKey) {
 fn rows(body: &Body<f64>) -> Vec<String> {
     let mut out: Vec<String> = body
         .pcurves()
-        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                body.joint(he)
+            )
+        })
         .collect();
     out.sort();
     out

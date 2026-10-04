@@ -231,7 +231,14 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     let good_rows: Vec<String> = good
         .body
         .pcurves()
-        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                good.body.joint(he)
+            )
+        })
         .collect();
 
     let mut maimed = v.clone();
@@ -258,7 +265,14 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     let rows: Vec<String> = s
         .body
         .pcurves()
-        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                s.body.joint(he)
+            )
+        })
         .collect();
     assert_eq!(
         rows, good_rows,
