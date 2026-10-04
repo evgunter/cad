@@ -193,6 +193,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 
 use super::rim_wedge::Rim;
+use super::sphere_region::{SphereFaceRegion, sphere_face_region};
 use super::surface_group::{
     WrapRims, coaxial_margins, off_axis, scope_members, surface_group, wrap_rims, wrap_rims_within,
 };
@@ -704,24 +705,20 @@ enum FaceGeo<T: geom_core::Real> {
         /// derived from the chart normal.
         sense: bool,
     },
-    /// A TRIMMED sphere face whose chart rectangle expresses it: the
-    /// same ray/sphere quadratic as [`FaceGeo::Sphere`], with each root
-    /// tested against the face's own `[azimuth] × [latitude]` window —
-    /// the cylinder arm's shape, on the sphere chart. Unlike the closed
-    /// group this arm IS per face: a trimmed face carries its own trim,
-    /// so two faces of one sphere surface contribute different
-    /// crossings and no representative stands in for the rest.
+    /// A TRIMMED sphere face: the same ray/sphere quadratic as
+    /// [`FaceGeo::Sphere`], with each root tested against the face's own
+    /// region, read from its boundary arcs
+    /// ([`super::sphere_region`]). Unlike the closed group this arm IS
+    /// per face: a trimmed face carries its own region, so two faces of
+    /// one sphere surface contribute different crossings and no
+    /// representative stands in for the rest.
     SpherePatch {
         /// The sphere's centre.
         center: Point3<T>,
         /// Its radius (positive by convention).
         radius: T,
-        /// The chart's polar axis.
-        axis: Vec3<T>,
-        /// The chart's seam direction.
-        u_ref: Vec3<T>,
-        /// The face's exact chart rectangle.
-        trim: SphereChartTrim<T>,
+        /// The face's region on the sphere.
+        region: SphereFaceRegion<T>,
         /// The face's orientation sense (S10) — `false` swaps the
         /// near/far crossing pair, as for the closed group.
         sense: bool,
@@ -886,12 +883,7 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        Some(&Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        }) => match closed_sphere_group(body, face, charts) {
+        Some(&Surface::Sphere { center, radius, .. }) => match closed_sphere_group(body, face, charts) {
             Some(representative) => Ok(FaceGeo::Sphere {
                 center,
                 radius,
@@ -901,17 +893,11 @@ fn face_geo<T: Decide>(
                     .ok_or(PointInSolidError::CorruptFace { face })?
                     .sense,
             }),
-            // A TRIMMED sphere face is served through its own chart
-            // rectangle when the chart can express it, exactly as a
-            // trimmed cylinder wall is. Only a face outside that class
-            // keeps the refusal.
-            None => match sphere_chart_trim(body, face, center, radius, axis, band)? {
-                Some(trim) => Ok(FaceGeo::SpherePatch {
+            None => match sphere_face_region(body, face, center, radius)? {
+                Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
-                    axis,
-                    u_ref,
-                    trim,
+                    region,
                     sense: f.sense,
                 }),
                 None => Err(PointInSolidError::PartialSphereFace { face }),
@@ -2506,10 +2492,6 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///
 /// Restated (the mid direction through [`chart_dir`], the comparison or
 /// the guard written out):
-/// - [`point_on_sphere_in_face`] — the same `m̂`/`cos(w/2)` comparison
-///   inline, because its window is optional and is guarded by a POLE
-///   test that skips it entirely; the control flow differs even though
-///   the margin does not;
 /// - [`sphere_chart_trim`] — a meridian edge's own span: the period
 ///   guard as a class question, then the comparison run with `r̂ = ±â`
 ///   to find a pole inside the edge;
@@ -3237,7 +3219,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // has a gap the window cannot see (a zone merged with half a cap),
     // and one wider than a period is a walk that wrapped more than once.
     // Both are out of the class.
-    let az = if wrap_rims(
+    if wrap_rims(
         body,
         face,
         WrapRims::Coaxial {
@@ -3246,10 +3228,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         },
         band,
     )?
-    .is_some()
+    .is_none()
     {
-        None
-    } else {
         match decide(
             "bool_sphere_trim_period",
             Margin::levered(T::tau() - (raw.1 - raw.0), radius),
@@ -3257,28 +3237,25 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         )
         .map_err(escalate)?
         {
-            Sign::Positive => Some(raw),
+            Sign::Positive => {}
             Sign::Zero | Sign::Negative => return Ok(None),
         }
-    };
-    Ok(Some(SphereChartTrim { az, north, south }))
+    }
+    Ok(Some(SphereChartTrim { north, south }))
 }
 
-/// A sphere face's chart rectangle: the azimuth window and the two
-/// extreme latitudes, each as its exact `(axial, radial)` pair on the
-/// meridian half-plane.
+/// The latitude half of a sphere face's chart rectangle: its two extreme
+/// latitudes, each as its exact `(axial, radial)` pair on the meridian
+/// half-plane.
 ///
-/// A `None` window END is a constraint the face does not have, not a
-/// missing datum: a face attaining every azimuth cannot be excluded by
-/// an azimuth, and a latitude window that reaches a POLE cannot be
-/// excluded on that side — every latitude is at least the north pole's
-/// and at most the south pole's. Carrying those as `None` rather than
-/// as a margin against the pole is what keeps the margins honest:
-/// `sin(v - v_pole)` degenerates to `sin v`, which is Zero at BOTH
-/// poles and would call the far pole a graze.
+/// A `None` END is a constraint the face does not have, not a missing
+/// datum: a latitude window that reaches a POLE cannot be excluded on
+/// that side — every latitude is at least the north pole's and at most
+/// the south pole's. Carrying those as `None` rather than as a margin
+/// against the pole is what keeps the margins honest: `sin(v - v_pole)`
+/// degenerates to `sin v`, which is Zero at BOTH poles and would call the
+/// far pole a graze.
 pub(crate) struct SphereChartTrim<T> {
-    /// The azimuth window, or `None` for a full period.
-    pub az: Option<(T, T)>,
     /// The extreme latitude nearest the `+axis` pole, or `None` when
     /// the face reaches that pole.
     pub north: Option<(T, T)>,
@@ -3410,79 +3387,6 @@ fn latitude_extremes<T: Decide>(
         return Ok(None);
     };
     Ok(Some((lo, hi)))
-}
-
-/// Is the ON-SPHERE point `p` within the sphere face's chart trim?
-/// `Some(true/false)` definite, `None` a boundary graze.
-///
-/// The azimuth half is THE cosine-window construction — the argument
-/// (period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering, ledger row
-/// F8) is stated at [`point_on_wall_in_face`], which enumerates every
-/// site. This one RESTATES it inline rather than calling the shared
-/// [`chart_azimuth_margin`]: the window here is optional and is
-/// guarded by a pole test that skips it, so the control flow differs
-/// even though the margin does not. A change to the construction is
-/// therefore a change HERE TOO, by hand — sharing the body would buy
-/// that automatically and is the obvious follow-on, not done in
-/// passing because it moves a shipped margin's call site. A face with
-/// no azimuth window attains every azimuth and skips the test.
-///
-/// The latitude half is the sine margin of [`sphere_chart_trim`]'s
-/// header: `R sin(v − v_lo)` and `R sin(v_hi − v)`, both arc lengths,
-/// both bounded below by the geodesic distance to the window edge even
-/// when that edge is a pole.
-#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
-pub(super) fn point_on_sphere_in_face<T: Decide>(
-    face: FaceKey,
-    center: Point3<T>,
-    radius: T,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    trim: &SphereChartTrim<T>,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let half = T::from_f64(0.5);
-    let w = p - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let here = (height, radial.norm());
-    let mut margins: Vec<Margin<T>> = [
-        trim.north
-            .map(|n| Margin::levered(latitude_sine(n, here, radius), radius)),
-        trim.south
-            .map(|s| Margin::levered(latitude_sine(here, s, radius), radius)),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    if let Some((w_min, w_max)) = trim.az {
-        let width = w_max - w_min;
-        let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
-        let (_, c_h) = (width * half).sin_cos();
-        // The azimuth direction is the radial one, and at a POLE there
-        // is none: every azimuth meets there, so the window cannot
-        // exclude the point and the test is skipped rather than run on
-        // a direction that does not exist. The latitude margins above
-        // still decide the pole, exactly.
-        match decide("bool_sphere_trim_pole", Margin::of(radial.norm()), band).map_err(escalate)? {
-            Sign::Positive => {
-                let r_hat = radial / radial.norm();
-                margins.push(Margin::levered(r_hat.dot(m_hat) - c_h, radius));
-            }
-            Sign::Zero | Sign::Negative => {}
-        }
-    }
-    let mut verdict = Some(true);
-    for margin in margins {
-        match decide("bool_sphere_trim", margin, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => return Ok(Some(false)),
-            Sign::Zero => verdict = None, // boundary graze
-        }
-    }
-    Ok(verdict)
 }
 
 /// Is `p` (already in the face's plane) within the face's region —
@@ -3861,15 +3765,13 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             // The TRIMMED sphere arm: a Zero radial residual puts `q`
-            // on the CARRIER, and the face's own chart rectangle then
-            // says whether it is on THIS face (a trim graze counts as
-            // ON, as it does for the cylinder wall).
+            // on the CARRIER, and the face's own region then says
+            // whether it is on THIS face (a point on the region's
+            // boundary counts as ON, as it does for the cylinder wall).
             FaceGeo::SpherePatch {
                 center,
                 radius,
-                axis,
-                u_ref,
-                ref trim,
+                ref region,
                 sense: _, // a residual against Zero: orientation-free
             } => {
                 let elev =
@@ -3877,8 +3779,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
-                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, q, band)?
-                    {
+                    match region.contains(face, q, band)? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
@@ -5238,16 +5139,14 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
             }
             // The TRIMMED sphere face: the same quadratic, the same
             // read-off outward pair, with each root filtered through
-            // the face's own chart rectangle — the cylinder arm's
-            // shape. A root outside the trim is not a crossing of THIS
-            // face; a root ON its boundary is a graze the schedule
-            // retries, never a parity guess.
+            // the face's own region. A root outside it is not a
+            // crossing of THIS face; a root ON its boundary is a graze
+            // the schedule retries, never a parity guess, and so is a
+            // root the region cannot place at this ε.
             FaceGeo::SpherePatch {
                 center,
                 radius,
-                axis,
-                u_ref,
-                ref trim,
+                ref region,
                 sense,
             } => {
                 let [near, far] =
@@ -5261,8 +5160,7 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                     (far, oriented(Sign::Positive, sense)),
                 ] {
                     let p = q + d * t;
-                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, p, band)?
-                    {
+                    match region.contains(face, p, band).map_err(RayFault::at_hit)? {
                         Some(false) => continue,
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}

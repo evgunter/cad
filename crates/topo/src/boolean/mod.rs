@@ -116,6 +116,7 @@ pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
 mod shell_witness;
+pub(crate) mod sphere_region;
 pub mod solid_contain;
 mod surface_group;
 pub mod tables;
