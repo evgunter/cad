@@ -310,21 +310,24 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
 }
 
 /// **A rod tipped off parallel over a long wall takes a decided door.**
-/// The frame levers the axes' parallelism by the walls' reach, so a
-/// sine of 2e-10 over 100 of wall (a drift of 2e-8, past the band)
-/// reads as a skew pair, `GermFrameUnsupported`, rather than reaching
-/// the rulings arm and failing at the result's pcurve pass. A tip whose
-/// drift over the walls stays inside the zero band is parallel, and
-/// builds.
+/// The frame levers the axes' parallelism by the walls' reach, so a tip
+/// whose drift over the walls is past the band reads as a skew pair (at
+/// the witness tolerance, `GermFrameUnsupported`; at a finer one the
+/// crossing layer meets the drift first) rather than reaching the
+/// rulings arm and failing at the result's pcurve pass, as it did with
+/// the parallelism levered by the radius alone. A tip whose drift stays
+/// inside the zero band is parallel, and builds. The tips are set from
+/// the band, so the row asks the same question at every tolerance.
 #[test]
 fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for half in [50.0, 200.0] {
-        for theta in [2e-10, 1e-9] {
+        for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
             for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
-                let pose = tipped(r, c, half, theta);
+                let pose = tipped(r, c, half, drift / (2.0 * half));
                 for (op, res, _) in pose.runs() {
                     assert!(
-                        matches!(res, Err(BooleanError::GermFrameUnsupported { .. })),
+                        matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
                         "{} | {op}: {:?}",
                         pose.label,
                         res.map(|_| "a body")
@@ -333,7 +336,7 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
             }
         }
     }
-    let parallel = tipped(0.3, 0.6, 200.0, 1e-12);
+    let parallel = tipped(0.3, 0.6, 5.0, band.zero() / 10.0 / 10.0);
     let bad = unsound(&[parallel]);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
