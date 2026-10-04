@@ -9,6 +9,7 @@ cost: E
 refs: [refusal-rows-that-count-instead-of-snapshot]
 closed: 2026-10-04
 branch: topo/kill-refusal-row-drops-rows-companion
+pr: 4018
 ---
 
 ## What
