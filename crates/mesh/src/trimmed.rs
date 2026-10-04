@@ -976,15 +976,21 @@ fn trim_polygon(
     let cycle = body
         .loop_cycle(first)
         .ok_or(TessellateError::MissingEntity { what: "loop cycle" })?;
-    // The loop's lift (`topo::Body::loop_lift`): each half-edge's image
-    // where the loop's chain places it. A loop with no lift reads as
-    // rowless at its every half-edge, and the walk refuses at the first.
-    let lifted: Vec<Option<Pcurve<f64>>> = match body.loop_lift(lk) {
-        Ok(rows) => rows.into_iter().map(|row| Some(row.pcurve)).collect(),
-        Err(_) => vec![None; cycle.len()],
-    };
+    // The loop's lift (`topo::Body::loop_lift`), by half-edge: each
+    // image where the loop's chain places it. A loop with no lift reads
+    // as rowless at its every half-edge, and the walk refuses at the
+    // first.
+    let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
+        .loop_lift(lk)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| (row.half_edge, row.pcurve))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut out = Vec::new();
-    for (hek, image) in cycle.into_iter().zip(lifted) {
+    for hek in cycle {
+        let image = lifted.remove(&hek);
         let he = body
             .get_half_edge(hek)
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
