@@ -364,7 +364,10 @@ fn analysis_refusal_tags_are_stable() {
     use pncad::analysis::{AnalysisPolicy, box_mass};
     use pncad::document::{Distribution, VarName};
 
-    let bore = VarName::from_static("bore");
+    let bore = pncad::document::SpokenVar::new(
+        pncad::document::VarId(9),
+        Some(VarName::from_static("bore")),
+    );
     let refusal = box_mass(
         &bore,
         &Distribution::Band { lo: -1.0, hi: 1.0 },
@@ -1885,9 +1888,9 @@ fn expression_evaluation_tags_are_stable() {
         let doc: ProfileDoc = crate::identity::derived("expression-evaluation-probe", tol);
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: name.clone(),
-                value: param,
+                def: pncad::document::VarDef::Free(param),
             },
             tol,
             &pncad::document::RefusingReach,
@@ -2620,9 +2623,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 #[test]
 fn edit_inner_variant_tags_are_stable() {
     use crate::tags::{edit_error_tag, edit_inner_variant_tag};
-    use pncad::document::{
-        Distribution, EditError, MetaVersionError, RecipeNodeId, RootFault, VarName,
-    };
+    use pncad::document::{Distribution, EditError, MetaVersionError, RecipeNodeId, RootFault};
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
 
@@ -2633,7 +2634,7 @@ fn edit_inner_variant_tags_are_stable() {
         .expect_err("a zero sigma breaks an E2 invariant");
     assert_eq!(
         pair(&EditError::InvalidDistribution {
-            name: VarName::from_static("bore"),
+            var: pncad::document::SpokenVar::new(pncad::document::VarId(9), None),
             fault,
         }),
         ("invalid_distribution", Some("sigma_not_positive"))
@@ -2670,7 +2671,7 @@ fn edit_inner_variant_tags_are_stable() {
 ///
 /// The arm table, executable. `crate::edit_payload::edit_payload` is
 /// the projection Python reads its attributes off, and this pin says
-/// what each of the 68 arms puts on the wire: the exact set of
+/// what each of the 71 arms puts on the wire: the exact set of
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
@@ -2681,7 +2682,7 @@ fn edit_inner_variant_tags_are_stable() {
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
 ///
-/// The pin is TOTAL over the enum: all 68 arms are built here, so an
+/// The pin is TOTAL over the enum: all 71 arms are built here, so an
 /// arm whose projection is dropped shows up as a changed set rather
 /// than as an absence nobody counted. Totality of the PROJECTION is a
 /// different guarantee and a stronger one: `edit_payload`'s match is
@@ -2701,6 +2702,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     let id = |n: u64| RecipeNodeId(n);
     let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || VarName::from_static("bore");
+    let spv = || pncad::document::SpokenVar::new(pncad::document::VarId(9), Some(param()));
     let named = || {
         pncad::document::SpokenName::absent(StableName {
             kind: EntityKind::Face,
@@ -2955,27 +2957,52 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "slot", "param", "expected", "found"],
     );
+    carries(&E::ContinuousParamCannotBeCount { var: spv() }, &["param"]);
     carries(
-        &E::ContinuousParamCannotBeCount { name: param() },
-        &["param"],
-    );
-    carries(
-        &E::DocParamNotDeclared {
-            name: param(),
+        &E::UnknownVar {
+            var: param().into(),
             door: pncad::document::CarryForwardDoor::Value,
         },
         &["param"],
     );
     carries(
-        &E::NonFiniteDocParam {
+        &E::UnknownVar {
+            var: pncad::document::VarId(9).into(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &[],
+    );
+    carries(
+        &E::VarNameTaken {
             name: param(),
+            holder: spv(),
+        },
+        &["param"],
+    );
+    carries(
+        &E::VarIdCollides {
+            id: pncad::document::VarId(9),
+        },
+        &[],
+    );
+    carries(
+        &E::VarKindFixed {
+            var: spv(),
+            kind: pncad::document::VarKind::Length,
+            offered: pncad::document::VarKind::Angle,
+        },
+        &["param", "expected", "found"],
+    );
+    carries(
+        &E::NonFiniteDocParam {
+            var: spv(),
             field: pncad::document::DocParamField::Nominal,
         },
         &["param"],
     );
     carries(
         &E::DocParamValueKindMismatch {
-            name: param(),
+            var: spv(),
             declared: Dimension::Length,
             offered: FreeValue::Count(3),
         },
@@ -3185,7 +3212,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::InvalidDistribution {
-            name: param(),
+            var: spv(),
             fault: Distribution::Normal { sigma: 0.0 }
                 .check()
                 .expect_err("a zero sigma breaks an E2 invariant"),
@@ -4899,7 +4926,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "doc_param_count_has_no_distribution",
             "doc_param_count_has_no_unit",
-            "doc_param_not_declared",
             "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
             "duplicate_input",
@@ -4965,8 +4991,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "too_few_members",
             "unknown_node",
             "unknown_slot",
+            "unknown_var",
             "unresolved_input",
             "update_on_non_instance",
+            "var_id_collides",
+            "var_kind_fixed",
+            "var_name_taken",
             "witness_on_non_sketch",
             "would_cycle",
             "would_start_placing",
@@ -5904,6 +5934,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "mint_log_order",
+            "name_on_missing_var",
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
@@ -5918,6 +5949,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
             "step_ids",
+            "var_kind",
+            "var_name_twice",
+            "var_not_minted",
+            "var_order_mismatch",
+            "var_unnamed",
             "witness_on_missing_node",
             "witness_site",
         ],

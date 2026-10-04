@@ -281,9 +281,9 @@ fn check_body_interval(
 fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name,
-            value: FreeVar::continuous(dim, v),
+            def: editor_core::VarDef::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0
@@ -292,8 +292,8 @@ fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc
 fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name,
+        DocEdit::SetVarValue {
+            var: name.into(),
             value: FreeValue::Continuous(v),
         },
     )

@@ -467,9 +467,9 @@ impl UnitSym {
     /// needs it asks here rather than re-laddering it: the expression
     /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
     /// construction, [`crate::FreeVar::with_display_unit`] at the
-    /// parameter's notation door, `write_doc_param` at the
-    /// create-or-replace door, and the save/load validator's parameter
-    /// walk (`persist::check`). Callers restating one `match` are that
+    /// variable's notation door, the declare and define doors' definition
+    /// check (`edit.rs`'s `check_var_def`), and the save/load
+    /// validator's variable walk (`persist::check`). Callers restating one `match` are that
     /// many chances for them to disagree about what `mm` measures —
     /// and the parser's copy was worse than a duplicate, because the
     /// dimension it derived was then handed to a door that derives the

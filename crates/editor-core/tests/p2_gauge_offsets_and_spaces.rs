@@ -268,9 +268,9 @@ fn lift() -> VarName {
 fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: lift(),
-            value: FreeVar::continuous(Dimension::Length, value),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -279,8 +279,8 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
 fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: lift(),
+        DocEdit::SetVarValue {
+            var: lift().into(),
             value: FreeValue::Continuous(value),
         },
     )
@@ -1155,9 +1155,9 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Some(Placement::IDENTITY)
     );
     assert!(
-        out.part.params().is_empty(),
-        "the part copies no parameter: {:?}",
-        out.part.params().keys().collect::<Vec<_>>()
+        out.part.vars().is_empty(),
+        "the part copies no variable: {:?}",
+        out.part.var_names().values().collect::<Vec<_>>()
     );
 }
 

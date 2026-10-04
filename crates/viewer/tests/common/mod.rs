@@ -150,9 +150,9 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-parametric", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: thickness_param(),
-            value: FreeVar::continuous(Dimension::Length, 0.008),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );

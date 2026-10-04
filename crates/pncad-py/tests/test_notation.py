@@ -82,14 +82,19 @@ WIDTH = ParamName("width")
 
 
 def saved_params(doc):
-    """The `params` map of `doc`'s saved snapshot, as parsed JSON.
+    """Each variable's free definition in `doc`'s saved snapshot, by
+    name, as parsed JSON: the `vars` table read through `var_names`.
 
     The file is the point of this whole family, so the assertions read
     the BYTES rather than the in-memory value wherever the claim is
     about what a document records. The header line carries the id and
     is not JSON, hence the split.
     """
-    return json.loads(doc.save().split("\n", 1)[1])["snapshot"]["params"]
+    snapshot = json.loads(doc.save().split("\n", 1)[1])["snapshot"]
+    return {
+        name: snapshot["vars"][var]["def"]["Free"]
+        for var, name in snapshot["var_names"].items()
+    }
 
 
 def saved_nodes(doc):
@@ -99,7 +104,7 @@ def saved_nodes(doc):
 
 def doc_with(name, param):
     doc = Doc()
-    doc.apply(DocEdit.set_doc_param(name, param))
+    doc.apply(DocEdit.declare_var(name, param))
     return doc
 
 
@@ -270,9 +275,9 @@ class TestTheReadDoor(unittest.TestCase):
 
     def test_the_map_answers_every_declared_parameter(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(
+        doc.apply(DocEdit.declare_var(
             WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm))))
-        doc.apply(DocEdit.set_doc_param(
+        doc.apply(DocEdit.declare_var(
             ParamName("holes"), DocParam.count(4)))
         self.assertEqual(sorted(n.name for n in doc.params),
                          ["holes", "width"])
@@ -303,17 +308,17 @@ class TestTheValueDoorLeavesTheNotationAlone(unittest.TestCase):
 
     def test_a_value_edit_keeps_the_authored_unit(self):
         doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
-        doc.apply(DocEdit.set_doc_param_value(WIDTH, DocParamValue.length(30 * mm)))
+        doc.apply(DocEdit.set_var_value(WIDTH, DocParamValue.length(30 * mm)))
         row = saved_params(doc)["width"]["Continuous"]
         self.assertEqual(row["display_unit"], "mm")
         self.assertEqual(row["value"], 0.03)
 
-    def test_the_create_or_replace_door_restates_it(self):
-        # `set_doc_param` is create-or-replace, so it redeclares the
+    def test_the_definition_door_restates_it(self):
+        # `define_var` replaces the whole definition, so it restates the
         # notation along with everything else. That is not a bug in
         # the value door; it is why the value door exists.
         doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
-        doc.apply(DocEdit.set_doc_param(WIDTH, DocParam.length(30 * mm)))
+        doc.apply(DocEdit.define_var(WIDTH, DocParam.length(30 * mm)))
         self.assertEqual(saved_params(doc)["width"]["Continuous"]["display_unit"], "m")
 
 
@@ -359,7 +364,9 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
                        DocParam.written_angle(WrittenAngle.in_unit(90.0, deg)))
         header, body = doc.save().split("\n", 1)
         parsed = json.loads(body)
-        parsed["snapshot"]["params"]["spin"]["Continuous"]["display_unit"] = symbol
+        snapshot = parsed["snapshot"]
+        (var,) = [v for v, name in snapshot["var_names"].items() if name == "spin"]
+        snapshot["vars"][var]["def"]["Free"]["Continuous"]["display_unit"] = symbol
         return header + "\n" + json.dumps(parsed)
 
     def test_a_length_unit_on_an_angle_parameter(self):
@@ -503,7 +510,7 @@ class TestTheOneCallIsTheComposition(unittest.TestCase):
         """The same bytes `test_the_written_door_records_the_unit_the_
         author_wrote` reads, reached through the one call."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(WIDTH, DocParam.length(25 * mm)))
+        doc.apply(DocEdit.declare_var(WIDTH, DocParam.length(25 * mm)))
         square = [
             (Expr.length_in(0, mm), Expr.length_in(0, mm)),
             (Expr.length_in(10, mm), Expr.length_in(0, mm)),

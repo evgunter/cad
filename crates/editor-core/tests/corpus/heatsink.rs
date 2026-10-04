@@ -12,7 +12,7 @@
 //!   below is the chain's.
 //!
 //! Vocabulary: Profile, Extrude, Transform, Pattern (Linear),
-//! Boolean (Union), `InsertNode`, `SetDocParam`,
+//! Boolean (Union), `InsertNode`, `DeclareVar`,
 //! `SetStructuralParam`, `SetParam`.
 //!
 //! Geometry (dyadic): base `[0,3] × [0,1] × [0,0.25]`; fin footprint
@@ -45,9 +45,9 @@ const PITCH: f64 = 0.3125;
 /// The heat-sink corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("fins"),
-        value: FreeVar::Count { value: FINS },
+        def: editor_core::VarDef::Free(FreeVar::Count { value: FINS }),
     });
     let base_p = r.profile(
         [0.0, 0.0, 0.0],

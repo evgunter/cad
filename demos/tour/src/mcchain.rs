@@ -111,7 +111,7 @@ use pncad::analysis::{
 };
 use pncad::document::{
     CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
-    RefusingReach, ValuePayload, VarName, apply, evaluate,
+    RefusingReach, ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -283,9 +283,9 @@ fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
 /// tip's position read back out of it.
 fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Sample> {
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
-    let nominal: Vec<(VarName, f64)> = analyzed
+    let nominal: Vec<(VarId, f64)> = analyzed
         .varying()
-        .map(|(name, p)| (name.clone(), p.nominal))
+        .map(|(var, p)| (var, p.nominal))
         .collect();
 
     (0..samples)
@@ -293,12 +293,12 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
             let offsets =
                 sample_offsets(&analyzed, config, i).expect("the study's laws are sampleable");
             let mut doc: ProfileDoc = base.doc.clone();
-            for (name, value) in &nominal {
-                let offset = offsets[name];
+            for (var, value) in &nominal {
+                let offset = offsets[var];
                 let applied = apply(
                     &doc,
-                    &DocEdit::SetDocParamValue {
-                        name: name.clone(),
+                    &DocEdit::SetVarValue {
+                        var: (*var).into(),
                         value: FreeValue::Continuous(value + offset),
                     },
                     tol,

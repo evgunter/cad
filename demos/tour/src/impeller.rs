@@ -21,7 +21,7 @@
 //! same fact twice. So the count slot holds `blades` and the step
 //! holds `360 deg / scalar(blades)`, both against ONE document
 //! parameter, and the tour's 6 → 8 → 12 is a single
-//! [`DocEdit::SetDocParamValue`] each time.
+//! [`DocEdit::SetVarValue`] each time.
 //!
 //! `scalar(n)` is what makes that sayable: a bare `blades` is a
 //! `Count`, `Div`'s divisor must be `Scalar`, and the grammar's one
@@ -149,7 +149,7 @@ fn blade_polygon() -> LoopProgram {
 }
 
 /// This scene's recipe at its first count, as a document the GUI can
-/// open: one `SetDocParamValue` on `blades` is the scene's whole edit.
+/// open: one `SetVarValue` on `blades` is the scene's whole edit.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     build_doc(tol).doc
 }
@@ -168,9 +168,9 @@ fn build_doc(tol: Tol) -> Recipe {
     // material).
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("blades"),
-            value: FreeVar::Count { value: COUNTS[0] },
+            def: pncad::document::VarDef::Free(FreeVar::Count { value: COUNTS[0] }),
         },
         tol,
         &RefusingReach,
@@ -295,8 +295,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // moves the step when the count moves.
         let applied = apply(
             &doc,
-            &DocEdit::SetDocParamValue {
-                name: VarName::from_static("blades"),
+            &DocEdit::SetVarValue {
+                var: VarName::from_static("blades").into(),
                 value: FreeValue::Count(n),
             },
             tol,
@@ -414,7 +414,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         `Boolean` beside it. The blade COUNT and the angular STEP are \
                         two slots and they read the SAME document parameter — the \
                         count is `blades`, the step is `360 deg / scalar(blades)` — so \
-                        the tour's 6 -> 8 -> 12 is one `SetDocParamValue` each time \
+                        the tour's 6 -> 8 -> 12 is one `SetVarValue` each time \
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
                         recipe layer can say which it is. The hub is a PRISM because \
@@ -424,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
                       Extrude; Datum::Axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \
-                      Boolean(Union) with the hub; then DocEdit::SetDocParamValue",
+                      Boolean(Union) with the hub; then DocEdit::SetVarValue",
                 delta: DELTA,
                 note: Some(format!(
                     "{recompute_note}. V = {vol:.9} m^3 at {n} blades, and the three \

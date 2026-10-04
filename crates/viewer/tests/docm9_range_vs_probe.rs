@@ -37,9 +37,9 @@ fn slab(depth: f64) -> ProfileDoc {
     let mut doc = ProfileDoc::empty_derived("docm9", tol());
     common::edit_into(
         &mut doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name("depth"),
-            value: FreeVar::continuous(Dimension::Length, depth),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, depth)),
         },
         tol(),
     );
@@ -103,8 +103,8 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     let valid = |v: f64| {
         let (moved, _) = common::edited(
             &doc,
-            DocEdit::SetDocParamValue {
-                name: name("depth"),
+            DocEdit::SetVarValue {
+                var: name("depth").into(),
                 value: FreeValue::Continuous(v),
             },
             tol(),
@@ -115,7 +115,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     let bounds = probe(BoundsProbe::new(1.0, 1.0, false), valid);
     let range = certified_range(
         &doc,
-        &RangeField::Param(name("depth")),
+        &RangeField::Param(doc.var_named("depth").expect("declared")),
         RangeSeed {
             lo: SEED_LO,
             hi: 0.5,

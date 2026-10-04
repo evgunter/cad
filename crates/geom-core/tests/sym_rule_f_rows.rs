@@ -48,7 +48,7 @@ pub(crate) fn band() -> Band {
 }
 
 pub(crate) fn p(name: &str, v: f64) -> Sym<f64> {
-    Sym::param(ParamSymbol::of(name), v)
+    Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
 }
 
 pub(crate) fn one() -> Sym<f64> {
@@ -299,7 +299,7 @@ fn the_shapes_the_manifest_sign_must_not_fold() {
 /// rule C reads through ([`signed`](geom_core::sym)'s `fold` declines
 /// outright when `Session::params` is empty).
 fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
-    Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+    Sym::param_over(ParamSymbol::new(test_utils::symbol_id(name)), v, lo, hi)
 }
 
 /// Rule C on beside the shipped set.

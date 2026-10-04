@@ -134,7 +134,7 @@ use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, FreeVar, VarName};
+use crate::doc::{Doc, FreeVar};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
@@ -145,6 +145,8 @@ use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::VerdictVectorKey;
 use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The E4 semantics-honesty mark: what a reported ∂m/∂pᵢ is valid
 /// over. Two variants and no third — a sensitivity is chamber-scoped
@@ -181,8 +183,8 @@ pub enum LiftRefusal {
     PinnedSection {
         /// The section profile node the seed reaches and stops at.
         section: RecipeNodeId,
-        /// The seeded parameter.
-        param: VarName,
+        /// The seeded variable.
+        param: VarId,
     },
     /// The guided elaboration at the pass's scalar could not
     /// re-confirm a structure decision the build path made (a lift
@@ -248,8 +250,8 @@ pub struct Sensitivity {
     /// The document this was taken of, the one document its human
     /// form speaks from. Outside the goldening form and its content key.
     pub document: crate::DocumentId,
-    /// The parameter.
-    pub param: VarName,
+    /// The variable.
+    pub param: VarId,
     /// The pass's reading, marked.
     pub outcome: SensitivityOutcome,
 }
@@ -521,8 +523,8 @@ fn driver(
         pair_record(doc, handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
     }
 
-    // The names, in name order (deterministic in both schedules).
-    let names: Vec<VarName> = continuous_params(doc).cloned().collect();
+    // The variables, in declaration order (deterministic in both schedules).
+    let names: Vec<VarId> = continuous_params(doc).collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -539,12 +541,12 @@ fn driver(
         tol,
     );
 
-    let one = |name: &VarName| -> Result<Sensitivity, PairingViolation> {
+    let one = |name: &VarId| -> Result<Sensitivity, PairingViolation> {
         let pass: Evaluation<Dual64> = evaluate(
             doc,
             Some(&base),
             &CancelToken::new(),
-            &pass_opts(Some(name.clone()), resolver),
+            &pass_opts(Some(*name), resolver),
             tol,
         );
         // DL3, per pass: the pass evaluates exactly the nodes the
@@ -557,7 +559,7 @@ fn driver(
         };
         Ok(Sensitivity {
             document: doc.id(),
-            param: name.clone(),
+            param: *name,
             outcome,
         })
     };
@@ -583,7 +585,7 @@ fn driver(
 /// parallelism is per pass), the seed and the parts' resolver as
 /// given.
 fn pass_opts(
-    seed: Option<VarName>,
+    seed: Option<VarId>,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
 ) -> EvalOptions {
     EvalOptions {
@@ -781,7 +783,7 @@ fn pair_pass(
                         id,
                         LiftRefusal::PinnedSection {
                             section: *section,
-                            param: param.clone(),
+                            param: *param,
                         },
                     ));
                 }
@@ -1065,19 +1067,18 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 // ------------------------------------------------- the verdict's tie
 
-/// The document's continuous parameters, in name order — the entry
+/// The document's continuous free variables, in declaration order — the entry
 /// set of every driver call.
-fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = &VarName> {
-    doc.params()
-        .iter()
-        .filter(|(_, p)| matches!(p, FreeVar::Continuous { .. }))
-        .map(|(n, _)| n)
+fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
+    doc.free_vars()
+        .filter(|(_, free)| matches!(free, FreeVar::Continuous { .. }))
+        .map(|(id, _)| id)
 }
 
 /// Whether a verdict's root box spans exactly this document's
 /// continuous parameters — the cheap pre-check before the content tie.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<&VarName> = continuous_params(doc).collect();
+    let doc_names: Vec<VarId> = continuous_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
 }
 
@@ -1175,33 +1176,33 @@ fn tie(
 pub enum Unavailable {
     /// E9 forfeiture: the parameter's tangent degraded at the nominal.
     TangentDegraded {
-        /// The parameter.
-        param: VarName,
+        /// The variable.
+        param: SpokenVar,
     },
     /// The parameter's pass could not read the measure (its doors
     /// refused).
     MeasureRefused {
-        /// The parameter.
-        param: VarName,
+        /// The variable.
+        param: SpokenVar,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
     Unliftable {
-        /// The parameter.
-        param: VarName,
+        /// The variable.
+        param: SpokenVar,
     },
     /// The parameter carries a [`crate::Distribution::Band`]: limits
     /// without a shape have no σ, and a partial RSS is still a lie
     /// (E5) — so the RSS names it and refuses whole.
     BandHasNoMeasure {
-        /// The parameter.
-        param: VarName,
+        /// The variable.
+        param: SpokenVar,
     },
 }
 
 impl Unavailable {
-    /// The blocked parameter.
-    pub fn param(&self) -> &VarName {
+    /// The blocked variable.
+    pub fn param(&self) -> &SpokenVar {
         match self {
             Self::TangentDegraded { param }
             | Self::MeasureRefused { param }
@@ -1250,8 +1251,8 @@ pub struct ChamberSpan {
 /// One row of the advisory `per_param` table.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerParam {
-    /// The parameter.
-    pub param: VarName,
+    /// The variable.
+    pub param: VarId,
     /// Its E4-marked sensitivity reading.
     pub sensitivity: SensitivityOutcome,
     /// `|∂m/∂pᵢ| · Δpᵢ`, `Δpᵢ` the ANALYZED box's half-width on this
@@ -1405,11 +1406,15 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.as_str(),
-                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full())),
+                row.param.full(),
+                sensitivity_text(
+                    &row.sensitivity,
+                    |id| format!("node {}", id.full()),
+                    |var| format!("variable {}", var.full())
+                ),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().as_str()),
+                    Err(u) => format!("unavailable:{}", u.param().id().full()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1430,7 +1435,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().as_str().to_owned())
+                        .map(|b| b.param().id().full().to_string())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1442,7 +1447,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.as_str());
+                let _ = writeln!(s, "  forced_by {}", p.full());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1517,8 +1522,12 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.as_str(),
-                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string()),
+                doc.spoken_var(row.param),
+                sensitivity_text(
+                    &row.sensitivity,
+                    |id| doc.spoken(id).to_string(),
+                    |var| doc.spoken_var(var).to_string()
+                ),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
@@ -1598,12 +1607,21 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// When `doc` is not the document the entry was taken of.
 pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
     crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
-    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
+    sensitivity_text(
+        &entry.outcome,
+        |id| doc.spoken(id).to_string(),
+        |var| doc.spoken_var(var).to_string(),
+    )
 }
 
-/// One sensitivity reading, each node it names written by `node`: a
-/// spoken node in the human form, the full id in the goldening form.
-fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
+/// One sensitivity reading, each node it names written by `node` and
+/// each variable by `var`: spoken in the human form, the full id in the
+/// goldening form.
+fn sensitivity_text(
+    outcome: &SensitivityOutcome,
+    node: impl Fn(RecipeNodeId) -> String,
+    var: impl Fn(VarId) -> String,
+) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
@@ -1627,7 +1645,7 @@ fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) ->
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of {}, which stays f64 (C6/D9)",
-                    param.as_str(),
+                    var(*param),
                     node(*section)
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
@@ -1860,33 +1878,32 @@ pub fn stackup(
     let mut blockers: Vec<Unavailable> = Vec::new();
     let mut sum_sq = 0.0_f64;
     for entry in entries {
-        let param = entry.param.clone();
+        let param = entry.param;
+        let spoken = analyzed.spoken(param);
         // Every entry names a continuous parameter of `doc`, and the
         // ForeignBox check above made `analyzed` span exactly those;
         // an axis missing here is a broken pairing, refused as one.
-        let axis = analyzed.get(&param).ok_or(StackupRefusal::ForeignBox)?;
+        let axis = analyzed.get(param).ok_or(StackupRefusal::ForeignBox)?;
         let half_width = 0.5 * axis.offsets.width();
         let sigma = analyzed
-            .axis_std_deviation(&param)
+            .axis_std_deviation(param)
             .ok_or(StackupRefusal::ForeignBox)?;
         let derivative = match &entry.outcome {
             SensitivityOutcome::Derivative { value, chamber } => Ok((*value, chamber)),
-            SensitivityOutcome::TangentDegraded { .. } => Err(Unavailable::TangentDegraded {
-                param: param.clone(),
-            }),
-            SensitivityOutcome::MeasureRefused { .. } => Err(Unavailable::MeasureRefused {
-                param: param.clone(),
-            }),
-            SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable {
-                param: param.clone(),
-            }),
+            SensitivityOutcome::TangentDegraded { .. } => {
+                Err(Unavailable::TangentDegraded { param: spoken })
+            }
+            SensitivityOutcome::MeasureRefused { .. } => {
+                Err(Unavailable::MeasureRefused { param: spoken })
+            }
+            SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable { param: spoken }),
         };
         let contribution = derivative
             .as_ref()
             .map(|(value, _)| value.abs() * half_width)
             .map_err(Clone::clone);
         let chamber_span = match &derivative {
-            Ok((value, Chamber::ChamberCertified { leaf, .. })) => leaf.get(&param).map(|axis| {
+            Ok((value, Chamber::ChamberCertified { leaf, .. })) => leaf.get(param).map(|axis| {
                 let (lo, hi) = axis.span();
                 let half = 0.5 * (hi - lo);
                 ChamberSpan {
@@ -1963,13 +1980,14 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes(
+    let nominal_box = ParamBox::from_axes_in(
         verdict
             .root()
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
+        verdict.root().order(),
     );
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
@@ -2103,7 +2121,7 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = VarName::from_static(param);
+        let param = crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded {
                 param: param.clone(),
@@ -2171,7 +2189,7 @@ mod tests {
     fn a_single_blocker_is_counted_in_the_singular() {
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: VarName::from_static("w"),
+                param: crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static("w"))),
             }],
         });
         assert_eq!(

@@ -19,15 +19,15 @@ constructors, `DocParam.distribution` reading the annotation back off
 the declaration `Doc.params` answers with, and `analyzed_box` with the
 two mass columns on the box it derives.
 
-THE SHARP EDGE, and what "closing" it means. `DocEdit.set_doc_param`
-is create-or-REPLACE: a `DocParam` rebuilt from a dimension and a
-number replaces the declaration, and any distribution the parameter
-carried is deleted with no refusal and no diagnostic.
+THE SHARP EDGE, and what "closing" it means. `DocEdit.define_var`
+replaces the WHOLE definition: a `DocParam` rebuilt from a dimension
+and a number replaces it, and any distribution the variable carried
+is deleted with no refusal and no diagnostic.
 `TestTheSharpEdge` pins that as it still stands — the deletion is the
 kernel's semantics and this unit invents no edit to change it — and
 then pins the two ways a Python caller now has out of it, which is
 what did not exist before: restate the annotation on the rebuilt
-`DocParam`, or move the number through `set_doc_param_value`, which
+`DocParam`, or move the number through `set_var_value`, which
 carries the whole declaration forward. `Doc.params` — LIB-B-NOTATION's
 read door — is what makes the difference VISIBLE from Python at all.
 
@@ -79,7 +79,7 @@ def declared(**params):
     """A document declaring `params`, by name."""
     doc = Doc("distributions")
     for name, value in params.items():
-        doc.apply(DocEdit.set_doc_param(ParamName(name), value))
+        doc.apply(DocEdit.declare_var(ParamName(name), value))
     return doc
 
 
@@ -530,7 +530,7 @@ class TestTheMassColumns(unittest.TestCase):
 
 
 class TestTheSharpEdge(unittest.TestCase):
-    """`set_doc_param` is create-or-replace, and what that costs.
+    """`define_var` replaces the whole definition, and what that costs.
 
     The deletion is the kernel's semantics and this unit invents no
     edit to change it. What changed is that Python can now SEE the
@@ -547,10 +547,10 @@ class TestTheSharpEdge(unittest.TestCase):
         applies cleanly and silently drops the spread."""
         doc = self.annotated()
         self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
-        doc.apply(DocEdit.set_doc_param(ParamName("bore_r"), DocParam.length(4.5 * mm)))
+        doc.apply(DocEdit.define_var(ParamName("bore_r"), DocParam.length(4.5 * mm)))
         self.assertIsNone(
             doc.params.get(ParamName("bore_r")).distribution,
-            "create-or-replace replaced the whole declaration",
+            "define_var replaced the whole definition",
         )
         self.assertTrue(
             analyzed_box(doc).get(ParamName("bore_r")).is_fixed,
@@ -563,7 +563,7 @@ class TestTheSharpEdge(unittest.TestCase):
         cannot replace one."""
         doc = self.annotated()
         doc.apply(
-            DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm))
+            DocEdit.set_var_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm))
         )
         back = doc.params.get(ParamName("bore_r"))
         self.assertEqual(back.distribution, self.SPREAD)
@@ -576,7 +576,7 @@ class TestTheSharpEdge(unittest.TestCase):
         doc = self.annotated()
         carried = doc.params.get(ParamName("bore_r")).distribution
         doc.apply(
-            DocEdit.set_doc_param(
+            DocEdit.define_var(
                 ParamName("bore_r"), DocParam.length(4.5 * mm, carried)
             )
         )
@@ -651,7 +651,7 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
 
     def build(self, param):
         doc = Doc("annotated-solid")
-        doc.apply(DocEdit.set_doc_param(ParamName("h"), param))
+        doc.apply(DocEdit.declare_var(ParamName("h"), param))
         profile = doc.insert(
             Node.polygon(
                 [

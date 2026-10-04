@@ -17,7 +17,7 @@
 //!   `monte_carlo` reports, bit for bit;
 //! * **`nominal + offset` is where the lane put the sample** — which
 //!   is the claim a consumer needs in order to place a draw through an
-//!   ordinary `SetDocParamValue` edit rather than through a
+//!   ordinary `SetVarValue` edit rather than through a
 //!   `ParamBox`, since that box is the interval driver's type and the
 //!   advisory lane is meant to be reachable without it.
 //!
@@ -56,14 +56,14 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("m10-mc-draws", tol);
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("x"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: NOMINAL,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(law),
-            },
+            }),
         },
         tol,
         &editor_core::RefusingReach,
@@ -136,7 +136,7 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
             let offsets =
                 sample_offsets(&analyzed, &config, i).expect("a normal law is sampleable");
             assert_eq!(offsets.len(), 1, "one varying parameter, one offset");
-            NOMINAL + offsets[&VarName::from_static("x")]
+            NOMINAL + offsets[&doc.var_named("x").expect("declared")]
         })
         .collect();
     let (mean, sigma, min, max) = summarize(&values);
@@ -156,7 +156,7 @@ fn a_samples_draw_depends_on_its_index_alone() {
     let (doc, _) = doc_with_one_law(Distribution::Uniform { lo: -0.5, hi: 0.5 });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let config = McConfig::default();
-    let x = VarName::from_static("x");
+    let x = doc.var_named("x").expect("declared");
 
     let ascending: Vec<f64> = (0..8)
         .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
