@@ -6592,3 +6592,16 @@ PR 4016 (row-drop walks) is with reviewer session_01XNj6ptyshGWEG3NbtpAE6f, aske
 vs `claims`, the `kef` Err→Ok shift, the setter refusals and the SPENT_GRAFT re-baseline (7 → 1). The
 implementer is archived. Dispatched the P4 E cleanup `a-kill-refusal-row-keeps-a-rows-companion-...` to a
 cloud lane on `topo/kill-refusal-row-drops-rows-companion`.
+
+## 05:26 check-in (2026-10-04)
+
+- PR 4018 (rows companion, P4 E test cleanup) merged as `d60d3b1082` after my light review: test-only diff,
+  premise probe recorded, row closed, CI green. Lane archived.
+- PR 4016 review: verdict merge, with MINORs. I ruled C4 a defect to fix first. `kef` on a diverted loop went
+  from a typed `Err` (base) to `Ok`; in release the tear spreads (5 new ParentLoopMismatch), and in dev,
+  unscoped, the postcondition panics "kernel bug". Cause: `stored_rows` reads Corrupt and `remints` declines.
+  Ruled: a Corrupt loop refuses typed in every plan that decides a write from `remints`/`stored_rows`, with a
+  red-then-green row; the fuzz guard must be able to go red on base; fix the stale docs (review_d18 x3,
+  require_run_of, the face_cycles links); state and pin the paired next+parent_loop tear limit; add file:line to
+  the filings. Fix lane session_01C1yXhbRPCsVtVFui3nVKxn. Reviewer archived.
+- No Ev reply on 3970 or 4006.
