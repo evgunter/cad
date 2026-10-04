@@ -322,9 +322,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        16,
-        14,
-        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
+        17,
+        15,
+        "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
+         by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
          hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
          reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
@@ -332,6 +333,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/ssi/one_arc.rs",
+        10,
+        4,
+        "the 4 that ask are the Krawczyk test's own centre, image and containment reads, which \
+         refuse a piece unless every enclosure is certified. The other 6 do not ask: \
+         `one_arc`'s 2 are `T: Bounds` reads of the pcurve's evaluation scalar, the midpoint \
+         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' 4 \
+         read the sides of a box its one caller, `one_arc_r3`, met with the slab through \
+         `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
+         cut from those finite ends",
+    ),
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",

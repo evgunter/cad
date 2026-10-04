@@ -2675,6 +2675,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
+        // Only a marching door refines; the refusal it could not answer
+        // is the certificate's, and reads as it.
+        E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
         E::CertificateLimb { limb, value } => (
             Some(limb),
             "a certificate limb exceeded ε",
@@ -2741,7 +2744,10 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::InvalidMarchTol { .. }
-        | E::MarchTolMismatch { .. } => (
+        | E::MarchTolMismatch { .. }
+        // Raised only where a search banks the tube; this lane certifies
+        // at rest, where limb 3 is not asked for one arc.
+        | E::TubeNotOneArc { .. } => (
             None,
             "the rung-3 certificate refused structurally (see geom_brep::SsiError for the \
              full text at the SSI door)",

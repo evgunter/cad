@@ -1570,6 +1570,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
+        BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
@@ -1838,7 +1839,6 @@ pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
         FacePoseRefusal::Ambiguous { .. } => "ambiguous",
         FacePoseRefusal::NotAFace { .. } => "not_a_face",
         FacePoseRefusal::Readback(_) => "readback",
-        FacePoseRefusal::Unpinned => "unpinned",
     }
 }
 

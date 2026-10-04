@@ -418,8 +418,8 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/ops.rs",
         subject: "centred_box",
         why: Payload(
-            "a ball's box from its centre's and radius's enclosures: the endpoints go into \
-             an f64 `Aabb` and stop",
+            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
+             `bvh::Aabb`, padded, and stop",
         ),
     },
     Site {

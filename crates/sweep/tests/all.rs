@@ -888,6 +888,9 @@ mod full_turn_bore_mate;
 
 #[path = "wedge_through_a_full_turn_collar.rs"]
 mod wedge_through_a_full_turn_collar;
+
+#[path = "rest_mate_every_op.rs"]
+mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
