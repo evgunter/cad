@@ -64,6 +64,8 @@ fan split's own `mev_null` tier-1 postcondition
 builds, before the row reads the orbit error. Found by that PR's
 `--all-features` battery; the hosted CI's test job does not enable the
 feature, so it is green there.
+Tracked with three `row_walk_proofs` rows of the same shape on
+`work/topo/torn-body-rows-are-red-under-per-op-postcondition.md`.
 
 ## `chord_join::null_site` reads a refusal as "no null edges"
 
