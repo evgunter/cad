@@ -412,36 +412,6 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
     }
 }
 
-/// The implementer's frontier fixture, pinned TIGHTLY: their test
-/// accepts `JoinDesync | PairingMismatch`; this one demands to know
-/// which. (If it ever flips to PairingMismatch, that is the D8
-/// witness and this test fails loudly to say so.)
-#[test]
-fn r4_frontier_is_joindesync_not_pairingmismatch() {
-    let a = l_prism();
-    let b = mapped_cube(
-        |x, y, z| {
-            let (e1, e2, e3) = (
-                Vec3::new(0.9, -0.6, 0.5),
-                Vec3::new(0.7, 0.8, -0.55),
-                Vec3::new(-0.45, 0.5, 0.9),
-            );
-            Point3::new(
-                2.0 + x * e1.x + y * e2.x + z * e3.x,
-                2.0 + x * e1.y + y * e2.y + z * e3.y,
-                0.5 + x * e1.z + y * e2.z + z * e3.z,
-            )
-        },
-        Tol::witness(),
-    );
-    let b = finished("the tilted cube", b, Tol::witness());
-    let err = union(&a, &b, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::JoinDesync { .. }),
-        "frontier moved: {err:?}"
-    );
-}
-
 /// Families the 24-tilt sweep missed: all three OPS (they swept union
 /// only), near-tangent tilts, and a rotation-only family (no shear).
 /// Every closing case must satisfy the inclusion-exclusion volume

@@ -115,3 +115,17 @@ The run-order fix with the four downstream stops above, each traced
 to where it starts, and the probe's 42 poses building sound at tiers
 2, 3′ and the certificate with the closed-form volume, no pose of
 the JOIN-1 batteries moving from sound or to a wrong body.
+
+## Built (branch `join/reflex-corner-vertex-vertex`)
+
+The run-order fix above is built there (`insert::run_order`, each
+solid from its own walk order), with three companions it needed: two
+germs in one sector ordered round the sector (`walk_order`); the struts
+of a pair crossing more than twice minted before its fans
+(`SideRun::shared`); and the pairing started where A's runs lie on the
+side the op keeps of A. The four downstream stops this row lists were
+the last two. `join1_r1_reflex_battery`: the probe's 120 sheared
+∩/∪/`a ∖ b` runs at `sx < 0` on `sqQ1`, `dRight`, `eBot` and `eLeft`
+are 120 `SOUND` (main 78), and 0 runs move from a refusal to a wrong
+body. The REST-zip wrong volume this row waited on does not reappear:
+the join now builds those unions itself.

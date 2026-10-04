@@ -317,7 +317,9 @@ fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
 /// direction of the edge and corner placements at their first turn. No
 /// pose ships a body that is not `SOUND` by [`outcome`], and in the
 /// face placement every body holds `v` as one vertex wherever a face
-/// meets it. Refusals pass: the residue is the filed rows'.
+/// meets it. In the face placement refusals pass: the residue is the
+/// filed rows'. The edge and corner placements reach `v` through the
+/// vertex-vertex lane, where every run builds `SOUND`.
 #[test]
 fn the_sweep_subset_ships_no_bad_body() {
     let mut bad = Vec::new();
@@ -333,7 +335,9 @@ fn the_sweep_subset_ships_no_bad_body() {
                         _ => None,
                     };
                     let line = outcome(r, want, tol());
-                    if line.starts_with("OK") && !line.starts_with("OK SOUND")
+                    let sound = line.starts_with("OK SOUND") || line.starts_with("EMPTY ok");
+                    if place != "face" && !sound
+                        || line.starts_with("OK") && !line.starts_with("OK SOUND")
                         || line.starts_with("EMPTY WRONG")
                     {
                         bad.push(format!("{tag}: {line}"));
@@ -348,6 +352,47 @@ fn the_sweep_subset_ships_no_bad_body() {
     assert!(
         bad.is_empty(),
         "{} bad lines:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **A reflex corner crossing a cube's edge or corner four times builds
+/// every op**, in both operand orders, `SOUND` by [`outcome`] against
+/// the clipping oracle. One pose per way the vertex-vertex lane used to
+/// stop there (`boolean/insert.rs`):
+/// - `corner i=0 j=0 psi=2.2`: two germs in one sector of each solid.
+///   Red as `PairingMismatch` when they are ordered by the other solid's
+///   sector rather than round their own. Union and difference are red
+///   as `JoinDesync` or `Euler(SelfLoopEdge)` when the pairing starts
+///   at A's first germ whatever the op keeps of A: a kept vertex of A
+///   then holds both null edges.
+/// - `edge i=2 j=0 psi=1`: a fan and a strut in the two entries of one
+///   physical sector of the cube's edge vertex. Red as `JoinDesync`
+///   "B senses agree" when the fan mints first and moves the half the
+///   strut anchors on, and as a `ClassificationInvariant` when B runs a
+///   null edge forward in A's order, the long way round.
+/// - `edge i=6 j=0 psi=0`: `PairingMismatch` in both orders on the
+///   other solid's sector order.
+#[test]
+fn four_germ_vertex_pairs_build_every_op() {
+    let mut bad = Vec::new();
+    for (place, pose) in [
+        ("corner", (0, 0, 2.2)),
+        ("edge", (2, 0, 1.0)),
+        ("edge", (6, 0, 0.0)),
+    ] {
+        let lo = PLACEMENTS.iter().find(|p| p.0 == place).unwrap().1;
+        for (tag, r, want) in pose_runs((place, lo), pose) {
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") {
+                bad.push(format!("{tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND:\n{}",
         bad.len(),
         bad.join("\n")
     );
