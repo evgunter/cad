@@ -244,13 +244,24 @@ impl<T: Real> Body<T> {
 // Test-support code: panicking is a test's failure mechanism (L5).
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::Live;
+    use super::{KeyFrom, Live};
     use crate::body::Body;
-    use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
+    use crate::entity::{EdgeKey, EntityId, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
+    use crate::euler::{BadArgument, EulerOpError};
     use crate::fixtures::pillow;
     use crate::source_walk::{CodeOnly, crate_sources, src_root, tokens};
     use geom_core::Tol;
     use test_utils::source::{ItemBody, balanced_end, item_body};
+
+    /// `require_live`'s answer for `he` as an argument: the caller's
+    /// stale key, under the role it was passed as.
+    fn refused_stale<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> bool {
+        body.require_live(he, KeyFrom::Arg("he"))
+            == Err(EulerOpError::Argument(BadArgument::Stale {
+                role: "he",
+                key: EntityId::HalfEdge(he),
+            }))
+    }
 
     fn scaffold() -> HalfEdge {
         HalfEdge {
@@ -270,11 +281,22 @@ mod tests {
     fn the_null_key_is_never_live() {
         let empty = Body::<f64>::new();
         assert!(Live::of(&empty, HalfEdgeKey::default()).is_none());
-        assert!(empty.require_live(HalfEdgeKey::default()).is_err());
+        assert!(refused_stale(&empty, HalfEdgeKey::default()));
         let body = pillow(Tol::witness()).body;
         assert!(!body.half_edges.is_empty(), "the arena must be populated");
         assert!(Live::of(&body, HalfEdgeKey::default()).is_none());
-        assert!(body.require_live(HalfEdgeKey::default()).is_err());
+        assert!(refused_stale(&body, HalfEdgeKey::default()));
+    }
+
+    /// A key a record holds that does not resolve is a kernel bug, and
+    /// the door panics naming the record and its field rather than
+    /// refusing typed.
+    #[test]
+    #[should_panic(expected = "'s next names half-edge")]
+    fn a_link_that_misses_panics_naming_its_holder() {
+        let body = Body::<f64>::new();
+        let holder = EntityId::HalfEdge(HalfEdgeKey::default());
+        let _ = body.require_live(HalfEdgeKey::default(), super::link(holder, "next"));
     }
 
     /// A removed key never becomes live again, however hard the slot it
@@ -296,10 +318,11 @@ mod tests {
             );
             body.half_edges.remove(fresh);
         }
-        assert!(body.require_live(dead).is_err());
+        assert!(refused_stale(&body, dead));
     }
 
-    /// The spellings that count as *this door resolved the key*: a read
+    /// The spellings that count as *this door resolved the key*, each
+    /// with the position of the key among its call's arguments: a read
     /// of the half-edge arena, or a call to a door this row itself pins
     /// to have performed one.
     ///
@@ -312,14 +335,15 @@ mod tests {
     /// that made it necessary, and never ahead of one.
     ///
     /// **Each is anchored on the arena it reads, not on the bare
-    /// method.** A bare `.get(` is answered by a read of any map at
-    /// all, so `self.faces.get(f)` would stand as the lookup for a
-    /// half-edge nothing resolved.
-    const LOOKUPS: [&str; 4] = [
-        "half_edges.contains_key(", // the membership test, and nothing else
-        "half_edges.get(",          // the read whose `Some` arm carries the fields
-        "loop_cycle(",              // the bounded walk, which resolves every member
-        "Live::of(",                // delegation to a door this same row pins
+    /// method.** A bare `.get(` or `lookup(` is answered by a read of
+    /// any map at all, so `lookup(&self.faces, f, ..)` would stand as
+    /// the lookup for a half-edge nothing resolved.
+    const LOOKUPS: [(&str, usize); 5] = [
+        ("half_edges.contains_key(", 0), // the membership test, and nothing else
+        ("lookup(&self.half_edges,", 1), // the read whose `Ok` carries the fields
+        ("resolve_half_edge_live(", 0),  // delegation to a door this same row pins
+        ("loop_cycle(", 0),              // the bounded walk, which resolves every member
+        ("Live::of(", 1),                // delegation to a door this same row pins
     ];
 
     /// Every spelling that builds a `Live` from a bare key. `Live` and
@@ -340,7 +364,8 @@ mod tests {
 
     /// The items that build one, in source order. `new` is the
     /// constructor itself; the other two are doors that have just
-    /// completed a lookup.
+    /// completed a lookup. `require_live` hands one out without
+    /// building it: it delegates to `resolve_half_edge_live`.
     const BUILDERS: [&str; 3] = ["new", "of", "resolve_half_edge_live"];
 
     /// The 1-based line of byte `at` in `src`.
@@ -353,20 +378,40 @@ mod tests {
         tokens(text, name).next().is_some()
     }
 
-    /// The text inside the parentheses of the call `needle` makes at its
-    /// first occurrence in `body` — `None` when that occurrence makes no
-    /// call, as a constructor named point-free does not.
-    fn argument<'a>(body: &'a str, needle: &str) -> Option<&'a str> {
-        let at = tokens(body, needle).next()? + needle.len();
-        let open = if needle.ends_with('(') {
-            at - 1
-        } else {
-            at + body[at..].find(|c: char| !c.is_whitespace())?
+    /// The `index`th argument of the call `needle` makes at its first
+    /// occurrence in `body` — `None` when that occurrence makes no call,
+    /// as a constructor named point-free does not. A needle that spells
+    /// its own `(` opens the call there; one that does not, at the
+    /// first character after it.
+    fn argument<'a>(body: &'a str, needle: &str, index: usize) -> Option<&'a str> {
+        let at = tokens(body, needle).next()?;
+        let open = match needle.find('(') {
+            Some(paren) => at + paren,
+            None => {
+                let end = at + needle.len();
+                end + body[end..].find(|c: char| !c.is_whitespace())?
+            }
         };
         if body.as_bytes()[open] != b'(' {
             return None;
         }
-        Some(body[open + 1..balanced_end(body, open)?].trim())
+        let inner = &body[open + 1..balanced_end(body, open)?];
+        let mut depth = 0_usize;
+        let mut start = 0;
+        let mut args = Vec::new();
+        for (i, c) in inner.char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    args.push(inner[start..i].trim());
+                    start = i + 1;
+                }
+                _ => {}
+            }
+        }
+        args.push(inner[start..].trim());
+        args.get(index).copied()
     }
 
     /// What parts 1–3 of the guard below read off one file's code.
@@ -432,20 +477,21 @@ mod tests {
                 continue;
             }
             doors.push(name);
-            let first = |needles: &[&'static str]| {
+            let first = |needles: &mut dyn Iterator<Item = (&'static str, usize)>| {
                 needles
-                    .iter()
-                    .filter_map(|n| tokens(body, n).next().map(|at| (at, *n)))
+                    .filter_map(|(n, key)| tokens(body, n).next().map(|at| (at, n, key)))
                     .min()
             };
-            match (first(&LOOKUPS), first(&CONSTRUCTIONS)) {
+            let lookups = first(&mut LOOKUPS.into_iter());
+            let builds = first(&mut CONSTRUCTIONS.into_iter().map(|n| (n, 0)));
+            match (lookups, builds) {
                 (None, _) => violations.push(format!(
                     "`{name}` hands out a `Live` and reaches no lookup this guard knows. \
                      The vocabulary is {LOOKUPS:?} — a door that resolves its key some \
                      other way is a spelling to add there deliberately, never one to pass \
                      unread."
                 )),
-                (Some((lookup, _)), Some((build, _))) if build < lookup => {
+                (Some((lookup, ..)), Some((build, ..))) if build < lookup => {
                     violations.push(format!(
                         "`{name}` builds a `Live` at line {} before it looks the key up \
                          at line {}",
@@ -453,8 +499,9 @@ mod tests {
                         line_of(src, item.span.start + lookup),
                     ));
                 }
-                (Some((_, looked)), Some((_, built))) => {
-                    let (resolved, wrapped) = (argument(body, looked), argument(body, built));
+                (Some((_, looked, key)), Some((_, built, _))) => {
+                    let (resolved, wrapped) =
+                        (argument(body, looked, key), argument(body, built, 0));
                     if resolved != wrapped {
                         violations.push(format!(
                             "`{name}` looks up `{}` and wraps `{}`: the proof it hands \
@@ -597,7 +644,9 @@ mod tests {
     /// under the name of the item two levels down that commits it — the
     /// innermost item holding the site, not the outermost. `point_free`
     /// looks up and then wraps through `.map(Live::new)`, which a
-    /// needle ending in `(` never sees.
+    /// needle ending in `(` never sees. `resolved` and `wrong_key` look
+    /// up through `lookup`, whose key is its second argument: the first
+    /// wraps that key and is clean, the second wraps another.
     #[test]
     fn the_guard_credits_each_act_to_the_innermost_item_that_commits_it() {
         let src = "
@@ -611,11 +660,19 @@ fn door(body: &B, he: K) -> Option<Live> {
         fn deeper(k: K) -> Live { Live::new(k) }
         deeper(k)
     }
-    body.half_edges.get(he)?;
+    body.half_edges.contains_key(he).then_some(())?;
     Live::of(body, he)
 }
 fn point_free(body: &B, he: K) -> Option<Live> {
-    body.half_edges.get(he).map(|_| he).map(Live::new)
+    body.half_edges.contains_key(he).then_some(he).map(Live::new)
+}
+fn resolved(&self, he: K, from: F) -> Result<Live, E> {
+    lookup(&self.half_edges, he, id, from)?;
+    Ok(Live::new(he))
+}
+fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
+    lookup(&self.half_edges, he, id, from)?;
+    Ok(Live::new(other))
 }
 ";
         let code = CodeOnly::of(src);
@@ -627,19 +684,27 @@ fn point_free(body: &B, he: K) -> Option<Live> {
             .collect();
         assert_eq!(
             named,
-            vec!["forge", "deeper", "point_free"],
+            vec!["forge", "deeper", "point_free", "wrong_key"],
             "the violations are misattributed, or a nested item's act was read as its \
              host's, or the point-free construction went unseen: {:#?}",
             reading.violations
         );
         assert_eq!(
             reading.doors,
-            vec!["of", "door", "forge", "deeper", "point_free"],
+            vec![
+                "of",
+                "door",
+                "forge",
+                "deeper",
+                "point_free",
+                "resolved",
+                "wrong_key"
+            ],
             "a nested item was not read as a door of its own"
         );
         assert_eq!(
             reading.builders,
-            vec!["new", "of", "deeper", "point_free"],
+            vec!["new", "of", "deeper", "point_free", "resolved", "wrong_key"],
             "a construction site was credited to an item other than the innermost one \
              holding it"
         );

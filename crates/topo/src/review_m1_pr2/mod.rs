@@ -20,8 +20,33 @@ mod degenerates_and_sequences;
 mod fan_semantics;
 mod release_corruption;
 
+use crate::fixtures::deep_snapshot;
 use crate::readback::euler_counts;
 use crate::{Body, EulerCounts, LoopBoundary};
+
+pub(crate) use crate::surgery::tests::panic_message;
+
+/// Runs `op` on a torn `body` and asserts it panics with a message
+/// containing every fragment of `premise`, before writing anything: the body is
+/// deep-equal afterwards, so the panic fired in the plan phase.
+pub(crate) fn assert_panics_deep_unchanged(
+    label: &str,
+    body: &mut Body<f64>,
+    premise: &[&str],
+    op: impl FnOnce(&mut Body<f64>),
+) {
+    let before = deep_snapshot(body);
+    let message = panic_message(std::panic::AssertUnwindSafe(|| op(body)));
+    assert!(
+        premise.iter().all(|fragment| message.contains(fragment)),
+        "{label}: expected a panic naming {premise:?}, got: {message}"
+    );
+    assert_eq!(
+        deep_snapshot(body),
+        before,
+        "{label}: body changed before the panic"
+    );
+}
 
 /// The coordinates of a half-edge's start vertex.
 pub(crate) fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {

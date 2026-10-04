@@ -544,7 +544,7 @@ mod tests {
 
     use super::*;
     use crate::entity::{EdgeKey, LoopKey};
-    use crate::euler::{MefSite, MevSite};
+    use crate::euler::{BadArgument, MefSite, MevSite};
     use crate::fixtures::{deep_snapshot, detached_digons, ops_strut_cube};
     use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
@@ -612,9 +612,10 @@ mod tests {
         let err = body.movefac(ShellKey::default()).unwrap_err();
         assert_eq!(
             err,
-            EulerOpError::StaleKey {
+            EulerOpError::Argument(BadArgument::Stale {
+                role: "shell",
                 key: EntityId::Shell(ShellKey::default()),
-            }
+            })
         );
         assert_eq!(deep_snapshot(&body), before);
     }
@@ -697,9 +698,10 @@ mod tests {
             (&[], EulerOpError::NoShellsNamed),
             (
                 &[ShellKey::default()],
-                EulerOpError::StaleKey {
+                EulerOpError::Argument(BadArgument::Stale {
+                    role: "shells",
                     key: EntityId::Shell(ShellKey::default()),
-                },
+                }),
             ),
             (&[only, only], EulerOpError::ShellRepeated { shell: only }),
             (
@@ -844,18 +846,25 @@ mod tests {
         (joined, split)
     }
 
-    /// `movefac(shell)` on a torn `body` refuses `expected` with the body
-    /// deep-unchanged. It runs in a surgery scope, so an `Ok` answers with
-    /// its partition rather than with the tier-1 postcondition a torn
-    /// input fails whatever the operator writes.
-    fn assert_refuses_torn(body: &mut Body<f64>, shell: ShellKey, expected: &EulerOpError) {
+    /// `movefac(shell)` on a torn `body` panics with a message containing
+    /// `want`, before it mutates the body. It runs in a surgery scope, so
+    /// an `Ok` answers with its partition rather than with the tier-1
+    /// postcondition a torn input fails whatever the operator writes.
+    #[track_caller]
+    fn assert_panics_torn(body: &mut Body<f64>, shell: ShellKey, want: &str) {
         let truth = claimed_components(body, shell);
         let before = deep_snapshot(body);
-        let mut scope = body.begin_surgery();
-        let outcome = scope.movefac(shell);
-        drop(scope);
-        match outcome {
-            Ok(shells) => {
+        let mut outcome = None;
+        let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let mut scope = body.begin_surgery();
+            outcome = Some(scope.movefac(shell));
+        }));
+        match (panicked, outcome) {
+            (Some(message), _) => {
+                assert!(message.contains(want), "wanted `{want}`: {message}");
+                assert_eq!(deep_snapshot(body), before, "movefac panics in its plan");
+            }
+            (None, Some(Ok(shells))) => {
                 let (joined, split) = misread(body, &shells, &truth);
                 let counts: Vec<usize> = shells
                     .iter()
@@ -866,34 +875,7 @@ mod tests {
                      {counts:?}, joined {joined}, split {split}"
                 );
             }
-            Err(err) => {
-                assert_eq!(&err, expected);
-                assert_eq!(deep_snapshot(body), before, "movefac atomicity on Err");
-            }
-        }
-    }
-
-    /// [`assert_refuses_torn`] for [`EulerOpError::NotOwned`], with the
-    /// rendered refusal read for its subject: `child` taken as `owner`'s,
-    /// and both directions the ownership can fail in, at every raise
-    /// site whichever direction failed there.
-    fn assert_refuses_not_owned(
-        body: &mut Body<f64>,
-        shell: ShellKey,
-        child: EntityId,
-        owner: EntityId,
-    ) {
-        let expected = EulerOpError::NotOwned { child, owner };
-        assert_refuses_torn(body, shell, &expected);
-        let text = expected.to_string();
-        for subject in [
-            format!("movefac took {child} as {owner}'s"),
-            format!("{owner} does not list {child}, or {child} does not name {owner}"),
-        ] {
-            assert!(
-                text.contains(&subject),
-                "NotOwned renders `{subject}`: {text}"
-            );
+            (None, outcome) => panic!("movefac on a torn body: {outcome:?}, not a panic"),
         }
     }
 
@@ -911,7 +893,7 @@ mod tests {
     /// reads the digon's mates: the labelling would find one component
     /// where the records hold two, and return the shell as connected.
     #[test]
-    fn movefac_refuses_a_walk_diverted_through_another_components_loop() {
+    fn movefac_panics_on_a_walk_diverted_through_another_components_loop() {
         let (mut body, shell, seed_face, promoted) = detached_digons(1);
         let walked = body.get_face(seed_face).unwrap().outer;
         let other = body.get_face(promoted[0]).unwrap().outer;
@@ -927,10 +909,10 @@ mod tests {
             "the walk crosses into the digon's loop"
         );
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_refuses_torn(
+        assert_panics_torn(
             &mut body,
             shell,
-            &EulerOpError::LoopCycleBroken { r#loop: walked },
+            &format!("walked as a member of loop {walked:?}'s cycle, does not claim it"),
         );
     }
 
@@ -941,7 +923,7 @@ mod tests {
     /// the labelling would seed it, reach only itself across the strut,
     /// and label the other five faces a second component.
     #[test]
-    fn movefac_refuses_a_walk_closed_short_of_its_loop() {
+    fn movefac_panics_on_a_walk_closed_short_of_its_loop() {
         let t = ops_strut_cube(Tol::witness());
         let mut body = t.body;
         let top = body.get_loop(t.outer).unwrap().face;
@@ -961,10 +943,13 @@ mod tests {
             "the short walk closes"
         );
         assert_eq!(claimed_count(&body, shell), 1, "the records still hold one");
-        assert_refuses_torn(
+        assert_panics_torn(
             &mut body,
             shell,
-            &EulerOpError::LoopCycleBroken { r#loop: t.outer },
+            &format!(
+                "loop {:?}'s cycle walk is not every half-edge that claims it",
+                t.outer
+            ),
         );
     }
 
@@ -981,7 +966,7 @@ mod tests {
     /// longer claims, lie in the other shell, so no walk of this one
     /// reaches them; the mate hop would glue the seed face to the digon.
     #[test]
-    fn movefac_refuses_a_mate_whose_stranded_half_lies_in_another_shell() {
+    fn movefac_panics_on_a_mate_whose_stranded_half_lies_in_another_shell() {
         let (mut body, shell, seed_face, promoted) = detached_digons(1);
         let seed = body.mvfs(p(9.0), true).unwrap();
         let circle = body
@@ -998,10 +983,13 @@ mod tests {
         let torn = body.get_edge_mut(circle.edge).unwrap();
         (torn.he_plus, torn.he_minus) = (x, y);
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_refuses_torn(
+        assert_panics_torn(
             &mut body,
             shell,
-            &EulerOpError::NotSameEdge { he1: x, he2: y },
+            &format!(
+                "{x:?} and {y:?}, read as edge {:?}'s halves, are not",
+                circle.edge
+            ),
         );
     }
 
@@ -1076,7 +1064,7 @@ mod tests {
     /// their `shell` torn to the walked one, which still does not list
     /// them.
     #[test]
-    fn movefac_refuses_a_neighbour_in_another_shell() {
+    fn movefac_panics_on_a_neighbour_in_another_shell() {
         for torn_back in [false, true] {
             let (mut body, shell, _, pillow, reached) = bridged_through_a_pillow();
             if torn_back {
@@ -1084,11 +1072,10 @@ mod tests {
                     body.get_face_mut(face).unwrap().shell = shell;
                 }
             }
-            assert_refuses_not_owned(
+            assert_panics_torn(
                 &mut body,
                 shell,
-                EntityId::Face(reached),
-                EntityId::Shell(shell),
+                &format!("movefac reached {reached:?}, which is not shell {shell:?}'s"),
             );
         }
     }
@@ -1097,7 +1084,7 @@ mod tests {
     /// reaches it from the seed face, and the partition would leave it
     /// naming the other shell.
     #[test]
-    fn movefac_refuses_a_face_it_lists_that_names_another_shell() {
+    fn movefac_panics_on_a_face_it_lists_that_names_another_shell() {
         let (mut body, shell, seed_face, _) = detached_digons(1);
         let other = body.mvfs(p(9.0), true).unwrap();
         let x = outer_first(&body, seed_face);
@@ -1106,11 +1093,10 @@ mod tests {
         let neighbour = body.get_loop(l).unwrap().face;
         assert_ne!(neighbour, seed_face);
         body.get_face_mut(neighbour).unwrap().shell = other.shell;
-        assert_refuses_not_owned(
+        assert_panics_torn(
             &mut body,
             shell,
-            EntityId::Face(neighbour),
-            EntityId::Shell(shell),
+            &format!("movefac reached {neighbour:?}, which is not shell {shell:?}'s"),
         );
     }
 
@@ -1119,16 +1105,15 @@ mod tests {
     /// loop as a ring: its walk would glue the seed face to the digon's
     /// mates.
     #[test]
-    fn movefac_refuses_a_loop_that_names_another_face() {
+    fn movefac_panics_on_a_loop_that_names_another_face() {
         let (mut body, shell, seed_face, promoted) = detached_digons(1);
         let foreign = body.get_face(promoted[0]).unwrap().outer;
         body.get_face_mut(seed_face).unwrap().rings.push(foreign);
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_refuses_not_owned(
+        assert_panics_torn(
             &mut body,
             shell,
-            EntityId::Loop(foreign),
-            EntityId::Face(seed_face),
+            &format!("{seed_face:?} lists loop {foreign:?}, which names face"),
         );
     }
 
@@ -1151,7 +1136,7 @@ mod tests {
     /// face's hop would land on the seed face through a loop the seed
     /// face does not list, and nothing would ever walk the second face.
     #[test]
-    fn movefac_refuses_a_mates_loop_its_face_does_not_list() {
+    fn movefac_panics_on_a_mates_loop_its_face_does_not_list() {
         let (mut body, shell, seed_face, _) = detached_digons(1);
         let (_, d2, ld2) = digon_faces(&body, shell);
         body.get_loop_mut(ld2).unwrap().face = seed_face;
@@ -1159,11 +1144,10 @@ mod tests {
             .unwrap()
             .faces
             .retain(|&f| f != d2);
-        assert_refuses_not_owned(
+        assert_panics_torn(
             &mut body,
             shell,
-            EntityId::Loop(ld2),
-            EntityId::Face(seed_face),
+            &format!("loop {ld2:?} names face {seed_face:?}, which does not list it"),
         );
     }
 
@@ -1172,7 +1156,7 @@ mod tests {
     /// face's hop finds the seed face does not list the loop; swapped,
     /// the second face's own loop names another face.
     #[test]
-    fn movefac_refuses_a_mates_loop_naming_another_face_in_either_order() {
+    fn movefac_panics_on_a_mates_loop_naming_another_face_in_either_order() {
         for swapped in [false, true] {
             let (mut body, shell, seed_face, _) = detached_digons(1);
             let (_, d2, ld2) = digon_faces(&body, shell);
@@ -1180,8 +1164,12 @@ mod tests {
             if swapped {
                 body.get_shell_mut(shell).unwrap().faces.swap(2, 3);
             }
-            let owner = if swapped { d2 } else { seed_face };
-            assert_refuses_not_owned(&mut body, shell, EntityId::Loop(ld2), EntityId::Face(owner));
+            let want = if swapped {
+                format!("{d2:?} lists loop {ld2:?}, which names face {seed_face:?}")
+            } else {
+                format!("loop {ld2:?} names face {seed_face:?}, which does not list it")
+            };
+            assert_panics_torn(&mut body, shell, &want);
         }
     }
 
@@ -1192,9 +1180,9 @@ mod tests {
     /// the first; nothing walks back. Listed first, the first face would
     /// be labelled alone and the second face's hop dropped on it, the
     /// digon left in two shells; swapped, the two would share one. Both
-    /// orders refuse: the loop's whole cycle, its claimants, is not walked.
+    /// orders panic: the loop's whole cycle, its claimants, is not walked.
     #[test]
-    fn movefac_refuses_an_empty_loop_half_edges_claim_in_either_order() {
+    fn movefac_panics_on_an_empty_loop_half_edges_claim_in_either_order() {
         for swapped in [false, true] {
             let (mut body, shell, _, _) = detached_digons(1);
             let (d1, _, _) = digon_faces(&body, shell);
@@ -1205,10 +1193,10 @@ mod tests {
                 body.get_shell_mut(shell).unwrap().faces.swap(2, 3);
             }
             assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-            assert_refuses_torn(
+            assert_panics_torn(
                 &mut body,
                 shell,
-                &EulerOpError::LoopCycleBroken { r#loop: emptied },
+                &format!("empty loop {emptied:?} is claimed by a half-edge"),
             );
         }
     }

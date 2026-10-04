@@ -1,19 +1,28 @@
 //! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Atomicity under attack: every EulerOpError path leaves the body
-//! DEEP-equal (all 10 arenas + provenance, not just counts). The review
-//! suite's companion key-sequence-purity test (failed ops consume no key
-//! slots) was already promoted into the shipped unit suite during the
-//! PR 2 fix pass (`euler.rs::failed_ops_leave_the_key_sequence_pure`)
-//! and is deliberately not duplicated here.
+//! DEEP-equal (all 10 arenas + provenance, not just counts), and a torn
+//! body panics in the plan phase, before anything is written. The
+//! companion key-sequence-purity test (failed ops consume no key slots)
+//! is `euler.rs::failed_ops_leave_the_key_sequence_pure`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use super::assert_panics_deep_unchanged;
 use crate::fixtures::assert_err_deep_unchanged;
 use crate::{
-    Body, EntityId, EulerOpError, FaceKey, GeomRef, HalfEdgeKey, LoopKey, MefSite, MevSite,
+    BadArgument, Body, EntityId, EulerOpError, FaceKey, HalfEdgeKey, LoopKey, MefSite, MevSite,
     PointKey, VertexKey, validate,
 };
+
+/// The premise a dangling link's panic names.
+const DANGLING: &str = "which does not resolve: every public door keeps the body tier-1-valid";
+/// The premise a walk that does not close names.
+const WALK: &str = "every public door keeps the body tier-1-valid, where every such walk closes";
+
+fn stale(role: &'static str, key: EntityId) -> EulerOpError {
+    EulerOpError::Argument(BadArgument::Stale { role, key })
+}
 use geom_core::Point3;
 use geom_core::Tol;
 
@@ -62,77 +71,47 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
     let null_he = HalfEdgeKey::default();
     let null_loop = LoopKey::default();
 
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(null_he),
-        },
-        |b| {
-            b.mev_line(
-                MevSite::Fan {
-                    he1: null_he,
-                    he2: seg.he_plus,
-                },
-                p(9.0),
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
+    assert_err_deep_unchanged(&mut body, &stale("he1", EntityId::HalfEdge(null_he)), |b| {
+        b.mev_line(
+            MevSite::Fan {
+                he1: null_he,
+                he2: seg.he_plus,
+            },
+            p(9.0),
+            tol,
+        )
+        .unwrap_err()
+    });
     // he2 stale (he1 fine).
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(null_he),
-        },
-        |b| {
-            b.mev_line(
-                MevSite::Fan {
-                    he1: seg.he_plus,
-                    he2: null_he,
-                },
-                p(9.0),
-                tol,
-            )
+    assert_err_deep_unchanged(&mut body, &stale("he2", EntityId::HalfEdge(null_he)), |b| {
+        b.mev_line(
+            MevSite::Fan {
+                he1: seg.he_plus,
+                he2: null_he,
+            },
+            p(9.0),
+            tol,
+        )
+        .unwrap_err()
+    });
+    assert_err_deep_unchanged(&mut body, &stale("loop", EntityId::Loop(null_loop)), |b| {
+        b.mev_line(MevSite::Lone { r#loop: null_loop }, p(9.0), tol)
             .unwrap_err()
-        },
-    );
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Loop(null_loop),
-        },
-        |b| {
-            b.mev_line(MevSite::Lone { r#loop: null_loop }, p(9.0), tol)
-                .unwrap_err()
-        },
-    );
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(null_he),
-        },
-        |b| {
-            b.mef_chord(
-                MefSite::Chords {
-                    he1: null_he,
-                    he2: null_he,
-                },
-                tol,
-            )
+    });
+    assert_err_deep_unchanged(&mut body, &stale("he1", EntityId::HalfEdge(null_he)), |b| {
+        b.mef_chord(
+            MefSite::Chords {
+                he1: null_he,
+                he2: null_he,
+            },
+            tol,
+        )
+        .unwrap_err()
+    });
+    assert_err_deep_unchanged(&mut body, &stale("loop", EntityId::Loop(null_loop)), |b| {
+        b.mef_chord(MefSite::Lone { r#loop: null_loop }, tol)
             .unwrap_err()
-        },
-    );
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Loop(null_loop),
-        },
-        |b| {
-            b.mef_chord(MefSite::Lone { r#loop: null_loop }, tol)
-                .unwrap_err()
-        },
-    );
+    });
     let _ = seed;
 }
 
@@ -195,184 +174,151 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     );
 }
 
+/// Each torn body is built through the raw builder (add_* /
+/// get_*_mut), a state no public door produces; each op panics naming
+/// the record or walk that fails, before writing anything.
 #[test]
-fn raw_corruption_paths_leave_the_body_deep_equal() {
+fn torn_bodies_panic_before_writing() {
     let tol = Tol::witness();
-    // Each corruption is built through the PUBLIC raw builder (add_* /
-    // get_*_mut), so this is a consumer-reachable state today.
 
-    // StaleKey(vertex): a half-edge whose start vertex key is null.
+    // A half-edge whose start vertex key is null.
     let (mut body, _, seg, _) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().start = VertexKey::default();
     body.get_half_edge_mut(seg.he_minus).unwrap().start = VertexKey::default();
-    assert_err_deep_unchanged(
+    assert_panics_deep_unchanged(
+        "null start",
         &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Vertex(VertexKey::default()),
-        },
+        &["'s start names", DANGLING],
         |b| {
-            b.mev_line(
+            let _ = b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
                 },
                 p(9.0),
                 tol,
-            )
-            .unwrap_err()
+            );
         },
     );
 
-    // StaleKey(prev): strut mev at a half-edge with a null prev.
+    // Strut mev at a half-edge with a null prev.
     let (mut body, _, seg, _) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().prev = HalfEdgeKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(HalfEdgeKey::default()),
-        },
-        |b| {
-            b.mev_line(
-                MevSite::Fan {
-                    he1: seg.he_plus,
-                    he2: seg.he_plus,
-                },
-                p(9.0),
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
+    assert_panics_deep_unchanged("null prev", &mut body, &["'s prev names", DANGLING], |b| {
+        let _ = b.mev_line(
+            MevSite::Fan {
+                he1: seg.he_plus,
+                he2: seg.he_plus,
+            },
+            p(9.0),
+            tol,
+        );
+    });
 
-    // StaleGeometry: vertex with a null point key, mef needs its coords.
+    // A vertex with a null point key; mef needs its coordinates (the
+    // self-loop chord at he_plus, which starts at seed.vertex).
     let (mut body, seed, seg, _) = pillow(tol);
     body.get_vertex_mut(seed.vertex).unwrap().point = PointKey::default();
-    assert_err_deep_unchanged(
+    assert_panics_deep_unchanged(
+        "null point",
         &mut body,
-        &EulerOpError::StaleGeometry {
-            key: GeomRef::Point(PointKey::default()),
-        },
+        &["'s point names", DANGLING],
         |b| {
-            // seg.he_plus starts at seed.vertex; same loop as the mef
-            // half spliced there... use self-loop chords at he_plus.
-            b.mef_chord(
+            let _ = b.mef_chord(
                 MefSite::Chords {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
                 },
                 tol,
-            )
-            .unwrap_err()
+            );
         },
     );
 
-    // FanOrbitBroken: corrupt the edge<->half-edge bijection so mate()
-    // fails mid-orbit.
+    // The edge<->half-edge bijection corrupted, so the orbit walk's
+    // mate step leaves the walk. seg.he_plus and split.he_plus both
+    // start at the seed vertex.
     let (mut body, _, seg, split) = pillow(tol);
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_plus;
-    // seg.he_plus and split.he_plus both start at the seed vertex.
-    assert_err_deep_unchanged(
+    assert_panics_deep_unchanged(
+        "torn orbit",
         &mut body,
-        &EulerOpError::FanOrbitBroken {
-            he1: seg.he_plus,
-            he2: split.he_plus,
-        },
+        &["the orbit walk from", WALK],
         |b| {
-            b.mev_line(
+            let _ = b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: split.he_plus,
                 },
                 p(9.0),
                 tol,
-            )
-            .unwrap_err()
+            );
         },
     );
 
-    // LoopCycleBroken: tear next so the walk from he1 never reaches he2.
+    // next torn into the other loop: seg.he_plus's cycle is
+    // [seg.he_plus, split.he_minus] (mef moved it into split's loop).
     let (mut body, _, seg, split) = pillow(tol);
-    // seg.he_plus is in split's loop (mef moved it); its cycle is
-    // [seg.he_plus, split.he_minus]. Tear seg.he_plus.next into the
-    // OTHER loop.
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::LoopCycleBroken {
-            r#loop: split.r#loop,
-        },
-        |b| {
-            b.mef_chord(
-                MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: split.he_minus,
-                },
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
+    assert_panics_deep_unchanged("torn next", &mut body, &["the loop walk from", WALK], |b| {
+        let _ = b.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: split.he_minus,
+            },
+            tol,
+        );
+    });
 
-    // LoopNotCycle: halves claiming an EMPTY loop as parent.
+    // Halves claiming an EMPTY loop (a disjoint skeletal body's) as
+    // parent.
     let (mut body, _, seg, split) = pillow(tol);
-    let seed2 = body.mvfs(p(50.0), true).unwrap(); // a second, disjoint skeletal body
+    let seed2 = body.mvfs(p(50.0), true).unwrap();
     body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = seed2.r#loop;
     body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = seed2.r#loop;
-    assert_err_deep_unchanged(
+    assert_panics_deep_unchanged(
+        "empty parent loop",
         &mut body,
-        &EulerOpError::LoopNotCycle {
-            r#loop: seed2.r#loop,
-        },
+        &["which is empty: on a tier-1-valid body an empty loop reaches no half-edge"],
         |b| {
-            b.mef_chord(
+            let _ = b.mef_chord(
                 MefSite::Chords {
                     he1: seg.he_plus,
                     he2: split.he_minus,
                 },
                 tol,
-            )
-            .unwrap_err()
+            );
         },
     );
 
-    // StaleKey(face): loop with a null face key.
+    // A loop with a null face key.
     let (mut body, _, seg, split) = pillow(tol);
     body.get_loop_mut(split.r#loop).unwrap().face = FaceKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Face(FaceKey::default()),
-        },
-        |b| {
-            b.mef_chord(
-                MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: split.he_minus,
-                },
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
+    assert_panics_deep_unchanged("null face", &mut body, &["'s face names", DANGLING], |b| {
+        let _ = b.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: split.he_minus,
+            },
+            tol,
+        );
+    });
 
-    // StaleKey(shell): face with a null shell key.
+    // A face with a null shell key.
     let (mut body, _, seg, split) = pillow(tol);
     body.get_face_mut(split.face).unwrap().shell = crate::ShellKey::default();
-    assert_err_deep_unchanged(
+    assert_panics_deep_unchanged(
+        "null shell",
         &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Shell(crate::ShellKey::default()),
-        },
+        &["'s shell names", DANGLING],
         |b| {
-            b.mef_chord(
+            let _ = b.mef_chord(
                 MefSite::Chords {
                     he1: seg.he_plus,
                     he2: split.he_minus,
                 },
                 tol,
-            )
-            .unwrap_err()
+            );
         },
     );
 }

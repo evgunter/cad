@@ -1974,7 +1974,7 @@ mod tests {
         };
         let rim = edges_of_face(&body, membrane);
         let scaffold = |b: &mut Body<f64>, edge: EdgeKey| {
-            let (p0, p1) = b.edge_endpoints(edge).unwrap();
+            let (p0, p1) = b.edge_endpoints(edge);
             b.set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
                 .unwrap();
         };
@@ -2149,7 +2149,7 @@ mod tests {
     /// `edge` as the line between its endpoints, described as the
     /// intersection of the surfaces its faces wear now.
     fn intersection_line(body: &Body<f64>, edge: EdgeKey) -> EdgeCurveSpec<f64> {
-        let (p0, p1) = body.edge_endpoints(edge).unwrap();
+        let (p0, p1) = body.edge_endpoints(edge);
         let [plus, minus] = faces_of(body, edge);
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
@@ -2248,7 +2248,7 @@ mod tests {
         }
 
         let mut seq = body.clone();
-        let (p0, p1) = seq.edge_endpoints(shared).unwrap();
+        let (p0, p1) = seq.edge_endpoints(shared);
         let first: Vec<_> = specs_of(&seq, top)
             .into_iter()
             .map(|(e, s)| {
@@ -2345,9 +2345,10 @@ mod tests {
         );
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleKey {
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "charts",
                 key: EntityId::Face(FaceKey::default()),
-            },
+            }),
             |b| {
                 refuses(
                     b,
@@ -2358,9 +2359,10 @@ mod tests {
         );
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleGeometry {
+            &EulerOpError::Argument(crate::BadArgument::StaleGeometry {
+                role: "surface",
                 key: crate::GeomRef::Surface(SurfaceKey::default()),
-            },
+            }),
             |b| {
                 refuses(
                     b,
@@ -2381,9 +2383,10 @@ mod tests {
         let stale_edge = vec![(EdgeKey::default(), restated(&body, edge))];
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleKey {
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "redescriptions",
                 key: EntityId::Edge(EdgeKey::default()),
-            },
+            }),
             |b| refuses(b, vec![chart()], &stale_edge),
         );
         let bottom = surf(&body, face_at(&body, 2, 0.0));
@@ -2409,7 +2412,7 @@ mod tests {
             )
             .unwrap();
         let face = body.face_of_half_edge(null.he_plus).unwrap();
-        let (p0, p1) = body.edge_endpoints(null.edge).unwrap();
+        let (p0, p1) = body.edge_endpoints(null.edge);
         let null_spec = vec![(null.edge, EdgeCurveSpec::line_between(p0, p1))];
         let own = body.get_surface(surf(&body, face)).unwrap().clone();
         let face_sense = self::sense(&body, face);

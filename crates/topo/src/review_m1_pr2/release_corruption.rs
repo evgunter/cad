@@ -20,68 +20,51 @@
 //! `--release` run, against the root `[profile.release]`'s
 //! `debug-assertions = true`, compiles the DEBUG arms of this file.
 //!
-//! # What of the contract is still ratified
+//! # The contract under attack
 //!
-//! "Never a panic, never a hang" is: DESIGN.md's D9 footnote, as amended
-//! by the **D2 addendum** (2026-08-19), keeps exactly the bounded-traversal
-//! half -- "never a hang; every traversal is bounded".
+//! Every traversal is bounded (D9): a torn body never hangs an operator.
+//! A torn link the plan phase reads -- a walk that does not close, a
+//! record naming a key that does not resolve -- is a kernel bug (D2 row
+//! 4), so the operator panics naming the record and the premise, before
+//! writing anything. Only a key the caller passed is a typed refusal
+//! (`EulerOpError::Argument`).
 //!
-//! "Or garbage bodies" is NOT. The addendum's rule is **silent discard is
-//! never an answer**, and it explicitly supersedes the footnote's original
-//! "typed errors where cheaply detectable, or documented garbage-out in
-//! release". W2c executed that rule across `euler{,_ring,_kill}.rs`: no
-//! mutation phase there discards a failed lookup any more, and neither
-//! does the one write helper they share — `link_half_edges` announces,
-//! on a precondition its callers each discharge by minting the key or
-//! proving it live in the same call.
+//! **Corruption a plan phase cannot observe still yields `Ok`.**
+//! `foreign_parent_loop_garbage_in_garbage_out_release` corrupts
+//! `parent_loop` to a key that is *live but wrong*, so no lookup fails
+//! and no walk breaks: every write lands, on the wrong topology, and the
+//! validator refuses the result. The row documents what the kernel DOES
+//! rather than what it is entitled to do. It is also the file's only
+//! `#[cfg(not(debug_assertions))]` item, the one thing here a debug-only
+//! CI could not even type-check.
 //!
-//! **That did not retire the row below, and the reason is the row's whole
-//! point.** `foreign_parent_loop_garbage_in_garbage_out_release` corrupts
-//! `parent_loop` to a key that is *live but wrong*, so no lookup fails —
-//! every write lands, on the wrong topology. The garbage it observes is
-//! wrong data, never a swallowed failure, and it is the residue the
-//! addendum leaves standing: corruption a plan phase cannot observe still
-//! yields `Ok` plus a body the validator refuses. The row therefore still
-//! documents what the kernel DOES rather than what it is entitled to do.
-//! Its other value is that it is the file's only
-//! `#[cfg(not(debug_assertions))]` item, so it is the one thing here that
-//! a debug-only CI could not even type-check.
+//! # What this file does NOT cover
 //!
-//! # What this file does NOT cover, stated rather than left to be found
-//!
-//! The row-4 `unreachable!`s the Euler modules and `link_half_edges` now
-//! carry fire on a key that fails to RESOLVE. Every corruption planted below is either
-//! live-but-wrong (`parent_loop`, the edge<->half bijection) or a torn
-//! `next` -- by construction none of them makes a lookup fail, which is
-//! why the whole file still passes unchanged after the conversion. So
-//! **no row here plants a dangling key into a mutation phase**, and in
-//! release, where the postcondition is compiled out, those
-//! `unreachable!`s are the only guard left.
-//!
-//! That gap is recorded rather than closed. Reaching a mutation phase
-//! with a dangling key means defeating the plan phase that exists to
-//! refuse exactly that: on today's operators every such key is either
-//! minted in-phase or proven live, so a fixture would have to corrupt
-//! the body BETWEEN the plan and the mutation -- which no in-crate
-//! surface offers, the two phases being straight-line code inside one
-//! `&mut self` call. A fixture that instead corrupts before the call
-//! gets a typed `StaleKey`, which is the row above, not this one. The
-//! honest statement is that these arms are unreachable by construction
-//! and therefore also untestable by construction; the thing that WOULD
-//! go red on a bad conversion is
-//! `debug_postcondition_fires_on_corrupt_input`, which is why it now
-//! asserts its panic's source instead of only that one occurred.
+//! No row plants a dangling key into a MUTATION phase. Every key a
+//! mutation phase writes through is minted there or proven live by the
+//! plan, so a fixture would have to corrupt the body BETWEEN the two
+//! phases -- straight-line code inside one `&mut self` call, which no
+//! in-crate surface interrupts. A fixture that corrupts before the call
+//! meets the plan phase's panic (the torn rows here). Those mutation-phase
+//! arms are unreachable and untestable by construction; what goes red on
+//! a mis-stated premise is `debug_postcondition_fires_on_corrupt_input`,
+//! which asserts its panic's source.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use super::panic_message;
 use crate::fixtures::deep_snapshot;
-use crate::{Body, EulerOpError, MefSite, MevSite};
+use crate::{BadArgument, Body, EntityId, EulerOpError, MefSite, MevSite};
 use geom_core::Point3;
+use std::panic::AssertUnwindSafe;
 // Only the release-profile garbage-out test validates; guard the import
 // so debug builds stay warning-free.
 #[cfg(not(debug_assertions))]
 use crate::validate;
 use geom_core::Tol;
+
+/// The premise a walk that does not close names.
+const WALK: &str = "every public door keeps the body tier-1-valid, where every such walk closes";
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -118,43 +101,51 @@ fn pillow(
     (body, seed, seg, split)
 }
 
-/// Broken orbit (edge<->half bijection corrupted): typed error, no hang.
+/// Broken orbit (edge<->half bijection corrupted): the orbit walk
+/// panics naming the hop, no hang.
 #[test]
-fn broken_orbit_yields_typed_error() {
+fn broken_orbit_panics_naming_the_walk() {
     let tol = Tol::witness();
     let (mut body, _, seg, split) = pillow(tol);
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
-    let err = body
-        .mev_line(
+    let message = panic_message(AssertUnwindSafe(|| {
+        let _ = body.mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: split.he_plus,
             },
             p(9.0),
             tol,
-        )
-        .unwrap_err();
-    assert!(matches!(err, EulerOpError::FanOrbitBroken { .. }));
+        );
+    }));
+    assert!(
+        message.contains("the orbit walk from") && message.contains(WALK),
+        "{message}"
+    );
 }
 
-/// Torn cycle (next crosses loops): typed error, no hang. The walk is
-/// bounded even when the tear makes a long spurious path.
+/// Torn cycle (next crosses loops): the loop walk panics naming the
+/// hop, no hang. The walk is bounded even when the tear makes a long
+/// spurious path.
 #[test]
-fn torn_cycle_yields_typed_error() {
+fn torn_cycle_panics_naming_the_walk() {
     let tol = Tol::witness();
     let (mut body, _, seg, split) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
-    let err = body
-        .mef_chord(
+    let message = panic_message(AssertUnwindSafe(|| {
+        let _ = body.mef_chord(
             MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_minus,
             },
             tol,
-        )
-        .unwrap_err();
-    assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
+        );
+    }));
+    assert!(
+        message.contains("the loop walk from") && message.contains(WALK),
+        "{message}"
+    );
 }
 
 /// A LARGE torn structure: 3000 struts then a tear -- the bounded walks
@@ -197,21 +188,29 @@ fn large_torn_body_terminates_quickly() {
             )
             .unwrap();
     }
-    // Tear: make the loop's next-chain skip around.
+    // Tear: seg.he_plus's next closes on itself, cutting the rest of
+    // the loop off its walk.
     let target = last.he_minus;
     body.get_half_edge_mut(seg.he_plus).unwrap().next = seg.he_plus;
-    let start = std::time::Instant::now();
-    let err = body
-        .mef_chord(
+    // Started inside the capture, so waiting on the panic-hook lock is
+    // not timed.
+    let start = std::cell::Cell::new(None);
+    let message = panic_message(AssertUnwindSafe(|| {
+        start.set(Some(std::time::Instant::now()));
+        let _ = body.mef_chord(
             MefSite::Chords {
                 he1: seg.he_plus,
                 he2: target,
             },
             tol,
-        )
-        .unwrap_err();
-    assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
-    let walked = start.elapsed();
+        );
+    }));
+    let walked = start.get().expect("the capture ran the call").elapsed();
+    assert!(
+        message.contains("the cycle walk from")
+            && message.contains("never reaches it: on a tier-1-valid body a loop's next cycle"),
+        "{message}"
+    );
     // The clause this row defends is D9's surviving one: every traversal
     // is bounded. MEASURED for the attacked call itself -- 1.5 us in
     // release (n = 3000) and 7.4 us in debug at opt-0 (n = 500), on a
@@ -271,42 +270,17 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 /// "one legitimate panic site / never an input failure" doc sentence
 /// only holds under the tier-1-valid input assumption.
 ///
-/// **Why the panic's SOURCE is asserted and not just that one
-/// occurred.** Since the D2 addendum landed in the Euler modules there
-/// is a second panic source in this call path -- the row-4
-/// `unreachable!`s the mutation phases now carry. A bare `is_err()`
-/// passes identically whether the panic came from the postcondition
-/// this row is named for or from a mis-converted `unreachable!`, and
-/// the postcondition is the only debug-side signal that separates
-/// them. Both `assert_euler_postcondition` messages carry the literal
-/// asserted below; no `unreachable!` message does.
-///
-/// The message is captured through a panic HOOK rather than by
-/// downcasting `catch_unwind`'s payload: `Any` downcasts are a second
-/// bit channel and the `bit-identity punning` gate bans them outside
-/// `geom_core::bit_identity`, test code included. The hook is
-/// process-global, so it is restored immediately and the capture is
-/// treated as advisory -- a concurrently panicking test in the same
-/// process would show up as an empty or foreign message, which fails
-/// loudly here rather than passing quietly.
+/// The panic's SOURCE is asserted, not only that one occurred: the
+/// plan phases' row-4 `unreachable!`s are a second panic source on this
+/// path, and a bare `is_err()` passes identically whether the
+/// postcondition fired or a premise the planted corruption does not
+/// break was mis-stated. Both `assert_euler_postcondition` messages
+/// carry the literal asserted below; no row-4 message does.
 #[test]
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
     let tol = Tol::witness();
-    // The hook is process-global and this suite runs in parallel; every
-    // taker in the crate holds this lock first (its docs carry why).
-    let _serialized = crate::surgery::tests::PANIC_HOOK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let sink = std::sync::Arc::clone(&captured);
-    let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        if let Ok(mut slot) = sink.lock() {
-            *slot = info.to_string();
-        }
-    }));
-    let result = std::panic::catch_unwind(|| {
+    let message = panic_message(|| {
         let (mut body, seed, seg, split) = pillow(tol);
         let foreign = seed.r#loop;
         body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = foreign;
@@ -319,14 +293,6 @@ fn debug_postcondition_fires_on_corrupt_input() {
             tol,
         );
     });
-    std::panic::set_hook(previous);
-    assert!(
-        result.is_err(),
-        "expected the debug postcondition to panic on corrupt input; if \
-         this stops panicking, the doc claim becomes true and this test \
-         should move to the release-style garbage-out assertion"
-    );
-    let message = captured.lock().map(|slot| slot.clone()).unwrap_or_default();
     assert!(
         message.contains("postcondition"),
         "panicked, but not from the postcondition -- a row-4 \
@@ -335,16 +301,18 @@ fn debug_postcondition_fires_on_corrupt_input() {
     );
 }
 
-/// Null-key calls on an empty body: each refuses without panicking and
-/// leaves the body as it was, key slots included.
+/// Null-key calls on an empty body: each refuses with the caller's
+/// stale argument, naming its role, and leaves the body as it was, key
+/// slots included.
 #[test]
 fn empty_body_error_paths() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     type Refusal = Box<dyn Fn(&mut Body<f64>) -> Option<EulerOpError>>;
-    let refusals: [(&str, Refusal); 4] = [
+    let refusals: [(&str, EulerOpError, Refusal); 4] = [
         (
             "mev lone",
+            stale("loop", EntityId::Loop(crate::LoopKey::default())),
             Box::new(move |b| {
                 b.mev_line(
                     MevSite::Lone {
@@ -358,6 +326,7 @@ fn empty_body_error_paths() {
         ),
         (
             "mef lone",
+            stale("loop", EntityId::Loop(crate::LoopKey::default())),
             Box::new(move |b| {
                 b.mef_chord(
                     MefSite::Lone {
@@ -370,6 +339,7 @@ fn empty_body_error_paths() {
         ),
         (
             "mev fan",
+            stale("he1", EntityId::HalfEdge(crate::HalfEdgeKey::default())),
             Box::new(move |b| {
                 b.mev_line(
                     MevSite::Fan {
@@ -384,6 +354,7 @@ fn empty_body_error_paths() {
         ),
         (
             "mef chords",
+            stale("he1", EntityId::HalfEdge(crate::HalfEdgeKey::default())),
             Box::new(move |b| {
                 b.mef_chord(
                     MefSite::Chords {
@@ -396,9 +367,13 @@ fn empty_body_error_paths() {
             }),
         ),
     ];
-    for (call, refusal) in &refusals {
+    for (call, expected, refusal) in &refusals {
         let before = deep_snapshot(&body);
-        assert!(refusal(&mut body).is_some(), "{call}: refuses");
+        assert_eq!(refusal(&mut body).as_ref(), Some(expected), "{call}");
         assert_eq!(deep_snapshot(&body), before, "{call}: body changed on Err");
     }
+}
+
+fn stale(role: &'static str, key: EntityId) -> EulerOpError {
+    EulerOpError::Argument(BadArgument::Stale { role, key })
 }

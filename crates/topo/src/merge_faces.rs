@@ -2952,26 +2952,18 @@ mod tests {
     /// through the loops' `face` back-pointers.
     fn adjacent_pair(body: &Body<f64>) -> (FaceKey, FaceKey) {
         body.edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 (hp.face != hm.face).then_some((hp.face, hm.face))
             })
             .expect("a cube has adjacent faces")
     }
 
-    /// **A dangling absorbed-face key is refused typed, naming the
-    /// face** — the contract the absorption owes, pinned end to end.
-    ///
-    /// It does NOT isolate the ring lookup, and cannot: `kef`'s own
-    /// plan phase re-derives the same key
-    /// (`loops[half_edges[dying_he].parent_loop].face`) and refuses on
-    /// it with the same value, before any mutation. The two sites are
-    /// indistinguishable from outside by construction — which is why
-    /// the earlier `unwrap_or_default()` there could never actually
-    /// drop a ring. This row pins the answer; it is not evidence about
-    /// which of the two produced it.
+    /// **A dangling absorbed-face key panics naming the face**: the
+    /// absorption reads the face off the dying loop's `face` link, and
+    /// on a tier-1-valid body that link resolves.
     #[test]
-    fn a_dangling_absorbed_face_key_is_refused_typed_and_names_the_face() {
+    fn a_dangling_absorbed_face_key_panics_naming_the_face() {
         let tol = Tol::witness();
         let mut body = structural_planar_cube(tol);
         let (rep, other) = adjacent_pair(&body);
@@ -2979,13 +2971,16 @@ mod tests {
             .remove(other)
             .expect("the pair's second face is live before the tear");
 
-        assert_eq!(
-            body.merge_group(rep, &[other], MergeKind::Plane, tol),
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Face(other),
-                },
-            }),
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.merge_group(rep, &[other], MergeKind::Plane, tol);
+        }))
+        .expect("the torn link panics");
+        assert!(
+            message.contains(&format!(
+                "'s face names {}, which does not resolve",
+                EntityId::Face(other)
+            )),
+            "{message}"
         );
     }
 
@@ -3265,40 +3260,54 @@ mod tests {
         assert_eq!(validate_closed(&body), Ok(()));
     }
 
-    /// **Every key the adjacency test reads that does not resolve is
-    /// announced by name** — not `false`, which drops a mergeable
+    /// **Every key the adjacency test reads that does not resolve
+    /// panics naming it** — not `false`, which drops a mergeable
     /// adjacency without a word, and not an extent read over a boundary
-    /// the declared rung could not walk. A face's surface is
-    /// resolved by the kind census, so its tear refuses there; the
-    /// adjacency test announces a face the census did not meet and an
-    /// end vertex or point. Asked of the census and the helper
-    /// directly: the door's entry gate refuses each of these tears
-    /// first (`the_entry_gate_refuses_every_tear_the_adjacency_scan_reads`).
+    /// the declared rung could not walk. The kind census reads a face's
+    /// surface link; the adjacency test reads the census for each face
+    /// and the boundary's vertex and point links. Asked of the census
+    /// and the helper directly: the door's entry gate refuses each of
+    /// these tears first
+    /// (`the_entry_gate_refuses_every_tear_the_adjacency_scan_reads`).
     /// The first row is the control: the intact pair is declared one
     /// plane, so each torn row pins its tear and not the fixture.
     #[test]
-    fn a_torn_adjacency_lookup_is_announced_naming_its_key() {
+    fn a_torn_adjacency_lookup_panics_naming_its_key() {
         let tol = Tol::witness();
-        type Tear = fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts) -> Option<DanglingRef>;
+        type Tear = fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts) -> Option<String>;
         let rows: [(&str, Tear); 5] = [
             ("nothing", |_, _, _| None),
             ("a face", |b, _, hm| {
                 b.faces.remove(hm.face);
-                Some(DanglingRef::Entity(EntityId::Face(hm.face)))
+                Some(format!(
+                    "{:?}, read off a loop's face link, is not in the kind census",
+                    hm.face
+                ))
             }),
             ("a face's surface", |b, _, hm| {
                 let k = b.get_face(hm.face).expect("live").surface;
                 b.surfaces.remove(k);
-                Some(DanglingRef::Geometry(GeomRef::Surface(k)))
+                Some(format!(
+                    "{}'s surface names {}, which does not resolve",
+                    EntityId::Face(hm.face),
+                    crate::entity::GeomRef::Surface(k)
+                ))
             }),
             ("an end vertex", |b, hp, _| {
                 b.vertices.remove(hp.start);
-                Some(DanglingRef::Entity(EntityId::Vertex(hp.start)))
+                Some(format!(
+                    "'s start names {}, which does not resolve",
+                    EntityId::Vertex(hp.start)
+                ))
             }),
             ("an end point", |b, _, hm| {
                 let p = b.get_vertex(hm.start).expect("live").point;
                 b.points.remove(p);
-                Some(DanglingRef::Geometry(GeomRef::Point(p)))
+                Some(format!(
+                    "{}'s point names {}, which does not resolve",
+                    EntityId::Vertex(hm.start),
+                    crate::entity::GeomRef::Point(p)
+                ))
             }),
         ];
         for (what, tear) in rows {
@@ -3311,18 +3320,24 @@ mod tests {
                 eq,
                 band: Band::linear(tol).expect("the witness tolerance forms a band"),
             };
-            let edge = body.edges().next().expect("an edge").1;
-            let (hp, hm) = body
-                .edge_halves(edge.he_plus, edge.he_minus)
-                .expect("the fixture resolves");
-            let want = match tear(&mut body, hp, hm) {
-                None => Ok(true),
-                Some(key) => Err(MergeCoplanarError::from(key)),
-            };
-            let got = body.kind_census().and_then(|census| {
-                body.planes_declared_equal(hp, hm, &census.described, Some(&ctx))
-            });
-            assert_eq!(got, want, "tearing {what}");
+            let (edge_key, edge) = body.edges().next().expect("an edge");
+            let (hp, hm) = body.edge_halves(edge_key, edge);
+            let want = tear(&mut body, hp, hm);
+            let mut got = None;
+            let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                got = Some(body.kind_census().and_then(|census| {
+                    body.planes_declared_equal(hp, hm, &census.described, Some(&ctx))
+                }));
+            }));
+            match (want, panicked) {
+                (None, None) => assert_eq!(got, Some(Ok(true)), "tearing {what}"),
+                (Some(want), Some(message)) => {
+                    assert!(message.contains(&want), "tearing {what}: {message}");
+                }
+                (want, panicked) => {
+                    panic!("tearing {what}: wanted a panic {want:?}, got {panicked:?} / {got:?}")
+                }
+            }
         }
     }
 
@@ -3377,57 +3392,58 @@ mod tests {
     /// Runs the public door on the split ringed top — whose merge
     /// mints a ring and so reaches the role pass — with one lookup
     /// tear armed there, checks the body comes back as it went in (the
-    /// door stages on a clone), and returns the key the refusal names.
-    fn role_pass_tear(point: TearPoint) -> (Body<f64>, GeomRef) {
+    /// door stages on a clone), and returns the body and the panic's
+    /// message.
+    fn role_pass_tear(point: TearPoint) -> (Body<f64>, String) {
         let tol = Tol::witness();
         let mut body = split_ringed_top(tol);
         let before = format!("{body:?}");
-        let got = {
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
             let _armed = ArmedTear::at(point);
-            body.merge_coplanar_faces(tol)
-        };
+            let _ = body.merge_coplanar_faces(tol);
+        }))
+        .unwrap_or_else(|| panic!("{point:?}: the torn lookup panics"));
         assert_eq!(
             format!("{body:?}"),
             before,
-            "{point:?}: the refusal leaves the body as it was"
+            "{point:?}: the panic leaves the caller's body as it was"
         );
-        match got {
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::StaleGeometry { key },
-            }) => (body, key),
-            other => panic!("{point:?}: expected the torn key announced, got {other:?}"),
-        }
+        (body, message)
     }
 
-    /// **The survivor's surface, torn under the role pass, refuses the
-    /// call naming that surface** — not read as "not a plane", which
-    /// would leave the roles as the `kemr` put them. The role pass
-    /// reads the arena after the surgery has mutated it, so the entry
-    /// gate's proof does not reach it.
+    /// **The survivor's surface, torn under the role pass, panics
+    /// naming that surface** — not read as "not a plane", which would
+    /// leave the roles as the `kemr` put them. The role pass reads the
+    /// arena after the surgery has mutated it, so the entry gate's
+    /// proof does not reach it.
     #[test]
-    fn a_torn_survivor_surface_in_the_role_pass_refuses_naming_it() {
-        let (body, key) = role_pass_tear(TearPoint::SurvivorLosesItsSurface);
-        let GeomRef::Surface(k) = key else {
-            panic!("named {key:?}, not the surface")
-        };
-        assert_eq!(
-            body.faces().filter(|(_, f)| f.surface == k).count(),
-            2,
-            "names the surface the merged pair shares"
-        );
-    }
-
-    /// **A point torn under the winding walk refuses naming the
-    /// point**, not the loop the walk started from.
-    #[test]
-    fn a_torn_outline_point_in_the_role_pass_refuses_naming_it() {
-        let (body, key) = role_pass_tear(TearPoint::OutlineLosesAPoint);
-        let GeomRef::Point(p) = key else {
-            panic!("named {key:?}, not the point")
-        };
+    fn a_torn_survivor_surface_in_the_role_pass_panics_naming_it() {
+        let (body, message) = role_pass_tear(TearPoint::SurvivorLosesItsSurface);
+        let shared = body
+            .faces()
+            .map(|(_, f)| f.surface)
+            .find(|&k| body.faces().filter(|(_, f)| f.surface == k).count() == 2)
+            .expect("the merged pair shares one surface");
         assert!(
-            body.vertices().any(|(_, v)| v.point == p),
-            "names a vertex's point"
+            message.contains(&format!(
+                "'s surface names {}, which does not resolve",
+                crate::entity::GeomRef::Surface(shared)
+            )),
+            "names the surface the merged pair shares: {message}"
+        );
+    }
+
+    /// **A point torn under the winding walk panics naming the
+    /// point**, not the loop the walk started from alone.
+    #[test]
+    fn a_torn_outline_point_in_the_role_pass_panics_naming_it() {
+        let (body, message) = role_pass_tear(TearPoint::OutlineLosesAPoint);
+        assert!(
+            body.vertices().any(|(_, v)| message.contains(&format!(
+                "'s winding walk reached {:?}, which does not resolve",
+                crate::entity::DanglingRef::Geometry(crate::entity::GeomRef::Point(v.point))
+            ))),
+            "names a vertex's point: {message}"
         );
     }
 
@@ -3486,11 +3502,9 @@ mod tests {
     /// which is the whole of what "contradicts a fact this door
     /// re-checks" claims. A torn INPUT cannot reach any of these
     /// arms: the entry gate refuses one before a group is staged.
-    ///
-    /// Reds against asking the enum alone: every variant here answers
-    /// `false` to [`EulerOpError::reports_tier1_corruption`], so
-    /// under [`GroupRegime::RecordsASkip`] the door returned `Ok`
-    /// with the corruption filed as an inventory skip.
+    /// Every variant here is a legal refusal elsewhere, so under
+    /// [`GroupRegime::RecordsASkip`] only the door's placement keeps
+    /// it from being filed as an inventory skip.
     #[test]
     fn every_contradicted_fact_escapes_the_recording_regime() {
         let tol = Tol::witness();
@@ -3499,10 +3513,6 @@ mod tests {
             describe_shared_key_curved(&mut body);
             assert_eq!(contract_of(&body), CURVED, "{point:?}");
             let error = escaped_refusal(point, &mut body, &[], tol);
-            assert!(
-                !error.reports_tier1_corruption(),
-                "{error} is the enum's already; this row would prove nothing"
-            );
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
@@ -3589,11 +3599,11 @@ mod tests {
         );
     }
 
-    /// **A ring half-edge its own edge does not claim refuses the
+    /// **A ring half-edge its own edge does not claim panics in the
     /// survivor search**, naming both, rather than reading the edge's
     /// plus half as its mate and asking about the wrong face.
     #[test]
-    fn an_unclaimed_ring_half_edge_refuses_the_survivor_search() {
+    fn an_unclaimed_ring_half_edge_panics_in_the_survivor_search() {
         let tol = Tol::witness();
         let (mut body, top, membrane) = cube_with_membrane(tol);
         let ring = body.get_face(top).expect("live").rings[0];
@@ -3609,14 +3619,13 @@ mod tests {
             .find(|&k| k != own)
             .expect("another edge");
         body.half_edges.get_mut(first).expect("live").edge = other;
-        assert_eq!(
-            body.outermost_survivor(top, vec![membrane]),
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::UnclaimedHalfEdge {
-                    he: first,
-                    edge: other,
-                },
-            })
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.outermost_survivor(top, vec![membrane]);
+        }))
+        .expect("an unclaimed ring half-edge panics");
+        assert!(
+            message.contains(&format!("{first:?}'s edge {other:?} does not claim it")),
+            "{message}"
         );
     }
 
@@ -3703,8 +3712,8 @@ mod tests {
         let seed_face = cube.seed.face;
         let victim = body
             .edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 if hp.face == seed_face && hm.face != seed_face {
                     Some(e.he_plus)
                 } else if hm.face == seed_face && hp.face != seed_face {
@@ -3747,37 +3756,40 @@ mod tests {
         (body, membrane.face)
     }
 
-    /// **The door's placement is exhaustive, and no arm of it
-    /// contradicts the enum.**
+    /// **The door's placement is exhaustive, and an arm it
+    /// contradicts escapes the regime.**
     ///
     /// Over the crate's shared sample array
     /// ([`crate::euler::every_euler_op_error_once`], which carries
     /// the coverage and discriminant-order assertions), so a variant
-    /// added without a placement fails by name. The direction pinned
-    /// is the one the door owes the operator layer: a variant the
-    /// door CONTRADICTS is one the enum answers `false` for —
-    /// otherwise the arm is dead and the door's own question has no
-    /// content — and every contradicted variant escapes while the
-    /// delegated ones answer exactly as the enum does.
+    /// added without a placement fails by name. A contradicted
+    /// variant names its fact and escapes; an inventory one does not;
+    /// an `Argument` panics, since every key the surgery hands an
+    /// operator it read from the body.
     #[test]
-    fn the_doors_placement_is_exhaustive_and_agrees_with_the_enum() {
+    fn the_doors_placement_is_exhaustive() {
         for error in crate::euler::every_euler_op_error_once() {
+            if matches!(error, EulerOpError::Argument(_)) {
+                let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                    let _ = OpPlacement::of(&error);
+                }))
+                .unwrap_or_else(|| panic!("{error}: an argument refusal is placed nowhere"));
+                assert!(
+                    message.contains("merge_group handed an operator a stale argument"),
+                    "{message}"
+                );
+                continue;
+            }
             let escapes = MergeCoplanarError::Op {
                 error: error.clone(),
             }
             .is_arena_fault();
             match OpPlacement::of(&error) {
                 OpPlacement::Contradicts(fact) => {
-                    assert!(
-                        !error.reports_tier1_corruption(),
-                        "{error} is the enum's already; the door's arm would be dead"
-                    );
                     assert!(!fact.what().is_empty());
                     assert!(escapes, "{error}");
                 }
-                OpPlacement::TheEnumsVerdict => {
-                    assert_eq!(escapes, error.reports_tier1_corruption(), "{error}");
-                }
+                OpPlacement::Inventory => assert!(!escapes, "{error}"),
             }
         }
     }
@@ -3794,12 +3806,13 @@ mod tests {
     /// instead ([`TearPoint`],
     /// `every_contradicted_fact_escapes_the_recording_regime`); this
     /// row states that the regime applies the rule, over a variant
-    /// the operator layer's own line places.
+    /// the door contradicts.
     #[test]
     fn only_inventory_refusals_are_ever_recorded() {
         let arena = MergeCoplanarError::Op {
-            error: EulerOpError::OrbitBroken {
-                he: crate::entity::HalfEdgeKey::default(),
+            error: EulerOpError::NotSameLoop {
+                he1: crate::entity::HalfEdgeKey::default(),
+                he2: crate::entity::HalfEdgeKey::default(),
             },
         };
         let inventory = MergeCoplanarError::GroupNotClosed { errors: Vec::new() };
@@ -3818,49 +3831,18 @@ mod tests {
         assert!(!GroupRegime::RefusesTheCall.records(&arena));
     }
 
-    /// **The corruption class is the operator layer's, and it is
-    /// nine variants wide, not two — and the door's is wider still.**
+    /// **The arena-fault class is the facts the door contradicts.**
     /// The door's docs promise that a refusal reporting a torn arena
     /// never becomes a record; this pins the membership that promise
-    /// needs, at the sample the merge can actually raise, in both of
-    /// its halves.
+    /// needs, at the sample the merge can actually raise.
     ///
-    /// The second half is what the enum cannot answer: `FaceHasRings`
-    /// and `SameFace` are legal facts about an operation and the enum
-    /// says so, here and below — but a `kef` at THIS door raises them
-    /// only against a fact the absorption established a few lines
-    /// earlier, so they report the arena and escape. The two
-    /// assertions on each are the two questions, and they no longer
-    /// have one answer.
+    /// Each contradicted variant is a legal fact about an operation
+    /// elsewhere, but an operator at THIS door raises it only against a
+    /// fact the surgery re-checked immediately before the call, so it
+    /// reports the arena and escapes.
     #[test]
-    fn the_arena_fault_class_is_the_operator_layers_tier_one_row() {
+    fn the_arena_fault_class_is_the_contradicted_facts() {
         let he = crate::entity::HalfEdgeKey::default();
-        let torn = [
-            EulerOpError::StaleKey {
-                key: EntityId::Face(FaceKey::default()),
-            },
-            EulerOpError::StaleGeometry {
-                key: GeomRef::Surface(SurfaceKey::default()),
-            },
-            EulerOpError::OrbitBroken { he },
-            EulerOpError::LoopCycleBroken {
-                r#loop: LoopKey::default(),
-            },
-            EulerOpError::UnclaimedHalfEdge {
-                he,
-                edge: EdgeKey::default(),
-            },
-        ];
-        for error in torn {
-            assert!(
-                error.reports_tier1_corruption(),
-                "{error} is tier-1-invalid input by its own docs"
-            );
-            assert!(MergeCoplanarError::Op { error }.is_arena_fault());
-        }
-        // Facts about the operation elsewhere, legal to meet on a
-        // valid body — and at this door, refusals that contradict a
-        // fact the absorption established before the call.
         let contradicted = [
             EulerOpError::FaceHasRings {
                 face: FaceKey::default(),
@@ -3883,11 +3865,6 @@ mod tests {
         ];
         for error in contradicted {
             assert!(
-                !error.reports_tier1_corruption(),
-                "{error} is a legal fact about the operation, and the enum's line is \
-                 unchanged by this door's question"
-            );
-            assert!(
                 MergeCoplanarError::Op {
                     error: error.clone()
                 }
@@ -3899,12 +3876,10 @@ mod tests {
                 OpPlacement::Contradicts(_)
             ));
         }
-        // `SameFace` is on neither list. The enum answers `false`
-        // for it and this door agrees, because the absorption's own
-        // drain can re-home the dying loop onto the survivor and
-        // leave `kef` reading one face on both sides — legally, on a
-        // body that was never torn
-        // (`kef_reports_same_face_on_an_untorn_nested_group`).
+        // `SameFace` is inventory: the absorption's own drain can
+        // re-home the dying loop onto the survivor and leave `kef`
+        // reading one face on both sides, on a body that was never
+        // torn (`kef_reports_same_face_on_an_untorn_nested_group`).
         assert!(
             !MergeCoplanarError::Op {
                 error: EulerOpError::SameFace {
@@ -3923,19 +3898,17 @@ mod tests {
         );
     }
 
-    /// **`edge_halves` announces a torn link; it does not skip the
-    /// edge.** Reds against the `else { continue }` it replaced: with
-    /// the discard, the poisoned edge is passed over, the absorption
-    /// finds nothing, and the group merges nothing while reporting
-    /// `Ok`.
+    /// **`edge_halves` panics on a torn link; it does not skip the
+    /// edge.** Skipping would pass the poisoned edge over, find
+    /// nothing to absorb, and merge nothing while reporting `Ok`.
     #[test]
-    fn a_torn_parent_loop_link_refuses_rather_than_skipping_the_edge() {
+    fn a_torn_parent_loop_link_panics_rather_than_skipping_the_edge() {
         let tol = Tol::witness();
         let mut body = structural_planar_cube(tol);
         let (rep, other, he_plus) = body
             .edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 (hp.face != hm.face).then_some((hp.face, hm.face, e.he_plus))
             })
             .expect("a cube has adjacent faces");
@@ -3944,30 +3917,31 @@ mod tests {
             .expect("the shared edge's plus half is live")
             .parent_loop = LoopKey::default();
 
-        assert_eq!(
-            body.merge_group(rep, &[other], MergeKind::Plane, tol),
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Loop(LoopKey::default()),
-                },
-            }),
-            "a torn parent-loop link is announced, never passed over"
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.merge_group(rep, &[other], MergeKind::Plane, tol);
+        }))
+        .expect("a torn parent-loop link panics, never passed over");
+        assert!(
+            message.contains(&format!(
+                "{}'s parent_loop names {}, which does not resolve",
+                EntityId::HalfEdge(he_plus),
+                EntityId::Loop(LoopKey::default())
+            )),
+            "{message}"
         );
     }
 
-    /// **A broken orbit is announced, not read as "no tip".** Reds
-    /// against the `is_some_and` it replaced, which answered `false`
-    /// — routing the pruning from `kev` to `kemr` and changing the
+    /// **A broken orbit panics, not read as "no tip".** A `false`
+    /// would route the pruning from `kev` to `kemr` and change the
     /// group's Euler delta on a torn arena.
     ///
     /// It pins `strut_tip` rather than the surgery: reaching the tip
     /// search with a broken orbit needs the arena torn BETWEEN the
-    /// absorption and the free-end test, and the surgery
-    /// offers no tear point there — its points sit at the operator
-    /// calls, which is where a contradicted fact is decided.
-    /// `strut_tip` is that decision and has one production call site.
+    /// absorption and the free-end test, and the surgery offers no
+    /// tear point there. `strut_tip` is that decision and has one
+    /// production call site.
     #[test]
-    fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
+    fn a_broken_vertex_orbit_panics_rather_than_answering_no_tip() {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let he = body
@@ -3975,9 +3949,8 @@ mod tests {
             .map(|(_, e)| e.he_plus)
             .next()
             .expect("a cube has edges");
-        assert_eq!(
-            body.strut_tip(he),
-            Ok(false),
+        assert!(
+            !body.strut_tip(he),
             "an intact cube's half-edge has a two-member orbit"
         );
 
@@ -3987,10 +3960,13 @@ mod tests {
             .get_mut(he)
             .expect("the half-edge is live")
             .edge = EdgeKey::default();
-        assert_eq!(
-            body.strut_tip(he),
-            Err(EulerOpError::OrbitBroken { he }),
-            "a broken orbit is a refusal, not a `false`"
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.strut_tip(he);
+        }))
+        .expect("a broken orbit panics, not a `false`");
+        assert!(
+            message.contains(&format!("the orbit walk from {he:?} breaks at")),
+            "{message}"
         );
     }
 
@@ -5418,63 +5394,79 @@ mod winding_arm_tests {
         );
     }
 
-    /// **A torn winding walk names what it could not read**: each row
-    /// tears the triangle's loop one way and reads the winding through
-    /// the door's vocabulary. A stale `next` link names the half-edge
-    /// it points at; a link that resolves but never returns names the
-    /// loop (`LoopCycleBroken`); a half-edge its own edge does not
-    /// claim is refused rather than read as the minus half. The first
-    /// row is the control. (The link and unclaimed rows are adopted
-    /// from the review's `probe_winding.rs`.)
+    /// **A torn winding walk panics naming what it could not read**:
+    /// each row tears the triangle's loop one way and reads the winding
+    /// through the door's vocabulary. A stale link names the record it
+    /// points at; a link that resolves but never returns names the
+    /// loop; a half-edge its own edge does not claim panics rather than
+    /// being read as the minus half. The first row is the control.
     #[test]
-    fn a_torn_winding_walk_names_what_it_could_not_read() {
-        type Tear = fn(&mut Body<f64>, crate::HalfEdgeKey) -> Option<MergeCoplanarError>;
+    fn a_torn_winding_walk_panics_naming_what_it_could_not_read() {
+        use crate::entity::{DanglingRef, GeomRef};
+        type Tear = fn(&mut Body<f64>, crate::HalfEdgeKey) -> Option<String>;
         let rows: [(&str, Tear); 8] = [
             ("nothing", |_, _| None),
             ("a next link", |b, first| {
-                let next = b.get_half_edge(first).unwrap().next;
+                let he = b.get_half_edge(first).unwrap();
+                let (next, l) = (he.next, he.parent_loop);
                 b.half_edges.remove(next);
-                Some(DanglingRef::Entity(EntityId::HalfEdge(next)).into())
+                Some(format!(
+                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
+                    DanglingRef::Entity(EntityId::HalfEdge(next))
+                ))
             }),
             ("the loop's closure", |b, first| {
                 let second = b.get_half_edge(first).unwrap().next;
                 b.half_edges.get_mut(second).unwrap().next = second;
-                let r#loop = b.get_half_edge(first).unwrap().parent_loop;
-                Some(EulerOpError::LoopCycleBroken { r#loop }.into())
+                let l = b.get_half_edge(first).unwrap().parent_loop;
+                Some(format!("loop {l:?}'s next walk does not close"))
             }),
             ("an edge", |b, first| {
-                let edge = b.get_half_edge(first).unwrap().edge;
+                let he = b.get_half_edge(first).unwrap();
+                let (edge, l) = (he.edge, he.parent_loop);
                 b.edges.remove(edge);
-                Some(DanglingRef::Entity(EntityId::Edge(edge)).into())
+                Some(format!(
+                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
+                    DanglingRef::Entity(EntityId::Edge(edge))
+                ))
             }),
             ("the edge's claim", |b, first| {
-                let own = b.get_half_edge(first).unwrap().edge;
+                let he = b.get_half_edge(first).unwrap();
+                let (own, l) = (he.edge, he.parent_loop);
                 let other = b.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
                 b.half_edges.get_mut(first).unwrap().edge = other;
-                Some(
-                    EulerOpError::UnclaimedHalfEdge {
-                        he: first,
-                        edge: other,
-                    }
-                    .into(),
-                )
+                Some(format!(
+                    "loop {l:?}'s member {first:?} is not claimed by its edge {other:?}"
+                ))
             }),
             ("a curve", |b, first| {
-                let edge = b.get_half_edge(first).unwrap().edge;
+                let he = b.get_half_edge(first).unwrap();
+                let (edge, l) = (he.edge, he.parent_loop);
                 let curve = b.get_edge(edge).unwrap().curve;
                 b.curves.remove(curve);
-                Some(DanglingRef::Geometry(GeomRef::Curve(curve)).into())
+                Some(format!(
+                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
+                    DanglingRef::Geometry(GeomRef::Curve(curve))
+                ))
             }),
             ("a vertex", |b, first| {
-                let v = b.get_half_edge(first).unwrap().start;
+                let he = b.get_half_edge(first).unwrap();
+                let (v, l) = (he.start, he.parent_loop);
                 b.vertices.remove(v);
-                Some(DanglingRef::Entity(EntityId::Vertex(v)).into())
+                Some(format!(
+                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
+                    DanglingRef::Entity(EntityId::Vertex(v))
+                ))
             }),
             ("a point", |b, first| {
-                let v = b.get_half_edge(first).unwrap().start;
+                let he = b.get_half_edge(first).unwrap();
+                let (v, l) = (he.start, he.parent_loop);
                 let p = b.get_vertex(v).unwrap().point;
                 b.points.remove(p);
-                Some(DanglingRef::Geometry(GeomRef::Point(p)).into())
+                Some(format!(
+                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
+                    DanglingRef::Geometry(GeomRef::Point(p))
+                ))
             }),
         ];
         let tol = Tol::witness();
@@ -5490,15 +5482,28 @@ mod winding_arm_tests {
             else {
                 panic!("the triangle's loop is a cycle")
             };
-            let want = match tear(&mut t.body, first) {
-                None => Ok(LoopWinding::Wound(Sign::Positive)),
-                Some(err) => Err(err),
-            };
-            assert_eq!(
-                signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
-                want,
-                "tearing {what}"
-            );
+            let want = tear(&mut t.body, first);
+            let mut got = None;
+            let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                got = Some(signed(t.body.loop_winding(
+                    t.r#loop,
+                    Vec3::unit_z(),
+                    band(tol),
+                )));
+            }));
+            match (want, panicked) {
+                (None, None) => assert_eq!(
+                    got,
+                    Some(Ok(LoopWinding::Wound(Sign::Positive))),
+                    "tearing {what}"
+                ),
+                (Some(want), Some(message)) => {
+                    assert!(message.contains(&want), "tearing {what}: {message}");
+                }
+                (want, panicked) => {
+                    panic!("tearing {what}: wanted a panic {want:?}, got {panicked:?} / {got:?}")
+                }
+            }
         }
     }
 

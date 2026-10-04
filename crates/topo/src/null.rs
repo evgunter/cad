@@ -461,7 +461,13 @@ mod tests {
                 NewVertexSide::Above,
             )
             .unwrap_err();
-        assert!(matches!(err, EulerOpError::StaleKey { .. }));
+        assert_eq!(
+            err,
+            EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "he1",
+                key: EntityId::HalfEdge(crate::HalfEdgeKey::default()),
+            })
+        );
         assert_eq!(deep_snapshot(&body), before);
     }
 
@@ -542,9 +548,10 @@ mod tests {
                     below_loop: outer1,
                 },
             ),
-            Err(EulerOpError::StaleKey {
+            Err(EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "pair",
                 key: EntityId::Loop(outer2),
-            })
+            }))
         );
         // ...so the stale state is built directly on the arena map.
         body.null_faces.insert(
@@ -1543,13 +1550,13 @@ mod tests {
         );
     }
 
-    /// **A face with a loop that does not walk refuses the site mint.**
+    /// **A face with a loop that does not walk panics the site mint.**
     /// The ringed wall, held open by its null strut, is read further by
-    /// the site mint. With its ring's loop record gone — tier 1's
-    /// corruption — which rows it holds has no answer, so the read
-    /// refuses naming the ring.
+    /// the site mint. With its ring's loop record gone — a torn body —
+    /// which rows it holds has no answer, so the read panics naming the
+    /// ring.
     #[test]
-    fn a_held_open_face_with_a_loop_that_does_not_walk_refuses() {
+    fn a_held_open_face_with_a_loop_that_does_not_walk_panics() {
         let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
         let read = |body: &Body<f64>| {
             let face = body.get_face(wall).unwrap();
@@ -1561,12 +1568,14 @@ mod tests {
             "the held-open wall is read further"
         );
         body.loops.remove(ring).unwrap();
+        let message = crate::review_m1_pr2::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = read(&body);
+        }));
         assert!(
-            matches!(
-                read(&body),
-                Err(crate::pcurves::SiteFromRefusal::LoopCycleBroken(lk)) if lk == ring
-            ),
-            "a loop that does not walk refuses the read, naming it"
+            message.contains(&format!(
+                "loop {ring:?} of the face a site mint reads does not walk as its own"
+            )),
+            "a loop that does not walk panics the read, naming it: {message}"
         );
     }
 }

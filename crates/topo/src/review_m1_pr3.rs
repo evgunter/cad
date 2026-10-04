@@ -34,6 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::EulerCounts;
+use crate::euler::BadArgument;
 use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot};
 use crate::readback::euler_counts;
 use crate::test_support_fixtures::{FaceGeometry, prism_ops};
@@ -48,6 +49,35 @@ use geom_core::Tol;
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
+
+/// Runs `op` on a torn body and asserts it panics naming `premise`,
+/// with the body deep-unchanged: the plan phase reads the tear and
+/// panics before any write.
+#[track_caller]
+fn assert_plan_panics<R>(
+    body: &mut Body<f64>,
+    premise: &str,
+    op: impl FnOnce(&mut Body<f64>) -> R,
+) {
+    let before = deep_snapshot(body);
+    let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+        op(body);
+    }))
+    .expect("the operator returned on a torn body");
+    assert!(
+        message.contains(premise),
+        "expected a panic naming {premise:?}, got: {message}"
+    );
+    assert_eq!(
+        deep_snapshot(body),
+        before,
+        "the panic left the body changed: {message}"
+    );
+}
+
+fn stale(role: &'static str, key: EntityId) -> EulerOpError {
+    EulerOpError::Argument(BadArgument::Stale { role, key })
+}
 
 fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
     body.loop_cycle(he)
@@ -949,7 +979,7 @@ fn raw_self_loop(tol: Tol) -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
 }
 
 #[test]
-fn kemr_anchor_collision_input_is_tier1_invalid_and_typed() {
+fn kemr_anchor_collision_input_is_tier1_invalid_and_panics() {
     let tol = Tol::witness();
     let (mut body, h1, h2, v) = raw_self_loop(tol);
     // The PR's claim: this state is ALREADY tier-1-invalid (the vertex
@@ -958,10 +988,17 @@ fn kemr_anchor_collision_input_is_tier1_invalid_and_typed() {
         validate(&body).is_err(),
         "self-loop segment must be tier-1-invalid"
     );
-    let expected = EulerOpError::EmptyAnchorsCollide { vertex: v };
-    assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h1, h2).unwrap_err());
+    assert_plan_panics(
+        &mut body,
+        &format!("and its ring both empty at {v:?}"),
+        |b| b.kemr(h1, h2),
+    );
     // Swapped arguments: same collision.
-    assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h2, h1).unwrap_err());
+    assert_plan_panics(
+        &mut body,
+        &format!("and its ring both empty at {v:?}"),
+        |b| b.kemr(h2, h1),
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -1500,44 +1537,39 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
 }
 
 // ---------------------------------------------------------------------
-// Atomicity: every new error variant through the public API, with a
-// deep body-unchanged assertion (including corrupt-body paths, which
-// must behave identically in release builds).
+// Atomicity: every refusal through the public API, with a deep
+// body-unchanged assertion. A corrupt body panics in the plan phase,
+// before any write, in release builds as in debug.
 // ---------------------------------------------------------------------
 
 #[test]
 fn kemr_error_paths_are_atomic() {
     let tol = Tol::witness();
-    // NotSameEdge: same key twice.
+    // NotMates: same key twice.
     let (mut body, _seed, es) = chain(2, tol);
     assert_err_deep_unchanged(
         &mut body,
-        &EulerOpError::NotSameEdge {
+        &EulerOpError::Argument(BadArgument::NotMates {
             he1: es[0].he_plus,
             he2: es[0].he_plus,
-        },
+        }),
         |b| b.kemr(es[0].he_plus, es[0].he_plus).unwrap_err(),
     );
-    // NotSameEdge: halves of different edges.
+    // NotMates: halves of different edges.
     assert_err_deep_unchanged(
         &mut body,
-        &EulerOpError::NotSameEdge {
+        &EulerOpError::Argument(BadArgument::NotMates {
             he1: es[0].he_plus,
             he2: es[1].he_minus,
-        },
+        }),
         |b| b.kemr(es[0].he_plus, es[1].he_minus).unwrap_err(),
     );
-    // NotSameEdge: corrupt bijection (edge does not claim its half).
+    // Corrupt bijection (edge does not claim its half): panics.
     let (mut body, _seed, es) = chain(2, tol);
     body.get_edge_mut(es[1].edge).unwrap().he_plus = es[0].he_plus;
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::NotSameEdge {
-            he1: es[1].he_plus,
-            he2: es[1].he_minus,
-        },
-        |b| b.kemr(es[1].he_plus, es[1].he_minus).unwrap_err(),
-    );
+    assert_plan_panics(&mut body, "the edge <-> half-edge bijection holds", |b| {
+        b.kemr(es[1].he_plus, es[1].he_minus)
+    });
     // NotSameLoop: halves split across a mef.
     let (mut body, _seed, es) = chain(1, tol);
     let seg = es[0];
@@ -1557,39 +1589,31 @@ fn kemr_error_paths_are_atomic() {
         },
         |b| b.kemr(seg.he_plus, seg.he_minus).unwrap_err(),
     );
-    // StaleKey (half-edge argument).
+    // A stale half-edge argument.
     let (mut body, _seed, es) = chain(2, tol);
     let dead = HalfEdgeKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(dead),
-        },
-        |b| b.kemr(dead, es[0].he_minus).unwrap_err(),
-    );
-    // LoopNotCycle: both halves' parent repointed at an empty ring loop
-    // (corrupt body; typed error, atomic, release-safe).
+    assert_err_deep_unchanged(&mut body, &stale("he1", EntityId::HalfEdge(dead)), |b| {
+        b.kemr(dead, es[0].he_minus).unwrap_err()
+    });
+    // Both halves' parent repointed at an empty ring loop (corrupt
+    // body): panics.
     let (mut body, _seed, es) = chain(2, tol);
     let strut = es[1];
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().parent_loop = ring;
     body.get_half_edge_mut(es[0].he_minus).unwrap().parent_loop = ring;
-    assert_err_deep_unchanged(
+    assert_plan_panics(
         &mut body,
-        &EulerOpError::LoopNotCycle { r#loop: ring },
-        |b| b.kemr(es[0].he_plus, es[0].he_minus).unwrap_err(),
+        "which is empty: on a tier-1-valid body an empty loop reaches no half-edge",
+        |b| b.kemr(es[0].he_plus, es[0].he_minus),
     );
-    // LoopCycleBroken: self-linked next skips he2 (corrupt).
-    let (mut body, seed, es) = chain(2, tol);
+    // A self-linked next skips he2 (corrupt): panics.
+    let (mut body, _seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().next = es[1].he_plus;
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::LoopCycleBroken {
-            r#loop: seed.r#loop,
-        },
-        |b| b.kemr(es[1].he_plus, es[1].he_minus).unwrap_err(),
-    );
-    // LoopCycleBroken via a WANDERING walk: next points into another
+    assert_plan_panics(&mut body, "which claims it too, never reaches it", |b| {
+        b.kemr(es[1].he_plus, es[1].he_minus)
+    });
+    // A WANDERING walk: next points into another
     // loop's cycle so the walk never returns — the bounded walk must
     // terminate (no hang, also in release).
     let (mut body, seed, es) = chain(1, tol);
@@ -1619,24 +1643,21 @@ fn kemr_error_paths_are_atomic() {
     body.get_half_edge_mut(strut.he_plus).unwrap().next = split.he_minus;
     let _ = seed;
     let t0 = std::time::Instant::now();
-    let before = deep_snapshot(&body);
-    let err = body.kemr(strut.he_plus, strut.he_minus).unwrap_err();
-    assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
-    assert_eq!(deep_snapshot(&body), before);
+    assert_plan_panics(
+        &mut body,
+        "does not close: on a tier-1-valid body every loop's next cycle closes",
+        |b| b.kemr(strut.he_plus, strut.he_minus),
+    );
     assert!(
         t0.elapsed() < std::time::Duration::from_secs(5),
         "bounded walk must terminate promptly"
     );
-    // StaleKey on a start vertex (corrupt half-edge).
+    // A dangling start vertex (corrupt half-edge): panics.
     let (mut body, _seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().start = VertexKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Vertex(VertexKey::default()),
-        },
-        |b| b.kemr(es[1].he_plus, es[1].he_minus).unwrap_err(),
-    );
+    assert_plan_panics(&mut body, "'s start names vertex", |b| {
+        b.kemr(es[1].he_plus, es[1].he_minus)
+    });
 }
 
 #[test]
@@ -1740,14 +1761,13 @@ fn mekr_error_paths_are_atomic() {
             .unwrap_err()
         },
     );
-    // LoopCycleBroken: corrupt the ring's cycle with a null next.
+    // The ring's cycle corrupted with a null next: panics.
     let (mut body, _seed, es) = chain(3, tol);
-    let kill = body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
+    body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
     body.get_half_edge_mut(es[2].he_plus).unwrap().next = HalfEdgeKey::default();
-    let ring_loop = kill.ring;
-    assert_err_deep_unchanged(
+    assert_plan_panics(
         &mut body,
-        &EulerOpError::LoopCycleBroken { r#loop: ring_loop },
+        "does not close: on a tier-1-valid body every loop's next cycle closes",
         |b| {
             b.mekr_chord(
                 MekrSite::Cycles {
@@ -1756,11 +1776,10 @@ fn mekr_error_paths_are_atomic() {
                 },
                 tol,
             )
-            .unwrap_err()
         },
     );
-    // EmptyAnchorsCollide: two empty loops sharing one vertex (corrupt,
-    // raw-grafted).
+    // Two empty loops sharing one vertex (corrupt, raw-grafted):
+    // panics.
     let (mut body, seed, es) = chain(2, tol);
     let strut = es[1];
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -1778,62 +1797,42 @@ fn mekr_error_paths_are_atomic() {
         validate(&body).is_err(),
         "shared lone vertex must be tier-1-invalid"
     );
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::EmptyAnchorsCollide {
-            vertex: strut.vertex,
-        },
-        |b| {
-            b.mekr_chord(
-                MekrSite::BothEmpty {
-                    target: kill.ring,
-                    ring: extra,
-                },
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
-    // StaleKey: dead loop key as the ring.
+    assert_plan_panics(&mut body, "are both empty at", |b| {
+        b.mekr_chord(
+            MekrSite::BothEmpty {
+                target: kill.ring,
+                ring: extra,
+            },
+            tol,
+        )
+    });
+    // A dead loop key as the ring argument.
     let (mut body, _seed, es) = chain(2, tol);
     let dead_loop = LoopKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Loop(dead_loop),
-        },
-        |b| {
-            b.mekr_chord(
-                MekrSite::EmptyRing {
-                    target: es[0].he_plus,
-                    ring: dead_loop,
-                },
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
-    // StaleKey on the splice point: target's prev dangles (corrupt).
+    assert_err_deep_unchanged(&mut body, &stale("ring", EntityId::Loop(dead_loop)), |b| {
+        b.mekr_chord(
+            MekrSite::EmptyRing {
+                target: es[0].he_plus,
+                ring: dead_loop,
+            },
+            tol,
+        )
+        .unwrap_err()
+    });
+    // The splice point dangles: target's prev (corrupt): panics.
     let (mut body, _seed, es) = chain(2, tol);
     let strut = es[1];
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().prev = HalfEdgeKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(HalfEdgeKey::default()),
-        },
-        |b| {
-            b.mekr_chord(
-                MekrSite::EmptyRing {
-                    target: es[0].he_plus,
-                    ring,
-                },
-                tol,
-            )
-            .unwrap_err()
-        },
-    );
+    assert_plan_panics(&mut body, "'s prev names half-edge", |b| {
+        b.mekr_chord(
+            MekrSite::EmptyRing {
+                target: es[0].he_plus,
+                ring,
+            },
+            tol,
+        )
+    });
 }
 
 /// The single ring of `face` (helper for the RingIsOuter case above).
@@ -1876,22 +1875,14 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         },
         |b| b.kfmrh(seed.face, other.face).unwrap_err(),
     );
-    // StaleKey f1 / f2.
+    // Stale f1 / f2.
     let dead_face = FaceKey::default();
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Face(dead_face),
-        },
-        |b| b.kfmrh(dead_face, split.face).unwrap_err(),
-    );
-    assert_err_deep_unchanged(
-        &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Face(dead_face),
-        },
-        |b| b.kfmrh(seed.face, dead_face).unwrap_err(),
-    );
+    assert_err_deep_unchanged(&mut body, &stale("f1", EntityId::Face(dead_face)), |b| {
+        b.kfmrh(dead_face, split.face).unwrap_err()
+    });
+    assert_err_deep_unchanged(&mut body, &stale("f2", EntityId::Face(dead_face)), |b| {
+        b.kfmrh(seed.face, dead_face).unwrap_err()
+    });
     // FaceHasRings: put a ring on f2 first (strut + kemr in the mef
     // face's loop), then try to kill it.
     let strut = body
@@ -1932,16 +1923,12 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     // ring_move: stale ring / stale destination.
     assert_err_deep_unchanged(
         &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Loop(LoopKey::default()),
-        },
+        &stale("ring", EntityId::Loop(LoopKey::default())),
         |b| b.ring_move(LoopKey::default(), seed.face).unwrap_err(),
     );
     assert_err_deep_unchanged(
         &mut body,
-        &EulerOpError::StaleKey {
-            key: EntityId::Face(dead_face),
-        },
+        &stale("to_face", EntityId::Face(dead_face)),
         |b| b.ring_move(ring, dead_face).unwrap_err(),
     );
     // ring_move to its own face: documented Ok(()) no-op, deeply
@@ -1970,7 +1957,7 @@ fn failing_ring_ops_leave_lineage_pure() {
             s: 1,
         };
         if inject {
-            // Failing kemr (NotSameEdge), failing kfmrh (SameFace),
+            // Failing kemr (NotMates), failing kfmrh (SameFace),
             // failing ring_move (RingIsOuter).
             assert!(body.kemr(b.e_ab.he_plus, b.e_ab.he_plus).is_err());
             assert!(body.kfmrh(b.seed.face, b.seed.face).is_err());

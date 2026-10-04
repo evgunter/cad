@@ -123,12 +123,11 @@
 //!   modules, the shared write helper
 //!   ([`Body::link_half_edges`]) included.
 //!
-//!   **The plan phases' typed refusals of a torn arena do not rest on
-//!   that reachability claim.** They rest on the D2 addendum's row-4
-//!   rule: the body's tier-1 validity is a whole-body property no
-//!   single call establishes, so it never stands in for a check. What
-//!   a plan reads and cannot prove from its own reads is refused
-//!   typed, however the body came to be torn.
+//!   **The plan phases' panics on a torn arena do not rest on that
+//!   reachability claim.** A record a plan reads that does not resolve,
+//!   or a walk that does not close, is a kernel bug whatever tore the
+//!   body, and the plan announces it with `unreachable!` before the
+//!   first write (D2 row 4).
 //!
 //! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
@@ -1589,33 +1588,16 @@ pub(crate) fn every_euler_op_error_once()
             },
         },
         EulerOpError::FaceMovedTwice { face: fc },
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "he",
             key: EntityId::HalfEdge(he),
-        },
-        EulerOpError::StaleGeometry {
-            key: GeomRef::Point(PointKey::default()),
-        },
+        }),
         EulerOpError::FanStartMismatch { he1: he, he2: he },
-        EulerOpError::FanOrbitBroken { he1: he, he2: he },
         EulerOpError::NotSameLoop { he1: he, he2: he },
-        EulerOpError::LoopCycleBroken { r#loop: lp },
         EulerOpError::LoopNotEmpty { r#loop: lp },
-        EulerOpError::LoopNotCycle { r#loop: lp },
-        EulerOpError::NotSameEdge { he1: he, he2: he },
-        EulerOpError::UnclaimedHalfEdge { he, edge: ek },
         EulerOpError::SelfLoopEdge {
             edge: ek,
             vertex: vk,
-        },
-        EulerOpError::OrbitBroken { he },
-        EulerOpError::EmptyAnchorsCollide { vertex: vk },
-        EulerOpError::KillLeavesDangling {
-            from: EntityId::Face(fc),
-            to: EntityId::Loop(lp),
-        },
-        EulerOpError::NotOwned {
-            child: EntityId::Loop(lp),
-            owner: EntityId::Face(fc),
         },
         EulerOpError::SameLoop { r#loop: lp },
         EulerOpError::NotSameFace {
@@ -4720,6 +4702,7 @@ mod tests {
 
     use super::*;
     use crate::fixtures::{NgonPillow, assert_err_deep_unchanged, deep_snapshot, pillow, prov};
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -5395,29 +5378,33 @@ mod tests {
     }
 
     #[test]
-    fn the_gate_refuses_a_moved_edge_whose_curve_key_dangles_with_the_body_untouched() {
+    fn the_gate_panics_on_a_moved_edge_whose_curve_key_dangles_with_the_body_untouched() {
         // A tier-1-corrupt body: the first moved spoke's curve entry is
-        // gone. The gate names the dangling key rather than skipping the
-        // edge, and the rest of the run is never asked about it.
+        // gone. The gate names the edge and the dangling key rather than
+        // skipping the edge, before anything is written.
         let (mut body, _seed, [_a, b, _c, d]) = four_spoke_star();
         body.curves.remove(b.curve).unwrap();
         assert!(validate(&body).is_err(), "the plant is tier-1-corrupt");
-        let before = deep_snapshot(&body);
-        assert_eq!(
-            body.mev_line(
-                MevSite::Fan {
-                    he1: b.he_plus,
-                    he2: d.he_plus,
-                },
-                p(5.0),
-                Tol::witness(),
-            )
-            .map(|_| ()),
-            Err(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(b.curve),
-            })
+        let premise = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(b.edge),
+            GeomRef::Curve(b.curve)
         );
-        assert_eq!(deep_snapshot(&body), before);
+        assert_torn_op_panics(
+            "the re-basing gate",
+            &mut body,
+            &[&premise, ROW_FOUR],
+            |body| {
+                body.mev_line(
+                    MevSite::Fan {
+                        he1: b.he_plus,
+                        he2: d.he_plus,
+                    },
+                    p(5.0),
+                    Tol::witness(),
+                )
+            },
+        );
     }
 
     #[test]
@@ -6258,7 +6245,8 @@ mod tests {
 
     // ------------------------------------------------------------------
     // Preconditions: every EulerOpError variant reachable and exact,
-    // with the body untouched on Err.
+    // with the body untouched on Err; a torn body panics in the plan,
+    // the body untouched.
     // ------------------------------------------------------------------
 
     #[test]
@@ -6275,31 +6263,22 @@ mod tests {
             prov(),
         );
         t.body.half_edges.remove(dead);
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(dead),
-        };
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
-            body.mev_line(
-                MevSite::Fan {
-                    he1: dead,
-                    he2: dead,
-                },
-                p(9.0),
-                Tol::witness(),
-            )
-            .unwrap_err()
-        });
-        // Same rejection through mef's addressing.
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(
-                MefSite::Chords {
-                    he1: dead,
-                    he2: dead,
-                },
-                Tol::witness(),
-            )
-            .unwrap_err()
-        });
+        let live = t.hes_a[0];
+        for (he1, he2, role) in [(dead, dead, "he1"), (live, dead, "he2")] {
+            let expected = EulerOpError::Argument(BadArgument::Stale {
+                role,
+                key: EntityId::HalfEdge(dead),
+            });
+            assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+                body.mev_line(MevSite::Fan { he1, he2 }, p(9.0), Tol::witness())
+                    .unwrap_err()
+            });
+            // Same rejection through mef's addressing.
+            assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+                body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
+                    .unwrap_err()
+            });
+        }
     }
 
     #[test]
@@ -6315,9 +6294,10 @@ mod tests {
             prov(),
         );
         t.body.loops.remove(dead);
-        let expected = EulerOpError::StaleKey {
+        let expected = EulerOpError::Argument(BadArgument::Stale {
+            role: "loop",
             key: EntityId::Loop(dead),
-        };
+        });
         assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(MevSite::Lone { r#loop: dead }, p(9.0), Tol::witness())
                 .unwrap_err()
@@ -6329,19 +6309,21 @@ mod tests {
     }
 
     #[test]
-    fn stale_anchor_point_is_rejected_as_stale_geometry() {
+    fn a_dangling_anchor_point_panics_naming_the_vertex() {
         let mut t = pillow(Tol::witness());
-        // Corrupt: v0's point is removed; mef needs its coordinates for
+        // Torn: v0's point is removed; mef needs its coordinates for
         // the placeholder curve anchor.
         let dead_point = t.body.points.remove(t.points[0]);
         assert!(dead_point.is_some());
-        let expected = EulerOpError::StaleGeometry {
-            key: GeomRef::Point(t.points[0]),
-        };
+        let premise = format!(
+            "{}'s point names {}, which does not resolve",
+            EntityId::Vertex(t.vertices[0]),
+            GeomRef::Point(t.points[0])
+        );
         // a0 starts at v0 (whose point is now gone); every earlier
         // precondition (same loop, cycle walk, prevs, face, shell)
         // passes, so the anchor resolution is what fires.
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+        assert_torn_op_panics("mef's anchor", &mut t.body, &[&premise, ROW_FOUR], |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -6349,7 +6331,6 @@ mod tests {
                 },
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
@@ -6375,16 +6356,13 @@ mod tests {
     }
 
     #[test]
-    fn broken_fan_orbit_is_rejected() {
+    fn broken_fan_orbit_panics() {
         let mut t = pillow(Tol::witness());
-        // Corrupt the edge ↔ half-edge bijection so mate(a0) fails: the
+        // Tear the edge ↔ half-edge bijection so mate(a0) fails: the
         // orbit walk from a0 breaks. a0 and b1 both start at v0.
         t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
-        let expected = EulerOpError::FanOrbitBroken {
-            he1: t.hes_a[0],
-            he2: t.hes_b[1],
-        };
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+        let walk = format!("the orbit walk from {:?}", t.hes_a[0]);
+        assert_torn_op_panics("mev fan", &mut t.body, &[&walk, ROW_FOUR], |body| {
             body.mev_line(
                 MevSite::Fan {
                     he1: t.hes_a[0],
@@ -6393,7 +6371,6 @@ mod tests {
                 p(9.0),
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
@@ -6432,45 +6409,44 @@ mod tests {
         (body, seg, strut)
     }
 
-    /// Every fan door at `(he1, he2)` on `body`, each refusing
-    /// `FanOrbitBroken` with the body untouched: `mev_null`,
+    /// Every fan door at `(he1, he2)` on `body`, each panicking on the
+    /// orbit walk from `he1` in the plan phase, the body untouched: `mev_null`,
     /// `mev_line` to a moved point, and a certified `mev` that moves
     /// nothing (a closed carrier at the old point, which the re-basing
     /// gate passes wherever the run starts at the split vertex).
-    fn every_fan_door_refuses_the_torn_walk(
+    fn every_fan_door_panics_on_the_torn_walk(
         body: &mut Body<f64>,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
     ) {
+        let walk = format!("the orbit walk from {he1:?}");
+        let premise = &[walk.as_str(), ROW_FOUR];
         let tol = Tol::witness();
         let site = MevSite::Fan { he1, he2 };
         let v = body.get_half_edge(he1).unwrap().start;
         let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let torn = EulerOpError::FanOrbitBroken { he1, he2 };
-        assert_err_deep_unchanged(body, &torn, |b| {
-            b.mev_null(site, crate::NewVertexSide::Above).unwrap_err()
+        assert_torn_op_panics("mev_null", body, premise, |b| {
+            b.mev_null(site, crate::NewVertexSide::Above)
         });
-        assert_err_deep_unchanged(body, &torn, |b| {
+        assert_torn_op_panics("mev_line", body, premise, |b| {
             b.mev_line(site, at + geom_core::Vec3::new(0.5, 0.0, 0.0), tol)
-                .unwrap_err()
         });
-        assert_err_deep_unchanged(body, &torn, |b| {
+        assert_torn_op_panics("mev", body, premise, |b| {
             b.mev(site, at, EdgeCurveSpec::self_loop_circle_at(at), tol)
-                .unwrap_err()
         });
     }
 
     #[test]
-    fn a_torn_orbit_at_a_fan_site_refuses_typed_in_every_fan_door() {
+    fn a_torn_orbit_at_a_fan_site_panics_in_every_fan_door() {
         // From the strut the torn half is in the moved run, and a fan
         // split would re-base `seg+` off the segment's other end; from
         // the segment the run is `[seg−]` and the torn half follows
         // `he2`, and a split would carry the torn walk into its
         // result. Both are the split vertex's orbit only by the walk's
-        // say-so, and every door refuses in the plan phase.
+        // say-so, and every door panics in the plan phase.
         let (mut body, seg, strut) = torn_strutted_segment();
-        every_fan_door_refuses_the_torn_walk(&mut body, strut.he_plus, seg.he_minus);
-        every_fan_door_refuses_the_torn_walk(&mut body, seg.he_minus, strut.he_plus);
+        every_fan_door_panics_on_the_torn_walk(&mut body, strut.he_plus, seg.he_minus);
+        every_fan_door_panics_on_the_torn_walk(&mut body, seg.he_minus, strut.he_plus);
     }
 
     /// The declined cube torn by two `next` writes, by position in its
@@ -6498,25 +6474,25 @@ mod tests {
     }
 
     #[test]
-    fn a_twice_torn_declined_cube_refuses_a_fan_split_typed() {
+    fn a_twice_torn_declined_cube_panics_on_a_fan_split() {
         let (mut body, halves) = twice_torn_cube();
         let (a, b) = (halves[5], halves[6]);
-        every_fan_door_refuses_the_torn_walk(&mut body, a, b);
-        every_fan_door_refuses_the_torn_walk(&mut body, b, a);
+        every_fan_door_panics_on_the_torn_walk(&mut body, a, b);
+        every_fan_door_panics_on_the_torn_walk(&mut body, b, a);
     }
 
     #[test]
-    fn a_strut_on_a_torn_orbit_refuses_typed_in_every_fan_door() {
+    fn a_strut_on_a_torn_orbit_panics_in_every_fan_door() {
         // A strut moves no half-edge but splices its new plus half into
         // the walk from `he1`; on a walk that leaves the vertex that is
-        // a torn orbit, and every door refuses in the plan phase.
+        // a torn orbit, and every door panics in the plan phase.
         let (mut body, seg, strut) = torn_strutted_segment();
         for he in [strut.he_plus, seg.he_minus] {
-            every_fan_door_refuses_the_torn_walk(&mut body, he, he);
+            every_fan_door_panics_on_the_torn_walk(&mut body, he, he);
         }
         let (mut cube, halves) = twice_torn_cube();
         for he in [halves[5], halves[6]] {
-            every_fan_door_refuses_the_torn_walk(&mut cube, he, he);
+            every_fan_door_panics_on_the_torn_walk(&mut cube, he, he);
         }
     }
 
@@ -6548,14 +6524,14 @@ mod tests {
     }
 
     #[test]
-    fn a_fan_split_refuses_a_walk_another_walk_runs_into() {
+    fn a_fan_split_panics_on_a_walk_another_walk_runs_into() {
         // Every fan site on the cycle the walk from `a` closes, struts
         // included: a split there would re-base part of `v`'s orbit and
-        // strand `b` on the walk that runs into it, and the plan refuses
+        // strand `b` on the walk that runs into it, and the plan panics
         // before any write.
         let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
         for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
-            every_fan_door_refuses_the_torn_walk(&mut body, he1, he2);
+            every_fan_door_panics_on_the_torn_walk(&mut body, he1, he2);
         }
     }
 
@@ -6621,7 +6597,7 @@ mod tests {
     }
 
     #[test]
-    fn a_torn_walk_refuses_ahead_of_a_dangling_prev_link() {
+    fn a_torn_walk_panics_ahead_of_a_dangling_prev_link() {
         // The orbit proof precedes the `prev` links in the documented
         // order, so a torn walk with a dangling `prev(he1)` or
         // `prev(he2)` names the torn walk, not the stale link.
@@ -6630,7 +6606,7 @@ mod tests {
             for dangling in [he1, he2] {
                 let mut body = body.clone();
                 body.get_half_edge_mut(dangling).unwrap().prev = HalfEdgeKey::default();
-                every_fan_door_refuses_the_torn_walk(&mut body, he1, he2);
+                every_fan_door_panics_on_the_torn_walk(&mut body, he1, he2);
             }
         }
     }
@@ -6694,13 +6670,13 @@ mod tests {
     }
 
     #[test]
-    fn broken_loop_cycle_is_rejected() {
+    fn broken_loop_cycle_panics() {
         let mut t = pillow(Tol::witness());
         // Tear a0's next into loop B: the cycle walk from a0 can never
         // reach a1 (nor return to a0).
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
-        let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+        let walk = format!("the loop walk from {:?} does not close", t.hes_a[0]);
+        assert_torn_op_panics("mef chords", &mut t.body, &[&walk, ROW_FOUR], |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -6708,7 +6684,6 @@ mod tests {
                 },
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
@@ -6727,9 +6702,9 @@ mod tests {
     }
 
     #[test]
-    fn chords_claiming_an_empty_parent_loop_are_rejected() {
+    fn chords_claiming_an_empty_parent_loop_panic() {
         let mut t = pillow(Tol::witness());
-        // Corrupt: a fresh empty loop, and a0/a1 claim it as parent.
+        // Torn: a fresh empty loop, and a0/a1 claim it as parent.
         let p2 = t.body.add_point(p(9.0));
         let v2 = t.body.add_vertex(
             Vertex {
@@ -6747,8 +6722,8 @@ mod tests {
         );
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = empty;
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
-        let expected = EulerOpError::LoopNotCycle { r#loop: empty };
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+        let premise = format!("{:?} claims loop {empty:?}, which is empty", t.hes_a[0]);
+        assert_torn_op_panics("mef chords", &mut t.body, &[&premise, ROW_FOUR], |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -6756,22 +6731,23 @@ mod tests {
                 },
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
     #[test]
-    fn chords_with_dangling_second_start_vertex_are_rejected() {
+    fn chords_with_dangling_second_start_vertex_panic() {
         let mut t = pillow(Tol::witness());
-        // Corrupt: a1's start vertex (v1) is removed; every earlier
+        // Torn: a1's start vertex (v1) is removed; every earlier
         // precondition (resolution, same loop, cycle walk, prevs, face,
-        // shell, anchor at v0) passes, so the start(he2) liveness check
-        // is what fires.
+        // shell, anchor at v0) passes, so the start(he2) lookup is what
+        // fires.
         t.body.vertices.remove(t.vertices[1]);
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Vertex(t.vertices[1]),
-        };
-        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
+        let premise = format!(
+            "{}'s start names {}, which does not resolve",
+            EntityId::HalfEdge(t.hes_a[1]),
+            EntityId::Vertex(t.vertices[1])
+        );
+        assert_torn_op_panics("mef chords", &mut t.body, &[&premise, ROW_FOUR], |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -6779,7 +6755,6 @@ mod tests {
                 },
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
@@ -6802,7 +6777,13 @@ mod tests {
                     Tol::witness(),
                 )
                 .unwrap_err();
-            assert!(matches!(err, EulerOpError::StaleKey { .. }));
+            assert_eq!(
+                err,
+                EulerOpError::Argument(BadArgument::Stale {
+                    role: "loop",
+                    key: EntityId::Loop(LoopKey::default()),
+                })
+            );
         }
         let seg = body
             .mev_line(
@@ -6911,54 +6892,51 @@ mod tests {
         }
     }
 
-    /// **The corruption refusals end one way** (D4 ¶1 (i)): every
-    /// variant [`EulerOpError::reports_tier1_corruption`] answers `true`
-    /// for ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one recourse,
-    /// but for the three a caller reaches too, which state the fact and
-    /// claim neither a recourse nor a defect; no other variant names a
-    /// defect. `PcurveMint` answers by its payload, so both of its sides
-    /// are sampled beside the shared array.
+    /// **Only the torn-body refusal names a defect** (D4 ¶1 (i)):
+    /// `PcurveMint`'s `Corrupt` side, the one typed refusal of a torn
+    /// body, ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one
+    /// recourse; no other variant names a defect, and a caller's bad
+    /// [`EulerOpError::Argument`] states the fact and claims neither a
+    /// recourse nor a defect. `PcurveMint` answers by its payload and
+    /// `Argument` by its [`BadArgument`], so each side the shared array
+    /// does not hold is sampled beside it.
     #[test]
     fn corruption_refusals_end_in_the_kernel_defect_ending() {
         use crate::pcurves::SiteRowRefusal;
-        use EulerOpErrorKind as K;
-        const CALLERS_TOO: [K; 3] = [K::StaleKey, K::StaleGeometry, K::NotSameEdge];
         let pcurve_mint = |refusal| EulerOpError::PcurveMint {
             face: FaceKey::default(),
             refusal,
         };
-        let samples = every_euler_op_error_once().into_iter().chain([
-            pcurve_mint(SiteRowRefusal::Corrupt),
+        let torn = pcurve_mint(SiteRowRefusal::Corrupt).to_string();
+        assert!(
+            torn.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{torn}"
+        );
+        assert_eq!(test_utils::refusal::recourse_markers(&torn), 1, "{torn}");
+        let mut arguments = 0;
+        for error in every_euler_op_error_once().into_iter().chain([
             pcurve_mint(SiteRowRefusal::KeysOnly),
-        ]);
-        let mut corrupt = 0;
-        for error in samples {
+            EulerOpError::Argument(BadArgument::StaleGeometry {
+                role: "surface",
+                key: GeomRef::Point(PointKey::default()),
+            }),
+            EulerOpError::Argument(BadArgument::NotMates {
+                he1: HalfEdgeKey::default(),
+                he2: HalfEdgeKey::default(),
+            }),
+        ]) {
             let text = error.to_string();
-            if !error.reports_tier1_corruption() {
-                assert!(
-                    !text.contains("kernel defect") && !text.contains("malformed"),
-                    "{text}"
-                );
-                continue;
-            }
-            corrupt += 1;
-            if CALLERS_TOO.contains(&K::from(&error)) {
-                assert!(
-                    !text.contains("kernel defect")
-                        && !text.contains("malformed")
-                        && !text.contains("torn"),
-                    "{text}"
-                );
+            assert!(
+                !text.contains("kernel defect") && !text.contains("malformed"),
+                "{text}"
+            );
+            if let EulerOpError::Argument(_) = error {
+                arguments += 1;
+                assert!(!text.contains("torn"), "{text}");
                 assert_eq!(test_utils::refusal::recourse_markers(&text), 0, "{text}");
-            } else {
-                assert!(
-                    text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
-                    "{text}"
-                );
-                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
             }
         }
-        assert_eq!(corrupt, 12, "the corruption samples this row reads");
+        assert_eq!(arguments, 3, "the argument samples this row reads");
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
@@ -7022,7 +7000,7 @@ mod tests {
     }
 
     #[test]
-    fn mef_refuses_a_run_walked_through_another_loop() {
+    fn mef_panics_on_a_run_walked_through_another_loop() {
         // The anchor probe's first `mef` counterexample
         // (`review_d18::kill_anchors_on_torn_bodies`: the strut cube,
         // seed 26, two `next` tears): the walk from `he1` is diverted
@@ -7044,18 +7022,18 @@ mod tests {
             }),
             "the run takes another loop's anchor"
         );
-        let torn = EulerOpError::LoopCycleBroken { r#loop: loop_key };
-        crate::fixtures::assert_make_refuses(&mut body, &torn, |b| {
+        let member = format!("walked as a member of loop {loop_key:?}'s cycle, does not claim it");
+        assert_torn_op_panics("mef chords", &mut body, &[&member, ROW_FOUR], |b| {
             b.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
         });
     }
 
     #[test]
-    fn mef_chord_refuses_in_mefs_own_order() {
+    fn mef_chord_panics_in_mefs_own_order() {
         // Two faults at once, after the review's two-fault probe: the
         // diverted run above, and `start(he1)` removed, which `mef`
-        // checks after the walk. The sugar derives its chord inside
-        // `mef`'s plan, so it refuses what `mef` does.
+        // reads after the walk. The sugar derives its chord inside
+        // `mef`'s plan, so it panics where `mef` does.
         let mut body = crate::fixtures::ops_strut_cube(Tol::witness()).body;
         let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
         body.get_half_edge_mut(halves[14]).unwrap().next = halves[25];
@@ -7067,12 +7045,13 @@ mod tests {
             .with_entity_removed_for_tests(EntityId::Vertex(start))
             .unwrap();
         let site = MefSite::Chords { he1, he2 };
-        let torn = EulerOpError::LoopCycleBroken { r#loop: loop_key };
+        let member = format!("walked as a member of loop {loop_key:?}'s cycle, does not claim it");
+        let premise = &[member.as_str(), ROW_FOUR];
         let spec = EdgeCurveSpec::line_between(p(0.0), p(1.0));
-        crate::fixtures::assert_make_refuses(&mut body.clone(), &torn, |b| {
+        assert_torn_op_panics("mef", &mut body.clone(), premise, |b| {
             b.mef(site, spec, FaceSurface::Inherit, Tol::witness())
         });
-        crate::fixtures::assert_make_refuses(&mut body, &torn, |b| {
+        assert_torn_op_panics("mef_chord", &mut body, premise, |b| {
             b.mef_chord(site, Tol::witness())
         });
     }
