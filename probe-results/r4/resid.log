@@ -1,0 +1,14 @@
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [76]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [386]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [1976]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [87]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [458]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [2448]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [92]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [480]
+test zz_rev4034_probes::probe_bend_single_detail has been running for over 60 seconds
+β=-6 ε 1e-12: Ok 1 branch(es), samples [2602]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [98]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [493]

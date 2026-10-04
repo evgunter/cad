@@ -1,0 +1,46 @@
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [80]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [390]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [2056]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [86]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [460]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [2487]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [94]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [487]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [2608]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [101]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [506]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [2719]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [111]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [566]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [2977]
+test zz_rev4034_probes::probe_bend_single_detail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 56.92s
+
+DONE bend 0
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-6: samples [137, 137] halvings 250
+ARMS gap 1e-3 at ε 1e-6: samples [138, 136] halvings 501
+ARMS gap 2e-1 at ε 1e-6: samples [97, 97] halvings 687
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 2.79s
+
+DONE arms 1e-6 0 2.804108013
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-9: samples [770, 768] halvings 1467
+ARMS gap 1e-3 at ε 1e-9: samples [765, 766] halvings 2926
+ARMS gap 2e-1 at ε 1e-9: samples [531, 531] halvings 3980
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 6.46s
+
+DONE arms 1e-9 0 6.473986475
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-12: samples [4327, 4328] halvings 8313
+ARMS gap 1e-3 at ε 1e-12: samples [4318, 4320] halvings 16610

@@ -1,0 +1,114 @@
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [53]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [218]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [1086]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [61]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [253]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [1284]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [63]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [265]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [1403]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [65]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [273]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [1412]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [67]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [298]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [1542]
+test zz_rev4034_probes::probe_bend_single_detail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 52.65s
+
+DONE bend 0
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-6: samples [69, 69] halvings 128
+ARMS gap 1e-3 at ε 1e-6: samples [69, 69] halvings 256
+ARMS gap 2e-1 at ε 1e-6: samples [47, 47] halvings 388
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 1.86s
+
+DONE arms 1e-6 0 1.891038412
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-9: samples [381, 381] halvings 746
+ARMS gap 1e-3 at ε 1e-9: samples [380, 380] halvings 1490
+ARMS gap 2e-1 at ε 1e-9: samples [261, 261] halvings 2250
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 4.29s
+
+DONE arms 1e-9 0 4.315726135
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-12: samples [2135, 2137] halvings 4221
+ARMS gap 1e-3 at ε 1e-12: samples [2132, 2132] halvings 8443
+ARMS gap 2e-1 at ε 1e-12: samples [1449, 1449] halvings 12755
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 16.33s
+
+DONE arms 1e-12 0 16.348233899
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=44     ε 1e-6  OK  2 branches samples [43, 45]    0.37s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=292    ε 1e-9  OK  2 branches samples [245, 245]    0.68s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=216 ε 1e-6  OK  2 branches samples [37, 35]    0.33s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=1282 ε 1e-9  OK  2 branches samples [200, 201]    0.62s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=110    ε 1e-6  OK  2 branches samples [40, 40]    1.57s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=738    ε 1e-9  OK  2 branches samples [224, 223]    2.17s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=215 ε 1e-6  OK  2 branches samples [33, 31]    1.62s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=1606 ε 1e-9  OK  2 branches samples [181, 182]    2.67s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=75     ε 1e-6  ERR CellBudget                                  2.25s
+hyperbola c=1e-6 [plain] n=4 sep=5.0e-1 h=600    ε 1e-9  ERR CellBudget                                  3.03s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=95 ε 1e-6  ERR TubeStraddles                               0.18s
+hyperbola c=1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=937 ε 1e-9  ERR CellBudget                                  2.59s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=2      ε 1e-6  ERR TubeStraddles                               0.10s
+hyperbola c=1e-8 [plain] n=4 sep=5.0e-1 h=296    ε 1e-9  ERR CellBudget                                  2.98s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2 ε 1e-6  ERR TubeStraddles                               0.08s
+hyperbola c=1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=351 ε 1e-9  ERR CellBudget                                  2.23s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=118   ε 1e-6  OK  2 branches samples [53, 51]    1.92s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=744   ε 1e-9  OK  2 branches samples [294, 291]    1.96s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=55 ε 1e-6  ERR Escalated(StepProgress)                     0.09s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=1596 ε 1e-9  OK  2 branches samples [258, 259]    2.04s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=76    ε 1e-6  ERR TubeStraddles                               0.28s
+hyperbola c=-1e-6 [plain] n=4 sep=5.0e-1 h=582   ε 1e-9  ERR CellBudget                                  2.25s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=44 ε 1e-6  ERR TubeStraddles                               0.59s
+hyperbola c=-1e-6 [near-degenerate-axes] n=4 sep=5.0e-1 h=928 ε 1e-9  ERR CellBudget                                  3.25s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=2     ε 1e-6  ERR TubeStraddles                               0.11s
+hyperbola c=-1e-8 [plain] n=4 sep=5.0e-1 h=294   ε 1e-9  ERR CellBudget                                  2.43s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=2 ε 1e-6  ERR TubeStraddles                               0.09s
+hyperbola c=-1e-8 [near-degenerate-axes] n=4 sep=5.0e-1 h=362 ε 1e-9  ERR CellBudget                                  2.42s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 78.61s
+
+DONE pairing 0
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=30        ε 1e-6  ERR TubeStraddles                               1.41s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=46        ε 1e-9  ERR TubeStraddles                               2.38s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=27      ε 1e-6  ERR TubeStraddles                               0.28s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=45      ε 1e-9  ERR TubeStraddles                               0.73s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=27       ε 1e-6  ERR TubeStraddles                               0.21s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=45       ε 1e-9  ERR TubeStraddles                               0.68s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=29         ε 1e-6  ERR TubeStraddles                               0.81s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=45         ε 1e-9  ERR TubeStraddles                               1.65s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=18        ε 1e-6  ERR TubeStraddles                               2.25s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=32        ε 1e-9  ERR TubeStraddles                               2.35s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=18      ε 1e-6  ERR TubeStraddles                               0.26s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=30      ε 1e-9  ERR TubeStraddles                               0.74s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=18       ε 1e-6  ERR TubeStraddles                               0.21s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=30       ε 1e-9  ERR TubeStraddles                               0.58s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=27         ε 1e-6  ERR TubeStraddles                               0.61s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=30         ε 1e-9  ERR TubeStraddles                               1.30s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=18        ε 1e-6  ERR TubeStraddles                               1.59s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=30        ε 1e-9  ERR TubeStraddles                               2.41s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=18      ε 1e-6  ERR TubeStraddles                               0.25s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=29      ε 1e-9  ERR TubeStraddles                               0.99s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=18       ε 1e-6  ERR TubeStraddles                               0.22s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=29       ε 1e-9  ERR TubeStraddles                               0.68s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=27         ε 1e-6  ERR TubeStraddles                               0.54s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=29         ε 1e-9  ERR TubeStraddles                               1.27s
