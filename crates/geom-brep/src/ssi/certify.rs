@@ -1047,10 +1047,11 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// narrowest rung whose chain was a graph but not proved one arc.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OneArcRefusal {
-    /// A box of the chain, cut to the searched region, holds this many
-    /// simple solutions on its boundary, certified, where one arc through
-    /// it gives two. Either another arc of the locus lies in it, or the
-    /// locus leaves the region and comes back inside it.
+    /// A box of the chain, cut to the wall's domain (and to a search's
+    /// slab where it clips to one), holds this many simple solutions on
+    /// its boundary, certified, where one arc through it gives two. None:
+    /// no arc runs through it. More: another arc of the locus lies in it,
+    /// or the locus leaves the box's region and comes back inside it.
     Count {
         /// The certified count.
         solutions: u32,
@@ -1059,9 +1060,10 @@ pub enum OneArcRefusal {
     /// reading that would show the pieces meet certifies no shared
     /// solution there.
     Unlinked,
-    /// The chain's pieces stop short of an end of the carrier: the slice
-    /// through that end is certified to hold no solution in its box, and
-    /// the carrier's end lies farther than ε from the locus.
+    /// The chain's pieces stop short of an end of the carrier, certified:
+    /// an arc's box holds no solution on the slice through that end and
+    /// none within ε of it, or a side's stretch does not reach the end,
+    /// or the boundary pass reads the side clear there.
     Short,
     /// A walk of a box's boundary resolved no count, or a linking
     /// reading no sign. A solution on the boundary may be tangential to
@@ -1073,20 +1075,23 @@ pub enum OneArcRefusal {
 impl core::fmt::Display for OneArcRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
+            Self::Count { solutions: 0 } => {
+                "a box of the chain holds no boundary solution: no arc of the locus runs \
+                 through it"
+            }
             Self::Count { solutions } => {
                 return write!(
                     f,
-                    "a box cut to the searched region holds {solutions} boundary solutions, \
-                     not two: a second arc, or the locus leaving and re-entering the region"
+                    "a box of the chain holds {solutions} boundary solutions, not two: a \
+                     second arc, or the locus leaving and re-entering the box's region"
                 );
             }
             Self::Unlinked => {
                 "two consecutive boxes each hold one piece, and no shared solution joins them"
             }
             Self::Short => {
-                "the pieces stop short of an end of the carrier: the slice through that end \
-                 holds no solution in its box, and the end lies farther than the tolerance \
-                 from the locus"
+                "the pieces stop short of an end of the carrier: no solution lies on the \
+                 slice through that end or within the tolerance of it"
             }
             Self::Undecided(_) => {
                 "a box's boundary walk resolved no count: a solution tangent to it, on a \
@@ -1133,11 +1138,12 @@ fn limb_three<T: Decide>(
             continue;
         };
         match (rung.margin > 0.0, rung.one_arc) {
-            (true, Some(Err(_))) => not_one_arc += 1,
-            (true, _) => {
+            (true, Some(Ok(()))) => {
                 let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
                 return Ok((rung, t));
             }
+            // A graph whose proof did not run never reads as proved.
+            (true, _) => not_one_arc += 1,
             (false, _) => {}
         }
         narrowest = Some(rung);
@@ -1151,9 +1157,13 @@ fn limb_three<T: Decide>(
             rungs: ladder.len() as u32,
         });
     };
-    let Some(Err(shortfall)) = rung.one_arc else {
-        let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
-        return Ok((rung, t));
+    let shortfall = match (rung.margin > 0.0, rung.one_arc) {
+        (true, Some(Err(shortfall))) => shortfall,
+        (true, _) => Shortfall::Undecided,
+        (false, _) => {
+            let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+            return Ok((rung, t));
+        }
     };
     let cause = match shortfall {
         Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
@@ -1350,7 +1360,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         Lane::Spatial { slab, .. } => Some(slab),
         Lane::AtRest { .. } | Lane::Chart { .. } => None,
     };
-    // The carrier's two ends, enclosed.
+    // The carrier's two ends, as the carrier's scalar evaluates them: on
+    // the f64 lane a point, not an enclosure of the exact end, which the
+    // end checks then read within ε of
+    // (`work/ssi/limb3-carrier-ends-read-at-f64-points.md`).
     let (t0, t1) = carrier.domain();
     let ends = [t0, t1].map(|t| {
         let p = carrier.eval(T::from_f64(t));
@@ -2111,6 +2124,25 @@ mod tests {
                 one_arc,
             }))
         })
+    }
+
+    /// **A graph whose one-arc proof did not run is not proved.** Every
+    /// rung zero-free with no proof recorded refuses as undecided, never
+    /// certifies. Red under the ladder taking a zero-free rung with no
+    /// proof as proved.
+    #[test]
+    fn a_graph_with_no_proof_is_not_proved_one_arc() {
+        let got = ladder_of((0.5, None), (0.5, None));
+        assert!(
+            matches!(
+                got,
+                Err(crate::ssi::SsiError::TubeNotOneArc {
+                    cause: crate::ssi::OneArcRefusal::Undecided(_),
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
     }
 
     /// **The narrowest rung speaks.** A wide rung that is a graph but

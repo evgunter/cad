@@ -329,8 +329,8 @@ impl PlaneNurbsRefusal {
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
-        if let Self::TubeNotOneArc { rungs, cause } = *self {
-            return Some(SsiError::TubeNotOneArc { rungs, cause }.ending(reading));
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
         }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))

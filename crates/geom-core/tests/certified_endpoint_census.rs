@@ -339,12 +339,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "crates/geom-brep/src/ssi/one_arc.rs",
         18,
         12,
-        "the 12 that ask are the Krawczyk test's own centre, image and containment reads, which \
-         refuse a piece unless every enclosure is certified; `beyond_reach`'s, `reach`'s and \
-         `gap`'s, which refuse an uncertified box by name before reading it; and \
-         `r3_reaches_end`'s, which refuse an uncertified end or box side. The other 6 do not ask: \
+        "the 12 that ask: the Krawczyk test's 4 centre, image and containment reads, which \
+         refuse a piece unless every enclosure is certified; `farthest`'s 2 and `nearest`'s 2, \
+         which refuse a box with any uncertified side by name before reading it; and \
+         `r3_reaches_end`'s 4, which refuse an uncertified end or box side before reading \
+         either. The other 6 do not ask: \
          `one_arc`'s 1 is a `T: Bounds` read of the pcurve's evaluation scalar, the midpoint \
-         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' 5 \
+         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' and `face_walk`'s 5 \
          read the sides of a box its one caller, `one_arc_r3`, met with the slab through \
          `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
          cut from those finite ends",

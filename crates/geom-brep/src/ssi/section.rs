@@ -126,14 +126,30 @@ impl Pieces {
     /// `p` (exact in ℝ, applied in interval arithmetic), so the control
     /// net is the pieces' Bernstein coefficients end to end.
     fn of(curve: &NurbsCurve3<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> Option<Self> {
-        let kv = curve.knots();
-        let p = kv.degree();
         let n = [normal.x, normal.y, normal.z].map(Interval::point);
         let o = [origin.x, origin.y, origin.z].map(Interval::point);
+        let control: Vec<[Interval; 3]> = curve
+            .control()
+            .iter()
+            .map(|c| [c.x, c.y, c.z].map(Interval::point))
+            .collect();
+        Self::enclosed(curve.knots(), &control, curve.weights(), (o, n))
+    }
+
+    /// [`Pieces::of`] from a curve's parts, its control points enclosed:
+    /// the one arithmetic both the boundary pass and limb 3's side arm
+    /// read ([`SectionReader`]).
+    fn enclosed(
+        kv: &geom_core::spline::KnotVector,
+        control: &[[Interval; 3]],
+        weights: &[f64],
+        (o, n): ([Interval; 3], [Interval; 3]),
+    ) -> Option<Self> {
+        let p = kv.degree();
         // The weights scaled by a power of two near their largest, which
         // is exact and moves neither the curve, `φ = h/W` nor `h`'s sign,
         // so a net of tiny weights does not underflow `h`.
-        let top = curve.weights().iter().copied().fold(0.0, f64::max);
+        let top = weights.iter().copied().fold(0.0, f64::max);
         #[allow(clippy::cast_possible_truncation)]
         let k = if top > 0.0 && top.is_finite() {
             -(top.log2().floor() as i32)
@@ -143,21 +159,19 @@ impl Pieces {
         // Two halves, so a subnormal's exponent does not overflow the
         // power it is scaled by.
         let (k1, k2) = (k / 2, k - k / 2);
-        let weights: Vec<f64> = curve
-            .weights()
+        let weights: Vec<f64> = weights
             .iter()
             .map(|w| w * 2.0f64.powi(k1) * 2.0f64.powi(k2))
             .collect();
-        let h: Vec<Interval> = curve
-            .control()
+        let h: Vec<Interval> = control
             .iter()
             .zip(&weights)
             .map(|(c, &w)| {
-                let d = [c.x, c.y, c.z]
-                    .into_iter()
+                let d = c
+                    .iter()
                     .zip(n.iter().zip(o.iter()))
                     .fold(Interval::point(0.0), |acc, (x, (nk, ok))| {
-                        acc + *nk * (Interval::point(x) - *ok)
+                        acc + *nk * (*x - *ok)
                     });
                 Interval::point(w) * d
             })
@@ -188,6 +202,26 @@ impl Pieces {
         Some(Self { pieces })
     }
 
+    /// The plane distance `φ = h/W` over the whole curve, enclosed: the
+    /// hull of its Bernstein ratios `h_i/W_i` (every weight positive).
+    fn distance(&self) -> Interval {
+        self.pieces
+            .iter()
+            .flat_map(|(_, hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
+            .reduce(Interval::hull)
+            .unwrap_or_else(Interval::refused)
+    }
+
+    /// The plane distance over `[a, b]`, enclosed as [`Pieces::distance`]
+    /// encloses the whole curve's, from the pieces cut to it.
+    fn distance_over(&self, a: f64, b: f64) -> Interval {
+        self.over(a, b)
+            .iter()
+            .flat_map(|(hc, wc, _)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
+            .reduce(Interval::hull)
+            .unwrap_or_else(Interval::refused)
+    }
+
     /// For each piece overlapping `[a, b]`: the Bernstein coefficients
     /// of `h` and `W` over the overlap, and of `dh/dt` there.
     fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>, Vec<Interval>)> {
@@ -211,6 +245,33 @@ impl Pieces {
             ));
         }
         out
+    }
+}
+
+/// **A side's plane distance, read as [`boundary_section`] reads it**,
+/// over any stretch of the side: the one reader the boundary pass and
+/// limb 3's side arm share, so the two doors read one input.
+pub(crate) struct SectionReader {
+    pieces: Pieces,
+}
+
+impl SectionReader {
+    /// The reader of a curve given by its parts, its control points
+    /// enclosed; `None` where the knot algebra refuses its Bernstein
+    /// form.
+    pub(crate) fn of(
+        knots: &geom_core::spline::KnotVector,
+        control: &[[Interval; 3]],
+        weights: &[f64],
+        (origin, normal): ([Interval; 3], [Interval; 3]),
+    ) -> Option<Self> {
+        Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
+    }
+
+    /// The plane distance `φ` over the stretch `[a, b]` of the curve,
+    /// enclosed.
+    pub(crate) fn over(&self, (a, b): (f64, f64)) -> Interval {
+        self.pieces.distance_over(a, b)
     }
 }
 
@@ -296,12 +357,7 @@ pub fn boundary_section(
     };
     let pieces = Pieces::of(curve, origin, normal).ok_or(unsupported)?;
     // ---- On: the curve's sup distance from the plane ----
-    let d = pieces
-        .pieces
-        .iter()
-        .flat_map(|(_, hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
-        .reduce(Interval::hull)
-        .unwrap_or_else(Interval::refused);
+    let d = pieces.distance();
     let sup = magnitude(d);
     let on = BoundarySection::On {
         sup,

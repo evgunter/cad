@@ -453,12 +453,13 @@ impl Pass<'_> {
     /// Along it, a zero of the strip lies at most `sup / inf|φ⊥|` in from
     /// the side (`φ⊥` the slope across it), the strip's **cover**, and at
     /// most `sup · s⊥ / inf|φ⊥|` from it in metres, both read piecewise
-    /// along the side ([`Pass::strip_reach`]). The region is reported at
-    /// the widest rung, from the first one-signed rung down, whose cover
-    /// lies strictly inside the strip (so the zero set meets the strip's
-    /// far face nowhere, and an arc in the strip ends on the domain's
-    /// sides) and whose distance from the side is at most ε; its reach
-    /// is that distance plus ε.
+    /// along the side ([`side_cover`]). The region is reported at the
+    /// widest rung, from the first one-signed rung down, whose cover lies
+    /// strictly inside the strip (so the zero set meets the strip's far
+    /// face nowhere, and an arc in the strip ends on the domain's sides)
+    /// and whose distance from the side is at most ε; its reach is that
+    /// distance plus ε. The clear test is [`clears`], the one limb 3's
+    /// side arm reads each piece of a stretch by.
     ///
     /// Where a rung's cover lies inside its strip but none within ε of
     /// the side, the side is [`SideClass::Apart`]. `Ok(None)` where no
@@ -501,10 +502,7 @@ impl Pass<'_> {
             let inf = super::enclose::zero_free_lower_bound(across);
             if !classified {
                 classified = true;
-                // The side on one side of the plane, and the wall moving
-                // further that way inward: the strip is clear of the plane.
-                let rising_inward = sign(across) == Some(inward(side.end) > 0.0);
-                if side_of_plane == Some(rising_inward) {
+                if clears(side, side_of_plane, across) {
                     return Ok(Some(SideClass::Clear { strip }));
                 }
                 // The sine of the angle between the wall and the plane
@@ -897,6 +895,160 @@ impl Pass<'_> {
             clear,
             crossings,
         })
+    }
+}
+
+/// **Whether a side is clear of the plane** (the exact empty answer, Ev's
+/// #3862 rule): `φ` along it certified on one side of the plane, and the
+/// wall's slope across it, `across`, certified to move it further that
+/// way inward. The one test [`Pass::side_region`] decides a side by and
+/// [`side_stretch`] decides each piece of a stretch by.
+pub(crate) fn clears(side: ChartSide, side_of_plane: Option<bool>, across: Interval) -> bool {
+    one_signed(across) && side_of_plane == Some(sign(across) == Some(inward(side.end) > 0.0))
+}
+
+/// The stretch of `side` along `r`, a window with an edge on that side
+/// of `domain`: the parameter range of that edge, along the side.
+pub(crate) fn along(side: ChartSide, r: UvRect) -> (f64, f64) {
+    match side.fixed {
+        ChartAxis::U => r.v,
+        ChartAxis::V => r.u,
+    }
+}
+
+/// `r` cut along `side` to the stretch `t`.
+pub(crate) fn cut_along(side: ChartSide, r: UvRect, t: (f64, f64)) -> UvRect {
+    match side.fixed {
+        ChartAxis::U => UvRect { u: r.u, v: t },
+        ChartAxis::V => UvRect { u: t, v: r.v },
+    }
+}
+
+/// A stretch of a side as the boundary pass reads it ([`read_stretch`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Reading {
+    /// A piece of it [`clears`]: no zero lies along it or beside it.
+    Clear,
+    /// `φ` along a piece is refused.
+    Refused,
+    /// `|φ|` along it is not certified within ε: no side's piece, and
+    /// the clear test is not read.
+    Beyond,
+    /// `|φ| ≤ ε` along it, at most this many metres, and no piece clears.
+    Within(f64),
+}
+
+/// **A stretch of a side, read as the boundary pass reads a side.** `r`
+/// is a window with an edge on `side`, and `reader` reads `φ` along that
+/// side ([`super::section::SectionReader`], the boundary section's own
+/// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
+/// pieces, each read for `φ` along it; where `|φ|` over them is within
+/// `eps`, each piece where `φ` is one-signed is read for the slope across
+/// `r` beside it too, and a piece that [`clears`] (the side's own test)
+/// makes the stretch [`Reading::Clear`].
+pub(crate) fn read_stretch<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    normal: [Interval; 3],
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    eps: f64,
+) -> Reading {
+    let (a, b) = along(side, r);
+    let across_u = side.fixed == ChartAxis::U;
+    let count = 1u32 << STRIP_PIECES_LOG2;
+    let t = |i: u32| {
+        if i == count {
+            b
+        } else {
+            a + (b - a) * f64::from(i) / f64::from(count)
+        }
+    };
+    let mut sup = 0.0_f64;
+    let mut pieces = Vec::with_capacity(count as usize);
+    for k in 0..count {
+        let piece = (t(k), t(k + 1));
+        let phi = reader.over(piece);
+        let m = magnitude(phi);
+        if !m.is_finite() {
+            return Reading::Refused;
+        }
+        sup = max_bound(sup, m);
+        pieces.push((piece, sign(phi)));
+    }
+    if sup > eps {
+        return Reading::Beyond;
+    }
+    for (piece, side_of_plane) in pieces {
+        if side_of_plane.is_some() {
+            let q = cut_along(side, r, piece);
+            let d = boxes.deriv_box(q.u.0, q.u.1, q.v.0, q.v.1, across_u);
+            let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
+            if clears(side, side_of_plane, across) {
+                return Reading::Clear;
+            }
+        }
+    }
+    Reading::Within(sup)
+}
+
+/// Whether the side's cover over `r` cannot come within `eps`, read
+/// cheaply ahead of the stretch and the cover ([`side_stretch`]): a zero
+/// reached across from a point of the side where `|φ| ≥ m` lies at least
+/// `m / s` from it, `s` the steepest the wall rises off the plane per
+/// metre across `r` (`|n·S⊥| / ‖S⊥‖`, never above 1). So where that
+/// bound exceeds `eps` at the stretch's two ends or its middle, no cover
+/// over `r` is within `eps`. It only skips work: a stretch it passes is
+/// read in full.
+fn beyond_reach<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    n: [Interval; 3],
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    eps: f64,
+) -> bool {
+    let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, side.fixed == ChartAxis::U);
+    if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
+        return false;
+    }
+    let rise = magnitude(n[0] * d.x + n[1] * d.y + n[2] * d.z);
+    let mig = |i: Interval| {
+        Certification::powi(Interval::point(super::enclose::zero_free_lower_bound(i)), 2)
+    };
+    let run =
+        super::enclose::zero_free_lower_bound(Certification::sqrt(mig(d.x) + mig(d.y) + mig(d.z)));
+    if !(rise.is_finite() && run > 0.0) {
+        return false;
+    }
+    let steepest = (rise / run).next_up().min(1.0);
+    let (a, b) = along(side, r);
+    [a, 0.5 * (a + b), b].into_iter().any(|t| {
+        let least = super::enclose::zero_free_lower_bound(reader.over((t, t)));
+        least / steepest > eps
+    })
+}
+
+/// **The side arm's door**: the window `r`, with an edge on `side` of
+/// `domain`, holds a stretch of that side as its piece where the
+/// stretch reads `|φ| ≤ ε` along it and no piece clear
+/// ([`Reading::Within`]), and the side's cover over `r` holds every zero
+/// in it within ε of the side ([`side_cover`]).
+pub(crate) fn side_stretch<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    normal: [Interval; 3],
+    reader: &super::section::SectionReader,
+    (side, domain): (ChartSide, UvRect),
+    r: UvRect,
+    band: Band,
+) -> bool {
+    if beyond_reach(boxes, normal, reader, (side, r), band.zero()) {
+        return false;
+    }
+    match read_stretch(boxes, normal, reader, (side, r), band.zero()) {
+        Reading::Within(sup) => matches!(
+            side_cover(boxes, normal, (side, domain), r, sup, band),
+            SideCover::Within { .. }
+        ),
+        Reading::Clear | Reading::Refused | Reading::Beyond => false,
     }
 }
 

@@ -517,3 +517,180 @@ fn a_branch_leaving_obliquely_through_a_rail_side_certifies() {
         "one branch, from the low v side to the high u side"
     );
 }
+
+/// `z = g(x) + h(y)` over `[x0, x1] × [y0, y1]`, `g` and `h` quadratics
+/// (exact in the biquadratic net).
+fn graph_over(
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    (g, dg0): (impl Fn(f64) -> f64, f64),
+    (h, dh0): (impl Fn(f64) -> f64, f64),
+) -> NurbsSurface<f64> {
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let gb = [g(x0), g(x0) + 0.5 * (x1 - x0) * dg0, g(x1)];
+    let hb = [h(y0), h(y0) + 0.5 * (y1 - y0) * dh0, h(y1)];
+    let (xs, ys) = ([x0, 0.5 * (x0 + x1), x1], [y0, 0.5 * (y0 + y1), y1]);
+    let control = (0..9)
+        .map(|k| Point3::new(xs[k / 3], ys[k % 3], gb[k / 3] + hb[k % 3]))
+        .collect();
+    NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
+}
+
+/// The three walls a side within the band of the plane holds no arc of,
+/// each with the carrier along that side: the phantom, the side fold and
+/// the linear overrun.
+fn side_without_arc() -> Vec<(&'static str, NurbsSurface<f64>, (f64, f64))> {
+    let e = eps();
+    let l = 1e-2;
+    let (xr, yr) = ((0.0, 2e-3), (-0.1 * l, 1.1 * l));
+    let beta = 0.5 * e;
+    let phantom = graph_over(xr, yr, (|x: f64| x, 1.0), (move |_| beta, 0.0));
+    let h = move |y: f64| 4.0 * beta * y * (l - y) / (l * l);
+    let dh = move |y: f64| 4.0 * beta * (l - 2.0 * y) / (l * l);
+    let side_fold = graph_over(xr, yr, (|x: f64| x, 1.0), (h, dh(yr.0)));
+    let (h0, h1) = (-0.5 * e, 0.6 * e);
+    let overrun = graph_over(
+        (0.0, 1.0),
+        (0.0, 1.0),
+        (|x: f64| 10.0 * x, 10.0),
+        (move |y: f64| h0 + (h1 - h0) * y, h1 - h0),
+    );
+    vec![
+        ("the phantom", phantom, (0.0, l)),
+        ("the side fold", side_fold, (0.0, l)),
+        ("the linear overrun", overrun, (0.0, 1.0)),
+    ]
+}
+
+/// **At rest, a carrier along a side the boundary pass reads clear
+/// refuses, as the search answers that wall** (C2, the side arm read by
+/// the search's own #3862 rule). Each wall lies within ε of the plane
+/// along the side `x = 0`, and the carrier runs along it:
+/// - **the phantom** `z = x + ½ε` meets the plane nowhere, and the
+///   search answers nothing;
+/// - **the side fold** `z = x + 4β·y(L − y)/L²`, β = ½ε, has two arcs,
+///   one meeting the side at each end of the carrier, and the search
+///   answers those two;
+/// - **the linear overrun** `z = 10x + h(y)`, `h` from −½ε to 0.6ε, has
+///   one arc, leaving the side near `y = 0.45` of the carrier's 1, and
+///   the search answers the side as a region, with no branch.
+///
+/// The side's cover holds every zero within ε of it, but the plane is
+/// clear of the side along the middle of the carrier (the fold), the
+/// whole of it (the phantom) or past the arc (the overrun). Red under
+/// the side arm reading the cover alone.
+#[test]
+fn a_carrier_along_a_side_the_boundary_pass_reads_clear_refuses_as_the_search_answers() {
+    let (plane, _) = ground();
+    for (name, wall, ends) in side_without_arc() {
+        let at = format!("{name}, ε {:e}", eps());
+        refuses_by_its_tube(&at, declared(&wall, ends));
+        let domain = SsiDomain {
+            center: Point3::new(0.0, 0.5 * (ends.0 + ends.1), 0.0),
+            half_extent: 1.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band())
+            .unwrap_or_else(|e| panic!("{at}: the search refused: {e}"));
+        let low_u = ssi::ChartSide {
+            fixed: ChartAxis::U,
+            end: ChartEnd::Low,
+        };
+        let (branches, region) = (
+            out.branches.len(),
+            out.boundary
+                .iter()
+                .any(|c| matches!(c, ssi::SsiBoundaryContact::Side { side, .. } if *side == low_u)),
+        );
+        let expected = match name {
+            "the phantom" => (0, false),
+            "the side fold" => (2, false),
+            _ => (0, true),
+        };
+        assert_eq!(
+            (branches, region),
+            expected,
+            "{at}: the search's answer (branches, a region along the side)"
+        );
+    }
+}
+
+/// **A flush side on a conical or twisted wall certifies.** The m7_8
+/// quarter cylinder with its top arc at radius `r₁`, a quarter frustum
+/// whose `u = 0` ruling from `(1, 0, 0)` to `(r₁, 0, 1)` lies in the plane
+/// `y = 0`, and the ramp `z = x + x·y`, flush with `z = 0` along `x = 0`:
+/// each carrier is the side itself. The side's `|φ|` is read from the
+/// side's own Bernstein form, as the boundary pass reads it, not from the
+/// wall's boxes over the window, whose derivative across a twisted or
+/// conical wall leaves it near 10⁻⁵ and refused the side at every rung.
+#[test]
+fn a_flush_side_on_a_conical_or_twisted_wall_certifies() {
+    use crate::shared::fixture::{segment, transverse_plane};
+    let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    for r1 in [1.001, 1.1, 2.0] {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let arc = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(r1, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(r1, r1, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, r1, 1.0),
+        ];
+        let wall = NurbsSurface::new(arc, lin(), control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
+        let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(r1, 0.0, 1.0));
+        let got =
+            geom_brep::plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+        assert!(got.is_ok(), "the frustum r₁ = {r1}, ε {:e}: {got:?}", eps());
+    }
+    let ramp = NurbsSurface::new(
+        lin(),
+        lin(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 2.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let (plane, _) = ground();
+    let carrier = segment(Point3::new(0.0, 0.2, 0.0), Point3::new(0.0, 0.8, 0.0));
+    let got = geom_brep::plane_nurbs_limbs::<f64>(&carrier, &plane, &ramp, 1.0, band());
+    assert!(got.is_ok(), "the ramp, ε {:e}: {got:?}", eps());
+}
+
+/// `z = k·x + h(y)` over `[0, 1]²`, `h` the quadratic spline with a
+/// double knot at `y = ½` and control values `hs` at `y = 0, ¼, ½, ¾, 1`.
+fn double_dip(k: f64, hs: [f64; 5]) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let ys = [0.0, 0.25, 0.5, 0.75, 1.0];
+    let control = (0..10)
+        .map(|i| {
+            let x = f64::from(i / 5);
+            Point3::new(x, ys[(i % 5) as usize], k * x + hs[(i % 5) as usize])
+        })
+        .collect();
+    NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap()
+}
+
+/// **At rest, a carrier along a side whose locus wanders past ε of it
+/// refuses.** `z = 10⁻³x + h(y)` with `h ≤ 0`, zero at `y = 0, ½, 1` and
+/// down to about `0.45ε` between: no piece of the side `x = 0` reads clear,
+/// and `|φ| ≤ ε` along it, but the locus is two arcs, each from the side
+/// into the wall about `450ε` and back. The side's cover over a window in
+/// either dip reaches past ε, so no window there is the side's, and the
+/// walk refuses. Red under the side arm skipping the cover's verdict.
+#[test]
+fn a_carrier_along_a_side_whose_locus_wanders_past_eps_refuses_at_rest() {
+    let a = 0.9 * eps();
+    let wall = double_dip(1e-3, [0.0, -a, 0.0, -a, 0.0]);
+    refuses_by_its_tube(
+        &format!("the double dip, ε {:e}", eps()),
+        declared(&wall, (0.0, 1.0)),
+    );
+}

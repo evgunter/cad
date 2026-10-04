@@ -1049,19 +1049,8 @@ impl SsiError {
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
             }
-            // A certified count, a certified missing link or a certified
-            // short end is a second arc, a graze of the region or a
-            // carrier overrunning its arc, and moving either clears it;
-            // a walk that resolved nothing escalates, with no tolerance
-            // to name, since it read no margin.
-            Self::TubeNotOneArc { cause, .. } => match cause {
-                OneArcRefusal::Undecided(cause) => {
-                    TUBE_ONE_ARC.recourse(RefusedArm::Undecided(cause), reading)
-                }
-                OneArcRefusal::Count { .. } | OneArcRefusal::Unlinked | OneArcRefusal::Short => {
-                    TUBE_ONE_ARC.recourse(RefusedArm::SignCertain, reading)
-                }
-            },
+            // The search's own lever, per cause ([`OneArcRefusal::ending`]).
+            Self::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::Search, reading),
             Self::TubeStraddles { verdict, .. } => {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
             }
@@ -1960,19 +1949,87 @@ const OPEN_END: SizedDecision = SizedDecision {
 /// the trace comes back across or against the way it left: the locus
 /// cusps or crosses itself. Read on its sign-certain arm alone, since
 /// the closure angle is the march's own.
-/// Limb 3's one-arc proof where a search banks the tube
-/// ([`SsiError::TubeNotOneArc`]): a second arc of the locus in the tube,
-/// or the locus grazing the searched region inside it, clears by moving
-/// either the geometry or the region.
+/// Limb 3's one-arc proof at a search ([`SsiError::TubeNotOneArc`]):
+/// a second arc of the locus in a traced branch's tube, the locus
+/// grazing the searched region inside it, or two pieces of the chain
+/// that do not join, clear by moving the geometry or the region.
 const TUBE_ONE_ARC: SizedDecision = SizedDecision {
-    lever: "move the geometry, or the searched region, until no second arc or graze of the \
-            region's boundary lies in the traced branch's tube",
+    lever: "move the geometry, or the searched region, until no second arc of the locus or \
+            graze of the region's boundary lies in a traced branch's tube",
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
 
+/// Limb 3 at a search, [`OneArcRefusal::Short`]: the traced branch's
+/// carrier runs past the end of its arc, which moving the geometry or
+/// the region a little clears.
+const TUBE_SHORT: SizedDecision = SizedDecision {
+    lever: "move the geometry, or the searched region, a little, so the traced branch ends \
+            where its arc does",
+    size: "overrun",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Limb 3 at rest ([`crate::PlaneNurbsRefusal::TubeNotOneArc`]): the
+/// stored edge's curve joins two arcs of its faces' crossing, or runs
+/// beside one that leaves it; the stored curve is what the lever edits.
+const REST_ONE_ARC: SizedDecision = SizedDecision {
+    lever: "store the edge's curve along one arc of its faces' crossing, or move the faces \
+            so no second arc lies beside it",
+    size: "clearance",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Limb 3 at rest, [`OneArcRefusal::Short`]: the stored edge's curve
+/// runs past the end of its faces' crossing.
+const REST_SHORT: SizedDecision = SizedDecision {
+    lever: "end the edge's curve where its faces' crossing ends",
+    size: "overrun",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Where limb 3's one-arc proof refused: the door decides the lever.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OneArcDoor {
+    /// A search, over its own traced branch and searched region.
+    Search,
+    /// A stored edge's curve, re-certified against its faces.
+    AtRest,
+}
+
+impl OneArcRefusal {
+    /// The ending this cause carries at `door`, read at `reading`: a
+    /// certified count, missing link or short end is the sign-certain
+    /// arm of its door's lever; a walk that resolved nothing escalates.
+    #[must_use]
+    pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+        let decision = match (door, self) {
+            (OneArcDoor::Search, Self::Short) => TUBE_SHORT,
+            (OneArcDoor::Search, _) => TUBE_ONE_ARC,
+            (OneArcDoor::AtRest, Self::Short) => REST_SHORT,
+            (OneArcDoor::AtRest, _) => REST_ONE_ARC,
+        };
+        match self {
+            Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),
+            Self::Count { .. } | Self::Unlinked | Self::Short => {
+                decision.recourse(RefusedArm::SignCertain, reading)
+            }
+        }
+    }
+}
+
+/// The closure's tangent decision (`ssi_closure_tangent`), refused when
+/// the trace comes back across or against the way it left: the locus
+/// cusps or crosses itself. Read on its sign-certain arm alone, since
+/// the closure angle is the march's own.
 const SELF_CROSSING: SizedDecision = SizedDecision {
     lever: "move the surfaces so their intersection does not cusp or cross itself",
     size: "closure angle",
