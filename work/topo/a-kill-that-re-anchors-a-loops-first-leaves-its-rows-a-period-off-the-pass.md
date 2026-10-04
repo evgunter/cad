@@ -2,7 +2,7 @@
 id: a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass
 kind: issue
 title: A kill that re-anchors a minted loop's first leaves its rows a whole period off the rows the minting pass derives from the new first
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P3
 cost: H

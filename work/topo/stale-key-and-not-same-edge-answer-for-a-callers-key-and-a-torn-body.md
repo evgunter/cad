@@ -2,8 +2,10 @@
 id: stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body
 kind: issue
 title: StaleKey, StaleGeometry and NotSameEdge are one variant each for a caller's key and a torn body, so reports_tier1_corruption answers true for a caller's mistake
-status: dispatched
+status: closed
 opened: 2026-10-01
+closed: 2026-10-04
+pr: 4033
 priority: P3
 cost: M
 blocked_on: []
@@ -140,3 +142,23 @@ The conversion is large, so split it by door family when dispatching.
 The designers' two rounds recommended a typed `Torn` refusal; Ev chose the
 panic. Their argument-vs-record split, the source-taking lookup and the
 argument variant carry over.
+
+## Closed
+
+Both units merged:
+- **PR 4029 (`EulerOpError`).**
+  - the `KeySource` lookup split (an argument miss is typed `Argument(BadArgument)`, a link miss diverges);
+  - every torn variant deleted, and `reports_tier1_corruption` with them;
+  - `from_driver` at every driver wrap;
+  - the sweeps inverted, judged on a clone, and shown red under a hoisted-write mutation.
+- **PR 4033.**
+  - deletes `readback::DanglingRef`, `TornLoop`, `PcurveMintError::Corrupt`, `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `SectorFaceError::Corrupt`, the boolean's `corrupt_at` / `CorruptOperand`, and `VoidInsertError::Corrupt`;
+  - the graft's dead destination is typed as `VoidInsertError::StaleSolid`;
+  - the pcurve mint is derive-then-write, with its mutation shown red.
+
+Final-state items 1 to 6 hold for every variant this row named. Torn-body refusals in families the row did not name are tracked on `torn-body-refusal-families-beyond-the-six-doors`:
+- `rest.rs`'s `JoinDesync`;
+- `sectors.rs`'s `ClassificationInvariant`;
+- `splitting/neighborhood.rs`;
+- `ContainError::Corrupt`, after splitting it from the reachable `PointInSolidError` arms.
+

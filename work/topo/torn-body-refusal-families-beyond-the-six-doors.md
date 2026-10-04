@@ -4,6 +4,9 @@ kind: issue
 title: Torn-body refusal families outside the euler, read-back, pcurve, shell, replace_face and boolean/graft doors still answer typed
 status: open
 opened: 2026-10-04
+priority: P3
+cost: M
+refs: [stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body]
 ---
 
 
