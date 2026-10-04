@@ -2484,16 +2484,9 @@ fn clear_face_caches<T: Decide>(
         .collect();
     let mut hes: Vec<HalfEdgeKey> = Vec::new();
     for lk in loops {
-        let Some(lp) = body.get_loop(lk) else {
-            continue;
-        };
-        let crate::entity::LoopBoundary::Cycle { first } = lp.boundary else {
-            continue;
-        };
-        let Some(cycle) = body.loop_cycle(first) else {
-            continue;
-        };
-        hes.extend(cycle);
+        if let LoopRows::Cycle(cycle) = loop_rows(body, lk) {
+            hes.extend(cycle);
+        }
     }
     hes.into_iter()
         .filter_map(|he| body.pcurves.remove(he).map(|row| (he, row)))
@@ -3270,7 +3263,9 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
         // An empty loop bounds nothing to chart.
         return Ok(());
     };
-    let cycle = body.loop_cycle(first).ok_or(PcurveMintError::Corrupt)?;
+    let cycle = body
+        .loop_cycle_of(first, lp)
+        .ok_or(PcurveMintError::Corrupt)?;
     let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
     let item = |i: usize| -> Result<WalkItem<T>, PcurveMintError> {
         let he = cycle[i];

@@ -341,6 +341,25 @@ fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
     assert!(ran > 0, "some site reached its rows plan and ran to Ok");
 }
 
+/// The pcurve pass over a named face clears and re-derives that face's
+/// rows by the same walk ([`crate::pcurves::mint_pcurves_of`]): every
+/// other row of the body is left exactly as found, a diverted loop's
+/// stray included.
+#[test]
+fn the_pass_over_one_face_leaves_the_rows_of_a_loop_its_walk_strays_into() {
+    let s = sheet();
+    let (wall, split) = (outer(&s.body, s.wall), outer(&s.body, s.split));
+    let mut body = s.body;
+    divert(&mut body, wall, split);
+    let rows_before = rows_of_loop(&body, split);
+    let got = crate::pcurves::mint_pcurves_of(&mut body, &[s.wall], tol());
+    assert_eq!(
+        rows_of_loop(&body, split),
+        rows_before,
+        "the pass over the wall returned {got:?} and changed the split face's rows"
+    );
+}
+
 /// A walk closed past a member hands the door every row but that
 /// member's: a door that moves or re-charts the loop whole would leave
 /// it stated in the chart the loop left.
