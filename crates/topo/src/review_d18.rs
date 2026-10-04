@@ -3414,14 +3414,17 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
     }
 }
 
-/// The read doors driven over a torn body: what each answered `Ok` for
+/// The doors driven over a torn body (the read doors, and the pcurve
+/// mint and the boolean, which read the whole body before they write
+/// or build): what each answered `Ok` for
 /// is counted under its own name, a typed refusal under [`REFUSED`] and
 /// a row-4 premise panic under [`PREMISE`]. A panic naming no premise
 /// fails, and so does a refusal of a key the sweep read out of the
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 9] = [
+const READ_DOORS: [&str; 10] = [
+    "mint_pcurves",
     "face_pose",
     "face_carrier_kind",
     "edge_pose",
@@ -3481,10 +3484,19 @@ fn judge_read(
             "{door} refused a key the sweep read out of the body as the caller's stale \
              key: {stale}"
         ),
-        Err(report) if report.contains(ROW_FOUR) => census.note(PREMISE),
+        Err(report) if report.contains(ROW_FOUR) => {
+            census.note(PREMISE);
+            census.note(&format!("{door}: {PREMISE}"));
+        }
         Err(report) => panic!("{door} panicked naming no row-4 premise: {report}"),
     }
 }
+
+/// The boolean's floor: its operand gate reads the whole operand first,
+/// so on a torn body it never answers, and what the sweep requires of
+/// it is the premise panic.
+#[cfg(not(debug_assertions))]
+const UNION_PREMISE: &str = "union: row-4 premise panics";
 
 /// Every [`READ_DOORS`] door at every key of the torn `body`.
 #[cfg(not(debug_assertions))]
@@ -3544,6 +3556,21 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         body.vertex_points().for_each(drop);
         Ok(true)
     });
+    // The mint writes its body, so it runs on a clone, and a premise
+    // panic must leave that clone as it found it.
+    let snapshot = deep_snapshot(body);
+    let mut trial = body.clone();
+    judge_read(capture, &mut census, "mint_pcurves", || {
+        Ok(crate::pcurves::mint_pcurves(&mut trial, Tol::witness()).is_ok())
+    });
+    assert!(
+        deep_snapshot(&trial) == snapshot,
+        "mint_pcurves wrote to a torn body it did not finish"
+    );
+    let other = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    judge_read(capture, &mut census, "union", || {
+        Ok(crate::boolean::union(body, &other, Tol::witness()).is_ok())
+    });
     for (l, _) in body.loops() {
         judge_read(capture, &mut census, "planar_loop_winding", || {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
@@ -3602,7 +3629,7 @@ fn remove_one(body: &mut Body<f64>, arena: &str, rng: &mut test_utils::fuzz::Rng
 /// key fails the row. A counterexample search on the operator row's
 /// link tears and [`REMOVALS`] over [`READ_FIXTURES`], its seed logged and its count on
 /// `CAD_FUZZ_EFFORT`; every door is floored by name on an answer, and
-/// the sweep on a premise panic, so a pass that never reached a door
+/// the sweep and the boolean on a premise panic, so a pass that never reached a door
 /// or never met a tear reds.
 #[test]
 #[cfg(not(debug_assertions))]
@@ -3657,10 +3684,11 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
         &format!("a removal never landed — {}", fuzz::replay()),
     );
     census.require_each(
-        &[PREMISE],
+        &[PREMISE, UNION_PREMISE],
         1,
         &format!(
-            "no read met a tear, so the sweep proves nothing about record misses — {}",
+            "no read met a tear, or the boolean answered a torn operand without naming its \
+             premise — {}",
             fuzz::replay()
         ),
     );
