@@ -1,6 +1,6 @@
 //! **R1 review probes for M10-1, GUI half**: the carry-forward class.
 //!
-//! `DocEdit::SetDocParam` is create-or-replace, so every GUI door that
+//! `DocEdit::DefineVar` replaces a whole definition, so every GUI door that
 //! rebuilds a `FreeVar` from parts is a door that can silently DELETE
 //! an existing distribution. The PR fixed `props::param_edit` and
 //! reported the fix in prose; nothing in the tree pinned it. These
@@ -36,8 +36,7 @@ fn annotated_session() -> (DocSession, VarName, Distribution) {
 fn distribution_of(session: &DocSession, name: &VarName) -> Option<Distribution> {
     session
         .committed_doc()
-        .params()
-        .get(name)
+        .free_named(name.as_str())
         .expect("the parameter exists")
         .distribution()
         .copied()
@@ -63,8 +62,7 @@ fn a_panel_value_edit_keeps_the_distribution() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let param = session
         .committed_doc()
-        .params()
-        .get(&name)
+        .free_named(name.as_str())
         .expect("still declared");
     match *param {
         FreeVar::Continuous {
@@ -99,8 +97,7 @@ fn a_param_drag_gesture_keeps_the_distribution() {
     assert!(got.bit_eq(&dist));
     match *session
         .committed_doc()
-        .params()
-        .get(&name)
+        .free_named(name.as_str())
         .expect("declared")
     {
         FreeVar::Continuous { value, .. } => assert_eq!(value, 0.006, "the drag landed"),

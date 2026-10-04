@@ -140,11 +140,11 @@ pub fn explain_render_chars(chars: usize) {
     RENDER_CHARS.set(chars);
 }
 
-/// Registers a parameter's NAME for rendering, on this thread.
-pub fn name_param(name: &str) {
+/// Registers the NAME `symbol` renders as, on this thread.
+pub fn name_param(symbol: ParamSymbol, name: &str) {
     NAMES.with(|n| {
         n.borrow_mut()
-            .insert(indet_param(ParamSymbol::of(name).0), name.to_owned());
+            .insert(indet_param(symbol.0), name.to_owned());
     });
 }
 

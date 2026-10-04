@@ -199,7 +199,7 @@ fn probe_scale(
             Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
         BoundsTarget::Param { name } => {
-            let Some(param) = doc.params().get(name) else {
+            let Some(param) = doc.free_named(name.as_str()) else {
                 return Err(Refusal::NoSuchParam(name.clone()));
             };
             // Same rule as a slot's: one of whatever unit the
@@ -247,7 +247,7 @@ fn probe_edit(
             // edit itself carries a value and nothing else, so a
             // probe cannot disturb the parameter's declaration
             // (`props::param_edit`'s door).
-            let dimension = doc.params().get(name)?.dim();
+            let dimension = doc.free_named(name.as_str())?.dim();
             Some(props::param_edit(
                 name.clone(),
                 SlotValue::of(dimension, value).ok()?,

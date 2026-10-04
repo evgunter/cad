@@ -64,7 +64,7 @@
 //! 1. **The lane's own way of placing a sample is not the cell's.**
 //!    `monte_carlo` puts a draw at `nominal + offset` through a
 //!    degenerate `ParamBox` axis; this cell places each draw with an
-//!    ordinary `DocEdit::SetDocParamValue` instead. That the two
+//!    ordinary `DocEdit::SetVarValue` instead. That the two
 //!    coincide is not assumed: `m10_6_mc_draws.rs` pins it in the
 //!    library, and the bit-equality above re-checks it here on real
 //!    geometry.
@@ -93,7 +93,7 @@ use pncad::analysis::{
 };
 use pncad::document::{
     CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
-    RefusingReach, ValuePayload, VarName, apply, evaluate,
+    RefusingReach, ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -172,9 +172,9 @@ fn hole_circle(body: &Body<f64>) -> (f64, f64, f64) {
 /// read back out of it.
 fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Sample> {
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
-    let nominal: Vec<(VarName, f64)> = analyzed
+    let nominal: Vec<(VarId, f64)> = analyzed
         .varying()
-        .map(|(name, p)| (name.clone(), p.nominal))
+        .map(|(var, p)| (var, p.nominal))
         .collect();
 
     (0..samples)
@@ -182,12 +182,12 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
             let offsets =
                 sample_offsets(&analyzed, config, i).expect("the study's laws are sampleable");
             let mut doc: ProfileDoc = base.doc.clone();
-            for (name, value) in &nominal {
-                let offset = offsets[name];
+            for (var, value) in &nominal {
+                let offset = offsets[var];
                 let applied = apply(
                     &doc,
-                    &DocEdit::SetDocParamValue {
-                        name: name.clone(),
+                    &DocEdit::SetVarValue {
+                        var: (*var).into(),
                         value: FreeValue::Continuous(value + offset),
                     },
                     tol,

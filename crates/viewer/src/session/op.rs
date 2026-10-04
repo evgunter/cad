@@ -174,7 +174,7 @@ pub enum SessionOp {
     /// (`FreeVar::Continuous` holds an `f64`), so text that parses to
     /// anything but a literal is refused with
     /// [`Refusal::ParamNotANumber`] — there is no
-    /// `SetDocParamExpression` for it to reach, and saying so is the
+    /// `SetVarExpression` for it to reach, and saying so is the
     /// affordance. Text that does not parse at all carries
     /// `parse_expr`'s own refusal, which names the token and its
     /// offset.
@@ -185,9 +185,9 @@ pub enum SessionOp {
         text: String,
     },
     /// Declare a NEW document parameter — the panel's create
-    /// affordance, committing exactly one `DocEdit::SetDocParam`.
+    /// affordance, committing exactly one `DocEdit::DeclareVar`.
     ///
-    /// That edit is create-or-replace, and stays so at the API. This
+    /// That edit refuses a taken name (`EditError::VarNameTaken`). This
     /// door refuses an already-declared name typed
     /// ([`Refusal::ParamExists`]): a "create" that replaced would
     /// change not just the value but possibly the declared DIMENSION,
@@ -1214,7 +1214,7 @@ impl SessionOp {
     /// **The identity that makes all three the same answer**: a value
     /// gesture's edits are `SetParam` and `SetStructuralParam`, which
     /// replace an expression on a node that already exists, and
-    /// `SetDocParamValue`, which writes a declaration in `doc.params`
+    /// `SetVarValue`, which writes a definition in `doc.vars`
     /// and touches no node at all. None of the three mints or removes
     /// one. Every display predicate is a function of the node graph —
     /// which nodes exist, of what kind, with which inputs and which

@@ -991,7 +991,10 @@ mod tests {
                     // A clockwise arc bowing up off the top of a unit
                     // square, over a bulge box wide enough that the
                     // numeric channel cannot decide the rim.
-                    let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
+                    let b = S::param(
+                        ParamSymbol::new(test_utils::symbol_id("b")),
+                        Interval::from_bounds(-0.55, -0.45),
+                    );
                     let closed = Open
                         .at(Point2::new(lit(0.0), lit(0.0)))
                         .arc_to(
@@ -1268,7 +1271,8 @@ mod tests {
         for (name, negative, reversed, turn) in cases {
             let at = |b: f64| if negative { -b } else { b };
             let (rows, counts) = with_session(budget(), || {
-                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let b =
+                    Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("bulge")), at(0.7));
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
@@ -1283,8 +1287,10 @@ mod tests {
                 (0.63, 0.77)
             };
             let (rows, counts) = with_session(budget(), || {
-                let b =
-                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let b = Sym::<Interval>::param(
+                    ParamSymbol::new(test_utils::symbol_id("bulge")),
+                    Interval::from_bounds(lo, hi),
+                );
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });

@@ -4,7 +4,7 @@
 //! `SlotId::Profile { loop_, step, arg }` address routes `SetParam`/
 //! `SetExpression`/`Doc::expr_at` into the program; the authoring-time
 //! check (VQ9) refuses program-breaking edits typed AT THE DOOR under
-//! the current environment, while `SetDocParam` NEVER refuses for
+//! the current environment, while `DefineVar` NEVER refuses for
 //! downstream profile breakage — that surfaces as the node's typed
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -236,17 +236,17 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     }
 }
 
-/// VQ9 direction two: `SetDocParam` NEVER refuses for downstream
+/// VQ9 direction two: `DefineVar` NEVER refuses for downstream
 /// profile breakage — the broken binding surfaces as the NODE's typed
 /// evaluation error naming (loop, step): V1 class 2, refusing programs
 /// exist at rest.
 #[test]
-fn set_doc_param_never_refuses_for_downstream_profiles() {
+fn define_var_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static("r"),
-                value: FreeVar::continuous(Dimension::Length, 0.5),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -283,14 +283,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     // The breaking param edit APPLIES (never refused here)…
     let broken = doc
         .apply(
-            &DocEdit::SetDocParam {
-                name: VarName::from_static("r"),
-                value: FreeVar::continuous(Dimension::Length, 0.0),
+            &DocEdit::DefineVar {
+                var: VarName::from_static("r").into(),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
+        .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
     let ev = evaluate::<f64>(

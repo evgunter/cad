@@ -69,9 +69,9 @@ use fixture::{Recorder, xy_frame};
 /// the certification population are the same population.
 fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,
@@ -79,7 +79,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {

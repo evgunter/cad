@@ -64,9 +64,9 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-wedge", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: FreeVar::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -307,9 +307,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-literal-first", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: FreeVar::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );

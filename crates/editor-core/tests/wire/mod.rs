@@ -66,3 +66,65 @@ fn split_body(text: &str) -> (&str, serde_json::Value) {
     let (header, body) = text.split_at(split);
     (header, serde_json::from_str(body).expect("the body parses"))
 }
+
+/// The id key a saved snapshot holds the variable `name` under.
+///
+/// # Panics
+///
+/// When the snapshot names no such variable.
+pub fn wire_var_key(wire: &serde_json::Value, name: &str) -> String {
+    wire["snapshot"]["var_names"]
+        .as_object()
+        .and_then(|names| {
+            names
+                .iter()
+                .find_map(|(id, held)| (held == name).then(|| id.clone()))
+        })
+        .unwrap_or_else(|| panic!("the snapshot names no variable {name}"))
+}
+
+/// The variable `name` taken out of a saved snapshot, its name with it:
+/// the declaration gone from under every reader of the name.
+///
+/// # Panics
+///
+/// When the snapshot names no such variable.
+pub fn wire_undeclare(wire: &mut serde_json::Value, name: &str) {
+    let id = wire_var_key(wire, name);
+    let names = wire["snapshot"]["var_names"]
+        .as_object_mut()
+        .expect("the names are a map");
+    assert!(names.remove(&id).is_some(), "the surgery removes the name");
+    let vars = wire["snapshot"]["vars"]
+        .as_object_mut()
+        .expect("the variables are a map");
+    assert!(vars.remove(&id).is_some(), "and the variable");
+    let order = wire["snapshot"]["var_order"]
+        .as_array_mut()
+        .expect("the declaration order is a list");
+    let before = order.len();
+    order.retain(|listed| *listed != serde_json::json!(id.parse::<u64>().expect("an id key")));
+    assert_eq!(order.len(), before - 1, "and its place in the order");
+}
+
+/// The continuous variable `name` retyped in a saved snapshot, from
+/// `from` to `to`, its kind and display unit moved with it so the
+/// document is broken in exactly one way: the pairing between the
+/// variable and the dimension its readers read it at.
+///
+/// # Panics
+///
+/// When the snapshot names no such variable, or it is not `from`.
+pub fn wire_retype(wire: &mut serde_json::Value, name: &str, from: &str, to: &str, unit: &str) {
+    let id = wire_var_key(wire, name);
+    let var = &mut wire["snapshot"]["vars"][id.as_str()];
+    assert_eq!(
+        var["kind"],
+        serde_json::json!(from),
+        "the surgery is aimed at the declared kind"
+    );
+    var["kind"] = serde_json::json!(to);
+    let decl = &mut var["def"]["Free"]["Continuous"];
+    decl["dim"] = serde_json::json!(to);
+    decl["display_unit"] = serde_json::json!(unit);
+}

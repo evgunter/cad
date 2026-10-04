@@ -55,6 +55,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::UnitSym;
+use editor_core::VarId;
 use editor_core::analysis::{
     AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, param_env_over,
 };
@@ -106,14 +107,14 @@ fn unit_square() -> LoopProgram {
 /// (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`).
 pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(uniform(half)),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -153,14 +154,14 @@ pub(crate) fn notch(nominal: f64, half: f64) -> ProfileDoc {
 /// height expression given.
 pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("height"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -192,23 +193,23 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> Prof
 /// first of those reached the interval lane as a constant.
 fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(radius),
-        },
+        }),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(depth),
-        },
+        }),
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -244,14 +245,14 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("axis"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
             distribution: Some(uniform(15.0 * eps())),
-        },
+        }),
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -346,11 +347,11 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // ALSO the numerically wider one there, which is the case a
     // relative rule and an absolute rule agree on. The row below is the
     // one that separates them.
-    axes.insert(name("a"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
-    axes.insert(name("b"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId(1), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId(2), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root = ParamBox::from_axes(axes.clone());
-    axes.insert(name("b"), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
-    assert_eq!(ParamBox::from_axes(axes).split_axis(&root), Some(name("a")));
+    axes.insert(VarId(2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
+    assert_eq!(ParamBox::from_axes(axes).split_axis(&root), Some(VarId(1)));
 
     // Relative vs absolute, separated: `wide`'s root axis is a hundred
     // times `narrow`'s, and the sub-box has already been bisected on
@@ -358,16 +359,16 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // is relatively wider, and relative is what the rule reads.
     let mut root2 = BTreeMap::new();
     root2.insert(
-        name("narrow"),
+        VarId(3),
         BoxAxis::Varying {
             lo: -0.01,
             hi: 0.01,
         },
     );
-    root2.insert(name("wide"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    root2.insert(VarId(4), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root2b = ParamBox::from_axes(root2.clone());
     root2.insert(
-        name("wide"),
+        VarId(4),
         BoxAxis::Varying {
             lo: 0.0,
             hi: 2.0 / 128.0,
@@ -375,17 +376,17 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     );
     assert_eq!(
         ParamBox::from_axes(root2).split_axis(&root2b),
-        Some(name("narrow"))
+        Some(VarId(3))
     );
 
     // The tie — both axes at full relative width — goes to the lowest
-    // axis index, which is name order.
-    assert_eq!(root.split_axis(&root), Some(name("a")));
-    let (lo, hi) = root.split(&name("a")).expect("a splits");
-    assert_eq!(lo.get(&name("a")).unwrap().span(), (-1.0, 0.0));
-    assert_eq!(hi.get(&name("a")).unwrap().span(), (0.0, 1.0));
+    // axis index, which is id order.
+    assert_eq!(root.split_axis(&root), Some(VarId(1)));
+    let (lo, hi) = root.split(VarId(1)).expect("a splits");
+    assert_eq!(lo.get(VarId(1)).unwrap().span(), (-1.0, 0.0));
+    assert_eq!(hi.get(VarId(1)).unwrap().span(), (0.0, 1.0));
     // The other axis is untouched: one axis per bisection.
-    assert_eq!(lo.get(&name("b")).unwrap().span(), (-1.0, 1.0));
+    assert_eq!(lo.get(VarId(2)).unwrap().span(), (-1.0, 1.0));
 }
 
 // -------------------------------------------------------------- e2e
@@ -1163,7 +1164,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
             .clone()
             .expect_err("a band prices nothing"),
         editor_core::MeasureUnavailable::BandHasNoMeasure {
-            param: name("hole_r")
+            param: banded.spoken_var(banded.var_named("hole_r").expect("declared"))
         }
     );
     assert!(v.accounting().total().is_err());

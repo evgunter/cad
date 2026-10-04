@@ -140,9 +140,9 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 /// `m10_3_driver_interval.rs` documents).
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("lift"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -150,7 +150,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let (plane, profile) = r.profile_keeping(
         [0.0, 0.0, 0.0],
@@ -253,9 +253,9 @@ fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();
     let at = |width: f64| -> bool {
         let mut r = Recorder::new();
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: VarName::from_static("hh"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -267,7 +267,7 @@ fn an_interval_extrude_of_a_widened_height() {
                 } else {
                     None
                 },
-            },
+            }),
         });
         let profile = r.profile(
             [0.0, 0.0, 0.0],
@@ -321,9 +321,9 @@ fn an_interval_extrude_of_a_widened_height() {
 fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let width = Tol::witness().eps() / 10.0;
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static("h"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -331,7 +331,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let profile = r.profile(
         [0.0, 0.0, 0.0],

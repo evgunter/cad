@@ -232,9 +232,9 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
     for (name, value) in params {
         doc = step(
             doc,
-            DocEdit::SetDocParam {
+            DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                value: value.clone(),
+                def: editor_core::VarDef::Free(value.clone()),
             },
         )
         .0;
@@ -280,8 +280,8 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
 fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: VarName::from_static(name),
+        DocEdit::SetVarValue {
+            var: VarName::from_static(name).into(),
             value,
         },
     )
@@ -318,7 +318,7 @@ fn top_pose(s: &Scene, what: &str) -> editor_core::Frame {
 /// bit.** The spacing is a parameter carrying a distribution, so an
 /// environment drawn or seeded from it would place the copy somewhere
 /// else; the solved offset is `1·s` exactly, `2·s` at copy 2, and
-/// follows `SetDocParamValue` — the environment is the document's,
+/// follows `SetVarValue` — the environment is the document's,
 /// not a run's.
 #[test]
 fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
