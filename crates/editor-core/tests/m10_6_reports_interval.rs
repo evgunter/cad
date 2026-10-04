@@ -97,7 +97,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Expr::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],
@@ -634,7 +634,7 @@ fn the_budget_renders_its_tail_and_its_containment() {
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    let rendered = budget.render();
+    let rendered = budget.render(&doc);
     assert!(rendered.contains("tail"), "the tail has a line: {rendered}");
     assert!(
         rendered.contains("UNRESOLVED"),

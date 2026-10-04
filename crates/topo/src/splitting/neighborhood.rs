@@ -59,7 +59,7 @@ use slotmap::SecondaryMap;
 use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -106,17 +106,6 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        // The shared walk names the entity that did not resolve; this
-        // lane's public corruption arm carries a VERTEX, so the payload
-        // is narrowed here rather than lost upstream: a vertex names
-        // itself, anything else falls back to the base vertex the
-        // caller asked about. Widening `CorruptOperand` to an
-        // `EntityId` is a public-API change in a type re-exported into
-        // four crates — issue #695.
-        SectorFaceError::Corrupt(EntityId::Vertex(v)) => {
-            SplitReduceError::CorruptOperand { vertex: v }
-        }
-        SectorFaceError::Corrupt(_) => SplitReduceError::CorruptOperand { vertex },
         SectorFaceError::Unsupported { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }

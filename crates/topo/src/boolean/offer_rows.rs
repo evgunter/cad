@@ -2066,7 +2066,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PierceRunsUnordered
         | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
-        | BooleanErrorKind::CorruptOperand
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported

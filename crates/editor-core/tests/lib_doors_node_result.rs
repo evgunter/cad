@@ -505,7 +505,7 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 fn the_document_layers_own_payloads_render_their_own_stories() {
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError,
-        PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, VarName, WitnessAge,
+        PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
         WitnessBifurcation,
     };
 
@@ -516,11 +516,14 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(VarName::from_static("width")).to_string(),
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId(tagged(7)),
+            }
+            .to_string(),
             &[
-                "parameter width",
+                "variable #0000000000070000",
                 "has no binding",
-                "declare the document parameter",
+                "point the reader at a live variable",
             ],
         ),
         (

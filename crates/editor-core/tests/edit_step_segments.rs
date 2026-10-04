@@ -100,7 +100,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// evaluation would disagree with the published anchor's permutation
 /// and every row here would refuse rather than pass.
 fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
     let mut loops = Vec::new();
     let mut replay = Vec::new();
@@ -3230,7 +3230,7 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
             len: len(1.5),
         },
     ];
-    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).param_env::<f64>();
+    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).var_env::<f64>();
     for spec in modes {
         let carries = match &spec {
             ProgramArcData::Radius { .. }

@@ -195,6 +195,8 @@ mod mesh8_coherence;
 mod neighbours_across_a_closed_edge;
 #[path = "on_verdict.rs"]
 mod on_verdict;
+#[path = "pcurve_door_refusals.rs"]
+mod pcurve_door_refusals;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]

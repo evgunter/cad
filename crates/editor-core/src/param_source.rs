@@ -9,8 +9,8 @@
 //! **canonical prefix encoding of the expression tree** under the
 //! identity of the parameter table it was lowered against: a scope
 //! prefix ([`ParamScope`]), then one tag byte per AST node, operands in
-//! [`Expr::child`] order, literals as their `f64` BITS, parameters as
-//! their names. It is injective — every distinct (scope, expression)
+//! [`Expr::child`] order, literals as their `f64` BITS, variable readers
+//! as their minted ids (a name is not identity, VR8). It is injective — every distinct (scope, expression)
 //! pair has a distinct byte string — so token equality IS expression
 //! equality within one parameter table rather than a claim about it,
 //! and [`invert`] reads a token back to a slot address holding it.
@@ -21,9 +21,9 @@
 //!
 //! # The scope
 //!
-//! A parameter name is scoped to the document that declares it. Two
-//! documents that both call their blend radius `r` hold two
-//! parameters, and the two meet inside ONE evaluation whenever a part
+//! A variable id is scoped to the document that minted it. Two
+//! documents that both hold a blend radius `r` hold two variables,
+//! and their ids can coincide (two documents' mint chains can run alike), and the two meet inside ONE evaluation whenever a part
 //! is instantiated — the referenced document's product is placed with
 //! `transform_rigid`, which carries these records verbatim because a
 //! rigid map cannot change a radius. So the token names the TABLE as
@@ -119,7 +119,7 @@ use crate::ident::{DocRef, DocumentId};
 // of operands than it claims cannot round-trip.
 const T_LITERAL: u8 = 0x01;
 const T_COUNT_LITERAL: u8 = 0x02;
-const T_PARAM: u8 = 0x03;
+const T_VAR: u8 = 0x04;
 const T_ADD: u8 = 0x10;
 const T_SUB: u8 = 0x11;
 const T_NEG: u8 = 0x12;
@@ -201,21 +201,17 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
             out.push(T_COUNT_LITERAL);
             out.extend_from_slice(&n.to_be_bytes());
         }
-        ExprKind::Param(name) => {
-            out.push(T_PARAM);
-            let bytes = name.as_str().as_bytes();
-            // A length prefix, because a name is the one payload with
-            // no fixed width. The width is `u32`, saturating: a name
-            // beyond four gigabytes is not a name any document can
-            // hold, and if one ever arrived the prefix would name the
-            // first `u32::MAX` bytes and the slice would carry exactly
-            // those — still a prefix code, still self-delimiting,
-            // never a panic.
-            let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-            out.extend_from_slice(&len.to_be_bytes());
-            out.extend_from_slice(&bytes[..len as usize]);
-            out.push(dim_code(expr.dim()));
+        // The variable's identity alone: its kind is fixed (VR3), so
+        // the reader's cached dimension says nothing the id does not,
+        // and a name is not identity (VR8: a rename moves no token).
+        ExprKind::Var(var) => {
+            out.push(T_VAR);
+            out.extend_from_slice(&var.0.to_be_bytes());
         }
+        ExprKind::Name(name) => unreachable!(
+            "the name {name} reached a coincidence token: the edit door lowers every name \
+             leaf, and the load door refuses a snapshot holding one"
+        ),
         ExprKind::Add(a, b) => binary(T_ADD, a, b, out),
         ExprKind::Sub(a, b) => binary(T_SUB, a, b, out),
         ExprKind::Mul(a, b) => binary(T_MUL, a, b, out),
@@ -694,11 +690,12 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::*;
-    use crate::doc::VarName;
     use crate::test_support::len;
+    use crate::var::VarId;
 
-    fn p(name: &'static str) -> Expr {
-        Expr::param(VarName::from_static(name), Dimension::Length)
+    /// A reader of the length variable `id`.
+    fn p(id: u64) -> Expr {
+        Expr::var(VarId(id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -711,8 +708,6 @@ mod tests {
     enum Shape {
         /// A leaf with a fixed payload width in bytes.
         Leaf(usize),
-        /// The parameter leaf: a length-prefixed name and a dimension.
-        Name,
         Unary,
         Binary,
     }
@@ -721,7 +716,7 @@ mod tests {
     const ALPHABET: &[(&str, u8, Shape)] = &[
         ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
         ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_PARAM", T_PARAM, Shape::Name),
+        ("T_VAR", T_VAR, Shape::Leaf(8)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -754,8 +749,8 @@ mod tests {
         }
     }
 
-    /// **The alphabet is the whole encoder**: one row per AST arm plus
-    /// the two scope tags. The match is exhaustive, so a new expression
+    /// **The alphabet is the whole encoder**: one row per stored AST arm
+    /// plus the two scope tags. The match is exhaustive, so a new expression
     /// node fails this file until it is visited, and visiting it means
     /// naming its row.
     #[test]
@@ -763,7 +758,7 @@ mod tests {
         let arms = match ExprKind::Neg(Box::new(len(0.0))) {
             ExprKind::Literal(_)
             | ExprKind::CountLiteral(_)
-            | ExprKind::Param(_)
+            | ExprKind::Var(_)
             | ExprKind::Add(..)
             | ExprKind::Sub(..)
             | ExprKind::Mul(..)
@@ -776,6 +771,9 @@ mod tests {
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
             | ExprKind::CountToScalar(_) => 15,
+            // No row: a name leaf never reaches the encoder, which
+            // refuses it (the edit door lowers every one).
+            ExprKind::Name(_) => 15,
         };
         assert_eq!(
             ALPHABET.len(),
@@ -792,12 +790,6 @@ mod tests {
         match shape {
             Shape::Leaf(width) => {
                 let end = at + 1 + width;
-                (end <= bytes.len()).then_some(end)
-            }
-            Shape::Name => {
-                let len_bytes: [u8; 4] = bytes.get(at + 1..at + 5)?.try_into().ok()?;
-                let len = u32::from_be_bytes(len_bytes) as usize;
-                let end = at + 5 + len + 1;
                 (end <= bytes.len()).then_some(end)
             }
             Shape::Unary => parse_node(bytes, at + 1),
@@ -818,18 +810,19 @@ mod tests {
     }
 
     /// A small expression family: every leaf kind, every operator, two
-    /// levels deep, plus the name-boundary and sign-of-zero pairs. Built
+    /// levels deep, plus ids that differ only in high bytes and the
+    /// sign-of-zero pairs. Built
     /// through the dimension-checked doors, so only well-typed
     /// combinations enter (a length plus an angle is not an expression).
     fn family() -> Vec<Expr> {
         let count = Expr::count(3);
         let leaves = vec![
-            p("a"),
-            p("b"),
-            p("ab"),
-            p("c"),
-            p("bc"),
-            Expr::param(VarName::from_static("a"), Dimension::Angle),
+            p(1),
+            p(2),
+            p(3),
+            p(1 << 32),
+            p(u64::MAX),
+            Expr::var(VarId(6), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -849,7 +842,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::param(VarName::from_static("th"), Dimension::Angle);
+        let angle = Expr::var(VarId(7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());
@@ -889,9 +882,8 @@ mod tests {
     /// **Token equality is `bit_eq`, over the whole family**: the
     /// injectivity claim executed pairwise rather than asserted. Both
     /// directions — two expressions equal by bits share a token, and
-    /// two that differ do not — with the name-boundary pair
-    /// (`ab + c` vs `a + bc`), operand order, the sign of zero, and a
-    /// name's dimension all inside the family.
+    /// two that differ do not — with ids that differ only in their high
+    /// bytes, operand order and the sign of zero all inside the family.
     #[test]
     fn token_equality_is_expression_equality() {
         let family = family();
@@ -926,7 +918,7 @@ mod tests {
         let b = DocumentId::derive("b");
         let pin1 = crate::ident::ContentPin::of_bytes(b"one");
         let pin2 = crate::ident::ContentPin::of_bytes(b"two");
-        let r = p("r");
+        let r = p(1);
         assert_ne!(
             lower(ParamScope::Root(a), &r),
             lower(ParamScope::Root(b), &r)

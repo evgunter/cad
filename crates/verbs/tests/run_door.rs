@@ -49,7 +49,6 @@ fn dump(body: &Body<f64>) -> String {
         body.faces().count()
     );
     for (k, p) in body.vertex_points() {
-        let p = p.unwrap();
         let _ = writeln!(
             s,
             "{k:?} {:016x} {:016x} {:016x}",
@@ -556,7 +555,7 @@ fn the_split_dispatch_is_the_split_door() {
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
     body.vertex_points()
         .filter(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .count()

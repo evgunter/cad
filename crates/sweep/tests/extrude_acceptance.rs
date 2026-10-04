@@ -848,10 +848,7 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
 fn point_bits(body: &Body<f64>) -> (usize, usize, usize, Vec<[u64; 3]>) {
     let mut coords: Vec<[u64; 3]> = body
         .vertex_points()
-        .map(|(_, p)| {
-            let p = p.unwrap();
-            [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
-        })
+        .map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
         .collect();
     coords.sort_unstable();
     (

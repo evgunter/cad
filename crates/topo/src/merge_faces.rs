@@ -54,8 +54,8 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{NAMES_ONLY_LIVE, linked, proven};
-use crate::loop_winding::{LoopWinding, TornLoop, WINDING_PREDICATE};
+use crate::live::{linked, proven};
+use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 
 /// One merged run: the surviving face and what was consumed into it.
@@ -414,7 +414,7 @@ pub enum MergeCoplanarError {
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// resolve, or names two surfaces of DIFFERENT kinds — a malformed
     /// argument, refused up front. A pair on one non-planar kind is
     /// NOT this: it is a legal declaration recorded as
     /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
@@ -1278,7 +1278,7 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `PcurveMint` (`Corrupt` alone: a moved loop is left as found on a spline chart) and `Certification` (a `tol` that forms no band) |
+/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
 /// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
@@ -1635,7 +1635,7 @@ impl<T: Decide> Body<T> {
         // ---- Declared pairs: validate, then class each by carrier kind. ----
         //
         // A key that does not resolve, or a pair of two kinds, is a
-        // torn argument and refuses. A planar pair joins the surface
+        // malformed argument and refuses. A planar pair joins the surface
         // equivalence. A pair on one non-planar kind is a LEGAL
         // declaration this door has no rung for: it is declined here
         // and recorded below, never refused — the declaration served
@@ -2057,7 +2057,8 @@ impl<T: Decide> Body<T> {
                              an edge claims the two half-edges that name it"
                         )
                     };
-                    let facts = self.half_edge_facts(claim.mate, EntityId::Edge(edge), "slot");
+                    let facts =
+                        self.half_edge_facts(claim.mate, EntityId::Edge(edge), claim.mate_field());
                     if facts.face != f && in_group(facts.face) {
                         nested.insert(facts.face);
                     }
@@ -2611,7 +2612,7 @@ impl<T: Decide> Body<T> {
                 mate_key,
                 EntityId::HalfEdge,
                 EntityId::Edge(edge_key),
-                "slot",
+                claim.mate_field(),
             );
             let kept_loop = mate.parent_loop;
             if dying.next == dying_he && mate.next == mate_key {
@@ -2794,30 +2795,14 @@ impl<T: Decide> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where the walk is torn: on a tier-1-valid body a loop's links
-    /// resolve, its cycle closes and its edges claim its half-edges.
+    /// Where the walk is torn (D2 row 4).
     fn loop_winding(
         &self,
         l: LoopKey,
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<LoopWinding<Decided>, MergeCoplanarError> {
-        let winding = self
-            .planar_loop_winding_decided(l, normal, band)
-            .unwrap_or_else(|torn| match torn {
-                TornLoop::Dangling(what) => unreachable!(
-                    "loop {l:?}'s winding walk reached {what:?}, which does not resolve: \
-                     {NAMES_ONLY_LIVE}"
-                ),
-                TornLoop::Unclaimed { he, edge } => unreachable!(
-                    "loop {l:?}'s member {he:?} is not claimed by its edge {edge:?}: on a \
-                         tier-1-valid body an edge claims the two half-edges that name it"
-                ),
-                TornLoop::Unclosed => unreachable!(
-                    "loop {l:?}'s next walk does not close: on a tier-1-valid body every \
-                         loop's does"
-                ),
-            });
+        let winding = self.planar_loop_winding_decided(l, normal, band);
         match winding {
             LoopWinding::Empty => Ok(LoopWinding::Empty),
             LoopWinding::Unsupported => Ok(LoopWinding::Unsupported),
@@ -3438,9 +3423,10 @@ mod tests {
     fn a_torn_outline_point_in_the_role_pass_panics_naming_it() {
         let (body, message) = role_pass_tear(TearPoint::OutlineLosesAPoint);
         assert!(
-            body.vertices().any(|(_, v)| message.contains(&format!(
-                "'s winding walk reached {:?}, which does not resolve",
-                crate::entity::DanglingRef::Geometry(crate::entity::GeomRef::Point(v.point))
+            body.vertices().any(|(k, v)| message.contains(&format!(
+                "{}'s point names {}, which does not resolve",
+                EntityId::Vertex(k),
+                crate::entity::GeomRef::Point(v.point)
             ))),
             "names a vertex's point: {message}"
         );
@@ -5401,70 +5387,73 @@ mod winding_arm_tests {
     /// being read as the minus half. The first row is the control.
     #[test]
     fn a_torn_winding_walk_panics_naming_what_it_could_not_read() {
-        use crate::entity::{DanglingRef, GeomRef};
+        use crate::entity::GeomRef;
         type Tear = fn(&mut Body<f64>, crate::HalfEdgeKey) -> Option<String>;
         let rows: [(&str, Tear); 8] = [
             ("nothing", |_, _| None),
             ("a next link", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (next, l) = (he.next, he.parent_loop);
+                let next = b.get_half_edge(first).unwrap().next;
                 b.half_edges.remove(next);
                 Some(format!(
-                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
-                    DanglingRef::Entity(EntityId::HalfEdge(next))
+                    "{}'s next names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::HalfEdge(next)
                 ))
             }),
             ("the loop's closure", |b, first| {
                 let second = b.get_half_edge(first).unwrap().next;
                 b.half_edges.get_mut(second).unwrap().next = second;
-                let l = b.get_half_edge(first).unwrap().parent_loop;
-                Some(format!("loop {l:?}'s next walk does not close"))
+                Some(format!(
+                    "the next walk from {} does not come back to it",
+                    EntityId::HalfEdge(first)
+                ))
             }),
             ("an edge", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (edge, l) = (he.edge, he.parent_loop);
+                let edge = b.get_half_edge(first).unwrap().edge;
                 b.edges.remove(edge);
                 Some(format!(
-                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
-                    DanglingRef::Entity(EntityId::Edge(edge))
+                    "{}'s edge names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::Edge(edge)
                 ))
             }),
             ("the edge's claim", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (own, l) = (he.edge, he.parent_loop);
+                let own = b.get_half_edge(first).unwrap().edge;
                 let other = b.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
                 b.half_edges.get_mut(first).unwrap().edge = other;
                 Some(format!(
-                    "loop {l:?}'s member {first:?} is not claimed by its edge {other:?}"
+                    "{}'s edge {} does not claim it in either slot",
+                    EntityId::HalfEdge(first),
+                    EntityId::Edge(other)
                 ))
             }),
             ("a curve", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (edge, l) = (he.edge, he.parent_loop);
+                let edge = b.get_half_edge(first).unwrap().edge;
                 let curve = b.get_edge(edge).unwrap().curve;
                 b.curves.remove(curve);
                 Some(format!(
-                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
-                    DanglingRef::Geometry(GeomRef::Curve(curve))
+                    "{}'s curve names {}, which does not resolve",
+                    EntityId::Edge(edge),
+                    GeomRef::Curve(curve)
                 ))
             }),
             ("a vertex", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (v, l) = (he.start, he.parent_loop);
+                let v = b.get_half_edge(first).unwrap().start;
                 b.vertices.remove(v);
                 Some(format!(
-                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
-                    DanglingRef::Entity(EntityId::Vertex(v))
+                    "{}'s start names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::Vertex(v)
                 ))
             }),
             ("a point", |b, first| {
-                let he = b.get_half_edge(first).unwrap();
-                let (v, l) = (he.start, he.parent_loop);
+                let v = b.get_half_edge(first).unwrap().start;
                 let p = b.get_vertex(v).unwrap().point;
                 b.points.remove(p);
                 Some(format!(
-                    "loop {l:?}'s winding walk reached {:?}, which does not resolve",
-                    DanglingRef::Geometry(GeomRef::Point(p))
+                    "{}'s point names {}, which does not resolve",
+                    EntityId::Vertex(v),
+                    GeomRef::Point(p)
                 ))
             }),
         ];
@@ -5533,7 +5522,7 @@ mod winding_arm_tests {
             (he_ab, t.body.get_half_edge(he_ab).unwrap().next)
         };
         let loop_margin = |t: &Tri| match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
-            Ok(LoopWinding::Wound(Ok(d))) => d,
+            LoopWinding::Wound(Ok(d)) => d,
             other => panic!("the triangle winds: {other:?}"),
         };
         let run_margin =
@@ -5582,13 +5571,16 @@ mod winding_arm_tests {
         let own = t.body.get_half_edge(h2).unwrap().edge;
         let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
         t.body.half_edges.get_mut(h2).unwrap().edge = other;
-        assert_eq!(
-            t.body.planar_run_winding_decided((h1, h2), Straight, n, b),
-            Err(TornLoop::Unclaimed {
-                he: h2,
-                edge: other
-            }),
-            "a half its edge does not claim is not read as a minus half"
+        let message = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.planar_run_winding_decided((h1, h2), Straight, n, b);
+        }));
+        assert!(
+            message.contains(&format!(
+                "{}'s edge {} does not claim it in either slot",
+                EntityId::HalfEdge(h2),
+                EntityId::Edge(other)
+            )),
+            "a half its edge does not claim is not read as a minus half: {message}"
         );
     }
 
@@ -5625,7 +5617,7 @@ mod winding_arm_tests {
             );
         }
         let whole = match body.planar_loop_winding_decided(disc, n, b) {
-            Ok(LoopWinding::Wound(Ok(d))) => d,
+            LoopWinding::Wound(Ok(d)) => d,
             other => panic!("the disc winds: {other:?}"),
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
@@ -5715,7 +5707,7 @@ mod winding_arm_tests {
             tol,
         );
         let whole = match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
-            Ok(LoopWinding::Wound(Ok(d))) => d,
+            LoopWinding::Wound(Ok(d)) => d,
             other => panic!("the triangle winds: {other:?}"),
         };
         let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;

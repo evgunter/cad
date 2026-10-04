@@ -135,7 +135,7 @@ fn pinch_copies_do_not_reach_rest() {
     let at = |b: &Body<f64>, (x, y, z)| {
         b.vertex_points()
             .filter(|(_, p)| {
-                let p = p.unwrap();
+                let p = *p;
                 (p.x, p.y, p.z) == (x, y, z)
             })
             .count()

@@ -50,9 +50,14 @@
 //! decision is made; [`require_key`], [`Body::require_live`] and
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
-use crate::entity::{EntityId, GeomRef, HalfEdge, HalfEdgeKey};
+use crate::entity::{
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, VertexKey,
+};
 use crate::euler::{BadArgument, EulerOpError};
-use geom_core::Real;
+use crate::geometry::PointKey;
+use crate::null::CurveGeom;
+use geom::Surface;
+use geom_core::{Point3, Real};
 
 /// A [`HalfEdgeKey`] a lookup has returned — see the [module
 /// docs](self) for the precise claim and its one residue.
@@ -172,10 +177,47 @@ impl KeySource for Link {
     }
 }
 
+/// A key this call already resolved, minted, or read out of a record
+/// it resolved ([`proven`]): a lookup through it answers the record,
+/// and its miss is a kernel bug that panics naming the key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Proven;
+
+impl KeySource for Proven {
+    type Answer<V> = V;
+
+    #[track_caller]
+    fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
+        found.unwrap_or_else(|| unproven(key))
+    }
+
+    #[track_caller]
+    fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
+        found.unwrap_or_else(|| unproven(key))
+    }
+
+    fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
+        f(answer)
+    }
+}
+
+/// The panic for a [`Proven`] key that does not resolve.
+#[track_caller]
+fn unproven(key: impl core::fmt::Display) -> ! {
+    unreachable!(
+        "{key}, which this call resolved or read out of a record, does not resolve: \
+         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}"
+    )
+}
+
 /// The panic for a link that does not resolve: `holder`'s field `link`
 /// names `key`. Only a kernel bug reaches it ([`NAMES_ONLY_LIVE`]).
 #[track_caller]
-pub(crate) fn dangling_link(holder: EntityId, link: &str, key: impl core::fmt::Display) -> ! {
+pub(crate) fn dangling_link(
+    holder: impl core::fmt::Display,
+    link: &str,
+    key: impl core::fmt::Display,
+) -> ! {
     unreachable!("{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}")
 }
 
@@ -218,13 +260,7 @@ pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     key: K,
     id: fn(K) -> I,
 ) -> &V {
-    arena.get(key).unwrap_or_else(|| {
-        unreachable!(
-            "{}, which this call resolved or read out of a record, does not resolve: \
-             nothing removes a record during a plan, and {NAMES_ONLY_LIVE}",
-            id(key)
-        )
-    })
+    arena.get(key).unwrap_or_else(|| unproven(id(key)))
 }
 
 /// Requires a key to be live in its arena, answering a miss as `from`
@@ -242,6 +278,115 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
 }
 
 impl<T: Real> Body<T> {
+    /// Resolves a vertex's point coordinates (the certification gate's
+    /// endpoints): the vertex's miss answered as `from` says
+    /// ([`KeySource`]), and its point's, a link the vertex holds, a
+    /// panic.
+    #[track_caller]
+    pub(crate) fn resolve_vertex_point<S: KeySource>(
+        &self,
+        vertex: VertexKey,
+        from: S,
+    ) -> S::Answer<Point3<T>> {
+        S::map(
+            lookup(&self.vertices, vertex, EntityId::Vertex, from),
+            |v| {
+                *link(EntityId::Vertex(vertex), "point")
+                    .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
+            },
+        )
+    }
+
+    /// `face`'s chart, a link its record holds.
+    #[track_caller]
+    pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
+        self.get_surface(data.surface).unwrap_or_else(|| {
+            dangling_link(
+                EntityId::Face(face),
+                "surface",
+                GeomRef::Surface(data.surface),
+            )
+        })
+    }
+
+    /// `edge`'s curve-arena entry, a link its record holds.
+    #[track_caller]
+    pub(crate) fn edge_curve_linked(&self, edge: EdgeKey, data: &Edge) -> &CurveGeom<T> {
+        self.get_curve_geom(data.curve).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
+        })
+    }
+
+    /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
+    /// names.
+    #[track_caller]
+    pub(crate) fn linked_vertex_point(
+        &self,
+        vertex: VertexKey,
+        holder: EntityId,
+        field: &'static str,
+    ) -> Point3<T> {
+        self.resolve_vertex_point(vertex, link(holder, field))
+    }
+
+    /// One clockwise step of `he`'s vertex orbit, `next(mate(he))`
+    /// ([`Body::orbit_step`]), for a `he` this call proved: every hop
+    /// past it is a link, and a miss panics.
+    #[track_caller]
+    pub(crate) fn proven_orbit_step(&self, he: HalfEdgeKey) -> HalfEdgeKey {
+        let edge = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+        let Some(claim) = linked(
+            &self.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        )
+        .claim(he) else {
+            unreachable!(
+                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
+                 body an edge claims the two half-edges that name it"
+            )
+        };
+        linked(
+            &self.half_edges,
+            claim.mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            claim.mate_field(),
+        )
+        .next
+    }
+
+    /// `he`'s end vertex, `start(next(he))` ([`Body::half_edge_end`]),
+    /// for a `he` this call proved: its `next` is a link, and a miss
+    /// panics.
+    #[track_caller]
+    pub(crate) fn proven_half_edge_end(&self, he: HalfEdgeKey) -> VertexKey {
+        let next = proven(&self.half_edges, he, EntityId::HalfEdge).next;
+        linked(
+            &self.half_edges,
+            next,
+            EntityId::HalfEdge,
+            EntityId::HalfEdge(he),
+            "next",
+        )
+        .start
+    }
+
+    /// The key of a vertex's point, both resolving, with the misses
+    /// answered as [`Body::resolve_vertex_point`] answers them.
+    #[track_caller]
+    pub(crate) fn resolve_vertex_point_key<S: KeySource>(
+        &self,
+        vertex: VertexKey,
+        from: S,
+    ) -> S::Answer<PointKey> {
+        S::map(self.resolve_vertex_point(vertex, from), |_| {
+            self.vertices[vertex].point
+        })
+    }
+
     /// Requires a half-edge key to be live, answering a miss as `from`
     /// says ([`KeySource`]).
     ///

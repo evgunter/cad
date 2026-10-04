@@ -39,6 +39,14 @@ boolean's ground.
 
 ## The shape to give
 
-Make `successor` refuse `BooleanError::corrupt_at(operand, vertex)`
-when the half it lands on does not start at `vertex`, in both
-functions.
+Make the step panic naming the record (D2 row 4) when the half it
+lands on does not start at `vertex`, in both functions.
+
+Built on `lane-c-boolean-graft`: every one-step read that ends at a
+strut site goes through `insert::orbit_step_at`, which panics naming the
+half and the vertex it starts at. That covers `mint_directed`'s first
+step past a holder-less corner's arrival, each step `strut_anchor`
+takes past an earlier strut, and `mint_run`'s step for a dangling
+strut. A strut nested at its holder's tip starts from the holder's
+`next`, which starts at the holder's end by construction, and that end
+is the vertex the strut hangs at.

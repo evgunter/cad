@@ -63,9 +63,8 @@ fn fold(
 /// (`a ∪ b` is 1.5, and `c` meets it in no volume).
 /// Red when a vertex-vertex pair is classified after another pair
 /// sharing its vertex has moved that vertex's orbit: the walk meets the
-/// null edge the first insertion hung there and refuses
-/// `CorruptOperand { operand: B }` at step 2 of `b,c,a` (every span)
-/// and `a,c,b` (the span over `b`).
+/// null edge the first insertion hung there and panics at step 2 of
+/// `b,c,a` (every span) and `a,c,b` (the span over `b`).
 #[test]
 fn every_order_folds_a_flush_partner_onto_the_edge_contact() {
     let tol = Tol::witness();
@@ -199,7 +198,7 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
     let mut keys: Vec<topo::VertexKey> = body
         .vertex_points()
         .filter(|(_, q)| {
-            let q = q.unwrap();
+            let q = *q;
             (q.x, q.y, q.z) == p
         })
         .map(|(k, _)| k)
@@ -411,7 +410,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
 /// orders, builds at its volume and passes 3′ with the pinch's records
 /// carried. Red as the first row: `SharedVertexCrossings`. Red if a fan
 /// is minted at the corner before the dangling null edge there (∪
-/// refuses `CorruptOperand`), or if a dangling null edge refuses
+/// panics), or if a dangling null edge refuses
 /// whenever another pair cuts its corner.
 #[test]
 fn three_crossings_at_one_corner_build_in_every_op() {
@@ -783,8 +782,8 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
 /// wall's vertices on the axis pairs with both of the pinch's
 /// vertices there, one pair crossing and one touching. Every op
 /// builds at its volume, and with the pinch's records carried the
-/// result passes 3′. Red as the first row: `CorruptOperand` at the
-/// prism's vertex on the axis, in all four. The subtract of the wall
+/// result passes 3′. Red as the first row: a panic at the prism's
+/// vertex on the axis, in all four. The subtract of the wall
 /// over z ∈ (0.75, 1.25) leaves the pinch a new end at its cut: red if
 /// the result's v-v rows leave out the null-edge copies there (3′
 /// refuses `VertexVertex` at (0,0,0.75), the corner closing the cut

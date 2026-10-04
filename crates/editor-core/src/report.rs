@@ -146,10 +146,6 @@ pub struct MassBudget {
     pub containment: bool,
     /// Priced or forced ([`MassBasis`]).
     pub basis: MassBasis,
-    /// The analyzed box's variables as its document speaks them, for
-    /// [`Self::render`]'s basis line. Not part of the budget's
-    /// equality: a rename moves no mass.
-    spoken: BTreeMap<VarId, SpokenVar>,
 }
 
 impl PartialEq for MassBudget {
@@ -163,7 +159,6 @@ impl PartialEq for MassBudget {
             tail,
             containment,
             basis,
-            spoken: _,
         } = self;
         *certified == other.certified
             && *unresolved == other.unresolved
@@ -188,11 +183,6 @@ impl MassBudget {
             tail: accounting.unanalyzed.clone(),
             containment: accounting.containment,
             basis: MassBasis::of(analyzed),
-            spoken: analyzed
-                .params()
-                .keys()
-                .map(|&id| (id, analyzed.spoken(id)))
-                .collect(),
         }
     }
 
@@ -222,19 +212,18 @@ impl MassBudget {
     }
 
     /// The human form: percentages, the basis spelled out, the tail on
-    /// its own line, and every unavailability named.
-    pub fn render(&self) -> String {
+    /// its own line, and every unavailability named — each variable
+    /// spoken from `doc`, the document the budget's box was taken of, as
+    /// it holds them now (a rename moves no mass, and the line says the
+    /// name the document holds).
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
+        let percent = |m: &Result<f64, MeasureUnavailable>| match m {
+            Ok(_) => percent(m),
+            Err(e) => percent(&Err(e.respoken(doc))),
+        };
         let mut s = String::new();
-        let _ = writeln!(
-            s,
-            "{}",
-            self.basis.sentence(|id| self
-                .spoken
-                .get(&id)
-                .cloned()
-                .unwrap_or_else(|| SpokenVar::new(id, None)))
-        );
+        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         let _ = writeln!(s, "  certified   {}", percent(&self.certified));
         for (class, m) in &self.refused {
             let _ = writeln!(s, "  refused ({class}) {}", percent(m));

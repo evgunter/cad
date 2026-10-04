@@ -312,9 +312,6 @@ fn tessellate_impl(
     let mut positions = Vec::new();
     let mut vids = HashMap::new();
     for (vk, p) in body.vertex_points() {
-        let p = p.map_err(|_| TessellateError::MissingEntity {
-            what: "vertex point",
-        })?;
         #[allow(clippy::cast_possible_truncation)]
         vids.insert(vk, positions.len() as u32);
         positions.push(p);

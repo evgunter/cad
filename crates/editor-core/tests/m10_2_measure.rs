@@ -138,7 +138,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
-                        radius: Expr::param(VarName::from_static(HOLE_R), Dimension::Length),
+                        radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -185,8 +185,8 @@ fn faces_of_kind(
         .collect()
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).var_env::<f64>()
 }
 
 /// One wall per hole, found the way a user finds them: evaluate, then
@@ -355,7 +355,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || MeasureExpr::value(Expr::param(VarName::from_static(HOLE_R), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -749,7 +749,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
         MeasureExpr::value(len(13.0)),
-        MeasureExpr::value(Expr::param(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     doc = push(
@@ -827,7 +827,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 profile: disc,
                 distance: Expr::div(
                     len(13.0),
-                    Expr::param(VarName::from_static("s"), Dimension::Scalar),
+                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,

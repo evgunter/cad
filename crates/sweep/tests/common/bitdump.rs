@@ -39,7 +39,6 @@ pub fn dump(body: &Body<f64>) -> String {
         counts.r,
     );
     for (k, p) in body.vertex_points() {
-        let p = p.unwrap();
         let _ = writeln!(s, "V {k:?} ({:?}, {:?}, {:?})", p.x, p.y, p.z);
     }
     for (k, e) in body.edges() {

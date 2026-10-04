@@ -61,7 +61,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
             plane: lower_frame,
             loops: vec![LoopProgram::Circle {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
-                radius: Expr::param(p(), Dimension::Length),
+                radius: Expr::named(p(), Dimension::Length),
             }],
             ids: Vec::new(),
         }),

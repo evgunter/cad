@@ -1221,7 +1221,7 @@ mod tests {
         for (vk, p) in body.vertex_points() {
             #[allow(clippy::cast_possible_truncation)]
             vids.insert(vk, positions.len() as u32);
-            positions.push(p.unwrap());
+            positions.push(p);
         }
         let chords = crate::chords::compute_chords(
             body,

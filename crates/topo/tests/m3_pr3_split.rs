@@ -94,7 +94,7 @@ fn census<T: geom_core::Real>(b: &Body<T>) -> SideCensus {
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<topo::VertexKey> {
     body.vertex_points()
         .filter(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)
@@ -205,7 +205,6 @@ fn generic_plane_asymmetric() {
     // connecting edge would violate one of these).
     for (b, above_side) in [(above, true), (below, false)] {
         for (_, p) in b.vertex_points() {
-            let p = p.unwrap();
             assert!(if above_side { p.y >= 1.0 } else { p.y <= 1.0 });
         }
     }
@@ -911,7 +910,7 @@ fn an_offset_that_moves_both_tip_copies_together_keeps_them_touching() {
     let tips: Vec<topo::VertexKey> = above
         .vertex_points()
         .filter(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             (p.x - 4.0).abs() < 1e-9 && p.y == 1.0 && p.z == -0.1
         })
         .map(|(k, _)| k)

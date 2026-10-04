@@ -58,9 +58,8 @@ return the key that failed) and still owes its scale twin.
 default are deleted. The maximal-faces gate now levers at the shared
 edge's extent (`readback::edge_extent`, `geom_brep::edge_extent` over
 the edge's certified carrier), and a lookup that fails on the way
-refuses `BooleanError::CorruptOperand` with `Corruption::Edge { edge,
-absence }` naming it; no length stands in. Rows:
-`boolean::reduce::neighbour_extent_rows::a_dangling_curve_refuses_as_a_corrupt_operand`
+panics naming the record (D2 row 4); no length stands in. Rows:
+`boolean::reduce::neighbour_extent_rows::a_dangling_curve_panics_naming_the_edge`
 (a mutant restoring a `1` default reds it), and the scale twin
 `neighbours_across_a_closed_edge::a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours`
 (the same pair at 1e-3, 1 and 1e3). The merge's site no longer reads an

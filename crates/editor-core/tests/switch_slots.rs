@@ -270,7 +270,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(VarName::from_static("r"), Dimension::Length),
+                        radius: Expr::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),

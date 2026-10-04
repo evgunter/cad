@@ -488,13 +488,12 @@ fn the_placement_certificate_certifies_and_refuses_by_pair() {
     );
 }
 
-/// **A graft door's refusal leaves the destination as it was, from
-/// public input alone.** The void doors graft their cavity under
-/// caller-named destination solids, and evidence is the caller's to
-/// state; a solid key that resolves nowhere in `dst` used to be found
-/// only when the transplanted shells were attached, the transplant's
-/// last step. The refusal must leave `dst` whole: the same body, slot
-/// for slot, still tier-1 valid. Both doors.
+/// **A destination solid that does not resolve is the caller's
+/// argument, refused before any write.** The void doors graft their
+/// cavity under caller-named destination solids; one that resolves
+/// nowhere in `dst` refuses [`topo::VoidInsertError::StaleSolid`]
+/// naming it, and `dst` is the same body, slot for slot, still tier-1
+/// valid. Both doors.
 #[test]
 fn a_void_under_a_dead_solid_refuses_with_the_destination_unchanged() {
     type Door = fn(
@@ -527,9 +526,17 @@ fn a_void_under_a_dead_solid_refuses_with_the_destination_unchanged() {
         let before = format!("{dst:?}");
         let err = insert(&mut dst, topo::SolidKey::default(), cavity, &evidence)
             .expect_err("no solid of `dst` has the null key");
+        assert_eq!(
+            err,
+            topo::VoidInsertError::StaleSolid {
+                solid: topo::SolidKey::default()
+            },
+            "{door}"
+        );
+        let said = err.to_string();
         assert!(
-            matches!(err, topo::VoidInsertError::Corrupt { .. }),
-            "{door}: {err:?}"
+            said.contains("does not resolve in the destination body"),
+            "{door}: {said}"
         );
         assert_eq!(
             format!("{dst:?}"),

@@ -763,7 +763,9 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -869,7 +871,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -1487,8 +1491,8 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// draws. It still rides [`OpOutcome::maintenance`], where a reader of
 /// the API sees it.
 ///
-/// **Each worded arm answers [`Retold`] for itself**, and both
-/// answer [`Retold::Never`]: neither can show a retelling.
+/// **Each worded arm answers [`Retold`] for itself**, and each
+/// answers [`Retold::Never`]: none can show a retelling.
 ///
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
@@ -1505,6 +1509,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // A fold's dropped label is said nowhere else: the gauge is
         // gone, and nothing evaluates a label.
         Maintenance::LabelDropped { .. } => Retold::Never,
+        // An anonymous variable's removal is said nowhere else: its
+        // panel row goes with it, and nothing reads it any more.
+        Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.
@@ -2934,7 +2941,6 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchParam(_)
         | Refusal::ParamNotANumber { .. }
-        | Refusal::ParamExists { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }
         | Refusal::Duplicate(_)
