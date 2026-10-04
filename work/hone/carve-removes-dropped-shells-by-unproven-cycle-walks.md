@@ -60,3 +60,23 @@ vertex's `emanating` or edge's slot names a half-edge a kill removes.
 `carve` removes the dropped shells' half-edges with the same four
 namers unproven. The helper takes a kill's two halves; a caller that
 removes many needs that parameter widened to a set.
+
+## Also: the section walks that describe edges (TOPO PR 4016)
+
+TOPO's row-walk unit (PR 4016) moved the pcurve rows walk and the
+site-row walks onto `Body::loop_cycle_of` (`crates/topo/src/body.rs`),
+which refuses a member that does not claim the loop. Its receipt
+found two more writes `split` decides from `loop_cycle` walks with no
+`parent_loop` proof and no entry gate (`classify::gate_operand`
+checks surface and curve kinds only; the closing `validate_closed` per
+side, `splitting/mod.rs`, is the only tier check):
+
+- `splitting::finish::describe_section_boundary` hands each walked
+  edge of a section face to `Body::set_edge_curve`.
+- `splitting::finish::section_plane_restatements` restates the walked
+  edges into `Body::set_face_surfaces_describing`.
+
+A diverted walk re-describes another face's edge. The same call swap
+covers all three (`loop_cycle_of(first, loop)`, refusing `Corrupt`
+where it answers `None`), with `carve` also owing the whole proof
+above. Not measured.
