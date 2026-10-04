@@ -311,14 +311,8 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
         let hollow_after = topo::shell(&posed_first, T, tol())
             .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
             .body;
-        let want: Vec<Point3<f64>> = posed_after
-            .vertex_points()
-            .map(|(_, p)| p)
-            .collect();
-        let mut pool: Vec<Point3<f64>> = hollow_after
-            .vertex_points()
-            .map(|(_, p)| p)
-            .collect();
+        let want: Vec<Point3<f64>> = posed_after.vertex_points().map(|(_, p)| p).collect();
+        let mut pool: Vec<Point3<f64>> = hollow_after.vertex_points().map(|(_, p)| p).collect();
         assert_eq!(want.len(), pool.len(), "{what}: vertex count under re-pose");
         for w in &want {
             let (i, d) = pool
@@ -368,10 +362,7 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let hollow = hollowed("the torus barrel", &barrel);
     let operand = transform_rigid(&barrel, &map, tol()).expect("the operand re-poses");
     let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
-    let on_operand: Vec<Point3<f64>> = operand
-        .vertex_points()
-        .map(|(_, p)| p)
-        .collect();
+    let on_operand: Vec<Point3<f64>> = operand.vertex_points().map(|(_, p)| p).collect();
     let mut cavity = 0;
     for (_, q) in posed.vertex_points() {
         if on_operand.iter().any(|p| (*p - q).norm() < 1e-12) {
@@ -763,14 +754,8 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     )
     .expect("the posed lune offsets");
 
-    let want: Vec<Point3<f64>> = posed_after
-        .vertex_points()
-        .map(|(_, p)| p)
-        .collect();
-    let mut pool: Vec<Point3<f64>> = offset_after
-        .vertex_points()
-        .map(|(_, p)| p)
-        .collect();
+    let want: Vec<Point3<f64>> = posed_after.vertex_points().map(|(_, p)| p).collect();
+    let mut pool: Vec<Point3<f64>> = offset_after.vertex_points().map(|(_, p)| p).collect();
     assert_eq!(want.len(), pool.len(), "vertex count under re-pose");
     for w in &want {
         let (i, d) = pool

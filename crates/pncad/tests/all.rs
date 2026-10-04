@@ -4042,11 +4042,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
-            let mut v: Vec<f64> = b
-                .vertex_points()
-                .map(|(_, p)| p)
-                .map(|p| p.x)
-                .collect();
+            let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }

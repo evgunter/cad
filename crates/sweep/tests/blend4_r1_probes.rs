@@ -279,9 +279,7 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
     );
     let mut coords: Vec<[u64; 3]> = body
         .vertex_points()
-        .map(|(_, p)| {
-            [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
-        })
+        .map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
         .collect();
     coords.sort_unstable();
     // The byte-wise FNV-1a of `common::fnv1a`, accumulated IN PLACE
