@@ -64,10 +64,13 @@ Every caller matches on the variant.
 `he_plus` faces the germ the corner meets first, walking from its
 arrival edge. Three readings decide it, in order:
 - the structural vote (`strut_facing`);
-- otherwise the germs' entry order (`precedes`);
-- otherwise, for two germs in one entry, `strut_order`.
+- otherwise the walk (`walk_faces_first`): the germs' entry order
+  (`precedes`), and for two germs in one entry `strut_order`.
 
-Both minters call it. On the whole-orbit placement it equals the old
+Both minters call it. At a closed edge's lone vertex with a germ along
+it the vote names no half and no row reaches the pose: the pierce
+refuses it `CurvedBooleanUnsupported`, and `mint_directed` orders the
+germs by the walk. On the whole-orbit placement it equals the old
 hard-coded `he_minus`. On the bare-bisector `_` arm it does not: there
 the hard-coded facing refused `JoinDesync` on every undeclared pose
 that reaches the arm without a vote, and the walk order builds.
