@@ -1,0 +1,14 @@
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 47393cdb9..0240c772a 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -902,3 +902,9 @@ mod witness_ladder;
+ mod far_thin_disc_sign;
+ #[path = "join1_delta2_harness.rs"]
+ mod join1_delta2_harness;
++#[path = "join_pierce_r2_probes.rs"]
++mod join_pierce_r2_probes;
++#[path = "delta_inband.rs"]
++mod delta_inband;
++#[path = "delta_probe.rs"]
++mod delta_probe;

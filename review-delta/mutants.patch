@@ -1,0 +1,64 @@
+diff --git a/crates/topo/src/boolean/finish.rs b/crates/topo/src/boolean/finish.rs
+index bd3161611..e571df917 100644
+--- a/crates/topo/src/boolean/finish.rs
++++ b/crates/topo/src/boolean/finish.rs
+@@ -905,7 +905,7 @@ fn discarded<T: Decide>(
+         // one pierce cut, which the twin passes once per run. The
+         // stretch's kept ends are the two copies one edge of the twin
+         // joins.
+-        let joined = twin_of(across).map_or_else(|| Ok(BTreeSet::new()), edges_of)?;
++        let joined = if std::env::var("M_NOTWIN").is_ok() { BTreeSet::new() } else { twin_of(across).map_or_else(|| Ok(BTreeSet::new()), edges_of)? };
+         let ends: BTreeSet<(VertexKey, VertexKey)> = us
+             .iter()
+             .flat_map(|&(bu, ru)| ws.iter().map(move |&(bw, rw)| ((bu, bw), (ru, rw))))
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index 53b82ac23..ca6b21db0 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -609,8 +609,9 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         seam_edges.extend(rep.seam_edges);
+         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+     }
+-    let welds =
+-        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?;
++    let welds = if std::env::var("M_NOWELD").is_ok() { Vec::new() } else {
++        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?
++    };
+     desc.absorb_fusions(&welds);
+     vertex_merges.extend(welds);
+     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
+diff --git a/crates/topo/src/boolean/vtxfac.rs b/crates/topo/src/boolean/vtxfac.rs
+index bd766bdfc..042e732ce 100644
+--- a/crates/topo/src/boolean/vtxfac.rs
++++ b/crates/topo/src/boolean/vtxfac.rs
+@@ -548,7 +548,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+     }
+     // Three or more runs: step 3 would hang their ring struts in run
+     // order, which nothing has checked against their angular order.
+-    if runs.len() > 2 {
++    if runs.len() > 2 || (std::env::var("M_RUNS1").is_ok() && runs.len() > 1) {
+         return Err(BooleanError::PierceRunsUnordered {
+             operand: piercing,
+             vertex,
+@@ -771,7 +771,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+             let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
+             let leaving_faces_start = match runs.len() {
+                 1 => false,
+-                _ if op == BooleanOp::Intersect => true,
++                _ if op == BooleanOp::Intersect && !std::env::var("M_INTERWALK").is_ok() => true,
+                 k => super::insert::strut_order(
+                     run_germs[(i + 1) % k].0.1,
+                     n_pierced.vec(),
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index d744f08e6..0989c2521 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -152,7 +152,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
+         .half_edge_end(he)
+         .ok_or_else(|| desync("a joint half-edge has no end"))?;
+     body.kev_describing(he, &[], tol)?;
+-    if let Some((face, divided)) = hole {
++    if let Some((face, divided)) = hole.filter(|_| !std::env::var("M_NOKFMRH").is_ok()) {
+         body.kfmrh_minting(face, divided, tol)?;
+         return Ok(((dead, kept), None));
+     }
