@@ -6537,3 +6537,12 @@ the head. The fix lane is archived.
 Dispatched (2026-10-04 01:40): `body-has-no-vertex-point-door` (P3) to cloud lane session_01Lnx869X3rvhXNsRUTFzP5H
 on branch `topo/body-vertex-points-door`. The door refuses a dangling point key with today's types (torn record,
 not the caller's key; PR 4006's split is not pre-built), and moves the demo and sweep-test callers onto it.
+
+## 02:03 check-in (2026-10-04)
+
+PR 4010 review: fix first. MINOR-1: the row is not closed. The code is sound (witness, choice (a), planner,
+atomicity, m6 reasoning and the receipt all confirmed). Ruled fixes: close the row; S4 (pcurves.rs gives the kill
+ops' posture two answers); S6 (the duplicated null-strut fixture); file NOTE-4 (a re-described certified member
+whose ends move leaves its far-face rows stale; pre-existing, unowned) and narrow the body's "wall leaves
+complete"; S5 (give the `unreachable!` messages their reason). S1-S3 are noted only. Fix lane
+session_01Vmcq6yUAfDSaVfayevjzLJ is on it; the reviewer is archived. Merged main. No Ev reply on 3970 or 4006.
