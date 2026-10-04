@@ -151,9 +151,8 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError,
-    NamingError, NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
-    RimShare,
+    EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError, NamingError,
+    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -1615,7 +1614,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
-        BooleanErrorKind::CorruptOperand => "corrupt_operand",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
@@ -1784,7 +1782,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRimNotExpressible { .. } => "open_face_rim_not_expressible",
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
-        ShellError::Corrupt { .. } => "corrupt",
         ShellError::Pcurve { .. } => "pcurve",
         ShellError::NotValid { .. } => "not_valid",
     }
@@ -2085,14 +2082,11 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Every arm but one is reachable through
+/// branchable discriminant. Every arm is reachable through
 /// `import_step` on some input, unlike [`workspace_error_tag`]'s door
 /// — a caller distinguishing a malformed file from an unsupported
 /// entity from a tier refusal has no other way to do it, because the
-/// id and line live in prose. The exception is `vertex_without_point`,
-/// which announces a corrupt-body state whose reachability the
-/// declaration resolver cannot prove either way; it exists so that
-/// resolver refuses rather than miscounts. The arm COUNT is not
+/// id and line live in prose. The arm COUNT is not
 /// written here: it is `TAG_INVENTORY`'s row for this function, which
 /// is derived from this file rather than remembered.
 ///
@@ -2112,7 +2106,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
         StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
-        StepImportError::VertexWithoutPoint { .. } => "vertex_without_point",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -2571,28 +2564,14 @@ pub fn update_error_tag(err: &UpdateError) -> &'static str {
 /// The stable tag for the KERNEL half of a read-back refusal — the
 /// carrier read itself, once a name has resolved.
 ///
-/// `Dangling` has two lanes kernel-side and gets one tag per lane,
-/// because they are different facts about the model: a topological
-/// key that does not resolve is a stale or foreign handle
-/// (`dangling_entity`), while a geometry key reached FROM a live
-/// entity that does not resolve is a dangling reference inside the
-/// body (`dangling_geometry`). Which invariant broke is what a caller
-/// branches on, so it belongs in the tag rather than only in the
-/// prose. The kernel's own `Display` still states which lookup came
-/// back empty, and that prose is the exception's message.
-///
-/// The match is over `DanglingRef`'s arms, not `..`, so a third lane
-/// added kernel-side stops this crate compiling — the same
-/// drift alarm the outer arms get from `ReadbackError` not being
-/// `#[non_exhaustive]`.
+/// `dangling_entity` is the caller's stale or foreign handle; a key a
+/// live record names always resolves kernel-side (D2 row 4), so it is
+/// the one dangling tag. The match is exhaustive, not `..`, so an arm
+/// added kernel-side stops this crate compiling — the drift alarm
+/// `ReadbackError` not being `#[non_exhaustive]` gives.
 pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
     match err {
-        ReadbackError::Dangling {
-            what: DanglingRef::Entity(_),
-        } => "dangling_entity",
-        ReadbackError::Dangling {
-            what: DanglingRef::Geometry(_),
-        } => "dangling_geometry",
+        ReadbackError::Dangling { .. } => "dangling_entity",
         ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
         ReadbackError::NoCarrier => "no_carrier",
     }

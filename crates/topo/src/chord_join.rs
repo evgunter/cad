@@ -782,14 +782,11 @@ pub(crate) fn lineage(face: FaceKey, rows: &[(FaceKey, FaceKey)]) -> Vec<FaceKey
     out
 }
 
-/// The point of a vertex. Either empty lookup means the same thing
-/// here — a body that reached this lane corrupt — so the read-back
-/// door's discriminated reference collapses to one verdict.
-pub(crate) fn vertex_point<T: Decide>(
-    body: &Body<T>,
-    v: VertexKey,
-) -> Result<Point3<T>, SplitJoinError> {
-    crate::readback::vertex_point_ref(body, v).map_err(|_| corrupt_vertex(v))
+/// The point of `v`, a vertex the join read out of its working body: a
+/// miss of the vertex or its point panics naming it (D2 row 4).
+#[track_caller]
+pub(crate) fn vertex_point<T: Decide>(body: &Body<T>, v: VertexKey) -> Point3<T> {
+    body.point_of(v, crate::live::proven(&body.vertices, v, EntityId::Vertex))
 }
 
 /// The outcome of retiring a fully-joined null edge (`cut`):
@@ -1925,8 +1922,8 @@ fn chord_spec<T: Decide>(
                     what: "tangent classification carried a non-line",
                 });
             };
-            let p1 = vertex_point(body, u1)?;
-            let p2 = vertex_point(body, u2)?;
+            let p1 = vertex_point(body, u1);
+            let p2 = vertex_point(body, u2);
             let len = dir.norm();
             let t1 = (p1 - origin).dot(dir) / len.powi(2);
             let t2 = (p2 - origin).dot(dir) / len.powi(2);
@@ -1978,8 +1975,8 @@ fn chord_spec<T: Decide>(
         }
         SectionCase::Conic(c) => c,
     };
-    let p1 = vertex_point(body, u1)?;
-    let p2 = vertex_point(body, u2)?;
+    let p1 = vertex_point(body, u1);
+    let p2 = vertex_point(body, u2);
     // ---- The arc side (fn docs) ----
     //
     // By azimuth-window containment where the section's azimuth is
@@ -2229,8 +2226,8 @@ fn bool_planar_chord_spec<T: Decide>(
         }
         SectionCase::Conic(c) => c,
     };
-    let p1 = vertex_point(body, u1)?;
-    let p2 = vertex_point(body, u2)?;
+    let p1 = vertex_point(body, u1);
+    let p2 = vertex_point(body, u2);
     // ---- The arc side against the SUPPLIED (mate-face) window: the
     // shared rule, called with a window this lane did not derive. A
     // section with no monotone azimuth has no window to be handed. ----
@@ -2752,7 +2749,7 @@ pub(crate) fn cone_apex_closure<T: Decide>(
     let mut nappes = [false; 2];
     for (i, &he) in halves.iter().enumerate() {
         let v = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
-        let q = vertex_point(body, v)? - apex;
+        let q = vertex_point(body, v) - apex;
         let d = q.norm();
         reach = reach.max(d);
         if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
@@ -2858,7 +2855,7 @@ fn run_azimuth_images<T: Decide>(
                 // A walk that would is refused rather than pinned.
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
-                    let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
+                    let p = vertex_point(body, entry_v);
                     if decide("bool_cone_apex_visit", Margin::of((p - *apex).norm()), band)
                         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                         == Sign::Zero
@@ -2878,7 +2875,7 @@ fn run_azimuth_images<T: Decide>(
                 } = surface
                 {
                     let entry_v = he_data.start;
-                    let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
+                    let p = vertex_point(body, entry_v);
                     let d = (p - *center).dot(*axis);
                     match decide(
                         "split_sphere_window_pole",
@@ -3938,7 +3935,7 @@ fn ring_side<T: Decide>(
         LoopBoundary::Empty { vertex } => vec![vertex],
     };
     for v in vertices {
-        let p = vertex_point(body, v)?;
+        let p = vertex_point(body, v);
         match point_in_loop(body, run, normal, p, band)? {
             LoopContainment::OnBoundary => {}
             side => return Ok(side),
@@ -4020,7 +4017,7 @@ fn chart_ring_side<T: Decide>(
     // straight row to the next image's entry.
     let n = images.len();
     'vertex: for v in vertices {
-        let w = vertex_point(body, v)? - centre;
+        let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
         let v_p = w.dot(axis);
@@ -4093,7 +4090,7 @@ pub(crate) fn ring_representative<T: Decide>(
         }
         LoopBoundary::Empty { vertex } => vertex,
     };
-    vertex_point(body, v)
+    Ok(vertex_point(body, v))
 }
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

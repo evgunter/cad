@@ -307,19 +307,10 @@ impl<T: Decide> Body<T> {
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
             crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
-                |e| match e {
-                    crate::pcurves::SplitRowError::Stale { half_edge } => dangling_link(
-                        EntityId::Edge(edge),
-                        "half-edge",
-                        EntityId::HalfEdge(half_edge),
-                    ),
-                    crate::pcurves::SplitRowError::Certify { half_edge, error } => {
-                        EulerOpError::PcurveSplit {
-                            edge,
-                            half_edge,
-                            error,
-                        }
-                    }
+                |crate::pcurves::SplitRowError { half_edge, error }| EulerOpError::PcurveSplit {
+                    edge,
+                    half_edge,
+                    error,
                 },
             )?;
 

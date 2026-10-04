@@ -1074,12 +1074,12 @@ impl<T: Decide> Body<T> {
                             .rows
                             .loops
                             .iter()
-                            .filter_map(|(lk, cycle)| {
+                            .map(|(lk, cycle)| {
                                 let cycle = match rewired.iter().find(|(k, _)| k == lk) {
                                     Some((_, after)) => after.as_slice(),
-                                    None => cycle.as_deref()?,
+                                    None => cycle.as_slice(),
                                 };
-                                Some((*lk, cycle.iter().copied().map(site_half).collect()))
+                                (*lk, cycle.iter().copied().map(site_half).collect())
                             })
                             .collect();
                         body.site_face(*face, &every_loop, None)
@@ -2165,8 +2165,7 @@ mod tests {
     /// charts not yet moved.
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
         let rows: Vec<_> = body.vertex_points().collect();
-        for (v, p) in rows {
-            let mut p = p.unwrap();
+        for (v, mut p) in rows {
             if p.y == 0.0 {
                 p.y = -d;
             }

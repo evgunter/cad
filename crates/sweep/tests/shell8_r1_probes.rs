@@ -314,8 +314,8 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
 // ---------------------------------------------------------------------
 
 /// **Can the clone's solid order differ from the operand's?** The verb
-/// asserts `cavity_solids == solids == out_solids` and refuses
-/// `Corrupt`. Both are `body.clone()`, and a `SlotMap` clone preserves
+/// asserts `cavity_solids == solids == out_solids` (a `debug_assert!`).
+/// Both are `body.clone()`, and a `SlotMap` clone preserves
 /// slots and versions — so the assertion is a tautology on every body
 /// the verb can reach. Measured over a body whose solid arena has been
 /// churned: solids grafted in, one killed by the partition, more

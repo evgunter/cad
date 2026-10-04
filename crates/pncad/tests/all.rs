@@ -598,7 +598,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     ));
 
     // The two entity sums, matched by bare prelude name — the rung
-    // `DanglingRef`'s arms and three `BlendError` arms sit on.
+    // `ReadbackError::Dangling` and three `BlendError` arms sit on.
     assert_eq!(
         entity_and_geometry_sites_are_matchable(
             EntityId::Loop(LoopKey::default()),
@@ -3469,7 +3469,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
             .vertex_points()
-            .map(|(_, p)| p.unwrap())
+            .map(|(_, p)| p)
             .map(|p| p.x)
             .fold(f64::INFINITY, f64::min),
         other => panic!("an instance's value is a body, got {other:?}"),
@@ -4001,7 +4001,7 @@ fn asm2b_outer(
 fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
     let mut s = String::new();
     for (_, p) in body.vertex_points() {
-        s.push_str(&format!("{};", p.unwrap().x.to_bits()));
+        s.push_str(&format!("{};", p.x.to_bits()));
     }
     s
 }
@@ -4043,11 +4043,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
-            let mut v: Vec<f64> = b
-                .vertex_points()
-                .map(|(_, p)| p.unwrap())
-                .map(|p| p.x)
-                .collect();
+            let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }

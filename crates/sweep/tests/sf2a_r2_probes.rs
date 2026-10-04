@@ -156,7 +156,6 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let centroid = {
         let (mut x, mut y, mut z, mut n) = (0.0, 0.0, 0.0, 0.0);
         for (_, p) in chamfered.vertex_points() {
-            let p = p.unwrap();
             x += p.x;
             y += p.y;
             z += p.z;
@@ -450,14 +449,14 @@ fn r2a_zero_total_offset_reports_singular() {
         .collect();
     let before: Vec<(f64, f64, f64)> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     topo::offset_planes_together(&mut body, &moves, band(), tol)
         .expect("a zero offset is a no-move, not a singular corner");
     let after: Vec<(f64, f64, f64)> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     println!("[r2a] all-zero distances: {} points, unmoved", after.len());

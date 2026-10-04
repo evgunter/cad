@@ -111,7 +111,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     // Sort points: each null edge's coincident-copy position.
     let mut points = Vec::with_capacity(red.null_edges.len());
     for r in &red.null_edges {
-        points.push(vertex_point(&red.body, r.attr.below_end)?);
+        points.push(vertex_point(&red.body, r.attr.below_end));
     }
     let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
@@ -258,7 +258,7 @@ fn fixed_partners<T: Decide>(
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
             crossings.push(Crossing {
                 half: h,
-                point: vertex_point(body, start)?,
+                point: vertex_point(body, start),
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
@@ -718,8 +718,8 @@ impl<T: Decide> Sweep<T> {
             let (t0, t1) = curve.params();
             let span = t1 - t0;
             let forward = edge.he_plus == he;
-            let a_pt = vertex_point(body, he_data.start)?;
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?)?;
+            let a_pt = vertex_point(body, he_data.start);
+            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -804,10 +804,10 @@ impl<T: Decide> Sweep<T> {
             ))
         };
         let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
-            vertex_point(
+            Ok(vertex_point(
                 body,
                 body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
-            )
+            ))
         };
         for i in 0..n {
             let (inbound, outbound) = (hes[(i + n - 1) % n], hes[i]);
@@ -857,7 +857,7 @@ pub(super) fn loop_points_of<T: Decide>(
     l: LoopKey,
 ) -> Result<Vec<Point3<T>>, SplitJoinError> {
     let starts = loop_starts(body, l)?;
-    starts.into_iter().map(|v| vertex_point(body, v)).collect()
+    Ok(starts.into_iter().map(|v| vertex_point(body, v)).collect())
 }
 
 #[cfg(test)]

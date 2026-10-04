@@ -4414,14 +4414,15 @@ mod tests {
 
     /// **The re-mint is planned before the kill mutates.** The wall's
     /// far side has lost its curve entry, which neither the kill's plan
-    /// nor its gate reads; the null member's re-mint reads the wall
-    /// and refuses it, and the kill is not run: the body is deep
-    /// unchanged, every pcurve row included.
+    /// nor its gate reads; the null member's re-mint reads the wall and
+    /// panics naming the edge whose curve link dangles (D2 row 4), and
+    /// the kill is not run: the body is deep unchanged, every pcurve row
+    /// included.
     #[test]
-    fn a_refused_null_member_re_mint_leaves_the_body_untouched() {
-        let (mut body, face, _, toward_tip, listed) =
+    fn a_torn_null_member_re_mint_panics_before_the_kill() {
+        let (mut body, _, _, toward_tip, listed) =
             crate::test_support_fixtures::kill_under_a_null_strut(Tol::witness());
-        let side = body
+        let (edge, side) = body
             .edges()
             .find(|(_, e)| {
                 body.get_curve_geom(e.curve)
@@ -4431,16 +4432,19 @@ mod tests {
                             if (origin.x - 1.4f64.cos()).abs() < 1e-12)
                     })
             })
-            .map(|(_, e)| e.curve)
+            .map(|(k, e)| (k, e.curve))
             .unwrap();
         body.curves.remove(side).unwrap();
-        let refused = EulerOpError::PcurveMint {
-            face,
-            refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-        };
-        assert_err_deep_unchanged(&mut body, &refused, |b| {
-            b.kev_describing(toward_tip, &listed, Tol::witness())
-                .unwrap_err()
-        });
+        let premise = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(edge),
+            crate::entity::GeomRef::Curve(side)
+        );
+        assert_torn_op_panics(
+            "kev_describing",
+            &mut body,
+            &[premise.as_str(), ROW_FOUR],
+            |b| b.kev_describing(toward_tip, &listed, Tol::witness()),
+        );
     }
 }

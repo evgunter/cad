@@ -147,7 +147,6 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         .expect("the plate's top face");
     let mut records = topo::ContactRecords::default();
     for (vk, p) in body.vertex_points() {
-        let p = p.unwrap();
         let on_rim = (p.z - 1.0).abs() < 1e-9
             && ((p.x - 2.0).powi(2) + (p.y - 2.0).powi(2) - 0.25).abs() < 1e-9;
         if on_rim {

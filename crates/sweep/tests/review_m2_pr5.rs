@@ -40,7 +40,7 @@ fn valence(body: &Body<f64>, v: topo::VertexKey) -> usize {
 /// A vertex key by (approximate) world position.
 fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> topo::VertexKey {
     body.vertex_points()
-        .find(|(_, q)| q.unwrap().distance(p) < 1e-9)
+        .find(|(_, q)| q.distance(p) < 1e-9)
         .map(|(k, _)| k)
         .expect("vertex at position")
 }

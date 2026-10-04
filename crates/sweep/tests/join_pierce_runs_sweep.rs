@@ -283,7 +283,7 @@ fn pierce_runs_battery() {
 fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
     let at_v: Vec<_> = body
         .vertex_points()
-        .filter(|(_, p)| p.as_ref().is_ok_and(|p| [p.x, p.y, p.z] == V))
+        .filter(|(_, p)| [p.x, p.y, p.z] == V)
         .map(|(k, _)| k)
         .collect();
     let point = |k| body.get_vertex(k).unwrap().point;
@@ -515,7 +515,7 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
         assert!((got - want).abs() < 1e-9, "{op}: volume {got}, want {want}");
         let end = |he| {
             let k = bb.body.get_half_edge(he).unwrap().start;
-            let p = topo::readback::vertex_point_ref(&bb.body, k).unwrap();
+            let p = topo::readback::vertex_point(&bb.body, k).unwrap();
             (k, [p.x, p.y, p.z])
         };
         let ends: Vec<_> = bb
