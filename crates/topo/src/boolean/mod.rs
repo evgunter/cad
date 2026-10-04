@@ -5168,7 +5168,7 @@ mod tests {
         };
         // Lifts both refusals: a cap whose offset datum is infinite is
         // the row's premise, and no edge certifies against it.
-        a.set_face_surface_stranding_for_tests(fa, surface).unwrap();
+        a.set_face_surface_unvouched_for_tests(fa, surface).unwrap();
         let band = Band::linear(tol).unwrap();
         let err = verify_tangency_declaration(&a, fa, &b, fb, Tangency::Contact, band)
             .map(|_| ())

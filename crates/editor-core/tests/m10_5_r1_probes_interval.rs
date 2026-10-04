@@ -148,6 +148,7 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -441,6 +442,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
             ..ClearanceConfig::default()
         },
         oracle: &NoTangents,
+        resolver: None,
     };
     let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
     println!(
