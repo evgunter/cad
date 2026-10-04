@@ -75,10 +75,12 @@ the conic's two arcs, the one leaving its start along it
 
 Landed behind a cross-check: both selections side by side, refusing on
 any disagreement, over the full suite at three ε. The PR body has the
-counts. In-suite, the two disagreed in two classes, each time with the
-datum's body meeting its closed form: the run-side rule on a ball whose
-seam lies in the other operand's plane face (the die pips; a `y`-poled
-ball on a cylinder cap), and the window rule on a cylinder wall
-(`germ_coplanar_conic`'s tube strut). The phase-1 commit as written
+counts. In-suite, the two disagreed in two classes: the run-side rule
+on a ball whose seam lies in the other operand's plane face (the die
+pips; a `y`-poled ball on a cylinder cap), where the datum's chords
+build and the op then stops at the role read (`SectionLoopUndecided`)
+with no body; and the window rule on a cylinder wall
+(`germ_coplanar_conic`'s tube strut), where the datum's body meets its
+closed form. The phase-1 commit as written
 paired by chord length; run that way, a third class shows, a slab
 across a round boss, which the walk-order pairing removed.

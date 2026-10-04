@@ -20,10 +20,11 @@
 //!
 //! `bool_join_walk_site` answers `Zero` on every call for the pair's own
 //! two germs (each is a site of its own locus, at distance exactly
-//! zero), so that branch runs in every row. A THIRD site within the
-//! band of an end reaches it from no row: measured over the full suites
-//! of `topo`, `sweep`, `mesh`, `editor-core` and `step-import` and the
-//! tour at ε 1e-9, no walk check met one.
+//! zero), so that branch runs in every row. Another record's germ at an
+//! end's site reaches it too — a coincident copy, not between the two
+//! ends, so the pair stands:
+//! `run_walls_built::revolved_runs_build_one_wall_each` reaches it and
+//! builds every wall.
 //!
 //! The ball is the canonical full revolve about `y`, and the same ball
 //! with its pole turned off every axis; the turn moves no point of the
