@@ -40,3 +40,25 @@ off the coaxial pose, so the rotational-sense test does not apply as it
 stands; `geom_brep::cylinder_sphere_section` mints the rung-3 fitted
 chord this join would have to read (`join.rs`'s comment at the no-arm
 dispatch names "cyl×sphere's rung-3 fitted chords").
+
+## Built (branch `join/cylinder-sphere-frame`)
+
+`boolean::join::cs_transverse_frame` names the frame for a cylinder ×
+sphere germ pair off the cylinder's axis, after the declared-coaxial
+arm routes it to the general rung. With the sphere's centre `d` off the
+axis along `û`, cylinder radius `r` and sphere radius `R`, the section is
+one loop when `R < r + d` and turns once about the axis `û` through the
+sphere's centre (the projection's turn rate is
+`−r·rd·((cos θ − c₀)² + 1 − c₀²)/h`, of one sign whenever the loop
+exists); two loops when `R > r + d`, each a graph over the wall's
+circle, turning about the cylinder's axis. Two decided predicates:
+`bool_germ_frame_cs_offset` (only a definite offset names a frame; a
+coaxial pose keeps `NoArm`, as the hold requires) and
+`bool_germ_frame_cs_reach` (the walls' tangency, `R = r + d`, keeps
+`NoArm`; in band escalates).
+
+Every pose in the Measured section now passes the frame and the matcher
+and stops one door on, at the join's lane for the pair:
+`cylinder-sphere-germ-pair-has-no-join-lane`. The sweep for other germ
+pairs at `NoArm` filed `skew-cylinder-germ-pair-has-no-section-frame`
+and `torus-germ-pairs-have-no-section-frame`.
