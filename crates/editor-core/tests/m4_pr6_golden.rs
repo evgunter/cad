@@ -127,7 +127,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: arc_profile,
-                distance: Expr::param(VarName::from_static("depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -303,7 +303,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(
                 Node::measure(
                     editor_core::MeasureExpr::sub(
-                        editor_core::MeasureExpr::value(Expr::param(
+                        editor_core::MeasureExpr::value(Expr::named(
                             VarName::from_static("depth"),
                             Dimension::Length,
                         )),

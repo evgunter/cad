@@ -323,9 +323,9 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Expr::named(turn(), Dimension::Angle),
             },
         ),
     );

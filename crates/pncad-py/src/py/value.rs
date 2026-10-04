@@ -1197,7 +1197,7 @@ pub(crate) struct Evaluation {
     /// HERE because the answer must be as of the same document the
     /// evaluation is of; threading the doc back in per query would
     /// let the two drift.
-    params: d::ParamEnv<f64>,
+    params: d::VarEnv<f64>,
     /// The document the evaluation ran on, captured at `evaluate` for
     /// the same reason [`Self::params`] is — and this is the whole of
     /// what the kernel's `RunCtx` is: a run is a (document,
@@ -2532,7 +2532,7 @@ pub(crate) fn evaluate(
     let inner = py.detach(|| d::evaluate::<f64>(recipe, memo, &token, &opts, tol));
     Evaluation {
         inner,
-        params: doc.inner.param_env::<f64>(),
+        params: doc.inner.var_env::<f64>(),
         doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
     }

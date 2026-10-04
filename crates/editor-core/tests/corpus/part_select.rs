@@ -86,7 +86,7 @@ pub fn document() -> CorpusDoc {
     )));
     let cube = r.insert(Node::Extrude {
         profile: box_p,
-        distance: Expr::param(VarName::from_static(H), Dimension::Length),
+        distance: Expr::named(VarName::from_static(H), Dimension::Length),
         side: ExtrudeSide::Along,
     });
 

@@ -36,7 +36,7 @@ use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The pad's half-width and half-height, in metres.
@@ -147,7 +147,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,

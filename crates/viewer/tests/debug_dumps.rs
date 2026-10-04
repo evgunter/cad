@@ -34,12 +34,11 @@ fn a_summarised_presence_renders_as_an_elision_naming_what_is_there() {
     assert_eq!(session.pump(), vec![Landing::Landed]);
     // The plate's distance is driven by the `thickness` parameter, so
     // the gesture that moves it is the parameter's.
-    let begun = session.perform(SessionOp::BeginParamGesture {
-        name: common::thickness_param(),
-    });
+    let thickness = common::thickness_var(session.committed_doc());
+    let begun = session.perform(SessionOp::BeginParamGesture { var: thickness });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
     let previewed = session.perform(SessionOp::PreviewParamGesture {
-        name: common::thickness_param(),
+        var: thickness,
         value: 0.02,
     });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);

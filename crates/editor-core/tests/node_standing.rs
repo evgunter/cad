@@ -185,7 +185,7 @@ fn every_standing_renders_one_way_through_every_door() {
                     cmp: Cmp::Approx,
                     value: len(0.0),
                 }],
-                &s.doc.param_env::<f64>(),
+                &s.doc.var_env::<f64>(),
                 Tol::witness(),
             )
             .expect_err("a datum with no value");
@@ -429,7 +429,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
             cmp: Cmp::Approx,
             value: len(0.0),
         }],
-        &s.doc.param_env::<f64>(),
+        &s.doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect_err("a poisoned datum");

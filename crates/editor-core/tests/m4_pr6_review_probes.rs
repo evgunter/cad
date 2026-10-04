@@ -299,7 +299,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: p0,
-                distance: Expr::param(VarName::from_static("d"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

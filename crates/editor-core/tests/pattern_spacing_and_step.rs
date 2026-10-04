@@ -110,7 +110,7 @@ impl Built {
     fn refusal(&self) -> (NodeErrorClass, String) {
         let ev = eval::<f64>(&self.doc);
         match ev.result(self.node) {
-            Some(NodeResult::Failed(e)) => (e.kind.class(), e.to_string()),
+            Some(NodeResult::Failed(e)) => (e.kind.class(), e.spoken(&self.doc)),
             other => panic!("the pattern refuses, got {other:?}"),
         }
     }
@@ -127,6 +127,13 @@ impl Built {
             },
             other => panic!("the pattern refuses, got {other:?}"),
         }
+    }
+
+    /// A formula a refusal carries, as the document speaks it: a
+    /// reader is stored by its id, and said by the name the document
+    /// holds.
+    fn said(&self, formula: &editor_core::Expr) -> String {
+        editor_core::spoken::Speaker::of(&self.doc).formula(formula)
     }
 
     /// Each copy's centroid, in copy order; panics on any failure.
@@ -244,7 +251,7 @@ fn a_whole_number_of_turns_refuses_as_coinciding_copies() {
         ang(2.0 * TAU),
         ang(-3.0 * TAU),
     ] {
-        let shown = editor_core::unparse(&step);
+        let shown = editor_core::unparse(&step, &|_| None);
         let built = patterned(3, circular(step), false);
         let (_, text) = built.refusal();
         let (turns, evaluated) = built.full_range_step();
@@ -281,6 +288,7 @@ fn past_a_turn_the_recourse_is_one_angle_that_lands_every_copy() {
         let StepTurns::Within(named) = turns else {
             panic!("{step}: past a turn names an angle within one, got {turns:?}: {text}");
         };
+        let named = built.said(&named);
         assert!(!evaluated, "{step}: a literal is its own reading");
         if let Some(within) = within {
             assert_eq!(named, within, "{step}: {text}");
@@ -313,11 +321,10 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
         let (class, text) = built.refusal();
         assert_eq!(class, NodeErrorClass::FullRangeStep, "{step}: {text}");
         let (turns, evaluated) = built.full_range_step();
-        assert_eq!(
-            turns,
-            StepTurns::Within(within.to_owned()),
-            "{step}: {text}"
-        );
+        let StepTurns::Within(named) = turns else {
+            panic!("{step}: past a turn names an angle within one, got {turns:?}: {text}");
+        };
+        assert_eq!(built.said(&named), within, "{step}: {text}");
         assert!(evaluated, "{step}: a driven step carries its reading");
         assert!(
             text.contains(&format!("which evaluated to {radians} rad")),
@@ -458,7 +465,9 @@ fn the_refusals_carry_their_values() {
         panic!("a negative spacing, got {kind:?}");
     };
     assert_eq!(
-        reversed.each_ref().map(String::as_str),
+        reversed
+            .each_ref()
+            .map(|e| editor_core::unparse(e.as_ref().expect("within the bound"), &|_| None)),
         ["0.0", "-2.0", "0.0"],
         "the authored direction, negated"
     );

@@ -1033,8 +1033,9 @@ impl ParamBoxVerdict {
     /// the box's distributions, not of the verdict: a drive over a
     /// band-only box produces exactly the same masses as one over a
     /// uniform box, and only the box knows that none of them is a
-    /// probability ([`crate::report::MassBasis`]).
-    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+    /// probability ([`crate::report::MassBasis`]). Each variable a line
+    /// names is spoken from `doc`, the document the drive ran over.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>, analyzed: &AnalyzedBox) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
         let r = self.receipt;
@@ -1122,7 +1123,7 @@ impl ParamBoxVerdict {
         let _ = write!(
             s,
             "{}",
-            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+            crate::report::MassBudget::of(&self.accounting, analyzed).render(doc)
         );
         s
     }
@@ -1355,7 +1356,7 @@ pub fn drive(
         let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
         return Err(DriveRefusal::WitnessDoesNotBuild {
             node: doc.spoken(node),
             cause,

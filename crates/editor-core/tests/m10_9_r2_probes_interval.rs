@@ -48,7 +48,7 @@ use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -169,7 +169,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId, which: usize| {
             let mut faces = select_where(
                 &ev,
@@ -470,7 +470,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
             tol,
         )
         .expect("the link builds");
-        println!("== link, real study, {label}:\n{}", v.render(&analyzed));
+        println!(
+            "== link, real study, {label}:\n{}",
+            v.render(&doc, &analyzed)
+        );
     }
 
     // The ceiling, both ways.

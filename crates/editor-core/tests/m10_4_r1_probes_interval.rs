@@ -37,7 +37,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn eps() -> f64 {
@@ -863,7 +863,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
             assert_eq!(
                 blockers[0],
                 Unavailable::BandHasNoMeasure {
-                    param: doc.spoken_var(doc.var_named("h2").expect("declared"))
+                    var: doc.spoken_var(doc.var_named("h2").expect("declared"))
                 }
             );
         }
@@ -1015,11 +1015,11 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), editor_core::VarId(0)).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId(0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
-    let env = seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), a.var_named("h1").expect("h1"))
+    let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
     let mut ones = 0_usize;
     let mut zeros = 0_usize;

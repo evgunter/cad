@@ -23,7 +23,7 @@ use super::{MateFault, MateSide, PlacerRow};
 use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
 use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
-use crate::expr::ParamEnv;
+use crate::expr::VarEnv;
 use crate::names::{RoleSeg, VerbatimEdge};
 use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 
@@ -481,7 +481,7 @@ pub(super) fn walk_of<'r, P>(
 /// decided at the nominal in every run (`ASSEMBLY.md` A11 (5)).
 pub(super) fn check_reference<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
-    env: &ParamEnv<S>,
+    env: &VarEnv<S>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk<'_>,
@@ -709,7 +709,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// binds it.
 pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk<'_>,
@@ -787,7 +787,7 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     i: u32,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
 ) -> Result<Option<Affine3<T>>, Seated> {
     let here = |kind| Box::new((node, kind));
@@ -862,7 +862,7 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
 fn transform_map<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     node: RecipeNodeId,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     band: Band,
 ) -> Result<Affine3<T>, Seated> {
     let here = |kind| Box::new((node, kind));
@@ -879,7 +879,7 @@ fn transform_map<P: crate::ProfilePayload, T: Decide>(
 /// evaluation raises for it.
 fn node_slots<P: crate::ProfilePayload, T: Decide>(
     node: &Node<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
 ) -> Result<SlotValues<T>, NodeErrorKind> {
     eval_slots(node, env).map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })
 }
@@ -1083,7 +1083,7 @@ mod tests {
     /// **The derivation road's refusal**: the placer it names and the
     /// kind it carries.
     fn derivation(doc: &ProfileDoc, instance: RecipeNodeId) -> (RecipeNodeId, NodeRefusal) {
-        let env = doc.param_env::<f64>();
+        let env = doc.var_env::<f64>();
         let band = Band::linear(Tol::witness()).unwrap();
         let head = crate::FaceName::new(crate::names::StableName {
             kind: crate::names::EntityKind::Face,

@@ -365,10 +365,18 @@ fn the_hole_radii_are_addressable_slots() {
             "loop {loop_}'s radius should be addressable"
         );
     }
-    // Sanity: the helper builds the same loop the document carries.
+    // Sanity: the helper builds the same loop the document carries —
+    // its radius authored by name, and stored as a reader of the
+    // variable that name holds.
+    let circle = |lp: &editor_core::LoopProgram| match lp {
+        editor_core::LoopProgram::Circle { centre, radius } => {
+            (centre.clone(), s.doc.unparse(radius))
+        }
+        other => panic!("a hole is a circle, got {other:?}"),
+    };
     assert_eq!(
-        program.loops.get(1),
-        Some(&hole_loop(HOLE_CENTRES[0])),
+        program.loops.get(1).map(circle),
+        Some(circle(&hole_loop(HOLE_CENTRES[0]))),
         "the hole loop is the shared-parameter circle"
     );
 }

@@ -185,7 +185,7 @@ fn resolved_values_feed_the_key() {
                     plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(VarName::from_static("r"), Dimension::Length),
+                        radius: Expr::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -240,7 +240,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::param(VarName::from_static("cx"), Dimension::Length),
+                            Expr::named(VarName::from_static("cx"), Dimension::Length),
                             len(0.0),
                         ],
                         radius: len(0.5),
@@ -329,7 +329,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
 fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
-        vec![one_arc_chain(Expr::param(
+        vec![one_arc_chain(Expr::named(
             VarName::from_static("r"),
             Dimension::Length,
         ))],
@@ -367,7 +367,7 @@ fn a_straight_chain_respelled_keys_identically() {
     };
     let parameterized = doc_with_r(
         4.0,
-        vec![straight(Expr::param(
+        vec![straight(Expr::named(
             VarName::from_static("r"),
             Dimension::Length,
         ))],

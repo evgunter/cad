@@ -267,7 +267,7 @@ fn bolted(label: &str, slab_frame: MateFrame) -> Bolted {
             count: Expr::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: Expr::param(spacing(), Dimension::Length),
+                spacing: Expr::named(spacing(), Dimension::Length),
             },
         },
     );
@@ -313,7 +313,7 @@ fn lifted(label: &str) -> Lifted {
         Node::transform(
             bolt,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(gap(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(gap(), Dimension::Length)],
                 axis: [1.0, 0.0, 0.0].map(scl),
                 angle: ang(0.4),
             },
@@ -405,7 +405,7 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
             b: MateFrame::on_part(Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(rise(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(rise(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             }),
@@ -572,9 +572,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Expr::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -632,7 +632,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         axis: [0.0, 1.0, 0.0].map(scl),
         angle: ang(0.2),
     })
-    .eval(&doc.param_env::<f64>(), fixture::band())
+    .eval(&doc.var_env::<f64>(), fixture::band())
     .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
@@ -873,18 +873,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 ///
-/// Re-pinned at all three rows when declaring a variable began minting
-/// its id on the document's chain (INTENT-VARS-1 PR 2; its preimage is
-/// the variable's kind alone): every corpus document declares a
-/// variable, so every node minted after a declare was renumbered and the
-/// digest, which feeds ids, moved. No pose
-/// did: this file's id-free rows — each pose against the `f64` solve at
-/// the box's corners, each tangent against its central difference —
-/// held across the change untouched.
+/// The digest feeds node ids, so it moves whenever ids do — a declare
+/// extends the mint chain, and an insert's preimage holds its readers by
+/// variable id — with no pose moving: this file's id-free rows (each
+/// pose against the `f64` solve at the box's corners, each tangent
+/// against its central difference) are what say so.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb153_489f_9dd3_2b7c),
-    (1e-6, 0xd0bb_1a90_cc72_c974),
-    (1e-12, 0x38fb_a2c0_f9e0_65a3),
+    (1e-9, 0xf48f_16a4_8637_1664),
+    (1e-6, 0x0ac7_65d7_0799_cca4),
+    (1e-12, 0x9fb4_cf13_44e6_9ea8),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -1123,7 +1120,7 @@ fn assert_pose_encloses_corners(
         var_of(doc, &param),
         BoxAxis::Varying { lo, hi },
     )]));
-    let env = editor_core::param_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
+    let env = editor_core::var_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
     let reach = editor_core::mate_reach::<Interval>(opts, Tol::witness());
     let poses = editor_core::mate::solve_document_at(doc, &env, &reach, Tol::witness());
     assert!(
@@ -1399,12 +1396,12 @@ fn slid(label: &str) -> Slid {
     let doc = declare(doc, spin(), SPIN, Dimension::Angle);
     let frame = MateFrame::on_part(Step::Rigid {
         translation: [
-            Expr::param(slide(), Dimension::Length),
+            Expr::named(slide(), Dimension::Length),
             len(3.0),
             len(SLAB_HEIGHT),
         ],
         axis: [0.0, 0.0, 1.0].map(scl),
-        angle: Expr::param(spin(), Dimension::Angle),
+        angle: Expr::named(spin(), Dimension::Angle),
     });
     let (doc, mate) = insert(
         doc,

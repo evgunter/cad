@@ -189,7 +189,7 @@ at the lane scalar.
 - Pass 1 (`prepare_profile`): resolve at f64, `replay_recording`,
   `validate_recording`, `derive_naming`, emitting the structure record.
 - Pass 2 (`lane_profile`, under `ProfileLift::Guided`): resolve the same
-  program at `ParamEnv<T>`; `replay_guided` and `validate_guided` consume every
+  program at `VarEnv<T>`; `replay_guided` and `validate_guided` consume every
   discrete decision from the record and re-run its predicate at `T`.
 
 Agreement proceeds. An indeterminate refuses
