@@ -49,6 +49,13 @@ pub(crate) const EXIT_DEPTH: u32 = 40;
 /// no piece can isolate.
 pub(crate) const EXIT_CUT: f64 = 0.5 - 1.0 / 128.0;
 
+/// How wide across an edge the strip is that an edge piece's derivative
+/// is read over, as a fraction of the piece's length. A choice: small
+/// enough that the derivative's variation across the strip stays below
+/// the slack a band-thin `φ` along the edge leaves, and the strip is
+/// never under two ulps of the edge's coordinate.
+pub(crate) const EXIT_STRIP: f64 = 1.0 / 1_073_741_824.0;
+
 /// The most pieces one box's walk examines.
 pub(crate) const EXIT_PIECES: u32 = 4096;
 
@@ -142,14 +149,17 @@ fn edge_runs<T: CertifiedBounds>(
         if *pieces > EXIT_PIECES {
             return None;
         }
-        // The derivative over a strip as wide across the edge as the
-        // piece is long: a net is cut only to a rectangle of positive
-        // width, so a strip of none would read the whole span cell's.
-        let w = t - s;
+        // The derivative over a strip across the edge: of positive width,
+        // since a net is cut only to a rectangle that has one and a strip
+        // of none would read the whole span cell's, and thin beside the
+        // piece, since the derivative along the edge varies across it and
+        // a wide strip would read that variation into the slope.
+        let w = (t - s) * EXIT_STRIP;
+        let across = ((c - w).min(c.next_down()), (c + w).max(c.next_up()));
         let (r0, r1, r2, r3) = if along_u {
-            (s, t, c - w, c + w)
+            (s, t, across.0, across.1)
         } else {
-            (c - w, c + w, s, t)
+            (across.0, across.1, s, t)
         };
         let d = boxes.deriv_box(r0, r1, r2, r3, along_u);
         let slope = n[0] * d.x + n[1] * d.y + n[2] * d.z;
@@ -828,6 +838,62 @@ mod tests {
         assert!(
             matches!(krawczyk(&p1, &p2, inside, (0, 1)), Some(Krawczyk::One(_))),
             "the control: a piece holding the solution inside accepts it"
+        );
+    }
+
+    /// A wall of degree 1 in `u` with a knot at `u = ½`, so `C0` across
+    /// it, and biquadratic `y`: `z = g + h` from the Bernstein ordinates
+    /// of each.
+    fn kinked(g: [f64; 3], h: [f64; 3]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = (0..9)
+            .map(|i| {
+                Point3::new(
+                    0.5 * f64::from(i / 3),
+                    0.5 * f64::from(i % 3),
+                    g[(i / 3) as usize] + h[(i % 3) as usize],
+                )
+            })
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A kink that dips through an edge hides two crossings.** On a
+    /// `C0` wall, `z = 0.1·|x − ½| − δ − (y − 0.2)` meets the edge
+    /// `y = 0.2` of `[0, 1] × [0.2, 1]` twice, `20δ` apart about the kink.
+    /// At δ = 1e-14 the piece holding both is unresolved at the depth
+    /// cut, well under the piece cap since the kink's slopes are ±0.1,
+    /// and the walk refuses. Red under the edge walk's depth cut
+    /// dropping its piece, which counts the boundary's other two zeros
+    /// as one arc's ends. (The verifier's fixture.)
+    #[test]
+    fn a_kink_dipping_through_an_edge_resolves_no_count() {
+        let delta = 1e-14;
+        let wall = kinked([0.05 - delta, -delta, 0.05 - delta], [0.2, -0.3, -0.8]);
+        let boxes = NurbsBoxes::new(&wall);
+        assert_eq!(
+            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
+            None
+        );
+    }
+
+    /// **A kink touching an edge is no crossing.** The same `C0` wall
+    /// with `z = 0.1·|x − ½| + (y − 0.2)(0.6 − y)` touches the edge
+    /// `y = 0.2` at the kink from above. Red under the edge walk's depth
+    /// cut dropping its piece. (The verifier's fixture.)
+    #[test]
+    fn a_kink_touching_an_edge_resolves_no_count() {
+        let wall = kinked([0.05, 0.0, 0.05], [-0.12, 0.28, -0.32]);
+        let boxes = NurbsBoxes::new(&wall);
+        assert_eq!(
+            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.1, 1.0))),
+            Some(4),
+            "the control: the edge below cuts the V twice, the arc twice"
+        );
+        assert_eq!(
+            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
+            None
         );
     }
 }
