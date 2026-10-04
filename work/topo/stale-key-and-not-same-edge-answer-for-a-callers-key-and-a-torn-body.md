@@ -108,11 +108,19 @@ today.
      `FanOrbitBroken`, `LoopNotCycle`, `EmptyAnchorsCollide`,
      `KillLeavesDangling`, `NotOwned`, `PcurveMint::Corrupt`,
      `readback::DanglingRef::Geometry`, `ShellError::Corrupt`,
-     `ReplaceFaceError::Corrupt`, and the boolean's `corrupt_at`.
+     `ReplaceFaceError::Corrupt`, the boolean's `corrupt_at`, and the
+     graft's torn-source `JoinDesync` ("graft source is not a well-formed
+     body", `combine.rs`), which `voids.rs`'s `_ =>` arm still answers as
+     "D9: never a panic on an error path" (PR 4022's review, NOTE-3).
    The proofs behind them stay; only the reaction changes.
 2. **An argument miss stays typed (row 1):** `EulerOpError::Argument(BadArgument)`
    with `Stale { role, key }` and `NotMates { he1, he2 }`. It states the
    fact, with no defect claim and no recourse.
+   This includes the graft's dead *destination* solid, a caller's key that
+   PR 4022 refuses as `JoinDesync` (`combine.rs` `graft_staged`, "graft
+   destination solid does not resolve"). At the void doors that becomes
+   `VoidInsertError::Corrupt`, the same variant as a torn cavity. It splits
+   off into the argument class (PR 4022's review, MINOR-1).
 3. **One crate-internal lookup takes the key's source** (`KeyFrom::Arg(role)`
    or `KeyFrom::Link { holder, link }`), so no site resolves a key without
    saying where it came from. `Walk::Broken` names the hop that failed.

@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P3
 cost: E
+design: true
 ---
 
 
@@ -41,3 +42,16 @@ or one over the source before the transplant, would make the door's sweep
 O(src). Whether a door may sweep less than the whole body is D1's
 once-per-door ruling (`work/perf/d1-per-op-tier1-sweep-price.md`), so a change
 here goes back through that ruling.
+
+## Note (PR 4022's review, NOTE-2)
+
+This quadratic is introduced by PR 4022: on base the keyed graft swept
+nothing. `step_import::import_step` and editor-core's `wire.rs` lowering,
+one graft per copy, now pay O(N²) wherever debug assertions are on, which
+until publish includes release. Measured at about 0.30 s for N=100 and
+7.0 s for N=400 `declined_cube`s.
+
+Its fix changes where D1's per-door tier-1 sweep runs, so it is a design
+question for D1 (Ev's PR 2305 ruling). It goes to Ev before it is built.
+The `Recertify` arm's per-curve `src.edges.iter().find(..)` is also O(E²)
+per graft. That predates this unit and belongs on this row.
