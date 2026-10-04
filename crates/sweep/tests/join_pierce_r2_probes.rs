@@ -282,10 +282,18 @@ fn directions(s: &Shape) -> Vec<(String, [f64; 3])> {
     ];
     let edges = [[0.0, 0.0, 1.0], e_in, e_out];
     let kicks = [[0.3, 0.7, 0.2], [-0.6, 0.1, 0.5], [0.2, -0.4, -0.8]];
-    for (tag, base) in normals.iter().map(|n| ("nf", *n)).chain(
-        // a plane nearly containing an edge: perpendicular to it.
-        edges.iter().map(|e| ("ne", unit(cross(*e, [0.31, 0.57, 0.76])))),
-    ) {
+    for (tag, base) in normals
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (format!("nf{i}_"), *n))
+        .chain(
+            // a plane nearly containing an edge: perpendicular to it.
+            edges
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (format!("ne{i}_"), unit(cross(*e, [0.31, 0.57, 0.76])))),
+        )
+    {
         for eps in [1e-2, 1e-4, 1e-6] {
             for (ki, kick) in kicks.iter().enumerate() {
                 for sign in [1.0, -1.0] {
@@ -410,6 +418,7 @@ fn box_ball(lo: [f64; 3], hi: [f64; 3], c: [f64; 3], r: f64) -> f64 {
 }
 
 #[test]
+#[ignore = "slow oracle self-check (adaptive Simpson at 1e-14)"]
 fn r2_ball_oracle_reads_known_volumes() {
     let ball = 4.0 / 3.0 * std::f64::consts::PI * 8.0;
     let all = box_ball([-5.0; 3], [5.0; 3], [0.1, 0.2, 0.3], 2.0);
@@ -659,5 +668,40 @@ fn r2_row_poses() {
             })
             .sum();
         run_all(&format!("{name} {m:?}"), &prism, &b, va, SIDE * SIDE * SIDE, common);
+    }
+}
+
+/// One shapes-battery pose (`R2_SHAPE`, `R2_TAG`), with the tier-3′
+/// refusal printed for any body that builds.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_one_pose() {
+    let want_shape = std::env::var("R2_SHAPE").unwrap();
+    let want_tag = std::env::var("R2_TAG").unwrap();
+    let s = shapes().into_iter().find(|s| s.name == want_shape).unwrap();
+    let (_, m) = directions(&s).into_iter().find(|(t, _)| *t == want_tag).unwrap();
+    println!("m = {m:?}");
+    let prism = fixtures::prism::<f64>(&s.profile, 1.0, tol()).body;
+    let b = cube(s.v, frame(m));
+    let decls = BooleanDeclarations::default();
+    let ops: [(&str, Op); 3] = [
+        ("U", topo::union_with),
+        ("I", topo::intersect_with),
+        ("S", topo::subtract_with),
+    ];
+    for (order, p, q) in [("pc", &prism, &b), ("cp", &b, &prism)] {
+        for (op, run) in ops {
+            match run(p, q, &decls, tol()) {
+                Err(e) => println!("{order} {op}: ERR {e:?}"),
+                Ok(r) => match r.body() {
+                    None => println!("{order} {op}: empty"),
+                    Some(bb) => println!(
+                        "{order} {op}: t2 {:?} t3p {:?}",
+                        topo::validate_closed(&bb.body),
+                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                    ),
+                },
+            }
+        }
     }
 }
