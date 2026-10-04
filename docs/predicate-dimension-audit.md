@@ -412,6 +412,7 @@ which is what actually moves the number.
 | ssi/section.rs (`decide_crossing`) | ssi_boundary_crossing | `|dφ/ds|` at a root (a sine: metres of plane distance per metre along the curve) × arm | m | OK |
 | ssi/boundary.rs (`Pass::run`) | ssi_boundary_corner | `|n·(P_corner − p₀)|`, the corner control point's plane distance | m | OK |
 | ssi/boundary.rs (`side_region`) | ssi_boundary_strip | inf of the wall's slope across a side (metres per chart unit) over the sup chart speed (a sine) × arm | m | OK |
+| ssi/refine.rs (`halve`) | ssi_refine_halving | half a sample gap's chord, the step a halving would leave | m | OK |
 | ssi/ends.rs (`short_refusal`) | ssi_short_branch | a Hermite candidate's length over `SHORT_BRANCH_STEPS`, the step it would be marched at | m | OK |
 | ssi/march.rs (`march`; `SlabExit`, the ℝ³ lane, for the open end) | ssi_step_progress / branch_open_end / closure_return | state × (m/state); scaled domain margins | m | OK |
 | ssi/march.rs (`march`) | ssi_closure_tangent | cos(unit tangents) × whole-branch arc length | m | FLAG F9 |
