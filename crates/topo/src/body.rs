@@ -121,6 +121,12 @@ pub(crate) enum Walk {
     Overrun,
 }
 
+/// The premise a walk that does not close breaks: every such panic
+/// names it ([`Walk::closed`]), and the rows that drive a torn body
+/// match on it.
+pub(crate) const WALKS_CLOSE: &str =
+    "every public door keeps the body tier-1-valid, where every such walk closes";
+
 impl Walk {
     /// The members of a walk a tier-1-valid body closes: the `what` walk
     /// from `first`, which every public door keeps closing (each `next`
@@ -133,13 +139,11 @@ impl Walk {
             Self::Closed(members) => members,
             Self::Broken { at } => unreachable!(
                 "the {what} walk from {first:?} breaks at {at:?}: its step from there does not \
-                 resolve or leaves the walk, and every public door keeps the body tier-1-valid, \
-                 where every such walk closes"
+                 resolve or leaves the walk, and {WALKS_CLOSE}"
             ),
             Self::Overrun => unreachable!(
                 "the {what} walk from {first:?} does not close within the half-edge arena's \
-                 length, and every public door keeps the body tier-1-valid, where every such \
-                 walk closes"
+                 length, and {WALKS_CLOSE}"
             ),
         }
     }

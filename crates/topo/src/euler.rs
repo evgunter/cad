@@ -22,7 +22,7 @@
 //!   Every public door keeps the body tier-1-valid (what
 //!   [`fn@crate::validate`] accepts), so the operators read the body's
 //!   records as sound. Every lookup says where its key came from
-//!   (`KeyFrom`): a key the caller passed that does not
+//!   (`live::KeySource`): a key the caller passed that does not
 //!   resolve is the caller's typed refusal ([`EulerOpError::Argument`]);
 //!   a failed read through a record the body holds — a `next`, a
 //!   `parent_loop`, a mate slot, a walk that does not close, a record
@@ -261,7 +261,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::{KeyFrom, Live, dangling_link, link, linked, lookup, proven, require_key};
+use crate::live::{Arg, KeySource, Live, dangling_link, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
@@ -2368,14 +2368,14 @@ impl<T: Decide> Body<T> {
         // the moved run's own carriers against the endpoints the move
         // gives them.
         let p_old =
-            self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(plan.he1.key()), "start"))?;
+            self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(plan.he1.key()), "start"));
         let certified =
             self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
             &[plan.he1_loop, plan.he2_loop],
-            |body| body.mev_fan_site(&plan),
+            |body| Ok(body.mev_fan_site(&plan)),
             &certified,
             tol,
         )?;
@@ -2394,7 +2394,7 @@ impl<T: Decide> Body<T> {
     /// `he_plus` lands before `he1`, `he_minus` before `he2` (both
     /// before `he1`, plus first, for a strut), and every loop keeps its
     /// `first`.
-    fn mev_fan_site(&self, plan: &MevFanPlan) -> Result<Vec<SiteFace<T>>, EulerOpError> {
+    fn mev_fan_site(&self, plan: &MevFanPlan) -> Vec<SiteFace<T>> {
         let (he1, he2) = (plan.he1.key(), plan.he2.key());
         let strut: [SiteHalf; 2] = [SiteHalf::NewPlus, SiteHalf::NewMinus];
         let mut rewired: Vec<(LoopKey, Vec<SiteHalf>)> = Vec::new();
@@ -2428,10 +2428,10 @@ impl<T: Decide> Body<T> {
             )
             .face;
             if faces.iter().all(|f| f.rows_from != face) {
-                faces.push(self.site_face(face, &rewired, None)?);
+                faces.push(self.site_face(face, &rewired, None));
             }
         }
-        Ok(faces)
+        faces
     }
 
     /// [`MevSite::Fan`]'s precondition block, shared by [`Body::mev`]
@@ -2454,16 +2454,16 @@ impl<T: Decide> Body<T> {
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
     ) -> Result<MevFanPlan, EulerOpError> {
-        let (he1_live, he1_data) = self.resolve_half_edge_live(he1, KeyFrom::Arg("he1"))?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1, Arg("he1"))?;
         let (v, he1_prev, he1_loop) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
-        let (he2_live, he2_data) = self.resolve_half_edge_live(he2, KeyFrom::Arg("he2"))?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2, Arg("he2"))?;
         let (he2_start, he2_prev, he2_loop) = (he2_data.start, he2_data.prev, he2_data.parent_loop);
         if he2_start != v {
             return Err(EulerOpError::FanStartMismatch { he1, he2 });
         }
         // The point is the certification's start endpoint (he_plus runs
         // old → new).
-        let point = self.resolve_vertex_point_key(v, link(EntityId::HalfEdge(he1), "start"))?;
+        let point = self.resolve_vertex_point_key(v, link(EntityId::HalfEdge(he1), "start"));
         // The clockwise run [he1 .. he2): members of the next(mate(·))
         // orbit walk (bounded, D9; every member starts at v), empty for
         // a strut.
@@ -2478,8 +2478,8 @@ impl<T: Decide> Body<T> {
         let run = orbit[..position].to_vec();
         // The splice writes through both prev links; prove them now so
         // the mutation below cannot fail midway (atomicity).
-        let he1_prev = self.require_live(he1_prev, link(EntityId::HalfEdge(he1), "prev"))?;
-        let he2_prev = self.require_live(he2_prev, link(EntityId::HalfEdge(he2), "prev"))?;
+        let he1_prev = self.require_live(he1_prev, link(EntityId::HalfEdge(he1), "prev"));
+        let he2_prev = self.require_live(he2_prev, link(EntityId::HalfEdge(he2), "prev"));
         assert!(
             self.orbit_inverts(&orbit),
             "the orbit walk from {he1:?} does not walk back by mate(prev(·)): on a \
@@ -2600,7 +2600,7 @@ impl<T: Decide> Body<T> {
     {
         // ---- Preconditions. ----
         let (v, _) = self.mev_lone_plan(loop_key)?;
-        let p_old = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"))?;
+        let p_old = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"));
         // ---- Geometry gate (still no mutation). ----
         let certified =
             self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
@@ -2611,7 +2611,7 @@ impl<T: Decide> Body<T> {
             |body| {
                 let face = proven(&body.loops, loop_key, EntityId::Loop).face;
                 let halves = vec![SiteHalf::NewPlus, SiteHalf::NewMinus];
-                Ok(vec![body.site_face(face, &[(loop_key, halves)], None)?])
+                Ok(vec![body.site_face(face, &[(loop_key, halves)], None)])
             },
             &certified,
             tol,
@@ -2636,13 +2636,13 @@ impl<T: Decide> Body<T> {
         &self,
         loop_key: LoopKey,
     ) -> Result<(VertexKey, PointKey), EulerOpError> {
-        let loop_data = lookup(&self.loops, loop_key, EntityId::Loop, KeyFrom::Arg("loop"))?;
+        let loop_data = lookup(&self.loops, loop_key, EntityId::Loop, Arg("loop"))?;
         let LoopBoundary::Empty { vertex: v } = loop_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
         Ok((
             v,
-            self.resolve_vertex_point_key(v, link(EntityId::Loop(loop_key), "boundary"))?,
+            self.resolve_vertex_point_key(v, link(EntityId::Loop(loop_key), "boundary")),
         ))
     }
 
@@ -2748,9 +2748,9 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let (he1_live, he1_data) = self.resolve_half_edge_live(he1, KeyFrom::Arg("he1"))?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1, Arg("he1"))?;
         let (u1, he1_prev) = (he1_data.start, he1_data.prev);
-        let (he2_live, he2_data) = self.resolve_half_edge_live(he2, KeyFrom::Arg("he2"))?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2, Arg("he2"))?;
         let (u2, he2_prev) = (he2_data.start, he2_data.prev);
         let loop_key =
             shared_loop(&he1_data, &he2_data).ok_or(EulerOpError::NotSameLoop { he1, he2 })?;
@@ -2785,8 +2785,8 @@ impl<T: Decide> Body<T> {
         self.require_run_of(run.iter().copied(), loop_key, RunExtent::Part, &[]);
         // The splice writes through both prev links; prove them now so
         // the mutation below cannot fail midway (atomicity).
-        let he1_prev = self.require_live(he1_prev, link(EntityId::HalfEdge(he1), "prev"))?;
-        let he2_prev = self.require_live(he2_prev, link(EntityId::HalfEdge(he2), "prev"))?;
+        let he1_prev = self.require_live(he1_prev, link(EntityId::HalfEdge(he1), "prev"));
+        let he2_prev = self.require_live(he2_prev, link(EntityId::HalfEdge(he2), "prev"));
         let face_data = linked(
             &self.faces,
             face_key,
@@ -2801,11 +2801,11 @@ impl<T: Decide> Body<T> {
             shell_key,
             EntityId::Shell,
             link(EntityId::Face(face_key), "shell"),
-        )?;
-        let p1 = self.resolve_vertex_point(u1, link(EntityId::HalfEdge(he1), "start"))?;
+        );
+        let p1 = self.resolve_vertex_point(u1, link(EntityId::HalfEdge(he1), "start"));
         // he_minus is minted with start = u2; its point is the
         // certification's end endpoint (he_plus runs u1 → u2).
-        let p2 = self.resolve_vertex_point(u2, link(EntityId::HalfEdge(he2), "start"))?;
+        let p2 = self.resolve_vertex_point(u2, link(EntityId::HalfEdge(he2), "start"));
         // ---- Geometry gates (still no mutation). ----
         // A fragment is a piece of the parent's region, so on the
         // parent's chart it takes the parent's bit. The run's rows are
@@ -2854,7 +2854,7 @@ impl<T: Decide> Body<T> {
                     face_key,
                     &[(loop_key, with(SiteHalf::NewPlus, old_side))],
                     None,
-                )?;
+                );
                 let new = body.new_site_face(
                     face_key,
                     &surface,
@@ -2959,12 +2959,12 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let loop_data = lookup(&self.loops, loop_key, EntityId::Loop, KeyFrom::Arg("loop"))?;
+        let loop_data = lookup(&self.loops, loop_key, EntityId::Loop, Arg("loop"))?;
         let LoopBoundary::Empty { vertex: v } = loop_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
         let face_key = loop_data.face;
-        let anchor = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"))?;
+        let anchor = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"));
         let face_data = linked(
             &self.faces,
             face_key,
@@ -2979,7 +2979,7 @@ impl<T: Decide> Body<T> {
             shell_key,
             EntityId::Shell,
             link(EntityId::Face(face_key), "shell"),
-        )?;
+        );
         // ---- Geometry gates (still no mutation): the new face's bit
         // and chart as the Chords site decides them, then the self-loop
         // edge, which closes at the lone vertex — both endpoints are
@@ -3009,7 +3009,7 @@ impl<T: Decide> Body<T> {
         let rows = self.plan_site_rows(
             &[loop_key],
             |body| {
-                let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None)?;
+                let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None);
                 let new =
                     body.new_site_face(face_key, &surface, !carried, vec![SiteHalf::NewMinus])?;
                 Ok(vec![old, new])
@@ -3068,18 +3068,18 @@ impl<T: Decide> Body<T> {
     // ------------------------------------------------------------------
 
     /// Resolves a half-edge, copying out its fields, its miss answered
-    /// as `from` says ([`KeyFrom::miss`]).
+    /// as `from` says ([`KeySource`]).
     ///
     /// An operator that also splices through the key wants
     /// [`Body::resolve_half_edge_live`], which is this lookup keeping
     /// the proof it earns rather than re-earning it.
     #[track_caller]
-    pub(crate) fn resolve_half_edge(
+    pub(crate) fn resolve_half_edge<S: KeySource>(
         &self,
         he: HalfEdgeKey,
-        from: KeyFrom,
-    ) -> Result<HalfEdge, EulerOpError> {
-        self.resolve_half_edge_live(he, from).map(|(_, data)| data)
+        from: S,
+    ) -> S::Answer<HalfEdge> {
+        S::map(self.resolve_half_edge_live(he, from), |(_, data)| data)
     }
 
     /// Proves that `he`, a half-edge a kill anchors `v` at, read one
@@ -3384,12 +3384,20 @@ impl<T: Decide> Body<T> {
     /// Where any hop past `he` fails: on a tier-1-valid body the edge ↔
     /// half-edge bijection holds.
     #[track_caller]
-    pub(crate) fn proven_mate(
+    pub(crate) fn proven_mate<S: KeySource>(
         &self,
         he: HalfEdgeKey,
-        from: KeyFrom,
-    ) -> Result<ProvenMate<'_>, EulerOpError> {
-        let he_data = self.resolve_half_edge(he, from)?;
+        from: S,
+    ) -> S::Answer<ProvenMate<'_>> {
+        S::map(self.resolve_half_edge(he, from), |he_data| {
+            self.mate_of(he, he_data)
+        })
+    }
+
+    /// [`Body::proven_mate`] past its first lookup: `he` resolved to
+    /// `he_data`, and every hop from there is a link.
+    #[track_caller]
+    fn mate_of(&self, he: HalfEdgeKey, he_data: HalfEdge) -> ProvenMate<'_> {
         let edge = he_data.edge;
         let edge_data = linked(
             &self.edges,
@@ -3414,13 +3422,13 @@ impl<T: Decide> Body<T> {
         )
         .clone();
         require_halves(edge, edge_data, he, (mate, mate_data.edge));
-        Ok(ProvenMate {
+        ProvenMate {
             he_data,
             edge,
             edge_data,
             mate,
             mate_data,
-        })
+        }
     }
 
     /// Proves that no half-edge but `halves`, the two a kill removes with
@@ -3603,19 +3611,21 @@ impl<T: Decide> Body<T> {
 
     /// Resolves a vertex's point coordinates (the certification gate's
     /// endpoints): the vertex's miss answered as `from` says
-    /// ([`KeyFrom::miss`]), and its point's, a link the vertex holds, a
+    /// ([`KeySource`]), and its point's, a link the vertex holds, a
     /// panic.
     #[track_caller]
-    pub(crate) fn resolve_vertex_point(
+    pub(crate) fn resolve_vertex_point<S: KeySource>(
         &self,
         vertex: VertexKey,
-        from: KeyFrom,
-    ) -> Result<Point3<T>, EulerOpError> {
-        let v = lookup(&self.vertices, vertex, EntityId::Vertex, from)?;
-        match self.points.get(v.point) {
-            Some(point) => Ok(*point),
-            None => dangling_link(EntityId::Vertex(vertex), "point", GeomRef::Point(v.point)),
-        }
+        from: S,
+    ) -> S::Answer<Point3<T>> {
+        S::map(
+            lookup(&self.vertices, vertex, EntityId::Vertex, from),
+            |v| {
+                *link(EntityId::Vertex(vertex), "point")
+                    .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
+            },
+        )
     }
 
     /// `face`'s chart, a link its record holds.
@@ -3631,7 +3641,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
-    /// names, which cannot miss.
+    /// names.
     #[track_caller]
     pub(crate) fn linked_vertex_point(
         &self,
@@ -3639,22 +3649,20 @@ impl<T: Decide> Body<T> {
         holder: EntityId,
         field: &'static str,
     ) -> Point3<T> {
-        match self.resolve_vertex_point(vertex, link(holder, field)) {
-            Ok(point) => point,
-            Err(_) => unreachable!("a link's miss panics in the lookup"),
-        }
+        self.resolve_vertex_point(vertex, link(holder, field))
     }
 
     /// The key of a vertex's point, both resolving, with the misses
     /// answered as [`Body::resolve_vertex_point`] answers them.
     #[track_caller]
-    pub(crate) fn resolve_vertex_point_key(
+    pub(crate) fn resolve_vertex_point_key<S: KeySource>(
         &self,
         vertex: VertexKey,
-        from: KeyFrom,
-    ) -> Result<PointKey, EulerOpError> {
-        self.resolve_vertex_point(vertex, from)?;
-        Ok(self.vertices[vertex].point)
+        from: S,
+    ) -> S::Answer<PointKey> {
+        S::map(self.resolve_vertex_point(vertex, from), |_| {
+            self.vertices[vertex].point
+        })
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
@@ -3965,7 +3973,7 @@ impl<T: Decide> Body<T> {
         if let FaceSurface::Shared { key, .. } = spec
             && !self.surfaces.contains_key(*key)
         {
-            return Err(KeyFrom::Arg("surface").miss_geometry(GeomRef::Surface(*key)));
+            return Err(Arg("surface").miss_geometry(GeomRef::Surface(*key)));
         }
         let on_parent_chart = self.same_chart_spec(parent_surface, spec);
         let derived = match side {
@@ -4102,7 +4110,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let read = touched
             .iter()
-            .map(|&lk| Ok(proven(&self.loops, lk, EntityId::Loop).face));
+            .map(|&lk| proven(&self.loops, lk, EntityId::Loop).face);
         self.plan_site_mint_of(read, faces, curves, Some(tol))
     }
 
@@ -4128,9 +4136,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// In this order, per face of `read` as it is reached: what `read`
-    /// raises naming it, then, on a chart that mints, a half of it does
-    /// not resolve ([`EulerOpError::PcurveMint`] naming the face); then,
+    /// In this order, per face of `read` as it is reached: on a chart
+    /// that mints, a half of it does not resolve ([`EulerOpError::PcurveMint`] naming the face); then,
     /// only when a face is read further, what `faces` raises; then
     /// [`EulerOpError::PcurveMint`] naming the face.
     ///
@@ -4141,7 +4148,7 @@ impl<T: Decide> Body<T> {
     /// ([`crate::pcurves::site_rows_from`]).
     pub(crate) fn plan_site_mint_of(
         &self,
-        read: impl IntoIterator<Item = Result<FaceKey, EulerOpError>>,
+        read: impl IntoIterator<Item = FaceKey>,
         faces: impl FnOnce(
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
@@ -4152,7 +4159,6 @@ impl<T: Decide> Body<T> {
         let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
         let mut seen: Vec<FaceKey> = Vec::new();
         for face in read {
-            let face = face?;
             if seen.contains(&face) {
                 continue;
             }
@@ -4216,7 +4222,7 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
-    ) -> Result<SiteFace<T>, EulerOpError> {
+    ) -> SiteFace<T> {
         let face_data = proven(&self.faces, face, EntityId::Face);
         let surface = self.face_surface_linked(face, face_data).clone();
         let loops = core::iter::once(face_data.outer)
@@ -4227,12 +4233,12 @@ impl<T: Decide> Body<T> {
                 None => SiteLoop::Kept(lk),
             })
             .collect();
-        Ok(SiteFace {
+        SiteFace {
             rows_from: face,
             surface,
             moved: false,
             loops,
-        })
+        }
     }
 
     /// The half-edges of `r#loop` in `next` order from its member `he`,
@@ -4273,7 +4279,7 @@ impl<T: Decide> Body<T> {
             FaceSurface::Shared { key, .. } => self
                 .get_surface(*key)
                 .cloned()
-                .ok_or_else(|| KeyFrom::Arg("surface").miss_geometry(GeomRef::Surface(*key)))?,
+                .ok_or_else(|| Arg("surface").miss_geometry(GeomRef::Surface(*key)))?,
             FaceSurface::New { surface, .. } => surface.clone(),
         };
         Ok(SiteFace {

@@ -247,7 +247,7 @@ use crate::euler::{
     RunExtent, require_halves, shared_loop,
 };
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{KeyFrom, Live, link, linked, lookup, proven, require_key};
+use crate::live::{Arg, Live, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
@@ -460,8 +460,8 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions: no mutation until every check passes. ----
-        let he1_data = self.resolve_half_edge(he1, KeyFrom::Arg("he1"))?;
-        let he2_data = self.resolve_half_edge(he2, KeyFrom::Arg("he2"))?;
+        let he1_data = self.resolve_half_edge(he1, Arg("he1"))?;
+        let he2_data = self.resolve_half_edge(he2, Arg("he2"))?;
         let edge = he1_data.edge;
         if he1 == he2 || he2_data.edge != edge {
             return Err(EulerOpError::Argument(BadArgument::NotMates { he1, he2 }));
@@ -495,15 +495,10 @@ impl<T: Decide> Body<T> {
             face_key,
             EntityId::Face,
             link(EntityId::Loop(loop_key), "face"),
-        )?;
+        );
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
-        let Some(cycle) = self.loop_cycle_live(he1) else {
-            unreachable!(
-                "the cycle walk of loop {loop_key:?} from {he1:?} does not close: on a \
-                 tier-1-valid body every loop's next cycle closes"
-            )
-        };
+        let cycle = self.loop_cycle_live(he1);
         let Some(position) = cycle.iter().position(|member| member.key() == he2) else {
             unreachable!(
                 "{he2:?} claims loop {loop_key:?} and the cycle walk from {he1:?}, which claims \
@@ -525,7 +520,7 @@ impl<T: Decide> Body<T> {
                 vertex,
                 EntityId::Vertex,
                 link(EntityId::HalfEdge(holder), "start"),
-            )?;
+            );
         }
         // Each side's ends, `None` for an empty side: the one reading the
         // anchors below and the splice that closes the side both take.
@@ -930,10 +925,10 @@ impl<T: Decide> Body<T> {
         tol: Option<Tol>,
     ) -> Result<KfmrhPlan<T>, EulerOpError> {
         // ---- Preconditions. ----
-        let f1_data = lookup(&self.faces, f1, EntityId::Face, KeyFrom::Arg("f1"))?;
+        let f1_data = lookup(&self.faces, f1, EntityId::Face, Arg("f1"))?;
         let f1_shell = f1_data.shell;
         let f1_surface = f1_data.surface;
-        let f2_data = lookup(&self.faces, f2, EntityId::Face, KeyFrom::Arg("f2"))?.clone();
+        let f2_data = lookup(&self.faces, f2, EntityId::Face, Arg("f2"))?.clone();
         if f1 == f2 {
             return Err(EulerOpError::SameFace { face: f1 });
         }
@@ -1044,7 +1039,7 @@ impl<T: Decide> Body<T> {
             &ring_halves,
             self.same_chart(f2_data.surface, f1_surface),
             f1,
-            |body| body.site_face_receiving(f1, &ring_halves),
+            |body| Ok(body.site_face_receiving(f1, &ring_halves)),
             tol,
         )?;
         Ok(KfmrhPlan {
@@ -1275,7 +1270,7 @@ impl<T: Decide> Body<T> {
         tol: Option<Tol>,
     ) -> Result<(), EulerOpError> {
         // ---- Preconditions. ----
-        let ring_data = lookup(&self.loops, ring, EntityId::Loop, KeyFrom::Arg("ring"))?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let from_face = ring_data.face;
         let from_data = linked(
             &self.faces,
@@ -1289,12 +1284,7 @@ impl<T: Decide> Body<T> {
         }
         let from_surface = from_data.surface;
         let from_shell = from_data.shell;
-        let to_data = lookup(
-            &self.faces,
-            to_face,
-            EntityId::Face,
-            KeyFrom::Arg("to_face"),
-        )?;
+        let to_data = lookup(&self.faces, to_face, EntityId::Face, Arg("to_face"))?;
         let to_surface = to_data.surface;
         if to_data.shell != from_shell {
             return Err(EulerOpError::CrossShell {
@@ -1319,7 +1309,7 @@ impl<T: Decide> Body<T> {
                 &ring_halves,
                 self.same_chart(from_surface, to_surface),
                 to_face,
-                |body| body.site_face_receiving(to_face, &ring_halves),
+                |body| Ok(body.site_face_receiving(to_face, &ring_halves)),
                 tol,
             )?;
             (ring_halves, rows)
@@ -1437,7 +1427,7 @@ impl<T: Decide> Body<T> {
             return Ok(Vec::new());
         }
         self.plan_site_mint_of(
-            [Ok(rows_from)],
+            [rows_from],
             |body, _| Ok(vec![site(body)?]),
             crate::pcurves::SiteCarriers::Existing,
             tol,
@@ -1447,17 +1437,13 @@ impl<T: Decide> Body<T> {
     /// `face` as a door leaves it that moves the loop `halves` walk onto
     /// it as a new ring ([`Body::kfmrh`], [`Body::ring_move`]): its own
     /// loops kept, the moved loop rewired after them.
-    fn site_face_receiving(
-        &self,
-        face: FaceKey,
-        halves: &[HalfEdgeKey],
-    ) -> Result<SiteFace<T>, EulerOpError> {
-        let mut site = self.site_face(face, &[], None)?;
+    fn site_face_receiving(&self, face: FaceKey, halves: &[HalfEdgeKey]) -> SiteFace<T> {
+        let mut site = self.site_face(face, &[], None);
         site.moved = true;
         site.loops.push(SiteLoop::Rewired(
             halves.iter().copied().map(SiteHalf::Existing).collect(),
         ));
-        Ok(site)
+        site
     }
 
     /// Removes the stored pcurve row of every half-edge in
@@ -1609,9 +1595,8 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let (target_live, target_data) =
-            self.resolve_half_edge_live(target, KeyFrom::Arg("target"))?;
-        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, KeyFrom::Arg("ring"))?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target, Arg("target"))?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, Arg("ring"))?;
         let target_loop = target_data.parent_loop;
         let ring_loop = ring_data.parent_loop;
         if target_loop == ring_loop {
@@ -1630,10 +1615,10 @@ impl<T: Decide> Body<T> {
         self.check_ring_not_outer(face_key, ring_loop)?;
         // The ring's full cycle (bounded, D9): reparented wholesale, and
         // its last member (= prev(ring)) is a splice point.
-        let (ring_members, ring_last) = self.ring_cycle(ring, ring_loop);
+        let (ring_members, ring_last) = self.ring_cycle(ring);
         self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key);
         let target_prev =
-            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"))?;
+            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"));
         let u = target_data.start;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(
@@ -1651,7 +1636,7 @@ impl<T: Decide> Body<T> {
             |body| {
                 let target_side = body.site_cycle_from(target, target_loop);
                 let ring_side = ring_members.iter().map(|m| m.key());
-                body.mekr_site(face_key, target_loop, ring_loop, ring_side, target_side)
+                Ok(body.mekr_site(face_key, target_loop, ring_loop, ring_side, target_side))
             },
             &certified,
             tol,
@@ -1708,14 +1693,13 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let (target_live, target_data) =
-            self.resolve_half_edge_live(target, KeyFrom::Arg("target"))?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target, Arg("target"))?;
         let target_loop = target_data.parent_loop;
         if target_loop == ring {
             return Err(EulerOpError::SameLoop { r#loop: ring });
         }
         let face_key = self.claimed_cycle(target, target_loop).face;
-        let ring_data = lookup(&self.loops, ring, EntityId::Loop, KeyFrom::Arg("ring"))?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let LoopBoundary::Empty { vertex: w } = ring_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: ring });
         };
@@ -1728,7 +1712,7 @@ impl<T: Decide> Body<T> {
         self.check_ring_not_outer(face_key, ring)?;
         self.require_ring_unnamed(ring, [], face_key);
         let target_prev =
-            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"))?;
+            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"));
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(
             (u, EntityId::HalfEdge(target), "start"),
@@ -1744,7 +1728,7 @@ impl<T: Decide> Body<T> {
             &[target_loop],
             |body| {
                 let target_side = body.site_cycle_from(target, target_loop);
-                body.mekr_site(face_key, target_loop, ring, [], target_side)
+                Ok(body.mekr_site(face_key, target_loop, ring, [], target_side))
             },
             &certified,
             tol,
@@ -1786,12 +1770,12 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let target_data = lookup(&self.loops, target, EntityId::Loop, KeyFrom::Arg("target"))?;
+        let target_data = lookup(&self.loops, target, EntityId::Loop, Arg("target"))?;
         let LoopBoundary::Empty { vertex: u } = target_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
         let face_key = target_data.face;
-        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, KeyFrom::Arg("ring"))?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, Arg("ring"))?;
         let ring_loop = ring_data.parent_loop;
         if ring_loop == target {
             return Err(EulerOpError::SameLoop { r#loop: target });
@@ -1804,7 +1788,7 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring_loop)?;
-        let (ring_members, ring_last) = self.ring_cycle(ring, ring_loop);
+        let (ring_members, ring_last) = self.ring_cycle(ring);
         self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key);
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(
@@ -1821,7 +1805,7 @@ impl<T: Decide> Body<T> {
             &[target],
             |body| {
                 let ring_side = ring_members.iter().map(|m| m.key());
-                body.mekr_site(face_key, target, ring_loop, ring_side, Vec::new())
+                Ok(body.mekr_site(face_key, target, ring_loop, ring_side, Vec::new()))
             },
             &certified,
             tol,
@@ -1870,7 +1854,7 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         // ---- Preconditions. ----
-        let target_data = lookup(&self.loops, target, EntityId::Loop, KeyFrom::Arg("target"))?;
+        let target_data = lookup(&self.loops, target, EntityId::Loop, Arg("target"))?;
         let LoopBoundary::Empty { vertex: u } = target_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
@@ -1878,7 +1862,7 @@ impl<T: Decide> Body<T> {
         if target == ring {
             return Err(EulerOpError::SameLoop { r#loop: target });
         }
-        let ring_data = lookup(&self.loops, ring, EntityId::Loop, KeyFrom::Arg("ring"))?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let LoopBoundary::Empty { vertex: w } = ring_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: ring });
         };
@@ -1904,7 +1888,7 @@ impl<T: Decide> Body<T> {
         // he_plus → he_minus.
         let rows = self.plan_site_rows(
             &[target],
-            |body| body.mekr_site(face_key, target, ring, [], Vec::new()),
+            |body| Ok(body.mekr_site(face_key, target, ring, [], Vec::new())),
             &certified,
             tol,
         )?;
@@ -1973,21 +1957,15 @@ impl<T: Decide> Body<T> {
         data
     }
 
-    /// The ring's cycle walk from `ring`, a half-edge of `ring_loop`,
-    /// and its last member (`prev(ring)`).
+    /// The ring's cycle walk from `ring`, and its last member
+    /// (`prev(ring)`).
     ///
     /// # Panics
     ///
-    /// Where the walk does not close: on a tier-1-valid body every
-    /// loop's `next` cycle closes.
+    /// Where the walk does not close ([`Body::loop_cycle_live`]).
     #[track_caller]
-    fn ring_cycle(&self, ring: HalfEdgeKey, ring_loop: LoopKey) -> (Vec<Live>, Live) {
-        let Some(members) = self.loop_cycle_live(ring) else {
-            unreachable!(
-                "the cycle walk of loop {ring_loop:?} from {ring:?} does not close: on a \
-                 tier-1-valid body every loop's next cycle closes"
-            )
-        };
+    fn ring_cycle(&self, ring: HalfEdgeKey) -> (Vec<Live>, Live) {
+        let members = self.loop_cycle_live(ring);
         let Some(&last) = members.last() else {
             unreachable!("a closed cycle walk from {ring:?} holds {ring:?} itself")
         };
@@ -2074,17 +2052,13 @@ impl<T: Decide> Body<T> {
         ring_loop: LoopKey,
         ring_side: impl IntoIterator<Item = HalfEdgeKey>,
         target_side: Vec<HalfEdgeKey>,
-    ) -> Result<Vec<crate::pcurves::SiteFace<T>>, EulerOpError> {
+    ) -> Vec<crate::pcurves::SiteFace<T>> {
         let merged: Vec<SiteHalf> = core::iter::once(SiteHalf::NewPlus)
             .chain(ring_side.into_iter().map(SiteHalf::Existing))
             .chain(core::iter::once(SiteHalf::NewMinus))
             .chain(target_side.into_iter().map(SiteHalf::Existing))
             .collect();
-        Ok(vec![self.site_face(
-            face,
-            &[(target_loop, merged)],
-            Some(ring_loop),
-        )?])
+        vec![self.site_face(face, &[(target_loop, merged)], Some(ring_loop))]
     }
 
     /// `mekr`'s common tail: re-anchor the target loop at `he_plus`

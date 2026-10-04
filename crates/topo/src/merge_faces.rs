@@ -54,7 +54,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{NAMES_ONLY_LIVE, linked, proven};
 use crate::loop_winding::{LoopWinding, TornLoop, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 
@@ -2807,8 +2807,7 @@ impl<T: Decide> Body<T> {
             .unwrap_or_else(|torn| match torn {
                 TornLoop::Dangling(what) => unreachable!(
                     "loop {l:?}'s winding walk reached {what:?}, which does not resolve: \
-                         every public door keeps the body tier-1-valid, and a tier-1-valid \
-                         record names only live records"
+                     {NAMES_ONLY_LIVE}"
                 ),
                 TornLoop::Unclaimed { he, edge } => unreachable!(
                     "loop {l:?}'s member {he:?} is not claimed by its edge {edge:?}: on a \

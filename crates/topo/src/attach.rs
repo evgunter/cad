@@ -66,7 +66,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{KeyFrom, dangling_link, linked, lookup, proven, require_key};
+use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
@@ -144,7 +144,7 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        let face_data = lookup(&self.faces, face, EntityId::Face, KeyFrom::Arg("face"))?;
+        let face_data = lookup(&self.faces, face, EntityId::Face, Arg("face"))?;
         let old = face_data.surface;
         let resolved =
             self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
@@ -335,12 +335,7 @@ impl<T: Decide> Body<T> {
             Vec::with_capacity(redescriptions.len());
         for (edge, spec) in redescriptions {
             let edge = *edge;
-            let edge_data = lookup(
-                &self.edges,
-                edge,
-                EntityId::Edge,
-                KeyFrom::Arg("redescriptions"),
-            )?;
+            let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
             if written.iter().any(|&(e, ..)| e == edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
@@ -472,7 +467,7 @@ impl<T: Decide> Body<T> {
         for (index, chart) in charts.iter().enumerate() {
             for wearer in &chart.faces {
                 let face = wearer.face;
-                let face_data = lookup(&self.faces, face, EntityId::Face, KeyFrom::Arg("charts"))?;
+                let face_data = lookup(&self.faces, face, EntityId::Face, Arg("charts"))?;
                 if faces.iter().any(|m| m.face == face) {
                     return Err(EulerOpError::FaceMovedTwice { face });
                 }
@@ -502,13 +497,7 @@ impl<T: Decide> Body<T> {
                 ChartSurface::New(surface) => Some(surface),
                 ChartSurface::Shared(_) => None,
             },
-            Slot::Kept(k) => Some(self.surfaces.get(k).unwrap_or_else(|| {
-                unreachable!(
-                    "surface {k:?}, a face's kept chart, does not resolve: every public door \
-                     keeps the body tier-1-valid, and a tier-1-valid record names only live \
-                     records"
-                )
-            })),
+            Slot::Kept(k) => Some(proven(&self.surfaces, k, GeomRef::Surface)),
         }
     }
 
@@ -870,7 +859,7 @@ impl<T: Decide> Body<T> {
     pub fn set_face_sense(&mut self, face: FaceKey, sense: bool) -> Result<(), EulerOpError> {
         let f = self
             .get_face_mut(face)
-            .ok_or_else(|| KeyFrom::Arg("face").miss(EntityId::Face(face)))?;
+            .ok_or_else(|| Arg("face").miss(EntityId::Face(face)))?;
         f.sense = sense;
         Ok(())
     }
@@ -931,7 +920,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        require_key(&self.edges, edge, EntityId::Edge, KeyFrom::Arg("edge"))?;
+        require_key(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let (p_start, p_end) = self.edge_endpoints(edge);
         self.check_description_adjacent(edge, &curve.description)?;
 
@@ -978,7 +967,8 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
-    /// resolve; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// resolve, and [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry)
+    /// if `chart` does not; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
     /// carries no certified geometry to re-state; and whatever
     /// [`Body::set_edge_curve`] raises on the re-attachment.
     pub fn describe_at_rest(
@@ -990,7 +980,10 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let curve_key = lookup(&self.edges, edge, EntityId::Edge, KeyFrom::Arg("edge"))?.curve;
+        let curve_key = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?.curve;
+        if !self.surfaces.contains_key(chart) {
+            return Err(Arg("chart").miss_geometry(GeomRef::Surface(chart)));
+        }
         let spec = self
             .edge_curve(edge, curve_key)
             .certified()
@@ -1074,7 +1067,7 @@ impl<T: Decide> Body<T> {
         self.plan_site_mint(
             &touched,
             |body, minted| {
-                minted
+                Ok(minted
                     .iter()
                     .map(|(face, from)| {
                         let every_loop: Vec<(LoopKey, Vec<SiteHalf>)> = from
@@ -1091,7 +1084,7 @@ impl<T: Decide> Body<T> {
                             .collect();
                         body.site_face(*face, &every_loop, None)
                     })
-                    .collect()
+                    .collect())
             },
             SiteCarriers::Described(described),
             tol,
@@ -1692,6 +1685,38 @@ mod tests {
     /// re-certified on the new key and the body is valid at rest. Onto a
     /// plane a thousand `eps` above the cap, the first of them does not
     /// certify and the door refuses, naming it, with the body untouched.
+    /// `describe_at_rest`'s two keys are both arguments: a dead chart
+    /// is the caller's `StaleGeometry` under the role `chart`, as a dead
+    /// edge is its `Stale` under `edge`, and neither writes.
+    #[test]
+    fn describe_at_rest_refuses_a_dead_chart_as_its_argument() {
+        let (mut body, top) = brick_and_top();
+        let chart = surf(&body, top);
+        let edge = edges_naming(&body, chart)[0];
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::Argument(crate::BadArgument::StaleGeometry {
+                role: "chart",
+                key: crate::GeomRef::Surface(SurfaceKey::default()),
+            }),
+            |b| {
+                b.describe_at_rest(edge, SurfaceKey::default(), tol())
+                    .unwrap_err()
+            },
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "edge",
+                key: EntityId::Edge(EdgeKey::default()),
+            }),
+            |b| {
+                b.describe_at_rest(EdgeKey::default(), chart, tol())
+                    .unwrap_err()
+            },
+        );
+    }
+
     #[test]
     fn the_describing_door_takes_only_what_it_is_handed_and_refuses_where_it_goes_stale() {
         let (mut body, top) = brick_and_top();

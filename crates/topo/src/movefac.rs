@@ -29,7 +29,7 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, S
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, RunExtent};
-use crate::live::{KeyFrom, link, linked, lookup, proven};
+use crate::live::{Arg, link, linked, lookup, proven};
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
@@ -83,8 +83,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions + read-only component labeling. ----
-        let shell_data =
-            lookup(&self.shells, shell, EntityId::Shell, KeyFrom::Arg("shell"))?.clone();
+        let shell_data = lookup(&self.shells, shell, EntityId::Shell, Arg("shell"))?.clone();
         let solid = shell_data.solid;
         linked(
             &self.solids,
@@ -174,7 +173,7 @@ impl<T: Decide> Body<T> {
                     );
                     for member in cycle {
                         let mate =
-                            self.proven_mate(member, link(EntityId::Loop(loop_key), "cycle"))?;
+                            self.proven_mate(member, link(EntityId::Loop(loop_key), "cycle"));
                         let mate_loop = mate.mate_data.parent_loop;
                         let neighbor = linked(
                             &self.loops,
@@ -347,7 +346,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::NoShellsNamed);
         };
         let owner_of = |body: &Self, shell: ShellKey| -> Result<SolidKey, EulerOpError> {
-            Ok(lookup(&body.shells, shell, EntityId::Shell, KeyFrom::Arg("shells"))?.solid)
+            Ok(lookup(&body.shells, shell, EntityId::Shell, Arg("shells"))?.solid)
         };
         let source = owner_of(self, first)?;
         for (i, &shell) in shells.iter().enumerate() {
@@ -446,15 +445,10 @@ impl<T: Decide> Body<T> {
         donor: SolidKey,
         keeper: SolidKey,
     ) -> Result<(), EulerOpError> {
-        let moved = lookup(&self.solids, donor, EntityId::Solid, KeyFrom::Arg("donor"))?
+        let moved = lookup(&self.solids, donor, EntityId::Solid, Arg("donor"))?
             .shells
             .clone();
-        lookup(
-            &self.solids,
-            keeper,
-            EntityId::Solid,
-            KeyFrom::Arg("keeper"),
-        )?;
+        lookup(&self.solids, keeper, EntityId::Solid, Arg("keeper"))?;
         if donor == keeper {
             return Ok(());
         }

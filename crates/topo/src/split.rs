@@ -33,7 +33,7 @@ use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
-use crate::live::{KeyFrom, dangling_link, link, lookup};
+use crate::live::{Arg, dangling_link, link, lookup};
 use crate::provenance::Provenance;
 
 /// Where a crossing lands along its edge, in words: the subject every
@@ -216,22 +216,18 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions: no mutation until every check passes. ----
-        let edge_data = lookup(&self.edges, edge, EntityId::Edge, KeyFrom::Arg("edge"))?.clone();
+        let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?.clone();
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
-        let (hp, hp_data) =
-            self.resolve_half_edge_live(hp, link(EntityId::Edge(edge), "he_plus"))?;
-        let (hm, hm_data) =
-            self.resolve_half_edge_live(hm, link(EntityId::Edge(edge), "he_minus"))?;
+        let (hp, hp_data) = self.resolve_half_edge_live(hp, link(EntityId::Edge(edge), "he_plus"));
+        let (hm, hm_data) = self.resolve_half_edge_live(hm, link(EntityId::Edge(edge), "he_minus"));
         // The two splices write through `next(hp)` and `prev(hm)` as
         // well as the parent's own halves, whose proofs came out of the
         // resolves above; prove these two now so the mutation below
         // cannot fail midway (atomicity). `prev(hm)` changes
         // under splice 1 — see the splice for the case that moves it,
         // and for why the new value is proven too.
-        let hp_next =
-            self.require_live(hp_data.next, link(EntityId::HalfEdge(hp.key()), "next"))?;
-        let hm_prev =
-            self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"))?;
+        let hp_next = self.require_live(hp_data.next, link(EntityId::HalfEdge(hp.key()), "next"));
+        let hm_prev = self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"));
         let entry = self.get_curve_geom(edge_data.curve).unwrap_or_else(|| {
             dangling_link(
                 EntityId::Edge(edge),

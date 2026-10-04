@@ -321,7 +321,7 @@ use crate::euler::{
     Records, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::{KeyFrom, Live, dangling_link, link, linked, lookup, proven};
+use crate::live::{Arg, Live, dangling_link, link, linked, lookup, proven};
 use crate::pcurves::SiteHalf;
 use crate::provenance::Provenance;
 
@@ -627,7 +627,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions: no mutation until every check passes. ----
-        let listed = &lookup(&self.solids, solid, EntityId::Solid, KeyFrom::Arg("solid"))?.shells;
+        let listed = &lookup(&self.solids, solid, EntityId::Solid, Arg("solid"))?.shells;
         let [shell] = listed[..] else {
             return Err(EulerOpError::SolidNotSingleShell {
                 solid,
@@ -1017,7 +1017,7 @@ impl<T: Decide> Body<T> {
             edge_data,
             mate: m,
             mate_data: m_data,
-        } = self.proven_mate(he, KeyFrom::Arg("he"))?;
+        } = self.proven_mate(he, Arg("he"))?;
         let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
         let v = he_data.start; // survives
         let w = m_data.start; // dies (= end(he))
@@ -1064,12 +1064,12 @@ impl<T: Decide> Body<T> {
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (
-            self.require_live(he_data.prev, link(EntityId::HalfEdge(he), "prev"))?,
-            self.require_live(he_data.next, link(EntityId::HalfEdge(he), "next"))?,
+            self.require_live(he_data.prev, link(EntityId::HalfEdge(he), "prev")),
+            self.require_live(he_data.next, link(EntityId::HalfEdge(he), "next")),
         );
         let (c, d) = (
-            self.require_live(m_data.prev, link(EntityId::HalfEdge(m), "prev"))?,
-            self.require_live(m_data.next, link(EntityId::HalfEdge(m), "next"))?,
+            self.require_live(m_data.prev, link(EntityId::HalfEdge(m), "prev")),
+            self.require_live(m_data.next, link(EntityId::HalfEdge(m), "next")),
         );
         // Emanating rule (unconditional, module docs): the fan's first
         // member, which the orbit proof above shows starts at `w` and the
@@ -1465,7 +1465,7 @@ impl<T: Decide> Body<T> {
             edge_data,
             mate: m,
             mate_data: m_data,
-        } = self.proven_mate(he, KeyFrom::Arg("he"))?;
+        } = self.proven_mate(he, Arg("he"))?;
         let (curve, killed_he_plus, killed_he_minus) =
             (edge_data.curve, edge_data.he_plus, edge_data.he_minus);
         let l1 = he_data.parent_loop; // dies with its face
@@ -1519,12 +1519,7 @@ impl<T: Decide> Body<T> {
         // `next` and resolves every member it returns, so it proves
         // them and nothing else — `prev/next` being mutual inverses is
         // a tier-1 fact, not one this call establishes.
-        let cycle = self.loop_cycle_live(he).unwrap_or_else(|| {
-            unreachable!(
-                "the loop walk from {he:?}, of loop {l1:?}, does not close: every public door \
-                 keeps the body tier-1-valid, where every loop walk closes"
-            )
-        });
+        let cycle = self.loop_cycle_live(he);
         let remnant: Vec<Live> = cycle.into_iter().skip(1).collect();
         // `b = next(he)` is the cycle's second member, so the walk
         // proved it and it wants no check of its own — and it is
@@ -1538,10 +1533,10 @@ impl<T: Decide> Body<T> {
         // The unsplice writes through the other three neighbor links,
         // each read straight out of the arena; prove them now so the
         // mutation below cannot fail midway (atomicity).
-        let a = self.require_live(he_data.prev, link(EntityId::HalfEdge(he), "prev"))?;
+        let a = self.require_live(he_data.prev, link(EntityId::HalfEdge(he), "prev"));
         let (c, d) = (
-            self.require_live(m_data.prev, link(EntityId::HalfEdge(m), "prev"))?,
-            self.require_live(m_data.next, link(EntityId::HalfEdge(m), "next"))?,
+            self.require_live(m_data.prev, link(EntityId::HalfEdge(m), "prev")),
+            self.require_live(m_data.next, link(EntityId::HalfEdge(m), "next")),
         );
         let u = he_data.start;
         let w = m_data.start; // may equal u (self-loop edge)
@@ -1660,7 +1655,7 @@ impl<T: Decide> Body<T> {
                             .collect(),
                     )],
                     None,
-                )?;
+                );
                 site.moved = true;
                 Ok(site)
             },
@@ -1898,7 +1893,7 @@ impl<T: Decide> Body<T> {
         door: RechartDoor,
     ) -> Result<MfkrhCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
-        let ring_data = lookup(&self.loops, ring, EntityId::Loop, KeyFrom::Arg("ring"))?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let old_face = ring_data.face;
         let old_face_data = linked(
             &self.faces,

@@ -322,20 +322,11 @@ impl<T: Real> Body<T> {
         face: FaceKey,
         pair: NullFacePair,
     ) -> Result<(), EulerOpError> {
-        let face_data = crate::live::lookup(
-            &self.faces,
-            face,
-            EntityId::Face,
-            crate::live::KeyFrom::Arg("face"),
-        )?;
+        let face_data =
+            crate::live::lookup(&self.faces, face, EntityId::Face, crate::live::Arg("face"))?;
         let [a, b] = pair.loops();
         for l in [a, b] {
-            crate::live::require_key(
-                &self.loops,
-                l,
-                EntityId::Loop,
-                crate::live::KeyFrom::Arg("pair"),
-            )?;
+            crate::live::require_key(&self.loops, l, EntityId::Loop, crate::live::Arg("pair"))?;
         }
         if a == b {
             return Err(EulerOpError::SameLoop { r#loop: a });
