@@ -77,11 +77,18 @@ bound. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
-at two points. The solution set in the chain is one arc. Where limb 3
-runs that proof, each box, cut to the region its search covers (the
-wall's knot rectangle, the ℝ³ slab), holds exactly two simple solutions
-on its boundary, so one piece, and consecutive boxes share it (chart
-edges walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+at two points. The solution set in the chain is one arc, and it spans
+the carrier; the proof is the same at every door, a search's and an
+edge's at rest. Each box, cut to the wall's knot rectangle (and to the
+ℝ³ slab where a search clips to one), holds exactly one piece: two
+simple solutions on its boundary, or a stretch of its boundary on a
+side of the wall's domain within ε of the locus, by that side's
+certified reach (the instrument C3's `Side` regions read), with the
+rest of its boundary of one certified sign. That piece meets the slice
+through every knot two boxes share and the slices through both ends of
+the carrier, an end counting where the carrier's end lies within ε of
+the locus along its slice, so the arc spans the carrier (chart edges
+walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
 rung whose chain is a graph but not one arc gives way to a narrower one.
 With none certified, the narrowest rung probed speaks: its band verdict
 where it straddled, `SsiError::TubeNotOneArc` with what it found where
