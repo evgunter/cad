@@ -25,9 +25,9 @@ use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume, wearers};
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
-    body.vertices()
-        .map(|(k, v)| {
-            let p = body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .map(|(k, p)| {
+            let p = p.unwrap();
             (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         })
         .collect()

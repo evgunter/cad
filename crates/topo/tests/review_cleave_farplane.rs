@@ -46,7 +46,10 @@ fn l_prism<T: Decide + topo::AtRestPolicy>() -> Body<T> {
 
 /// Reads every probe; returns (probe, reading) for the ones that broke
 /// `Want`, and counts the refusals among the definite ones.
-fn read<T: Decide>(body: &Body<T>, probes: &[((f64, f64, f64), Want)]) -> (Vec<String>, usize) {
+fn read<T: Decide + topo::AtRestPolicy>(
+    body: &Body<T>,
+    probes: &[((f64, f64, f64), Want)],
+) -> (Vec<String>, usize) {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let mut wrong = Vec::new();

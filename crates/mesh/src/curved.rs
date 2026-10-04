@@ -1218,10 +1218,10 @@ mod tests {
         let eps = Eps::at(Tol::witness());
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
-        for (vk, v) in body.vertices() {
+        for (vk, p) in body.vertex_points() {
             #[allow(clippy::cast_possible_truncation)]
             vids.insert(vk, positions.len() as u32);
-            positions.push(*body.get_point(v.point).unwrap());
+            positions.push(p.unwrap());
         }
         let chords = crate::chords::compute_chords(
             body,

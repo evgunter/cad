@@ -496,7 +496,7 @@ affine image of the ends, so the four walls are genuinely curved
 rather than ruled. The degree is a STRUCTURAL slot, and both of the
 loft's inputs are editable in place once the node exists:
 `DocEdit.bind_v_degree_param(node, name)` makes the degree a named
-number that one `set_doc_param` moves — at degree 1 the same three
+number that one `set_var_value` moves — at degree 1 the same three
 sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
 restates the section list whole.
 
@@ -1819,7 +1819,7 @@ true of a parametric system, stated as tests:
    *validate* — a different door from the replay one, which is the
    point: two distinct failure modes stay distinguishable.
 
-Note the deliberate asymmetry in row 3: the `SetDocParam` edit itself
+Note the deliberate asymmetry in row 3: the `DefineVar` edit itself
 still applies cleanly. A program that refuses under the current
 binding is legal *at rest*; the refusal belongs to replay, not to the
 edit.
@@ -1827,7 +1827,7 @@ edit.
 ### 3.2 The flagship, façade-only
 
 Named document parameters were LIB-U10's headline finding: the façade
-did not re-export `VarName` or `FreeVar`, so `DocEdit::SetDocParam`
+did not re-export `VarName` or `FreeVar`, so declaring a variable
 and `Expr::param` were doors a `pncad`-only consumer could see and not
 open, and a `compile_fail` doctest sat here pinning the hole.
 R1-PARAMS cured it — both names are curated through `pncad::document`
@@ -1857,11 +1857,11 @@ let hole = |cx: f64, cy: f64| LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 
-// Declare the parameter. An ordinary edit: recorded, replayable,
-// undoable like any other.
-doc = apply(&doc, &DocEdit::SetDocParam {
+// Declare the variable: it is minted an id, and `hole_r` names it. An
+// ordinary edit: recorded, replayable, undoable like any other.
+doc = apply(&doc, &DocEdit::DeclareVar {
     name: VarName::from_static("hole_r"),
-    value: FreeVar::continuous(Dimension::Length, 0.25),
+    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1939,10 +1939,10 @@ let v = |r: f64| {
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
-// One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
-let bigger = apply(&doc, &DocEdit::SetDocParam {
-    name: VarName::from_static("hole_r"),
-    value: FreeVar::continuous(Dimension::Length, 0.4),
+// One `DefineVar` moves BOTH holes; the tab branch never re-runs.
+let bigger = apply(&doc, &DocEdit::DefineVar {
+    var: VarName::from_static("hole_r").into(),
+    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.4)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -1952,12 +1952,12 @@ assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Note what row 3 of §3.1 already told you: `SetDocParam` applies
+Note what row 3 of §3.1 already told you: `DefineVar` applies
 cleanly even for a value the geometry will refuse — a program that
 refuses under the current binding is legal *at rest*, and the refusal
 belongs to replay.
 
-From Python the same edit is `DocEdit.set_doc_param(ParamName(…),
+From Python the same edit is `DocEdit.define_var(ParamName(…),
 DocParam.length(…))`, demonstrated against this exact document in
 `crates/pncad-py/tests/test_north_star.py`. Authoring the *profile*
 above from Python now awaits exactly ONE door. Circles came with the
@@ -2004,7 +2004,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
-    apply(doc, &DocEdit::SetDocParam { name: VarName::from_static(name), value }, tol, &pncad::document::RefusingReach)
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDef::Free(value) }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -2023,34 +2023,37 @@ let boxed = analyzed_box(&doc, &policy);
 
 // The normal's box is the symmetric quantile interval, so it is
 // roughly ±3σ and it leaves the rest OUTSIDE.
-let bore = boxed.get(&VarName::from_static("bore_r")).expect("an axis");
+// The box is keyed by each variable's id; its name finds the id.
+let id = |name: &str| doc.var_named(name).expect("declared");
+let bore = boxed.get(id("bore_r")).expect("an axis");
 assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
-let tail = tail_mass(&VarName::from_static("bore_r"),
+let tail = tail_mass(&boxed.spoken(id("bore_r")),
                      &bore.distribution.expect("annotated"), &bore.offsets)
     .expect("a normal prices");
 assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 
 // The band's box IS its support, so nothing escapes it...
-let plate = boxed.get(&VarName::from_static("plate_t")).expect("an axis");
+let plate = boxed.get(id("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
 // ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(&VarName::from_static("web_t")).expect("an axis").offsets.is_fixed());
+assert!(boxed.get(id("web_t")).expect("an axis").offsets.is_fixed());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
 // refusal NAMES the parameter rather than quietly assuming uniform.
-let refusal = box_mass(&VarName::from_static("plate_t"),
+let refusal = box_mass(&boxed.spoken(id("plate_t")),
                        &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
 assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
 assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 
 // Moving a value KEEPS the annotation — use the value door, never a
 // rebuilt `FreeVar`.
-doc = apply(&doc, &DocEdit::SetDocParamValue {
-    name: VarName::from_static("bore_r"),
+let bore_r = id("bore_r");
+doc = apply(&doc, &DocEdit::SetVarValue {
+    var: bore_r.into(),
     value: FreeValue::Continuous(0.0045),
 }, tol, &pncad::document::RefusingReach)?.doc;
-assert!(doc.params()[&VarName::from_static("bore_r")].distribution().is_some());
+assert!(doc.free(bore_r).expect("declared").distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -2068,12 +2071,12 @@ decision you can rely on:
   consistent with the band agrees on those. Anything finer refuses,
   typed, naming the parameter. Promoting a band to a uniform would be a
   strictly stronger claim than the author made.
-- **Value edits carry the annotation.** `SetDocParam` is
-  create-or-replace: handing it a `FreeVar` you rebuilt from a
-  dimension and a number replaces the declaration and silently deletes
-  the distribution. `SetDocParamValue` writes the number and carries
-  the declaration forward, which is why the panel, the drag gesture and
-  the Python binding (`DocEdit.set_doc_param_value`) all speak it.
+- **Value edits carry the annotation.** `DefineVar` replaces the
+  whole definition: handing it a `FreeVar` you rebuilt from a
+  dimension and a number replaces the definition and silently deletes
+  the distribution. `SetVarValue` writes the number and carries
+  the definition forward, which is why the panel, the drag gesture and
+  the Python binding (`DocEdit.set_var_value`) all speak it.
 
 The same three consumables are the Python surface, with one difference
 that is a decision rather than a translation: the offsets are TYPED
@@ -2088,13 +2091,13 @@ from pncad import (AnalysisPolicy, DEFAULT_QUANTILE_MASS, Distribution, Doc,
 
 doc = Doc("guide-distributions")
 # A measured bore: 4 mm, one micron of spread, normal.
-doc.apply(DocEdit.set_doc_param(ParamName("bore_r"),
+doc.apply(DocEdit.declare_var(ParamName("bore_r"),
     DocParam.length(4 * mm, Distribution.normal(0.001 * mm))))
 # Vendor stock: the catalogue gives limits and states no shape.
-doc.apply(DocEdit.set_doc_param(ParamName("plate_t"),
+doc.apply(DocEdit.declare_var(ParamName("plate_t"),
     DocParam.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
 # Unannotated: FIXED, on purpose.
-doc.apply(DocEdit.set_doc_param(ParamName("web_t"), DocParam.length(3 * mm)))
+doc.apply(DocEdit.declare_var(ParamName("web_t"), DocParam.length(3 * mm)))
 
 boxed = analyzed_box(doc, AnalysisPolicy())          # or analyzed_box(doc)
 bore = boxed.get(ParamName("bore_r"))
@@ -2102,7 +2105,7 @@ assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
 assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
 assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
 assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
-assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]  # declaration order
 
 # The band refuses to price anything its shape would decide, and the
 # refusal NAMES the parameter rather than quietly assuming uniform.
@@ -2113,7 +2116,7 @@ except MeasureUnavailable as refused:
     assert refused.param == "plate_t"
 
 # Moving a value KEEPS the annotation; `Doc.params` reads it back.
-doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
+doc.apply(DocEdit.set_var_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
 assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
 ```
 

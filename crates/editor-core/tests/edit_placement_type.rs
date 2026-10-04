@@ -367,9 +367,9 @@ fn a_parameter_drives_a_rigid_steps_angle() {
     let (doc, body) = cube("placement-param");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: turn.clone(),
-            value: FreeVar::continuous(Dimension::Angle, 0.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let placement = Placement::literal(&Frame::translation([5.0, 0.0, 0.0])).compose(
@@ -401,8 +401,8 @@ fn a_parameter_drives_a_rigid_steps_angle() {
     let quarter = core::f64::consts::FRAC_PI_2;
     let (turned_doc, _) = step(
         doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: turn,
+        DocEdit::SetVarValue {
+            var: turn.into(),
             value: FreeValue::Continuous(quarter),
         },
     );
@@ -454,9 +454,9 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let (doc, body) = cube("placement-later-steps");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: turn.clone(),
-            value: FreeVar::continuous(Dimension::Angle, 0.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let chain = |late: Step| {

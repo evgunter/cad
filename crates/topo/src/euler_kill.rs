@@ -1459,11 +1459,12 @@ impl<T: Decide> Body<T> {
     /// `next` or `prev` as the splice leaves it, no loop's `first` but
     /// the surviving loop's, no vertex's `emanating` but the endpoints'
     /// and no other edge's slot (`KillLeavesDangling` from the first
-    /// record, in that order and in arena order within each); then, where the surviving face would be re-minted,
-    /// the
-    /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
-    /// [`EulerOpError::PcurveMint`] naming the surviving face among
-    /// them — `KeysOnly` at this door).
+    /// record, in that order and in arena order within each); then the
+    /// site mint's plan ([`Body::plan_moved_rows`]'s errors): on a
+    /// face whose chart mints, a loop of it that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), and, where the surviving
+    /// face would be re-minted, [`EulerOpError::PcurveMint`] naming it
+    /// (`KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1823,8 +1824,9 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
     /// rows are a curve stated in the DEMOTING face's chart. A spec on
     /// that chart ([`Body::same_chart`]) keeps them; any other surface
-    /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
-    /// why). Where they do not stand on the new face — dropped, or
+    /// DROPS them ([`Body::drop_rows`] states why), over the members the
+    /// plan proves are the ring's ([`Body::whole_cycle`]). Where they do
+    /// not stand on the new face — dropped, or
     /// missing — and the demoting face's rows were complete on an
     /// analytic chart, this door refuses
     /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
@@ -1861,15 +1863,19 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face's
+    /// ([`EulerOpError::SenseContradictsChart`]); the ring's walk closes
+    /// and is exactly the half-edges that claim the ring
+    /// ([`EulerOpError::LoopCycleBroken`], [`Body::whole_cycle`]); then,
+    /// where the new face's
     /// key is not the demoting face's, no edge of the ring is stranded
     /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
     /// in cycle order) and every certified one names that key
-    /// ([`EulerOpError::RechartUnvouched`], the same); then, where the new face
-    /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
-    /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
-    /// among them — `KeysOnly` at this door).
+    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors): a loop of a
+    /// face it reads, on a chart that mints, that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), then, where the new face
+    /// would be minted, [`EulerOpError::PcurveMint`] naming the demoting
+    /// face (`KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1948,7 +1954,7 @@ impl<T: Decide> Body<T> {
             (inherit_surface, inherit_sense),
             ParentSide::Against,
         )?;
-        let ring_halves = self.site_cycle(ring)?;
+        let ring_halves = self.whole_cycle(ring)?;
         self.vouch_move(
             door,
             old_face,
@@ -2000,7 +2006,7 @@ impl<T: Decide> Body<T> {
         loop_data.face = face;
         self.drop_null_face_records_naming(ring);
         if !resolved.on_parent_chart {
-            self.drop_loop_rows(ring);
+            self.drop_rows(ring_halves);
         }
         crate::pcurves::apply_site_rows(self, rows, None);
         let Some(shell_data) = self.get_shell_mut(shell) else {

@@ -504,9 +504,9 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
     let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: k.clone(),
-            value: FreeVar::Count { value: 0 },
+            def: editor_core::VarDef::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
@@ -543,8 +543,8 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
 
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: k,
+        DocEdit::SetVarValue {
+            var: k.into(),
             value: FreeValue::Count(1),
         },
     );
@@ -776,9 +776,9 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: k.clone(),
-            value: FreeVar::Count { value: 0 },
+            def: editor_core::VarDef::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
@@ -808,8 +808,8 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     ));
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: k,
+        DocEdit::SetVarValue {
+            var: k.into(),
             value: FreeValue::Count(1),
         },
     );
@@ -936,14 +936,14 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     let w = VarName::from_static("w");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: w.clone(),
-            value: FreeVar::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
     );
     let derived = derive(
         &doc,
-        &RangeField::Param(w),
+        &RangeField::Param(doc.var_named(w.as_str()).expect("declared")),
         RangeSeed::symmetric(0.1),
         Tol::witness(),
     )

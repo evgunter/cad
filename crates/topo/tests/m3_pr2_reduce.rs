@@ -62,9 +62,9 @@ const MIRRORED: &[(f64, f64)] = &[
 /// coordinates are exact; a reduced body holds coincident null-edge
 /// copies at ON positions).
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<VertexKey> {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)

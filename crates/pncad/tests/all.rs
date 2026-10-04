@@ -2554,9 +2554,9 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("hole_r"),
-            value: FreeVar::continuous(Dimension::Length, 0.25),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2707,7 +2707,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 /// corpus scene's analytic oracle, and its saved text is pinned as
 /// `tests/plate_param.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
-/// `set_doc_param` edit from Python. Python cannot yet author this
+/// `define_var` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
 /// the document crosses to Python through the persistence door, and
 /// THIS pin keeps that crossing honest: if the scene's constants or
@@ -2912,9 +2912,9 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     // The referenced document moves on: a recorded semantic edit.
     let edited = pncad::document::apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            value: FreeVar::continuous(Dimension::Length, 0.75),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3095,9 +3095,9 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("log");
     let (origin, _) = ws_doc("ws-logged");
-    let edit = DocEdit::SetDocParam {
+    let edit = DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        value: FreeVar::continuous(Dimension::Length, 0.9),
+        def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -3217,9 +3217,9 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
 
     let edited = pncad::document::apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            value: FreeVar::continuous(Dimension::Length, 0.9),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3468,8 +3468,8 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
-            .vertices()
-            .filter_map(|(_, v)| b.get_point(v.point))
+            .vertex_points()
+            .map(|(_, p)| p.unwrap())
             .map(|p| p.x)
             .fold(f64::INFINITY, f64::min),
         other => panic!("an instance's value is a body, got {other:?}"),
@@ -4000,10 +4000,8 @@ fn asm2b_outer(
 /// this pins WHICH SOLID CAME FIRST, not merely the aggregate volume.
 fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
     let mut s = String::new();
-    for (_, v) in body.vertices() {
-        if let Some(p) = body.get_point(v.point) {
-            s.push_str(&format!("{};", p.x.to_bits()));
-        }
+    for (_, p) in body.vertex_points() {
+        s.push_str(&format!("{};", p.unwrap().x.to_bits()));
     }
     s
 }
@@ -4046,8 +4044,8 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
         Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b
-                .vertices()
-                .filter_map(|(_, e)| b.get_point(e.point))
+                .vertex_points()
+                .map(|(_, p)| p.unwrap())
                 .map(|p| p.x)
                 .collect();
             v.sort_by(f64::total_cmp);
@@ -6191,9 +6189,9 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let declare = |doc: &ProfileDoc, name: &'static str, value: FreeVar| {
         apply(
             doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                value,
+                def: pncad::document::VarDef::Free(value),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6231,10 +6229,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let policy = AnalysisPolicy::default();
     let boxed = analyzed_box(&back, &policy);
     let bore = boxed
-        .get(&VarName::from_static("bore_r"))
+        .get(back.var_named("bore_r").expect("declared"))
         .expect("the annotated parameter is an axis");
     let plate = boxed
-        .get(&VarName::from_static("plate_t"))
+        .get(back.var_named("plate_t").expect("declared"))
         .expect("so is the banded one");
 
     // The normal's box is the ±3σ quantile box; the band's IS its
@@ -6255,7 +6253,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     // The tail column: the normal leaves a little outside its box, the
     // band leaves nothing outside its own support.
     let bore_tail = tail_mass(
-        &VarName::from_static("bore_r"),
+        &boxed.spoken(back.var_named("bore_r").expect("declared")),
         &bore.distribution.expect("annotated"),
         &bore.offsets,
     )
@@ -6266,7 +6264,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     );
     assert_eq!(
         tail_mass(
-            &VarName::from_static("plate_t"),
+            &boxed.spoken(back.var_named("plate_t").expect("declared")),
             &plate.distribution.expect("annotated"),
             &plate.offsets
         ),
@@ -6275,19 +6273,19 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 
     // Pricing a sub-box: the normal answers, the band refuses BY NAME.
     let half = box_mass(
-        &VarName::from_static("bore_r"),
+        &boxed.spoken(back.var_named("bore_r").expect("declared")),
         &bore.distribution.expect("annotated"),
         (0.0, bore.offsets.hi),
     )
     .expect("a normal prices a leaf");
     assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
     match box_mass(
-        &VarName::from_static("plate_t"),
+        &boxed.spoken(back.var_named("plate_t").expect("declared")),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            assert_eq!(param, VarName::from_static("plate_t"));
+            assert_eq!(param.name(), Some(&VarName::from_static("plate_t")));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }

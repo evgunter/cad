@@ -347,8 +347,8 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<f64>(d, |d| {
             (
-                Sym::param(ParamSymbol::of("d"), d),
-                Sym::param(ParamSymbol::of("r"), 1.0),
+                Sym::param(ParamSymbol::new(test_utils::symbol_id("d")), d),
+                Sym::param(ParamSymbol::new(test_utils::symbol_id("r")), 1.0),
             )
         })
         .unwrap_or_else(|m| {
@@ -378,8 +378,14 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<Probe>(d, |d| {
             (
-                Sym::param(ParamSymbol::of("d"), <Probe as Real>::from_f64(d)),
-                Sym::param(ParamSymbol::of("r"), <Probe as Real>::from_f64(1.0)),
+                Sym::param(
+                    ParamSymbol::new(test_utils::symbol_id("d")),
+                    <Probe as Real>::from_f64(d),
+                ),
+                Sym::param(
+                    ParamSymbol::new(test_utils::symbol_id("r")),
+                    <Probe as Real>::from_f64(1.0),
+                ),
             )
         })
         .unwrap_or_else(|m| {
@@ -413,11 +419,11 @@ fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
             let eps = Tol::witness().eps();
             (
                 Sym::param(
-                    ParamSymbol::of("d"),
+                    ParamSymbol::new(test_utils::symbol_id("d")),
                     Interval::from_bounds(d - eps / 64.0, d + eps / 64.0),
                 ),
                 Sym::param(
-                    ParamSymbol::of("r"),
+                    ParamSymbol::new(test_utils::symbol_id("r")),
                     Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
                 ),
             )

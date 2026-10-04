@@ -175,9 +175,9 @@ fn slab_at(x: f64, y: f64) -> MateFrame {
 fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name,
-            value: FreeVar::continuous(dim, v),
+            def: editor_core::VarDef::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0
@@ -186,8 +186,8 @@ fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc
 fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name,
+        DocEdit::SetVarValue {
+            var: name.into(),
             value: editor_core::FreeValue::Continuous(v),
         },
     )
@@ -855,23 +855,36 @@ fn run_at<T: editor_core::EvalScalar>(
     evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-/// **The corpus digest the pre-generic tree gives, per ε row.** Measured
-/// on main's own tree from this same file's corpus and digest — first at
+/// **The corpus digest, per ε row.** It was measured on the
+/// pre-generic tree from this same file's corpus and digest — first at
 /// `a8f56a79f`, before any solve code moved, again at `2d29576fb` once
 /// PLACE's mate-frame offset (#3961) changed how an authored side is
 /// held, and at `11d9c7a7f` once the corpus took the shaft in two
-/// coaxial bores — and held since: the generic solve at `f64` is the
-/// nominal solve, bit for bit.
+/// coaxial bores — which is what showed the generic solve at `f64` to be
+/// the nominal solve, bit for bit. The numbers below are no longer that
+/// tree's: they were re-taken on this tree when the variable table
+/// renumbered the corpus's ids (the paragraph below), so they pin the
+/// generic solve against itself, and the bit-for-bit claim against the
+/// pre-generic tree rests on that measurement and on the id-free rows.
 ///
 /// One number per row because the documents are not ε-free: a part's
 /// content pin hashes its recorded ε, and an instance's id hashes the
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
+///
+/// Re-pinned at all three rows when declaring a variable began minting
+/// its id on the document's chain (INTENT-VARS-1 PR 2; its preimage is
+/// the variable's kind alone): every corpus document declares a
+/// variable, so every node minted after a declare was renumbered and the
+/// digest, which feeds ids, moved. No pose
+/// did: this file's id-free rows — each pose against the `f64` solve at
+/// the box's corners, each tangent against its central difference —
+/// held across the change untouched.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x34d3_06c3_11f3_2995),
-    (1e-6, 0x6cc1_89f7_e1bf_79fd),
-    (1e-12, 0x3daf_7b67_cacc_631f),
+    (1e-9, 0xb153_489f_9dd3_2b7c),
+    (1e-6, 0xd0bb_1a90_cc72_c974),
+    (1e-12, 0x38fb_a2c0_f9e0_65a3),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -947,18 +960,24 @@ fn copy_of(name: &StableName) -> u32 {
     }
 }
 
-fn seeded(opts: &EvalOptions, param: VarName) -> EvalOptions {
+/// The variable `doc` names `param`.
+fn var_of(doc: &ProfileDoc, param: &VarName) -> editor_core::VarId {
+    doc.var_named(param.as_str())
+        .expect("the fixture declares it")
+}
+
+fn seeded(doc: &ProfileDoc, opts: &EvalOptions, param: VarName) -> EvalOptions {
     EvalOptions {
-        seed: Some(param),
+        seed: Some(var_of(doc, &param)),
         profile_lift: ProfileLift::Guided,
         ..opts.clone()
     }
 }
 
-fn boxed(opts: &EvalOptions, param: VarName, lo: f64, hi: f64) -> EvalOptions {
+fn boxed(doc: &ProfileDoc, opts: &EvalOptions, param: VarName, lo: f64, hi: f64) -> EvalOptions {
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
-            param,
+            var_of(doc, &param),
             BoxAxis::Varying { lo, hi },
         )])))),
         profile_lift: ProfileLift::Guided,
@@ -1101,7 +1120,7 @@ fn assert_pose_encloses_corners(
 ) -> f64 {
     use geom_core::Bounds;
     let pbox = ParamBox::from_axes(BTreeMap::from([(
-        param.clone(),
+        var_of(doc, &param),
         BoxAxis::Varying { lo, hi },
     )]));
     let env = editor_core::param_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
@@ -1162,7 +1181,7 @@ fn assert_pose_encloses_corners(
 #[test]
 fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two() {
     let b = bolted("msolve14-a2-seed", slab_at(6.0, 4.0));
-    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
+    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.doc, &b.opts, spacing()), None);
     assert!(
         ev.node_error(b.mate).is_none(),
         "{:?}",
@@ -1223,7 +1242,7 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
         "the bolt's pose spans the box twice over: {width}"
     );
     let (lo, hi) = narrow(0.05);
-    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.doc, &b.opts, spacing(), lo, hi), None);
     assert!(
         ev.node_error(b.mate).is_none(),
         "{:?}",
@@ -1250,7 +1269,11 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 #[test]
 fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
     let b = bolted("msolve14-a2-wide", slab_at(6.0, 4.0));
-    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), -0.25, 0.25), None);
+    let ev = run_at::<Interval>(
+        &b.doc,
+        &boxed(&b.doc, &b.opts, spacing(), -0.25, 0.25),
+        None,
+    );
     assert!(
         ev.node_error(b.mate).is_none(),
         "{:?}",
@@ -1273,7 +1296,7 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
 #[test]
 fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
     let l = lifted("msolve14-a2-lift-seed");
-    let ev = run_at::<Dual64>(&l.doc, &seeded(&l.opts, gap()), None);
+    let ev = run_at::<Dual64>(&l.doc, &seeded(&l.doc, &l.opts, gap()), None);
     assert!(
         ev.node_error(l.mate).is_none(),
         "{:?}",
@@ -1325,7 +1348,7 @@ fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
     );
     assert!(width >= 0.5 * 0.4_f64.cos(), "the pose widens: {width}");
     let (lo, hi) = narrow(0.05);
-    let ev = run_at::<Interval>(&l.doc, &boxed(&l.opts, gap(), lo, hi), None);
+    let ev = run_at::<Interval>(&l.doc, &boxed(&l.doc, &l.opts, gap(), lo, hi), None);
     assert!(
         ev.node_error(l.mate).is_none(),
         "{:?}",
@@ -1403,7 +1426,7 @@ fn slid(label: &str) -> Slid {
 #[test]
 fn a2_a_seed_on_a_mate_frames_offset_moves_the_mated_part() {
     let s = slid("msolve14-a2-offset-seed");
-    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, slide()), None);
+    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, slide()), None);
     assert!(
         ev.node_error(s.mate).is_none(),
         "{:?}",
@@ -1423,7 +1446,7 @@ fn a2_a_seed_on_a_mate_frames_offset_moves_the_mated_part() {
             "∂B/∂slide at {name:?} is {t:?}"
         );
     }
-    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, spin()), None);
+    let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, spin()), None);
     assert!(
         ev.node_error(s.mate).is_none(),
         "{:?}",
@@ -1471,7 +1494,7 @@ fn a2_a_box_on_a_mate_frames_offset_encloses_the_mated_part() {
         "the turned box, at the solve",
     );
     let (lo, hi) = narrow(0.05);
-    let ev = run_at::<Interval>(&s.doc, &boxed(&s.opts, slide(), lo, hi), None);
+    let ev = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, slide(), lo, hi), None);
     assert!(
         ev.node_error(s.mate).is_none(),
         "{:?}",
@@ -1519,11 +1542,11 @@ fn c2_a_shaft_in_two_coaxial_bores_solves_in_every_lane() {
                 f.node_error(mate)
             );
         }
-        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, rise()), None);
+        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, rise()), None);
         for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, rise(), RISE, label) {
             assert_eq!(t, [0.0, 0.0, 1.0], "{label}: ∂/∂rise at {name:?}");
         }
-        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, idle()), None);
+        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, idle()), None);
         for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, idle(), IDLE, label) {
             assert_eq!(t, [0.0; 3], "{label}: ∂/∂idle at {name:?}");
         }
@@ -1531,7 +1554,7 @@ fn c2_a_shaft_in_two_coaxial_bores_solves_in_every_lane() {
             .iter()
             .any(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label);
         let (lo, hi) = narrow(0.05);
-        let i = run_at::<Interval>(&s.doc, &boxed(&s.opts, rise(), lo, hi), None);
+        let i = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, rise(), lo, hi), None);
         if escalates {
             let diag = escalation(&i, s.bolt).unwrap_or_else(|| {
                 panic!(
@@ -1642,7 +1665,7 @@ fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
                     );
                 }
             }
-            for opts in [s.opts.clone(), seeded(&s.opts, rise())] {
+            for opts in [s.opts.clone(), seeded(&s.doc, &s.opts, rise())] {
                 let d = run_at::<Dual64>(&s.doc, &opts, None);
                 assert_decides_or_escalates(
                     &d,
@@ -1698,7 +1721,7 @@ fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
 #[test]
 fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
     let b = bolted("msolve14-a1-seed", MateFrame::from_face());
-    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
+    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.doc, &b.opts, spacing()), None);
     assert!(
         ev.node_error(b.mate).is_none(),
         "the face frame resolves at Dual64: {:?}",
@@ -1742,7 +1765,7 @@ fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
     );
     assert!(width >= 1.0, "the face-seated pose widens: {width}");
     let (lo, hi) = narrow(0.05);
-    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.doc, &b.opts, spacing(), lo, hi), None);
     assert!(
         ev.node_error(b.mate).is_none(),
         "the face frame resolves at Interval: {:?}",
@@ -1785,7 +1808,7 @@ fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
             "the unseeded base carries no tangent at {name:?}"
         );
     }
-    let pass = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), Some(&base));
+    let pass = run_at::<Dual64>(&b.doc, &seeded(&b.doc, &b.opts, spacing()), Some(&base));
     for (name, p) in vertices(&pass, b.bolt) {
         assert_eq!(
             [p.x.deriv, p.y.deriv, p.z.deriv],
@@ -1984,11 +2007,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let want = structure(&doc, &f);
         assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
         assert_interval_structure(&doc, &f, &i, label);
-        let params: Vec<VarName> = doc.params().keys().cloned().collect();
+        let params: Vec<editor_core::VarId> = doc.vars().keys().copied().collect();
         let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
         for seed in seeds {
             let o = EvalOptions {
-                seed: seed.clone(),
+                seed,
                 profile_lift: ProfileLift::Guided,
                 ..opts.clone()
             };
@@ -2099,7 +2122,10 @@ fn a5_certified_clearance_runs_over_a_face_framed_mate() {
     let b = bolted("msolve14-a5-clearance", MateFrame::from_face());
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let (lo, hi) = narrow(0.05);
-    let leaf = ParamBox::from_axes(BTreeMap::from([(spacing(), BoxAxis::Varying { lo, hi })]));
+    let leaf = ParamBox::from_axes(BTreeMap::from([(
+        var_of(&b.doc, &spacing()),
+        BoxAxis::Varying { lo, hi },
+    )]));
     let copy2 = Selection {
         at: b.pattern,
         body: 2,
@@ -2132,7 +2158,7 @@ fn a5_certified_clearance_runs_over_a_face_framed_mate() {
     // leaf's own evaluation can: the bolt moves by −2 per unit of `s`,
     // so its enclosure holds the f64 builds' bolt at both corners, which
     // a bolt held at its nominal pose would not.
-    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.doc, &b.opts, spacing(), lo, hi), None);
     assert_encloses_corners(
         &b.doc,
         &b.opts,

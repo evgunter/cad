@@ -416,7 +416,7 @@ fn real_study(tol: Tol) {
                 masses.unevaluated,
                 1.0 - masses.holds - masses.violated - masses.unevaluated
             );
-            let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+            let slack = hull_slack(&doc, &verdict, (report.worst_case.lo, report.worst_case.hi));
             // The straddle beside its padding (R2's Q3): the hull
             // ENCLOSES the true range over the certified leaves and
             // exceeds it by a padding proportional to the leaf's width
@@ -512,7 +512,7 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.as_str(),
+                    doc.spoken_var(s.param),
                     render_sensitivity(s, &doc)
                 );
             }
@@ -778,12 +778,12 @@ fn requirement_over_leaves(
 /// its varying axes.
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &pncad::analysis::ParamBox) -> f64 {
     let mut m = 1.0;
-    for (name, axis) in box_.axes() {
-        let Some(dist) = analyzed.get(name).and_then(|p| p.distribution.as_ref()) else {
+    for (&var, axis) in box_.axes() {
+        let Some(dist) = analyzed.get(var).and_then(|p| p.distribution.as_ref()) else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(var), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -806,17 +806,14 @@ struct HullSlack {
     above: f64,
 }
 
-fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
+fn hull_slack(doc: &ProfileDoc, verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
     let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
-        let span = |n: &'static str| match leaf
-            .box_
-            .axes()
-            .get(&pncad::document::VarName::from_static(n))
-        {
-            Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
-            _ => (0.0, 0.0),
-        };
+        let span =
+            |n: &'static str| match doc.var_named(n).and_then(|var| leaf.box_.axes().get(&var)) {
+                Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
+                _ => (0.0, 0.0),
+            };
         let (hs_lo, hs_hi) = span("half_spacing");
         let (a_lo, a_hi) = span("hole_a_r");
         let (b_lo, b_hi) = span("hole_b_r");

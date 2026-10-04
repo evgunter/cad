@@ -325,8 +325,8 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 /// this scene's own bodies.
 fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
     let all: Vec<(f64, f64)> = body
-        .vertices()
-        .map(|(_, v)| axial(*body.get_point(v.point).expect("a vertex carries a point")))
+        .vertex_points()
+        .map(|(_, p)| axial(p.expect("a vertex carries a point")))
         .collect();
     assert!(
         all.iter()

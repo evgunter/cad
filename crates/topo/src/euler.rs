@@ -113,39 +113,18 @@
 //!   sweep is a claim about both, and it is the only thing that sees
 //!   this one.
 //!
-//!   **The exception, and it is a real one.**
-//!   [`crate::instance`]'s grafts are a **raw transplant**, not an
-//!   operator run: `graft_disjoint_all_keyed` mints an empty
-//!   destination solid per source solid before transplanting, and a
-//!   refusal raised mid-transplant leaves `dst` partially written —
-//!   its own docs say the destination is then *spent, never
-//!   resumable*, and the destination's own docs, `DESIGN.md`'s D9
-//!   footnote and the 37-door allowlist entry in
-//!   `review_m1_pr5_internal` all name that state as the tier-1 error
-//!   [`crate::ValidationError::SolidWithoutShells`] — which is the
-//!   *late* failure, raised after the transplant's second pass with
-//!   every key patched. **All three understate it.** A refusal raised
-//!   between the transplant's two passes leaves entities holding
-//!   source-internal keys, which in `dst` either dangle or resolve to
-//!   an unrelated live entity. The same sentence is written in three
-//!   places, so a correction has to reach all three. So a caller that
-//!   ignores a graft's `Err` and keeps using `dst` can hand the next
-//!   operator a tier-1-invalid body and fire its postcondition from
-//!   **API misuse rather than a kernel bug**. That is the state class
-//!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover. **It is an open question in front of Ev,
-//!   not a thing this module settles**: whether the graft can be
-//!   restructured so a partially-written destination is not
-//!   representable — staging into a fresh body and committing on
-//!   success, the shape [`Body::merge_coplanar_faces`] already uses —
-//!   or whether the class gets a name of its own.
+//!   **The graft is a transplant, not an operator run.**
+//!   [`crate::instance`]'s grafts copy a whole source body into the
+//!   destination's arenas. The transplant runs into a fresh staging
+//!   body and is committed into the destination only once it has
+//!   succeeded in full, so a refusal leaves the destination as it
+//!   was; the committed body is swept like any operator's.
 //!
-//!   The D9 taxonomy consequence therefore holds **for every door but
-//!   that one**: these debug panics are
-//!   **unreachable by input** through the public API as it stands —
-//!   no public path builds a `Body` from bytes, so reaching one
-//!   requires in-crate raw corruption (which is what the validator's
-//!   own tests do deliberately) or a discarded graft refusal. Release
+//!   The D9 taxonomy consequence therefore holds at every door: these
+//!   debug panics are **unreachable by input** through the public API
+//!   as it stands — no public path builds a `Body` from bytes, so
+//!   reaching one requires in-crate raw corruption (which is what the
+//!   validator's own tests do deliberately). Release
 //!   builds carry no postcondition either way: on corruption the plan
 //!   phase cannot detect they return `Ok` with a garbage body. That is
 //!   wrong data written by lookups that all succeeded — the silent
@@ -2310,9 +2289,11 @@ impl<T: Decide> Body<T> {
     /// The first edge of the run to fail names the refusal. Last, the
     /// pcurve rows, for both sites: the loops the new halves join, their
     /// faces and those faces' surfaces resolve (`StaleKey` /
-    /// `StaleGeometry`); then, only where the site mint selects one of
-    /// those faces, the loops the surgery rewires walk
-    /// ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
+    /// `StaleGeometry`), and each of those faces on a chart that mints
+    /// has every loop walk as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint selects one of
+    /// those faces, the loops the surgery rewires walk, every member
+    /// claiming its loop ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
     /// `StaleGeometry`), and each face's row plan is minted
     /// ([`EulerOpError::PcurveMint`]).
     ///
@@ -2524,9 +2505,12 @@ impl<T: Decide> Body<T> {
     /// same; `StaleKey` / `StaleGeometry` where a key the walk over the
     /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
-    /// the face's surface resolve; then, only where the site mint
-    /// selects that face, the old loop's cycle from `he1` walks
-    /// ([`EulerOpError::LoopCycleBroken`]), the new face's chart
+    /// the face's surface resolve, and on a chart that mints every loop
+    /// of the face walks as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint
+    /// selects that face, the old loop's cycle from `he1` walks, every
+    /// member claiming the loop ([`EulerOpError::LoopCycleBroken`]),
+    /// the new face's chart
     /// resolves (`StaleGeometry`), and the two faces' row plans are
     /// minted ([`EulerOpError::PcurveMint`]).
     ///
@@ -3539,14 +3523,17 @@ impl<T: Decide> Body<T> {
     /// Proves the run a plan's cycle walk took from `from` and moves
     /// out of it, before it mutates: every member claims `from`, so the
     /// move takes nothing out of a third loop; and for a
-    /// [`RunExtent::Whole`] run, whose loop the plan removes, no
-    /// half-edge but the run and `killed` claims `from`, so none is left
-    /// naming a dead loop. Refuses [`EulerOpError::LoopCycleBroken`]
+    /// [`RunExtent::Whole`] run, whose loop the plan removes or moves
+    /// whole, no half-edge but the run and `killed` claims `from`, so
+    /// none is left naming a dead loop or carrying a row the move does
+    /// not dispose of. Refuses [`EulerOpError::LoopCycleBroken`]
     /// naming `from` otherwise. Returns the run as a set.
     ///
-    /// The walk steps `next` and reads no `parent_loop`, so a torn
-    /// `next` can divert it through another loop and back, or close it
-    /// past a member. The second proof reads the whole arena, bounded
+    /// A walk that steps `next` alone ([`Body::loop_cycle`]) can be
+    /// diverted by a torn `next` through another loop and back, or
+    /// closed past a member; one that checks each member's claim
+    /// ([`Body::loop_cycle_of`]) can only be closed past one. The first
+    /// proof catches the diversion, the second the closing. The second proof reads the whole arena, bounded
     /// as [`Body::require_kill_anchors`]'s `Lone` proof is. The
     /// validator reports these faults in its cycle pass
     /// (`ParentLoopMismatch`, `UnreachableHalfEdge`) and as
@@ -3561,7 +3548,7 @@ impl<T: Decide> Body<T> {
         let broken = EulerOpError::LoopCycleBroken { r#loop: from };
         let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
         for member in members {
-            if self.half_edges.get(member).map(|data| data.parent_loop) != Some(from) {
+            if !self.claims(member, from) {
                 return Err(broken);
             }
             run.insert(member, ());
@@ -4334,8 +4321,10 @@ impl<T: Decide> Body<T> {
     /// In this order, per face of `read` as it is reached: what `read`
     /// raises naming it, then the face does not resolve
     /// ([`EulerOpError::StaleKey`]), or its surface does not
-    /// ([`EulerOpError::StaleGeometry`]), or a half of it does not
-    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
+    /// ([`EulerOpError::StaleGeometry`]), or, on a chart that mints, a
+    /// loop of it does not walk as its own
+    /// ([`EulerOpError::LoopCycleBroken`]) or a half of it does not
+    /// resolve ([`EulerOpError::PcurveMint`] naming the face); then, only when a
     /// face is read further, what `faces` raises; then
     /// [`EulerOpError::PcurveMint`] naming the face.
     pub(crate) fn plan_site_mint_of(
@@ -4364,8 +4353,17 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
-                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
+            if let Some(from) =
+                crate::pcurves::site_rows_from(self, face_data, surface).map_err(|refusal| {
+                    match refusal {
+                        crate::pcurves::SiteFromRefusal::LoopCycleBroken(r#loop) => {
+                            EulerOpError::LoopCycleBroken { r#loop }
+                        }
+                        crate::pcurves::SiteFromRefusal::Row(refusal) => {
+                            EulerOpError::PcurveMint { face, refusal }
+                        }
+                    }
+                })?
             {
                 minted.push((face, from));
             }
@@ -4447,13 +4445,16 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// The half-edges of `he`'s loop in `next` order from `he` itself.
+    /// The half-edges of `r#loop` in `next` order from its member `he`,
+    /// every one claiming the loop ([`Body::loop_cycle_of`]).
+    /// [`EulerOpError::LoopCycleBroken`] naming the loop where the walk
+    /// does not close or strays out of it.
     pub(crate) fn site_cycle_from(
         &self,
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
-        self.loop_cycle(he)
+        self.loop_cycle_of(he, r#loop)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop })
     }
 
@@ -4497,13 +4498,29 @@ impl<T: Decide> Body<T> {
     }
 
     /// The half-edges of `r#loop` in `next` order from its `first`, as
-    /// the surgery finds them (empty for an empty loop).
+    /// the surgery finds them (empty for an empty loop): the one rows
+    /// walk ([`crate::pcurves::loop_rows`]), every member claiming the
+    /// loop. [`EulerOpError::LoopCycleBroken`] naming the loop where the
+    /// walk does not close or strays out of it.
     pub(crate) fn site_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
         match crate::pcurves::loop_rows(self, r#loop) {
             crate::pcurves::LoopRows::Cycle(cycle) => Ok(cycle),
             crate::pcurves::LoopRows::NoCycle => Ok(Vec::new()),
             crate::pcurves::LoopRows::Corrupt => Err(EulerOpError::LoopCycleBroken { r#loop }),
         }
+    }
+
+    /// [`Body::site_cycle`] proven to be every half-edge that claims
+    /// `r#loop` ([`Body::require_run_of`], [`RunExtent::Whole`]): the
+    /// members a door carries or drops rows for when it moves the loop
+    /// to another face or re-charts the face it is on. A walk closed
+    /// short of a member would leave that member's row stated in the
+    /// chart its loop left. [`EulerOpError::LoopCycleBroken`] naming the
+    /// loop otherwise. The proof reads the whole half-edge arena.
+    pub(crate) fn whole_cycle(&self, r#loop: LoopKey) -> Result<Vec<HalfEdgeKey>, EulerOpError> {
+        let cycle = self.site_cycle(r#loop)?;
+        self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[])?;
+        Ok(cycle)
     }
 
     /// Mints `mef`'s new loop and face (in that order — part of `mef`'s
@@ -4728,7 +4745,8 @@ impl Clearing<'_> {
 pub(crate) enum RunExtent {
     /// Part of the loop, which keeps the rest.
     Part,
-    /// All of the loop but the halves the plan kills: the loop dies.
+    /// All of the loop but the halves the plan kills: the loop dies, or
+    /// moves to another face whole ([`Body::whole_cycle`]).
     Whole,
 }
 

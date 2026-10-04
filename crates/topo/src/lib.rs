@@ -214,6 +214,8 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+#[cfg(test)]
+mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
 // questions, so neither hosts them. Each module's own docs carry
@@ -407,6 +409,22 @@ pub mod test_support {
         tol: geom_core::Tol,
     ) -> Result<(), crate::BooleanError> {
         crate::boolean::maximal_faces_gate(body, operand, tol)
+    }
+
+    /// The join's section segments of `op`: the pair-record count and
+    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// `None` where the reduction registers no pair.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal, or the matcher's.
+    pub fn boolean_segment_sites(
+        op: crate::BooleanOp,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::boolean::SegmentSites>, crate::BooleanError> {
+        crate::boolean::section_segment_sites(op, a, b, tol)
     }
 
     /// The direct split run through its join: the scratch body with

@@ -135,7 +135,7 @@ pub(super) struct Tally {
 ///
 /// [`BooleanError::Containment`] when a probe refuses other than
 /// in-band; [`BooleanError::JoinDesync`] when the complex does not walk.
-pub(super) fn complex_side<T: Decide>(
+pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
     other: &Body<T>,
@@ -267,7 +267,7 @@ pub enum ShellOrientation {
 /// when every witness lies on the other boundary and the settled pairs
 /// do not certify `On`; [`BooleanError::JoinDesync`] when the shell
 /// does not walk.
-pub(super) fn shell_verdict<T: Decide>(
+pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
     (body, shell, operand): (&Body<T>, ShellKey, Operand),
     other: &Body<T>,
     coincident: &[SettledPair],
@@ -572,7 +572,7 @@ pub(super) fn certified_in_face<T: Decide>(
 /// in-band against it, never `In` or `Out` (module docs: the reason the
 /// ladder reads no contact record). Debug builds only; a refusal of the
 /// probe is not this check's question and is passed over.
-pub(super) fn debug_assert_contacts_undecisive<T: Decide>(
+pub(super) fn debug_assert_contacts_undecisive<T: Decide + crate::props::AtRestPolicy>(
     contacts: &ContactRecords,
     a: (&Body<T>, &Body<T>),
     b: (&Body<T>, &Body<T>),

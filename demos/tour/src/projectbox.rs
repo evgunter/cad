@@ -219,8 +219,8 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     // It stands: its lowest point is a start-cap corner on the boss
     // top, over the boss's material between the bore and the rim.
     let (low, foot) = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p.expect("vertex point"))
         .map(|p| (p.z, (p.x - SPRING_AXIS.0).hypot(p.y - SPRING_AXIS.1)))
         .fold((f64::INFINITY, 0.0), |a, b| if b.0 < a.0 { b } else { a });
     assert!(

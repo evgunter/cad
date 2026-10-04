@@ -3573,10 +3573,8 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     // answers are reported apart — a definite `Out` says "this face
     // has no incidence", a `None` says "no verdict at all" — and the
     // caller decides what each licenses.
-    for (vy, vertex) in y.vertices() {
-        let Some(py) = y.get_point(vertex.point).copied() else {
-            continue;
-        };
+    for (vy, py) in y.vertex_points() {
+        let py = py.map_err(|_| BooleanError::corrupt_at(x_is.other(), vy))?;
         if super::one_vertex(px, py, band).map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::VertexOnVertex,
             diag,
@@ -5035,11 +5033,8 @@ mod lying_on_rows {
     }
 
     fn vertex_at(y: &Body<f64>, p: Point3<f64>) -> VertexKey {
-        y.vertices()
-            .find(|(_, v)| {
-                y.get_point(v.point)
-                    .is_some_and(|q| (*q - p).norm() < 1e-12)
-            })
+        y.vertex_points()
+            .find(|(_, q)| (q.expect("an untorn operand") - p).norm() < 1e-12)
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("a vertex at {p:?}"))
     }

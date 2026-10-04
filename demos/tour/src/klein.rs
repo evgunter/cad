@@ -915,8 +915,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              (tilt {tilt:e})"
         );
         for p in top
-            .vertices()
-            .map(|(_, v)| *top.get_point(v.point).expect("point"))
+            .vertex_points()
+            .map(|(_, p)| p.expect("point"))
             .filter(|p| (*p - origin).dot(normal).abs() < 1e-12)
         {
             let r = (p - origin).norm();

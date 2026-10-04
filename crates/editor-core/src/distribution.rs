@@ -43,7 +43,7 @@
 ///
 /// Offsets relative to the parameter's nominal, in its own dimension.
 /// Every inhabitant satisfies [`Distribution::check`]: the
-/// construction doors (`SetDocParam`, the persistence validator)
+/// construction doors (`DeclareVar`, the persistence validator)
 /// refuse the rest.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 // Externally tagged with the variant names as written, matching the

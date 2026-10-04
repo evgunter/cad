@@ -1245,9 +1245,9 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let k = VarName::from_static("k");
     let (doc, _) = step(
         s.doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: k.clone(),
-            value: FreeVar::Count { value: 1 },
+            def: editor_core::VarDef::Free(FreeVar::Count { value: 1 }),
         },
     );
     let (doc, pattern) = insert(doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
@@ -1280,8 +1280,8 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
 
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: k,
+        DocEdit::SetVarValue {
+            var: k.into(),
             value: FreeValue::Count(2),
         },
     );

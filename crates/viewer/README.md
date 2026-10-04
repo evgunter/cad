@@ -1483,15 +1483,12 @@ a pattern, so each binding's scope is read in order instead.
   owns the failure and its wording. Layer 3 adds nothing but the
   ranking, so it stores the payload and forwards the text.
 - **A flat arm** exists where layer 3 is the only place the fact
-  exists: there is no gesture in flight, this instance is itself, this
-  name is already declared and CREATE is not REPLACE, the seat wanted a
-  different node kind.
+  exists: there is no gesture in flight, this instance is itself, the
+  seat wanted a different node kind.
 
 Each of those examples names a fact `apply` has been read for and does
-not hold — `edit.rs` has no self-instance arm, `write_doc_param` has no
-existence check because `DocEdit::SetDocParam` is create-or-replace,
-and `DocEdit::InsertNode` checks a seat's input for EXISTENCE and not
-for KIND. That reading is what puts an arm in this list; a fact that
+not hold — `edit.rs` has no self-instance arm, and `DocEdit::InsertNode`
+checks a seat's input for EXISTENCE and not for KIND. That reading is what puts an arm in this list; a fact that
 merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 

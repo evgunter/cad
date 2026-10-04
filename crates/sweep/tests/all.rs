@@ -89,6 +89,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "cylinder_sphere_frame.rs"]
+mod cylinder_sphere_frame;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
@@ -115,6 +117,10 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "pocket_ring_steep_ellipse.rs"]
+mod pocket_ring_steep_ellipse;
+#[path = "pocket_wall_crossing_a_side_face.rs"]
+mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
@@ -888,5 +894,7 @@ mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "far_thin_disc_sign.rs"]
+mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;

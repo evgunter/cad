@@ -20,8 +20,8 @@ use topo::{AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, boolean_
 /// checks compare this, not just counts.
 fn dump<T: Decide>(b: &Body<T>) -> String {
     let mut s = String::new();
-    for (vk, v) in b.vertices() {
-        let p = b.get_point(v.point).unwrap();
+    for (vk, p) in b.vertex_points() {
+        let p = p.unwrap();
         s.push_str(&format!("{vk:?}:{p:?};"));
     }
     s.push_str(&format!(

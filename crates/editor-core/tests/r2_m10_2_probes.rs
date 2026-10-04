@@ -1418,14 +1418,14 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let d0 = empty("r2-nonfinite");
     let d0 = push(
         &d0,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
@@ -1486,14 +1486,14 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let d0 = empty("r2-nonfinite-assert");
     let d0 = push(
         &d0,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);

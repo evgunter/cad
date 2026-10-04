@@ -127,7 +127,7 @@ mod refine;
 pub mod section;
 pub mod system;
 
-use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
+use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::{
@@ -564,9 +564,8 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch the march could not progress along, its step in the
-    /// band, took the Hermite candidate through its two ends, and the
-    /// certificate refused it.
+    /// A branch too short for the march, its step in the band, whose
+    /// Hermite candidate through its two ends the certificate refused.
     ShortBranchUncertified {
         /// The distance between the branch's ends, in metres.
         length: f64,
@@ -1472,11 +1471,10 @@ pub struct SsiBranch {
     pub pcurve_a: Option<NurbsCurve2<f64>>,
     /// The second operand's pcurve, same contract.
     pub pcurve_b: Option<NurbsCurve2<f64>>,
-    /// The smallest transversality margin the march saw, in meters.
-    pub min_transversality: f64,
-    /// The generator's step tolerance this carrier was marched at, in
-    /// meters — the receipt that makes the tie observable rather than
-    /// merely intended. Equal to the run band's coincidence threshold
+    /// The generator's tolerance the carrier's states were settled at,
+    /// in meters (a marched carrier's every state, a Hermite carrier's
+    /// two crossings) — the receipt that makes the tie observable rather
+    /// than merely intended. Equal to the run band's coincidence threshold
     /// on every certified door, enforced at the certifying seam
     /// ([`SsiError::MarchTolMismatch`]).
     pub march_tol: f64,
@@ -1798,23 +1796,18 @@ fn fit_branch(
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    let carrier = NurbsCurve3::<f64>::interpolate_with_params(points, SSI_FIT_DEGREE, &params)?;
+    // One collocation system for the three fits: they share the
+    // parameters, so they share the matrix, factored once.
+    let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
+    let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
     let (mut pa, mut pb) = (None, None);
     if let Some((a, b)) = charts {
         // Pcurves interpolate the traced parameter samples ON THE
         // CARRIER'S PARAMETERS. Interpolation (not approximation) so
         // the map is exact at every sample; compaction of a pcurve is
         // an optimization, and the certificate is what governs.
-        pa = Some(NurbsCurve2::<f64>::interpolate_with_params(
-            a,
-            SSI_FIT_DEGREE,
-            &params,
-        )?);
-        pb = Some(NurbsCurve2::<f64>::interpolate_with_params(
-            b,
-            SSI_FIT_DEGREE,
-            &params,
-        )?);
+        pa = Some(NurbsCurve2::<f64>::interpolate_on(a, &collocation)?);
+        pb = Some(NurbsCurve2::<f64>::interpolate_on(b, &collocation)?);
     }
     Ok((carrier, pa, pb))
 }
@@ -2288,7 +2281,6 @@ fn finish_r3(
         witness,
         pcurve_a: None,
         pcurve_b: None,
-        min_transversality: trace.min_transversality,
         march_tol,
     })
 }
@@ -2449,7 +2441,7 @@ pub fn plane_nurbs_ssi(
     let seed_count = seeds.len() as u32;
 
     // ---- the open branches, between the crossings ----
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let mut branches = ends.branches(&pass.crossings)?;
     let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
 
@@ -2497,7 +2489,7 @@ pub fn plane_nurbs_ssi(
         let RectEnd::Closed = trace.end else {
             continue;
         };
-        let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
+        let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
@@ -2660,11 +2652,11 @@ pub fn trace_plane_nurbs_uncertified(
     // certifies, as every plane × NURBS branch does.
     let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
     let wall_op = SsiOperand::Nurbs(charted);
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let (states, _, _) = ends.through_seed(state, &pass.crossings)?;
+    let (states, _) = ends.through_seed(state, &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;

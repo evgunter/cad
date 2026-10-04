@@ -196,10 +196,10 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
     ];
     let a = prism_z::<f64>(&reflex, 0.0, 1.0, tol).body;
     let corner = a
-        .vertices()
-        .find(|(_, v)| {
-            a.get_point(v.point)
-                .is_some_and(|p| (p.x, p.y, p.z) == (0.0, 0.0, 1.0))
+        .vertex_points()
+        .find(|(_, p)| {
+            let p = p.unwrap();
+            (p.x, p.y, p.z) == (0.0, 0.0, 1.0)
         })
         .map(|(k, _)| k)
         .expect("the reflex top corner");

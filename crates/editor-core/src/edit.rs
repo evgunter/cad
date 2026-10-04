@@ -26,7 +26,8 @@ use crate::node::{
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
-use crate::spoken::{SpokenName, SpokenNode};
+use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
+use crate::var::{Var, VarDef, VarId, VarKind, VarRef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -38,12 +39,12 @@ use geom_core::Tol;
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
 /// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
 /// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
-/// document-parameter family: one
-/// create-or-replace door (`SetDocParam`) and the carry-forward doors,
-/// each moving ONE field of a standing declaration and keeping the
-/// rest (`SetDocParamValue`, `SetDocParamUnit`,
-/// `SetDocParamDistribution`; [`CarryForwardDoor`] names them in a
-/// refusal). The explicit repairs and the document's
+/// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
+/// which replaces its definition, and the carry-forward doors, each
+/// moving ONE field of a free variable and keeping the rest
+/// (`SetVarValue`, `SetVarUnit`, `SetVarDistribution`;
+/// [`CarryForwardDoor`] names them in a refusal). The explicit repairs
+/// and the document's
 /// presentation state: `Rebind`, the ONLY name repair — the
 /// automatic-rebinding policy menu is empty by ratified decision
 /// (NAMING-DESIGN N5); `ReWitness`/`ReWitnessBulk`, the recorded
@@ -242,102 +243,88 @@ pub enum DocEdit<P> {
         /// The replacement subtree.
         expr: Expr,
     },
-    /// Create or replace a document-level named parameter (spec D6).
-    /// A dimension change re-validates every referencing expression.
-    SetDocParam {
-        /// The parameter name.
+    /// **Declare a variable** (VARIABLES-DESIGN VR1/VR2): mint its id
+    /// from the document's mint chain and hold `name` beside it.
+    /// Structural when the kind is `Count`.
+    ///
+    /// Refuses a name the document already holds
+    /// ([`EditError::VarNameTaken`], naming the holder), an id the mint
+    /// log already holds ([`EditError::VarIdCollides`]), and a
+    /// definition no door may write (the checks every door that writes
+    /// a definition runs: [`EditError::NonFiniteDocParam`],
+    /// [`EditError::InvalidDistribution`],
+    /// [`EditError::ContinuousParamCannotBeCount`],
+    /// [`EditError::DocParamUnitMismatch`]).
+    DeclareVar {
+        /// The name, unique within the document.
         name: VarName,
-        /// The declared dimension and exact value.
-        value: FreeVar,
+        /// The definition; its kind is the variable's, for good.
+        def: VarDef,
     },
-    /// Write a NEW VALUE into an already-declared document parameter,
-    /// keeping its declaration: its dimension and its optional
-    /// distribution ride through untouched
-    /// ([`FreeVar::with_value`]).
+    /// **Replace a variable's definition**, keeping its identity, its
+    /// name and its kind (VR3: a new kind is a new variable).
     ///
-    /// The door [`Self::SetDocParam`] cannot be. That one is
-    /// create-or-replace, so it takes a whole `FreeVar` and a caller
-    /// who assembled one from `(dim, value)` — the natural spelling,
-    /// and the only one a value-editing panel, gesture or binding
-    /// wants — deletes any annotation the parameter carried, with no
-    /// refusal and no diagnostic. This edit removes the way to make
-    /// that mistake: there is nothing here to omit.
+    /// Refuses a variable the document does not hold
+    /// ([`EditError::UnknownVar`]), a definition of another kind
+    /// ([`EditError::VarKindFixed`]), and the definition checks
+    /// [`Self::DeclareVar`] runs.
+    DefineVar {
+        /// The variable.
+        var: VarRef,
+        /// The new definition.
+        def: VarDef,
+    },
+    /// Write a NEW VALUE into a free variable, keeping its definition:
+    /// its kind, its notation and its optional distribution ride
+    /// through untouched ([`FreeVar::with_value`]).
     ///
-    /// Refuses typed on a name the document does not declare (there is
-    /// no declaration to carry forward) and on a kind mismatch (a
-    /// count for a continuous parameter or the reverse — that is a
-    /// redeclaration, and belongs to the other door).
-    SetDocParamValue {
-        /// The parameter name — must already be declared.
-        name: VarName,
+    /// The value-editing door, so a caller holding only a number — a
+    /// panel, a gesture, a binding — has nothing to omit: assembling a
+    /// whole [`FreeVar`] for [`Self::DefineVar`] from `(dim, value)`
+    /// would delete any annotation the variable carried.
+    ///
+    /// Refuses a variable the document does not hold
+    /// ([`EditError::UnknownVar`]) and a value of the other kind (a
+    /// count for a continuous variable or the reverse,
+    /// [`EditError::DocParamValueKindMismatch`]).
+    SetVarValue {
+        /// The variable.
+        var: VarRef,
         /// The replacement value.
         value: FreeValue,
     },
-    /// Write a new NOTATION onto an already-declared document
-    /// parameter, keeping its declaration: its dimension, its exact
-    /// value and its optional distribution ride through untouched
-    /// ([`FreeVar::with_display_unit`]).
-    ///
-    /// [`Self::SetDocParamValue`]'s mirror over the other field of the
-    /// declaration, and it exists for the same reason. A parameter's
-    /// display unit sits on the DECLARATION, beside `dim` and
-    /// `distribution`, so the only other way to re-spell it is
-    /// [`Self::SetDocParam`] — create-or-replace — with a `FreeVar`
-    /// the caller assembled, and the natural spelling
-    /// ([`FreeVar::continuous`] plus the notation) names no
-    /// distribution and therefore deletes any the parameter carried.
-    /// There is nothing to omit here.
-    ///
-    /// A notation change is not a redeclaration — the argument, in
+    /// Write a new NOTATION onto a free variable, keeping its value
+    /// and its optional distribution ([`FreeVar::with_display_unit`]).
+    /// A notation change is not a redefinition — the argument, in
     /// full, is [`FreeVar::with_display_unit`]'s rustdoc.
     ///
-    /// Refuses typed on a name the document does not declare
-    /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
-    /// carry forward), on a `Count`
+    /// Refuses a variable the document does not hold
+    /// ([`EditError::UnknownVar`]), a `Count`
     /// ([`EditError::DocParamCountHasNoUnit`] — a count is an integer
-    /// and names no notation) and on a unit that does not measure the
-    /// declared dimension ([`EditError::DocParamUnitMismatch`] — the
-    /// pairing the save/load validator refuses a document for).
-    SetDocParamUnit {
-        /// The parameter name — must already be declared, and must not
-        /// be a `Count`.
-        name: VarName,
-        /// The notation to write, which must MEASURE the declared
-        /// dimension.
+    /// and names no notation) and a unit that does not measure the
+    /// variable's kind ([`EditError::DocParamUnitMismatch`]).
+    SetVarUnit {
+        /// The variable, which must not be a `Count`.
+        var: VarRef,
+        /// The notation to write, which must MEASURE the kind.
         unit: crate::expr::UnitSym,
     },
-    /// Write an E1/E2 ANNOTATION onto an already-declared document
-    /// parameter, keeping its declaration: its dimension, its exact
-    /// value and its authored display unit ride through untouched
-    /// ([`FreeVar::with_distribution`]).
-    ///
-    /// The third of the carry-forward doors, one per field of the
-    /// declaration a narrow edit can move, and it exists for its
-    /// siblings' reason. The only other way to annotate a standing
-    /// parameter is [`Self::SetDocParam`] — create-or-replace — with a
-    /// `FreeVar` the caller assembled, and the authoring spelling for
-    /// an annotated parameter ([`FreeVar::continuous_with`]) writes
-    /// the CANONICAL notation: a parameter authored in millimetres
-    /// reverts to metres the moment anyone annotates it. There is
-    /// nothing to restate here.
+    /// Write an E1/E2 ANNOTATION onto a free variable, keeping its
+    /// value and its notation ([`FreeVar::with_distribution`]).
     ///
     /// **`None` CLEARS the annotation**, through this same door; the
     /// argument is [`FreeVar::with_distribution`]'s rustdoc.
     ///
-    /// Refuses typed on a name the document does not declare
-    /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
-    /// carry forward), on a `Count`
-    /// ([`EditError::DocParamCountHasNoDistribution`] — a count takes
-    /// no annotation, the argument again being
-    /// [`FreeVar::with_distribution`]'s rustdoc) and on a
+    /// Refuses a variable the document does not hold
+    /// ([`EditError::UnknownVar`]), a `Count`
+    /// ([`EditError::DocParamCountHasNoDistribution`]) and a
     /// distribution that breaks an E2 invariant
     /// ([`EditError::NonFiniteDocParam`],
     /// [`EditError::InvalidDistribution`] — the invariants the
     /// save/load validator refuses a document for).
-    SetDocParamDistribution {
-        /// The parameter name — must already be declared, and must not
-        /// be a `Count`.
-        name: VarName,
+    SetVarDistribution {
+        /// The variable, which must not be a `Count`.
+        var: VarRef,
         /// The annotation to write, or `None` to clear it.
         distribution: Option<Distribution>,
     },
@@ -623,10 +610,11 @@ impl<P> DocEdit<P> {
             | Self::Fold { .. }
             | Self::SetStructuralParam { .. }
             | Self::SetExtrudeSide { .. }
-            | Self::SetDocParam { .. }
-            | Self::SetDocParamValue { .. }
-            | Self::SetDocParamUnit { .. }
-            | Self::SetDocParamDistribution { .. }
+            | Self::DeclareVar { .. }
+            | Self::DefineVar { .. }
+            | Self::SetVarValue { .. }
+            | Self::SetVarUnit { .. }
+            | Self::SetVarDistribution { .. }
             | Self::ReWitness { .. }
             | Self::ReWitnessBulk { .. }
             | Self::SetAppearance { .. }
@@ -641,21 +629,28 @@ impl<P> DocEdit<P> {
     }
 }
 
-/// Which CARRY-FORWARD door an edit came through — the edits that
-/// write one field of a standing declaration and carry the rest
-/// untouched.
+/// Which door an edit of a STANDING variable came through: the three
+/// carry-forward edits, which write one field of a definition and carry
+/// the rest untouched, and [`DocEdit::DefineVar`], which replaces the
+/// definition whole and carries only the variable's identity, name and
+/// kind. The type keeps its carry-forward name for the three it was
+/// minted for; the `Definition` arm is the one door here that is not one.
 ///
 /// It exists so a refusal every such door shares can name the one the
-/// caller actually used ([`EditError::DocParamNotDeclared`]). A door
-/// over a further field adds an arm here and the compile names every
-/// sentence that has to learn the word.
+/// caller actually used ([`EditError::UnknownVar`]). A door over a
+/// further field adds an arm here and the compile names every sentence
+/// that has to learn the word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarryForwardDoor {
-    /// [`DocEdit::SetDocParamValue`] — the number.
+    /// [`DocEdit::DefineVar`] — the whole definition replaced, keeping
+    /// the identity, the name and the kind. Not a carry-forward: nothing
+    /// of the old definition survives it.
+    Definition,
+    /// [`DocEdit::SetVarValue`] — the number.
     Value,
-    /// [`DocEdit::SetDocParamUnit`] — the notation.
+    /// [`DocEdit::SetVarUnit`] — the notation.
     Notation,
-    /// [`DocEdit::SetDocParamDistribution`] — the E1/E2 annotation.
+    /// [`DocEdit::SetVarDistribution`] — the E1/E2 annotation.
     Annotation,
 }
 
@@ -664,6 +659,7 @@ pub enum CarryForwardDoor {
 impl core::fmt::Display for CarryForwardDoor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
+            Self::Definition => "a definition edit",
             Self::Value => "a value edit",
             Self::Notation => "a notation edit",
             Self::Annotation => "an annotation edit",
@@ -676,7 +672,7 @@ impl core::fmt::Display for CarryForwardDoor {
 ///
 /// One mistake reaches two doors. Typing an undeclared name into the
 /// value field reaches a carry-forward edit, which refuses
-/// [`EditError::DocParamNotDeclared`]; dragging that parameter's row
+/// [`EditError::UnknownVar`]; dragging that parameter's row
 /// is a lookup with no edit behind it, and the viewer refuses
 /// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
 /// second reader of this const and the only one outside this crate).
@@ -715,14 +711,13 @@ pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
 /// [`EditError::DocParamValueKindMismatch`],
 /// [`EditError::DocParamCountHasNoUnit`],
 /// [`EditError::DocParamCountHasNoDistribution`],
-/// [`EditError::ContinuousParamCannotBeCount`] and
-/// [`EditError::DocParamNotDeclared`] — and a declaration has no
-/// address: the parameter IS the subject, so each is named by its
-/// FACT alone. Forcing them into `{address}{fact}` would mint an
-/// address word denoting nothing, so the shape is deliberately not
-/// theirs. ([`EditError::DocParamNotDeclared`]'s `door` says which
-/// carry-forward edit was refused — which edit, not where a
-/// reference sits.)
+/// [`EditError::ContinuousParamCannotBeCount`],
+/// [`EditError::VarKindFixed`] and [`EditError::UnknownVar`] — and a
+/// declaration has no address: the variable IS the subject, so each is
+/// named by its FACT alone. Forcing them into `{address}{fact}` would
+/// mint an address word denoting nothing, so the shape is deliberately
+/// not theirs. ([`EditError::UnknownVar`]'s `door` says which edit was
+/// refused — which edit, not where a reference sits.)
 ///
 /// [`crate::expr::EvalError::ParamDimensionMismatch`] is the
 /// dimension fact raised at EVALUATION instead of at a door, and it
@@ -751,7 +746,7 @@ pub enum EditError {
     /// authoring-time check (LIB-SWITCH §4d, VQ9): the program is
     /// resolved, replayed, and validated under the CURRENT parameter
     /// environment at the edit door, so the author sees refusals at
-    /// the verb, not at first evaluation. `SetDocParam` deliberately
+    /// the verb, not at first evaluation. A variable edit deliberately
     /// NEVER takes this door — a parameter edit that breaks a
     /// downstream profile surfaces as that node's typed evaluation
     /// error (V1 class 2: refusing programs may exist at rest); both
@@ -1020,98 +1015,104 @@ pub enum EditError {
         /// The bound's.
         bound: Dimension,
     },
-    /// A `Continuous` doc param declared with `Dimension::Count` —
-    /// Count parameters use [`FreeVar::Count`] (exact integers).
+    /// A `Continuous` free variable defined with `Dimension::Count` —
+    /// a count is [`FreeVar::Count`] (an exact integer).
     ContinuousParamCannotBeCount {
-        /// The parameter.
-        name: VarName,
+        /// The variable.
+        var: SpokenVar,
     },
-    /// A carry-forward edit — [`DocEdit::SetDocParamValue`],
-    /// [`DocEdit::SetDocParamUnit`] or
-    /// [`DocEdit::SetDocParamDistribution`] — named a parameter this
-    /// document does not declare. All three carry an existing
-    /// declaration forward, so there has to be one; declaring a
-    /// parameter is [`DocEdit::SetDocParam`]'s job.
+    /// An edit of a standing variable — [`DocEdit::DefineVar`],
+    /// [`DocEdit::SetVarValue`], [`DocEdit::SetVarUnit`] or
+    /// [`DocEdit::SetVarDistribution`] — addressed a variable this
+    /// document does not hold. Declaring one is
+    /// [`DocEdit::DeclareVar`]'s job.
     ///
     /// ONE arm for all of them because the FAULT is one — the missing
-    /// declaration, which neither door is about — and so is the
-    /// recourse. What differs is which edit the user submitted, and
-    /// that rides along in `door` so the sentence can say it: a
-    /// refusal that read "a carry-forward edit" would make a reader
-    /// work out which of their edits it was talking about.
-    DocParamNotDeclared {
-        /// The undeclared parameter.
-        name: VarName,
-        /// Which carry-forward edit was refused.
+    /// variable — and so is the recourse. What differs is which edit
+    /// the user submitted, and that rides along in `door` so the
+    /// sentence can say it.
+    UnknownVar {
+        /// The address the edit carried.
+        var: VarRef,
+        /// Which edit was refused.
         door: CarryForwardDoor,
     },
-    /// A notation edit ([`DocEdit::SetDocParamUnit`]) named a `Count`
-    /// parameter. A count is an exact integer, not a quantity: it
-    /// names no notation and carries no field to write one into.
+    /// A [`DocEdit::DeclareVar`] named a variable by a name the
+    /// document already holds (VR2: a name is unique).
+    VarNameTaken {
+        /// The name.
+        name: VarName,
+        /// The variable holding it.
+        holder: SpokenVar,
+    },
+    /// A [`DocEdit::DeclareVar`] drew an id the mint log already holds
+    /// (N1's collision refusal, at the variable tag).
+    VarIdCollides {
+        /// The id drawn.
+        id: VarId,
+    },
+    /// A [`DocEdit::DefineVar`] offered a definition of another kind
+    /// than the variable's. A kind is fixed at minting (VR3): a new
+    /// kind is a new variable.
+    VarKindFixed {
+        /// The variable.
+        var: SpokenVar,
+        /// Its kind.
+        kind: VarKind,
+        /// The kind the definition holds.
+        offered: VarKind,
+    },
+    /// A notation edit ([`DocEdit::SetVarUnit`]) named a `Count`
+    /// variable. A count is an exact integer, not a quantity: it names
+    /// no notation and carries no field to write one into.
     ///
     /// Distinct from [`Self::DocParamValueKindMismatch`], which is a
-    /// value offered at the wrong kind and would be a redeclaration.
-    /// Nothing is being redeclared here — there is no notation for a
-    /// count under ANY declaration.
+    /// value offered at the wrong kind. There is no notation for a
+    /// count under ANY definition.
     DocParamCountHasNoUnit {
-        /// The count parameter.
-        name: VarName,
+        /// The count variable.
+        var: SpokenVar,
     },
-    /// An annotation edit ([`DocEdit::SetDocParamDistribution`]) named
-    /// a `Count` parameter, which takes no distribution and carries no
+    /// An annotation edit ([`DocEdit::SetVarDistribution`]) named a
+    /// `Count` variable, which takes no distribution and carries no
     /// field to write one into — the argument is
     /// [`FreeVar::with_distribution`]'s rustdoc (E11.3).
     ///
-    /// [`Self::DocParamCountHasNoUnit`]'s sibling at the third field,
-    /// and separate from it for the same reason the two doors are
-    /// separate — the fault is what the count has no room for, and a
-    /// caller branching on it is told which of their edits to
-    /// withdraw. Raised for a CLEARING edit too: a caller aiming an
-    /// annotation edit at a count has the wrong parameter, and
-    /// answering `Ok` because the field happened to be absent would
-    /// hide that.
+    /// Raised for a CLEARING edit too: a caller aiming an annotation
+    /// edit at a count has the wrong variable, and answering `Ok`
+    /// because the field happened to be absent would hide that.
     DocParamCountHasNoDistribution {
-        /// The count parameter.
-        name: VarName,
+        /// The count variable.
+        var: SpokenVar,
     },
-    /// A notation edit ([`DocEdit::SetDocParamUnit`]) offered a unit
-    /// that does not MEASURE the parameter's declared dimension —
-    /// millimetres for an angle, degrees for a length.
+    /// A unit that does not MEASURE the variable's kind — millimetres
+    /// for an angle, degrees for a length — offered by a notation edit
+    /// ([`DocEdit::SetVarUnit`]) or carried by a definition
+    /// ([`DocEdit::DeclareVar`], [`DocEdit::DefineVar`], whose payload
+    /// is `pub` and can pair any unit with any dimension).
     ///
     /// The same pairing the shared save/load validator refuses a
     /// document for (`PersistError::DisplayUnit`) and the authoring
     /// doors ([`FreeVar::written_length`], [`FreeVar::written_angle`])
-    /// make unreachable by construction; this is that fault refused at
-    /// the edit door, before it can reach a document at all.
-    ///
-    /// Raised by BOTH doors that write a declaration — this one and
-    /// [`DocEdit::SetDocParam`], the create-or-replace door, whose
-    /// payload is `pub` and can pair any unit with any dimension.
-    ///
-    /// Its sentence is `PersistError::DisplayUnit`'s shape — *declared
-    /// X but the unit measures Y* — with ONE word of difference,
-    /// deliberately: the validator says "its display unit", because
-    /// there the unit is a fact already stored on the document, and
-    /// this says "the display unit offered", because here it is an
-    /// argument that never reached one.
+    /// make unreachable by construction. Its sentence is
+    /// `PersistError::DisplayUnit`'s shape with one word of difference:
+    /// "the display unit offered", because here it is an argument that
+    /// never reached a document.
     DocParamUnitMismatch {
-        /// The parameter.
-        name: VarName,
+        /// The variable.
+        var: SpokenVar,
         /// The dimension the offered unit measures.
         unit: Dimension,
-        /// The dimension the document declares.
+        /// The dimension the variable holds.
         declared: Dimension,
     },
-    /// A value-only edit offered a value of the wrong kind — a count
-    /// for a continuous parameter or a continuous value for a count.
-    /// Changing a parameter's kind is a REDECLARATION
-    /// ([`DocEdit::SetDocParam`]), where the dimension and the
-    /// distribution are stated afresh rather than carried.
+    /// A value edit offered a value of the wrong kind — a count for a
+    /// continuous variable or a continuous value for a count. A kind is
+    /// fixed at minting (VR3).
     DocParamValueKindMismatch {
-        /// The parameter.
-        name: VarName,
-        /// The dimension the document declares (`Count` for a count
-        /// parameter).
+        /// The variable.
+        var: SpokenVar,
+        /// The dimension the variable holds (`Count` for a count).
         declared: Dimension,
         /// The value the edit offered.
         offered: FreeValue,
@@ -1167,8 +1168,8 @@ pub enum EditError {
     /// edit door (ruled door 1 of the non-finite policy; F3's
     /// persist-time refusal then has nothing to catch).
     NonFiniteDocParam {
-        /// The parameter.
-        name: VarName,
+        /// The variable.
+        var: SpokenVar,
         /// WHICH of its floats it is. The predicate identifies the
         /// field to answer at all, and this door carries it for the
         /// reason the load door's site does: a sentence naming `sigma`
@@ -1180,8 +1181,8 @@ pub enum EditError {
     /// The SAME check the persistence doors run, so a document that
     /// would refuse to load cannot be authored.
     InvalidDistribution {
-        /// The parameter.
-        name: VarName,
+        /// The variable.
+        var: SpokenVar,
         /// The invariant that failed.
         fault: DistributionFault,
     },
@@ -1979,23 +1980,30 @@ impl EditError {
             }
             | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
             | Self::NotStructuralSlot { slot: _ }
-            | Self::ContinuousParamCannotBeCount { name: _ }
-            | Self::DocParamNotDeclared { name: _, door: _ }
-            | Self::DocParamCountHasNoUnit { name: _ }
-            | Self::DocParamCountHasNoDistribution { name: _ }
+            | Self::ContinuousParamCannotBeCount { var: _ }
+            | Self::UnknownVar { var: _, door: _ }
+            | Self::VarNameTaken { name: _, holder: _ }
+            | Self::VarIdCollides { id: _ }
+            | Self::VarKindFixed {
+                var: _,
+                kind: _,
+                offered: _,
+            }
+            | Self::DocParamCountHasNoUnit { var: _ }
+            | Self::DocParamCountHasNoDistribution { var: _ }
             | Self::DocParamUnitMismatch {
-                name: _,
+                var: _,
                 unit: _,
                 declared: _,
             }
             | Self::DocParamValueKindMismatch {
-                name: _,
+                var: _,
                 declared: _,
                 offered: _,
             }
             | Self::Dimension(_)
-            | Self::NonFiniteDocParam { name: _, field: _ }
-            | Self::InvalidDistribution { name: _, fault: _ }
+            | Self::NonFiniteDocParam { var: _, field: _ }
+            | Self::InvalidDistribution { var: _, fault: _ }
             | Self::RebindKindMismatch { from: _, to: _ }
             | Self::EmptyWitnessBulk
             | Self::EvaluationOfAnotherDocument {
@@ -2318,79 +2326,111 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
-            Self::ContinuousParamCannotBeCount { name } => {
+            Self::ContinuousParamCannotBeCount { var } => {
                 write!(
                     f,
-                    "parameter {name} is continuous, and a continuous parameter cannot be a \
-                     count"
+                    "{var} is continuous, and a continuous variable cannot be a count"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "declare it as a count parameter, or give it a quantity's dimension"
-                    ),
+                    format_args!("define it as a count, or give it a quantity's dimension"),
                 )
             }
             // The recourse is `UNDECLARED_PARAM_RECOURSE`, which the
             // viewer's `Refusal::NoSuchParam` renders too; the const's
             // own doc says why the two doors converge there.
-            Self::DocParamNotDeclared { name, door } => {
+            Self::UnknownVar { var, door } => {
                 write!(
                     f,
-                    "parameter {name} is not declared, so {door} has no declaration to carry \
-                     forward"
+                    "{var} is not a variable of this document, so {door} has nothing to \
+                     carry forward"
                 )?;
                 tail.recourse(f, format_args!("{UNDECLARED_PARAM_RECOURSE}"))
             }
-            // A count carries neither a unit nor a distribution, and the
-            // create-or-replace door redeclares it as a continuous
-            // parameter, which carries both. A slot that reads it as a
-            // count refuses that redeclaration with its own recourse
-            // (`SlotDocParamDimension`).
-            Self::DocParamCountHasNoUnit { name } => {
+            Self::VarNameTaken { name, holder } => {
                 write!(
                     f,
-                    "parameter {name} is a count, and a count is an integer rather than a \
+                    "the name {name} is held by another variable ({}), and a name is unique \
+                     within a document",
+                    holder.id()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("choose a name the document does not hold, or edit {name}"),
+                )
+            }
+            Self::VarIdCollides { id } => {
+                write!(
+                    f,
+                    "the declare drew the variable id {id}, which this document's mint log \
+                     already holds"
+                )?;
+                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
+            }
+            Self::VarKindFixed { var, kind, offered } => {
+                write!(
+                    f,
+                    "{var} is of kind {kind} and the definition offered is of kind {offered}, \
+                     and a variable's kind is fixed when it is declared"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "offer a definition of kind {kind}, or declare a new variable of kind \
+                         {offered}"
+                    ),
+                )
+            }
+            Self::DocParamCountHasNoUnit { var } => {
+                write!(
+                    f,
+                    "{var} is a count, and a count is an integer rather than a \
                      quantity, so it has no display unit to change"
                 )?;
-                tail.recourse(f, format_args!("{COUNT_REDECLARED}, which carries a unit"))
+                tail.recourse(
+                    f,
+                    format_args!("{COUNT_HAS_NO_FIELD}, which carries a unit"),
+                )
             }
-            Self::DocParamCountHasNoDistribution { name } => {
+            Self::DocParamCountHasNoDistribution { var } => {
                 write!(
                     f,
-                    "parameter {name} is a count, and a count is a structural parameter that \
+                    "{var} is a count, and a count is a structural parameter that \
                      is fixed under any error analysis, so it has no distribution to change"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("{COUNT_REDECLARED}, which carries a distribution"),
+                    format_args!("{COUNT_HAS_NO_FIELD}, which carries a distribution"),
                 )
             }
             Self::DocParamUnitMismatch {
-                name,
+                var,
                 unit,
                 declared,
             } => {
                 write!(
                     f,
-                    "parameter {name} is declared {declared} but the display unit offered \
+                    "{var} is declared {declared} but the display unit offered \
                      measures {unit}"
                 )?;
                 tail.recourse(f, format_args!("offer a unit that measures {declared}"))
             }
             Self::DocParamValueKindMismatch {
-                name,
+                var,
                 declared,
                 offered,
             } => {
                 write!(
                     f,
-                    "parameter {name} is declared {declared} but the value edit offered a \
-                     {offered}, and changing a parameter's kind is a redeclaration"
+                    "{var} is declared {declared} but the value edit offered a \
+                     {offered}, and a variable's kind is fixed when it is declared"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("offer a value of the declared kind, or redeclare the parameter"),
+                    format_args!(
+                        "offer a value of the declared kind, or declare a new variable of the \
+                         other"
+                    ),
                 )
             }
             Self::PathOffTree { node, slot, path } => {
@@ -2434,18 +2474,18 @@ impl EditError {
                 write!(f, "the reference is read at {at}, which is not live")?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
             }
-            Self::NonFiniteDocParam { name, field } => {
+            Self::NonFiniteDocParam { var, field } => {
                 write!(
                     f,
-                    "parameter {name}'s {field} is not finite — the value and every \
+                    "{var}'s {field} is not finite — the value and every \
                      distribution offset must be a number"
                 )?;
                 tail.recourse(f, format_args!("give each of them a finite value"))
             }
             // A non-finite offset never arrives here: the edit door
             // routes it to `NonFiniteDocParam` (`distribution_fault_error`).
-            Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {name} has an invalid distribution: {fault}")?;
+            Self::InvalidDistribution { var, fault } => {
+                write!(f, "{var} has an invalid distribution: {fault}")?;
                 match fault {
                     DistributionFault::NonFinite { .. } => {
                         tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
@@ -2853,24 +2893,19 @@ impl EditError {
 
 impl core::error::Error for EditError {}
 
-/// The way through a count's unit or distribution: the
-/// create-or-replace door redeclares the parameter continuous.
-const COUNT_REDECLARED: &str = "redeclare it as a continuous parameter";
+/// The way through a count's unit or distribution: a kind is fixed,
+/// so the quantity is a new variable.
+const COUNT_HAS_NO_FIELD: &str = "declare a continuous variable in its place";
 
-/// The recourse of a parameter reference whose dimension disagrees
-/// with the declaration, as either door that reaches it states it: the
-/// write that made the reference, or a redeclaration that moved the
-/// dimension out from under it (`write_doc_param` re-checks every
-/// slot). Either side of the pair can be made to agree.
+/// The recourse of a variable reference whose dimension disagrees with
+/// the variable's kind. The kind is fixed (VR3), so the reference is
+/// the side that can move.
 struct ParamDimensionRecourse(Dimension);
 
 impl core::fmt::Display for ParamDimensionRecourse {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let referenced = self.0;
-        write!(
-            f,
-            "reference a parameter declared {referenced}, or declare this one {referenced}"
-        )
+        write!(f, "reference a variable declared {referenced}")
     }
 }
 
@@ -2881,14 +2916,16 @@ impl core::fmt::Display for ParamDimensionRecourse {
 pub struct EditRecord {
     /// The id an `InsertNode` or a `Promote` minted, `None` otherwise.
     pub minted: Option<RecipeNodeId>,
+    /// The variable a `DeclareVar` minted, `None` otherwise.
+    pub minted_var: Option<VarId>,
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
-    /// Count-slot expression edit, a Count doc-param set, or an edit
+    /// Count-slot expression edit, an edit of a Count variable, or an edit
     /// of recipe payload no slot carries (an extrude's side
     /// (`SetExtrudeSide`), a member list, a profile program, among
     /// others; the edit's own arm in `apply` says which).
     /// Continuous edits (`SetParam`, continuous-slot `SetExpression`,
-    /// continuous `SetDocParam`) leave recipe structure fixed.
+    /// an edit of a continuous variable) leave recipe structure fixed.
     pub structural: bool,
 }
 
@@ -3504,6 +3541,23 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Ok(id)
     }
 
+    /// Declare a variable and record the declare — [`Self::apply`] of
+    /// its [`DocEdit::DeclareVar`] — answering the id it minted.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::apply`]'s.
+    pub fn declare(&mut self, name: VarName, def: VarDef) -> Result<VarId, EditError> {
+        self.open()?;
+        let edit = DocEdit::DeclareVar { name, def };
+        let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
+        let Some(id) = applied.record.minted_var else {
+            unreachable!("an accepted declare mints a variable")
+        };
+        self.take(edit, applied);
+        Ok(id)
+    }
+
     /// The refusal that ended the action, if one has.
     fn open(&self) -> Result<(), EditError> {
         self.refused.clone().map_or(Ok(()), Err)
@@ -3577,7 +3631,7 @@ fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Resu
     }
 }
 
-/// One expression's document-parameter refs against the param table,
+/// One expression's document-parameter refs against the variable table,
 /// in THIS door's vocabulary (spec D6: dimension checks re-run on
 /// touched expressions; `node`/`slot` locate the expression for the
 /// error). The rule itself is `Doc::param_ref_fault`, the one home the
@@ -3648,61 +3702,49 @@ fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId
 /// The split is by CLASS, not by door: a non-finite offset is a
 /// non-finite float on a document parameter and joins the ruled
 /// non-finite policy's own refusal (door 1), the rest are distribution
-/// shape faults. Both the create-or-replace door and the annotation
-/// door reach it, so a caller comparing their refusals reads one
-/// answer rather than two spellings of it.
-fn distribution_fault_error(name: &VarName, fault: DistributionFault) -> EditError {
+/// shape faults. Every door that writes a definition and the
+/// annotation door reach it, so a caller comparing their refusals reads
+/// one answer rather than two spellings of it.
+fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditError {
     match fault {
         DistributionFault::NonFinite { field } => EditError::NonFiniteDocParam {
-            name: name.clone(),
+            var: var.clone(),
             field: crate::doc::DocParamField::Offset(field),
         },
         DistributionFault::SigmaNotPositive { .. }
         | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
-            name: name.clone(),
+            var: var.clone(),
             fault,
         },
     }
 }
 
-/// Write a fully-formed [`FreeVar`] into the document: the shared
-/// tail of every parameter door, so no two of them can come to
-/// disagree about what a legal parameter is. Four doors reach it —
-/// the create-or-replace door ([`DocEdit::SetDocParam`]) and the three
-/// carry-forward doors, one per movable field of the declaration:
-/// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
-/// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
-/// declaration routes through here too, and adds itself to that list.
+/// **The checks every door that writes a definition runs**, so no two
+/// of them can come to disagree about what a legal variable is:
+/// [`DocEdit::DeclareVar`], [`DocEdit::DefineVar`] and the three
+/// carry-forward doors, through [`write_free`].
 ///
 /// **The NAME is not checked here, because it cannot be wrong**: a
-/// [`VarName`] is admissible by construction — one identifier the
-/// expression parser reads back as a reference — so no edit can carry
-/// a name the document could not be asked about, and the load door
-/// refuses one at the token (`VarName`'s `Deserialize` is the same
-/// constructor). One decision at the type, and neither door restates
-/// it.
+/// [`VarName`] is admissible by construction, and the load door refuses
+/// one at the token (`VarName`'s `Deserialize` is the same
+/// constructor).
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
-/// then the notation walk. A parameter broken in two ways at once
-/// therefore gets the same VERDICT whichever door refuses it, and
-/// names the same one of its two faults — which is the property a
-/// caller comparing an edit refusal against a load refusal relies on.
+/// then the notation. A variable broken in two ways at once therefore
+/// gets the same VERDICT whichever door refuses it, and names the same
+/// one of its two faults.
 ///
-/// For one declaration the two doors reach that verdict by different
-/// rules, and say so in different words: a CONTINUOUS parameter
-/// declared `Count` is refused here as
-/// [`EditError::ContinuousParamCannotBeCount`], and at the load door
-/// by the notation walk one step earlier
-/// (`PersistError::DisplayUnit`), because no unit in the table
-/// measures a count. Both refuse the same declarations; only this door
-/// can name the structural/continuous divide as the reason.
-fn write_doc_param<P: Clone + crate::ProfilePayload>(
-    new: &mut Doc<P>,
-    before: &Doc<P>,
-    name: &VarName,
-    value: FreeVar,
-) -> Result<EditRecord, EditError> {
+/// For one definition the two doors reach that verdict by different
+/// rules, and say so in different words: a CONTINUOUS variable of kind
+/// `Count` is refused here as
+/// [`EditError::ContinuousParamCannotBeCount`], and at the load door by
+/// the notation walk one step earlier (`PersistError::DisplayUnit`),
+/// because no unit in the table measures a count. Both refuse the same
+/// definitions; only this door can name the structural/continuous
+/// divide as the reason.
+fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
+    let VarDef::Free(value) = def;
     // Ruled door 1 (non-finite policy): recipe data never carries
     // NaN/inf — the nominal and the distribution offsets alike, by the
     // ONE predicate the load door's float walk asks
@@ -3710,68 +3752,87 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     // float this refusal names.
     if let Some(field) = value.first_non_finite() {
         return Err(EditError::NonFiniteDocParam {
-            name: name.clone(),
+            var: var.clone(),
             field,
         });
     }
     // The REST of E2's invariants, from the ONE shared check the
-    // persistence doors also run. Its non-finite arm is unreachable
-    // from here — the walk above has already refused every non-finite
-    // offset — and stays reachable from the annotation door, which
-    // routes a distribution through `Distribution::check` without a
-    // declaration around it.
+    // persistence doors also run.
     if let Some(d) = value.distribution()
         && let Err(fault) = d.check()
     {
-        return Err(distribution_fault_error(name, fault));
+        return Err(distribution_fault_error(var, fault));
     }
     // The structural/continuous divide (`FreeVar::is_continuous_count`).
-    // This door is where it is REACHABLE: at the load door the same
-    // declaration refuses one walk earlier, because no unit in the
-    // table measures a count and the notation walk below asks that of
-    // every continuous parameter.
     if value.is_continuous_count() {
-        return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
+        return Err(EditError::ContinuousParamCannotBeCount { var: var.clone() });
     }
     // The unit/dimension pairing, at EVERY door that writes a
-    // declaration rather than only at the one that writes a notation.
-    // This is the create-or-replace door, whose `FreeVar` a caller
-    // assembles out of a `pub` payload, so it is the one door that can
-    // state a mismatched pair — and before this check the only thing
-    // that refused it was save/load, which meant an in-memory document
-    // could hold a parameter no file could ever carry. `measures()` is
-    // the same predicate the notation door and the validator ask.
+    // definition: a `FreeVar` is a `pub` payload, so a caller can state
+    // a mismatched pair, and an in-memory document must never hold a
+    // variable no file could carry. `measures()` is the same predicate
+    // the notation door and the validator ask.
     if let FreeVar::Continuous {
         dim, display_unit, ..
-    } = value
+    } = *value
     {
         let measured = display_unit.measures();
         if measured != dim {
             return Err(EditError::DocParamUnitMismatch {
-                name: name.clone(),
+                var: var.clone(),
                 unit: measured,
                 declared: dim,
             });
         }
     }
-    let structural = matches!(value, FreeVar::Count { .. });
-    new.params.insert(name.clone(), value);
-    // A (re)declaration can change the dimension out from under
-    // referencing expressions: re-validate every slot (documents are
-    // small; spec D6's re-run requirement).
-    for &id in &new.order {
-        if let Some(node) = new.nodes.get(&id) {
-            check_node_slots(new, before, id, node)?;
-        }
-    }
+    Ok(())
+}
+
+/// Write `value` as the definition of the standing variable `id`: the
+/// shared tail of the carry-forward doors. The kind cannot move here —
+/// each door carries the variable's own kind forward — so no reader is
+/// re-checked.
+fn write_free<P>(
+    new: &mut Doc<P>,
+    id: VarId,
+    var: &SpokenVar,
+    value: FreeVar,
+) -> Result<EditRecord, EditError> {
+    let def = VarDef::Free(value);
+    check_var_def(var, &def)?;
+    let structural = def.kind() == VarKind::Count;
+    new.vars.insert(id, Var::new(def));
     Ok(EditRecord {
         minted: None,
+        minted_var: None,
         structural,
     })
 }
 
+/// The live variable an edit of a standing variable addresses, or that
+/// door's refusal.
+fn standing_var<P>(
+    doc: &Doc<P>,
+    var: &VarRef,
+    door: CarryForwardDoor,
+) -> Result<(VarId, SpokenVar, FreeVar), EditError> {
+    // `resolve_var` answers live ids only, and every definition this
+    // build holds is free (one arm, R1), so the one miss is a variable
+    // the document does not hold — which is what `UnknownVar` says.
+    let Some((id, VarDef::Free(free))) = doc
+        .resolve_var(var)
+        .and_then(|id| Some((id, doc.var(id)?.def())))
+    else {
+        return Err(EditError::UnknownVar {
+            var: var.clone(),
+            door,
+        });
+    };
+    Ok((id, doc.spoken_var(id), free.clone()))
+}
+
 /// Validate every slot of a node payload against slot dimensions and
-/// the param table, keyed as `id` for error reporting.
+/// the variable table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     before: &Doc<P>,
@@ -3799,7 +3860,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
             found,
         });
     }
-    // The param table, against the slot expressions the rule above has
+    // The variable table, against the slot expressions the rule above has
     // just established are all readable.
     for (slot, expr) in node
         .slots()
@@ -4345,6 +4406,7 @@ fn door<P: Clone + crate::ProfilePayload, T>(
 fn inserted(id: RecipeNodeId) -> EditRecord {
     EditRecord {
         minted: Some(id),
+        minted_var: None,
         structural: true,
     }
 }
@@ -4515,6 +4577,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // `SetGauge` re-places it.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4561,6 +4624,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             crate::roots::on_set_members(new);
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4595,6 +4659,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             new.nodes.insert(*node, rewritten);
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4657,6 +4722,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // edit with nothing to do, not a different edit.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4671,6 +4737,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -4681,6 +4748,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             set_slot(new, doc, *node, *slot, expr)?;
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4700,6 +4768,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // `SetStructuralParam` is whatever count it writes.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -4731,76 +4800,98 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => write_doc_param(new, doc, name, value.clone())?,
-        DocEdit::SetDocParamValue { name, value } => {
-            let Some(declared) = new.params.get(name) else {
-                return Err(EditError::DocParamNotDeclared {
+        DocEdit::DeclareVar { name, def } => {
+            if let Some(holder) = doc.var_named(name.as_str()) {
+                return Err(EditError::VarNameTaken {
                     name: name.clone(),
-                    door: CarryForwardDoor::Value,
+                    holder: doc.spoken_var(holder),
                 });
-            };
-            // THE carry-forward: the declaration is read off the
-            // document and reused whole, so the dimension and the
+            }
+            // The definition is checked BEFORE anything is minted: a
+            // definition fault outranks a collision, and a refused
+            // declare speaks the id it would have minted.
+            let would = new.mint.would_declare(def.kind());
+            check_var_def(&SpokenVar::new(would, Some(name.clone())), def)?;
+            let mut mint = new.mint.clone();
+            let id = mint
+                .declare(def.kind())
+                .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+            new.mint = mint;
+            new.vars.insert(id, Var::new(def.clone()));
+            new.var_names.insert(id, name.clone());
+            new.var_order.push(id);
+            EditRecord {
+                minted: None,
+                minted_var: Some(id),
+                structural: def.kind() == VarKind::Count,
+            }
+        }
+        DocEdit::DefineVar { var, def } => {
+            let (id, spoken, _) = standing_var(doc, var, CarryForwardDoor::Definition)?;
+            let kind = doc.var(id).map_or(def.kind(), Var::kind);
+            if def.kind() != kind {
+                return Err(EditError::VarKindFixed {
+                    var: spoken,
+                    kind,
+                    offered: def.kind(),
+                });
+            }
+            let VarDef::Free(value) = def;
+            write_free(new, id, &spoken, value.clone())?
+        }
+        DocEdit::SetVarValue { var, value } => {
+            let (id, spoken, declared) = standing_var(doc, var, CarryForwardDoor::Value)?;
+            // THE carry-forward: the definition is read off the
+            // document and reused whole, so the kind and the
             // distribution cannot be dropped by an omission here.
             let Some(written) = declared.with_value(*value) else {
                 return Err(EditError::DocParamValueKindMismatch {
-                    name: name.clone(),
+                    var: spoken,
                     declared: declared.dim(),
                     offered: *value,
                 });
             };
-            write_doc_param(new, doc, name, written)?
+            write_free(new, id, &spoken, written)?
         }
-        DocEdit::SetDocParamUnit { name, unit } => {
-            let Some(declared) = new.params.get(name) else {
-                return Err(EditError::DocParamNotDeclared {
-                    name: name.clone(),
-                    door: CarryForwardDoor::Notation,
-                });
-            };
-            // THE carry-forward, over the other field: the declaration
-            // is read off the document and reused whole, so the value
-            // and the distribution cannot be dropped by an omission
-            // here. Both reasons it can refuse are the DOOR's — this
-            // routes them, and decides neither.
+        DocEdit::SetVarUnit { var, unit } => {
+            let (id, spoken, declared) = standing_var(doc, var, CarryForwardDoor::Notation)?;
+            // THE carry-forward, over the notation. Both reasons it
+            // can refuse are the DOOR's — this routes them, and decides
+            // neither.
             let written = declared.with_display_unit(*unit).map_err(|why| match why {
-                DisplayUnitRefusal::CountHasNoNotation => {
-                    EditError::DocParamCountHasNoUnit { name: name.clone() }
-                }
+                DisplayUnitRefusal::CountHasNoNotation => EditError::DocParamCountHasNoUnit {
+                    var: spoken.clone(),
+                },
                 DisplayUnitRefusal::Mismatch { unit, declared } => {
                     EditError::DocParamUnitMismatch {
-                        name: name.clone(),
+                        var: spoken.clone(),
                         unit,
                         declared,
                     }
                 }
             })?;
-            write_doc_param(new, doc, name, written)?
+            write_free(new, id, &spoken, written)?
         }
-        DocEdit::SetDocParamDistribution { name, distribution } => {
-            let Some(declared) = new.params.get(name) else {
-                return Err(EditError::DocParamNotDeclared {
-                    name: name.clone(),
-                    door: CarryForwardDoor::Annotation,
-                });
-            };
-            // THE carry-forward, over the third field: the declaration
-            // is read off the document and reused whole, so the value
-            // and the NOTATION cannot be dropped by an omission here.
-            // Both reasons it can refuse are the DOOR's — this routes
-            // them, and decides neither.
+        DocEdit::SetVarDistribution { var, distribution } => {
+            let (id, spoken, declared) = standing_var(doc, var, CarryForwardDoor::Annotation)?;
+            // THE carry-forward, over the annotation.
             let written = declared
                 .with_distribution(*distribution)
                 .map_err(|why| match why {
                     DistributionRefusal::CountHasNoAnnotation => {
-                        EditError::DocParamCountHasNoDistribution { name: name.clone() }
+                        EditError::DocParamCountHasNoDistribution {
+                            var: spoken.clone(),
+                        }
                     }
-                    DistributionRefusal::Invalid { fault } => distribution_fault_error(name, fault),
+                    DistributionRefusal::Invalid { fault } => {
+                        distribution_fault_error(&spoken, fault)
+                    }
                 })?;
-            write_doc_param(new, doc, name, written)?
+            write_free(new, id, &spoken, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
@@ -4886,6 +4977,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 // A payload name changed: content keys move and the
                 // threading consumes them — structural, whichever
                 // carrier held it. An appearance-only rebind is
@@ -4899,6 +4991,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             new.witnesses.insert(*node, witness.clone());
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -4927,6 +5020,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // Presentation only: never structural, never a recompute.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -4954,6 +5048,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -4973,6 +5068,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -4986,6 +5082,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             new.epsilon = *eps;
             EditRecord {
                 minted: None,
+                minted_var: None,
                 // ε parameterizes every content key (and every
                 // predicate band): the whole cone recomputes.
                 structural: true,
@@ -5032,6 +5129,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 .insert(key.clone(), value.clone());
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -5051,6 +5149,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -5061,6 +5160,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // product's combinatorial shape, not a continuous value.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -5087,6 +5187,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // moves the document's content pin.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -5115,6 +5216,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -5153,6 +5255,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: Some(id),
+                minted_var: None,
                 structural: true,
             }
         }
@@ -5224,6 +5327,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             })?);
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }
@@ -5244,6 +5348,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             };
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: false,
             }
         }
@@ -5275,6 +5380,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // slot value — and it moves this document's own pin.
             EditRecord {
                 minted: None,
+                minted_var: None,
                 structural: true,
             }
         }

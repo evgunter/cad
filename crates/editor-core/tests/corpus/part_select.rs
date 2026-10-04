@@ -63,14 +63,14 @@ pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
 /// The part-select corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::from_static(H),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: None,
-        },
+        }),
     });
 
     // ---- the box, [-1, 1]² × [0, h] ----

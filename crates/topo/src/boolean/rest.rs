@@ -973,12 +973,7 @@ fn fragment_holding<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let mut lineage = vec![face];
-    for &(new, from) in fragments {
-        if lineage.contains(&from) {
-            lineage.push(new);
-        }
-    }
+    let lineage = crate::chord_join::lineage(face, fragments);
     let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
         .into_iter()
         .filter(|f| lineage.contains(f))

@@ -92,8 +92,8 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
         panic!("node {} has no body", test_utils::refusal::tag(node.0))
     };
     let mut out: Vec<(u64, u64, u64)> = b
-        .vertices()
-        .filter_map(|(_, v)| b.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         .collect();
     out.sort_unstable();
@@ -115,7 +115,7 @@ fn span() -> VarName {
 /// exact amount. `BoxAxis::Varying` need not contain zero — a leaf of
 /// the subdivision generally sits off the nominal — which is what
 /// makes "nominal" and "lane" two different points at one scalar.
-fn boxed_at(name: VarName, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
+fn boxed_at(name: editor_core::VarId, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
     let mut axes = BTreeMap::new();
     axes.insert(
         name,
@@ -134,9 +134,9 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(),
-                value: FreeVar::continuous(Dimension::Length, lift),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -447,7 +447,7 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(p(), 5.0),
+            param_box: boxed_at(doc.var_named(p().as_str()).expect("declared"), 5.0),
             ..EvalOptions::default()
         },
         Tol::witness(),
@@ -474,9 +474,9 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r7", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: span(),
-                value: FreeVar::continuous(Dimension::Scalar, 0.0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -505,7 +505,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(span(), 1.0),
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
             ..EvalOptions::default()
         },
         Tol::witness(),
@@ -594,9 +594,9 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r8", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: span(),
-                value: FreeVar::continuous(Dimension::Scalar, 0.0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -624,7 +624,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(span(), 1.0),
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
             ..EvalOptions::default()
         },
         Tol::witness(),

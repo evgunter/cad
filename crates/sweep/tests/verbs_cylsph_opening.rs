@@ -152,14 +152,17 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
 }
 
-/// **The non-coaxial transversal pose crosses and reaches the germ
-/// frame.** The crossing that used to keep the pierce door is certified
-/// now by the circle × cylinder root lane
+/// **The non-coaxial transversal pose crosses, passes the germ frame
+/// and reaches the join's lane.** The crossing that used to keep the
+/// pierce door is certified now by the circle × cylinder root lane
 /// (`topo::boolean::circle_cylinder`), its pierce's sector side
-/// certifies, and the cylinder × sphere germ pair it mints has no frame
-/// off the coaxial declaration, in both poses.
+/// certifies, and the cylinder × sphere germ pair it mints has the
+/// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
+/// chord lane takes its quartic section
+/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
+/// poses.
 #[test]
-fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
+fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
@@ -170,13 +173,12 @@ fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no off-axis cyl×sphere frame");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no cyl×sphere chord lane");
         assert!(
             matches!(
                 err,
-                BooleanError::GermFrameUnsupported {
-                    a_kind: geom::SurfaceKind::Cylinder,
-                    b_kind: geom::SurfaceKind::Sphere,
+                BooleanError::CurvedBooleanUnsupported {
+                    kind: geom::SurfaceKind::Cylinder,
                     ..
                 }
             ),

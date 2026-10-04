@@ -1761,6 +1761,7 @@ pub(crate) fn volume_backstop<T: Decide>(
             band,
             tol,
             Some(lane),
+            Some(lane),
             |_| None,
             |refused| refused,
         )
@@ -1906,12 +1907,13 @@ enum Reading {
 }
 
 impl Posture {
-    /// The margin `[lo, hi]` over `lever`, read at whatever scalar it is
-    /// carried in. Unpadded, the two ends are one value and the upper
-    /// end's sign is the margin's.
-    fn read<U: Decide>(self, lo: U, hi: U, lever: U, padded: bool) -> Reading {
+    /// The margin's reading — exact, or a bracket over the bodies'
+    /// quadrature pads ([`crate::props::MassProperties::reading`]) — read
+    /// at whatever scalar it is carried in.
+    fn read<U: Decide>(self, margin: crate::props::SignReading<U>) -> Reading {
         match self {
             Posture::Bound { exact, .. } => {
+                let (lo, hi, lever) = margin.ends();
                 let sign = |end: U| {
                     geom_core::k_stats::decide_invariant(
                         "volume_backstop_violation",
@@ -1920,28 +1922,24 @@ impl Posture {
                     )
                 };
                 let upper = sign(hi);
+                let held = if margin.is_exact() {
+                    upper.is_ok()
+                } else {
+                    matches!(sign(lo), Ok(Sign::Zero | Sign::Positive))
+                };
                 if upper == Ok(Sign::Negative) {
                     Reading::Violated
-                } else if !padded && upper.is_ok()
-                    || padded && matches!(sign(lo), Ok(Sign::Zero | Sign::Positive))
-                {
+                } else if held {
                     Reading::Held
                 } else {
                     Reading::Open
                 }
             }
-            Posture::PlusV { band } => {
-                let enclosure = crate::props::VolumeEnclosure {
-                    volume_lo: lo,
-                    volume_hi: hi,
-                    surface_area: lever,
-                };
-                match crate::validate::plus_v_read(enclosure, band) {
-                    Some(crate::props::ShellRole::Void) => Reading::Violated,
-                    Some(crate::props::ShellRole::Outer) => Reading::Held,
-                    None => Reading::Open,
-                }
-            }
+            Posture::PlusV { band } => match crate::validate::plus_v_read(margin, band) {
+                Some(crate::props::ShellRole::Void) => Reading::Violated,
+                Some(crate::props::ShellRole::Outer) => Reading::Held,
+                None => Reading::Open,
+            },
         }
     }
 }
@@ -1978,10 +1976,9 @@ fn bound_holds<'t, 'b, T: Decide>(
         diag,
     };
     loop {
-        // The margin `Σ large − Σ small` at its two ends, and the
-        // summed surface area it is metered over (fn docs, audit F3).
-        let (mut lo, mut hi, mut lever) = (T::zero(), T::zero(), T::zero());
-        let mut padded = false;
+        // The margin `Σ large − Σ small`, and the summed surface area it
+        // is metered over (fn docs, audit F3).
+        let mut margin = crate::props::SignReading::exact(T::zero(), T::zero());
         // The result's volume, and what the other bodies bound it by,
         // for the refusal's text.
         let (mut got, mut others) = (T::zero(), T::zero());
@@ -1989,13 +1986,7 @@ fn bound_holds<'t, 'b, T: Decide>(
         for (side, terms) in [(Side::Small, &*small), (Side::Large, &*large)] {
             for (operand, target) in terms {
                 let p = target.props();
-                let e = p.enclosure();
-                padded |= p.volume_pad > 0.0;
-                lever = lever + e.surface_area;
-                (lo, hi) = match side {
-                    Side::Small => (lo - e.volume_hi, hi - e.volume_lo),
-                    Side::Large => (lo + e.volume_lo, hi + e.volume_hi),
-                };
+                margin = margin.plus(p.reading(), side == Side::Small);
                 match (operand, side) {
                     (None, _) => (got, result_side) = (p.volume, side),
                     (Some(_), Side::Small) => others = others - p.volume,
@@ -2012,10 +2003,11 @@ fn bound_holds<'t, 'b, T: Decide>(
             got: format!("{got:?}"),
             bound: format!("{bound:?}"),
         };
+        let (mut lo, hi, lever) = margin.ends();
         let metered = hi / lever;
-        let reading = posture.read(lo, hi, lever, padded);
+        let reading = posture.read(margin);
         // Open: the enclosures keep the sign open.
-        let mut open = padded && reading == Reading::Open;
+        let mut open = !margin.is_exact() && reading == Reading::Open;
         // Arm 1 — the inequality itself, at the margin's upper end. The
         // walk's own sums round (`PastTarget::interval_volume`), so a
         // violation they call is re-derived in interval arithmetic
@@ -2033,7 +2025,7 @@ fn bound_holds<'t, 'b, T: Decide>(
                     area = area + a;
                 }
             }
-            if posture.read(margin, margin, area, false) == Reading::Violated {
+            if posture.read(crate::props::SignReading::exact(margin, area)) == Reading::Violated {
                 return Err(implausible());
             }
             open = true;
@@ -3576,7 +3568,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// sphere-involved boundary pair disjoint (or re-cut / refused): a
 /// connected shell whose surface avoids the other boundary lies in one
 /// component, and the witness names it.
-fn classify_shells<T: Decide>(
+fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other: &Body<T>,
     operand: Operand,

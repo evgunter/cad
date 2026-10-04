@@ -134,7 +134,7 @@ fn promote_solid<T: Decide>(
 /// typed error), else the uncut-shell verdict against the pristine
 /// other operand.
 #[allow(clippy::too_many_arguments)]
-fn classify_shell<T: Decide>(
+fn classify_shell<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     shell: ShellKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
@@ -169,7 +169,7 @@ fn classify_shell<T: Decide>(
 /// Distributes and classifies one solid's shells; returns every
 /// distributed shell with its verdict.
 #[allow(clippy::too_many_arguments)]
-fn classify_solid<T: Decide>(
+fn classify_solid<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     solid: SolidKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
@@ -510,10 +510,14 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 let pu = point(u)?;
                 // No row reaches the escalation: two pierces a band
                 // apart need the piercing operand's two edges a band
-                // apart, and the join escalates that waist at
-                // `bool_join_nearest` before the weld runs; a narrower
-                // one the profile insert refuses at the operand's build.
-                // An operand built elsewhere can still bring them here.
+                // apart. Seen from one germ the two sites lie in one
+                // half-turn unless they straddle its ends, and the join
+                // orders them there before the weld runs — escalating
+                // the waist at `bool_join_arc_travel` along a conic, at
+                // `bool_join_nearest` on a straight line; a narrower one
+                // the profile insert refuses at the operand's build. An
+                // operand built elsewhere, or two sites the half-turn
+                // parts, can still bring them here.
                 if !one_vertex(pu, point(w)?, band).map_err(|diag| BooleanError::Escalated {
                     decision: super::BooleanDecision::VertexOnVertex,
                     diag,
