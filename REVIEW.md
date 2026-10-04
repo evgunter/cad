@@ -1,13 +1,10 @@
 # Review r2 of #4008: pocket ring re-homing (frozen head d930c23f)
 
-**Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 3 · NOTE 5.
+**Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 3 · NOTE 3.
 
-Scope: frozen `d930c23f` against main `4c9d9385` (its second parent). The
-PR branch has since moved to `b98a5131`, which I did not review. Lane
-isolation: I read no other review branch and no PR comments. All runs are
-release builds. Probe rows: `crates/sweep/tests/pocket_ring_rehoming_r2_probes.rs`
-(`#[ignore]`d except the oracle row). Wrong-partner picks were measured with
-throwaway instrumentation in `find_match`/`partners` (not committed): it logs
+Frozen `d930c23f` vs main `4c9d9385`, release; no other review branch or PR
+comment read. Probes: `crates/sweep/tests/pocket_ring_rehoming_r2_probes.rs`.
+Wrong picks measured by uncommitted instrumentation in `find_match` logging
 each candidate's true central angle in the germ's sense beside the chosen one.
 
 ## Claims
@@ -41,10 +38,8 @@ each candidate's true central angle in the germ's sense beside the chosen one.
      quantity") and the `Zero` argument at `join.rs:983-990`.
    - `j3r2_tilted_battery` cannot see this: its tilts are at most 0.3 rad
      (aspect 1.047 < √2), so it being byte-identical is no evidence here.
-   - Coverage: both operand orders and ∪ ∖ ∩ were run; mirroring the plate
-     flips the rotational sense against the seams. The arm is symmetric
-     under swapping cand and entry (analytic). Open-arc sections: the
-     global-minimum argument is unchanged.
+   - Covered: both orders, ∪ ∖ ∩, both senses (mirrored plate); the arm is
+     symmetric in cand/entry (analytic).
 2. **Nothing straight-line moved: HOLDS.**
    - 14 batteries, main vs head, same row counts: `j3r2_pocket` 10800,
      `rc_wide` 40320, `j3r2_tilted` 2160, `join1_r1` 42336, `_declared`
@@ -60,7 +55,7 @@ each candidate's true central angle in the germ's sense beside the chosen one.
    - My own batteries (3430 rows): SOUND goes 66 → 192, with no SOUND→worse.
      The U plate goes from 30 invalid bodies on main (`t3p=false
      cert=false`) to all 192 SOUND. 420 refusals become `OK BAD
-     operand=false` (NOTE 3); all 1571 head BADs have the right volume and
+     operand=false` (NOTE 2); all 1571 head BADs have the right volume and
      pass t2, t3′ and the certificate.
 3. **`wall_region` is right: HOLDS where exercised; UNSURE on corners.**
    - A region holding both halves contains both endpoint azimuths, so its
@@ -70,8 +65,7 @@ each candidate's true central angle in the germ's sense beside the chosen one.
      holds only one end (`join.rs:918`), and `f1==f2≠recorded` is accepted
      with no lineage or `gb`-carrier check (`join.rs:920`), though the
      window is read in `gb`'s chart.
-   - The `reach_continuation` fillet case was not rerun separately; it is
-     in the workspace run the PR reports green.
+   - The `reach_continuation` fillet case was not rerun separately.
 4. **The oracle is exact and the suite reds under each revert: HOLDS.**
    - Independent check: a 200 000-gon D clipped against the square agrees
      on all 19 groups to 8.1e-11 (discretisation).
@@ -82,20 +76,15 @@ each candidate's true central angle in the germ's sense beside the chosen one.
    steep ellipses.**
    - Its back-to-back example (CCW at 0.2, CW at 0.1, partner at 3.0) now
      reads Behind vs Ahead and pairs right.
-   - The facing test still *accepts* back-to-back germs
-     (`germs_face_each_other`, `join.rs:1781-1785`, unchanged); the arm
-     ranks them out rather than filtering them.
+   - The facing test still *accepts* back-to-back germs (`join.rs:1781-1785`);
+     the arm ranks them out rather than filtering them.
    - The row's U-plate fixture went from 30 invalid bodies to all SOUND.
      The PR neither closes nor amends the row (MINOR 2).
-6. **Sweep.**
-   - Conic rankings: only `find_match` and `loose_partners`. The `min_by`
-     hits in `circle_torus.rs`, `ellipse_roots.rs` and `circle_sphere.rs`
-     rank roots; `rest.rs`/`zip.rs` do no nearest-site ranking.
-   - Recorded face read after surgery: `surf_of` (`join.rs:630`),
-     `germ_section_frame`/`field_source_evidence` (`join.rs:1265-1281`),
-     `AuxDatum::Partner`, `CurvedBooleanUnsupported`. I agree with the PR's
-     classification. Missed sibling: `rest.rs:969` `fragment_holding`
-     (Style).
+6. **Sweep.** Conic rankings: only `find_match`/`loose_partners` (the
+   `min_by` hits in `circle_torus`/`ellipse_roots` rank roots). Recorded
+   face read after surgery: `join.rs:630`, `:1265-1281`, `AuxDatum::Partner`,
+   `CurvedBooleanUnsupported`; I agree with the PR's classification, but it
+   missed the sibling `rest.rs:969` `fragment_holding` (Style).
 
 ## Findings
 
@@ -114,12 +103,10 @@ each candidate's true central angle in the germ's sense beside the chosen one.
 - **NOTE 1:** the suite's header and the PR body say "the 37 poses"
   (`pocket_wall_crossing_a_side_face.rs:7`); the table holds 19×3 = **57**.
   The PR's revert count (96) also differs from mine (90).
-- **NOTE 2:** the PR's battery table is confirmed (claim 2).
-- **NOTE 3:** `operand=false` bodies (union with a far brick refuses)
+- **NOTE 2:** `operand=false` bodies (union with a far brick refuses)
   already exist on main (1151 rows of my battery). I did not trace why;
   `outcome` counts them as BAD.
-- **NOTE 4:** the oracle is independently confirmed (claim 4).
-- **NOTE 5:** the PR head moved past the frozen commit.
+- **NOTE 3:** the PR head moved to `b98a5131`, which I did not review.
 
 ## Style
 
