@@ -24,7 +24,10 @@ fn r1_a_symbolic_zero_at_sym_interval_retags_an_unrelated_probe_sample() {
             max_degree: 128,
         },
         || {
-            let x: Sym<Interval> = Sym::param(ParamSymbol::of("x"), Interval::from_f64(0.5));
+            let x: Sym<Interval> = Sym::param(
+                ParamSymbol::new(test_utils::symbol_id("x")),
+                Interval::from_f64(0.5),
+            );
             decide("identity_at_interval", Margin::of(x - x), band)
         },
     );

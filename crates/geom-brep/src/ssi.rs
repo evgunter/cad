@@ -127,7 +127,7 @@ mod refine;
 pub mod section;
 pub mod system;
 
-use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
+use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::{
@@ -1780,23 +1780,18 @@ fn fit_branch(
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    let carrier = NurbsCurve3::<f64>::interpolate_with_params(points, SSI_FIT_DEGREE, &params)?;
+    // One collocation system for the three fits: they share the
+    // parameters, so they share the matrix, factored once.
+    let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
+    let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
     let (mut pa, mut pb) = (None, None);
     if let Some((a, b)) = charts {
         // Pcurves interpolate the traced parameter samples ON THE
         // CARRIER'S PARAMETERS. Interpolation (not approximation) so
         // the map is exact at every sample; compaction of a pcurve is
         // an optimization, and the certificate is what governs.
-        pa = Some(NurbsCurve2::<f64>::interpolate_with_params(
-            a,
-            SSI_FIT_DEGREE,
-            &params,
-        )?);
-        pb = Some(NurbsCurve2::<f64>::interpolate_with_params(
-            b,
-            SSI_FIT_DEGREE,
-            &params,
-        )?);
+        pa = Some(NurbsCurve2::<f64>::interpolate_on(a, &collocation)?);
+        pb = Some(NurbsCurve2::<f64>::interpolate_on(b, &collocation)?);
     }
     Ok((carrier, pa, pb))
 }

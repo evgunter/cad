@@ -2310,7 +2310,7 @@ class Node:
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one
-        `set_doc_param_value` per value."""
+        `set_var_value` per value."""
 
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Expr) -> Node:
@@ -3187,7 +3187,7 @@ def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
 
 class DocParam:
     """A named parameter's declared dimension and exact stored value
-    (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
+    (guide §3.2): what `DocEdit.declare_var` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
     constructor. A non-finite value is refused typed at `Doc.apply`
     (`non_finite_doc_param`), not pre-checked here.
@@ -3214,7 +3214,7 @@ class DocParam:
 
         No `distribution=`: the kernel's own notation door carries no
         annotation, so neither does this. Annotate a parameter declared
-        here with `DocEdit.set_doc_param_distribution`, which carries
+        here with `DocEdit.set_var_distribution`, which carries
         the notation forward; `length` takes both at once and records
         the canonical metre row."""
 
@@ -3250,7 +3250,7 @@ class DocParam:
 
 class DocParamValue:
     """The VALUE half of a document parameter: what
-    `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED one.
+    `DocEdit.set_var_value` writes into an ALREADY-DECLARED one.
 
     The safe "just change the number" spelling. It carries no
     declaration, so it cannot replace one — the parameter keeps its
@@ -3347,78 +3347,85 @@ class DocEdit:
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
-        """Create or REPLACE a document-level named parameter.
+    def declare_var(name: ParamName, value: DocParam) -> DocEdit:
+        """Declare a variable: mint its id and hold `name` beside it.
 
-        The whole declaration is replaced, so a `DocParam` rebuilt from
-        a dimension and a number declares one with no distribution and
-        the annotation the old parameter carried is gone. `Doc.params`
-        reads a declaration back and
-        `DocParam.length(value, distribution)` restates it, so that is
-        no longer a trap Python cannot see — but moving a NUMBER is
-        still `set_doc_param_value`'s job, because that door cannot drop
-        what it never takes.
-
-        Refuses typed on a broken annotation: `invalid_distribution`
-        for an E2 invariant, `non_finite_doc_param` for a NaN or
-        infinite nominal or offset."""
+        Refuses typed on a name the document already holds
+        (`var_name_taken`), and on a broken annotation:
+        `invalid_distribution` for an E2 invariant,
+        `non_finite_doc_param` for a NaN or infinite nominal or
+        offset."""
     @staticmethod
-    def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
-        """Write a new VALUE into an already-declared parameter, keeping
-        its declaration — dimension and distribution alike.
+    def define_var(name: ParamName, value: DocParam) -> DocEdit:
+        """Replace a variable's definition, keeping its identity, its
+        name and its kind.
 
-        Prefer this over `set_doc_param` whenever the parameter already
-        exists: that one is create-or-replace, so rebuilding a
-        `DocParam` to move a number DELETES any distribution the
-        parameter carried, with no refusal. Refuses typed on an
-        undeclared name (`doc_param_not_declared`) and on a kind
-        mismatch (`doc_param_value_kind_mismatch`)."""
+        The whole definition is replaced, so a `DocParam` rebuilt from
+        a dimension and a number has no distribution and the annotation
+        the old one carried is gone. `Doc.params` reads a definition
+        back and `DocParam.length(value, distribution)` restates it —
+        but moving a NUMBER is `set_var_value`'s job, because that door
+        cannot drop what it never takes.
+
+        Refuses typed on a name the document does not hold
+        (`unknown_var`), on a definition of another kind
+        (`var_kind_fixed` — a kind is fixed when a variable is
+        declared), and on `declare_var`'s annotation faults."""
     @staticmethod
-    def set_doc_param_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
-        """Write a new NOTATION onto an already-declared parameter,
-        keeping its declaration — dimension, exact value and
-        distribution alike.
+    def set_var_value(name: ParamName, value: DocParamValue) -> DocEdit:
+        """Write a new VALUE into a declared variable, keeping its
+        definition — dimension and distribution alike.
 
-        `set_doc_param_value`'s mirror over the other field of the same
-        declaration, and preferable over `set_doc_param` for the same
-        reason. A notation change is not a redeclaration — the display
+        Prefer this over `define_var` to move a number: that one
+        replaces the whole definition, so rebuilding a `DocParam` to
+        move a number DELETES any distribution the variable carried,
+        with no refusal. Refuses typed on an undeclared name
+        (`unknown_var`) and on a kind mismatch
+        (`doc_param_value_kind_mismatch`)."""
+    @staticmethod
+    def set_var_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+        """Write a new NOTATION onto a declared variable, keeping its
+        definition — dimension, exact value and distribution alike.
+
+        `set_var_value`'s mirror over the other field of the same
+        definition, and preferable over `define_var` for the same
+        reason. A notation change is not a redefinition — the display
         unit is presentation metadata, excluded from `DocParam.bit_eq`.
 
         The unit is one of the typed unit objects (`mm`, `deg`, ...),
         so an off-table notation is a `TypeError` here rather than a
-        kernel refusal; a `Scalar` parameter has only the dimensionless
+        kernel refusal; a `Scalar` variable has only the dimensionless
         row and needs no door. Refuses typed on an undeclared name
-        (`doc_param_not_declared`), on a `Count`
+        (`unknown_var`), on a `Count`
         (`doc_param_count_has_no_unit`) and on a unit that does not
         measure the declared dimension (`doc_param_unit_mismatch`)."""
     @staticmethod
-    def set_doc_param_distribution(
+    def set_var_distribution(
         name: ParamName, distribution: Distribution | None
     ) -> DocEdit:
-        """Write an E1/E2 ANNOTATION onto an already-declared parameter,
-        keeping its declaration — dimension, exact value and notation
-        alike.
+        """Write an E1/E2 ANNOTATION onto a declared variable, keeping
+        its definition — dimension, exact value and notation alike.
 
         The third of the carry-forward doors, one per field of the
-        declaration, and preferable over `set_doc_param` for its
-        siblings' reason: the annotated authoring spelling writes the
-        CANONICAL notation, so annotating through create-or-replace
-        re-spells a parameter authored in millimetres.
+        definition, and preferable over `define_var` for its siblings'
+        reason: the annotated authoring spelling writes the CANONICAL
+        notation, so annotating through a whole definition re-spells a
+        variable authored in millimetres.
 
         `None` CLEARS the annotation, through this same door: the field
-        is optional and "no annotation" is a value of the declaration,
+        is optional and "no annotation" is a value of the definition,
         not a row removed from a map.
 
         The distribution's own dimension is not checked here: a kernel
         distribution is dimension-free offsets, so the `dim` this value
-        carries is dropped at the door, as `set_doc_param_value` drops
-        its quantity's (LIB's
+        carries is dropped at the door, as `set_var_value` drops its
+        quantity's (LIB's
         `doc-param-edit-doors-drop-the-python-dimension`).
 
-        Refuses typed on an undeclared name (`doc_param_not_declared`),
-        on a `Count` (`doc_param_count_has_no_distribution` — a count
-        takes no annotation, for the reason `DocParam.count` gives) and
-        on a broken E2 invariant (`invalid_distribution`,
+        Refuses typed on an undeclared name (`unknown_var`), on a
+        `Count` (`doc_param_count_has_no_distribution` — a count takes
+        no annotation, for the reason `DocParam.count` gives) and on a
+        broken E2 invariant (`invalid_distribution`,
         `non_finite_doc_param`)."""
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
@@ -3581,7 +3588,7 @@ class DocEdit:
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
-        parameter `name`, so one `set_doc_param` re-counts the
+        parameter `name`, so one `set_var_value` re-counts the
         placements and recomputes exactly what is downstream.
 
         Deliberately narrow: the slot is named by the door and the
@@ -3876,7 +3883,7 @@ class Doc:
     def params(self) -> dict[ParamName, DocParam]:
         """The document's named parameters, by name.
 
-        The read side of `DocEdit.set_doc_param`, and the only door
+        The read side of `DocEdit.declare_var`, and the only door
         that answers a whole parameter back: `Doc.eval` answers a
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""

@@ -32,3 +32,23 @@ The quadrature lane's Green form over every loop, as the cylinder's
 closed form now does: a ring's contribution is its own `∮` with its own
 winding. The closed form's closure checks (`props_loop_closed`,
 `props_chart_loops_closed`) are the premise to carry over.
+
+## More witnesses (JOIN, PR 4008's fix pass)
+
+Once the join pairs a conic's germs along the conic, two steep-ellipse
+batteries reach this lane with a ring on the cylinder wall
+(`crates/sweep/tests/pocket_ring_steep_ellipse.rs`):
+
+- `steep_quad_prism_battery`, `k = 0.5`, sites `[200, 230, 300, 120]`,
+  `ψ = 0`, against, ∪ in both orders. The prism's footprint on the
+  wall's `[180°, 360°]` face is a window wholly inside it, a ring.
+  Main built this ∪ AB sound only because the chord order paired the
+  side plane's sites back to back (200↔230, 180↔280.4), which merged
+  the face's outer loop and the ring into one loop. The gating row
+  `steep_ellipse_poses_build_sound_or_refuse_typed` holds the pose as
+  "sound or refused".
+- `steep_plate_rod_battery` (a plate pierced by a tilted rod): 1 099
+  of its 3 240 runs end here, 910 of them on main already. The 54 new
+  ones are at θ ∈ {70, 78}°, ∪ in both orders and rod ∖ plate, which
+  refused `RingHomingAmbiguous` before the fix.
+

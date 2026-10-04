@@ -72,9 +72,9 @@ fn r1_replay_bit_identity_adversarial() {
         f64::MAX,
         -f64::MAX,
     ];
-    let mut log: Vec<Edit> = vec![Edit::SetDocParam {
+    let mut log: Vec<Edit> = vec![Edit::DeclareVar {
         name: VarName::from_static("neg_zero"),
-        value: FreeVar::continuous(Dimension::Length, -0.0),
+        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, -0.0)),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&log[0], Tol::witness(), &editor_core::RefusingReach)
@@ -274,9 +274,9 @@ fn r2_contradictory_param_dims_caught_downstream() {
     // dimension the doc table declares.
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: VarName::from_static("q"),
-                value: FreeVar::continuous(Dimension::Length, 2.0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -626,7 +626,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     assert_eq!(slots, vec![SlotId::Distance]);
 }
 
-/// R4 — SetDocParam re-declaration sweep + the flagged no-delete-arm
+/// R4 — DefineVar redefinition sweep + the flagged no-delete-arm
 /// hole: a dimension flip under a referencing slot is REFUSED (sweep
 /// works); a Count→Count value change passes; and since NO edit can
 /// remove a param, reference stranding via deletion is impossible in
@@ -636,9 +636,9 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let name = VarName::from_static("d");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: name.clone(),
-                value: FreeVar::continuous(Dimension::Length, 0.5),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -649,51 +649,49 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         doc,
         &[point_edit(Expr::param(name.clone(), Dimension::Length))],
     );
-    // Dimension flip out from under the referencing slot: refused.
+    // Dimension flip under the referencing slot: refused, because a
+    // variable's kind is fixed whatever reads it.
     let flip = doc.apply(
-        &Edit::SetDocParam {
-            name: name.clone(),
-            value: FreeVar::continuous(Dimension::Angle, 0.5),
+        &Edit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(flip, Err(EditError::SlotDocParamDimension { .. })),
+        matches!(flip, Err(EditError::VarKindFixed { .. })),
         "got {flip:?}"
     );
     // Kind flip Continuous→Count under a reference: also refused.
     let kind_flip = doc.apply(
-        &Edit::SetDocParam {
-            name: name.clone(),
-            value: FreeVar::Count { value: 2 },
+        &Edit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDef::Free(FreeVar::Count { value: 2 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
-    assert!(matches!(
-        kind_flip,
-        Err(EditError::SlotDocParamDimension { .. })
-    ));
+    assert!(matches!(kind_flip, Err(EditError::VarKindFixed { .. })));
     // Same-dimension value change: accepted, non-structural.
     let ok = doc
         .apply(
-            &Edit::SetDocParam {
-                name,
-                value: FreeVar::continuous(Dimension::Length, 0.75),
+            &Edit::DefineVar {
+                var: name.into(),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!ok.record.structural);
-    // An UNREFERENCED param may flip freely (nothing to strand).
+    // A new count variable is a structural declare.
     let free = ok
         .doc
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: VarName::from_static("unused"),
-                value: FreeVar::Count { value: 1 },
+                def: editor_core::VarDef::Free(FreeVar::Count { value: 1 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -754,7 +752,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
 }
 
 /// R6 (RULED, fixed) — both non-finite doors are CLOSED:
-/// door 1: literal(NaN/inf) and SetDocParam(NaN/inf) are typed
+/// door 1: literal(NaN/inf) and DeclareVar(NaN/inf) are typed
 ///         refusals at construction/edit time;
 /// door 2: a non-finite RESULT (inf from 1/0, NaN from 0/0, overflow
 ///         to inf) is a typed `NonFiniteResult` at the eval boundary
@@ -800,10 +798,13 @@ fn r6_nonfinite_doors_closed() {
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-            &Edit::SetDocParam {
+        let empty = Doc::empty_derived("review_m4_pr1", Tol::witness());
+        let def = editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, poison));
+        let spoken = empty.spoken_declare(&VarName::from_static("poison"), &def);
+        let res = empty.apply(
+            &Edit::DeclareVar {
                 name: VarName::from_static("poison"),
-                value: FreeVar::continuous(Dimension::Length, poison),
+                def,
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -811,10 +812,10 @@ fn r6_nonfinite_doors_closed() {
         assert_eq!(
             res.unwrap_err(),
             EditError::NonFiniteDocParam {
-                name: VarName::from_static("poison"),
+                var: spoken,
                 field: editor_core::DocParamField::Nominal,
             },
-            "SetDocParam({poison})"
+            "DeclareVar({poison})"
         );
     }
 }
@@ -881,9 +882,9 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let cnt_param = VarName::from_static("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: cnt_param.clone(),
-                value: FreeVar::Count { value: 4 },
+                def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -930,7 +931,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         matches!(res, Err(EditError::SlotDimensionMismatch { .. })),
         "got {res:?}"
     );
-    // Continuous SetDocParam is flagged non-structural AND provably
+    // Declaring a continuous variable is flagged non-structural AND provably
     // cannot move the pattern count: value before == after.
     let n_before = eval_count(
         doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
@@ -939,9 +940,9 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     .unwrap();
     let a2 = doc
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: VarName::from_static("other"),
-                value: FreeVar::continuous(Dimension::Length, 9.0),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 9.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -992,10 +993,12 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(a.order(), b.order(), "order");
     assert_eq!(a.epsilon().to_bits(), b.epsilon().to_bits(), "epsilon");
     assert_eq!(a.metadata(), b.metadata(), "metadata");
-    let (pa, pb) = (a.params(), b.params());
-    assert_eq!(pa.len(), pb.len(), "param count");
-    for (name, p) in pa {
-        match (p, pb.get(name).expect("param present")) {
+    let (pa, pb) = (a.vars(), b.vars());
+    assert_eq!(pa.len(), pb.len(), "variable count");
+    assert_eq!(a.var_names(), b.var_names(), "variable names");
+    for (name, var) in pa {
+        let theirs = pb.get(name).expect("variable present");
+        match (var.free().expect("free"), theirs.free().expect("free")) {
             (
                 FreeVar::Continuous { dim, value, .. },
                 FreeVar::Continuous {

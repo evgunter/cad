@@ -164,6 +164,18 @@
 //! names (`exact_mass_pins_hold`, the corpus transform digests, which
 //! held bit for bit on every transform that kept its id) is unchanged.
 //!
+//! RE-BLESSED FOR THE VARIABLE TABLE, a structural move the removal
+//! procedure below cannot measure either: declaring a variable now
+//! mints its id on the document's chain, so in every document that
+//! declares one (`die`, `heat_sink`, `heat_sink_fins`, `kitchen_sink`,
+//! `measured_web`, `part_select`, `plate_param`) every node minted
+//! after the declare was renumbered, and this digest feeds `id.0`. No
+//! document was added or removed. The geometric evidence the sketch
+//! frame's paragraph names — `exact_mass_pins_hold`, the corpus
+//! transform digests (which held their word on every document that
+//! declares nothing), the persistence round trip — held across the
+//! change without being touched.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -736,7 +748,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
+        (0x4576_142b_0abc_725b, 0x54cd_1f98_eb06_071f),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -762,7 +774,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9e06_f8bb_0dfa_69ef, 0x330f_3cc8_2963_f3bb),
+        (0xb9ab_7188_8ce3_5e02, 0x62e9_3c06_372c_b60e),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -786,7 +798,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
+        (0x4576_142b_0abc_725b, 0x54cd_1f98_eb06_071f),
         "the corpus's Probe evaluation moved"
     );
 }

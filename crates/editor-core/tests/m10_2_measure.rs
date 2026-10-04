@@ -87,14 +87,14 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     doc = next;
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static(HOLE_R),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let outer = LoopProgram::Chain(vec![
@@ -414,8 +414,8 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
     // which is under the 5e-4 bound and must flip the verdict.
     let doc = push(
         &doc,
-        &DocEdit::SetDocParamValue {
-            name: VarName::from_static(HOLE_R),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static(HOLE_R).into(),
             value: FreeValue::Continuous(0.29999),
         },
     );
@@ -443,8 +443,8 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
 #[test]
 fn a_violated_assertion_changes_no_downstream_outcome() {
     let (with_assertion, measure, assertion) = plate_with_web();
-    let violating = DocEdit::SetDocParamValue {
-        name: VarName::from_static(HOLE_R),
+    let violating = DocEdit::SetVarValue {
+        var: VarName::from_static(HOLE_R).into(),
         value: FreeValue::Continuous(0.29999),
     };
     let with_assertion = push(&with_assertion, &violating);
@@ -736,14 +736,14 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     // 13 m / s, with s bound to zero.
@@ -796,14 +796,14 @@ fn the_same_division_in_a_slot_has_always_refused() {
     doc = next;
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            value: FreeVar::Continuous {
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     doc = push(

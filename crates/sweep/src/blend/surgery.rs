@@ -162,19 +162,16 @@
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
 //!   that did not resolve, a cycle that did not close, or a verdict
-//!   whose keys disagree with the body's own structure. **This is not a kernel
-//!   bug channel.** A body that fails referential integrity is
-//!   reachable at this door without any kernel bug in the trace —
-//!   `topo::instance::graft_disjoint_all`'s own docs record that a
-//!   refusal raised mid-transplant leaves its destination *spent,
-//!   never resumable*, and a caller that keeps that body may hand it
-//!   here. So these sites refuse typed, naming the entity.
-//! - **Row 4**, `unreachable!`: only where the state is impossible on
-//!   facts THIS call establishes — a key this call minted, a key a
-//!   walk in this call returned, or a count this call checked. Each
-//!   carries that proof in its message. No site inherits its proof
-//!   from whole-body validity, which the paragraph above is exactly
-//!   why.
+//!   whose keys disagree with the body's own structure. These sites
+//!   refuse typed, naming the entity. Every public door keeps a body
+//!   tier-1 valid (D9), so a body that fails referential integrity
+//!   here has met a kernel bug; D2's torn-body rule makes such a read
+//!   row 4, and the conversion is
+//!   `work/topo/stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body.md`.
+//! - **Row 4**, `unreachable!`: where the state is impossible on facts
+//!   THIS call establishes — a key this call minted, a key a walk in
+//!   this call returned, or a count this call checked. Each carries
+//!   that proof in its message.
 //!
 //! # What this surgery may destroy
 //!

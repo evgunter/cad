@@ -199,15 +199,15 @@ pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
 ///
 /// `label` is the document's derived name, so two fixtures in one
 /// binary cannot share an identity. No oracle: it is the spelling of
-/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// `Doc::empty_derived` plus one `DeclareVar`, and what each row
 /// asserts is about the `value` it handed in.
 pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
     edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value,
+            def: pncad::document::VarDef::Free(value),
         },
         tol,
     )

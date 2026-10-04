@@ -2060,7 +2060,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertAlmostEqual(moved.origin[2].meters, plain.origin[2].meters, places=12)
 
         def declare(d):
-            d.apply(DocEdit.set_doc_param(pncad.ParamName("slide"), pncad.DocParam.length(0.1 * m)))
+            d.apply(DocEdit.declare_var(pncad.ParamName("slide"), pncad.DocParam.length(0.1 * m)))
 
         def driven(d):
             return MateFrame.on_face(
@@ -2077,7 +2077,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         at = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(at.origin[0].meters, moved.origin[0].meters, places=12)
         doc.apply(
-            DocEdit.set_doc_param_value(pncad.ParamName("slide"), pncad.DocParamValue.length(0.3 * m)),
+            DocEdit.set_var_value(pncad.ParamName("slide"), pncad.DocParamValue.length(0.3 * m)),
             resolver=self.ws,
         )
         later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)

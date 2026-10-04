@@ -1265,7 +1265,10 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
     let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
     let mut axes = BTreeMap::new();
-    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    axes.insert(
+        doc.var_named(span.as_str()).expect("declared"),
+        BoxAxis::Varying { lo: 1.0, hi: 1.0 },
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,

@@ -59,10 +59,10 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        VarName::new(axis).expect("a valid parameter name"),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -72,9 +72,9 @@ fn box_of(axis: &str) -> ParamBox {
 }
 
 fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: VarName::new(axis).expect("a valid parameter name"),
-        value: FreeVar::Continuous {
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -82,7 +82,7 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
 }
 
@@ -327,7 +327,14 @@ fn a_tilted_extrude_certifies_on_its_stored_charts() {
     for deg in [45.0, 30.0] {
         let (doc, placed) = tilted_prism(deg);
         let sel = Selection::body_of(placed);
-        let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.1, Tol::witness());
+        let report = clearance(
+            &doc,
+            &box_of(&doc, "place"),
+            &sel,
+            &sel,
+            0.1,
+            Tol::witness(),
+        );
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,

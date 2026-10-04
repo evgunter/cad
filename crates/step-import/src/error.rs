@@ -298,11 +298,9 @@ pub enum StepImportError {
     },
     /// A placed assembly instance refused to graft into the result
     /// body at the kernel's own [`topo::graft_disjoint`] door — the
-    /// transplant found the placed component ill-formed, or a
-    /// transplanted edge description did not re-certify against the
-    /// destination's surfaces. Both are kernel-side refusals about a
-    /// body this reader had already built and gated; neither is
-    /// silently absorbed.
+    /// transplant found the placed component ill-formed. That is a
+    /// kernel-side refusal about a body this reader had already built
+    /// and gated, and it is not silently absorbed.
     Instance {
         /// The `MANIFOLD_SOLID_BREP` whose instance was being placed.
         solid: u64,

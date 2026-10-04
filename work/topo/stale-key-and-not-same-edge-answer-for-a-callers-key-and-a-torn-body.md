@@ -7,7 +7,8 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-refs: [euler-op-corruption-refusals-end-in-a-tag]
+blocked_on: [graft-stages-into-a-fresh-body-and-commits-on-success]
+refs: [euler-op-corruption-refusals-end-in-a-tag, cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link, S14]
 ---
 
 
@@ -84,20 +85,59 @@ still answer them. Only the wrapper (`ExtrudeError::Op`,
 `ShellError::Partition`, …) knows the caller was the kernel, so the
 wrapper has to say so, whichever way the variant splits.
 
-## The question
+## Ruled
 
-Split each into a caller's variant and a torn one, so
-`reports_tier1_corruption` answers by variant and the torn half ends in
-`KERNEL_DEFECT_ENDING` with the rest of the class. Two directions:
+Ev, PR 4006, 2026-10-04 (quoted in full on `work/pipe/S14.md`): a state
+that only a kernel bug reaches panics, by the current best understanding
+however many parts it rests on, and that covers the whole torn-body
+refusal class. S14 closes first, by staging the graft.
 
-- a caller's variant raised only where an operator resolves its own
-  arguments, leaving the existing name on every key read from a record
-  (fewer sites, but each public door's argument resolution has to be
-  found, and a missed one keeps saying "torn");
-- a torn variant raised wherever a key comes from a record (every
-  shared lookup takes a provenance).
+## The final state
 
-`NotSameEdge` is the cheap one: the caller's arm is `kemr`'s pair
-alone. Either direction has to place the new variant in
-`merge_faces`' `OpPlacement`, which calls `kemr` and the kills with
-keys it read from the body.
+Which input failed is known at every raise site from the code alone: an
+**argument** (a key or pairing the caller passed) or a **record** (a field
+the operator read out of the body). The shared lookups throw that away
+today.
+
+1. **A record miss is `unreachable!`** (D2 row 4). Its message names the
+   record (holder, link, key) and why it cannot dangle. That covers:
+   - the record half of `StaleKey`, `StaleGeometry` and `NotSameEdge`;
+   - every walk that meets an unresolved link (so both directions of
+     the probe above end alike);
+   - every existing torn-body variant: `LoopCycleBroken`, `OrbitBroken`,
+     `FanOrbitBroken`, `LoopNotCycle`, `EmptyAnchorsCollide`,
+     `KillLeavesDangling`, `NotOwned`, `PcurveMint::Corrupt`,
+     `readback::DanglingRef::Geometry`, `ShellError::Corrupt`,
+     `ReplaceFaceError::Corrupt`, the boolean's `corrupt_at`, and the
+     graft's torn-source `JoinDesync` ("graft source is not a well-formed
+     body", `combine.rs`), which `voids.rs`'s `_ =>` arm still answers as
+     "D9: never a panic on an error path" (PR 4022's review, NOTE-3).
+   The proofs behind them stay; only the reaction changes.
+2. **An argument miss stays typed (row 1):** `EulerOpError::Argument(BadArgument)`
+   with `Stale { role, key }` and `NotMates { he1, he2 }`. It states the
+   fact, with no defect claim and no recourse.
+   This includes the graft's dead *destination* solid, a caller's key that
+   PR 4022 refuses as `JoinDesync` (`combine.rs` `graft_staged`, "graft
+   destination solid does not resolve"). At the void doors that becomes
+   `VoidInsertError::Corrupt`, the same variant as a torn cavity. It splits
+   off into the argument class (PR 4022's review, MINOR-1).
+3. **One crate-internal lookup takes the key's source** (`KeyFrom::Arg(role)`
+   or `KeyFrom::Link { holder, link }`), so no site resolves a key without
+   saying where it came from. `Walk::Broken` names the hop that failed.
+4. **A kernel driver passing a bad key is itself a kernel bug.** Its
+   `From<EulerOpError>` sends `Argument(_)` to `unreachable!` and passes real
+   operation refusals through. A driver's own lookups of keys it minted
+   are `unreachable!` too, not a borrowed `EulerOpError::StaleKey`.
+5. **`reports_tier1_corruption` is deleted.** `merge_faces`' `OpPlacement`
+   loses its arena-fault arm (an arena read that fails now panics).
+6. **The tests invert.** The torn-body sweeps in `review_d18` and the
+   `corrupt input (release profile)` CI job assert today that a torn body
+   refuses typed and never panics; they assert the panic and its message
+   instead. Atomicity rows on real argument and operation refusals stay.
+
+Sequencing: `graft-stages-into-a-fresh-body-and-commits-on-success` first.
+The conversion is large, so split it by door family when dispatching.
+
+The designers' two rounds recommended a typed `Torn` refusal; Ev chose the
+panic. Their argument-vs-record split, the source-taking lookup and the
+argument variant carry over.

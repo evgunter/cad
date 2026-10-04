@@ -88,6 +88,70 @@ pub fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64
     out
 }
 
+/// The signed area between the chord `a → b` and the origin.
+fn chord_triangle(a: (f64, f64), b: (f64, f64)) -> f64 {
+    (a.0 * b.1 - a.1 * b.0) / 2.0
+}
+
+/// The signed area of the circular sector of radius `r` from `a`'s
+/// direction to `b`'s, the turn read in `(−π, π]`.
+fn sector(r: f64, a: (f64, f64), b: (f64, f64)) -> f64 {
+    let cross = a.0 * b.1 - a.1 * b.0;
+    let dot = a.0 * b.0 + a.1 * b.1;
+    r * r * cross.atan2(dot) / 2.0
+}
+
+/// **The area of the disc of radius `r` about the origin against the
+/// polygon `poly`**, closed form: each edge contributes the area its
+/// own chord or arc sweeps about the origin — a chord triangle where the
+/// edge is inside the disc, a sector where it is outside, and the split
+/// of the two at the edge's crossings, which are the roots of a
+/// quadratic. The sum over a closed polygon is the enclosed area,
+/// signed by the winding.
+pub fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
+    let n = poly.len();
+    let mut total = 0.0;
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + 1) % n]);
+        let d = (b.0 - a.0, b.1 - a.1);
+        let ra = a.0.hypot(a.1);
+        let (qa, qb, qc) = (
+            d.0 * d.0 + d.1 * d.1,
+            2.0 * (a.0 * d.0 + a.1 * d.1),
+            a.0 * a.0 + a.1 * a.1 - r * r,
+        );
+        let disc = qb * qb - 4.0 * qa * qc;
+        // The crossing parameters inside the edge, in order.
+        let hits: Vec<f64> = if qa <= 0.0 || disc <= 0.0 {
+            Vec::new()
+        } else {
+            let root = disc.sqrt();
+            [(-qb - root) / (2.0 * qa), (-qb + root) / (2.0 * qa)]
+                .into_iter()
+                .filter(|t| *t > 0.0 && *t < 1.0)
+                .collect()
+        };
+        let at = |t: f64| (a.0 + t * d.0, a.1 + t * d.1);
+        let piece = |p: (f64, f64), q: (f64, f64), inside: bool| {
+            if inside {
+                chord_triangle(p, q)
+            } else {
+                sector(r, p, q)
+            }
+        };
+        let mut from = a;
+        let mut inside = ra <= r;
+        for t in hits {
+            let p = at(t);
+            total += piece(from, p, inside);
+            from = p;
+            inside = !inside;
+        }
+        total += piece(from, b, inside);
+    }
+    total
+}
+
 /// **One pose's line**: the refusal, or the body's tiers 2 and 3′, the
 /// at-rest certificate, whether it is a legal operand (it unites with a
 /// far brick, `sweep::test_support::assert_legal_operand`'s question)
