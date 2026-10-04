@@ -6533,3 +6533,7 @@ The claims are narrowed to an untorn `prev`, and the paired tear is pinned as
 `null_site` is not fixed because the fix changes its signature at 8 call sites, and an instrumented panic was never
 reached across topo's suite. The row is closed and the 14-body list is shared (`VALID_BODIES`). CI was green on
 the head. The fix lane is archived.
+
+Dispatched (2026-10-04 01:40): `body-has-no-vertex-point-door` (P3) to cloud lane session_01Lnx869X3rvhXNsRUTFzP5H
+on branch `topo/body-vertex-points-door`. The door refuses a dangling point key with today's types (torn record,
+not the caller's key; PR 4006's split is not pre-built), and moves the demo and sweep-test callers onto it.
