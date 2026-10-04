@@ -6,11 +6,14 @@
 //! falsify a gate exemption that has since been WITHDRAWN — the
 //! attacks succeeded, which is why it was. R1's fixture geometry and
 //! reasoning are preserved; what changed is the assertions,
-//! which pin the behaviour the fixtures actually produce: every one
-//! of these bent/ordinary shapes is REFUSED by the at-rest gate, with
-//! one `ScaffoldAtRest` for each seam edge between the same-plane-key
-//! pair and nothing else, so none of them finishes into a boolean
-//! operand. Repairing such a body is the caller's explicit
+//! which pin the behaviour the fixtures actually produce: left as the
+//! split makes them, every one of these bent/ordinary shapes is
+//! refused by the at-rest gate, with one `ScaffoldAtRest` for each
+//! seam edge between the same-plane-key pair and nothing else; with
+//! each seam at rest in the shared plane's chart, which holds it
+//! exactly, the body finishes, and the boolean's maximal-faces gate
+//! refuses it `NonMaximalFaces` on a seam, through the public union
+//! and the public reduction. Repairing such a body is the caller's explicit
 //! `merge_coplanar_faces` (for a real revolve cap, `sweep`'s
 //! `f7_pole_split_cap_repairs_to_one_face`).
 //! Every fixture here is HAND-BUILT via public euler ops — no revolve
@@ -29,11 +32,25 @@
 
 use crate::common;
 
-use common::{plant_ring_face, prism_z};
+use common::{brick, finished, plant_ring_face, prism_z};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, FaceSurface, MefSite, MekrSite, MevSite, ValidationError, validate_closed,
+    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite,
+    ValidationError, boolean_reduce, validate_closed,
 };
+
+/// A brick far away from every fixture, so `gate_operand_pairs`' boxes
+/// never meet and the reduction of a PASSING pair is the trivial
+/// disjoint one — the refusal (or its absence) is the gates' own
+/// signal, uncontaminated by contact machinery.
+fn distant_brick() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "the distant brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        tol,
+    )
+}
 
 /// The edges separating two faces on one surface key — the seams a
 /// split with an inherited surface leaves — in edge-arena order.
@@ -52,13 +69,66 @@ fn common_plane_seams(b: &Body<f64>) -> Vec<topo::EdgeKey> {
         .collect()
 }
 
-/// `b`'s at-rest refusal is exactly one `ScaffoldAtRest` per seam edge
-/// of its same-plane-key pairs, `seams` of them, and nothing else.
+/// `b`'s at-rest refusal, as the split leaves it, is exactly one
+/// `ScaffoldAtRest` per seam edge of its same-plane-key pairs, `seams`
+/// of them, and nothing else; with every seam at rest in the shared
+/// plane's chart it finishes, and the public union and the public
+/// reduction with a distant brick refuse it `NonMaximalFaces` on one of
+/// those seams.
 fn assert_refused_on_its_seams(b: Body<f64>, seams: usize, what: &str) -> Vec<topo::EdgeKey> {
+    let tol = Tol::witness();
     let edges = common_plane_seams(&b);
     assert_eq!(edges.len(), seams, "{what}: seam-edge census");
+    let mut rested = b.clone();
+    for &edge in &edges {
+        let e = rested.get_edge(edge).unwrap();
+        let at = |he| {
+            let v = rested.get_half_edge(he).unwrap().start;
+            *rested
+                .get_point(rested.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let (p0, p1) = (at(e.he_plus), at(e.he_minus));
+        let face = rested
+            .get_loop(rested.get_half_edge(e.he_plus).unwrap().parent_loop)
+            .unwrap()
+            .face;
+        let chart = rested.get_face(face).unwrap().surface;
+        rested
+            .set_edge_curve(
+                edge,
+                geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}: the seam rests in its plane's chart: {e:?}"));
+    }
+    let operand = finished(what, rested, tol);
+    for (door, err) in [
+        (
+            "union",
+            topo::union(&distant_brick(), &operand, tol)
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+        (
+            "boolean_reduce",
+            boolean_reduce(BooleanOp::Union, &distant_brick(), &operand, tol)
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+    ] {
+        println!("{what} {door} => {err:?}");
+        assert!(
+            matches!(
+                err,
+                BooleanError::NonMaximalFaces { operand: topo::Operand::B, edge }
+                    if edges.contains(&edge)
+            ),
+            "{what}, {door}: the gate refuses on a seam: {err:?}"
+        );
+    }
     let errors = AtRestBody::validate(b, Tol::witness()).expect_err(&format!(
-        "{what} is an ordinary non-maximal pair and does not finish"
+        "{what} is an ordinary non-maximal pair and does not finish as the split leaves it"
     ));
     println!("{what} => {errors:?}");
     assert_eq!(
@@ -95,10 +165,10 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// This is `m3_pr4_boolean::non_maximal_operand_refuses` restated in
 /// this file so the differential against P2 is one screen tall: the
 /// chord's endpoints have valence 3, no valence-2 same-pair endpoint
-/// exists, and the at-rest gate refuses the body on its one seam edge.
-/// (The "exemption" these rows were written against was WITHDRAWN;
-/// what ships is a repair in `merge_coplanar_faces`, so this control
-/// and its siblings pin the refusal.)
+/// exists, and the gate refuses. (The "exemption" these rows were
+/// written against was WITHDRAWN; what ships is a repair in
+/// `merge_coplanar_faces`, and the gate is unchanged — so this control
+/// and its siblings pin the gate.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
     let p = prism_z::<f64>(

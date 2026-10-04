@@ -336,25 +336,29 @@ fn null_edge_operand_refuses() {
     );
 }
 
-/// A non-maximal body (declared-coplanar adjacent faces) does not
-/// finish: the at-rest gate refuses it with one
-/// [`ValidationError::ScaffoldAtRest`] for the seam edge between the
-/// two faces, so it never reaches the boolean as an operand. Built by
-/// splitting a brick face with a real edge between two same-plane
-/// faces (mef through the middle of the top face with the same plane
-/// description).
+/// F7 gate: a non-maximal operand (adjacent faces on one plane, one
+/// surface key) refuses typed, through the public union and the public
+/// reduction, in both operand orders, naming the seam. Built by
+/// splitting a brick's top with a real edge between two faces that
+/// inherit its surface; the seam rests in that surface's chart, which
+/// holds it exactly, so the body is finished (left the split's
+/// scaffold, the at-rest gate refuses it there instead). The delta
+/// review's `d_split_top_sharing_one_surface_key_against_the_finished_gate`.
 #[test]
 fn non_maximal_operand_refuses() {
+    let tol = Tol::witness();
+    let a = finished(
+        "the brick",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let p = prism_z::<f64>(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
         0.0,
         1.0,
-        Tol::witness(),
+        tol,
     );
     let mut b = p.body;
-    // Split the top face by a chord between the two top rim vertices
-    // above (0,0) and... use mev+mef with FaceSurface::Same to make an
-    // adjacent same-key coplanar pair.
     let top = p.top_face;
     let outer = b.get_face(top).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
@@ -363,38 +367,60 @@ fn non_maximal_operand_refuses() {
     let cycle = b.loop_cycle(first).unwrap();
     let he1 = cycle[0];
     let he2 = cycle[2];
-    let p0 = *b
-        .get_point(
-            b.get_vertex(b.get_half_edge(he1).unwrap().start)
+    let at = |b: &Body<f64>, he| {
+        *b.get_point(
+            b.get_vertex(b.get_half_edge(he).unwrap().start)
                 .unwrap()
                 .point,
         )
-        .unwrap();
-    let p1 = *b
-        .get_point(
-            b.get_vertex(b.get_half_edge(he2).unwrap().start)
-                .unwrap()
-                .point,
-        )
-        .unwrap();
+        .unwrap()
+    };
+    let (p0, p1) = (at(&b, he1), at(&b, he2));
     b.mef(
         topo::MefSite::Chords { he1, he2 },
         common::line(p0, p1),
         topo::FaceSurface::Inherit,
-        Tol::witness(),
+        tol,
     )
     .unwrap();
     let seams = common_plane_seams(&b);
-    assert_eq!(seams.len(), 1, "one seam edge splits the top face");
-    let errors = AtRestBody::validate(b, Tol::witness()).unwrap_err();
+    let [seam] = seams[..] else {
+        panic!("one seam edge splits the top face: {seams:?}");
+    };
+    let scaffold = AtRestBody::validate(b.clone(), tol).unwrap_err();
     assert_eq!(
-        errors,
-        seams
-            .into_iter()
-            .map(|edge| ValidationError::ScaffoldAtRest { edge })
-            .collect::<Vec<_>>(),
-        "the seam edge is the at-rest gate's one finding"
+        scaffold,
+        [ValidationError::ScaffoldAtRest { edge: seam }],
+        "left the split's scaffold, the seam is the at-rest gate's one finding"
     );
+    let chart = b.get_face(top).unwrap().surface;
+    b.set_edge_curve(
+        seam,
+        geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+        tol,
+    )
+    .expect("the seam rests in the top's chart");
+    let b = finished("the split top", b, tol);
+    for (x, y, want) in [(&a, &b, topo::Operand::B), (&b, &a, topo::Operand::A)] {
+        for (door, err) in [
+            ("union", topo::union(x, y, tol).map(|_| ()).unwrap_err()),
+            (
+                "boolean_reduce",
+                boolean_reduce(BooleanOp::Union, x, y, tol)
+                    .map(|_| ())
+                    .unwrap_err(),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::NonMaximalFaces { operand, edge }
+                        if operand == want && edge == seam
+                ),
+                "{door}, the split top as {want:?}: {err:?}"
+            );
+        }
+    }
 }
 
 /// The edges separating two faces on one surface key — the seams a

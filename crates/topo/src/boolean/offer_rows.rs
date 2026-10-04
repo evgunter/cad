@@ -378,14 +378,30 @@ cases! {
     // whose chord is 0, so the angle reads over the circle's extent.
     neighbours_bent_across_a_circle: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
         bent_disc(D);
-    // The coincv5 review's NF-2 poses, asked at the gate: a prism whose
-    // wall turns by a zero-band angle at a short edge (the offset the
-    // gate reads is the bend), and a split top bent about its diagonal,
-    // its plane's origin far along the plane. Neither is a finished body
-    // (`a_neighbour_pair_bent_in_band_is_not_a_finished_body`), so no
-    // public door reaches them.
-    neighbours_kinked_at_the_gate: "CoplanarNeighbours", -KINK * KINK_HEIGHT, GATE_SITE,
-        Valued => at_the_gate(kinked_prism(KINK));
+    // Finished bodies (the coincv5 review's NF-2 pose): a prism whose
+    // wall turns by a zero-band angle at a short edge, the offset the
+    // gate reads being the bend, so it is offered from the zero band.
+    // Its kink lies on both walls exactly, so it is described at every
+    // tolerance a re-run takes; beside a far brick and crossed by one
+    // through each public op.
+    neighbours_kinked_beside_a_far_brick: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(None, KINK);
+    neighbours_kinked_crossed_union: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(0), KINK);
+    neighbours_kinked_crossed_subtract: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(1), KINK);
+    neighbours_kinked_crossed_intersect: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(2), KINK);
+    neighbours_kinked_twice_as_far_beside_a_far_brick: "CoplanarNeighbours",
+        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(None, 2.0 * KINK);
+    neighbours_kinked_twice_as_far_crossed_union: "CoplanarNeighbours",
+        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(Some(0), 2.0 * KINK);
+    // The coincv5 review's split top bent about its diagonal, its
+    // plane's origin far along the plane, asked at the gate: its bent
+    // half's far corner stays on the walls, `KINK · ½√2` off the bent
+    // plane, inside the band at the design tolerance and outside it
+    // below the offer, so the re-run has no finished body of this pose
+    // to hand a door (`bent_split_far_origin`).
     neighbours_bent_far_origin_at_the_gate: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
         GATE_SITE, Valued => at_the_gate(bent_split_far_origin(10.0));
     rim_just_above_a_face: "Coincidence(EdgeOnPlane)", D, RIM_PLANE_SITE, Valued =>
@@ -1483,15 +1499,122 @@ const KINK: f64 = 5.5e-10;
 /// The height of [`kinked_prism`], the length of its kinked edge.
 const KINK_HEIGHT: f64 = 0.1;
 
-/// `body` through the maximal-faces gate, as operand A.
-fn at_the_gate(body: crate::Body<f64>) -> Result<(), BooleanError> {
-    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+/// `body`'s edges described the way a construction describes them at
+/// this run's tolerance: each edge the at-rest gate finds without an
+/// honest description (the scaffold an extrusion or a split leaves, a
+/// description a re-chart strands, or one at rest where its faces are
+/// transverse) is described as the intersection of its two faces where
+/// the band decides them transverse, and at rest in its first face's
+/// chart otherwise, which holds it exactly. A pose bent within the band
+/// at one tolerance is bent past it at a smaller one, so a case re-run
+/// below its offer finishes the same geometry.
+fn described_at_this_tolerance(mut body: crate::body::Body<f64>) -> crate::body::Body<f64> {
+    use crate::ValidationError as V;
+    let tol = Tol::witness();
+    let Err(errors) = crate::AtRestBody::validate(body.clone(), tol) else {
+        return body;
+    };
+    let mut edges: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            V::ScaffoldAtRest { edge }
+            | V::DescriptionNotAdjacent { edge }
+            | V::TransverseNotIntrinsic { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    edges.sort();
+    edges.dedup();
+    for edge in edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, edge)
+            .expect("a live edge's sides")
+            .surfaces();
+        let e = body.get_edge(edge).expect("a live edge");
+        let at = |body: &crate::body::Body<f64>, v| {
+            *body
+                .get_point(body.get_vertex(v).expect("a live vertex").point)
+                .expect("a live point")
+        };
+        let (p0, p1) = (
+            at(
+                &body,
+                body.get_half_edge(e.he_plus)
+                    .expect("a live half-edge")
+                    .start,
+            ),
+            at(
+                &body,
+                body.get_half_edge(e.he_minus).expect("its twin").start,
+            ),
+        );
+        let witness = p0.lerp(p1, 0.5);
+        let transverse = geom_brep::classify_dihedral(
+            body.get_surface(s1).expect("a live surface"),
+            body.get_surface(s2).expect("a live surface"),
+            witness,
+            p0.distance(p1),
+            band(),
+        );
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+        spec = match transverse {
+            Ok(geom_brep::DihedralClass::Transverse) => {
+                spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+                spec
+            }
+            _ => spec.at_rest_in_chart(s1, false),
+        };
+        body.set_edge_curve(edge, spec, tol)
+            .expect("the edge takes its description");
+    }
+    body
 }
 
-/// A prism of height [`KINK_HEIGHT`] whose profile turns by `theta` at `(0.1, 0)`:
-/// the wall along `y = 0` and the one tilted by `theta` out to `x = 10.1`
-/// share the vertical edge there (the coincv5 review's `kinked_prism`).
-fn kinked_prism(theta: f64) -> crate::Body<f64> {
+/// `body` finished, then the public op `k` of it and the brick `cross`,
+/// or, where `k` is `None`, the union of it and a far brick.
+fn beside_or_crossed(
+    what: &str,
+    body: crate::body::Body<f64>,
+    k: Option<u8>,
+    cross: crate::body::Body<f64>,
+) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let body = finished(what, body, tol);
+    match k {
+        None => {
+            let far = crate::test_support_fixtures::brick::<f64>(
+                (20.0, 21.0),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                tol,
+            );
+            public_op(
+                0,
+                &body,
+                &finished("the far brick", far, tol),
+                &BooleanDeclarations::none(),
+            )
+        }
+        Some(k) => public_op(
+            k,
+            &body,
+            &finished("the crossing brick", cross, tol),
+            &BooleanDeclarations::none(),
+        ),
+    }
+}
+
+/// A prism of height [`KINK_HEIGHT`] whose profile turns by `theta` at
+/// `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
+/// to `x = 10.1` share the vertical edge there, which lies on both walls
+/// exactly and is described at this run's tolerance (the extrusion
+/// leaves it a scaffold, the walls being in band of each other at the
+/// design tolerance). Beside a far
+/// brick (`k` `None`) or crossed on its long wall by the public op `k`
+/// (the coincv5 review's `kinked_prism`; the kink at rest is the delta
+/// review's `d_kinked_prism_with_its_kink_at_rest`).
+fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let h = KINK_HEIGHT;
     let profile = [
         (0.0, 0.0),
         (0.1, 0.0),
@@ -1499,123 +1622,34 @@ fn kinked_prism(theta: f64) -> crate::Body<f64> {
         (10.1, 1.0),
         (0.0, 1.0),
     ];
-    prism_z::<f64>(&profile, 0.0, KINK_HEIGHT, Tol::witness()).body
+    let body = described_at_this_tolerance(prism_z::<f64>(&profile, 0.0, h, tol).body);
+    let cross = crate::test_support_fixtures::brick::<f64>(
+        (4.0, 5.0),
+        (-0.5, 0.5),
+        (0.02, 0.5 * h + 0.3),
+        tol,
+    );
+    beside_or_crossed("the kinked prism", body, k, cross)
+}
+
+/// `body` through the maximal-faces gate, as operand A.
+fn at_the_gate(body: crate::Body<f64>) -> Result<(), BooleanError> {
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
 /// A split top whose re-described half is bent by [`KINK`] about the
 /// diagonal (its edges stay on it), its plane's origin `l` from the
 /// diagonal within the plane (the coincv5 review's
-/// `split_bent_far_origin`).
+/// `split_bent_far_origin`). The bent half's far corner stays where the
+/// walls put it, `KINK · ½√2` off the bent plane: a finished body only
+/// while that is inside the band, so no tolerance below the offer
+/// finishes it.
 fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
     super::tests::top_split_redescribed(|p0, along, _| {
         let up = Vec3::new(0.0, 0.0, 1.0);
         let n = up * KINK.cos() + along.cross(up) * KINK.sin();
         plane_through(p0 + n.cross(along) * l, along, n)
     })
-}
-
-/// **Two faces bent apart by an angle in the band are not a finished
-/// body**, so the boolean door's neighbour gate is reached by none of
-/// them: the edge between the faces has no honest intersection
-/// description at that angle, and the at-rest gate that finishes an
-/// operand refuses it there, with the bent half's planar findings. The
-/// angles are chosen against the band at [`DESIGN_EPS`] (module docs),
-/// so the row runs its child [`neighbour_bends_at_the_design_eps`] at
-/// that tolerance whatever this run's; the bodies are the coincv5 and
-/// coincfr4 reviews' public poses, whose `Neighbours` decisions the
-/// gate-site cases ask directly.
-#[test]
-fn a_neighbour_pair_bent_in_band_is_not_a_finished_body() {
-    let child = format!(
-        "{}::neighbour_bends_at_the_design_eps",
-        module_path!()
-            .split_once("::")
-            .map_or(module_path!(), |(_, m)| m)
-    );
-    let out = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
-            &child,
-            "--exact",
-            "--ignored",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env("CAD_TOLERANCE_EPS", format!("{DESIGN_EPS:e}"))
-        .env_remove("CAD_AMBIGUITY_K")
-        .output()
-        .unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        out.status.success() && stdout.contains("1 passed"),
-        "{child} at {DESIGN_EPS:e}:\n{stdout}\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
-/// [`a_neighbour_pair_bent_in_band_is_not_a_finished_body`]'s child,
-/// run at [`DESIGN_EPS`].
-#[test]
-#[ignore = "a child: run at DESIGN_EPS by a_neighbour_pair_bent_in_band_is_not_a_finished_body"]
-fn neighbour_bends_at_the_design_eps() {
-    assert_eq!(
-        Tol::witness().get().eps,
-        DESIGN_EPS,
-        "the child runs at DESIGN_EPS"
-    );
-    let bent_prism = super::tests::top_split_redescribed(|p0, along, diagonal| {
-        let theta = D / diagonal;
-        let up = Vec3::new(0.0, 0.0, 1.0);
-        plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
-    });
-    for (what, body) in [
-        ("the prism kinked by KINK", kinked_prism(KINK)),
-        ("the prism kinked by 2 KINK", kinked_prism(2.0 * KINK)),
-        (
-            "the split top bent far along its plane",
-            bent_split_far_origin(10.0),
-        ),
-        (
-            "the split top bent far the other way",
-            bent_split_far_origin(-10.0),
-        ),
-        ("the split top bent by D", bent_prism),
-    ] {
-        let errors = crate::AtRestBody::validate(body, Tol::witness())
-            .expect_err("a bend in band is not a finished body");
-        assert!(
-            errors.iter().all(|e| matches!(
-                e,
-                crate::ValidationError::ScaffoldAtRest { .. }
-                    | crate::ValidationError::DescriptionNotAdjacent { .. }
-                    | crate::ValidationError::PlanarFaceResidual { .. }
-                    | crate::ValidationError::PlanarFaceEscalated { .. }
-                    | crate::ValidationError::PlanarBoundaryResidual { .. }
-                    | crate::ValidationError::PlanarBoundaryEscalated { .. }
-                    | crate::ValidationError::TransverseNotIntrinsic { .. }
-                    | crate::ValidationError::SliverDihedral { .. }
-            )),
-            "{what}: every finding is the bend's: {errors:?}"
-        );
-    }
-    let kinked = kinked_prism(KINK);
-    let errors = crate::AtRestBody::validate(kinked.clone(), Tol::witness())
-        .expect_err("the kink is in band");
-    let [crate::ValidationError::ScaffoldAtRest { edge }] = errors.as_slice() else {
-        panic!("the kinked prism refuses on its kink alone: {errors:?}");
-    };
-    let he = kinked.get_edge(*edge).unwrap().he_plus;
-    let at = *kinked
-        .get_point(
-            kinked
-                .get_vertex(kinked.get_half_edge(he).unwrap().start)
-                .unwrap()
-                .point,
-        )
-        .unwrap();
-    assert!(
-        (at.x - 0.1).abs() < 1e-12 && at.y.abs() < 1e-12,
-        "the scaffold is the kink edge at (0.1, 0): {at:?}"
-    );
 }
 
 /// **A stranded split top is refused typed at the at-rest gate, before

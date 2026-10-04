@@ -1,9 +1,11 @@
 //! R2 review probes, ADOPTED (PR #1131, #1031's pole half). They were
 //! written to falsify a GATE EXEMPTION, and they succeeded — the
-//! exemption was withdrawn, so each split body here is refused by the
-//! at-rest gate, one `ScaffoldAtRest` per seam edge between its
-//! same-plane-key pair, and never finishes into a boolean operand.
-//! The repair is the caller's
+//! exemption was withdrawn. Left as the split makes it, each body here
+//! is refused by the at-rest gate, one `ScaffoldAtRest` per seam edge
+//! between its same-plane-key pair; with each seam at rest in the
+//! shared plane's chart it finishes, and still refuses
+//! `NonMaximalFaces` at the boolean's gate, through the public union
+//! and the public reduction. The repair is the caller's
 //! explicit `merge_coplanar_faces`, and it takes every one of these
 //! seams: once the faces are joined, a seam edge left dangling goes
 //! with its free end, at any angle and along a chain.
@@ -12,11 +14,11 @@
 
 use crate::common;
 
-use common::{line, prism_z};
+use common::{brick, finished, line, prism_z};
 use geom_core::{Point3, Tol};
 use topo::{
-    AtRestBody, Body, FaceSurface, LoopBoundary, MefSite, MevSite, ValidationError, validate,
-    validate_closed,
+    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite,
+    ValidationError, boolean_reduce, validate, validate_closed,
 };
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
@@ -31,8 +33,11 @@ fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
 /// `b`'s at-rest refusal is exactly one `ScaffoldAtRest` for each edge
 /// separating two faces on one surface key (the seams a split with an
 /// inherited surface leaves), `seams` of them in edge-arena order, and
-/// nothing else.
+/// nothing else; with every seam at rest in the shared plane's chart
+/// it finishes, and the public union and the public reduction with a
+/// unit brick overlapping it refuse it `NonMaximalFaces` on a seam.
 fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
+    let tol = Tol::witness();
     let face_of = |he| {
         b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
             .unwrap()
@@ -54,11 +59,59 @@ fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
         errors, want,
         "{what}: refused on every seam edge, and on nothing else"
     );
+    let mut rested = b.clone();
+    let seam_edges: Vec<topo::EdgeKey> = want
+        .iter()
+        .map(|e| match e {
+            ValidationError::ScaffoldAtRest { edge } => *edge,
+            _ => unreachable!(),
+        })
+        .collect();
+    for &edge in &seam_edges {
+        let e = rested.get_edge(edge).unwrap();
+        let (p0, p1) = (point_of(&rested, e.he_plus), point_of(&rested, e.he_minus));
+        let chart = rested.get_face(face_of(e.he_plus)).unwrap().surface;
+        rested
+            .set_edge_curve(
+                edge,
+                geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}: the seam rests in its plane's chart: {e:?}"));
+    }
+    let operand = finished(what, rested, tol);
+    let a = finished(
+        "the unit brick",
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    for (door, err) in [
+        (
+            "union",
+            topo::union(&a, &operand, tol).map(|_| ()).unwrap_err(),
+        ),
+        (
+            "boolean_reduce",
+            boolean_reduce(BooleanOp::Union, &a, &operand, tol)
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+    ] {
+        println!("{what} {door} => {err:?}");
+        assert!(
+            matches!(
+                err,
+                BooleanError::NonMaximalFaces { operand: topo::Operand::B, edge }
+                    if seam_edges.contains(&edge)
+            ),
+            "{what}, {door}: the gate refuses on a seam: {err:?}"
+        );
+    }
 }
 
 /// CONTROL (the pinned pre-PR behaviour): the top face split by ONE
-/// chord between two rim vertices — both endpoints valence 3 — is
-/// refused at rest on its one seam edge.
+/// chord between two rim vertices — both endpoints valence 3 — still
+/// refuses `NonMaximalFaces`.
 #[test]
 fn r2_control_single_chord_split_still_refuses() {
     let p = prism_z::<f64>(
@@ -92,7 +145,7 @@ fn r2_control_single_chord_split_still_refuses() {
 /// revolve, no pole, no axis — yet the gate exemption this probe was
 /// written against fired on BOTH shared edges, admitting the whole
 /// pair. **That exemption was WITHDRAWN because of this row**, so the
-/// pair is refused at rest on both seam edges, and the
+/// pair must still refuse `NonMaximalFaces` at the gate, and the
 /// caller's explicit merge repairs it: `kef` takes one seam edge and
 /// `kev` the other with the mid vertex, bent seam or not.
 #[test]
@@ -162,8 +215,7 @@ fn assert_repairs(b: &mut Body<f64>, interior: usize) {
 
 /// ATTACK, longer chain: TWO interior valence-2 vertices. The middle
 /// edge has valence-2 same-pair endpoints at BOTH ends. A seam chain
-/// of three edges: the at-rest gate refuses it on all three, and the
-/// merge loses both
+/// of three edges: the gate refuses it, and the merge loses both
 /// interior junctions — whichever edge `kef` takes, the pruning then
 /// peels the chain one free end at a time.
 #[test]

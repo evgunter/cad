@@ -54,6 +54,18 @@ sweep with the gate in.
 
 ## Closed (2026-10-03): red on main by the same flags, not this door's
 
+**Current count (2026-10-04): 100 flags on both trees, identical.**
+The delta review of PR 3987 (`analysis/reach-delta/3987`, NOTE 3)
+re-ran the measurement against the head's own main base. It ran the
+nightly's dev-probe dumps (`m4_pr8_k_probe`, `demo-tour k-probe`) at
+1e-6 and 1e-9, then `tools/k-lint` over both rows, on head 07ca5a8d
+and on `origin/main` 46ce5d4d4. Both trees give GATE FAILED with 100
+margins (rule 1: 82, rule 2: 3, rule 3: 16). One `table:volume_backstop`
+margin trips two rules, so there are 101 FLAG lines. The flags are
+identical once CSV line numbers are stripped. The head has 2.87 M
+samples per row and main 1.58 M. The 104 below is the same measurement
+against the older main 11d9c7a7f.
+
 The attribution above was by mechanism, and a same-base measurement
 disproves it. `scripts/k_probe_sweep.sh` (past
 `tilted_sphere_pair_k_rows`, as above) then `tools/k-lint` over the 1e-6

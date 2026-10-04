@@ -9,7 +9,8 @@
 //! nor the gate reads it: the merge levers its orientation rung at the
 //! pair's reach and the gate at the circle's extent, its diameter, and
 //! each decides which way the two faces face. A disc whose diameter lies within the band still leaves
-//! the orientation undecided, with the gate's lever. (An open edge that
+//! the orientation undecided, with the gate's lever; such a disc does
+//! not finish, so that row asks the gate itself. (An open edge that
 //! short does not certify, so no public door builds one; its row is
 //! the gate's own, `boolean::reduce`'s tests.)
 
@@ -100,12 +101,19 @@ fn a_disc_declared_on_its_hosts_plane_merges_across_the_circle() {
     topo::validate_closed(&body).expect("the merged brick is a closed solid");
 }
 
-/// The maximal-faces gate's reading of `a`. A disc planted in a top
-/// keeps its circle a scaffold, so `a` is not a finished body and no
-/// boolean door takes it: the at-rest gate refuses it on the circle
-/// first (asserted here), and the row asks the gate itself
-/// (`test_support::maximal_faces_gate`).
-fn gate_of(a: &Body<f64>, at: &str) -> BooleanError {
+/// `a` with its circle at rest in the top's chart, and the circle. The
+/// plant leaves the circle a scaffold, which the at-rest gate refuses
+/// (asserted here); the circle lies in the top's plane exactly, so it
+/// rests in the top's chart, traversed the way the top's outer
+/// boundary runs it (axis `−z`). The delta review's
+/// `d_coplanar_neighbours_with_an_at_rest_edge_against_the_finished_gate`.
+fn circle_at_rest(
+    a: &Body<f64>,
+    top: topo::FaceKey,
+    s: f64,
+    radius: f64,
+) -> (Body<f64>, topo::EdgeKey) {
+    let tol = Tol::witness();
     let circle: Vec<_> = a
         .edges()
         .filter(|(_, e)| {
@@ -115,22 +123,39 @@ fn gate_of(a: &Body<f64>, at: &str) -> BooleanError {
         })
         .map(|(k, _)| k)
         .collect();
-    let errors = topo::AtRestBody::validate(a.clone(), Tol::witness())
-        .expect_err("a planted disc is not a finished body");
+    let [edge] = circle[..] else {
+        panic!("the plant leaves one scaffold, the circle: {circle:?}");
+    };
+    let errors =
+        topo::AtRestBody::validate(a.clone(), tol).expect_err("the planted circle is a scaffold");
     assert!(
-        errors.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::ScaffoldAtRest { edge } if circle.contains(edge)
-        )),
-        "{at}: the at-rest gate names the circle's scaffold: {errors:?}"
+        errors.contains(&topo::ValidationError::ScaffoldAtRest { edge }),
+        "the at-rest gate names the circle's scaffold: {errors:?}"
     );
-    common::maximal_faces_gate(a, Operand::A, Tol::witness())
-        .expect_err("the gate refuses the pair")
+    let mut rested = a.clone();
+    let chart = rested.get_face(top).unwrap().surface;
+    let carrier = geom::Curve3::Circle {
+        center: Point3::new(2.0 * s, 2.0 * s, s),
+        axis: geom_core::Vec3::new(0.0, 0.0, -1.0),
+        radius,
+        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+    };
+    rested
+        .set_edge_curve(
+            edge,
+            geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, core::f64::consts::TAU)
+                .unwrap()
+                .at_rest_in_chart(chart, false),
+            tol,
+        )
+        .expect("the circle rests in the top's chart");
+    (rested, edge)
 }
 
 /// **(b)**: the top and a disc on its plane meet along a circle whose
 /// chord is 0, at scales 1e-3, 1 and 1e3 (the disc's radius the
-/// brick's height). Levered at the circle's extent, the gate
+/// brick's height), the body finished and united with a far brick
+/// through the public door. Levered at the circle's extent, the gate
 /// decides they face the same way and lie on one plane, and refuses
 /// them as coplanar neighbours with a decided zero offset; levered at
 /// the chord, it would leave the orientation undecided at margin 0.
@@ -138,7 +163,15 @@ fn gate_of(a: &Body<f64>, at: &str) -> BooleanError {
 fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
     for s in [1e-3, 1.0, 1e3] {
         let (body, top, disc) = disc_in_top(s, s);
-        let err = gate_of(&body, &format!("scale {s}"));
+        let (rested, _) = circle_at_rest(&body, top, s, s);
+        let tol = Tol::witness();
+        let far = common::brick::<f64>((10.0 * s, 11.0 * s), (0.0, s), (0.0, s), tol);
+        let err = topo::union(
+            &common::finished("the disc in a top", rested, tol),
+            &common::finished("the far brick", far, tol),
+            tol,
+        )
+        .expect_err("the gate refuses the operand");
         let BooleanError::CoplanarNeighbours {
             operand,
             mut faces,
@@ -165,13 +198,28 @@ fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
 /// **(c)**: a circle that spans less than the band still leaves the
 /// orientation undecided: a disc whose diameter lies in the middle of
 /// the run's ambiguity band. The refusal is
-/// the gate's orientation rung, with its lever and no tolerance.
+/// the gate's orientation rung, with its lever and no tolerance. No
+/// public door reaches it: the at-rest gate's own dihedral read on a
+/// circle that short is undecided too, so the body does not finish
+/// (asserted), and the row asks the gate itself
+/// (`test_support::maximal_faces_gate`).
 #[test]
 fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let diameter = (band.zero() + band.escalate()) / 2.0;
-    let (body, _, _) = disc_in_top(1.0, diameter / 2.0);
-    let err = gate_of(&body, "less than the band");
+    let (body, top, _) = disc_in_top(1.0, diameter / 2.0);
+    let (rested, circle) = circle_at_rest(&body, top, 1.0, diameter / 2.0);
+    let errors = topo::AtRestBody::validate(rested.clone(), Tol::witness())
+        .expect_err("a circle that short does not finish");
+    assert!(
+        matches!(
+            errors[..],
+            [topo::ValidationError::SliverDihedral { edge, .. }] if edge == circle
+        ),
+        "the at-rest gate's own dihedral read on the circle is undecided: {errors:?}"
+    );
+    let err = common::maximal_faces_gate(&rested, Operand::A, Tol::witness())
+        .expect_err("the gate refuses the pair");
     let BooleanError::Escalated {
         decision: BooleanDecision::Neighbours(PlaneRung::Orientation),
         ..

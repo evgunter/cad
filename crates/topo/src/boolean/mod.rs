@@ -2375,11 +2375,15 @@ pub enum BooleanError {
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
-    /// below it is ever returned. The operands are finished bodies, so
-    /// no finding is carried in from an operand: each is either a defect
-    /// in what the door built or a wrong verdict of the validator's own
-    /// (a valid sliver refused on a sign check 7 misreads), and a kernel
-    /// defect either way.
+    /// below it is ever returned. Where the scalar runs the at-rest
+    /// gate, the operands are finished bodies, so no finding is carried
+    /// in from an operand: each is either a defect in what the door
+    /// built or a wrong verdict of the validator's own (a valid sliver
+    /// refused on a sign check 7 misreads), and a kernel defect either
+    /// way. Where it runs none (a dual), an operand carries no verdict:
+    /// the door has read only its tiers 1 and 2, its edges and its
+    /// orientation, so a finding may also trace to a defect of an
+    /// operand's that those reads do not see.
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -3384,6 +3388,27 @@ impl std::error::Error for BooleanError {}
 /// the boolean doors ([`crate::AtRestBody`]); one with no verdict (a
 /// dual) passes the door's own operand gate and orientation read first.
 ///
+/// A plain body is not an operand: it does not coerce to a finished
+/// one, so this example must NOT compile.
+///
+/// ```compile_fail,E0308
+/// use geom_core::Tol;
+/// use topo::{Body, BooleanOp, boolean_reduce};
+///
+/// let body = Body::<f64>::new();
+/// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
+/// ```
+///
+/// The same call on finished bodies compiles:
+///
+/// ```no_run
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, Body, BooleanOp, boolean_reduce};
+///
+/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
+/// ```
+///
 /// Determinism (D9): gates, sweeps, contact processing, and
 /// per-neighborhood classification all run in arena/discovery order —
 /// no hash iteration anywhere.
@@ -3405,6 +3430,29 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// PR 5): the declared face pairs enter the classification stages'
 /// plane-identity evidence; carried contacts are validated here and
 /// consumed by the result stage (`ops`).
+///
+/// It takes finished operands too, and a plain body does not coerce to
+/// one, so this example must NOT compile:
+///
+/// ```compile_fail,E0308
+/// use geom_core::Tol;
+/// use topo::{Body, BooleanDeclarations, BooleanOp, boolean_reduce_declared};
+///
+/// let body = Body::<f64>::new();
+/// let none = BooleanDeclarations::none();
+/// let _ = boolean_reduce_declared(BooleanOp::Union, &body, &body, &none, Tol::witness());
+/// ```
+///
+/// The same call on finished bodies compiles:
+///
+/// ```no_run
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, Body, BooleanDeclarations, BooleanOp, boolean_reduce_declared};
+///
+/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let none = BooleanDeclarations::none();
+/// let _ = boolean_reduce_declared(BooleanOp::Union, &body, &body, &none, Tol::witness());
+/// ```
 ///
 /// # Errors
 ///

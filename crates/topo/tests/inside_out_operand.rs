@@ -114,6 +114,51 @@ fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
     }
 }
 
+/// **The public reduction reads check 7 at a dual too.**
+/// `boolean_reduce` and `boolean_reduce_declared` take finished
+/// operands, and an operand with no verdict passes the door's own
+/// orientation read there: every op, in both operand orders, refuses
+/// the clockwise wedge as the inside-out operand, naming it. Red if
+/// either takes a plain body again without that read (the delta
+/// review's mutant MC, which compiles, every caller's `&AtRestBody`
+/// coercing; its `d_public_boolean_reduce_at_a_dual_refuses_the_inside_out_wedge`).
+#[test]
+fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
+    let tol = Tol::witness();
+    let (brick, wedge) = operands::<Dual64>(false, tol);
+    let decls = flush_declarations(&brick, &wedge, tol);
+    let (brick, wedge) = (
+        Dual64::gate_at_rest_kept(brick, tol).expect("a dual gate runs nothing"),
+        Dual64::gate_at_rest_kept(wedge, tol).expect("a dual gate runs nothing"),
+    );
+    for op in [
+        topo::BooleanOp::Union,
+        topo::BooleanOp::Subtract,
+        topo::BooleanOp::Intersect,
+    ] {
+        for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
+            for (door, r) in [
+                ("boolean_reduce", topo::boolean_reduce(op, a, b, tol)),
+                (
+                    "boolean_reduce_declared",
+                    topo::boolean_reduce_declared(op, a, b, &decls, tol),
+                ),
+            ] {
+                match r {
+                    Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
+                        operand, inside_out,
+                        "{door} {op:?}: the refusal names the inside-out operand"
+                    ),
+                    other => panic!(
+                        "{door} {op:?}: want InsideOutOperand, got {:?}",
+                        other.map(|_| ())
+                    ),
+                }
+            }
+        }
+    }
+}
+
 /// **The counterclockwise control answers the true volumes**, read off
 /// the profile outside the kernel: the wedge's part in the brick's
 /// quadrant is the triangle (0,0), its 80° corner, and where its chord
