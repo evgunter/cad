@@ -699,8 +699,8 @@ fn kemr_splices_twice_on_the_ring_bridge_once_on_a_strut_and_never_on_a_closed_f
 /// LIVE-BUT-WRONG (the lookup succeeds against an unrelated entity —
 /// the shape a slotmap key laundered across arenas actually takes).
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(debug_assertions, allow(dead_code))] // a dev build plants `ANCHOR_TEARS` only
-enum Tear {
+#[cfg_attr(debug_assertions, allow(dead_code))] // a dev build plants no dangling tear
+pub(crate) enum Tear {
     NextDangling,
     PrevDangling,
     NextForeign,
@@ -745,7 +745,12 @@ const TEARS: [Tear; 9] = [
     Tear::EmanatingDangling,
 ];
 
-fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead: HalfEdgeKey) {
+pub(crate) fn plant(
+    body: &mut Body<f64>,
+    tear: Tear,
+    rng: &mut test_utils::fuzz::Rng,
+    dead: HalfEdgeKey,
+) {
     use crate::entity::{EdgeKey, LoopKey, VertexKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
@@ -880,8 +885,9 @@ fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) ->
 /// `face`/`loop`/`shell` records — it calls `link_half_edges` NOWHERE,
 /// so a run that reached only it has reached none of the arms, which is
 /// exactly the run that made a floor on the total unfalsifiable here
-/// (`mfkrh`'s plan phase reads only `loop.face`, `face.outer`,
-/// `face.shell`, so it survives a fully nulled arena). An operator that
+/// (`mfkrh`'s plan phase proves only that the ring it is handed walks
+/// as its own, [`crate::Body::whole_cycle`], so it runs wherever that
+/// ring's walk and claims are intact, however torn the rest). An operator that
 /// cannot reach the arms cannot be evidence that the arms were reached.
 ///
 /// **Nor is it the whole class**: `mekr` reaches the arms and this pass
@@ -938,7 +944,7 @@ const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
     ("kev", 25),
     ("mef_chord", 90),
     ("mev_line", 54),
-    ("mfkrh_plug", 7),
+    ("mfkrh_plug", 1),
     ("split_edge", 93),
 ];
 
@@ -986,14 +992,14 @@ const CALLS: &str = "operator calls";
 ///
 /// Untorn, they are also the valid bodies the kill anchors' over-refusal
 /// row sweeps ([`valid_fixtures_never_refuse_a_kill_anchor`]).
-const FIXTURES: [(&str, BuildFixture); 3] = [
+pub(crate) const FIXTURES: [(&str, BuildFixture); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
     ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
 ];
 
 /// How a [`FIXTURES`] entry builds its body.
-type BuildFixture = fn(Tol) -> Body<f64>;
+pub(crate) type BuildFixture = fn(Tol) -> Body<f64>;
 
 /// A segment and a circle, the bodies whose kills empty a loop, each
 /// beside a lone vertex: another loop's `Empty` vertex, for a kill's
@@ -1098,12 +1104,13 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
 ///
 /// Per operator, because a total does not distinguish *six operators
 /// exercised* from *one exercised and five refused at the door* — and on
-/// this fixture family that is not hypothetical: null every arena field
-/// of the spent destination and `mfkrh_plug` still returns `Ok` at
-/// every loop it is handed — seven times on today's destination, which
-/// is the figure [`SPENT_GRAFT_EXPOSURE`] holds — so a floor on the
-/// total is one almost nothing can break. [`LINK_OPS`] is therefore
-/// what the floor counts over, and `mfkrh_plug` is not in it.
+/// this fixture family that is not hypothetical: `mfkrh_plug` proves
+/// only that the ring it is handed walks as its own, so its count moves with how many
+/// rings walk as their own (once on today's destination, the figure
+/// [`SPENT_GRAFT_EXPOSURE`] holds) rather than with the arms under
+/// attack, and a floor on the total could be held up by it alone.
+/// [`LINK_OPS`] is therefore what the floor counts over, and
+/// `mfkrh_plug` is not in it.
 ///
 /// **Two enumerations per operator, because `kemr`'s arguments are not
 /// free.** Every other operator here takes keys that may be drawn

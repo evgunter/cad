@@ -1160,3 +1160,102 @@ fn a_kill_that_describes_a_null_member_beside_a_certified_one_completes_the_wall
         "the rows are the pass's"
     );
 }
+
+/// The minted wall over `[4.2, 5.4] x [0, 1]` — across `3π/2`, where
+/// the chart's principal branch jumps a period, so the pass's rows for
+/// a loop depend on which half-edge it starts the walk from — split by
+/// a `mef_chord` up the ruling `u = 4.5`. The chord's plus half is the
+/// old loop's `first` (`MefCreated::he_plus`), and `mef`'s site mint
+/// derived the old face's rows from it. Returns the body, the old face
+/// and the chord.
+fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::MefCreated) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (4.2, 5.4),
+        (0.0, 1.0),
+        tol(),
+    );
+    // The ascending bottom rim's parameter is the azimuth; the top rim
+    // runs on the reversed axis from `u = 5.4`, so `u = 4.5` is `0.9`.
+    let mut rims: Vec<(topo::EdgeKey, bool)> = body
+        .edges()
+        .filter_map(|(e, _)| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), geom::Curve3::Circle { .. }).then_some((e, c.params().0 != 0.0))
+        })
+        .collect();
+    rims.sort_by_key(|&(_, bottom)| !bottom);
+    let [(bottom, true), (top, false)] = rims[..] else {
+        panic!("the wall has one bottom rim and one top rim: {rims:?}");
+    };
+    let bottom = body.split_edge(bottom, 4.5, tol()).unwrap().vertex;
+    let top = body.split_edge(top, 0.9, tol()).unwrap().vertex;
+    let (he1, he2) = (leaving(&body, face, bottom), leaving(&body, face, top));
+    let made = body
+        .mef_chord(topo::MefSite::Chords { he1, he2 }, tol())
+        .unwrap();
+    let outer = body.get_face(face).unwrap().outer;
+    assert_eq!(
+        body.get_loop(outer).unwrap().boundary,
+        topo::LoopBoundary::Cycle {
+            first: made.he_plus
+        },
+        "the chord's plus half anchors the old loop"
+    );
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    (body, face, made)
+}
+
+/// **A kill whose dead half was a minted loop's `first` leaves the
+/// loop's rows a whole period off the pass's.** `kef` of the chord
+/// (`he_minus`'s new face dies, and the dead `he_plus` anchored the old
+/// loop) re-anchors the surviving loop at `next(he_plus)` and keeps
+/// every row it finds: the rows still certify, but the pass, walking
+/// from the new `first`, puts every row of the loop a whole period from
+/// where the kill left it (the `[4.5, 5.4]` piece of the bottom rim has
+/// `p0.x` `−τ` kept and `0` derived).
+///
+/// The witness of
+/// `work/topo/a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass`,
+/// whose fix is a design fork; it reds until that row is settled. Run:
+/// `cargo nextest run -p topo --run-ignored only a_kef_whose_dead_half_anchored_the_loop`.
+#[test]
+#[ignore = "witness of an open design fork: red until it is settled"]
+fn a_kef_whose_dead_half_anchored_the_loop_keeps_the_pass_rows() {
+    let (mut body, face, made) = chord_across_the_branch_jump();
+    body.kef(made.he_minus).unwrap();
+    assert_eq!(rows_of(&body, face), (6, 0), "the merged wall is complete");
+    assert_eq!(validate_pcurves(&body, band()), vec![], "its rows certify");
+    let kept = live_rows_deep(&body, face);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        live_rows_deep(&body, face),
+        kept,
+        "the rows the kill kept are the pass's"
+    );
+}
+
+/// [`a_kef_whose_dead_half_anchored_the_loop_keeps_the_pass_rows`]
+/// through the band twin, which re-mints the surviving face only where
+/// the remnant's rows do not stand: here they stand (one chart), so it
+/// keeps the same rows.
+#[test]
+#[ignore = "witness of an open design fork: red until it is settled"]
+fn a_kef_minting_whose_dead_half_anchored_the_loop_keeps_the_pass_rows() {
+    let (mut body, face, made) = chord_across_the_branch_jump();
+    body.kef_minting(made.he_minus, tol()).unwrap();
+    assert_eq!(rows_of(&body, face), (6, 0), "the merged wall is complete");
+    let kept = live_rows_deep(&body, face);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        live_rows_deep(&body, face),
+        kept,
+        "the rows the kill kept are the pass's"
+    );
+}
