@@ -519,7 +519,11 @@ impl BandedLu {
                 let f = self.first[i];
                 while dropped < f {
                     let y = x[dropped][c];
-                    let l = if at(dropped, dropped) < 0.0 { -0.0 } else { 0.0 };
+                    let l = if at(dropped, dropped) < 0.0 {
+                        -0.0
+                    } else {
+                        0.0
+                    };
                     if !y.is_finite() {
                         poison = poison.or(Some((l, y)));
                     } else if (l * y).is_sign_negative() {
