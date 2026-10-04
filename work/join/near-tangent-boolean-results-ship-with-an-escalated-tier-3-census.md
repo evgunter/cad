@@ -75,6 +75,15 @@ positive. It is filed on CONTACT
 and pinned by
 `join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band`.
 
+The same pose at ε = 1e-12 (the 1e-7 tilt is then 1e4 bands; CI's
+extra-ε pass) joins the class: main refuses both orders (`JoinDesync`,
+"…not exactly one kept end"). The head builds prism ∪ cube and
+prism ∖ cube at the oracle volume, tier 3′ passing. With the operands
+swapped, cube ∪ prism and cube ∖ prism ship with `CensusEscalated` on
+`pm_census_ee_span` (margin 6.69e-12 against an escalate edge of
+1e-11). At ε = 1e-6 the 1e-7 tilt lies inside the band: both trees
+record a vertex-vertex contact there, and every op passes, identically.
+
 REACH's `boolean-door-adopts-the-finished-body-type` gates results at
 tier 3′. It lists 11 other `CensusEscalated` results as a prerequisite;
 this class is a larger instance of the same prerequisite.
