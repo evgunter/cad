@@ -1650,14 +1650,37 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// The operand gate (F5) refused a rung-3 (`Nurbs`) carrier in an
-    /// INPUT operand: rung-3 edges are what the curved zip MINTS, not
-    /// what it consumes.
+    /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
+    /// carrier in an INPUT operand: no crossing lane reads either kind,
+    /// and the join and section lanes behind the sweep have no row for
+    /// them either (`reduce::gate_operand_edges` names which).
     CurvedEdgeUnsupported {
         /// The offending operand and edge.
         operand: Operand,
         /// The edge.
         edge: EdgeKey,
+    },
+    /// The sweep read an edge whose carrier is a spiric or a spline
+    /// against a face of the other operand, and no lane finds whether or
+    /// where such a carrier crosses a face: its endpoints' sides neither
+    /// find its crossings (it can cross and come back between same-side
+    /// ends) nor place them (a parameter interpolated between them is not
+    /// a point on the face). Raised by the sweep's planar and curved arms
+    /// alike, at the first face whose box the edge's box meets (a
+    /// spline's box is the whole space).
+    ///
+    /// **No public door raises it while the operand gate stands**: the
+    /// gate refuses every such edge first, as
+    /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
+    /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
+    /// narrowed gate exposes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+    CrossingCarrierUnsupported {
+        /// The operand whose edge it is.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+        /// The face of the other operand it met.
+        face: FaceKey,
     },
     /// The both-edges-split point lane needs a carrier with an exact
     /// point parameter and got one without. `Line` and `Circle` have
@@ -2195,6 +2218,9 @@ pub enum BooleanError {
     /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
     /// the decided refusal of [`SphereQuestion::Nested`], and ends as
     /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// One sphere touching the other on one carrier is not asked when
+    /// every face of it is a verified `Rest` against the other face:
+    /// such a pair touches without overlapping (`ops::Exempt::Rest`).
     SpheresMeet {
         /// The operand whose sphere face the scan stopped at.
         operand: Operand,
@@ -2492,6 +2518,8 @@ pub enum BooleanErrorKind {
     CurvedPierceUnsupported,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
+    /// [`BooleanError::CrossingCarrierUnsupported`].
+    CrossingCarrierUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::GermEdgeCarrierUnsupported`].
@@ -2708,6 +2736,7 @@ impl BooleanError {
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
+            Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -2782,6 +2811,10 @@ impl From<EulerOpError> for BooleanError {
         Self::Euler(e)
     }
 }
+
+/// The recourse of every refusal of a spiric or spline edge: the kinds
+/// every lane reads are the line and the two conics.
+const CONIC_EDGES_RECOURSE: &str = "rebuild that solid so its edges are lines, circles or ellipses";
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -2906,9 +2939,17 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::CurvedEdgeUnsupported { operand, .. } => write!(
                 f,
-                "an edge of the {} operand is a spline (NURBS) curve, and the Boolean \
-                 cannot yet take a solid with spline edges as an input. Recourse: \
-                 rebuild that solid so its edges are lines, circles or ellipses",
+                "an edge of the {} operand is a spiric or spline (NURBS) curve, and the \
+                 Boolean cannot yet take a solid with such edges as an input. Recourse: \
+                 {CONIC_EDGES_RECOURSE}",
+                operand_word(*operand),
+            ),
+            Self::CrossingCarrierUnsupported { operand, .. } => write!(
+                f,
+                "an edge of the {} operand is a spiric or spline (NURBS) curve whose box \
+                 meets a face of the other operand, and the Boolean cannot yet find \
+                 whether or where such an edge crosses a face. Recourse: \
+                 {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
@@ -5426,6 +5467,11 @@ mod tests {
                 operand: Operand::B,
                 edge,
             },
+            BooleanError::CrossingCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                face,
+            },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
                 edge,
@@ -5667,6 +5713,7 @@ mod tests {
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
+                BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
