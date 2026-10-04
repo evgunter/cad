@@ -21,11 +21,11 @@ runs whose outcome is off its expectation. At ε 1e-6, 11 runs at
 θ = 60° that build a body passing tier 2, tier 3′ and the certificate
 miss the closed-form volume, for example `x = (−0.95, 0.05)`, unmirrored,
 A ∪ B: 3.2679290807 against 3.2679292977 (B ∪ A: 3.2679294534) — a
-relative 5e-8 to 7e-8, inside what a 1e-6 band admits for a body whose
-faces carry the band, but outside the row's volume tolerance. Whether
-the row's tolerance should scale with ε or the volume lane should be
-tighter is this item's question; the faces' ring trim on the steep
-ellipse is `work/flux/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`'s
+relative 5e-8 to 7e-8, which the row's volume check rejects. Whether
+the row's tolerance should scale with ε or the volume should be tighter
+is this item's question (not measured here); the ring trim on the steep
+ellipse is in
+`work/flux/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`'s
 neighbourhood.
 
 ## Done when
