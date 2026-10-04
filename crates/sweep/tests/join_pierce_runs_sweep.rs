@@ -16,7 +16,10 @@
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, mass_properties};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
+    mass_properties,
+};
 
 use crate::common::differential::outcome;
 
@@ -199,9 +202,15 @@ fn shared(planes: &[([f64; 3], f64)]) -> f64 {
         .sum()
 }
 
+/// `body` as a boolean operand: the at-rest gate's finished body.
+fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol())
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
+
 type Op = fn(
-    &Body<f64>,
-    &Body<f64>,
+    &AtRestBody<f64>,
+    &AtRestBody<f64>,
     &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
@@ -226,12 +235,15 @@ fn pose_runs(
     (place, lo): (&str, [f64; 3]),
     (i, j, psi): (u32, u32, f64),
 ) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
-    let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
+    );
     let va = mass_properties(&prism, tol()).unwrap().volume;
     let vb = SIDE * SIDE * SIDE;
     let decls = BooleanDeclarations::default();
     let f = frame(direction(i, j), psi);
-    let b = cube(f, lo);
+    let b = finished("the cube", cube(f, lo));
     let common = shared(&cube_planes(f, lo));
     let mut out = Vec::new();
     for (order, x, y, vx) in [("pc", &prism, &b, va), ("cp", &b, &prism, vb)] {
@@ -469,8 +481,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     let f = frame(m, 0.0);
     let lo = [-2.0, -2.0, 0.0];
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6), (0.0, 1.0)];
-    let prism = fixtures::prism::<f64>(&profile, 1.0, tol()).body;
-    let cube = cube_at(v, f, lo);
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&profile, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(v, f, lo));
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let common: f64 = shallow_pieces()
         .into_iter()

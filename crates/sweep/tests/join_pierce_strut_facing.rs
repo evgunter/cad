@@ -43,7 +43,10 @@
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, mass_properties};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
+    mass_properties,
+};
 
 use crate::common::differential::outcome;
 
@@ -142,9 +145,15 @@ fn prism_beyond(m: [f64; 3]) -> f64 {
         .sum()
 }
 
+/// `body` as a boolean operand: the at-rest gate's finished body.
+fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol())
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
+
 type Op = fn(
-    &Body<f64>,
-    &Body<f64>,
+    &AtRestBody<f64>,
+    &AtRestBody<f64>,
     &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
@@ -157,8 +166,11 @@ type Op = fn(
 /// and no face runs through two of them. Each `(order, op)` in
 /// `refused` refuses typed.
 fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
-    let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
-    let cube = cube_beyond(m);
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_beyond(m));
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let decls = BooleanDeclarations::default();
