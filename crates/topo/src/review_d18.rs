@@ -943,7 +943,7 @@ const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
     ("kev", 25),
     ("mef_chord", 90),
     ("mev_line", 54),
-    ("mfkrh_plug", 7),
+    ("mfkrh_plug", 1),
     ("split_edge", 93),
 ];
 
@@ -1103,12 +1103,13 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
 ///
 /// Per operator, because a total does not distinguish *six operators
 /// exercised* from *one exercised and five refused at the door* — and on
-/// this fixture family that is not hypothetical: null every arena field
-/// of the spent destination and `mfkrh_plug` still returns `Ok` at
-/// every loop it is handed — seven times on today's destination, which
-/// is the figure [`SPENT_GRAFT_EXPOSURE`] holds — so a floor on the
-/// total is one almost nothing can break. [`LINK_OPS`] is therefore
-/// what the floor counts over, and `mfkrh_plug` is not in it.
+/// this fixture family that is not hypothetical: `mfkrh_plug` reads
+/// nothing past the ring it is handed, so its count moves with how many
+/// rings walk as their own (once on today's destination, the figure
+/// [`SPENT_GRAFT_EXPOSURE`] holds) rather than with the arms under
+/// attack, and a floor on the total could be held up by it alone.
+/// [`LINK_OPS`] is therefore what the floor counts over, and
+/// `mfkrh_plug` is not in it.
 ///
 /// **Two enumerations per operator, because `kemr`'s arguments are not
 /// free.** Every other operator here takes keys that may be drawn
