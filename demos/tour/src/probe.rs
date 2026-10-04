@@ -61,7 +61,7 @@ fn plain(name: &str, b: Body<Probe>) -> ProbeBody {
 }
 
 fn seamed(name: &str, bb: pncad::topo::BooleanBody<Probe>) -> ProbeBody {
-    (name.to_string(), bb.body, Some(bb.contacts))
+    (name.to_string(), bb.body.into_body(), Some(bb.contacts))
 }
 
 /// `run_body`'s validation ladder, export lanes omitted: tiers 1 and
@@ -233,7 +233,7 @@ pub fn run(out: Option<String>, tol: Tol) {
             // Routed the way the stop routes it (`crate::declares_no_contacts`).
             let bb = bossplate::build::<Probe>(tol);
             vec![if crate::declares_no_contacts(&bb.contacts) {
-                plain("bossplate", bb.body)
+                plain("bossplate", bb.body.into_body())
             } else {
                 seamed("bossplate", bb)
             }]

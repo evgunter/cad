@@ -7,18 +7,19 @@
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::AtRestBody;
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
+fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> AtRestBody<f64> {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
     let lp = bulge_loop(pts.iter().map(|&(a, b)| (Point2::new(a, b), 0.0)).collect());
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(
+    let prism = extrude(
         &p,
         Extrusion::Distance {
             depth: z.1 - z.0,
@@ -27,7 +28,8 @@ fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the prism", prism, tol())
 }
 
 fn hull(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {

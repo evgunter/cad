@@ -36,7 +36,8 @@
 use crate::mate2_common::{full_turn_collar, onto_y, peg_at, wall_decls};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
-use topo::{Body, BooleanOp, BooleanResult, mass_properties};
+use sweep::test_support::finished;
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -53,8 +54,10 @@ fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
     onto_y(&peg_at(deg, y0, h))
 }
 
-fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, pose, Tol::witness()).unwrap()
+/// `b` moved by `pose`, finished as an operand.
+fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
+    let moved = topo::transform_rigid(b, pose, Tol::witness()).unwrap();
+    finished("the placed operand", moved, Tol::witness())
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -90,7 +93,7 @@ fn agrees(got: f64, want: f64) -> bool {
 /// `c ∪ p` and `p ∪ c`, each with its declarations in its own operand
 /// order: a body, its volume the closed form, one shell, tier 3 and the
 /// pseudomanifold census clean.
-fn unions_both_ways(c: &Body<f64>, p: &Body<f64>, h: f64, tag: &str) {
+fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str) {
     let tol = Tol::witness();
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");
@@ -102,6 +105,11 @@ fn unions_both_ways(c: &Body<f64>, p: &Body<f64>, h: f64, tag: &str) {
         let (got, want) = (volume(&bb.body), collar_volume() + shaft_volume(h));
         assert!(agrees(got, want), "{tag}: union volume {got} vs {want}");
         assert_eq!(bb.body.shells().count(), 1, "{tag}: one shell");
+        assert_eq!(
+            bb.body.outcome(),
+            topo::AtRestOutcome::Validated,
+            "{tag}: the site that built it gated it at tier 3"
+        );
         assert_eq!(
             topo::validate_geometric(&bb.body, tol),
             Ok(()),
@@ -160,6 +168,11 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
             )))
         ),
         "the join refuses the mate, got {join:?}"
+    );
+    let tol = Tol::witness();
+    let (c, p) = (
+        sweep::test_support::finished("the collar", c, tol),
+        sweep::test_support::finished("the shaft", p, tol),
     );
     unions_both_ways(&c, &p, h, "the zip's row");
 }

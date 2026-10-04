@@ -23,23 +23,23 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// A cylinder about the z axis, `r = 1`, `z ∈ [−2, 2]` — the wall every
 /// row below pierces.
-fn pipe() -> Body<f64> {
+fn pipe() -> AtRestBody<f64> {
     pipe_at((0.0, 0.0))
 }
 
 /// [`pipe`] with its axis through `(cx, cy)`.
-fn pipe_at((cx, cy): (f64, f64)) -> Body<f64> {
+fn pipe_at((cx, cy): (f64, f64)) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(
+    let pipe = extrude(
         &profile,
         Extrusion::Distance {
             depth: 4.0,
@@ -48,10 +48,11 @@ fn pipe_at((cx, cy): (f64, f64)) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the pipe", pipe, tol)
 }
 
-fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
+fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this pair has no join arm yet")
 }
 
@@ -83,8 +84,8 @@ fn rect_disc_area((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
 /// volume they share.
 fn assert_every_op(
     label: &str,
-    (a, v_a): (&Body<f64>, f64),
-    (b, v_b): (&Body<f64>, f64),
+    (a, v_a): (&AtRestBody<f64>, f64),
+    (b, v_b): (&AtRestBody<f64>, f64),
     shared: f64,
 ) {
     let tol = Tol::witness();
@@ -126,10 +127,14 @@ fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
 /// [`assert_bar_through_the_pipe`] with the pipe's axis through `c`
 /// and the bar moved with it, so the volumes are the same.
 fn assert_bar_through_the_pipe_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
-    let bar = brick(
-        (x.0 + c.0, x.1 + c.0),
-        (y.0 + c.1, y.1 + c.1),
-        z,
+    let bar = finished(
+        "the bar",
+        brick(
+            (x.0 + c.0, x.1 + c.0),
+            (y.0 + c.1, y.1 + c.1),
+            z,
+            Tol::witness(),
+        ),
         Tol::witness(),
     );
     let shared = (z.1 - z.0) * rect_disc_area(x, y);
@@ -145,12 +150,16 @@ fn assert_bar_through_the_pipe_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z
 /// A block `[cx ± 2] × [cy ± 2] × [−1, 1]` bored through by [`pipe_at`]
 /// `c`, built by the boolean itself: its bore is a cylinder wall whose
 /// material lies OUTSIDE the cylinder, a face of reversed sense.
-fn bored_block_at(c: (f64, f64)) -> (Body<f64>, f64) {
+fn bored_block_at(c: (f64, f64)) -> (AtRestBody<f64>, f64) {
     let tol = Tol::witness();
-    let block = brick(
-        (c.0 - 2.0, c.0 + 2.0),
-        (c.1 - 2.0, c.1 + 2.0),
-        (-1.0, 1.0),
+    let block = finished(
+        "the block",
+        brick(
+            (c.0 - 2.0, c.0 + 2.0),
+            (c.1 - 2.0, c.1 + 2.0),
+            (-1.0, 1.0),
+            tol,
+        ),
         tol,
     );
     let topo::BooleanResult::Body(out) =
@@ -166,10 +175,14 @@ fn bored_block_at(c: (f64, f64)) -> (Body<f64>, f64) {
 /// bore, its height times [`rect_disc_area`].
 fn assert_bar_across_the_bore_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
     let (bored, v_bored) = bored_block_at(c);
-    let bar = brick(
-        (x.0 + c.0, x.1 + c.0),
-        (y.0 + c.1, y.1 + c.1),
-        z,
+    let bar = finished(
+        "the bar",
+        brick(
+            (x.0 + c.0, x.1 + c.0),
+            (y.0 + c.1, y.1 + c.1),
+            z,
+            Tol::witness(),
+        ),
         Tol::witness(),
     );
     let v_bar = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
@@ -243,8 +256,8 @@ fn the_ringed_wall_rows_hold_off_the_origin() {
 /// review's MI3) and the union refuses `SeamOrientation` at the zip.
 /// With the exact closure the ∩ and bar ∖ pipe build, pass every tier
 /// and balance against the bar; the ∪ and pipe ∖ bar build too, and
-/// stop one layer later, at the volume backstop: their wall carries a
-/// ring trimmed by ellipse arcs, which no volume lane reads yet
+/// stop one layer later, at the result gate's check 7: their wall
+/// carries a ring trimmed by ellipse arcs, which no volume lane reads yet
 /// (`work/props/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`).
 #[test]
 fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
@@ -264,6 +277,7 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
         tol,
     )
     .expect("a rigid pose");
+    let bar = finished("the turned bar", bar, tol);
     let pipe = pipe();
     let measure = |op: &str, out: Result<topo::BooleanResult<f64>, BooleanError>| {
         let out = out.unwrap_or_else(|e| panic!("turned thin bar, {op}: refused {e:?}"));
@@ -292,13 +306,15 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
     ] {
         assert!(
             matches!(
-                out,
-                Err(BooleanError::VolumeUnmeasured {
-                    source: topo::MassPropsError::RingOnCurvedFace { .. },
-                    ..
-                })
+                &out,
+                Err(BooleanError::ResultInvalid { errors })
+                    if matches!(errors.as_slice(), [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::RingOnCurvedFace { .. },
+                        ..
+                    }])
             ),
-            "turned thin bar, {op}: expected the ellipse-ringed wall's volume backstop, got {:?}",
+            "turned thin bar, {op}: expected the result gate's check 7 on the ellipse-ringed \
+             wall, got {:?}",
             out.map(|_| "a body")
         );
     }
@@ -317,7 +333,7 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
         ("notched", (-0.3, 0.3), (-0.3, 0.3), false),
         ("ringed", (0.15, 0.7), (-0.4, 0.1), true),
     ] {
-        let bar = brick((-1.1, 1.1), y, z, tol);
+        let bar = finished("the bar", brick((-1.1, 1.1), y, z, tol), tol);
         let topo::BooleanResult::Body(out) = topo::union(&pipe(), &bar, tol).expect("builds")
         else {
             panic!("{what}: empty");
@@ -387,7 +403,11 @@ fn a_bar_clear_of_the_wall_still_answers() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
         &pipe(),
-        &brick((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), tol),
+        &finished(
+            "the bar",
+            brick((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), tol),
+            tol,
+        ),
         tol,
     )
     .expect("no crossing to route") else {
@@ -410,7 +430,11 @@ fn a_bar_clear_of_the_wall_still_answers() {
 fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
     let (pipe, bar) = (
         pipe(),
-        brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), Tol::witness()),
+        finished(
+            "the bar",
+            brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), Tol::witness()),
+            Tol::witness(),
+        ),
     );
     let err = union_err(&pipe, &bar);
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
@@ -498,8 +522,12 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
         .body
     };
     let err = union_err(
-        &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        &finished("the frustum", frustum, tol),
+        &finished(
+            "the bar",
+            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            tol,
+        ),
     );
     assert!(
         matches!(

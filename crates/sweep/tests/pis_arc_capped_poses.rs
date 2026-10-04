@@ -24,7 +24,7 @@ use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{
-    ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
+    ROD_FLAT, ROD_L, ROD_R, brick, dome, finished, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
@@ -735,8 +735,12 @@ pub(crate) fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
 /// ellipse arcs rather than refusing the face.
 #[test]
 fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
-    let half = tilted_cut_cylinder(true);
-    let cavity = brick((-0.2, 0.2), (-0.2, 0.2), (1.8, 2.2), tol());
+    let half = finished("the cut cylinder", tilted_cut_cylinder(true), tol());
+    let cavity = finished(
+        "the sunk box",
+        brick((-0.2, 0.2), (-0.2, 0.2), (1.8, 2.2), tol()),
+        tol(),
+    );
     let out = match topo::subtract(&half, &cavity, tol()) {
         Ok(topo::BooleanResult::Body(out)) => out.body,
         other => panic!("the sunk box subtracts, got {other:?}"),
@@ -1172,10 +1176,14 @@ fn tilted_cut_cases() -> Vec<CutCase> {
     // box inside it. Its walls keep the tilted section.
     let cut = Cut::tilted(1.25, 0.3);
     let pocket: Body<f64> = brick((-0.3, 0.1), (-0.3, 0.1), (0.3, 0.7), tol());
-    match topo::subtract(&cut_by(&[cut]), &pocket, tol()) {
+    match topo::subtract(
+        &finished("the cut cylinder", cut_by(&[cut]), tol()),
+        &finished("the pocket", pocket, tol()),
+        tol(),
+    ) {
         Ok(topo::BooleanResult::Body(b)) => cases.push(CutCase {
             name: "cut 0.3 minus a box (subtract)",
-            body: b.body,
+            body: b.body.into_body(),
             cuts: vec![cut],
             truth: Box::new(move |p| {
                 let clear =

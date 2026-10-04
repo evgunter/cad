@@ -13,6 +13,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -30,8 +31,8 @@ fn boss() -> Body<f64> {
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
-    let a = plate();
-    let b = boss();
+    let a = finished("the plate", plate(), Tol::witness());
+    let b = finished("the boss", boss(), Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
 

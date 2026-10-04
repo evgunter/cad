@@ -19,15 +19,15 @@
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult};
+use topo::{AtRestBody, BooleanResult};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn prism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
+fn prism(pts: &[(f64, f64)], z: (f64, f64)) -> AtRestBody<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
@@ -42,12 +42,13 @@ fn prism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body;
-    topo::transform_rigid(
+    let placed = topo::transform_rigid(
         &body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, z.0)),
         tol(),
     )
-    .unwrap()
+    .unwrap();
+    finished("the prism", placed, tol())
 }
 
 fn assert_sound(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: f64) {
@@ -81,7 +82,11 @@ const HEX: [(f64, f64); 6] = [
 #[test]
 fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let hex = prism(&HEX, (0.0, 2.0));
-    let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
+    let b = finished(
+        "the box",
+        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        tol(),
+    );
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
     // Undeclared, the op refuses: the hexagon's and the box's `y = −0.5`
@@ -137,8 +142,16 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
 #[test]
 fn the_multi_spike_corner_meet_passes_tier_3() {
     use topo::flush::{declare_all, find_flush_candidates};
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
-    let b = brick((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), tol());
+    let a = finished(
+        "brick A",
+        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let b = finished(
+        "brick B",
+        brick((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let decl = declare_all(&find_flush_candidates(&a, &b, tol()).unwrap());
     let ab = match topo::intersect_with(&a, &b, &decl, tol()).unwrap() {
         BooleanResult::Body(bb) => bb.body,
@@ -169,7 +182,12 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
 #[test]
 fn a_pole_struts_halves_face_their_own_meridians() {
     let ball = sweep::test_support::ball_poled_y(0.5, geom_core::Vec3::new(0.0, 0.0, 0.0), tol());
-    let b = brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol());
+    let ball = finished("the ball", ball, tol());
+    let b = finished(
+        "the box",
+        brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol()),
+        tol(),
+    );
     for (what, r) in [
         ("ball ∪ box", topo::union(&ball, &b, tol())),
         ("box ∪ ball", topo::union(&b, &ball, tol())),

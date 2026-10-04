@@ -12,9 +12,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol, Vec3};
-use topo::test_support::{brick, describe_as_intersections, holed_block, prism, split_plane};
+use topo::test_support::{
+    brick, describe_as_intersections, finished, holed_block, prism, split_plane,
+};
 use topo::{
-    Body, SplitPart, SplitPlane, mass_properties, plane_section, split, union, validate_closed,
+    AtRestBody, Body, SplitPart, SplitPlane, mass_properties, plane_section, split, union,
+    validate_closed,
 };
 
 /// The plane through `o` with normal along `n` (normalized).
@@ -26,13 +29,14 @@ fn plane(o: (f64, f64, f64), n: (f64, f64, f64)) -> SplitPlane<f64> {
     )
 }
 
-fn unite(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn unite(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
     union(a, b, Tol::witness())
         .unwrap()
         .body()
         .expect("the operands overlap")
         .body
         .clone()
+        .into_body()
 }
 
 /// A closed half's volume; `None` for an empty one.
@@ -72,8 +76,13 @@ fn both_ways(
     })
 }
 
-fn block() -> Body<f64> {
-    brick::<f64>((0.0, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness())
+fn block() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "the block",
+        brick::<f64>((0.0, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 /// The edges of `body` lying along y = z = 1, as sorted (x₀, x₁) spans.
@@ -121,7 +130,11 @@ fn a_tangent_contact_standing_alone_lands_whole() {
 /// rim survives as two ordinary edges, one each side of the slab.
 #[test]
 fn a_tangent_contact_meeting_a_real_section_cuts_only_the_slab() {
-    let slab = brick::<f64>((1.2, 1.3), (-1.0, 2.0), (0.5, 3.0), Tol::witness());
+    let slab = finished(
+        "the slab",
+        brick::<f64>((1.2, 1.3), (-1.0, 2.0), (0.5, 3.0), Tol::witness()),
+        Tol::witness(),
+    );
     for (label, body) in [
         ("block ∪ slab", unite(&block(), &slab)),
         ("slab ∪ block", unite(&slab, &block())),
@@ -248,8 +261,8 @@ fn a_convex_and_a_reflex_edge_in_one_plane() {
 #[test]
 fn a_union_cut_along_its_edges() {
     let t = Tol::witness();
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), t);
-    let b = brick::<f64>((0.2, 1.0), (0.2, 2.0), (-0.5, 1.5), t);
+    let a = finished("A", brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), t), t);
+    let b = finished("B", brick::<f64>((0.2, 1.0), (0.2, 2.0), (-0.5, 1.5), t), t);
     let u = unite(&a, &b);
     let n = (1.0, 1.0, 0.0);
     both_ways(

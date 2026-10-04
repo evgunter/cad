@@ -19,6 +19,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanResult};
 
@@ -26,6 +27,20 @@ use crate::common::differential::{area, disc_clip_area, outcome};
 
 fn tol() -> Tol {
     Tol::witness()
+}
+
+/// `l op r` through the door (`U`, `S`, or `I` for anything else), each
+/// operand finished first.
+fn door(op: &str, l: &Body<f64>, r: &Body<f64>) -> Result<BooleanResult<f64>, BooleanError> {
+    let (l, r) = (
+        finished("the left operand", l.clone(), tol()),
+        finished("the right operand", r.clone(), tol()),
+    );
+    match op {
+        "U" => topo::union(&l, &r, tol()),
+        "S" => topo::subtract(&l, &r, tol()),
+        _ => topo::intersect(&l, &r, tol()),
+    }
 }
 
 fn cylinder(r: f64, z0: f64, h: f64) -> Body<f64> {
@@ -208,11 +223,7 @@ fn steep_quad_prism_battery() {
                             } else {
                                 (&pr, &base)
                             };
-                            let got = match op {
-                                "U" => topo::union(l, r, tol()),
-                                "S" => topo::subtract(l, r, tol()),
-                                _ => topo::intersect(l, r, tol()),
-                            };
+                            let got = door(op, l, r);
                             let line = match got {
                                 Err(e) => {
                                     let s = format!("{e:?}");
@@ -376,11 +387,7 @@ fn steep_plate_rod_battery() {
                                     } else {
                                         (&rd, &pl)
                                     };
-                                    let got = match op {
-                                        "U" => topo::union(l, r, tol()),
-                                        "S" => topo::subtract(l, r, tol()),
-                                        _ => topo::intersect(l, r, tol()),
-                                    };
+                                    let got = door(op, l, r);
                                     println!("{tag} {op} {order} => {}", outcome(got, want, tol()));
                                 }
                             }
@@ -452,11 +459,7 @@ fn u_plate_battery() {
                         } else {
                             (&rd, &pl)
                         };
-                        let got = match op {
-                            "U" => topo::union(l, r, tol()),
-                            "S" => topo::subtract(l, r, tol()),
-                            _ => topo::intersect(l, r, tol()),
-                        };
+                        let got = door(op, l, r);
                         println!("{tag} {op} {order} => {}", outcome(got, want, tol()));
                     }
                 }
@@ -528,11 +531,7 @@ fn miss(
 #[test]
 fn steep_ellipse_poses_build_sound_or_refuse_typed() {
     use Want::{Sound, SoundOrRefused};
-    let ops = |op: &str, l: &Body<f64>, r: &Body<f64>| match op {
-        "U" => topo::union(l, r, tol()),
-        "S" => topo::subtract(l, r, tol()),
-        _ => topo::intersect(l, r, tol()),
-    };
+    let ops = door;
     let mut misses = Vec::new();
 
     let cyl_z = (-8.0, 16.0);
