@@ -2,10 +2,11 @@
 id: boolean-unreadable-norm-ends-as-a-kernel-defect
 kind: issue
 title: topo: an unreadable plane norm at the Boolean ends as a kernel defect, not as the operand's at-rest poison
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -91,6 +91,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "four_crossings_on_one_section_circle.rs"]
 mod four_crossings_on_one_section_circle;
+#[path = "cylinder_sphere_frame.rs"]
+mod cylinder_sphere_frame;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
@@ -898,5 +900,7 @@ mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "far_thin_disc_sign.rs"]
+mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;

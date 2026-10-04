@@ -489,3 +489,37 @@ head with 25 misses.
 face is left as it was: that pose is declared ground.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4025 lands: the transverse cylinder × sphere germ frame
+
+`cylinder-sphere-germ-pair-has-no-section-frame` is closed.
+
+**What changed.** A transverse cylinder-wall × sphere germ pair now has
+its section frame (`cs_germ_frame`, `cs_transverse_frame`). One loop
+reads one axis and two loops read the offset axis. The loop count is
+decided by `bool_germ_frame_cs_reach`. The node, the coaxial pose and an
+in-band offset keep `NoArm`; under the D10 hold the declared-coaxial
+reading is unchanged.
+
+**No body ships yet.** Every pose now stops at the lane door. The lane
+is filed as a design row, `cylinder-sphere-germ-pair-has-no-join-lane`.
+A turned-chart ball crossing a cap stops earlier, at `SectionNotPolar`.
+
+**Review tier: single FULL**, cloud session. Reason: a new decided
+frame, but a wrong frame cannot ship a body until the lane lands, and
+the lane gets its own review. Verdict APPROVE-WITH-FIXES, 0/3/4.
+- An analytic sweep found 0 bad loops in 5 656, and 114 matcher-level
+  edge poses (transition, tilted drum) passed.
+- The batteries are byte-identical: `rc_wide`, `join1_r1`, delta arc.
+- The review's own mutant M4, on the loop-count margin, survived every
+  integration row. The fix pass adds an r < R < r + d pose, and M4 now
+  turns it red.
+- The minors were tracker and prose. REACH's NURBS rung was re-parked
+  on the lane row.
+
+**Filed:**
+- `skew-cylinder-germ-pair-has-no-section-frame`
+- `torus-germ-pairs-have-no-section-frame`
+- `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times`
+
+Signed (JOIN orchestrator).

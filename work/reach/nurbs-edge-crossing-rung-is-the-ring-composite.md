@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P1
 cost: H
-blocked_on: [cylinder-sphere-germ-pair-has-no-section-frame]
+blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]
 refs: [planar-crossing-lane-reads-a-curved-carrier-as-a-line]
 ---
 
@@ -50,7 +50,8 @@ today).
 ## Why it waits
 
 Its first consumer is frontier (d)'s cylinder×sphere join window
-(`join/cylinder-sphere-germ-pair-has-no-section-frame`), which will
+(`join/cylinder-sphere-germ-pair-has-no-join-lane`; the pair's frame
+landed in PR 4025, and the window is the lane), which will
 mint fitted NURBS seams on analytic faces. From then on DESIGN's
 "every boolean output is a legal boolean operand" (the maximal-faces
 paragraph) is owed, and the gate must be gone by then. Before (d)

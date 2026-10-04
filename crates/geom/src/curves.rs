@@ -42,6 +42,7 @@
 //! - **The conventional fields** here are `dir`, `axis` and `u_ref`
 //!   (unit; `u_ref ⊥ axis`), unchecked per the crate docs' rule.
 
+pub(crate) mod banded;
 pub mod boxes;
 pub mod compose;
 pub mod fit;
@@ -52,7 +53,7 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
+pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 

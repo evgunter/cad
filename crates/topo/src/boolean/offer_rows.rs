@@ -349,6 +349,13 @@ cases! {
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
         Withdrawn(Because::Refuses("JoinDesync")) =>
         coaxial_frame(0.5, D);
+    // The transverse frame's reach a band past and short of the walls'
+    // tangency. The section's coincidence names its lever and no
+    // tolerance; the tolerance it withdrew decides the loop count.
+    transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
+        Withdrawn(Because::Passes) => transverse_frame(D);
+    transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Passes) => transverse_frame(-D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
     arc_root_just_outside_its_span: "Crossing(OnEdge)", -D, ROOT_SITE, Valued =>
@@ -463,6 +470,11 @@ const NORMAL_SITE: Door = Door::Site(
 const FRAME_SITE: Door = Door::Site(
     "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
      door passes",
+);
+const TRANSVERSE_FRAME_SITE: Door = Door::Site(
+    "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
+     directly: a ball whose wall reaches the cylinder's far side within the band crosses it \
+     near-tangent, which the crossing layer meets first",
 );
 const ROOT_SITE: Door =
     Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
@@ -982,6 +994,29 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     };
     let face = crate::entity::FaceKey::default();
     cs_pair_frame(&c, &s, geom_brep::CoaxialEvidence::Declared, band())
+        .map(|_| ())
+        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+}
+
+/// The transverse frame of a radius-0.5 cylinder about `z` and a
+/// sphere centred 0.25 off its axis whose radius reaches `reach` past
+/// the cylinder's far side.
+fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
+    use super::super::join::{frame_refusal, pair_section_frame};
+    let c = geom::Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let s = geom::Surface::Sphere {
+        center: Point3::new(0.25, 0.0, 0.0),
+        radius: 0.75 + reach,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let face = crate::entity::FaceKey::default();
+    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, band())
         .map(|_| ())
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }

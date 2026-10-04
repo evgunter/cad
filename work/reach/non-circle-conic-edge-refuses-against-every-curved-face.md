@@ -90,7 +90,9 @@ Measured on the two rows above, after: the rim crosses or clears
 exactly, and each op stops at the next door — the ball straddling the
 rim, past the crossing layer and the sector side, at the join's
 cylinder × sphere germ frame
-(`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), the
+(`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`; since PR
+4025 one door on, at the pair's join lane,
+`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`), the
 ball through the cut face at `SectionNotPolar`
 (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`)
 or, charted about the cut normal, at the at-infinity probe

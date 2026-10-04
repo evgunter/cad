@@ -436,6 +436,10 @@ which is what actually moves the number.
 | boolean/join.rs (`nearer_along`, through `turned_past`) | bool_join_arc_travel | the same distance read from the incumbent partner's site: which of two sites in one half-turn the germ reaches first | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs (`rotational_sense`) | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
+| boolean/join.rs (`pair_section_frame`, cylinder pair) | bool_germ_frame_axes_parallel | `‖a₁ × a₂‖` (the sine between the unit axes) levered by the larger radius | m | OK |
+| boolean/join.rs (`pair_section_frame`, cylinder pair) | bool_germ_frame_axes_coplanar | the signed axis-to-axis gap along the common perpendicular, `(o₂ − o₁)·(a₁ × a₂) / ‖a₁ × a₂‖` | m | OK |
+| boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_offset | the sphere centre's distance from the cylinder's axis, `‖(c − o) − a·((c − o)·a)‖` with `a` unit; only a definite offset names a frame | m | OK |
+| boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_reach | `|R| − |r| − d`: how far the sphere reaches past the wall's far side (two loops when positive, one when negative, the walls tangent at Zero) | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
 | boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |

@@ -22,11 +22,11 @@ use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
 
-const DRUM_RADIUS: f64 = 0.5;
-const TILT: f64 = 0.3;
+pub(crate) const DRUM_RADIUS: f64 = 0.5;
+pub(crate) const TILT: f64 = 0.3;
 
 /// The drum's lower part: its rim is the cut face's two `Ellipse` arcs.
-fn drum_lower() -> Body<f64> {
+pub(crate) fn drum_lower() -> Body<f64> {
     let tol = Tol::witness();
     let r = DRUM_RADIUS;
     let cylinder = sweep::test_support::prism(
@@ -65,7 +65,7 @@ fn cut_height(x: f64) -> f64 {
 }
 
 /// A ball of radius `r` about `c` (a full revolve about `y`, moved).
-fn ball(r: f64, c: [f64; 3]) -> Body<f64> {
+pub(crate) fn ball(r: f64, c: [f64; 3]) -> Body<f64> {
     let at_origin = revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
@@ -283,8 +283,9 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 /// it. The rim's pairs are accepted (its certified roots split it), the
 /// crossing layer and the sector side pass, and every op stops at the
 /// join, at the door that pose's germ pairs reach: a ball's wall ×
-/// sphere pair has no section frame
-/// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), and
+/// sphere pair has its section frame and no chord lane for its quartic
+/// section (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
+/// `cylinder_sphere_frame` holds the same balls to their volumes), and
 /// a rod's parallel wall pair no join arm
 /// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
 /// narrow rods too, since their pierce ring in the drum's wall joins.
@@ -296,7 +297,15 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 fn a_rim_crossing_reaches_the_join() {
     use topo::BooleanError as E;
     let a = drum_lower();
-    let no_frame = |e: &E| matches!(e, E::GermFrameUnsupported { .. });
+    let no_lane = |e: &E| {
+        matches!(
+            e,
+            E::CurvedBooleanUnsupported {
+                kind: geom::SurfaceKind::Cylinder | geom::SurfaceKind::Sphere,
+                ..
+            }
+        )
+    };
     let no_arm = |e: &E| {
         matches!(
             e,
@@ -311,12 +320,12 @@ fn a_rim_crossing_reaches_the_join() {
         (
             "ball r 0.2 at (0.5, 0, 0.35)",
             ball(0.2, [0.5, 0.0, 0.35]),
-            &no_frame,
+            &no_lane,
         ),
         (
             "ball r 0.1 at (0.45, 0, 0.3)",
             ball(0.1, [0.45, 0.0, 0.3]),
-            &no_frame,
+            &no_lane,
         ),
         (
             "rod r 0.2 at (0.5, 0)",
