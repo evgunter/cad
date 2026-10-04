@@ -420,3 +420,7 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-04 — #3955 is partly on D10's retired ground (INTENT note)
+
+A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pairs) partly superseded: its new declared-backing arms (`Declared::ve_backed`, `StaleDeclaration::VertexOnEdge`, the Python `vertex_on_edge` tag) sit on declared contact, which INTENT stage 4 retires; the cell-pair record model, the single substitution door, edge-split lineage and the joinable-vertex join survive under D10's "every value-decided coincidence is recorded". It was started before the hold, so it may finish; please add no new declaration vocabulary (or keep it minimal for stage 4 to retire) and avoid declaration language in the tier-3′ prose it edits.

@@ -249,8 +249,8 @@
 //! [`crate::Body::set_face_surface`] reaches the same posture from the
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
-//! chart and drops them on any other
-//! ([`crate::Body::drop_face_rows`]), which is what makes its own
+//! chart and drops them on any other ([`crate::Body::drop_rows`], over
+//! the loops [`crate::Body::face_cycles`] proves), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
@@ -1875,6 +1875,16 @@ pub(crate) struct StoredRows<T: Real> {
     pub(crate) gaps: Vec<RowGap>,
 }
 
+impl<T: Real> StoredRows<T> {
+    /// The first loop of the face that did not walk ([`LoopRows::Corrupt`]),
+    /// in walk order.
+    pub(crate) fn broken(&self) -> Option<LoopKey> {
+        self.loops
+            .iter()
+            .find_map(|(lk, cycle)| cycle.is_none().then_some(*lk))
+    }
+}
+
 /// One gap in a face's row set ([`StoredRows::gaps`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum RowGap {
@@ -1901,7 +1911,7 @@ impl<T: Real> StoredRows<T> {
 
 impl<T: Real> StoredRows<T> {
     /// **Whether a site mint re-mints the face** ([`site_rows`]): it
-    /// stores a row, every loop walks, and every row it misses is on a
+    /// stores a row, and every row it misses is on a
     /// loop in `open` — the loops a null edge holds open
     /// ([`StoredRows::open_loops`]) — unless the door `released` it,
     /// taking the last null edge off it, whatever else it misses.
@@ -1931,9 +1941,11 @@ impl<T: Real> StoredRows<T> {
     /// left the face half-minted ([`PcurveMintError::MissingCache`]
     /// lists them) and the site mint leaves it as found, for the
     /// producer's final pass.
+    ///
+    /// Every loop of `self` walked: a face with a loop that does not is
+    /// refused before this is asked ([`site_rows_from`]).
     pub(crate) fn remints(&self, open: &[LoopKey], released: bool) -> bool {
         self.window.is_some()
-            && self.loops.iter().all(|(_, cycle)| cycle.is_some())
             && (released
                 || self.gaps.iter().all(
                     |gap| matches!(gap, RowGap::Missing { r#loop, .. } if open.contains(r#loop)),
@@ -2002,7 +2014,8 @@ pub(crate) enum LoopRows {
     /// ([`crate::LoopBoundary::Empty`]): there is nothing to walk and
     /// nothing wrong. It holds no half-edge, so it holds no row.
     NoCycle,
-    /// The loop record or its cycle did not resolve — tier 1's
+    /// The loop record or its cycle did not resolve, or the cycle
+    /// strayed into a half-edge that does not claim the loop — tier 1's
     /// corruption, which each caller reports in its own vocabulary.
     Corrupt,
 }
@@ -2019,6 +2032,13 @@ pub(crate) enum LoopRows {
 /// one cycle. Two spellings of it would be two answers to "which rows
 /// does this loop have", and a door and the validator disagreeing
 /// about that is exactly the defect neither could see.
+///
+/// The walk is [`crate::Body::loop_cycle_of`]: a member that does not
+/// claim `r#loop` makes the loop [`LoopRows::Corrupt`], so a torn
+/// `next` cannot hand another loop's rows to this one's reader. A walk
+/// that closes short of a member it should reach is not caught here;
+/// a door that moves or re-charts the whole loop proves that too
+/// ([`crate::Body::whole_cycle`]).
 pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows {
     let Some(loop_data) = body.get_loop(r#loop) else {
         return LoopRows::Corrupt;
@@ -2026,7 +2046,7 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows 
     let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
         return LoopRows::NoCycle;
     };
-    match body.loop_cycle(first) {
+    match body.loop_cycle_of(first, r#loop) {
         Some(cycle) => LoopRows::Cycle(cycle),
         None => LoopRows::Corrupt,
     }
@@ -2084,8 +2104,9 @@ pub(crate) struct CarriedRows<T: Real> {
 pub(crate) enum SplitRowError {
     /// The topology the stored row is ABOUT does not resolve: the
     /// half-edge, its edge's certified curve, its parent loop, that
-    /// loop's face, that face's surface, or that face's boundary not
-    /// carrying the half-edge whose row this is. A row states a curve
+    /// loop's face, that face's surface, that face's boundary not
+    /// carrying the half-edge whose row this is, or a loop of that face
+    /// not walking as its own, which leaves the window unknown. A row states a curve
     /// in a FACE's chart, so without the chart there is nothing to
     /// restrict it to, and a body that holds the row and not the chart
     /// is tier-1 corrupt — the caller reports it as the stale key it
@@ -2222,7 +2243,11 @@ pub(crate) fn split_cache<T: Decide>(
                 // `None` here is a face whose boundary stores no row at
                 // all — and this half-edge, which stores one, is
                 // supposed to be on it.
-                let w = stored_rows(body, face).window.ok_or_else(stale)?;
+                let rows = stored_rows(body, face);
+                if rows.broken().is_some() {
+                    return Err(stale());
+                }
+                let w = rows.window.ok_or_else(stale)?;
                 windows.push((face_key, w));
                 w
             }
@@ -2387,6 +2412,8 @@ fn mint_faces<T: AtRestPolicy>(
 /// certifies, and [`PcurveMintError::RowInterval`] for one whose
 /// interval is no longer its edge's ([`row_interval`]): the producer
 /// refuses rather than drop it or store it stale.
+/// [`PcurveMintError::Corrupt`] for a loop of the face that does not walk
+/// as its own ([`loop_rows`]), whose rows it cannot tell.
 fn carry_rows<T: AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -2400,12 +2427,14 @@ fn carry_rows<T: AtRestPolicy>(
         .ok_or(PcurveMintError::Corrupt)?;
     let mut held: Vec<(HalfEdgeKey, &PcurveCache<T>)> = Vec::new();
     for lp in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        if let LoopRows::Cycle(cycle) = loop_rows(body, lp) {
-            held.extend(
+        match loop_rows(body, lp) {
+            LoopRows::Cycle(cycle) => held.extend(
                 cycle
                     .into_iter()
                     .filter_map(|he| found.get(he).map(|row| (he, row))),
-            );
+            ),
+            LoopRows::NoCycle => {}
+            LoopRows::Corrupt => return Err(PcurveMintError::Corrupt),
         }
     }
     let Some(window) = hull_of(held.iter().map(|(_, row)| {
@@ -2476,16 +2505,9 @@ fn clear_face_caches<T: Decide>(
         .collect();
     let mut hes: Vec<HalfEdgeKey> = Vec::new();
     for lk in loops {
-        let Some(lp) = body.get_loop(lk) else {
-            continue;
-        };
-        let crate::entity::LoopBoundary::Cycle { first } = lp.boundary else {
-            continue;
-        };
-        let Some(cycle) = body.loop_cycle(first) else {
-            continue;
-        };
-        hes.extend(cycle);
+        if let LoopRows::Cycle(cycle) = loop_rows(body, lk) {
+            hes.extend(cycle);
+        }
     }
     hes.into_iter()
         .filter_map(|he| body.pcurves.remove(he).map(|row| (he, row)))
@@ -2898,6 +2920,15 @@ pub(crate) enum SiteRows<T: Real> {
     Clear(Vec<SiteHalf>),
 }
 
+/// Why [`site_rows_from`] could not read a face.
+#[derive(Debug)]
+pub(crate) enum SiteFromRefusal {
+    /// A loop of the face did not walk as its own ([`LoopRows::Corrupt`]).
+    LoopCycleBroken(LoopKey),
+    /// [`held_open`]'s.
+    Row(SiteRowRefusal),
+}
+
 /// A face as a site mint found it, and read further
 /// ([`site_rows_from`]).
 pub(crate) struct SiteFrom<T: Real> {
@@ -2919,17 +2950,23 @@ pub(crate) struct SiteFrom<T: Real> {
 ///
 /// # Errors
 ///
-/// [`held_open`]'s.
+/// [`SiteFromRefusal::LoopCycleBroken`] naming the first loop of the
+/// face that does not walk as its own ([`loop_rows`]): which rows it
+/// holds has no answer, so neither has whether the door re-mints the
+/// face. Then [`held_open`]'s.
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
     surface: &Surface<T>,
-) -> Result<Option<SiteFrom<T>>, SiteRowRefusal> {
+) -> Result<Option<SiteFrom<T>>, SiteFromRefusal> {
     if DescribedChart::minting(surface).is_none() {
         return Ok(None);
     }
     let rows = stored_rows(body, face);
-    let open = rows.open_loops(body)?;
+    if let Some(r#loop) = rows.broken() {
+        return Err(SiteFromRefusal::LoopCycleBroken(r#loop));
+    }
+    let open = rows.open_loops(body).map_err(SiteFromRefusal::Row)?;
     Ok(rows
         .remints(&open, !open.is_empty())
         .then_some(SiteFrom { rows, open }))
@@ -3262,7 +3299,9 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
         // An empty loop bounds nothing to chart.
         return Ok(());
     };
-    let cycle = body.loop_cycle(first).ok_or(PcurveMintError::Corrupt)?;
+    let cycle = body
+        .loop_cycle_of(first, lp)
+        .ok_or(PcurveMintError::Corrupt)?;
     let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
     let item = |i: usize| -> Result<WalkItem<T>, PcurveMintError> {
         let he = cycle[i];
@@ -4581,7 +4620,8 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "re-charts a face in place, which changes what every row the face stores is \
              ABOUT while changing no key: the rows are kept across a swap onto the same \
-             chart (`Body::same_chart`) and dropped on any other (`Body::drop_face_rows`). \
+             chart (`Body::same_chart`) and dropped on any other (`Body::drop_rows`, over the loops \
+             `Body::face_cycles` proves). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \

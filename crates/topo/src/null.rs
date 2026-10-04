@@ -1541,26 +1541,30 @@ mod tests {
         );
     }
 
-    /// **A face with a loop that does not walk is not the site mint's.**
+    /// **A face with a loop that does not walk refuses the site mint.**
     /// The ringed wall, held open by its null strut, is read further by
     /// the site mint. With its ring's loop record gone — tier 1's
-    /// corruption — it is not, even though the strut's release would
-    /// otherwise take it whatever it misses.
+    /// corruption — which rows it holds has no answer, so the read
+    /// refuses naming the ring.
     #[test]
-    fn a_held_open_face_with_a_loop_that_does_not_walk_is_left_as_found() {
+    fn a_held_open_face_with_a_loop_that_does_not_walk_refuses() {
         let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
-        let read_further = |body: &Body<f64>| {
+        let read = |body: &Body<f64>| {
             let face = body.get_face(wall).unwrap();
             let surface = body.get_surface(face.surface).unwrap();
-            crate::pcurves::site_rows_from(body, face, surface)
-                .unwrap()
-                .is_some()
+            crate::pcurves::site_rows_from(body, face, surface).map(|from| from.is_some())
         };
-        assert!(read_further(&body), "the held-open wall is read further");
+        assert!(
+            matches!(read(&body), Ok(true)),
+            "the held-open wall is read further"
+        );
         body.loops.remove(ring).unwrap();
         assert!(
-            !read_further(&body),
-            "a loop that does not walk keeps the wall from the site mint"
+            matches!(
+                read(&body),
+                Err(crate::pcurves::SiteFromRefusal::LoopCycleBroken(lk)) if lk == ring
+            ),
+            "a loop that does not walk refuses the read, naming it"
         );
     }
 }

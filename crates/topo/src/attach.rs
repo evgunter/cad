@@ -117,8 +117,8 @@ impl<T: Decide> Body<T> {
     /// longer on — the loop-re-parenting doors' defect with the two
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
-    /// one drops the face's rows ([`Body::drop_face_rows`]), deriving
-    /// nothing. A caller that wants the face's rows on its new chart
+    /// one drops the rows of the face's loops, proven whole in the plan
+    /// ([`Body::face_cycles`]), deriving nothing. A caller that wants the face's rows on its new chart
     /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
     /// wherever the new surface does not mint — tier 3's pcurve pass
     /// skips such a face — so what the drop removes is a wrong row no
@@ -137,8 +137,10 @@ impl<T: Decide> Body<T> {
     /// the face's own chart states the other bit; then
     /// [`EulerOpError::RechartStrandsDescriptions`], then
     /// [`EulerOpError::RechartUnvouched`] (`StaleKey` / `StaleGeometry`
-    /// where a key a walk over the edges follows does not resolve). The
-    /// body is untouched on `Err`.
+    /// where a key a walk over the edges follows does not resolve); then,
+    /// onto another chart, each of the face's loops walks and is exactly
+    /// the half-edges that claim it ([`EulerOpError::LoopCycleBroken`],
+    /// [`Body::face_cycles`]). The body is untouched on `Err`.
     pub fn set_face_surface(
         &mut self,
         face: FaceKey,
@@ -159,6 +161,11 @@ impl<T: Decide> Body<T> {
             resolved.on_parent_chart,
             None,
         )?;
+        let dropped = if resolved.on_parent_chart {
+            Vec::new()
+        } else {
+            self.face_cycles(face)?
+        };
 
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
@@ -171,9 +178,7 @@ impl<T: Decide> Body<T> {
         f.sense = resolved.sense;
         if new != old {
             f.surface = new;
-            if !resolved.on_parent_chart {
-                self.drop_face_rows(face);
-            }
+            self.drop_rows(dropped);
             self.remove_surface_if_orphaned(old);
         }
 
@@ -306,7 +311,9 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RechartBoundaryEscalated`]). `StaleKey` /
     /// `StaleGeometry` where a key a walk follows does not resolve, and
     /// [`EulerOpError::LoopCycleBroken`] where a moved face's loop does
-    /// not walk.
+    /// not walk or strays out of it. Then per moved face in order onto
+    /// another chart, each of its loops is exactly the half-edges that
+    /// claim it (`LoopCycleBroken`, [`Body::face_cycles`]).
     ///
     /// # Errors
     ///
@@ -390,6 +397,11 @@ impl<T: Decide> Body<T> {
         for m in &faces {
             self.check_moved_boundary(m, &charts, &written, band)?;
         }
+        let dropped = faces
+            .iter()
+            .filter(|m| !m.on_parent_chart)
+            .map(|m| self.face_cycles(m.face))
+            .collect::<Result<Vec<_>, _>>()?;
 
         // ---- Mutation (infallible from here on). ----
         let keys: Vec<SurfaceKey> = charts
@@ -412,10 +424,8 @@ impl<T: Decide> Body<T> {
             };
             f.surface = new;
             f.sense = m.sense;
-            if !m.on_parent_chart {
-                self.drop_face_rows(m.face);
-            }
         }
+        self.drop_rows(dropped.into_iter().flatten());
         for (edge, sides, curve) in written {
             let Some(rekeyed) = curve.with_remapped_surfaces(|k| key_of(sides.repoint(k))) else {
                 unreachable!("set_face_surfaces_describing: every moved chart was minted")
@@ -565,10 +575,7 @@ impl<T: Decide> Body<T> {
                     continue;
                 }
             };
-            let cycle = self
-                .loop_cycle(first)
-                .ok_or(EulerOpError::LoopCycleBroken { r#loop: lk })?;
-            for he in cycle {
+            for he in self.site_cycle_from(first, lk)? {
                 let he_data = self.resolve_half_edge(he)?;
                 on_plane(
                     self.resolve_vertex_point(he_data.start)?,
@@ -1027,7 +1034,8 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
     /// an edge, half, loop, face or surface does not resolve; what
     /// `rewired` raises; [`EulerOpError::Certification`] where `tol`
-    /// builds no band;
+    /// builds no band; [`EulerOpError::LoopCycleBroken`] naming a loop,
+    /// of a face on a chart that mints, that does not walk as its own;
     /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
     pub(crate) fn null_description_rows(
