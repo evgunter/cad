@@ -344,7 +344,8 @@ fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
 /// The pcurve pass over a named face clears and re-derives that face's
 /// rows by the same walk ([`crate::pcurves::mint_pcurves_of`]): every
 /// other row of the body is left exactly as found, a diverted loop's
-/// stray included.
+/// stray included, and the pass refuses the torn loop as corrupt rather
+/// than as a geometry fault of the stray it walked.
 #[test]
 fn the_pass_over_one_face_leaves_the_rows_of_a_loop_its_walk_strays_into() {
     let s = sheet();
@@ -358,6 +359,7 @@ fn the_pass_over_one_face_leaves_the_rows_of_a_loop_its_walk_strays_into() {
         rows_before,
         "the pass over the wall returned {got:?} and changed the split face's rows"
     );
+    assert_eq!(got, Err(crate::PcurveMintError::Corrupt));
 }
 
 /// A walk closed past a member hands the door every row but that
