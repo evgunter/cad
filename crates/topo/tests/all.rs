@@ -131,6 +131,8 @@ mod issue86_double_subtract;
 mod issue93_nested_islands;
 #[path = "join1_r2_topo_probes.rs"]
 mod join1_r2_topo_probes;
+#[path = "join_pierce_strut_facing.rs"]
+mod join_pierce_strut_facing;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]

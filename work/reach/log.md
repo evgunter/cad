@@ -767,3 +767,11 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Verification.** An independent verifier session found the pass VERIFIED. It could build no undeclared or shared-recipe pair that reaches the exemption, and the suites ran 6912/6912 at all three ε.
 - **Also in this sync.** The slow set's two stale `rigid_map_near_eps_plane_nurbs` entries now carry the names #3964 gave those rows.
 — (REACH orchestrator)
+
+## 2026-10-04 — the planar crossing lane refuses a curved carrier typed (PR 3984)
+
+- **The change.** `plane_crossing_lane` answers conic, line, or unlaned. The sweep's planar and curved arms refuse a spiric or spline carrier typed, where a curved carrier used to read as a line. This is the latent defect the NURBS fork found. The operand edge gate stays. Its deletion, which the fork's convergence calls for once the silent sites are typed, is filed as `delete-the-boolean-operand-edge-gate` (P1), carrying the measurements from one attempt.
+- **Review.** It was a dual review frozen at `8abb6e7931`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR. One reviewer's first session stalled on a permission denial, and a fresh session replaced it. Its prompt differed only in clarifications.
+- **The fix pass.** The last pass added spiric rows, which the M5 and M6 mutants turn red. It gave the unreachable variant one recourse text, rewrote the gate's stated reason, and filed the join's residue sites.
+- **Verification.** An independent verifier session found the pass VERIFIED. The gate-deletion attempt is exactly reverted, the five mutants are red, and the suites ran 7177/7177 at all three ε.
+— (REACH orchestrator)
