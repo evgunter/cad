@@ -1072,14 +1072,29 @@ where
                     .into_iter()
                     .fold(h_quad, Real::min);
                 let h_cap = ctx.diagonal();
-                let h = Real::min(h_curve, h_cap);
+                let mut h = Real::min(h_curve, h_cap);
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
-                let bound = if h_curve < h_cap {
+                let mut bound = if h_curve < h_cap {
                     StepBound::Curvature
                 } else {
                     StepBound::Cap(StepCap::Diagonal)
                 };
+                // PROBE (d): the reach rung. The step is halved until the
+                // bending enclosed over everything it can reach admits it
+                // (`LocalSystem::reach_bound`); fixed, and bounded by the
+                // step guard below, which refuses a step in the band.
+                for _ in 0..128 {
+                    let adm = sys.reach_bound(&x, &d1, h);
+                    if adm >= h {
+                        break;
+                    }
+                    h *= 0.5;
+                    bound = StepBound::Curvature;
+                    if h * speed < band.zero() {
+                        break;
+                    }
+                }
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];

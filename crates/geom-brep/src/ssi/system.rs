@@ -34,7 +34,8 @@
 //! `f64`-only and untrusted throughout — C6's selection lane.
 
 use geom::{NurbsSurface, Surface, SurfaceJet3};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::interval::certification::Certification;
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use super::jet::implicit_path_jet;
 
@@ -53,6 +54,19 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
 
     /// `b₂ = −D²F(d₁, d₁)` — the order-2 right-hand side.
     fn rhs2(&self, x: &[f64; N], d1: &[f64; N]) -> [f64; M];
+
+    /// PROBE: **the reach rung.** The longest step, in state-parameter
+    /// units, that the locus's bending **enclosed over everything a step
+    /// of `h` from `x` along `d1` can reach** admits under Hoffmann's
+    /// relative heuristic: the chart-curve curvature `κ` of the locus is
+    /// bounded over the reach box by certified hulls, and the chart step
+    /// `h·s` (`s` the chart speed of the state path) is held to
+    /// `2ρ/κ_max`. `0` where the box holds a point with `∇f = 0` (a
+    /// saddle: no step reaching it is admitted), `+∞` where the system has
+    /// no enclosure, or the locus is straight over the reach.
+    fn reach_bound(&self, _x: &[f64; N], _d1: &[f64; N], _h: f64) -> f64 {
+        f64::INFINITY
+    }
 
     /// `b₃ = −(D³F(d₁,d₁,d₁) + 3·D²F(d₁,d₂))` — the order-3 right-hand
     /// side (Hoffmann's `b_{f,3}`).
@@ -288,6 +302,50 @@ pub(crate) struct ParametricPairR4<'a> {
 }
 
 impl LocalSystem<3, 4> for ParametricPairR4<'_> {
+    fn reach_bound(&self, x: &[f64; 4], d1: &[f64; 4], h: f64) -> f64 {
+        let (Chart::Plane { du, dv, .. }, Chart::Nurbs(wall)) = (&self.a, &self.b) else {
+            return f64::INFINITY;
+        };
+        if !(h.is_finite() && h > 0.0) {
+            return f64::INFINITY;
+        }
+        let s = (d1[2] * d1[2] + d1[3] * d1[3]).sqrt();
+        if !(s > 0.0) {
+            return f64::INFINITY;
+        }
+        let n = du.cross(*dv);
+        let (ud, vd) = (wall.knots_u().domain(), wall.knots_v().domain());
+        let (ru, rv) = (1.1 * h * d1[2].abs(), 1.1 * h * d1[3].abs());
+        let iu = Interval::from_bounds((x[2] - ru).max(ud.0), (x[2] + ru).min(ud.1));
+        let iv = Interval::from_bounds((x[3] - rv).max(vd.0), (x[3] + rv).min(vd.1));
+        let lifted = wall.map_scalar(Interval::point);
+        let j = lifted.ders(iu, iv);
+        let ni = Vec3::new(Interval::point(n.x), Interval::point(n.y), Interval::point(n.z));
+        let fu = ni.dot(j.du);
+        let fv = ni.dot(j.dv);
+        let fuu = ni.dot(j.duu);
+        let fuv = ni.dot(j.duv);
+        let fvv = ni.dot(j.dvv);
+        let g2 = fu * fu + fv * fv;
+        if !g2.is_certified() {
+            return 0.0;
+        }
+        let gmin2 = g2.lo();
+        if !(gmin2 > 0.0) {
+            return 0.0;
+        }
+        let num = fuu * fv * fv - Interval::point(2.0) * fuv * fu * fv + fvv * fu * fu;
+        if !num.is_certified() {
+            return 0.0;
+        }
+        let kmax = num.lo().abs().max(num.hi().abs()) / (gmin2 * gmin2.sqrt());
+        if kmax == 0.0 {
+            f64::INFINITY
+        } else {
+            2.0 * super::march::SSI_STEP_RELATIVE / (kmax * s)
+        }
+    }
+
     fn residual(&self, x: &[f64; 4]) -> [f64; 3] {
         let pa = self.a.eval(x[0], x[1]);
         let pb = self.b.eval(x[2], x[3]);
