@@ -96,7 +96,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(name("q"), Dimension::Length),
+        distance: Expr::named(name("q"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     r.doc
@@ -130,7 +130,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(name("q"), Dimension::Length),
+        distance: Expr::named(name("q"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
@@ -141,7 +141,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p2,
-        distance: Expr::sub(len(c), Expr::param(name("q"), Dimension::Length))
+        distance: Expr::sub(len(c), Expr::named(name("q"), Dimension::Length))
             .expect("length minus length"),
         side: ExtrudeSide::Along,
     });
@@ -452,14 +452,14 @@ fn evidence_only_e2e_consumer_walk() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::param(name("hole_r"), Dimension::Length),
+                    radius: Expr::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::param(name("depth"), Dimension::Length),
+            distance: Expr::named(name("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         r.doc

@@ -115,17 +115,25 @@ fn sector_margin_stream() {
     // two groups changes nothing about the rows or their order — the
     // fixtures already ran in this order — so the printed stream is
     // byte-identical to the single-sink version.
+    let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+    let operands: Vec<_> = [1e-3, 1.0]
+        .into_iter()
+        .map(|scale| {
+            (
+                fin("a1", bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0))),
+                fin("b1", bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0))),
+                fin("a2", bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0))),
+                fin("b2", bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0))),
+            )
+        })
+        .collect();
     k_stats::start_recording();
-    for scale in [1e-3, 1.0] {
-        let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-        let b1 = bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-        match subtract(&a1, &b1, Tol::witness()).expect("corner subtract") {
+    for (a1, b1, a2, b2) in &operands {
+        match subtract(a1, b1, Tol::witness()).expect("corner subtract") {
             BooleanResult::Body(_) => {}
             other => panic!("corner: {other:?}"),
         }
-        let a2 = bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-        let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-        subtract(&a2, &b2, Tol::witness()).expect("pocket subtract");
+        subtract(a2, b2, Tol::witness()).expect("pocket subtract");
     }
     let bool_samples = k_stats::take_samples();
 

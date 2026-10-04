@@ -116,7 +116,6 @@ fn stacked() -> (Body<f64>, ContactRecords) {
     let mut at = |x: f64, y: f64| {
         let mut hits = Vec::new();
         for (vk, p) in body.vertex_points() {
-            let p = p.unwrap();
             if (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9 {
                 hits.push(vk);
             }

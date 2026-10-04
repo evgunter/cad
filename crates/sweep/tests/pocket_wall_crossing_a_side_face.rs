@@ -20,7 +20,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::{ROD_R, rod_chord_at};
+use sweep::test_support::{ROD_R, finished, rod_chord_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::Body;
 
@@ -185,11 +185,12 @@ fn cutter_area(flat: f64) -> f64 {
 
 #[test]
 fn a_pocket_whose_wall_crosses_a_side_face_builds_at_its_closed_form_volume() {
-    let blk = block();
+    let blk_op = finished("the block", block(), tol());
     let v_blk = 4.0;
     let mut bad = Vec::new();
     for pose in poses() {
         let cut = cutter(&pose);
+        let cut_op = finished("the cutter", cut.clone(), tol());
         // The cutter's own volume, closed form against the kernel's:
         // the oracle's disc is the profile the prism was built from.
         let v_cut = cutter_area(pose.flat) * pose.h;
@@ -214,9 +215,9 @@ fn a_pocket_whose_wall_crosses_a_side_face_builds_at_its_closed_form_volume() {
         ] {
             for (order, want) in [("AB", want_ab), ("BA", want_ba)] {
                 let (l, r) = if order == "AB" {
-                    (&blk, &cut)
+                    (&blk_op, &cut_op)
                 } else {
-                    (&cut, &blk)
+                    (&cut_op, &blk_op)
                 };
                 let got = match op {
                     "U" => topo::union(l, r, tol()),

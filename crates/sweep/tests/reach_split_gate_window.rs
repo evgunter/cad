@@ -194,7 +194,6 @@ fn sense(body: &Body<f64>, theta: Option<f64>) -> f64 {
     let Some(theta) = theta else { return 1.0 };
     let (s, c) = theta.sin_cos();
     for (_, p) in body.vertex_points() {
-        let p = p.unwrap();
         let rho = p.x.hypot(p.z);
         if rho > 1e-6 && (p.x - rho * c).abs() < 1e-9 * rho.max(1.0) && p.z.abs() > 1e-6 * rho {
             return (p.z / (rho * s)).signum();

@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocumentId, Expr, Frame, FreeVar, Label, LoopProgram,
-    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarName,
+    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -132,7 +132,7 @@ pub enum SessionOp {
     /// Write a value into a document parameter.
     SetParam {
         /// The parameter.
-        name: VarName,
+        var: VarId,
         /// The new value.
         value: SlotValue,
     },
@@ -151,7 +151,7 @@ pub enum SessionOp {
     /// refuses.
     SetParamUnit {
         /// The parameter.
-        name: VarName,
+        var: VarId,
         /// The unit to write it in.
         unit: UnitDef,
     },
@@ -180,27 +180,48 @@ pub enum SessionOp {
     /// offset.
     SetParamText {
         /// The parameter.
-        name: VarName,
+        var: VarId,
         /// What was typed.
         text: String,
     },
     /// Declare a NEW document parameter — the panel's create
     /// affordance, committing exactly one `DocEdit::DeclareVar`.
     ///
-    /// That edit refuses a taken name (`EditError::VarNameTaken`). This
-    /// door refuses an already-declared name typed
-    /// ([`Refusal::ParamExists`]): a "create" that replaced would
-    /// change not just the value but possibly the declared DIMENSION,
-    /// re-validating every referencing expression — a blast radius no
-    /// plus-shaped button should carry. Replacing stays spellable
-    /// through the door that says so ([`SessionOp::SetParam`], which
-    /// conversely refuses a name that does NOT exist — the two doors
-    /// partition the edit's semantics).
-    CreateParam {
+    /// A taken name is the edit's to refuse
+    /// (`EditError::VarNameTaken`, naming the holder), forwarded
+    /// through [`Refusal::Edit`]: the declare never replaces, so a
+    /// plus-shaped button cannot change a standing variable's kind
+    /// under the expressions that read it. Writing a standing
+    /// variable is [`SessionOp::SetParam`]'s door.
+    DeclareVar {
         /// The new parameter's name.
         name: VarName,
         /// Its declared dimension and exact value.
         value: FreeVar,
+    },
+    /// Rename a document parameter, or clear its name — exactly one
+    /// `DocEdit::RenameVar`.
+    ///
+    /// Only the name moves: the variable's id, and so every reader of
+    /// it and every row keyed by it, stays. The refusals (an id the
+    /// document does not hold, a taken name, the name it already has,
+    /// clearing the name of a variable nothing reads) are the edit's,
+    /// forwarded through [`Refusal::Edit`].
+    RenameVar {
+        /// The parameter.
+        var: VarId,
+        /// Its new name, or `None` to clear it.
+        name: Option<VarName>,
+    },
+    /// Delete a document parameter — exactly one `DocEdit::DeleteVar`.
+    ///
+    /// Its readers are left reading an id the document no longer
+    /// holds, and fail typed at evaluation. The refusals (an id the
+    /// document does not hold, an anonymous variable) are the edit's,
+    /// forwarded through [`Refusal::Edit`].
+    DeleteVar {
+        /// The parameter.
+        var: VarId,
     },
     /// Start a continuous gesture over a slot.
     BeginGesture {
@@ -220,7 +241,7 @@ pub enum SessionOp {
     /// gesture rule the ratified preview-vs-commit decision demands.
     BeginParamGesture {
         /// The parameter.
-        name: VarName,
+        var: VarId,
     },
     /// Move the in-flight SLOT gesture. Emits a preview edit against
     /// scratch state; commits nothing.
@@ -263,7 +284,7 @@ pub enum SessionOp {
     /// than translating them into a second vocabulary.
     PreviewParamGesture {
         /// The parameter the gesture is dragging.
-        name: VarName,
+        var: VarId,
         /// The value under the pointer.
         value: f64,
     },
@@ -271,7 +292,7 @@ pub enum SessionOp {
     /// gesture's last previewed value.
     CommitParamGesture {
         /// The parameter the gesture is dragging.
-        name: VarName,
+        var: VarId,
     },
     /// Abandon whichever value gesture is open, leaving the document
     /// untouched.
@@ -875,7 +896,7 @@ pub enum ValueGestureName {
         slot: SlotId,
     },
     /// A document parameter.
-    Param(VarName),
+    Param(VarId),
 }
 
 impl ValueGestureName {
@@ -887,7 +908,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(name) => SessionOp::BeginParamGesture { name: name.clone() },
+            Self::Param(var) => SessionOp::BeginParamGesture { var: *var },
         }
     }
 
@@ -901,10 +922,7 @@ impl ValueGestureName {
                 slot: *slot,
                 value,
             },
-            Self::Param(name) => SessionOp::PreviewParamGesture {
-                name: name.clone(),
-                value,
-            },
+            Self::Param(var) => SessionOp::PreviewParamGesture { var: *var, value },
         }
     }
 
@@ -916,7 +934,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(name) => SessionOp::CommitParamGesture { name: name.clone() },
+            Self::Param(var) => SessionOp::CommitParamGesture { var: *var },
         }
     }
 }
@@ -966,7 +984,7 @@ impl FreeMoveName {
 /// this crate.
 ///
 /// The six driving operations spell their subject three ways, each
-/// right for its own door: a node and a slot, a parameter name, an
+/// right for its own door: a node and a slot, a variable id, an
 /// instance. What they are all spellings OF is this. A gesture's name
 /// is what a preview and a commit are checked against before they
 /// touch anything ([`crate::g1::Slot`]'s two name checks), and
@@ -1053,7 +1071,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
             | Self::BeginParamGesture { .. }
             | Self::PreviewGesture { .. }
@@ -1103,9 +1123,9 @@ impl SessionOp {
                 node: *node,
                 slot: *slot,
             }),
-            Self::BeginParamGesture { name }
-            | Self::PreviewParamGesture { name, .. }
-            | Self::CommitParamGesture { name } => value(ValueGestureName::Param(name.clone())),
+            Self::BeginParamGesture { var }
+            | Self::PreviewParamGesture { var, .. }
+            | Self::CommitParamGesture { var } => value(ValueGestureName::Param(*var)),
             Self::BeginFreeMove { instance }
             | Self::PreviewFreeMove { instance, .. }
             | Self::CommitFreeMove { instance } => probe(*instance),
@@ -1121,7 +1141,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
@@ -1333,7 +1355,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
@@ -1453,7 +1477,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
             | Self::BeginParamGesture { .. }
             | Self::Undo

@@ -77,7 +77,7 @@ fn dump(label: &str, body: &Body<f64>) {
         surfaces.dedup();
         println!(
             "[dump] {label}: vertex {k:?} point={:?} faces={faces:?} distinct_surfaces={surfaces:?}",
-            p.unwrap()
+            p
         );
     }
     match topo::mass_properties(body, tol()) {

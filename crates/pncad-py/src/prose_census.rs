@@ -1791,13 +1791,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          match binding, and this census types patterns and fields",
     ),
     (
-        "crates/topo/src/boolean/mod.rs",
-        "BooleanError",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
         "crates/topo/src/flush.rs",
         "FlushRefusal",
         POSITIONAL,

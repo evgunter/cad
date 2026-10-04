@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(h.clone(), Dimension::Length),
+        distance: Expr::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -286,11 +286,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body
-        .vertex_points()
-        .map(|(_, p)| p.unwrap())
-        .map(|p| p.z)
-        .collect();
+    let mut z: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.z).collect();
     z.sort_by(f64::total_cmp);
     z.dedup();
     assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
@@ -309,7 +305,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
                 expr: editor_core::Expr::div(
-                    editor_core::Expr::param(
+                    editor_core::Expr::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),

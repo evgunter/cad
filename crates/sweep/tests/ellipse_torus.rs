@@ -145,6 +145,10 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
 /// named.
 fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
     let tol = Tol::witness();
+    let (a, b) = (
+        &sweep::test_support::finished("operand A", a.clone(), tol),
+        &sweep::test_support::finished("operand B", b.clone(), tol),
+    );
     [
         ("A ∪ B", topo::boolean::union(a, b, tol)),
         ("A ∩ B", topo::boolean::intersect(a, b, tol)),

@@ -73,9 +73,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // lands on `field: Escalate` too.
 //
 // So a curated `BandField` would publish a two-arm type whose only
-// use here is comparison against a value it always has. CUR3 carried
-// `DanglingRef` because its two arms are two different facts about
-// the model and a caller branches on which; `BandField`'s two arms
+// use here is comparison against a value it always has. A curated
+// payload earns its place when its arms are different facts about the
+// model and a caller branches on which; `BandField`'s two arms
 // collapse to one reachable fact, and the field's name is already in
 // the refusal's own `Display` prose. A caller who really does
 // construct a band directly has left the prelude for the geometry
@@ -312,14 +312,13 @@ pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // once around the shared verb-neutral error.
 pub use sweep::blend::{BlendKind, BlendRefusal};
 // **The blend refusal's own payload vocabulary**, carried beside the
-// refusal for the reason `DanglingRef` rides beside `ReadbackError`
-// in group 9: a curated list owes MATCHABILITY, not just
+// refusal for the reason every carried refusal's payload rides
+// beside it: a curated list owes MATCHABILITY, not just
 // nameability, and `BlendError` is on this list while the types its
 // arms carry were not.
 //
-// The reach is worse here than it was there. `DanglingRef` at least
-// sat at `topo`'s root, so `pncad::topo::DanglingRef` named it;
-// `sweep` re-exports NOTHING from `blend`, so before this line the
+// The reach is worse here than for a payload at `topo`'s root, which
+// `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
 // only spelling was `pncad::sweep::blend::CornerConfig` — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
@@ -417,8 +416,8 @@ pub use geom::SurfaceKind;
 // **`EntityId` and `GeomRef` ride with the keys**, because they are
 // what the same module means by "any entity" and "any geometry": the
 // type-erased sums over those keys, which is the form a refusal
-// reports a site in. `ReadbackError::Dangling`'s payload is one or
-// the other, and `BlendError` names an `EntityId` DIRECTLY in three
+// reports a site in. `ReadbackError::Dangling`'s payload is an
+// `EntityId`, and `BlendError` names an `EntityId` DIRECTLY in three
 // arms — so a caller matching a prelude-carried refusal was binding
 // a value whose type sits in this very group and could not spell it.
 // The four key kinds neither sum reaches by a curated name
@@ -479,7 +478,7 @@ pub use geom::SurfaceKind;
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 pub use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
     GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
     TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
@@ -525,8 +524,8 @@ pub use topo::{
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
 // down. `CensusContact::ConformalPatch` carries a
 // `topo::ContactFinding`, which rides in group 9 with the rest of the
-// contact vocabulary; `DanglingRef`'s arms carry `EntityId` and
-// `GeomRef`, which ride in group 4 with the keys they sum over. What
+// contact vocabulary; `ReadbackError::Dangling` carries an
+// `EntityId`, which rides in group 4 with the keys it sums over. What
 // this list still stops at is the rung under THOSE — a
 // `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
 // both already here, a `CensusSubject` is an `EntityId` or two
@@ -581,7 +580,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // ill-conditioned — collinear azimuth samples — and the recourse is a
 // re-export with more of the patch, or the face left as NURBS. The
 // refusal's own prose names the kind, which is exactly the
-// `DanglingRef` situation this curation rung exists to close: a fact
+// situation this curation rung exists to close: a fact
 // readable only out of a message is not matchable.
 //
 // **`ImportContact` is a different defect and is carried for a
@@ -715,13 +714,13 @@ pub use stl::{
 // back as the same tree.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (`crate::document`). `Datum` and `ParamEnv` ride here
+// surface (`crate::document`). `Datum` and `VarEnv` ride here
 // because a datum node is the frame a
 // `GeomPred::DatumDistance` selection is written against, and
-// `select_where` takes a `ParamEnv`, so both are needed to write a
+// `select_where` takes a `VarEnv`, so both are needed to write a
 // position filter at all.
 // `VarName`, `FreeVar` and `VarDef` ride here because they are what
-// `DocEdit::DeclareVar` and `Expr::param` take, so a prelude user
+// `DocEdit::DeclareVar` and `Expr::named` take, so a prelude user
 // could otherwise hold the variable doors and not open them — the
 // parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other
@@ -735,10 +734,10 @@ pub use stl::{
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
-    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParseError,
-    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
-    VarDef, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
+    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError, PatternKind,
+    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDef,
+    VarEnv, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 
@@ -752,21 +751,17 @@ pub use editor_core::{NameTextError, StableName};
 // The detect/declare protocol rides in this group too: the
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
-// `DanglingRef` rides beside `ReadbackError` for the same reason
-// every carried refusal's payload does: it is what `Dangling`'s
-// field IS, so without it the arm is matchable and its two lanes
-// are not.
 pub use crate::select::{
     BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError,
-    DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung,
-    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup,
-    PieceRole, PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind,
-    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
-    select_where, vertex_position,
+    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact,
+    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
+    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
+    StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    declare, declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
+    vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

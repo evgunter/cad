@@ -24,6 +24,7 @@ use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 use revolve_common::{assert_all_tiers, axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
@@ -453,6 +454,10 @@ fn adv_union_with_reversed_faces_answers_exactly() {
     )
     .unwrap()
     .body;
+    let (washer, boxb) = (
+        finished("the washer", washer, Tol::witness()),
+        finished("the box", boxb, Tol::witness()),
+    );
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
         Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
         Ok(r) => {

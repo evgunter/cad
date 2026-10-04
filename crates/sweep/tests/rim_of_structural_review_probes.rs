@@ -17,7 +17,7 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     ball_poled_z, bored_block_of_arcs, boss_of_arcs, brick, circle_arcs_at_z, cube, disc_of_arcs,
-    dome, lantern, pocket_of_arcs, sphere_zone, waisted,
+    dome, finished, lantern, pocket_of_arcs, sphere_zone, waisted,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::rim_of;
@@ -33,8 +33,8 @@ fn tol() -> Tol {
 fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let out = boolean_op_with(
         op,
-        a,
-        b,
+        &finished(&format!("{name}: operand A"), a.clone(), tol()),
+        &finished(&format!("{name}: operand B"), b.clone(), tol()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         tol(),
@@ -44,6 +44,7 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
         .unwrap_or_else(|| panic!("{name}: a body"))
         .body
         .clone()
+        .into_body()
 }
 
 fn pair(body: &Body<f64>, k: EdgeKey) -> (SurfaceKey, SurfaceKey) {

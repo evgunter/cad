@@ -66,7 +66,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, OrthoFrame, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{assert_all_tiers, axis_y, validated};
-use sweep::test_support::swept_elbow_lofted;
+use sweep::test_support::{finished, swept_elbow_lofted};
 use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
@@ -840,8 +840,10 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     )
     .unwrap()
     .body;
+    let operand = finished("the lofted notch", lofted.body.clone(), Tol::witness());
+    let pellet = finished("the pellet", pellet, Tol::witness());
 
-    let err = match topo::boolean::union(&lofted.body, &pellet, Tol::witness()) {
+    let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
     };

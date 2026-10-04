@@ -49,7 +49,7 @@ fn slab(depth: f64) -> ProfileDoc {
         &mut doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::param(name("depth"), Dimension::Length),
+            distance: Expr::named(name("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
         tol(),

@@ -29,16 +29,20 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn block() -> Body<f64> {
-    brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol())
+fn block() -> AtRestBody<f64> {
+    finished(
+        "the block",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    )
 }
 
 fn tool(plane: SketchPlane<f64>, chain: &[(f64, f64, f64)], h: f64) -> Option<Body<f64>> {
@@ -82,7 +86,11 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
                     return format!("UNMEAS t2={t2} t3p={t3} cert={cert}");
                 };
                 let good = (v - want).abs() < 1e-7 * want.abs().max(1.0);
-                let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+                let far = finished(
+                    "the far brick",
+                    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+                    tol(),
+                );
                 let op = match topo::union(&bb.body, &far, tol()) {
                     Ok(_) => "op=ok".to_string(),
                     Err(e) => {
@@ -102,8 +110,18 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
 }
 
 /// Every op in both orders against the block, given the tool, its
-/// volume and the overlap volume.
-fn ops(tag: &str, t: &Body<f64>, vt: f64, ov: f64) {
+/// volume and the overlap volume. A tool the at-rest gate refuses is
+/// one `ERR` line.
+fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
+    let t = match AtRestBody::validate(t, tol()) {
+        Ok(t) => t,
+        Err(e) => {
+            let s: String = format!("{e:?}").chars().take(120).collect();
+            println!("POSE {tag} ERR the tool is not a finished body: {s}");
+            return;
+        }
+    };
+    let t = &t;
     let b = block();
     let vb = 4.0;
     for (op, want_bt, want_tb) in [
@@ -217,7 +235,7 @@ fn j3r1_mixed_pockets() {
             };
             let area = vt / h;
             let ov = area * ((z0 + h).min(1.0) - z0.max(0.0));
-            ops(&format!("c{case} {zname} {ch:?}"), &t, vt, ov);
+            ops(&format!("c{case} {zname} {ch:?}"), t, vt, ov);
         }
     }
 }
@@ -245,7 +263,7 @@ fn j3r1_tilted_through() {
         let ov = vt / h / alpha.cos();
         ops(
             &format!("t{case} a={alpha:.4} phi={phi:.4} {ch:?}"),
-            &t,
+            t,
             vt,
             ov,
         );
@@ -282,7 +300,7 @@ fn j3r1_d_family() {
                 continue;
             };
             let ov = vt / h * ((z0 + h).min(1.0) - z0.max(0.0));
-            ops(&format!("d{flat} {zname}"), &t, vt, ov);
+            ops(&format!("d{flat} {zname}"), t, vt, ov);
         }
         // Tilted through-holes: ellipse arcs on both caps.
         for alpha in [0.2, 0.6] {
@@ -301,7 +319,7 @@ fn j3r1_d_family() {
             };
             ops(
                 &format!("d{flat} tilt{alpha}"),
-                &t,
+                t,
                 vt,
                 vt / 4.0 / alpha.cos(),
             );

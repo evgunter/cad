@@ -16,19 +16,21 @@ use common::*;
 use geom_core::Tol;
 use topo::{BooleanDeclarations, BooleanOp, boolean_op_with};
 
-fn slab(y0: f64) -> topo::Body<f64> {
-    sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness())
+fn slab(y0: f64) -> topo::AtRestBody<f64> {
+    let body = sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
+    topo::test_support::finished("the slab", body, Tol::witness())
 }
 
 #[test]
 fn r2_bool_door_near_pole() {
     let eps = common::eps();
     let mut lines = vec![format!("eps = {eps:e}")];
+    let ball = topo::test_support::finished("the ball", ball(), Tol::witness());
     for rho in [0.9 * eps, 5.0 * eps, 1e-6, 1e-3, 0.1] {
         let y0 = (1.0f64 - rho * rho).sqrt();
         let r = boolean_op_with(
             BooleanOp::Intersect,
-            &ball(),
+            &ball,
             &slab(y0),
             &BooleanDeclarations::default(),
             topo::SweepStrategy::Realized,

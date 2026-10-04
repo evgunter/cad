@@ -824,7 +824,7 @@ fn a_node_that_holds_no_program_refuses() {
 }
 
 /// **A new program naming an undeclared parameter refuses the slot
-/// door's own arm** — the same `SlotUnknownDocParam`, at the same
+/// door's own arm** — the same `SlotUnknownVarName`, at the same
 /// address, that `SetParam` refuses for the same expression written
 /// into the same slot. One function, not a mirror.
 #[test]
@@ -833,7 +833,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(VarName::from_static("nope"), Dimension::Length);
+    let nope = Expr::named(VarName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -856,7 +856,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
     let through_the_program = set_program(&doc, profile, vec![LoopProgram::Chain(steps)], ids)
         .expect_err("an undeclared parameter refuses at the program door");
     assert!(
-        matches!(&through_the_slot, EditError::SlotUnknownDocParam { .. }),
+        matches!(&through_the_slot, EditError::SlotUnknownVarName { .. }),
         "{through_the_slot:?}"
     );
     assert_eq!(through_the_program, through_the_slot);
@@ -1366,7 +1366,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
 }
 
 fn param_len(name: &'static str) -> Expr {
-    Expr::param(VarName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.

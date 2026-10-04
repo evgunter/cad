@@ -142,6 +142,10 @@ fn a_poisoned_offset_is_no_finding() {
 #[test]
 fn the_boolean_refusal_on_a_decided_zero_quotes_its_margin() {
     let (a, b) = stacked();
+    let (a, b) = (
+        crate::test_support::finished("the lower brick", a, Tol::witness()),
+        crate::test_support::finished("the upper brick", b, Tol::witness()),
+    );
     let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(err) => err,
         Ok(_) => panic!("an undeclared flush stack does not reduce"),

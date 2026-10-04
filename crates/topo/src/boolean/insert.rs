@@ -55,10 +55,11 @@ use super::{
     BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode, VvContact,
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
-use crate::body::Body;
+use crate::body::{Body, WALKS_CLOSE};
 use crate::contact::BooleanCoincidence;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
+use crate::live::{Proven, linked, proven};
 use crate::null::{NewVertexSide, NullEdge};
 
 /// Output of one vertex-pair insertion.
@@ -865,7 +866,6 @@ fn mint_directed<T: Decide>(
     // theorem, so only the splice order moves. Run direction is
     // untouched (a strut's reverse run spans the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
-    let corrupt = || BooleanError::corrupt_at(operand, vertex);
     // A strut at a shared vertex: its germs in walk order, and the
     // innermost strut hung earlier whose segment holds its own.
     let walk = if empty && run.shared {
@@ -906,18 +906,15 @@ fn mint_directed<T: Decide>(
         // faces its own germ on the side of the one that half faces.
         Some(from_is_lo == faces_lower)
     } else if empty {
-        let arrival = body
-            .get_half_edge(sectors[gf.0].he)
-            .ok_or_else(corrupt)?
-            .edge;
+        let arrival = proven(&body.half_edges, sectors[gf.0].he, EntityId::HalfEdge).edge;
         // At a shared vertex the corner may already hold another
         // pair's strut, so its departure edge is read off the sectors.
         let departure_he = if run.shared {
             sectors[next_edge_bound(sectors, gf.0)].he
         } else {
-            body.orbit_step(sectors[gf.0].he).ok_or_else(corrupt)?
+            body.proven_orbit_step(sectors[gf.0].he)
         };
-        let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
+        let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
         let facing = strut_faces_first(
             body,
             (operand, sectors),
@@ -949,12 +946,16 @@ fn mint_directed<T: Decide>(
     // vertex, past those hung in its corner.
     let site = match walk {
         Some(w) => {
-            // The half arriving at the corner the strut splices into.
-            let (at, arrival) = match w.holder {
-                Some((half, _)) => (body.half_edge_end(half).ok_or_else(corrupt)?, half),
-                None => (vertex, body.mate(sectors[w.lo.0].he).ok_or_else(corrupt)?),
+            // The first half past the arrival at the corner the strut
+            // splices into, starting at `at`: the holder's end by
+            // construction, and at `vertex` by a proven orbit step.
+            let (at, first) = match w.holder {
+                Some((half, _)) => (
+                    body.proven_half_edge_end(half),
+                    proven(&body.half_edges, half, EntityId::HalfEdge).next,
+                ),
+                None => (vertex, orbit_step_at(body, vertex, sectors[w.lo.0].he)),
             };
-            let first = body.get_half_edge(arrival).ok_or_else(corrupt)?.next;
             Some((
                 at,
                 strut_anchor(body, (operand, at), sectors, first, w.lo, hung, band)?,
@@ -979,11 +980,28 @@ fn mint_directed<T: Decide>(
         lo, hi, from_is_lo, ..
     }) = walk
     {
-        let edge = body.get_edge(rec.edge).ok_or_else(corrupt)?;
-        let half = [edge.he_plus, edge.he_minus]
+        let edge = proven(&body.edges, rec.edge, EntityId::Edge);
+        let half = [(edge.he_plus, "he_plus"), (edge.he_minus, "he_minus")]
             .into_iter()
-            .find(|&h| body.get_half_edge(h).is_some_and(|d| d.start == at))
-            .ok_or_else(corrupt)?;
+            .find(|&(h, field)| {
+                linked(
+                    &body.half_edges,
+                    h,
+                    EntityId::HalfEdge,
+                    EntityId::Edge(rec.edge),
+                    field,
+                )
+                .start
+                    == at
+            })
+            .map(|(h, _)| h)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "the null edge {:?} just minted at {at:?} has no half starting there: \
+                     a minted edge's halves start at its two ends",
+                    rec.edge
+                )
+            });
         hung.struts.push(HungStrut {
             operand,
             root: vertex,
@@ -1041,6 +1059,26 @@ fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> u
     j
 }
 
+/// One clockwise orbit step from `he`, a half-edge starting at
+/// `vertex`, proven to land on one that starts there too: a strut site
+/// is one half, which no later read ties to `vertex`.
+#[track_caller]
+fn orbit_step_at<T: geom_core::Real>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    he: HalfEdgeKey,
+) -> HalfEdgeKey {
+    let next = body.proven_orbit_step(he);
+    let start = proven(&body.half_edges, next, EntityId::HalfEdge).start;
+    if start != vertex {
+        unreachable!(
+            "the orbit step from {he:?} at {vertex:?} lands on {next:?}, which starts at \
+             {start:?}: {WALKS_CLOSE}"
+        );
+    }
+    next
+}
+
 /// Where a strut at a shared vertex splices: before the first half-edge
 /// from `first` (the one past its corner's arrival) that is not a strut
 /// hung earlier at that vertex at a lower germ (`germ`, the earlier of
@@ -1059,7 +1097,6 @@ fn strut_anchor<T: Decide>(
     hung: &Hung<T>,
     band: Band,
 ) -> Result<HalfEdgeKey, BooleanError> {
-    let corrupt = || BooleanError::corrupt_at(operand, vertex);
     let mut he = first;
     while let Some(at) = hung
         .struts
@@ -1068,7 +1105,7 @@ fn strut_anchor<T: Decide>(
         .map(|h| h.lower)
     {
         match precedes(sectors, at, germ, band)? {
-            Some(true) => he = body.orbit_step(he).ok_or_else(corrupt)?,
+            Some(true) => he = orbit_step_at(body, vertex, he),
             Some(false) => break,
             None => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -1244,7 +1281,7 @@ fn walk_faces_first<T: Decide>(
     }
     let s = &sectors[first.0];
     strut_order(
-        anchor_dir(body, s.he)?,
+        anchor_dir(body, s.he),
         s.normal.vec(),
         (first.1, second.1),
         s.arm,
@@ -1275,7 +1312,7 @@ fn walk_faces_first<T: Decide>(
 /// refuses: nothing orders the germs. A strut's two germs in one entry
 /// are its only comparands, where it agrees with [`precedes`]
 /// ([`walk_faces_first`]).
-fn strut_order<T: Decide>(
+pub(super) fn strut_order<T: Decide>(
     e_dir: Vec3<T>,
     normal: Vec3<T>,
     germs: (Vec3<T>, Vec3<T>),
@@ -1302,21 +1339,16 @@ fn strut_order<T: Decide>(
     }
 }
 
-/// The unit direction of an orbit half-edge away from its start
-/// vertex (the strut-order comparison's angular reference).
-fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "strut anchor edge no longer resolves",
-    };
-    let hd = body.get_half_edge(he).ok_or_else(corrupt)?;
-    let p_of = |v: crate::entity::VertexKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or_else(corrupt)
-    };
-    let end = body.half_edge_end(he).ok_or_else(corrupt)?;
-    let d = p_of(end)? - p_of(hd.start)?;
-    Ok(d.normalize())
+/// The unit direction of an orbit half-edge, one the sector walk
+/// resolved, away from its start vertex (the strut-order comparison's
+/// angular reference).
+#[track_caller]
+fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Vec3<T> {
+    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+    let end = body.proven_half_edge_end(he);
+    let d = body.resolve_vertex_point(end, Proven)
+        - body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
+    d.normalize()
 }
 
 /// The record's germ direction, by declared class: a `Tangent` pair's
@@ -1517,9 +1549,13 @@ fn mint_run<T: Decide>(
     anchor: Option<HalfEdgeKey>,
 ) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
     let hes = run_fan(sectors, from, to)?;
-    let corrupt = || BooleanError::corrupt_at(operand, vertex);
     let (site, dangling) = match (hes.first(), hes.last()) {
-        (Some(&first), Some(&last)) => match body.run_site(first, last).ok_or_else(corrupt)? {
+        (Some(&first), Some(&last)) => match body.run_site(first, last).unwrap_or_else(|| {
+            unreachable!(
+                "the run {first:?} ..= {last:?} at {vertex:?} has no fan end: its keys are the \
+                 sector walk's, and {WALKS_CLOSE}"
+            )
+        }) {
             site @ RunSite::Fan { .. } => (site.mev_site(), false),
             // The planner mints a whole-orbit run as its reverse, the
             // empty run whose strut this is ([`run_degenerates`]), so
@@ -1534,7 +1570,7 @@ fn mint_run<T: Decide>(
         _ => {
             let he = match anchor {
                 Some(he) => he,
-                None => body.orbit_step(sectors[from].he).ok_or_else(corrupt)?,
+                None => orbit_step_at(body, vertex, sectors[from].he),
             };
             (MevSite::Fan { he1: he, he2: he }, true)
         }

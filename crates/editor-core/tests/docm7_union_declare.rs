@@ -91,6 +91,19 @@ fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
     }
 }
 
+/// The tier-3′ verdict on a boolean node's value, over its own records.
+pub(crate) fn census_of(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<(), Vec<topo::ValidationError>> {
+    match &ev.value(id).expect("the node evaluated").payload {
+        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+            topo::validate_pseudomanifold(body, contacts, Tol::witness()).map(|_| ())
+        }
+        other => panic!("expected a boolean body, got {other:?}"),
+    }
+}
+
 /// **A union carrying a declaration in its own `declare` list.**
 ///
 /// A declared pair names SITED entities — the face IN the member, with
@@ -1089,6 +1102,35 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     );
     let ev = run(&doc);
     assert!(failure(&ev, chain1).is_none(), "{:?}", failure(&ev, chain1));
+    // The claim is the member's own end-cap vertex on its own start cap,
+    // which its geometry does not confirm: every value that carries the
+    // record ships it unconfirmed, and tier 3′ refuses it there; the
+    // door gates at tier 3 only (the census is parked,
+    // `work/reach/boolean-door-runs-the-census-over-its-result.md`).
+    // Pinned as it stands
+    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`);
+    // red when the record is confirmed or refused where it is fed.
+    for (what, id, carries) in [
+        ("pair", pair, true),
+        ("last", last, true),
+        ("first", first, false),
+        ("chain0", chain0, true),
+        ("chain1", chain1, false),
+    ] {
+        match census_of(&ev, id) {
+            Ok(()) => assert!(!carries, "{what}: carries the record and passes 3′"),
+            Err(errors) => assert!(
+                carries
+                    && matches!(
+                        errors.as_slice(),
+                        [topo::ValidationError::StaleContactDeclaration {
+                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
+                        }]
+                    ),
+                "{what}: 3′ refuses the unconfirmed vertex-on-face record only: {errors:?}"
+            ),
+        }
+    }
     let (fold, chain) = (contacts_of(&ev, first), contacts_of(&ev, chain1));
     assert_eq!(
         (fold.b_on_a.len(), fold.a_on_b.len()),

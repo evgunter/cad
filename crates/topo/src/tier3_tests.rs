@@ -31,7 +31,7 @@ use geom_core::Tol;
 /// A geometric digon pillow: two vertices, two chord edges, two
 /// coplanar faces (the z = 0 plane on both sides) — the minimal
 /// tier-3-clean body, and the coplanar-split smooth-dihedral case.
-fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
+pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body

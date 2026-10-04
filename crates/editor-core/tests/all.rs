@@ -727,5 +727,7 @@ mod emit_union_flush_names;
 mod emit_union_rim_piece_ranks;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
+#[path = "intent_vars_3_readers.rs"]
+mod intent_vars_3_readers;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;

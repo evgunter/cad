@@ -95,6 +95,8 @@ pub enum NodeErrorClass {
     EmptyOperand,
     /// [`NodeErrorKind::ProductOperand`].
     ProductOperand,
+    /// [`NodeErrorKind::UnfinishedOperand`].
+    UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
@@ -328,6 +330,7 @@ impl NodeErrorKind {
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
+            Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -551,6 +554,7 @@ mod tests {
         WrongOperand,
         EmptyOperand,
         ProductOperand,
+        UnfinishedOperand,
         EmptyHalf,
         InstanceOutOfRange,
         DegenerateDirection,
@@ -788,8 +792,8 @@ mod tests {
                 },
             },
             C::Seed => K::Seed {
-                source: crate::SeedError::UnknownParam {
-                    param: crate::SpokenVar::new(crate::VarId(1), None),
+                source: crate::SeedError::UnknownVar {
+                    var: crate::SpokenVar::new(crate::VarId(1), None),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {
@@ -805,6 +809,12 @@ mod tests {
             C::ProductOperand => K::ProductOperand {
                 input: n(3),
                 parts: 2,
+            },
+            C::UnfinishedOperand => K::UnfinishedOperand {
+                input: n(3),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
             },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
@@ -844,14 +854,17 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+                reversed: [-1.0, 0.0, 0.0]
+                    .map(|v| crate::expr::Expr::literal(v, crate::expr::Dimension::Scalar).ok()),
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: "400 deg".to_owned(),
+                step: crate::expr::Expr::angle_in(400.0, quantity::DEG).expect("a literal angle"),
                 evaluated: None,
-                turns: crate::StepTurns::Within("40 deg".to_owned()),
+                turns: crate::StepTurns::Within(
+                    crate::expr::Expr::angle_in(40.0, quantity::DEG).expect("a literal angle"),
+                ),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {

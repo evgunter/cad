@@ -259,7 +259,6 @@ fn lone_edge_body_validates_with_expected_counts() {
 fn bbox<T: Real>(body: &Body<T>) -> Option<(Point3<T>, Point3<T>)> {
     let mut corners: Option<(Point3<T>, Point3<T>)> = None;
     for (_, p) in body.vertex_points() {
-        let p = p.expect("the review body is untorn");
         corners = Some(match corners {
             None => (p, p),
             Some((lo, hi)) => (lo.min(p), hi.max(p)),

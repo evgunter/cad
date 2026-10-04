@@ -14,7 +14,7 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -115,12 +115,16 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
         ),
     ];
     for (name, a, b) in &poses {
-        let va = topo::mass_properties(a, tol).unwrap().volume;
-        let vb = topo::mass_properties(b, tol).unwrap().volume;
+        let (a, b) = (
+            finished(name, a.clone(), tol),
+            finished(name, b.clone(), tol),
+        );
+        let va = topo::mass_properties(&a, tol).unwrap().volume;
+        let vb = topo::mass_properties(&b, tol).unwrap().volume;
         for (op_name, out) in [
-            ("union", topo::union(a, b, tol)),
-            ("subtract", topo::subtract(a, b, tol)),
-            ("intersect", topo::intersect(a, b, tol)),
+            ("union", topo::union(&a, &b, tol)),
+            ("subtract", topo::subtract(&a, &b, tol)),
+            ("intersect", topo::intersect(&a, &b, tol)),
         ] {
             match out {
                 Err(_) => {} // a typed refusal is an honest outcome
@@ -156,8 +160,8 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
 #[test]
 fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
     let tol = Tol::witness();
-    let inner = cyl(0.0, 0.0, 1.0, 1.0, 3.0);
-    let outer = cyl(0.0, 0.0, 2.0, 0.0, 4.0);
+    let inner = finished("the inner cylinder", cyl(0.0, 0.0, 1.0, 1.0, 3.0), tol);
+    let outer = finished("the outer cylinder", cyl(0.0, 0.0, 2.0, 0.0, 4.0), tol);
     let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
         let r = r.unwrap_or_else(|e| panic!("the nested pair: {e:?}"));
         let b = &r.body().expect("non-empty").body;
@@ -186,8 +190,8 @@ fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
 #[test]
 fn a_diagonally_offset_disjoint_pair_answers_two_units() {
     let tol = Tol::witness();
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(1.9, 1.9, 1.0, 0.0, 2.0);
+    let a = finished("A", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let b = finished("B", cyl(1.9, 1.9, 1.0, 0.0, 2.0), tol);
     let r = topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the diagonal pair: {e:?}"));
     let body = &r.body().expect("non-empty").body;
     let v = topo::mass_properties(body, tol).unwrap().volume;
@@ -307,11 +311,12 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
 #[test]
 fn revolve_minted_walls_meet_the_same_gate() {
     let tol = Tol::witness();
-    let a = revolved_cyl(1.0, 10.0); // wall about y, r = 1, y in [0, 10]
+    let a = finished("A", revolved_cyl(1.0, 10.0), tol); // wall about y, r = 1, y in [0, 10]
     let b = moved(
         &turned(&revolved_cyl(1.0, 20.0), Vec3::new(0.0, 0.0, 1.0), PI / 2.0),
         Vec3::new(1.5, 5.0, 0.0),
     );
+    let b = finished("B", b, tol);
     match topo::union(&a, &b, tol) {
         Err(_) => {} // typed refusal: honest
         Ok(topo::BooleanResult::Body(body)) => {
@@ -393,10 +398,14 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
 #[test]
 fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
-    let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
+    let plate = finished("the plate", rounded_plate(80.0, 40.0, 6.0, 8.0), tol);
     // `bracket.py`'s pocket, in millimetres — the other half of
     // the corpus `rounded_plate` above carries.
-    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+    let pocket = finished(
+        "the pocket",
+        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        tol,
+    );
 
     // The cut runs at all — the door this row used to name is shut.
     topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");
@@ -512,6 +521,7 @@ fn the_no_edge_event_pair_refuses_at_the_gate_not_the_frame() {
     let rod = cyl(0.0, 0.0, 1.0, -10.0, 10.0);
     let lie = turned(&rod, Vec3::new(0.0, 1.0, 0.0), PI / 2.0);
     let b = moved(&lie, Vec3::new(0.0, 1.5, 5.0));
+    let (a, b) = (finished("A", a, tol), finished("B", b, tol));
     let err = topo::union(&a, &b, tol).expect_err("no cyl×cyl arm exists");
     assert!(
         matches!(err, BooleanError::FallbackExtentUnsupported { .. }),

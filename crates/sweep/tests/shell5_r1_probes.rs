@@ -24,7 +24,7 @@ use topo::{
 
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::roles_by_solid;
-use sweep::test_support::{brick, corners, prism};
+use sweep::test_support::{brick, corners, finished, prism, realized};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -57,12 +57,7 @@ fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    topo::subtract(a, b, tol())
-        .expect("the subtraction runs")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
+    realized(topo::BooleanOp::Subtract, a, b, tol())
 }
 
 /// `insert_void` with the carried-positive evidence the shell verb
@@ -274,9 +269,13 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
 /// `[4³ − 3.8³] + π[1.1²·2.2 − 1²·2]`.
 #[test]
 fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
-    let cube = boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0);
+    let cube = finished("the cube", boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0), tol());
     // Axis: the line x = 2, z = 2 along y; r = 1; y ∈ [1, 3].
-    let cavity = revolved_at(&[(2.0, 1.0), (3.0, 1.0), (3.0, 3.0), (2.0, 3.0)], 2.0, 2.0);
+    let cavity = finished(
+        "the cavity",
+        revolved_at(&[(2.0, 1.0), (3.0, 1.0), (3.0, 3.0), (2.0, 3.0)], 2.0, 2.0),
+        tol(),
+    );
     match topo::subtract(&cube, &cavity, tol()) {
         Ok(r) => match r.body() {
             Some(b) => println!(
@@ -288,7 +287,7 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
         },
         Err(e) => println!("[measured] the boolean refuses box − cylinder: {e}"),
     }
-    let hollow = with_void(cube, cavity);
+    let hollow = with_void(cube.into_body(), cavity.into_body());
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
     let t = 0.1;
     match topo::shell(&hollow, t, tol()) {
@@ -364,7 +363,8 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
         "[measured] holed box: faces={} rings={}",
         holed_counts.f, holed_counts.r
     );
-    let cube = boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0);
+    let cube = finished("the cube", boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0), tol());
+    let holed = finished("the holed box", holed, tol());
     let body = match topo::subtract(&cube, &holed, tol()) {
         Ok(r) => match r.body() {
             Some(b) => b.body.clone(),

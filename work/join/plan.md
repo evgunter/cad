@@ -64,7 +64,8 @@ parks):
 
 Still startable, because they are undeclared booleans or join topology
 alone: the reflex vertex's B senses, the tube on a ball, the closed
-in-face loop (its join half) and parallel cylinders. The ring
+in-face loop (its join half), parallel cylinders (PR 4031, in
+review), and the pierce families PR 4026 filed. The ring
 re-homing pocket and conic ranking landed in PR 4008, the fan-end
 consolidation in PR 4004, and the cylinder-sphere frame in PR 4025
 (its lane, `cylinder-sphere-germ-pair-has-no-join-lane`, is a design
