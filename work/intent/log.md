@@ -36,3 +36,15 @@ risk, the wire, is pinned by the golden tests. The Python classes keep
 their names until PR 3 reshapes that surface (the binding census now
 argues the three types by `BOUND_AS`). PRs 2 and 3 are H and draw a
 concurrent dual.
+
+## 2026-10-04 — VARS PR 2 to review (dual, concurrent)
+
+PR 4011, frozen head `42e2330ddf`. Pre-draw fields: difficulty **H**,
+task class **STRUCTURAL**; arm CONCURRENT (rule 1). Both reviewers run
+in their own cloud sessions, since this container's disk cannot hold
+two more build directories; the method is identical for both. Rulings
+made at hand-off: the Monte-Carlo sheets move because draws follow
+`VarId` order (by design: name order would let a rename move them) and
+are re-rendered; the symbolic tier's two lost registrations on
+r2_filleted_bracket are a claim for the reviewers, not an accepted
+cost.
