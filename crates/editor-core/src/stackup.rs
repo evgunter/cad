@@ -446,6 +446,12 @@ impl core::error::Error for SensitivityRefusal {}
 /// itself — and pairing a box's spreads with a verdict's leaves is
 /// [`stackup()`]'s, which checks it. `parallel` runs the passes under
 /// rayon idiom 1 — the result is bit-identical in either schedule (D9).
+/// `resolver` resolves the parts a document instantiates, in every pass
+/// and replay, as [`EvalOptions::resolver`] does an evaluation's: an
+/// assembly's mates solve at each pass's own scalar (`ASSEMBLY.md` A11
+/// (5)), so ∂m/∂pᵢ crosses a mate. A `paired` build over another
+/// resolver, or none, fails the pairing gate: its instances' arms or
+/// content keys are not the anchor's.
 ///
 /// Pure: `doc` is shared, the result is a value, nothing on this path
 /// writes. Cost: one f64 anchor, one unseeded and n seeded `Dual64`
@@ -461,9 +467,10 @@ pub fn sensitivities(
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, measure, paired, chamber, parallel, tol).map(|d| d.entries)
+    driver(doc, measure, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the anchored f64 build,
@@ -481,6 +488,7 @@ fn driver(
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
     if !matches!(doc.node(measure), Some(Node::Measure { .. })) {
@@ -492,7 +500,7 @@ fn driver(
     // the whole entry set, tied to this build once.
     let chamber = match chamber {
         None => Chamber::LocalOnly,
-        Some(verdict) => bind_verdict(doc, verdict, tol)?,
+        Some(verdict) => bind_verdict(doc, verdict, resolver, tol)?,
     };
 
     // The anchor: the document's own build-path f64 evaluation,
@@ -503,7 +511,10 @@ fn driver(
         doc,
         paired,
         &CancelToken::new(),
-        &EvalOptions::default(),
+        &EvalOptions {
+            resolver: resolver.cloned(),
+            ..EvalOptions::default()
+        },
         tol,
     );
     if let Some(handed) = paired {
@@ -520,14 +531,20 @@ fn driver(
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
     // sequential one does.
-    let base: Evaluation<Dual64> = evaluate(doc, None, &CancelToken::new(), &pass_opts(None), tol);
+    let base: Evaluation<Dual64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &pass_opts(None, resolver),
+        tol,
+    );
 
     let one = |name: &VarName| -> Result<Sensitivity, PairingViolation> {
         let pass: Evaluation<Dual64> = evaluate(
             doc,
             Some(&base),
             &CancelToken::new(),
-            &pass_opts(Some(name.clone())),
+            &pass_opts(Some(name.clone()), resolver),
             tol,
         );
         // DL3, per pass: the pass evaluates exactly the nodes the
@@ -563,21 +580,28 @@ fn driver(
 /// The pass options: the profile lift GUIDED (a seed on a profile
 /// dimension must move profile geometry — the exact silent zero
 /// `ProfileLift`'s docs warn about), sequential inside (the driver's
-/// parallelism is per pass), the seed as given.
-fn pass_opts(seed: Option<VarName>) -> EvalOptions {
+/// parallelism is per pass), the seed and the parts' resolver as
+/// given.
+fn pass_opts(
+    seed: Option<VarName>,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+) -> EvalOptions {
     EvalOptions {
         profile_lift: ProfileLift::Guided,
         seed,
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     }
 }
 
 /// The options a leaf is replayed with — the drive's own, so the
-/// replay's content keys are the drive's record bit for bit.
-fn leaf_opts(box_: ParamBox) -> EvalOptions {
+/// replay's content keys are the drive's record bit for bit — over the
+/// parts' resolver.
+fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
     EvalOptions {
         profile_lift: ProfileLift::Guided,
         param_box: Some(Arc::new(box_)),
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     }
 }
@@ -1070,6 +1094,7 @@ fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
 fn bind_verdict(
     doc: &Doc<ProfileProgram>,
     verdict: &ParamBoxVerdict,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Chamber, SensitivityRefusal> {
     if !box_spans_doc_params(verdict.root(), doc) {
@@ -1088,7 +1113,7 @@ fn bind_verdict(
     // perfectly good build as "not of this build".
     let readback = crate::eval::replay_leaf(
         doc,
-        &leaf_opts(tied.box_.clone()),
+        &leaf_opts(tied.box_.clone(), resolver),
         verdict.lane(),
         &crate::eval::LeafPrior::None,
         crate::eval::LeafRequest {
@@ -1771,6 +1796,10 @@ impl core::error::Error for StackupRefusal {}
 /// [`StackupRefusal`] — a driver refusal, a foreign box, a nominal
 /// that does not measure, nothing certified (with everything the run
 /// did produce), or a broken leaf replay.
+// Eight inputs, each read and none written: the box, its verdict and
+// the record build are three distinct pairings the door checks, so a
+// bundle would be a struct that exists to satisfy a count.
+#[allow(clippy::too_many_arguments)]
 pub fn stackup(
     doc: &Doc<ProfileProgram>,
     measure: RecipeNodeId,
@@ -1778,6 +1807,7 @@ pub fn stackup(
     verdict: &ParamBoxVerdict,
     paired: Option<&Evaluation<f64>>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Stackup, StackupRefusal> {
     if ParamBox::of(analyzed) != *verdict.root() {
@@ -1787,7 +1817,7 @@ pub fn stackup(
         anchor,
         chamber,
         entries,
-    } = driver(doc, measure, paired, Some(verdict), parallel, tol)
+    } = driver(doc, measure, paired, Some(verdict), parallel, resolver, tol)
         .map_err(StackupRefusal::Sensitivity)?;
 
     // **The nominal, re-derived from the anchored build — and
@@ -1819,7 +1849,7 @@ pub fn stackup(
             receipt: verdict.receipt(),
         });
     }
-    let worst_case = worst_case(doc, measure, verdict, parallel, tol)?;
+    let worst_case = worst_case(doc, measure, verdict, parallel, resolver, tol)?;
 
     // The advisory columns. Half-widths and σ come off the analyzed
     // box's own axes (the pairing-safe doors), derivatives off the
@@ -1920,6 +1950,7 @@ fn worst_case(
     measure: RecipeNodeId,
     verdict: &ParamBoxVerdict,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
@@ -1947,11 +1978,11 @@ fn worst_case(
     // one's, verbatim, so the BRACKETS are the same bits either way —
     // only which leaves have one changes. The prior is the numeric
     // lane's alone; `LeafPrior` states why the symbolic lane has none.
-    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box), lane, tol);
+    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box, resolver), lane, tol);
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
         let readback = crate::eval::replay_leaf(
             doc,
-            &leaf_opts(leaf.box_.clone()),
+            &leaf_opts(leaf.box_.clone(), resolver),
             lane,
             &prior,
             crate::eval::LeafRequest {

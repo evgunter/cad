@@ -207,7 +207,7 @@ fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::e
     let (mut body, split) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
     // Lifts RechartStrandsDescriptions: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         split.face,
         FaceSurface::New {
             surface,
@@ -831,7 +831,7 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
     for (name, surface) in cases {
         let (mut body, split) = coplanar_pillow(tol);
         // Lifts RechartStrandsDescriptions: the datum verdicts are the row's, whatever else the swap costs the body.
-        body.set_face_surface_stranding_for_tests(
+        body.set_face_surface_unvouched_for_tests(
             split.face,
             FaceSurface::New {
                 surface,
@@ -1500,7 +1500,7 @@ fn description_references_keep_a_surface_alive() {
     // Repoint the split face to a NEW surface: the old one is now
     // referenced only by the description — and must survive.
     // Lifts RechartStrandsDescriptions: the stranded description keeping the old surface alive is the row.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         split.face,
         FaceSurface::New {
             surface: Surface::Plane {
