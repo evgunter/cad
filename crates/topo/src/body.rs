@@ -1443,17 +1443,15 @@ impl<T: Real> Body<T> {
     /// where a member, `he` included, does not claim `r#loop`
     /// ([`Body::claims`]), so a torn `next` that strays into another
     /// loop does not hand that loop's half-edges to a reader of this
-    /// one. A `Some` can still close short of a member that claims the
-    /// loop; [`Body::require_run_of`]'s `Whole` proof is the one that
-    /// sees that.
+    /// one. Each step checks the member it reaches, and the step that
+    /// closes the walk reaches `he`. A `Some` can still close short of a
+    /// member that claims the loop; [`Body::require_run_of`]'s `Whole`
+    /// proof is the one that sees that.
     pub(crate) fn loop_cycle_of(
         &self,
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Option<Vec<HalfEdgeKey>> {
-        if !self.claims(he, r#loop) {
-            return None;
-        }
         let walk = self.bounded_walk(he, |body, member| {
             let next = body.half_edges.get(member)?.next;
             body.claims(next, r#loop).then_some(next)

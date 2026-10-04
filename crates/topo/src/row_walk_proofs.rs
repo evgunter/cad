@@ -270,6 +270,40 @@ fn set_face_surface_drops_no_row_of_a_loop_its_walk_strays_into() {
     });
 }
 
+/// The claimed walk read directly, where the doors' own gates answer
+/// first: the walk a site-row plan takes from a member
+/// ([`Body::site_cycle_from`]) refuses a diverted loop, from every
+/// member and from the stray, and on the untorn sheet it is the loop's
+/// whole cycle.
+#[test]
+fn a_walk_from_a_member_refuses_a_loop_it_strays_out_of() {
+    let s = sheet();
+    let (wall, split) = (outer(&s.body, s.wall), outer(&s.body, s.split));
+    let untorn = s.body.loop_cycle(first_of(&s.body, wall)).unwrap();
+    for &he in &untorn {
+        assert_eq!(
+            s.body.site_cycle_from(he, wall).unwrap().len(),
+            untorn.len(),
+            "the untorn walk from {he:?} is the loop's"
+        );
+    }
+    let mut body = s.body;
+    let stray = divert(&mut body, wall, split);
+    let broken = Err(EulerOpError::LoopCycleBroken { r#loop: wall });
+    for &he in untorn.iter().chain([&stray]) {
+        assert_eq!(
+            body.site_cycle_from(he, wall),
+            broken,
+            "the walk from {he:?}"
+        );
+    }
+    assert_eq!(
+        body.site_cycle(wall),
+        broken,
+        "the walk from the loop's first"
+    );
+}
+
 /// The two site-row plans a make operator runs, `mev`'s fan and `mef`'s
 /// chord, at every site of the diverted wall. A door that re-minted the
 /// wall from the walk wrote the split face's member in the wall's chart.
