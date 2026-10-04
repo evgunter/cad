@@ -63,8 +63,8 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the ring re-homing pocket, the reflex vertex's B senses, the
-tube on a ball, the closed in-face loop (its join half), the
-cylinder-sphere frame, conic ranking, parallel cylinders, and the
-fan-end consolidation (its "mate" is the half-edge mate). So JOIN is
-not blocked.
+alone: the reflex vertex's B senses, the tube on a ball, the closed
+in-face loop (its join half), the cylinder-sphere frame and parallel
+cylinders. The ring re-homing pocket and conic ranking landed in PR
+4008, and the fan-end consolidation in PR 4004. So JOIN is not
+blocked.
