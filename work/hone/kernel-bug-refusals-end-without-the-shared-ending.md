@@ -58,10 +58,6 @@ three above:
 - `topo::pcurves`: no longer an instance. A torn record in the pcurve
   passes panics naming the record (D2 row 4), and a caller's key that
   does not resolve refuses `PcurveMintError::Stale`, stating the fact.
-- `topo::shell`'s "stopped resolving mid-construction (kernel bug)"
-  (`crates/topo/src/shell.rs`, the `Display` arm that writes it) and
-  `replace_face_offset`'s "referential coherence broke mid-plan (kernel
-  bug)" (`crates/topo/src/replace_face.rs`, `Corrupt`).
 - `topo::splitting::SplitFinishError::Corrupt` ("the finish traversal
   failed (corrupt body)") and `SplitReduceError::CorruptOperand`, which
   ends in nothing (`crates/topo/src/splitting/finish.rs`,

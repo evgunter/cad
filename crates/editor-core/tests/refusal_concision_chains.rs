@@ -74,7 +74,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
-    "Shell/Corrupt",
     "Shell/Pcurve",
 ];
 
@@ -373,10 +372,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Tube/FullRangeWindow",
     // work/shell/shell-refusals-short-of-the-shape-guard.md
     "Shell/ChartSenseMixed",
-    "Shell/Corrupt",
-    "Shell/Face",
     "Shell/Insert",
-    "Shell/Lift",
     "Shell/NoSolid",
     "Shell/NotValid",
     "Shell/OpenFaceRimNotExpressible",
@@ -3837,12 +3833,16 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{EntityId, FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
-    // `Corrupt`, the one `ReplaceFaceError` arm that names no key: the
-    // wrapper's own sentence names none either, so a key on this row
-    // would be the wrapper's.
-    let replace = || Box::new(ReplaceFaceError::<f64>::Corrupt);
+    // `Band`, a `ReplaceFaceError` arm that names no key: the wrapper's
+    // own sentence names none either, so a key on this row would be the
+    // wrapper's.
+    let replace = || {
+        Box::new(ReplaceFaceError::<f64>::Band {
+            error: band_error(),
+        })
+    };
     [
         (
             "Band",
@@ -3944,12 +3944,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("Escalated", S::Escalated { source: diag() }),
-        (
-            "Corrupt",
-            S::Corrupt {
-                key: EntityId::Face(face),
-            },
-        ),
         ("Pcurve", S::Pcurve { source: pcurve() }),
         (
             "NotValid",

@@ -51,7 +51,7 @@ use super::{
 };
 use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{NAMES_ONLY_LIVE, Proven, linked, proven};
+use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -311,10 +311,6 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        SectorFaceError::Corrupt(entity) => unreachable!(
-            "the sector walk at {operand:?}'s vertex {vertex:?} from {he:?} meets {entity}, \
-             which does not resolve: the walk reads links of the operand, and {NAMES_ONLY_LIVE}"
-        ),
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
