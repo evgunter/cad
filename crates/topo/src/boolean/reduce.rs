@@ -3556,9 +3556,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     // has no incidence", a `None` says "no verdict at all" — and the
     // caller decides what each licenses.
     for (vy, py) in y.vertex_points() {
-        let py = py.map_err(|_| BooleanError::ClassificationInvariant {
-            what: "vertex-on-vertex: a vertex of the other operand has no point",
-        })?;
+        let py = py.map_err(|_| BooleanError::corrupt_at(x_is.other(), vy))?;
         if super::one_vertex(px, py, band).map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::VertexOnVertex,
             diag,

@@ -76,8 +76,8 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
-    Solid, SolidKey, Vertex, VertexKey,
+    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
+    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
@@ -1712,23 +1712,27 @@ impl<T: Real> Body<T> {
     ///
     /// # Errors
     ///
-    /// A row's point is [`DanglingRef::Geometry`](crate::readback::DanglingRef::Geometry)
-    /// naming the point key the live vertex holds and the point arena
-    /// does not.
+    /// A row's point is [`DanglingRef::Geometry`] naming the point key
+    /// the live vertex holds and the point arena does not.
     pub fn vertex_points(
         &self,
-    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, crate::readback::DanglingRef>)> + '_
-    {
-        self.vertices.iter().map(|(k, v)| {
-            let point =
-                self.points
-                    .get(v.point)
-                    .copied()
-                    .ok_or(crate::readback::DanglingRef::Geometry(
-                        crate::entity::GeomRef::Point(v.point),
-                    ));
-            (k, point)
-        })
+    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    }
+
+    /// The point `vertex`'s record names: the one read of a vertex's
+    /// point key, behind both [`Body::vertex_points`] and
+    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
+    ///
+    /// # Errors
+    ///
+    /// [`DanglingRef::Geometry`] naming the point key when the point
+    /// arena does not hold it.
+    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
+        self.points
+            .get(vertex.point)
+            .copied()
+            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
     }
 
     /// All points, in slot-index order (deterministic per D9).
@@ -2645,10 +2649,7 @@ mod tests {
                 .vertex_points()
                 .filter_map(|(k, p)| p.err().map(|e| (k, e)))
                 .collect::<Vec<_>>(),
-            vec![(
-                t.vertices[0],
-                crate::readback::DanglingRef::Geometry(crate::entity::GeomRef::Point(dead))
-            )],
+            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
             "exactly the torn vertex refuses, naming itself and the dangling point key"
         );
     }

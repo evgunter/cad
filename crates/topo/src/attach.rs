@@ -2146,9 +2146,9 @@ mod tests {
     /// `z = 1 + d`: the brick's front and top pushed out by `d`, their
     /// charts not yet moved.
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
-        let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
-        for v in vertices {
-            let mut p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let rows: Vec<_> = body.vertex_points().collect();
+        for (v, p) in rows {
+            let mut p = p.unwrap();
             if p.y == 0.0 {
                 p.y = -d;
             }
