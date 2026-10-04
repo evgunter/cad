@@ -266,9 +266,15 @@ tubes; the C10 tree is not wired in.
 **C4 — Pcurves are per-half-edge certified caches, certified in metres
 through the map.** A *pcurve* is an edge's image in a face's `(u,v)`
 chart. Its home is the half-edge (`Body::pcurves`, a
-`SecondaryMap<HalfEdgeKey, PcurveCache>`): a seam edge has both
-half-edges on one surface with two chart images (`u = α` and
-`u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
+`SecondaryMap<HalfEdgeKey, PcurveCache>`): a row is the edge's image,
+a function of the edge and the chart alone, plus the half-edge's
+**joint element**, the integer (whole periods, a torus's second period,
+a sphere's twin bit) that carries its image onto the end of the
+half-edge before it in its loop, or a reset marker at a pole or apex.
+A loop's lift is derived by summing elements from its `first`, so no
+stored byte depends on which half-edge is `first`. A seam edge has both
+half-edges on one surface with one image and two joint elements, so no
+coarser key works. Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole

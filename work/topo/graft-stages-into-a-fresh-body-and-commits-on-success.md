@@ -2,8 +2,10 @@
 id: graft-stages-into-a-fresh-body-and-commits-on-success
 kind: issue
 title: instance's graft leaves a refused destination partly written; it stages into a fresh body and commits only on success (S14, Ev, PR 4006)
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-04
+pr: 4022
 priority: P1
 cost: M
 ---
@@ -36,3 +38,21 @@ that relies on it. `docs/DESIGN.md` D9 already states the ruled property.
 converts every torn-body refusal into `unreachable!` (row 4). Until the
 graft stages, a caller who keeps a refused graft destination would trip
 that panic through misuse rather than a kernel bug.
+
+## Closed 2026-10-04
+
+PR #4022. Every graft is staged: `boolean::combine::graft_staged`
+transplants into a fresh body, where every refusal arises, and commits that
+stage into `dst` with a second transplant that cannot refuse. It covers both
+target shapes, so `instance`'s three doors and the void doors (`insert_void`,
+`insert_voids`) all leave `dst` deep-unchanged on `Err`. The keyed graft
+declares D1's door postcondition, and its `ALLOWED` exemption is gone.
+`review_d18`'s spent-destination row is retired, as that row itself asked.
+
+The cost is linear: a second transplant of the source, never a copy of `dst`.
+Clone-and-swap was measured and rejected as quadratic. Both figures are in the
+PR. The door's tier-1 sweep is quadratic over an N-instance assembly in an
+asserting build, and that is filed as
+`work/perf/graft-door-sweep-is-quadratic-in-assembly-instances.md`. The §5
+receipt's two partial-write hits (the pcurve mint doors) are filed as
+`work/topo/mint-pcurves-refusal-leaves-the-cache-partly-cleared.md`.
