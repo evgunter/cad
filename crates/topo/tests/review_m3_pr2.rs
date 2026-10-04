@@ -37,9 +37,9 @@ fn point_of(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 
 fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
     let hits: Vec<_> = body
-        .vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+        .vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)

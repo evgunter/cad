@@ -106,11 +106,7 @@ fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
 }
 
 fn points(body: &Body<f64>) -> Vec<Point3<f64>> {
-    body.vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect()
+    body.vertex_points().map(|(_, p)| p.unwrap()).collect()
 }
 
 fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Body<f64>> {
@@ -570,11 +566,8 @@ fn wide_dump(body: &Body<f64>) -> String {
         body.loops().count(),
         body.shells().count(),
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
+        let p = p.unwrap();
         let _ = writeln!(
             s,
             "v {k:?} {:x} {:x} {:x}",

@@ -48,11 +48,8 @@ fn dump(body: &Body<f64>) -> String {
         body.edges().count(),
         body.faces().count()
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
+        let p = p.unwrap();
         let _ = writeln!(
             s,
             "{k:?} {:016x} {:016x} {:016x}",
@@ -546,9 +543,9 @@ fn the_split_dispatch_is_the_split_door() {
 /// Bitwise vertex lookup: how many vertices of `body` sit exactly at
 /// `(x, y, z)`.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = p.unwrap();
             p.x == x && p.y == y && p.z == z
         })
         .count()

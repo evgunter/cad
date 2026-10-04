@@ -88,21 +88,11 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .collect()
 }
 
-/// Every vertex point of a body.
-///
-/// `crates/sweep/tests/verbs_chamfer.rs` carries the same vertex-point
-/// chain. Its chamfer side matches by proximity too (a count of feet
-/// within `1e-15`), and its fillet side still sorts both sets and
-/// compares them exactly. The copy is deliberate: the only shared
-/// home available is `sweep::test_support`, which is gated behind a
-/// test-support feature — a demo that linked test scaffolding to save
-/// twenty lines would stop being an outside consumer, which is the
-/// one property these scenes exist to have.
+/// Every vertex point of a body, refusing a torn point key rather
+/// than comparing a shorter cloud.
 fn vertex_points(body: &Body<f64>) -> Vec<Point3<f64>> {
-    body.vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
+    body.vertex_points()
+        .map(|(_, p)| p.expect("a built body's vertex carries its point"))
         .collect()
 }
 
