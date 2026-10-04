@@ -4076,16 +4076,14 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// In this order, per face of `read` as it is reached: on a chart
-    /// that mints, a half of it does not resolve ([`EulerOpError::PcurveMint`] naming the face); then,
-    /// only when a face is read further, what `faces` raises; then
+    /// Only when a face is read further: what `faces` raises, then
     /// [`EulerOpError::PcurveMint`] naming the face.
     ///
     /// # Panics
     ///
     /// Where a face of `read`, read out of the body's records, or its
-    /// surface, or a loop's walk, does not resolve
-    /// ([`crate::pcurves::site_rows_from`]).
+    /// surface, or a loop's walk, or a half's edge or curve, does not
+    /// resolve ([`crate::pcurves::site_rows_from`]).
     pub(crate) fn plan_site_mint_of(
         &self,
         read: impl IntoIterator<Item = FaceKey>,
@@ -4105,9 +4103,7 @@ impl<T: Decide> Body<T> {
             seen.push(face);
             let face_data = proven(&self.faces, face, EntityId::Face);
             let surface = self.face_surface_linked(face, face_data);
-            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
-                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
-            {
+            if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
         }
@@ -4242,15 +4238,7 @@ impl<T: Decide> Body<T> {
     /// claim it.
     #[track_caller]
     pub(crate) fn site_cycle(&self, r#loop: LoopKey) -> Vec<HalfEdgeKey> {
-        match crate::pcurves::loop_rows(self, r#loop) {
-            crate::pcurves::LoopRows::Cycle(cycle) => cycle,
-            crate::pcurves::LoopRows::NoCycle => Vec::new(),
-            crate::pcurves::LoopRows::Corrupt => unreachable!(
-                "loop {loop:?} does not resolve, or its cycle walk does not close on the \
-                 half-edges that claim it: {CYCLES_ARE_CLAIMANTS}",
-                loop = r#loop
-            ),
-        }
+        crate::pcurves::loop_rows(self, r#loop)
     }
 
     /// [`Body::site_cycle`] proven to be every half-edge that claims
@@ -6837,27 +6825,19 @@ mod tests {
         }
     }
 
-    /// **Only the torn-body refusal names a defect** (D4 ¶1 (i)):
-    /// `PcurveMint`'s `Corrupt` side, the one typed refusal of a torn
-    /// body, ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one
-    /// recourse; no other variant names a defect, and a caller's bad
-    /// [`EulerOpError::Argument`] states the fact and claims neither a
-    /// recourse nor a defect. `PcurveMint` answers by its payload and
-    /// `Argument` by its [`BadArgument`], so each side the shared array
-    /// does not hold is sampled beside it.
+    /// **No refusal names a defect** (D2 row 4): a torn body panics
+    /// rather than refuse, so no variant claims a kernel defect, and a
+    /// caller's bad [`EulerOpError::Argument`] states the fact and
+    /// claims neither a recourse nor a defect. `PcurveMint` answers by
+    /// its payload and `Argument` by its [`BadArgument`], so each side
+    /// the shared array does not hold is sampled beside it.
     #[test]
-    fn corruption_refusals_end_in_the_kernel_defect_ending() {
+    fn no_refusal_names_a_defect() {
         use crate::pcurves::SiteRowRefusal;
         let pcurve_mint = |refusal| EulerOpError::PcurveMint {
             face: FaceKey::default(),
             refusal,
         };
-        let torn = pcurve_mint(SiteRowRefusal::Corrupt).to_string();
-        assert!(
-            torn.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
-            "{torn}"
-        );
-        assert_eq!(test_utils::refusal::recourse_markers(&torn), 1, "{torn}");
         let mut arguments = 0;
         for error in every_euler_op_error_once().into_iter().chain([
             pcurve_mint(SiteRowRefusal::KeysOnly),

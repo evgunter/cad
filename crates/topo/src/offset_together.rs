@@ -425,8 +425,11 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     // posture (`Maintains`, by re-minting) is therefore honest now and
     // stays honest then.
     let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
-        .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
+        ReplaceFaceError::Pcurve {
+            source: source.for_driver(),
+        }
+    })?;
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).

@@ -5650,7 +5650,7 @@ mod tests {
                 evidence: geom_brep::RadiusEvidence::None,
             },
             BooleanError::Pcurves {
-                source: crate::pcurves::PcurveMintError::Corrupt,
+                source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::RestZipUnsupported {
                 what: RestZipFrontier::SlitFaceHoles,

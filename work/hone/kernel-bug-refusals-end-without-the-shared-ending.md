@@ -55,10 +55,9 @@ three above:
 - `topo::RevertError`'s link arms end in " (malformed body)"
   (`crates/topo/src/revert.rs`, the `fmt` that writes the tag after its
   `RevertLink` match).
-- `topo::pcurves::PcurveMintError::Corrupt` ends in a repair no public
-  door offers ("read the structural validators' report and repair the
-  reference it names", `crates/topo/src/pcurves.rs`); its sibling
-  `SiteRowRefusal::Corrupt` ends in `KERNEL_DEFECT_ENDING` now.
+- `topo::pcurves`: no longer an instance. A torn record in the pcurve
+  passes panics naming the record (D2 row 4), and a caller's key that
+  does not resolve refuses `PcurveMintError::Stale`, stating the fact.
 - `topo::shell`'s "stopped resolving mid-construction (kernel bug)"
   (`crates/topo/src/shell.rs`, the `Display` arm that writes it) and
   `replace_face_offset`'s "referential coherence broke mid-plan (kernel
