@@ -469,6 +469,11 @@ struct KevPlan {
     members: Vec<EdgeKey>,
     /// `prev(he)`, `next(he)`, `prev(m)`, `next(m)`.
     links: [Live; 4],
+    /// Each killed half's turn — the element carrying its image's exit
+    /// onto its entry ([`KevUnsplice::elements`]): the identity for a
+    /// null edge, a point; where a band decided it
+    /// ([`Body::kev_describing`]), a closed carrier's; `None` otherwise.
+    turns: [Option<JointElement>; 2],
     /// `v`'s new `emanating` (the emanating rule, module docs), proved:
     /// it starts at `v` once the merge has re-based the fan, or leaves
     /// `v` lone.
@@ -504,26 +509,36 @@ impl KevUnsplice {
         }
     }
 
-    /// For each link [`KevUnsplice::links`] writes, in order, the path
-    /// whose elements its joint's element sums ([`Body::bridged_joint`]),
-    /// from `he` and the mate `m`, and `he`'s `[prev, next]` and the
-    /// mate's (`[a, b, c, d]`). The strut's bridge `a → he → m → d`
-    /// enters at `he` and leaves into `d`, turning back at the tip where
-    /// the two halves meet on their one image; the mirror's is the same
-    /// from the mate's side. A general unsplice re-bases the merged fan
-    /// onto the survivor, which only a killed NULL edge does keys-only
-    /// (its two vertices hold one point), and a null edge has no row: no
-    /// path is summed and its two joints take no element.
-    fn bridges(
+    /// The element of each joint [`KevUnsplice::links`] writes, in
+    /// order (C4, [`crate::joint`], "Kills are sums"), from the
+    /// elements into `he`, the mate `m`, `b = next(he)` and `d =
+    /// next(m)` as found, and each killed half's `turn` — the element
+    /// carrying its image's exit onto its entry. The strut's bridge
+    /// `a → he → m → d` enters at `he` and leaves into `d`, turning back
+    /// at the tip where the two halves meet on their one image, so it is
+    /// `e(he) · e(d)`; the mirror's is the same from the mate's side. A
+    /// general unsplice crosses each killed half whole, from its entry
+    /// back to its exit, which coincide in space: `e(he) · turn(he) ·
+    /// e(b)` and `e(m) · turn(m) · e(d)`.
+    fn elements(
         self,
-        [he, m]: [HalfEdgeKey; 2],
-        [_, b, _, d]: [HalfEdgeKey; 4],
-    ) -> Vec<Option<[HalfEdgeKey; 2]>> {
+        [he, m, b, d]: [Option<JointElement>; 4],
+        [turn_he, turn_m]: [Option<JointElement>; 2],
+    ) -> Vec<Option<JointElement>> {
+        let sum = |parts: &[Option<JointElement>]| {
+            parts
+                .iter()
+                .try_fold(None::<JointElement>, |acc, part| {
+                    let part = (*part)?;
+                    Some(Some(acc.map_or(part, |acc| acc.then(part))))
+                })
+                .flatten()
+        };
         match self {
             Self::Segment => Vec::new(),
-            Self::Strut => vec![Some([he, d])],
-            Self::Mirror => vec![Some([m, b])],
-            Self::General => vec![None, None],
+            Self::Strut => vec![sum(&[he, d])],
+            Self::Mirror => vec![sum(&[m, b])],
+            Self::General => vec![sum(&[he, turn_he, b]), sum(&[m, turn_m, d])],
         }
     }
 
@@ -963,8 +978,17 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let plan = self.kev_plan(he)?;
+        let mut plan = self.kev_plan(he)?;
         let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        // A general unsplice of a certified edge crosses each killed half
+        // whole: the band decides each one's turn, which a closed carrier
+        // (two vertices at one point) has.
+        if plan.unsplice == KevUnsplice::General && plan.turns == [None; 2] {
+            let band = geom_core::Band::linear(tol).map_err(|e| EulerOpError::Certification {
+                error: geom_brep::CertifyError::Band(e),
+            })?;
+            plan.turns = [plan.he, plan.m].map(|half| crate::pcurves::turn_element(self, half, band));
+        }
         let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
             .iter()
             .map(|(edge, curve)| (*edge, curve))
@@ -1131,6 +1155,13 @@ impl<T: Decide> Body<T> {
             (false, true) => KevUnsplice::Mirror,
             (false, false) => KevUnsplice::General,
         };
+        // A null edge is a point: crossing one of its halves whole moves
+        // nothing.
+        let turns = if self.edge_curve_linked(edge, &edge_data).null_scaffold().is_some() {
+            [Some(JointElement::IDENTITY); 2]
+        } else {
+            [None; 2]
+        };
         let loops = [l1, l2];
         let loop_writes = unsplice.loop_writes(loops, [b.key(), d.key()], v);
         self.require_kill_anchors(&[(v, anchor, he)], &loop_writes, &[he, m], None);
@@ -1178,6 +1209,7 @@ impl<T: Decide> Body<T> {
             members,
             links: [a, b, c, d],
             anchor,
+            turns,
         })
     }
 
@@ -1332,6 +1364,7 @@ impl<T: Decide> Body<T> {
             members: _,
             links: [a, b, c, d],
             anchor,
+            turns,
         } = plan;
         // Fan merge: everything starting at w except the doomed mate now
         // starts at v (the run move, reversed — module docs).
@@ -1345,11 +1378,8 @@ impl<T: Decide> Body<T> {
         }
         // Unsplice (derived as mev's exact inverse — module docs), then
         // the loop anchors the plan proved.
-        let elements: Vec<Option<JointElement>> = unsplice
-            .bridges([he, m], [a, b, c, d].map(Live::key))
-            .into_iter()
-            .map(|path| path.and_then(|path| self.bridged_joint(&path)))
-            .collect();
+        let elements =
+            unsplice.elements([he, m, b.key(), d.key()].map(|half| self.joint(half)), turns);
         for ((from, to), element) in unsplice.links([a, b, c, d]).into_iter().zip(elements) {
             self.link_half_edges(from, to, element);
         }

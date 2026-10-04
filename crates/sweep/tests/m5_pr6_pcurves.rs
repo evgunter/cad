@@ -170,14 +170,15 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
 // Spec §6: the seam-edge under-keying counterexample
 // ---------------------------------------------------------------------
 
-/// **One seam edge, two half-edges, the same surface, two DIFFERENT
-/// certified pcurves.** The revolved tube's outer wall is a single
+/// **One seam edge, two half-edges, the same surface: one image, two
+/// joint elements** (C4). The revolved tube's outer wall is a single
 /// cylinder face closed by its seam meridian, so both half-edges of
 /// that edge sit in one loop of one face — a per-edge key cannot hold
-/// two pcurves, and neither can a per-(edge, face) key. The two
-/// branches differ by exactly one period.
+/// their two joints, and neither can a per-(edge, face) key. The two
+/// halves store the same certified image, and the loop's lift places
+/// them exactly one period apart.
 #[test]
-fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
+fn a_seam_edge_carries_one_image_and_two_joint_elements_on_one_surface() {
     let mut body = revolved_tube();
     topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let mut found = 0usize;
@@ -186,32 +187,36 @@ fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
             continue;
         };
         // Same face?
-        let fa = body
-            .get_loop(body.get_half_edge(edge.he_plus).unwrap().parent_loop)
-            .unwrap()
-            .face;
-        let fb = body
-            .get_loop(body.get_half_edge(edge.he_minus).unwrap().parent_loop)
-            .unwrap()
-            .face;
-        if fa != fb {
+        let lp = body.get_half_edge(edge.he_plus).unwrap().parent_loop;
+        if lp != body.get_half_edge(edge.he_minus).unwrap().parent_loop {
             continue;
         }
         found += 1;
-        let Pcurve::Harmonic { p0: pa, .. } = *a.pcurve() else {
-            panic!("the minting lane stores closed-form images")
+        assert_eq!(
+            format!("{:?}", a.pcurve()),
+            format!("{:?}", b.pcurve()),
+            "the two halves share the edge's one image"
+        );
+        assert_ne!(
+            body.joint(edge.he_plus),
+            body.joint(edge.he_minus),
+            "the two halves' joints carry the image onto different branches"
+        );
+        let lift = body.loop_lift(lp).unwrap();
+        let x = |he| {
+            let Pcurve::Harmonic { p0, .. } = lift.iter().find(|r| r.half_edge == he).unwrap().pcurve
+            else {
+                panic!("the minting lane stores closed-form images")
+            };
+            p0.x
         };
-        let Pcurve::Harmonic { p0: pb, .. } = *b.pcurve() else {
-            panic!("the minting lane stores closed-form images")
-        };
-        let gap = (pa.x - pb.x).abs();
+        let gap = (x(edge.he_plus) - x(edge.he_minus)).abs();
         assert!(
             (gap - TAU).abs() < 1e-9,
-            "the two branches differ by one period, measured {gap}"
+            "the lift places the two halves one period apart, measured {gap}"
         );
-        // Both are genuinely certified, against the same surface.
+        // The image is genuinely certified, against the surface.
         assert!(a.certificate().envelope < 1e-12);
-        assert!(b.certificate().envelope < 1e-12);
     }
     // Two: the tube has an inner and an outer cylinder wall, each a
     // single face closed by its own seam meridian.

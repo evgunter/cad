@@ -3810,6 +3810,34 @@ fn decide_joint<T: Decide>(
     })
 }
 
+/// **A killed half's turn**: the element carrying its image's exit onto
+/// its entry, where the two coincide in space — a closed carrier, whose
+/// two vertices hold one point. A kill that crosses the half whole sums
+/// it with the elements either side ([`crate::Body::kev_describing`]).
+/// `None` where the half stores no image or its ends do not meet.
+///
+/// # Panics
+///
+/// Where `half_edge`'s face or surface does not resolve.
+#[track_caller]
+pub(crate) fn turn_element<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    band: Band,
+) -> Option<JointElement> {
+    let image = body.pcurve(half_edge)?.pcurve();
+    let surface = half_edge_surface(body, half_edge);
+    let chart = DescribedChart::of(&surface)?;
+    let (t0, t1) = body.pcurve(half_edge)?.params();
+    let (entry_t, exit_t) = if is_plus(body, half_edge) {
+        (t0, t1)
+    } else {
+        (t1, t0)
+    };
+    let entry = image.eval(entry_t);
+    decide_joint(chart, image, exit_t, entry, chart_u_period(&surface, band), band).ok()
+}
+
 /// **Whether `entry` meets `prev`** across a joint: the azimuth gap
 /// metred through the chart's lever arm at `prev` (zero at a pole or an
 /// apex, where any azimuth meets), the second channel through its own

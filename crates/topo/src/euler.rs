@@ -2526,6 +2526,16 @@ impl<T: Decide> Body<T> {
             he1_loop,
             he2_loop,
         } = plan;
+        // The joints the splice makes (C4, `crate::joint`): a certified
+        // edge's are new, and the site mint, written after the splice,
+        // decides them. A NULL edge is a point with no image, so it
+        // carries nothing: its halves take the identity, and each joint
+        // out of it keeps the element its successor had, read across the
+        // point to the same predecessor's exit.
+        let null = matches!(mint, MevCurveMint::Null(_));
+        let carried = |half: Live| null.then(|| self.joint(half.key())).flatten();
+        let (into_he1, into_he2) = (carried(he1), carried(he2));
+        let into_new = null.then_some(JointElement::IDENTITY);
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
@@ -2542,20 +2552,18 @@ impl<T: Decide> Body<T> {
         // Splice. Derived (module docs) rather than transcribed; the two
         // cases are the sequential "insert before he1, then before he2"
         // with the strut's second insertion landing between the first
-        // and he1. Every joint it writes is new, and its element is the
-        // site mint's, written after it.
         if he1 == he2 {
             // Strut: … → prev → he_plus → he_minus → he1 → …
-            self.link_half_edges(he1_prev, he_plus, None);
-            self.link_half_edges(he_plus, he_minus, None);
-            self.link_half_edges(he_minus, he1, None);
+            self.link_half_edges(he1_prev, he_plus, into_new);
+            self.link_half_edges(he_plus, he_minus, into_new);
+            self.link_half_edges(he_minus, he1, into_he1);
         } else {
             // … → prev(he1) → he_plus → he1 → …  (in he1's loop)
             // … → prev(he2) → he_minus → he2 → … (in he2's loop)
-            self.link_half_edges(he1_prev, he_plus, None);
-            self.link_half_edges(he_plus, he1, None);
-            self.link_half_edges(he2_prev, he_minus, None);
-            self.link_half_edges(he_minus, he2, None);
+            self.link_half_edges(he1_prev, he_plus, into_new);
+            self.link_half_edges(he_plus, he1, into_he1);
+            self.link_half_edges(he2_prev, he_minus, into_new);
+            self.link_half_edges(he_minus, he2, into_he2);
         }
         crate::pcurves::apply_site_rows(self, rows, minted);
         // The splice is done; past it the halves are ordinary keys.
@@ -2661,12 +2669,15 @@ impl<T: Decide> Body<T> {
         rows: Vec<SiteRows<T>>,
         provenance: Provenance,
     ) -> MevCreated {
+        // A null edge's halves carry nothing (`mev_fan_execute`); a
+        // certified edge's joints are the site mint's.
+        let into_new = matches!(mint, MevCurveMint::Null(_)).then_some(JointElement::IDENTITY);
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
         // The two halves form the whole cycle: v → w → v.
-        self.link_half_edges(he_plus, he_minus, None);
-        self.link_half_edges(he_minus, he_plus, None);
+        self.link_half_edges(he_plus, he_minus, into_new);
+        self.link_half_edges(he_minus, he_plus, into_new);
         crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());

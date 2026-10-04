@@ -1,30 +1,20 @@
-//! **`Body::revert` re-parks a periodic chart's loop wrap at the
-//! reversed closure.** The one-branch loop walk starts at a loop's
-//! `first` and pins every joint it meters to its predecessor's exit,
-//! so the one joint a periodic chart's one-period wrap can be
-//! REPORTED at is the closure, between the cycle's last half-edge and
-//! `first`. Reversed with `first` fixed, that joint sits right after
-//! `first`, mid-chain, and tier 3's stored-row continuity pass reports
-//! it as a `LoopDiscontinuity` on the second half-edge of the reversed
-//! cycle. The reversal moves every loop's anchor to its source
-//! predecessor — the same joint is the closure again — and touches no
-//! row (`topo::revert` module docs, the anchor bullet;
-//! `topo::LoopBoundary::Cycle`'s `first` states the invariant).
+//! **`Body::revert` inverts every joint element and moves no anchor.**
+//! A pcurve row is an image — the edge's chart curve, a function of the
+//! edge and the chart — and the element of the joint into its half-edge
+//! (C4, `topo::joint`). Reversing a cycle runs each joint `p → he` as
+//! `he → p`, so its element moves onto `p` as its inverse, and every
+//! image stays where it is: no stored byte depends on which half-edge is
+//! a loop's `first` (`topo::revert` module docs, the joint bullet).
 //!
-//! Which loops wrap at closure, on this tree: the ones with an
-//! AZIMUTH-FREE joint. At a sphere's pole or a cone's apex the lever is
-//! zero, so the walk meters nothing there in either direction and
-//! leaves the meridians on their own base branches; a lune whose
-//! meridians meet at the pole then comes back a whole period off at
-//! closure. That is what the fixtures measure, not a rule the code
-//! states: the walk guarantees only that every joint it METERS is
-//! pinned, that an azimuth-free joint is unmetered both ways, and that
-//! the closure is the only joint a wrap can be reported at. A torus has
-//! no azimuth-free joint (its lever `|R + r·cos v|` never vanishes for
-//! `R > r`, which the revolve and tube doors require), and a drum's
-//! wall absorbs its azimuth in a full rim, so those loops close exactly
-//! and are the controls: re-anchored all the same, rows untouched,
-//! tier 3 reporting nothing but the complement.
+//! The loops that wind here are the ones with an AZIMUTH-FREE joint. At
+//! a sphere's pole or a cone's apex the lever is zero, so that joint is
+//! a reset and the loop's chain restarts its azimuth there; a lune whose
+//! meridians meet at the pole carries one. A torus has no azimuth-free
+//! joint (its lever `|R + r·cos v|` never vanishes for `R > r`, which the
+//! revolve and tube doors require), and a drum's wall absorbs its
+//! azimuth in a full rim, so those loops wind nothing and are the
+//! controls: elements inverted all the same, images untouched, tier 3
+//! reporting nothing but the complement.
 //!
 //! The fixtures are `common::latitude_seam`'s, `shell7_common`'s and
 //! `revolve_common`'s, shared with the SHELL-9 suites and the
@@ -39,6 +29,7 @@ use core::mem::{Discriminant, discriminant};
 
 use geom_core::Band;
 use sweep::Revolution;
+use topo::joint::Winding;
 use topo::{Body, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PcurveMintError, ValidationError};
 
 use super::common::approx::twisted_loft;
@@ -86,58 +77,34 @@ fn anchors(body: &Body<f64>) -> Vec<(LoopKey, HalfEdgeKey)> {
         .collect()
 }
 
-/// The azimuth gap the loop's stored rows leave at its CLOSURE — the
-/// last half-edge's exit against `first`'s entry, read in the cycle's
-/// own order from its anchor, as the tier-3 continuity pass reads it.
-/// `None` where a half-edge of the loop carries no row. The entry/exit
-/// convention (a half-edge enters at its row's `t0` iff it is its
-/// edge's `he_plus`) is a copy of `topo::pcurves`' crate-private
-/// `is_plus`, which no test-visible door exposes; it is the only
-/// arithmetic here.
-fn closure_gap(body: &Body<f64>, lk: LoopKey) -> Option<f64> {
+/// A loop's winding, from its stored elements in cycle order (`None`
+/// where a joint stores none).
+fn winding(body: &Body<f64>, lk: LoopKey) -> Option<Winding> {
     let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
         return None;
     };
-    let cycle = body.loop_cycle(first).unwrap();
-    let chart_ends = |he: HalfEdgeKey| {
-        let cache = body.pcurve(he)?;
-        let (t0, t1) = cache.params();
-        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-        let (entry_t, exit_t) = if edge.he_plus == he {
-            (t0, t1)
-        } else {
-            (t1, t0)
-        };
-        Some((cache.pcurve().eval(entry_t), cache.pcurve().eval(exit_t)))
-    };
-    let (start, _) = chart_ends(*cycle.first()?)?;
-    let (_, end) = chart_ends(*cycle.last()?)?;
-    Some(end.x - start.x)
+    let elements: Option<Vec<_>> = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|he| body.joint(he))
+        .collect();
+    Some(Winding::of(elements?))
 }
 
-/// Whether `gap` is a whole period, EXACTLY: the walk's own azimuths on
-/// these fixtures are `0`, `π` and `τ`, so a wrapped closure reads `±τ`
-/// bit for bit, and a tolerance here would only hide a gap that is
-/// not one (the tier-3 pass meters the joint through the band; this
-/// reader only names which loops wrap).
-fn is_whole_period(gap: f64) -> bool {
-    gap.abs() == TAU
-}
-
-/// The loops whose rows wrap the chart by a whole period at closure.
+/// The loops whose elements wind them: a whole period, or a reset.
 fn wrapping_loops(body: &Body<f64>) -> Vec<LoopKey> {
     anchors(body)
         .into_iter()
-        .filter(|(lk, _)| closure_gap(body, *lk).is_some_and(is_whole_period))
+        .filter(|(lk, _)| winding(body, *lk).is_some_and(|w| !w.is_zero()))
         .map(|(lk, _)| lk)
         .collect()
 }
 
 /// What `chart_boundary` answers for every face of `body`, by result
-/// KIND (`Ok`, or which refusal variant), in face order. Its closure
-/// lever is `chart_u_arm` at the FIRST edge's entry, so the anchor move
-/// changes where a refusal would fire; this reader is what pins that
-/// it does not change whether one fires.
+/// KIND (`Ok`, or which refusal variant), in face order: a reversal
+/// reverses every loop, and this reader pins that it does not change
+/// whether a refusal fires.
 fn boundary_kinds(body: &Body<f64>) -> Vec<(FaceKey, Result<(), Discriminant<PcurveMintError>>)> {
     let band = Band::linear(tol()).unwrap();
     body.faces()
@@ -151,13 +118,13 @@ fn boundary_kinds(body: &Body<f64>) -> Vec<(FaceKey, Result<(), Discriminant<Pcu
         .collect()
 }
 
-/// **The reversal's anchor move, on `body`**: every loop's anchor is
-/// its source predecessor, every row is the source's bit for bit,
-/// tier 3 of the reverted body reports exactly the complement, the
-/// wrap of every wrapping loop sits at the reversed closure too,
-/// `chart_boundary` answers the same kind for every face, and the
-/// involution restores the bits.
-fn assert_reparked(label: &str, body: &Body<f64>) {
+/// **The reversal on `body`**: every image is the source's bit for bit,
+/// every loop keeps its anchor, the element on each half-edge is the
+/// inverse of the one on its source successor, every loop winds as far
+/// as it did, tier 3 of the reverted body reports exactly the
+/// complement, `chart_boundary` answers the same kind for every face,
+/// and the involution restores the bits.
+fn assert_reverted(label: &str, body: &Body<f64>) {
     assert_eq!(
         topo::validate_geometric(body, tol()),
         Ok(()),
@@ -171,22 +138,21 @@ fn assert_reparked(label: &str, body: &Body<f64>) {
         }]),
         "{label}: a reverted body bounds the complement and nothing else fails"
     );
-    assert_eq!(rows(&reverted), rows(body), "{label}: no row moves");
-    for (lk, first) in anchors(body) {
-        let LoopBoundary::Cycle { first: after } = reverted.get_loop(lk).unwrap().boundary else {
-            panic!("{label}: a cycle stays a cycle")
-        };
+    assert_eq!(rows(&reverted), rows(body), "{label}: no image moves");
+    assert_eq!(anchors(&reverted), anchors(body), "{label}: no anchor moves");
+    for (he, data) in body.half_edges() {
         assert_eq!(
-            after,
-            body.get_half_edge(first).unwrap().prev,
-            "{label}: every loop's anchor is its source predecessor"
+            reverted.joint(he),
+            body.joint(data.next).map(topo::JointElement::inverse),
+            "{label}: {he:?} carries its source successor's element, inverted"
         );
     }
-    for lk in wrapping_loops(body) {
-        let gap = closure_gap(&reverted, lk).unwrap();
-        assert!(
-            is_whole_period(gap),
-            "{label}: the wrap of {lk:?} sits at the reversed closure, got {gap}"
+    for (lk, _) in anchors(body) {
+        let read = |w: Option<Winding>| w.map(|w| (w.closes(), w.is_zero()));
+        assert_eq!(
+            read(winding(&reverted, lk)),
+            read(winding(body, lk)),
+            "{label}: {lk:?} winds as far reversed"
         );
     }
     assert_eq!(
@@ -201,48 +167,42 @@ fn assert_reparked(label: &str, body: &Body<f64>) {
     );
 }
 
-/// **The red-first row: the two-arc sphere and its door-built cavity.**
-/// Each sphere lune's loop wraps at closure (its meridians meet at the
-/// pole on their own base branches). On the merge base
-/// `validate_geometric` of the reverted body reports a pcurve
-/// `LoopDiscontinuity` on the second half-edge of the reversed cycle
-/// beside the `NegativeVolume`; at the head it reports the
-/// `NegativeVolume` alone, the rows are the cavity's bit for bit, and
-/// the wrap sits at the reversed closure.
+/// **The two-arc sphere and its door-built cavity.** Each sphere lune's
+/// loop resets at the pole, where its meridians meet; reversed, it reads
+/// the `NegativeVolume` alone, and its images are the cavity's bit for
+/// bit.
 #[test]
 fn reverted_sphere_and_its_cavity_report_only_the_complement() {
     let sphere = two_arc_sphere();
     assert!(
         !wrapping_loops(&sphere).is_empty(),
-        "the sphere's lunes wrap at closure"
+        "the sphere's lunes reset at the pole"
     );
-    assert_reparked("sphere", &sphere);
-    assert_reparked("cavity", &door_cavity(&sphere, 0.05));
+    assert_reverted("sphere", &sphere);
+    assert_reverted("cavity", &door_cavity(&sphere, 0.05));
 }
 
 /// **A cone through its apex, the same way.** The apex is the cone's
-/// azimuth-free joint, and the wall's loop wraps at closure exactly
-/// as a sphere lune's does; on the merge base the reversal reports
-/// the same `LoopDiscontinuity`.
+/// azimuth-free joint, and the wall's loop resets there as a sphere
+/// lune's does at the pole.
 #[test]
 fn reverted_apex_cone_reports_only_the_complement() {
     let cone = apex_cone();
     assert!(
         !wrapping_loops(&cone).is_empty(),
-        "the cone wall's loop wraps at closure"
+        "the cone wall's loop resets at the apex"
     );
-    assert_reparked("cone", &cone);
+    assert_reverted("cone", &cone);
 }
 
 /// **Controls: periodic charts whose loops close exactly.** Two tori
 /// (the tube door's and a revolved two-arc profile's), the collinear-cap
 /// drum and its cavity — whose rows are the plane mirror's, unchanged
 /// by this — and a half drum, whose cylinder loop never wraps. No loop
-/// wraps at closure, the reversal re-anchors their curved loops all
-/// the same, no row moves, and tier 3 reports exactly the complement
-/// before and after.
+/// winds, the reversal inverts their elements all the same, no image
+/// moves, and tier 3 reports exactly the complement before and after.
 #[test]
-fn periodic_charts_without_a_closure_wrap_are_re_anchored_and_report_only_the_complement() {
+fn periodic_charts_whose_loops_wind_nothing_report_only_the_complement() {
     for (label, body) in [
         ("tube torus", tube_torus(2.0, 0.5)),
         ("two-arc torus", two_arc_torus()),
@@ -253,21 +213,21 @@ fn periodic_charts_without_a_closure_wrap_are_re_anchored_and_report_only_the_co
     ] {
         assert!(
             wrapping_loops(&body).is_empty(),
-            "{label}: no loop wraps at closure"
+            "{label}: no loop winds"
         );
         assert!(!rows(&body).is_empty(), "{label}: the fixture carries rows");
-        assert_reparked(label, &body);
+        assert_reverted(label, &body);
     }
 }
 
 /// **Control: a non-periodic curved chart.** The twisted loft's walls
 /// are bilinear NURBS saddles, closed in nothing; their iso-line rows
-/// are untouched, their loops re-anchored, and tier 3 of the reversed
+/// are untouched, their elements inverted, and tier 3 of the reversed
 /// body reports exactly the complement.
 #[test]
 fn a_non_periodic_curved_charts_rows_are_untouched() {
     let loft = twisted_loft(0.05);
     assert!(!rows(&loft).is_empty(), "the loft carries rows");
     assert!(wrapping_loops(&loft).is_empty());
-    assert_reparked("twisted loft", &loft);
+    assert_reverted("twisted loft", &loft);
 }
