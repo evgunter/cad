@@ -51,13 +51,17 @@ mod certified {
     use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
     use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
-    use sweep::test_support::ball_poled_y;
-    use topo::{Body, mass_properties};
+    use sweep::test_support::{ball_poled_y, finished};
+    use topo::{AtRestBody, mass_properties};
 
     /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
     /// — the cap cutter.
-    fn block(z0: f64, len: f64) -> Body<Interval> {
-        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness())
+    fn block(z0: f64, len: f64) -> AtRestBody<Interval> {
+        finished(
+            "the block",
+            sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness()),
+            Tol::witness(),
+        )
     }
 
     /// E1: the ball as LEFT operand, its cap chopped by a block — the
@@ -69,9 +73,13 @@ mod certified {
         const R: f64 = 0.6;
         const Z_CUT: f64 = 0.3;
         let cut = topo::subtract(
-            &ball_poled_y(
-                Interval::from_f64(R),
-                Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            &finished(
+                "the ball",
+                ball_poled_y(
+                    Interval::from_f64(R),
+                    Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             ),
             &block(Z_CUT, 1.0),
@@ -111,8 +119,8 @@ mod certified {
         }
         // The m5_s12 fixture itself: its 3x3x0.8 plate, minus the unit
         // ball at (1.5, 1.5, 0.5).
-        let plate = plate();
-        let ball = recut_ball();
+        let plate = finished("the plate", plate(), Tol::witness());
+        let ball = finished("the recut ball", recut_ball(), Tol::witness());
         let cut = topo::subtract(&plate, &ball, Tol::witness());
         let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
             panic!("below the constant the chain must escalate, got {cut:?}");

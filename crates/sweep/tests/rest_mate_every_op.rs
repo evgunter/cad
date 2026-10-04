@@ -30,8 +30,8 @@ use crate::mate2_common::{
 };
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use sweep::test_support::ball_poled_y;
-use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, mass_properties};
+use sweep::test_support::{ball_poled_y, finished};
+use topo::{AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's wall thickness, outside its bore.
 const WALL: f64 = 1.0;
@@ -104,6 +104,11 @@ fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
     topo::transform_rigid(b, pose, Tol::witness()).unwrap()
 }
 
+/// `b` finished, a boolean operand.
+fn fin(what: &str, b: &Body<f64>) -> AtRestBody<f64> {
+    finished(what, b.clone(), Tol::witness())
+}
+
 /// A body answer: its volume against the closed form `want`, relative
 /// to `scale`; `shells` shells; tier 3; the census against its own
 /// contacts.
@@ -143,7 +148,10 @@ fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let tol = Tol::witness();
     let scale = m.collar_volume().max(m.shaft_volume());
     let (cs, sc) = (wall_decls_at(c, s, m.r), wall_decls_at(s, c, m.r));
-    let op = |op, a, b, d| topo::boolean_op_with(op, a, b, d, topo::SweepStrategy::Realized, tol);
+    let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
+    let op = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>, d| {
+        topo::boolean_op_with(op, a, b, d, topo::SweepStrategy::Realized, tol)
+    };
     for (order, a, b, d) in [("collar ∩ shaft", c, s, &cs), ("shaft ∩ collar", s, c, &sc)] {
         match op(BooleanOp::Intersect, a, b, d) {
             Ok(BooleanResult::Empty) => {}
@@ -172,6 +180,7 @@ fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
 fn unions(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let tol = Tol::witness();
     let want = m.collar_volume() + m.shaft_volume();
+    let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
     for (order, a, b) in [("collar ∪ shaft", c, s), ("shaft ∪ collar", s, c)] {
         holds(
             topo::union_with(a, b, &wall_decls_at(a, b, m.r), tol),
@@ -291,8 +300,12 @@ fn ball(r: f64) -> Body<f64> {
 /// The ball of radius `outer` with a ball of radius `r` taken out of
 /// its middle: one outer shell and one cavity.
 fn hollow(r: f64, outer: f64) -> Body<f64> {
-    match topo::subtract(&ball(outer), &ball(r), Tol::witness()) {
-        Ok(BooleanResult::Body(bb)) => bb.body,
+    match topo::subtract(
+        &fin("the outer ball", &ball(outer)),
+        &fin("the inner ball", &ball(r)),
+        Tol::witness(),
+    ) {
+        Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("the hollow ball builds: {other:?}"),
     }
 }
@@ -315,6 +328,7 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
             let tag = format!("ball {r} in a cavity of a ball {outer}, pose {pose_name}");
             let (h, b) = (placed(&hollow(r, outer), &pose), placed(&ball(r), &pose));
             let (hb, bh) = (sphere_decls(&h, &b, r), sphere_decls(&b, &h, r));
+            let (h, b) = (fin("the hollow", &h), fin("the ball", &b));
             let scale = ball_volume(outer);
             for (order, x, y, d) in [("hollow", &h, &b, &hb), ("ball", &b, &h, &bh)] {
                 holds(
@@ -357,7 +371,10 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
 #[test]
 fn a_cavity_with_one_sphere_pair_undeclared_keeps_the_sphere_refusal() {
     let tol = Tol::witness();
-    let (h, b) = (hollow(0.5, 1.0), ball(0.5));
+    let (h, b) = (
+        fin("the hollow", &hollow(0.5, 1.0)),
+        fin("the ball", &ball(0.5)),
+    );
     let (fh, fb) = (spheres_at(&h, 0.5), spheres_at(&b, 0.5));
     assert_eq!((fh.len(), fb.len()), (2, 2), "two sphere faces each");
     for (oh, ob) in [(0, 1), (1, 0)] {
@@ -405,12 +422,17 @@ fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
             tol,
         )
         .unwrap();
-        let two = match topo::union(&peg_of(0.5, 0.0, 0.5, 2.0), &pebble, tol) {
+        let two = match topo::union(
+            &fin("the shaft", &peg_of(0.5, 0.0, 0.5, 2.0)),
+            &fin("the pebble", &pebble),
+            tol,
+        ) {
             Ok(BooleanResult::Body(bb)) => placed(&bb.body, &pose),
             other => panic!("{tag}: shaft and pebble: {other:?}"),
         };
         assert_eq!(two.shells().count(), 2, "{tag}: two solids");
         let (cb, bc) = (wall_decls_at(&c, &two, 0.5), wall_decls_at(&two, &c, 0.5));
+        let (c, two) = (fin("the collar", &c), fin("shaft and pebble", &two));
         let scale = collar_volume;
         holds(
             topo::intersect_with(&c, &two, &cb, tol),

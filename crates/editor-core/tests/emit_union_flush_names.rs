@@ -603,6 +603,22 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                 );
                 member_vertices_hold(&ev, union, &at);
                 seam_sides_hold(&ev, union, &at);
+                // `U1` records its own touch and passes 3′. The union
+                // over it drops `U1`'s records, so its value ships the
+                // touch undeclared, which 3′ refuses and the door (tier 3
+                // only, the census parked) does not; pinned as it stands
+                // (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+                match crate::docm7_union_declare::census_of(&ev, union) {
+                    Ok(()) => assert!(union == u1, "{at}: the top union passes 3′"),
+                    Err(errors) => assert!(
+                        union == top
+                            && errors.iter().all(|e| matches!(
+                                e,
+                                topo::ValidationError::UndeclaredContact { .. }
+                            )),
+                        "{at}: 3′ refuses only the dropped touch: {errors:?}"
+                    ),
+                }
             }
             fused += 1;
         }

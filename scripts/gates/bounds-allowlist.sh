@@ -478,8 +478,14 @@ BOUNDS_ALLOWLIST=(
   # `face_boundary_meets`, the walk the plane arm's whole-circle
   # membership takes. 19 + 1 = 20. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
-  # compound bound.
-  'crates/topo/src/boolean/ops.rs 20 2026-07-29 (M5 PR 8), the driver amendment'
+  # compound bound. Four more carry the result gate's box read (the
+  # finished-body door, PR 3987): `gate`, which sorts the result into
+  # pieces through each face's certified box (`boxes::face_box`) before
+  # tier 3 finishes it; `fallback` and `finish_fallback`, the two
+  # fallback sites that build a result and hand it to `gate`; and
+  # `boolean_door`, the front door's body, split from `boolean_op_with`
+  # so the door can time and meter the call around it. 20 + 4 = 24.
+  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -504,7 +510,7 @@ BOUNDS_ALLOWLIST=(
   # in this file already reaches through, ratified for the same
   # seam. The added occurrence is the caller spelling that header,
   # not a new bracket read: nothing in `wire_shell` reads a bound.
-  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is

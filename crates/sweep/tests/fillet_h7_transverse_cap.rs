@@ -36,7 +36,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, revolved_about_y,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
     rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
@@ -546,7 +546,7 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
             .validate(tol())
             .unwrap();
-        extrude(
+        let body = extrude(
             &profile,
             Extrusion::Distance {
                 depth: 1.0,
@@ -555,7 +555,8 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
             tol(),
         )
         .unwrap()
-        .body
+        .body;
+        finished("the cylinder", body, tol())
     };
     let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
     assert!(

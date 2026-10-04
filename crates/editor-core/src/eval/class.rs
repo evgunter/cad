@@ -95,6 +95,8 @@ pub enum NodeErrorClass {
     EmptyOperand,
     /// [`NodeErrorKind::ProductOperand`].
     ProductOperand,
+    /// [`NodeErrorKind::UnfinishedOperand`].
+    UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
@@ -328,6 +330,7 @@ impl NodeErrorKind {
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
+            Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -551,6 +554,7 @@ mod tests {
         WrongOperand,
         EmptyOperand,
         ProductOperand,
+        UnfinishedOperand,
         EmptyHalf,
         InstanceOutOfRange,
         DegenerateDirection,
@@ -805,6 +809,12 @@ mod tests {
             C::ProductOperand => K::ProductOperand {
                 input: n(3),
                 parts: 2,
+            },
+            C::UnfinishedOperand => K::UnfinishedOperand {
+                input: n(3),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
             },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),

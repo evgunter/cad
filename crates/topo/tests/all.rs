@@ -131,8 +131,6 @@ mod issue86_double_subtract;
 mod issue93_nested_islands;
 #[path = "join1_r2_topo_probes.rs"]
 mod join1_r2_topo_probes;
-#[path = "join_pierce_strut_facing.rs"]
-mod join_pierce_strut_facing;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
@@ -215,6 +213,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "result_gate_sites.rs"]
+mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]

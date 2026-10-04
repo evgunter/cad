@@ -34,12 +34,13 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanError, SolidContainment};
+use topo::{AtRestBody, Body, BooleanError, SolidContainment};
 
 /// A ball of radius `r` centred at `c`, poled along `y`: its seam
 /// meridians lie in the plane `z = c.z`.
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
+fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -r), 1.0),
         (Point2::new(0.0, r), 0.0),
@@ -54,7 +55,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
+    let placed = topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap();
+    finished("the ball", placed, Tol::witness())
 }
 
 /// A ball of radius `r` centred at `c`, poled along `z`: its seam
@@ -63,24 +65,26 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 /// torus residual bounds exactly; a `y`-poled ball's meridians pass
 /// through that axis, where the bound is honestly infinite and the
 /// circle rung refuses before the no-crossings path is reached.
-fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
+fn ball_poled_z(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let turn = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x(), PI / 2.0);
     let placed = topo::transform_rigid(&ball, &turn, Tol::witness()).unwrap();
-    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
+    let placed = topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap();
+    finished("the z-poled ball", placed, Tol::witness())
 }
 
 /// The donut: `R = 2`, `r = 1/2` about `y`. Its seam meridians lie in
 /// the plane `z = 0`, and its two parallels at `y = ±1/2`.
-fn donut() -> Body<f64> {
-    revolve(
+fn donut() -> AtRestBody<f64> {
+    let donut = revolve(
         &validated(vec![revolve_common::donut_profile()]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the donut", donut, Tol::witness())
 }
 
 /// `2π²Rr²`.
@@ -111,8 +115,8 @@ fn pis(b: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// The union's one body, its volume against `want`, and each named
 /// point's containment.
 fn union_answers(
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     want: f64,
     points: &[(Point3<f64>, SolidContainment)],
     what: &str,

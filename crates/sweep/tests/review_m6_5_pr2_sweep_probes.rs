@@ -10,9 +10,9 @@
 
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations};
+use topo::{AtRestBody, Body, BooleanDeclarations};
 
 /// The unit-side box with its low corner at `x0` on the x axis — the
 /// `x0 + l` arithmetic done once, so a second placement cannot get it
@@ -21,12 +21,13 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
     brick((x0, x0 + l), (0.0, l), (0.0, l), Tol::witness())
 }
 
-fn filleted_die() -> Body<f64> {
+fn filleted_die() -> AtRestBody<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube0, &edges, 0.125, Tol::witness())
+    let die = fillet_edges(&cube0, &edges, 0.125, Tol::witness())
         .expect("the fillet")
-        .body
+        .body;
+    finished("the filleted die", die, Tol::witness())
 }
 
 /// X4: **a far box on the die's own plane carriers.** Each fillet
@@ -41,7 +42,7 @@ fn filleted_die() -> Body<f64> {
 fn x4_disjoint_boolean_over_a_filleted_body_builds_past_the_plane_touches() {
     use core::f64::consts::PI;
     let a = filleted_die();
-    let far = box_at(4.0, 1.0);
+    let far = finished("the far box", box_at(4.0, 1.0), Tol::witness());
     let (r, side) = (0.125_f64, 0.75_f64);
     let v_die = side.powi(3)
         + 6.0 * side.powi(2) * r
@@ -100,6 +101,7 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
         Tol::witness(),
     )
     .unwrap();
+    let far = finished("the far box", far, Tol::witness());
     let out = boolean_op_with(
         BooleanOp::Union,
         &a,

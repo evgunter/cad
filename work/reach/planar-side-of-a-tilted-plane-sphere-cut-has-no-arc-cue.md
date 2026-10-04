@@ -59,3 +59,14 @@ it — `boolean::join` would join the wall side first), with the
 between-arc test re-stated against the same cue and the window
 computed only where a monotone section reads it. The three poses
 above, under every op, against their cap closed forms, are its rows.
+
+## 2026-10-03 — a second reading, from PR 3987's dual review (REACH)
+
+The review's end-to-end probe (lane `reach-dual3987-r1`,
+`probes/review3987_e2e.rs` on `analysis/reach-dual/3987-r1`) cuts a box
+by a ball revolved about `y` (`ball_y`) under a 0.7 rad skew rotation:
+with the ball's polar axis tilted against the cut face, the op refuses
+`SectionNotPolar` (`crates/topo/src/chord_join.rs`), typed, as it does
+on main. With the pole normal to the cut face every op builds and
+matches the closed-form cap volume. Whether it is this item's site or a
+neighbour of it is not established.
