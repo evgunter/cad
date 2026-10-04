@@ -19,8 +19,7 @@
 //!
 //! **Tolerance shape.** Volume slack derives from the resolved band;
 //! the in-band escalation row PLACES its fixture from the resolved
-//! band's own [zero, escalate] window, so the row is honest at every ε
-//! (the FitSampleBudget-precedent multi-ε discipline).
+//! band's own [zero, escalate] window, so the row is honest at every ε.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

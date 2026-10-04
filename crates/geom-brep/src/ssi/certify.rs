@@ -1224,24 +1224,34 @@ pub(crate) struct RefusedSpan {
 }
 
 /// A certificate's refusal, with where on the carrier limbs 1 and 2
-/// refused it: the parameter intervals whose residual did not clear the
-/// band's zero, a limb-1 sample as a point interval. Empty for every
-/// other refusal, which no density of samples answers.
+/// refused it.
 #[derive(Debug)]
 pub(crate) struct Located {
     /// The refusal, as [`certify_branch`] reports it.
     pub(crate) error: SsiError,
+    /// Where it lies and what its limb read, for a refusal of limb 1 or
+    /// 2 on a margin that is a number; `None` for every other refusal,
+    /// which no density of samples answers.
+    pub(crate) at: Option<Box<Spans>>,
+}
+
+/// A located refusal: its limb, what the limb read, and the parameter
+/// intervals whose residual did not clear the band's zero, a limb-1
+/// sample as a point interval.
+#[derive(Debug)]
+pub(crate) struct Spans {
+    /// The limb that refused.
+    pub(crate) limb: SsiLimb,
+    /// What it read.
+    pub(crate) margin: super::RoundMargin,
     /// The carrier's parameter intervals the refusal lies in.
-    pub(crate) at: Vec<RefusedSpan>,
+    pub(crate) spans: Vec<RefusedSpan>,
 }
 
 /// A refusal the certificate does not locate.
 impl From<SsiError> for Located {
     fn from(error: SsiError) -> Self {
-        Self {
-            error,
-            at: Vec::new(),
-        }
+        Self { error, at: None }
     }
 }
 
@@ -1258,8 +1268,18 @@ pub(crate) fn certify_located(
     scale: TubeScale<f64>,
     band: Band,
 ) -> Result<SsiCertificate<f64>, Located> {
-    let mut at = Vec::new();
-    certify_branch(carrier, lane, scale, band, &mut at).map_err(|error| Located { error, at })
+    let mut spans = Vec::new();
+    certify_branch(carrier, lane, scale, band, &mut spans).map_err(|error| {
+        let at = match super::refine::limb_reading(&error) {
+            Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
+                limb,
+                margin,
+                spans,
+            })),
+            _ => None,
+        };
+        Located { error, at }
+    })
 }
 
 /// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in
@@ -1288,7 +1308,7 @@ pub(crate) fn certify_located(
 /// certify at.
 ///
 /// A limb-1 or limb-2 refusal is located on the carrier in `at`
-/// ([`RefusedSpan`]), for [`super::march::refine_by_certificate`].
+/// ([`RefusedSpan`]), for [`super::refine::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
@@ -2195,10 +2215,6 @@ mod tests {
             "{:?}",
             refused.error
         );
-        assert!(
-            refused.at.is_empty(),
-            "limb 3 was located: {:?}",
-            refused.at
-        );
+        assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
     }
 }
