@@ -374,7 +374,7 @@ impl<'a> Ends<'a> {
         else {
             return Ok((fwd.states, BranchEnd::Closed));
         };
-        let bwd = run(-1.0, self.ctx.rest(&fwd.states))?;
+        let bwd = run(-1.0, self.ctx.rest(&fwd.states)).map_err(|e| self.ctx.whole_budget(e))?;
         let RectEnd::Left {
             inside: b_in,
             outside: b_out,

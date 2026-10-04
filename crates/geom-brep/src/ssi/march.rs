@@ -832,6 +832,19 @@ impl<const N: usize> MarchContext<N> {
         }
     }
 
+    /// `e` from a march on [`Self::rest`], its spent budget named as the
+    /// branch's, this context's.
+    pub(crate) fn whole_budget(&self, e: SsiError) -> SsiError {
+        match e {
+            SsiError::StepBudget { mode, bound, .. } => SsiError::StepBudget {
+                mode,
+                budget: self.max_steps,
+                bound,
+            },
+            e => e,
+        }
+    }
+
     /// The domain box's diagonal, in state units: the longest step the
     /// stepper takes. The trace ends at its first exit, so a longer step
     /// buys nothing, and it costs the trace twice. Landed far outside the
@@ -1545,7 +1558,8 @@ where
         -1.0,
         band,
         cap,
-    )?;
+    )
+    .map_err(|e| ctx.whole_budget(e))?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half
@@ -1670,6 +1684,41 @@ pub(crate) mod tests {
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
             self.arm
+        }
+    }
+
+    /// **A branch marched both ways from its seed spends one step
+    /// budget.** The idealized stepper crosses the unit context's domain
+    /// from its centre in about a thousand steps each way. Under a budget
+    /// that holds each half but not the two together, the second half
+    /// spends what the first left and refuses, naming the branch's budget.
+    #[test]
+    fn a_branch_marched_both_ways_spends_one_step_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |max_steps| {
+            super::march_both(
+                &sys,
+                [0.0, 0.0, 0.0],
+                MarchContext {
+                    max_steps,
+                    ..unit_ctx(band)
+                },
+                StepperMode::Idealized,
+                band,
+            )
+        };
+        let steps = run(4096).unwrap().states.len() - 1;
+        assert!(
+            (1800..2200).contains(&steps),
+            "about a thousand steps each way: {steps}"
+        );
+        let budget = steps * 3 / 4;
+        match run(budget) {
+            Err(SsiError::StepBudget { budget: named, .. }) => {
+                assert_eq!(named, budget, "the branch's budget, named");
+            }
+            other => panic!("expected the step budget at {budget} steps, got {other:?}"),
         }
     }
 
