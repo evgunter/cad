@@ -868,10 +868,18 @@ fn run_at<T: editor_core::EvalScalar>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
+///
+/// Re-pinned at all three rows when declaring a variable began minting
+/// its id on the document's chain (INTENT-VARS-1 PR 2): every corpus
+/// document declares a variable, so every node minted after a declare
+/// was renumbered and the digest, which feeds ids, moved. No pose
+/// did: this file's id-free rows — each pose against the `f64` solve at
+/// the box's corners, each tangent against its central difference —
+/// held across the change untouched.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x34d3_06c3_11f3_2995),
-    (1e-6, 0x6cc1_89f7_e1bf_79fd),
-    (1e-12, 0x3daf_7b67_cacc_631f),
+    (1e-9, 0x6ba3_45dd_1e2f_f732),
+    (1e-6, 0x6813_bd5d_feb8_4201),
+    (1e-12, 0x9956_2017_dd54_82c2),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
