@@ -1,0 +1,282 @@
+//! Reviewer r1's execution probes for INTENT-VARS-1 PR 3.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
+use crate::corpus::{body_of, failures};
+use crate::fixture::resolver::PartStore;
+use crate::fixture::{insert, len, on_frame, prism_edges, scl, square};
+use editor_core::{
+    CancelToken, Dimension, DocEdit, DocumentId, EditError, EvalError, EvalOptions, Evaluation,
+    Expr, ExtrudeSide, FreeVar, Maintenance, Node, NodeErrorKind, NodeResult, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, VarDef, VarName, apply, evaluate, inline,
+    load, save, split,
+};
+use geom_core::Tol;
+
+fn n(s: &'static str) -> VarName {
+    VarName::from_static(s)
+}
+fn named(s: &'static str) -> Expr {
+    Expr::named(n(s), Dimension::Length)
+}
+fn try_step(
+    d: &ProfileDoc,
+    e: DocEdit<ProfileProgram>,
+) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
+    apply(d, &e, Tol::witness(), &editor_core::RefusingReach)
+}
+fn step(d: &ProfileDoc, e: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {
+    try_step(d, e).unwrap_or_else(|e| panic!("refused: {e}"))
+}
+fn declare(d: &ProfileDoc, s: &'static str, v: f64) -> ProfileDoc {
+    step(
+        d,
+        DocEdit::DeclareVar {
+            name: n(s),
+            def: VarDef::Free(FreeVar::continuous(Dimension::Length, v)),
+        },
+    )
+    .doc
+}
+fn ev(d: &ProfileDoc, prev: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+    evaluate::<f64>(d, prev, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+}
+fn cube(d: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (d, p) = on_frame(d, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(cx, 0.0, 0.5)]);
+    insert(d, Node::Extrude { profile: p, distance: len(1.0), side: ExtrudeSide::Along })
+}
+fn blended(d: ProfileDoc, cx: f64, r: Expr) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (d, c) = cube(d, cx);
+    let edges = prism_edges(&d, c, 4);
+    let (d, b) = insert(d, Node::fillet(c, r, edges));
+    (d, c, b)
+}
+fn base(tag: &str) -> ProfileDoc {
+    ProfileDoc::empty(DocumentId::derive(tag), Tol::witness())
+}
+fn cyl_radius(body: &topo::Body<f64>) -> f64 {
+    for f in topo::query::all_faces(body) {
+        let s = body.get_face(f).unwrap().surface;
+        if let Some(geom::Surface::Cylinder { radius, .. }) = body.get_surface(s) {
+            return *radius;
+        }
+    }
+    panic!("no cylinder")
+}
+
+/// P-A: incremental evaluation after DeleteVar refuses the reader (the
+/// shipped row evaluates from scratch only).
+#[test]
+fn p_a_incremental_after_delete() {
+    let d = declare(&base("r1-a"), "w", 0.125);
+    let (d, _, b) = blended(d, 0.0, named("w"));
+    let e0 = ev(&d, None);
+    assert!(failures(&e0).is_empty());
+    let old = d.var_named("w").unwrap();
+    let d2 = step(&d, DocEdit::DeleteVar { var: n("w").into() }).doc;
+    let e1 = ev(&d2, Some(&e0));
+    match e1.result(b) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            &e.kind,
+            NodeErrorKind::Expr { source: EvalError::UnresolvedVar { var }, .. } if *var == old
+        )),
+        other => panic!("stale memo served? {other:?}"),
+    }
+    // Re-declare: the reader stays on the dead id, incrementally too.
+    let d3 = declare(&d2, "w", 0.125);
+    let e2 = ev(&d3, Some(&e1));
+    assert!(matches!(e2.result(b), Some(NodeResult::Failed(_))));
+}
+
+/// P-B: rename then a value change recomputes and serves the new value.
+#[test]
+fn p_b_rename_then_value() {
+    let d = declare(&base("r1-b"), "w", 0.125);
+    let (d, _, b) = blended(d, 0.0, named("w"));
+    let e0 = ev(&d, None);
+    let d = step(&d, DocEdit::RenameVar { var: n("w").into(), name: Some(n("v")) }).doc;
+    let e1 = ev(&d, Some(&e0));
+    assert_eq!(e1.recomputed, 0);
+    let d = step(
+        &d,
+        DocEdit::SetVarValue { var: n("v").into(), value: editor_core::FreeValue::Continuous(0.25) },
+    )
+    .doc;
+    let e2 = ev(&d, Some(&e1));
+    assert!(e2.recomputed > 0);
+    assert_eq!(cyl_radius(body_of(&e2, b)), 0.25);
+    assert_eq!(cyl_radius(body_of(&ev(&d, None), b)), 0.25);
+}
+
+/// P-C: deleting the only reader of an anonymous variable removes it.
+#[test]
+fn p_c_delete_node_collects_anonymous() {
+    let d = declare(&base("r1-c"), "w", 0.125);
+    let (d, _, b) = blended(d, 0.0, named("w"));
+    let w = d.var_named("w").unwrap();
+    let d = step(&d, DocEdit::RenameVar { var: w.into(), name: None }).doc;
+    let out = step(&d, DocEdit::DeleteNode { id: b });
+    assert!(out.maintenance.iter().any(|m| matches!(m, Maintenance::AnonymousVarRemoved { var } if var.id() == w)), "{:?}", out.maintenance);
+    assert!(out.doc.var(w).is_none() && out.doc.var_order().is_empty());
+    let text = save(&out.doc, &[], Tol::witness()).unwrap();
+    assert!(load(&text, Tol::witness()).unwrap().doc.bit_eq(&out.doc));
+    // Two readers: replacing one keeps it.
+    let d = declare(&base("r1-c2"), "w", 0.125);
+    let (d, _, b1) = blended(d, 0.0, named("w"));
+    let (d, _, _b2) = blended(d, 4.0, named("w"));
+    let w = d.var_named("w").unwrap();
+    let d = step(&d, DocEdit::RenameVar { var: w.into(), name: None }).doc;
+    let out = step(&d, DocEdit::SetParam { node: b1, slot: SlotId::Radius, expr: len(0.125) });
+    assert!(out.maintenance.is_empty() && out.doc.var(w).is_some());
+}
+
+/// P-D: memoized full-range-step refusal text follows a rename.
+#[test]
+fn p_d_memo_refusal_text_follows_rename() {
+    let d = step(&base("r1-d"), DocEdit::DeclareVar { name: n("th_old"), def: VarDef::Free(FreeVar::continuous(Dimension::Angle, std::f64::consts::TAU)) }).doc;
+    let (d, axis) = insert(d, Node::Datum(editor_core::Datum::Axis { origin: [len(0.0), len(0.0), len(0.0)], direction: [scl(0.0), scl(0.0), scl(1.0)] }));
+    let (d, c) = cube(d, 4.0);
+    let (d, p) = insert(
+        d,
+        Node::Pattern {
+            input: c,
+            count: Expr::count(3),
+            kind: PatternKind::Circular { axis, step: Expr::named(n("th_old"), Dimension::Angle) },
+        },
+    );
+    let e0 = ev(&d, None);
+    let said0 = match e0.result(p) {
+        Some(NodeResult::Failed(e)) => e.spoken(&d),
+        o => panic!("{o:?}"),
+    };
+    let d2 = step(&d, DocEdit::RenameVar { var: n("th_old").into(), name: Some(n("th_new")) }).doc;
+    let e1 = ev(&d2, Some(&e0));
+    let (said1, plain) = match e1.result(p) {
+        Some(NodeResult::Failed(e)) => (e.spoken(&d2), e.to_string()),
+        o => panic!("{o:?}"),
+    };
+    eprintln!("BEFORE: {said0}\nAFTER: {said1}\nPLAIN: {plain}");
+    assert!(said0.contains("th_old"), "{said0}");
+    assert!(said1.contains("th_new") && !said1.contains("th_old"), "{said1}");
+}
+
+/// P-F: SetExpression on a sub-path of a slot that also holds a dead
+/// reader: observed behaviour.
+#[test]
+fn p_f_set_expression_beside_a_dead_reader() {
+    let d = declare(&base("r1-f"), "w", 0.125);
+    let (d, _, b) = blended(d, 0.0, Expr::add(named("w"), len(0.0)).unwrap());
+    let d = step(&d, DocEdit::DeleteVar { var: n("w").into() }).doc;
+    let r = try_step(
+        &d,
+        DocEdit::SetExpression {
+            path: editor_core::ExprPath { node: b, slot: SlotId::Radius, path: vec![1] },
+            expr: len(0.01),
+        },
+    );
+    eprintln!("P-F: {:?}", r.as_ref().map(|_| ()).map_err(|e| e.to_string()));
+}
+
+/// P-H: replay of an authored log with a rename and a re-declare between readers.
+#[test]
+fn p_h_replay_with_rename_and_redeclare() {
+    let mut log: Vec<DocEdit<ProfileProgram>> = Vec::new();
+    let mut d = base("r1-h");
+    let mut push = |d: &mut ProfileDoc, e: DocEdit<ProfileProgram>| {
+        *d = step(d, e.clone()).doc;
+        log.push(e);
+    };
+    push(&mut d, DocEdit::DeclareVar { name: n("w"), def: VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)) });
+    let (d1, _) = cube(d.clone(), 0.0);
+    let frame = d1.order()[0];
+    push(&mut d, DocEdit::InsertNode { node: Box::new(d1.node(frame).unwrap().clone()) });
+    push(&mut d, DocEdit::InsertNode { node: Box::new(Node::Profile(crate::fixture::desc(frame, vec![square(0.0, 0.0, 0.5)]))) });
+    let profile = *d.order().last().unwrap();
+    push(&mut d, DocEdit::InsertNode { node: Box::new(Node::Extrude { profile, side: ExtrudeSide::Along, distance: named("w") }) });
+    push(&mut d, DocEdit::RenameVar { var: n("w").into(), name: Some(n("v")) });
+    push(&mut d, DocEdit::DeclareVar { name: n("w"), def: VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)) });
+    let last = *d.order().last().unwrap();
+    let Some(Node::Extrude { profile, side, .. }) = d.node(last).cloned() else { panic!() };
+    push(&mut d, DocEdit::InsertNode { node: Box::new(Node::Extrude { profile, side, distance: named("w") }) });
+    push(&mut d, DocEdit::DeleteVar { var: n("v").into() });
+    let replayed = ProfileDoc::replay(d.id(), &log, Tol::witness()).expect("replays");
+    assert!(replayed.bit_eq(&d));
+    let text = save(&base("r1-h"), &log, Tol::witness()).expect("saves with the log");
+    let loaded = load(&text, Tol::witness()).expect("loads");
+    eprintln!("P-H loaded-doc bit_eq final: {}", loaded.doc.bit_eq(&d));
+}
+
+/// P-O: inline's happy path re-points readers at host ids; merge by name
+/// when bit_eq; split → inline round trip.
+#[test]
+fn p_o_inline_carries_and_merges() {
+    let part = declare(&base("r1-o-part"), "d", 1.0);
+    let (part, p) = on_frame(part, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, 0.5)]);
+    let (part, _) = insert(part, Node::Extrude { profile: p, distance: named("d"), side: ExtrudeSide::Along });
+    for host_has in [None, Some(1.0)] {
+        let mut store = PartStore::default();
+        let r = store.insert(part.clone(), Tol::witness());
+        let mut host = base("r1-o-host");
+        if let Some(v) = host_has {
+            host = declare(&host, "zz", 3.0);
+            host = declare(&host, "d", v);
+        }
+        let (host, inst) = insert(host, Node::instantiate_part(r));
+        let out = inline(&host, inst, &(Arc::new(store) as Arc<dyn editor_core::PartResolver>), Tol::witness()).expect("inlines");
+        let hd = out.doc.var_named("d").unwrap();
+        if host_has.is_some() {
+            assert_eq!(Some(hd), host.var_named("d"), "merged");
+        }
+        let readers = out.doc.var_readers(hd);
+        assert_eq!(readers.len(), 1, "one carried reader on the host's id");
+        assert_eq!(out.doc.vars().len(), out.doc.var_order().len());
+        let text = save(&out.doc, &[], Tol::witness()).unwrap();
+        assert!(load(&text, Tol::witness()).unwrap().doc.bit_eq(&out.doc));
+        assert!(failures(&ev(&out.doc, None)).is_empty());
+    }
+    // Split keeps var_order consistent on both sides.
+    let d = declare(&base("r1-o-split"), "a", 1.0);
+    let d = declare(&d, "b", 1.0);
+    let (d, p) = on_frame(d, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, 0.5)]);
+    let frame = d.order()[d.order().len() - 2];
+    let (d, x) = insert(d, Node::Extrude { profile: p, distance: named("b"), side: ExtrudeSide::Along });
+    let out = split(&d, &BTreeSet::from([frame, p, x]), DocumentId::derive("r1-o-part2"), Tol::witness(), None).expect("splits");
+    for doc in [&out.part, &out.remainder] {
+        assert_eq!(doc.vars().len(), doc.var_order().len());
+        let text = save(doc, &[], Tol::witness()).unwrap();
+        load(&text, Tol::witness()).expect("each side loads");
+    }
+}
+
+/// P-I: `Recording::insert` (the `apply_insert` path) lowers a named
+/// node and mints the id `apply` mints.
+#[test]
+fn p_i_recording_insert_lowers() {
+    let d = declare(&base("r1-i"), "w", 1.0);
+    let (d, p) = on_frame(d, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, 0.5)]);
+    let node = Node::Extrude { profile: p, distance: named("w"), side: ExtrudeSide::Along };
+    let by_apply = step(&d, DocEdit::InsertNode { node: Box::new(node.clone()) });
+    let mut rec = editor_core::Recording::start(&d, Tol::witness(), &editor_core::RefusingReach);
+    let id = rec.insert(node).unwrap_or_else(|e| panic!("Recording::insert refused: {e}"));
+    assert_eq!(Some(id), by_apply.record.minted);
+    assert!(rec.doc().bit_eq(&by_apply.doc));
+}
+
+/// P-R: a refusal naming a variable, re-spoken after a rename, still
+/// says the old name (nodes in the same refusal are re-spoken).
+#[test]
+fn p_r_respoken_keeps_the_old_variable_name() {
+    let d = step(&base("r1-r"), DocEdit::DeclareVar { name: n("ang_old"), def: VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)) }).doc;
+    let (d, _, b) = blended(d, 0.0, len(0.125));
+    let err = try_step(&d, DocEdit::SetParam { node: b, slot: SlotId::Radius, expr: Expr::var(d.var_named("ang_old").unwrap(), Dimension::Length) })
+        .err()
+        .expect("a kind mismatch refuses");
+    let d2 = step(&d, DocEdit::RenameVar { var: n("ang_old").into(), name: Some(n("ang_new")) }).doc;
+    let d2 = step(&d2, DocEdit::SetLabel { node: b, label: Some(editor_core::Label::new("blend").unwrap()) }).doc;
+    let again = err.respoken(&d2).to_string();
+    eprintln!("P-R ORIGINAL: {err}\nP-R RESPOKEN: {again}");
+    assert!(again.contains("blend"), "the node is re-spoken: {again}");
+    assert!(again.contains("ang_new"), "the variable is re-spoken: {again}");
+}
