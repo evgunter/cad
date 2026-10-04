@@ -198,8 +198,9 @@ domain. Every root is settled onto both surfaces, or refuses
 on this lane, and between them the simplest candidate is tried first:
 from a crossing, the Hermite cubic to the nearest crossing not yet
 used, through their tangents, one span exact at both ends, its two
-states taking the march's transversality decision. Where the
-certificate refuses it, a march runs from the crossing to the unused
+states taking the march's transversality decision. Where anything
+refuses it (that decision at either end, the march tolerance, or the
+certificate), a march runs from the crossing to the unused
 crossing on the side it leaves, the one nearest where its last step
 meets that side, its step capped at a fifth of the distance to the
 nearest crossing not yet used, so at most a fifth of the branch's; a
@@ -248,8 +249,15 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations (the transversality band along the trace) refuse toward
-C7; Hoffmann §6.5's tracing through singular points is deliberately not
+configurations refuse toward C7, each candidate by what it reads: a
+marched branch by the transversality decision at every state, `sin θ`
+levered by the smaller of the operands' lever arm (on a wall, its
+chart's) and the extent; a Hermite branch by that decision at its two
+ends, and between them by limb 3's tube, whose clearance is levered by
+the extent alone. The levers differ where a wall's chart bends and its
+surface does not
+(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
 

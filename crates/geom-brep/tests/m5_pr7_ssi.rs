@@ -5124,7 +5124,10 @@ fn close_crossings_domain() -> SsiDomain {
 /// of a fifth of that distance: 25 steps up its metre. No curvature
 /// rung binds, and the certificate, asked, refuses none of the samples:
 /// the marched branch certifies on the march's 26 states at every ε,
-/// and the second branch is one Hermite span.
+/// and the second branch is one Hermite span. That a straight branch
+/// takes the fewest samples its fit needs now rests on the Hermite span
+/// (`a_straight_branch_is_one_hermite_span_at_any_length`); this row
+/// pins that a marched one is not refined past the march's states.
 #[test]
 fn a_straight_marched_branch_takes_only_the_samples_its_march_gives() {
     let at = format!("ε {:e}", band().zero());
@@ -5143,7 +5146,7 @@ fn a_straight_marched_branch_takes_only_the_samples_its_march_gives() {
     assert!(one_cubic_span(&at, second), "{at}: the second branch");
 }
 
-/// **A branch whose last marched state lands a hair inside the wall
+/// **A marched branch whose last state lands δ short of the far side
 /// certifies.** A march ends at the crossing the boundary pass
 /// certified, and a last state nearer that crossing than half its own
 /// step gives way to it (`close_at`), so the fit never reads a final
@@ -5155,9 +5158,11 @@ fn a_straight_marched_branch_takes_only_the_samples_its_march_gives() {
 /// 0.2 m apart, so the first branch's Hermite, to the other branch's
 /// crossing, is refused, and the branch is cut into steps of 0.04 m; at
 /// a height of `0.96 + δ` its 24th state lands δ short of the top.
-/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε.
+/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε. A straight
+/// branch whose fifth state lands on the far edge within rounding is
+/// one Hermite span, the Hermite tried first, and reaches no `close_at`.
 #[test]
-fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
+fn a_marched_branch_whose_last_state_lands_short_of_the_far_side_certifies() {
     for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
         let at = format!("δ = {delta:e} at ε {:e}", band().zero());
         let h = 0.96 + delta;
@@ -5293,4 +5298,96 @@ fn a_marched_door_reaches_an_empty_tube_ladder() {
     let out = ssi::plane_nurbs_ssi(&plane, &flat_wall(w, w), dom(1e-7), b)
         .unwrap_or_else(|e| panic!("extent 1e-7: {e}"));
     assert_eq!(out.branches.len(), 1, "extent 1e-7: {out:?}");
+}
+
+/// The flat wall `z = α·x` over `y ∈ [0, ½]`, its `u` lines parameterised
+/// unevenly about the middle: `x = X·(s − ½) + X·κ·4t(1 − t)·2s(s − ½)²`
+/// in the chart `(s, t)`, cubic in `s` and quadratic in `t`. The surface
+/// is the plane; only its chart bends, and most at `t = ½`.
+fn warped_flat_wall(alpha: f64, width: f64, kappa: f64) -> NurbsSurface<f64> {
+    // Bernstein coefficients: `s − ½` and `2s(s − ½)²` in `s`, `4t(1 − t)`
+    // in `t`; a tensor product's are the products of its factors'.
+    let lin = [-0.5, -1.0 / 6.0, 1.0 / 6.0, 0.5];
+    let bend = [0.0, 1.0 / 6.0, -1.0 / 3.0, 0.5];
+    let hump = [0.0, 2.0, 0.0];
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(12);
+    for i in 0..4 {
+        for (j, h) in hump.iter().enumerate() {
+            let x = width * lin[i] + width * kappa * h * bend[i];
+            control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+        }
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap()
+}
+
+/// **A flat wall whose chart bends answers as the plane it is.** The
+/// plane `z = 0` cuts [`warped_flat_wall`] in the line `x = z = 0`, from
+/// the `v = 0` side to the `v = 1` side, at the shallow angle `α`. The
+/// march levers `sin θ` by the wall's chart lever arm (chart speed² over
+/// its second derivative), which the uneven `u` lines shrink mid-branch
+/// to where the transversality is too close to call; the line is
+/// straight, so the Hermite candidate is the segment itself, its two
+/// ends' decisions clear, and the certificate takes it, its tube levered
+/// by the extent. Five warps, each one branch on the line, one cubic
+/// span, at ε 1e-9 and 1e-12. At 1e-6 the angle `α` is itself inside the
+/// band.
+#[test]
+fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
+    let eps = band().zero();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for (alpha, width, kappa) in [
+        (1e-6, 0.04, 4.0),
+        (1e-6, 0.04, 2.0),
+        (1e-6, 0.06, 4.0),
+        (2e-6, 0.03, 4.0),
+        (1e-6, 0.1, 4.0),
+    ] {
+        let at = format!("α {alpha:e}, X {width}, κ {kappa} at ε {eps:e}");
+        let r = ssi::plane_nurbs_ssi(&plane, &warped_flat_wall(alpha, width, kappa), dom, band());
+        let out = match r {
+            Ok(out) => out,
+            Err(e) if eps >= 1e-6 => {
+                vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                continue;
+            }
+            Err(e) => panic!("{at}: expected the line, got {e}"),
+        };
+        let [b] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        let BranchEnd::Crossings { from, to } = b.end else {
+            panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
+        };
+        assert!(
+            from.side.fixed == ChartAxis::V
+                && to.side.fixed == ChartAxis::V
+                && from.side != to.side,
+            "{at}: from the v = 0 side to the v = 1: {from:?} → {to:?}"
+        );
+        assert!(one_cubic_span(&at, b), "{at}: the Hermite span");
+        // Within the certificate's distance to both surfaces, over the
+        // sine of their angle, of the line.
+        let sup = b.certificate.hull_sup;
+        for k in 0..=200 {
+            let x = b
+                .carrier
+                .eval(b.params.0 + (b.params.1 - b.params.0) * f64::from(k) / 200.0);
+            assert!(
+                x.z.abs() <= sup && x.x.abs() <= 2.0 * sup / alpha,
+                "{at}: the carrier at {x:?} is off the line x = z = 0 (sup {sup:e})"
+            );
+        }
+    }
 }

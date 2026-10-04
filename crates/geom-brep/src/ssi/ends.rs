@@ -51,14 +51,12 @@ use crate::recourse::Refused;
 pub(crate) struct Ends<'a> {
     /// The ℝ⁴ system.
     pub sys: &'a ParametricPairR4<'a>,
-    /// The march's context.
+    /// The march's context, the caller's feature extent among it.
     pub ctx: MarchContext<4>,
     /// The plane operand.
     pub plane: &'a Surface<f64>,
     /// The wall operand.
     pub wall: &'a SsiOperand<'a, f64>,
-    /// The caller's feature extent.
-    pub extent: f64,
     /// The run band.
     pub band: Band,
 }
@@ -95,10 +93,14 @@ fn close_at(sys: &ParametricPairR4<'_>, states: &mut Vec<[f64; 4]>, end: [f64; 4
 }
 
 /// The refusal of a branch neither candidate certified: the march's,
-/// unless the Hermite's was the sized refusal of a branch too short to
-/// march and the march refused for want of step, its step falling in
-/// the band (decided there, or undecided on a valid margin). Every
-/// other march refusal names more than the branch's length does.
+/// unless the march refused for want of step, its step falling in the
+/// band (decided there, or undecided on a valid margin), and the
+/// Hermite's refusal names more: the sized refusal of a branch too short
+/// to march, or the transversality decision at one of its two ends. A
+/// march refuses at its own first state as the Hermite does at that
+/// end, so where the Hermite's decision refused, it refused at the far
+/// end, which a march too short to step never reaches. Every other march
+/// refusal names more than either.
 fn neither(hermite: SsiError, march: SsiError) -> SsiError {
     let for_want_of_step = match &march {
         SsiError::StepCollapsed { .. } => true,
@@ -108,9 +110,20 @@ fn neither(hermite: SsiError, march: SsiError) -> SsiError {
         } => !cause.margin.is_invalid(),
         _ => false,
     };
-    match hermite {
-        SsiError::ShortBranchUncertified { .. } if for_want_of_step => hermite,
-        _ => march,
+    let hermite_names_more = matches!(
+        hermite,
+        SsiError::ShortBranchUncertified { .. }
+            | SsiError::TransversalityBand { .. }
+            | SsiError::Escalated {
+                decision: super::TraceDecision::Transversality
+                    | super::TraceDecision::TransversalityArm,
+                ..
+            }
+    );
+    if hermite_names_more && for_want_of_step {
+        hermite
+    } else {
+        march
     }
 }
 
@@ -159,7 +172,6 @@ impl<'a> Ends<'a> {
         ctx: MarchContext<4>,
         plane: &'a Surface<f64>,
         wall: &'a SsiOperand<'a, f64>,
-        domain: &super::SsiDomain,
         band: Band,
     ) -> Self {
         Self {
@@ -167,7 +179,6 @@ impl<'a> Ends<'a> {
             ctx,
             plane,
             wall,
-            extent: domain.extent,
             band,
         }
     }
@@ -413,7 +424,7 @@ impl<'a> Ends<'a> {
                         wall: *wall,
                         pcurve,
                     },
-                    TubeScale::uniform(self.extent),
+                    TubeScale::uniform(self.ctx.extent),
                     self.band,
                 )?;
                 Ok((carrier, pa, pb, cert))
@@ -442,7 +453,7 @@ impl<'a> Ends<'a> {
                 wall: *wall,
                 pcurve,
             },
-            TubeScale::uniform(self.extent),
+            TubeScale::uniform(self.ctx.extent),
             self.band,
             &mut Vec::new(),
         )?;
@@ -575,11 +586,12 @@ mod tests {
     use crate::ssi::{SsiError, SsiLimb, TraceDecision};
 
     /// **A short branch's sized refusal speaks only where the march
-    /// refused for want of step.** The Hermite's refusal is the sized
-    /// one throughout; beside a march whose step fell in the band,
-    /// decided or undecided, it stands, and beside a tangency, an
-    /// undecided transversality, or an undecided step on a margin that
-    /// is no number, the march's refusal is returned.
+    /// refused for want of step.** Beside a march whose step fell in the
+    /// band, decided or undecided, the Hermite's sized refusal stands,
+    /// and so does its end's transversality decision; beside a tangency,
+    /// an undecided transversality, or an undecided step on a margin that
+    /// is no number, the march's refusal is returned, as it is beside a
+    /// longer branch's certificate refusal.
     #[test]
     fn a_short_branchs_sized_refusal_masks_no_more_specific_march_refusal() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -636,6 +648,21 @@ mod tests {
             let e = neither(short(), march);
             assert!(!sized(&e), "{what}: the march's refusal, got {e}");
         }
+        let far_end = SsiError::Escalated {
+            decision: TraceDecision::Transversality,
+            cause: cause(MarginDiag::value(5e-9)),
+        };
+        let e = neither(far_end, collapsed());
+        assert!(
+            matches!(
+                e,
+                SsiError::Escalated {
+                    decision: TraceDecision::Transversality,
+                    ..
+                }
+            ),
+            "the Hermite's far end undecided beside a collapsed step: the far end's, got {e}"
+        );
         let limb = SsiError::CertificateLimb {
             limb: SsiLimb::OnLocus,
             value: 3e-9,

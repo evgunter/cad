@@ -582,12 +582,6 @@ pub struct Trace<const N: usize, E> {
     pub states: Vec<[f64; N]>,
     /// How the march ended, in its lane's terms.
     pub end: E,
-    /// The smallest `sin θ · arm` (meters) seen along the trace — the
-    /// transversality headroom, reported so a consumer can see how
-    /// close to the C7 regime this branch ran.
-    pub min_transversality: f64,
-    /// The smallest σ_min seen — Hoffmann's own signal, diagnostic.
-    pub min_sigma: f64,
     /// Steps consumed.
     pub steps: usize,
     /// The longest step the march minted, in metres.
@@ -865,8 +859,7 @@ pub(crate) trait TransversalityData<const N: usize> {
 
 /// **`ssi_transversality`** at the state `x`: the surfaces cross at a
 /// clear angle there, `sin θ · arm` in metres with the arm clamped to
-/// `extent`, `sigma` the state's σ_min reported beside it. The
-/// transversality on a pass.
+/// `extent`, `sigma` the state's σ_min reported beside it.
 ///
 /// # Errors
 ///
@@ -879,7 +872,7 @@ pub(crate) fn decide_transversality<const N: usize>(
     sigma: f64,
     extent: f64,
     band: Band,
-) -> Result<f64, SsiError> {
+) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
     let arm = Real::min(sys.lever_arm(x), extent);
@@ -897,7 +890,7 @@ pub(crate) fn decide_transversality<const N: usize>(
                 sigma_min: sigma,
                 verdict,
             }),
-            None => Ok(transversality.value()),
+            None => Ok(()),
         },
         Err(diag) => Err(TraceDecision::Transversality.escalated(diag)),
     }
@@ -939,8 +932,6 @@ where
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
     let mut seed_tangent: Option<[f64; N]> = None;
-    let mut min_transversality = f64::INFINITY;
-    let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
     let mut curvature_bound = 0usize;
@@ -951,16 +942,9 @@ where
         // ---- 1. the local decomposition ----
         let a = sys.jacobian(&x);
         let svd = Svd::<M, N>::new(a);
-        let sigma = svd.sigma_min();
-        if sigma < min_sigma {
-            min_sigma = sigma;
-        }
 
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
-        let transversality = decide_transversality(sys, &x, sigma, ctx.extent, band)?;
-        if transversality < min_transversality {
-            min_transversality = transversality;
-        }
+        decide_transversality(sys, &x, svd.sigma_min(), ctx.extent, band)?;
 
         // ---- 3. the tangent, oriented along the march ----
         let mut d1 = svd.null_direction();
@@ -1134,8 +1118,6 @@ where
                 return Ok(Trace {
                     states,
                     end,
-                    min_transversality,
-                    min_sigma,
                     steps: steps + 1,
                     longest_step,
                 });
@@ -1157,8 +1139,6 @@ where
             return Ok(Trace {
                 states,
                 end,
-                min_transversality,
-                min_sigma,
                 steps,
                 longest_step,
             });
@@ -1198,8 +1178,6 @@ where
                             return Ok(Trace {
                                 states,
                                 end: E::CLOSED,
-                                min_transversality,
-                                min_sigma,
                                 steps,
                                 longest_step,
                             });
@@ -1563,8 +1541,6 @@ where
         } else {
             SlabEnd::Slab
         },
-        min_transversality: fwd.min_transversality.min(bwd.min_transversality),
-        min_sigma: fwd.min_sigma.min(bwd.min_sigma),
         steps: fwd.steps + bwd.steps,
         longest_step: Real::max(fwd.longest_step, bwd.longest_step),
     })

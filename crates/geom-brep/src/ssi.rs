@@ -1471,9 +1471,10 @@ pub struct SsiBranch {
     pub pcurve_a: Option<NurbsCurve2<f64>>,
     /// The second operand's pcurve, same contract.
     pub pcurve_b: Option<NurbsCurve2<f64>>,
-    /// The generator's step tolerance this carrier was marched at, in
-    /// meters — the receipt that makes the tie observable rather than
-    /// merely intended. Equal to the run band's coincidence threshold
+    /// The generator's tolerance the carrier's states were settled at,
+    /// in meters (a marched carrier's every state, a Hermite carrier's
+    /// two crossings) — the receipt that makes the tie observable rather
+    /// than merely intended. Equal to the run band's coincidence threshold
     /// on every certified door, enforced at the certifying seam
     /// ([`SsiError::MarchTolMismatch`]).
     pub march_tol: f64,
@@ -2445,7 +2446,7 @@ pub fn plane_nurbs_ssi(
     let seed_count = seeds.len() as u32;
 
     // ---- the open branches, between the crossings ----
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let mut branches = ends.branches(&pass.crossings)?;
     let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
 
@@ -2656,7 +2657,7 @@ pub fn trace_plane_nurbs_uncertified(
     // certifies, as every plane × NURBS branch does.
     let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
     let wall_op = SsiOperand::Nurbs(charted);
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
