@@ -3663,7 +3663,9 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
             if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-                return Err(refuse("the section circle has no meridian of the face's chart"));
+                return Err(refuse(
+                    "the section circle has no meridian of the face's chart",
+                ));
             }
         }
         let k = k / k.norm();
@@ -3671,14 +3673,20 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let latitude = |p: Point3<T>| axis.dot(p - cut.center) / r;
         // The circle's two crossings, both on the half-plane `h`.
         let across = cut.normal.cross(k);
-        if sign("bool_sphere_cut_section_meridian", Margin::of(across.norm()))? == Sign::Zero {
+        if sign(
+            "bool_sphere_cut_section_meridian",
+            Margin::of(across.norm()),
+        )? == Sign::Zero
+        {
             return Err(refuse("the section circle lies in its own meridian plane"));
         }
         let e = across / across.norm();
         let mut circle = [cut.foot - e * cut.rho, cut.foot + e * cut.rho].map(latitude);
         for p in [cut.foot - e * cut.rho, cut.foot + e * cut.rho] {
             if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
-                return Err(refuse("the section circle holds a pole of the face's chart"));
+                return Err(refuse(
+                    "the section circle holds a pole of the face's chart",
+                ));
             }
         }
         let above = |x: T, y: T| sign("bool_sphere_cut_order", Margin::levered(x - y, r));
@@ -3696,7 +3704,13 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
         for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(cut.face), "loop");
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(cut.face),
+                "loop",
+            );
             let LoopBoundary::Cycle { first } = l.boundary else {
                 return Err(refuse("the sphere face carries a lone-vertex loop"));
             };
@@ -3832,17 +3846,21 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
         }
         let (Some(below), Some(over)) = (below, over) else {
-            return Err(refuse("the cut's meridian leaves the sphere face through no boundary"));
+            return Err(refuse(
+                "the cut's meridian leaves the sphere face through no boundary",
+            ));
         };
         let (below_split, below_vertex) = (below.split, below.vertex);
         let (over_split, over_vertex) = (over.split, over.vertex);
-        let mut end = |split: Option<(EdgeKey, T, bool, T)>, vertex: Option<VertexKey>| match (
-            split, vertex,
-        ) {
-            (_, Some(v)) => Ok(v),
-            (Some((edge, theta, _, _)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
-            (None, None) => Err(corrupt("cut-in: a boundary hit with neither vertex nor arc")),
-        };
+        let mut end =
+            |split: Option<(EdgeKey, T, bool, T)>, vertex: Option<VertexKey>| match (split, vertex)
+            {
+                (_, Some(v)) => Ok(v),
+                (Some((edge, theta, _, _)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
+                (None, None) => Err(corrupt(
+                    "cut-in: a boundary hit with neither vertex nor arc",
+                )),
+            };
         // Two ends on one arc: the split keeps the arc's key on its
         // first child, so the end farther along the arc's parameter is
         // split first and the nearer one still lies on the key.
@@ -3864,7 +3882,13 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let fd = proven(&body.faces, cut.face, EntityId::Face);
         let mut ends = [None, None];
         for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(cut.face), "loop");
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(cut.face),
+                "loop",
+            );
             let LoopBoundary::Cycle { first } = l.boundary else {
                 continue;
             };
@@ -3873,7 +3897,9 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {
                         if slot.is_some() {
-                            return Err(refuse("the cut's end vertex recurs on the sphere face's loops"));
+                            return Err(refuse(
+                                "the cut's end vertex recurs on the sphere face's loops",
+                            ));
                         }
                         *slot = Some((lk, he));
                     }
@@ -3884,7 +3910,9 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
             return Err(corrupt("cut-in: a cut end is not on the face's loops"));
         };
         if l_lo != l_hi {
-            return Err(refuse("the cut's meridian joins two loops of the sphere face"));
+            return Err(refuse(
+                "the cut's meridian joins two loops of the sphere face",
+            ));
         }
         let p_lo = body.resolve_vertex_point(v_lo, crate::live::Proven);
         let p_hi = body.resolve_vertex_point(v_hi, crate::live::Proven);

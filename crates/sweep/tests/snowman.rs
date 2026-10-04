@@ -62,6 +62,20 @@ fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
 /// closed-form faces, so the slack is rounding's and a wrong body (a
 /// lens counted twice, a cap dropped) misses by orders of magnitude.
 fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+    let m = mesh::tessellate(body, 1e-3, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
+    assert_eq!(
+        mesh::validate::check_mesh(&m),
+        Ok(()),
+        "{label}: a closed manifold mesh"
+    );
+    assert_solid(label, body, expected);
+}
+
+/// [`assert_body`] short of the mesh, for a body carrying a sphere face
+/// a tilted circle bounds, which has no tessellation lane
+/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -72,13 +86,6 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         topo::validate_geometric(body, Tol::witness()),
         Ok(()),
         "{label}: validate_geometric"
-    );
-    let m = mesh::tessellate(body, 1e-3, Tol::witness())
-        .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
-    assert_eq!(
-        mesh::validate::check_mesh(&m),
-        Ok(()),
-        "{label}: a closed manifold mesh"
     );
     let p = topo::mass_properties(body, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
@@ -881,24 +888,43 @@ fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
 }
 
 /// A 6 × 1 × 6 slab whose near face lies in the plane at distance `s`
-/// from the origin along the y axis tilted by `tilt` degrees about x —
-/// toward azimuth π/2 of the lens's chart for a positive tilt, 3π/2 for
-/// a negative one, so the plane's circle on a lens sphere stays clear of
-/// the seam meridians in `z = 0`. Wide enough that its side faces clear
-/// every sphere.
-fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
+/// from the origin along the y axis turned by `tilt` degrees about
+/// `axis`. Wide enough that its side faces clear every sphere.
+fn tilted_slab_about(axis: geom_core::Vec3<f64>, tilt: f64, s: f64) -> AtRestBody<f64> {
     use geom_core::{Affine3, Point3, Vec3};
-    let rot = Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::new(1.0, 0.0, 0.0),
-        tilt.to_radians(),
-    );
+    let rot = Affine3::rotation_about_axis(Point3::origin(), axis, tilt.to_radians());
     let n = rot.transform_vec(Vec3::new(0.0, 1.0, 0.0));
     let slab: Body<f64> =
         sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
     let slab =
         topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap();
     finished("the tilted slab", slab, Tol::witness())
+}
+
+/// [`tilted_slab_about`] the x axis: toward azimuth π/2 of the lens's
+/// chart for a positive tilt, 3π/2 for a negative one, so the plane's
+/// circle on a lens sphere stays clear of the seam meridians in `z = 0`.
+fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
+    tilted_slab_about(geom_core::Vec3::new(1.0, 0.0, 0.0), tilt, s)
+}
+
+/// Every op in both orders of `body` against a slab whose plane cuts a
+/// cap of `cap` off it and nothing else, against the closed forms: the
+/// cap under ∩, and the body's `v`, the slab's 36 and the cap otherwise.
+/// Each result carries the cap's tilted circle ([`assert_solid`]).
+fn assert_cap_cut(label: &str, body: &AtRestBody<f64>, v: f64, slab: &AtRestBody<f64>, cap: f64) {
+    let v_slab = 36.0;
+    for (op, x, y, want) in [
+        (BooleanOp::Union, body, slab, v + v_slab - cap),
+        (BooleanOp::Union, slab, body, v + v_slab - cap),
+        (BooleanOp::Intersect, body, slab, cap),
+        (BooleanOp::Intersect, slab, body, cap),
+        (BooleanOp::Subtract, body, slab, v - cap),
+        (BooleanOp::Subtract, slab, body, v_slab - cap),
+    ] {
+        let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
+        assert_solid(&name, &run(op, x, y), want);
+    }
 }
 
 /// **A tilted slab against the lens, away from its seam.** The slab's
@@ -910,14 +936,14 @@ fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
 ///   part of the unit sphere the lens trims away: the lens's faces are
 ///   certified apart from the plane face, so it is no escape, and every
 ///   op builds against the lens's caps and the slab's 36.
-/// - Tilted 20°, the circle lies inside the lens's top face: the plane
-///   cuts a cap of height 0.015 off the lens, a real escape of a
-///   TRIMMED group, which the re-chart cannot serve. Every op refuses
-///   it typed. Skipping the trimmed group without asking whether its
-///   faces meet the plane face would instead build tier-3-valid bodies
-///   short or long by that cap.
+/// - Tilted 20°, the circle lies inside the lens's top face, a TRIMMED
+///   group, and the plane cuts a cap of height 0.015 off the lens. The
+///   face takes a cut along its chart's meridian through the circle, and
+///   every op builds against the cap `πh²(3 − h)/3`. Skipping the
+///   trimmed group without asking whether its faces meet the plane face
+///   would instead build tier-3-valid bodies short or long by that cap.
 #[test]
-fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
+fn a_tilted_slab_against_the_lens_builds_off_the_seam() {
     let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
     let v_lens = lens_volume(R1, R2, D);
     let v_slab = 36.0;
@@ -939,17 +965,120 @@ fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
         }
     }
     for tilt in [20.0, -20.0] {
-        let slab = tilted_slab(tilt, 0.985);
-        for (x, y) in [(&lens, &slab), (&slab, &lens)] {
+        let label = format!("slab tilted {tilt}° about x");
+        assert_cap_cut(
+            &label,
+            &lens,
+            v_lens,
+            &tilted_slab(tilt, 0.985),
+            cap_volume(R1, 0.015),
+        );
+    }
+}
+
+/// **The same cap, with the circle across the lens's seam meridians**:
+/// the slab turned 20° about z instead, so the plane's circle crosses
+/// the seams in `z = 0` and the crossing layer sees it without a cut.
+/// Every op builds against the cap of height 0.015.
+#[test]
+fn a_slab_tilted_across_the_lens_seams_builds() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    for tilt in [20.0, -20.0] {
+        let label = format!("slab tilted {tilt}° about z");
+        let slab = tilted_slab_about(z, tilt, 0.985);
+        assert_cap_cut(
+            &label,
+            &lens,
+            lens_volume(R1, R2, D),
+            &slab,
+            cap_volume(R1, 0.015),
+        );
+    }
+}
+
+/// **A cap off a banded ball**: the unit ball kept between the planes
+/// `y = ±0.6`, a trimmed group whose two half-bands run rim to rim, cut
+/// by a slab whose plane lies 0.985 from the centre toward latitude 10°
+/// at azimuth π/2. The circle lies inside one half-band, and the
+/// meridian cut through it runs from the lower rim to the upper, so both
+/// of its ends split a rim. Every op builds against the band's
+/// `π(2·0.6 − 2·0.6³/3)` and the cap of height 0.015.
+#[test]
+fn a_slab_cutting_a_cap_off_a_banded_ball_builds() {
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    let slab = tilted_slab(80.0, 0.985);
+    assert_cap_cut(
+        "banded ball",
+        &banded,
+        v_banded,
+        &slab,
+        cap_volume(1.0, 0.015),
+    );
+}
+
+/// **A cap off a pole-strut carve, where the section certificate cannot
+/// place its witness.** The ball of radius 0.5 less the box
+/// `[−1, 0.25] × [−1, 1] × [−1, 0]` (`join1_r1_rows`'s pole-strut pose),
+/// cut by a slab 0.4925 from the centre: toward latitude 10° at azimuth
+/// π/2, and toward `(0.866, 0.1, −0.5)` inside the face the box's
+/// `x = 0.25` circle trims. Either sphere face holding the circle is
+/// bounded by that tilted circle, which the chart trim cannot read, so
+/// the certificate places no witness and every op refuses with its own
+/// reason (R-undec) before any cut. Reading such a face is
+/// `work/reach/carved-sphere-body-cannot-be-classified-or-reused-as-an-operand.md`.
+#[test]
+fn a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness() {
+    use geom_core::Vec3;
+    let tol = Tol::witness();
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_y(0.5, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let cutter = finished(
+        "the box",
+        sweep::test_support::brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol),
+        tol,
+    );
+    let carve = run(BooleanOp::Subtract, &ball, &cutter);
+    let toward = |n: Vec3<f64>| {
+        use geom_core::{Affine3, Point3};
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let n = n / n.norm();
+        let axis = y.cross(n);
+        let rot = Affine3::rotation_about_axis(
+            Point3::origin(),
+            axis / axis.norm(),
+            axis.norm().atan2(y.dot(n)),
+        );
+        let slab: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), tol);
+        let slab =
+            topo::transform_rigid(&slab, &(Affine3::translation(n * 0.4925) * rot), tol).unwrap();
+        finished("the slab", slab, tol)
+    };
+    let t = 10f64.to_radians();
+    for n in [
+        Vec3::new(0.0, t.sin(), t.cos()),
+        Vec3::new(0.866, 0.1, -0.5),
+    ] {
+        let slab = toward(n);
+        for (x, y) in [(&carve, &slab), (&slab, &carve)] {
             for op in OPS {
                 let e = refusal(op, x, y);
                 assert!(
                     matches!(
                         e,
                         topo::BooleanError::FallbackExtentUnsupported { what, .. }
-                            if what.contains("TRIMMED sphere face group escapes")
+                            if what.contains("no witness could place")
                     ),
-                    "slab tilted {tilt}° under {op:?}: expected the trimmed escape, got {e:?}"
+                    "slab toward {n:?} under {op:?}: expected the unplaced witness, got {e:?}"
                 );
             }
         }
