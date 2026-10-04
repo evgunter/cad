@@ -898,3 +898,5 @@ mod witness_ladder;
 
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;
+#[path = "join_pierce_r2_probes.rs"]
+mod join_pierce_r2_probes;
