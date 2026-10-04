@@ -146,7 +146,6 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, Chords, CutOutcome, JoinLane, SegmentCurve, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::{RunClosing, TornLoop};
 use crate::null::NullFacePair;
@@ -530,6 +529,28 @@ pub(super) fn section_segments<T: Decide>(
         });
     }
     Ok(segments)
+}
+
+/// [`section_segments`] read as sites: the pair-record count and each
+/// segment's two germ sites on the A clone.
+#[cfg(any(test, feature = "test-support"))]
+pub(super) fn segment_sites(
+    red: &BooleanReduction<f64>,
+    band: Band,
+) -> Result<super::SegmentSites, BooleanError> {
+    let open = open_records(red)?;
+    let site = |(r, slot): Slot| {
+        red.a
+            .half_edge_start_point(open[r].a[slot].0.he)
+            .ok_or(BooleanError::JoinDesync {
+                what: "germ site has no point",
+            })
+    };
+    let segments = section_segments(red, band)?
+        .iter()
+        .map(|s| Ok([site(s.ends[0])?, site(s.ends[1])?]))
+        .collect::<Result<_, BooleanError>>()?;
+    Ok((open.len(), segments))
 }
 
 /// `bool_connect`'s product: the completed pairs plus the per-operand
@@ -1427,7 +1448,9 @@ pub(super) enum FrameError {
     /// The classification contradicted the germ that was minted from
     /// it — a lockstep failure, not a frontier.
     Desync(&'static str),
-    /// The kind pair has no section arm at all.
+    /// No frame: the kind pair has no section arm, or an armed pair's
+    /// pose has none (the cylinder × sphere node, or a pose not
+    /// definitely off the axis).
     NoArm,
     /// **A cylinder pair whose axes definitely INTERSECT.** Its locus
     /// is never straight and is never one conic either, so it is
@@ -1538,17 +1561,12 @@ pub(super) fn pair_section_frame<T: Decide>(
                 )),
             };
         }
-        // **Cylinder×sphere.** The DECLARED-coaxial configuration is
-        // the one this dispatch can name a frame for, and
-        // [`cs_pair_frame`] carries the whole argument — including why
-        // ONE frame serves BOTH section circles, and why the
-        // declaration cannot be read here yet.
-        (Sf::Cylinder { .. }, Sf::Sphere { .. }) => {
-            return cs_pair_frame(sa, sb, geom_brep::CoaxialEvidence::None, band);
-        }
-        (Sf::Sphere { .. }, Sf::Cylinder { .. }) => {
-            return cs_pair_frame(sb, sa, geom_brep::CoaxialEvidence::None, band);
-        }
+        // **Cylinder×sphere** ([`cs_germ_frame`]): the declared-coaxial
+        // classification first ([`cs_pair_frame`], unreadable here
+        // yet), then the transverse frame for a pose off the axis
+        // ([`cs_transverse_frame`]).
+        (Sf::Cylinder { .. }, Sf::Sphere { .. }) => return cs_germ_frame(sa, sb, band),
+        (Sf::Sphere { .. }, Sf::Cylinder { .. }) => return cs_germ_frame(sb, sa, band),
         // The ONE structurally straight pair: a plane×plane section is
         // a line, so "no frame" is a proof here rather than a default.
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
@@ -1744,6 +1762,99 @@ fn intersecting_cylinder_axes<T: Decide>(
     }
 }
 
+/// The cylinder×sphere germ frame: the declared-coaxial classification
+/// first ([`cs_pair_frame`]), and where it routes to the general rung,
+/// the transverse frame ([`cs_transverse_frame`]).
+#[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
+fn cs_germ_frame<T: Decide>(
+    cyl: &geom::Surface<T>,
+    sph: &geom::Surface<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    match cs_pair_frame(cyl, sph, geom_brep::CoaxialEvidence::None, band) {
+        Err(FrameError::NoArm) => cs_transverse_frame(cyl, sph, band),
+        other => other,
+    }
+}
+
+/// **The transverse cylinder×sphere germ frame**: a centre and an axis
+/// the section turns about monotonically, once per loop, which is all
+/// the rotational-sense facing test and the turn ranking read of a
+/// frame.
+///
+/// In the cylinder's frame put the sphere's centre `s` at offset `d`
+/// from the axis along `û` (the axis's unit perpendicular towards `s`),
+/// the cylinder's radius `r`, the sphere's `R`. A wall point at azimuth
+/// `θ` from `û` lies on the sphere at heights `±h(θ)` over `s`, with
+/// `h² = R² − r² − d² + 2rd·cos θ`, so the section is one loop when
+/// `R < r + d` and two when `R > r + d`:
+///
+/// * **One loop** (`bool_germ_frame_cs_reach` Negative): it spans the
+///   azimuths where `h² > 0`, up one side and down the other. About the
+///   axis `û` through `s` its projection `(r sin θ, ±h)` turns with
+///   `(y, z) × (y′, z′) = −r·(rd·sin²θ + h²·cos θ)/h`, and with
+///   `c₀ = cos θ₀` the azimuth where `h` vanishes,
+///   `rd·sin²θ + h²·cos θ = rd·((cos θ − c₀)² + 1 − c₀²)`, positive
+///   for every `|c₀| < 1` — that is, whenever the loop exists and is not
+///   a tangency. So `(s, û)` is the frame, and no germ on the loop is
+///   radial about it.
+/// * **Two loops** (Positive): each is the graph `±h(θ)` over the whole
+///   circle, so it turns monotonically about the cylinder's own axis.
+///   Both share that axis, the declared-coaxial frame's argument.
+/// * **A tangency** (Zero: the walls touch at `θ = π`, the loop's
+///   figure-eight node) has no frame and keeps [`FrameError::NoArm`].
+///
+/// The offset `d` must be definite (`bool_germ_frame_cs_offset`): `û`
+/// does not exist on the axis, and a coaxial pose is never read from a
+/// measured `d` ([`cs_pair_frame`]), so a Zero or in-band offset keeps
+/// `NoArm` verbatim rather than escalating. Radii are read by magnitude:
+/// a negative stored radius denotes the same point set.
+#[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
+fn cs_transverse_frame<T: Decide>(
+    cyl: &geom::Surface<T>,
+    sph: &geom::Surface<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    let (
+        &geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius: r,
+            ..
+        },
+        &geom::Surface::Sphere {
+            center,
+            radius: big_r,
+            ..
+        },
+    ) = (cyl, sph)
+    else {
+        return Err(FrameError::Desync(
+            "the cylinder×sphere frame was handed another kind pair",
+        ));
+    };
+    let foot = origin + axis * (center - origin).dot(axis);
+    let off = center - foot;
+    let d = off.norm();
+    match decide("bool_germ_frame_cs_offset", Margin::of(d), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(FrameError::NoArm),
+    }
+    match decide(
+        "bool_germ_frame_cs_reach",
+        Margin::of(big_r.abs() - r.abs() - d),
+        band,
+    ) {
+        Ok(Sign::Negative) => Ok(Some((center, off * (T::one() / d)))),
+        Ok(Sign::Positive) => Ok(Some((foot, axis))),
+        // `NoArm`, not the tangency `Desync` the circle arms answer: a
+        // germ minted from a crossing elsewhere on the figure-eight is
+        // real, and only the frame is missing.
+        Ok(Sign::Zero) => Err(FrameError::NoArm),
+        Err(diag) => Err(FrameError::Escalated(diag)),
+    }
+}
+
 /// The cylinder×sphere germ frame, from the DECLARED-coaxial
 /// classification (`geom_brep::cylinder_sphere_section`).
 ///
@@ -1769,9 +1880,9 @@ fn intersecting_cylinder_axes<T: Decide>(
 /// inferred from a measured axis-to-centre distance, at any tolerance.
 /// Every in-tree caller therefore passes
 /// `geom_brep::CoaxialEvidence::None`, the section routes to the
-/// general rung, and the pose keeps [`FrameError::NoArm`] VERBATIM —
-/// which is the honest answer, because the general rung for this pair
-/// IS implemented and marches it. Coaxiality is placement data (an
+/// general rung, and the dispatch reads the transverse frame
+/// ([`cs_transverse_frame`]), which keeps [`FrameError::NoArm`]
+/// VERBATIM for a pose not definitely off the axis. Coaxiality is placement data (an
 /// axis, a centre), so the scalar-field channel read at
 /// `germ_section_frame` cannot carry it; its carrier is the axis-shaped
 /// identity channel (`docs/AXIS-DECLARATION-DESIGN.md`), unbuilt. A
@@ -2171,15 +2282,14 @@ fn ring_run_ccw<T: Decide>(
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|torn| match torn {
-            TornLoop::Dangling(what) => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
-            }
-            TornLoop::Unclaimed { he, edge } => {
-                BooleanError::Join(SplitJoinError::Euler(EulerOpError::UnclaimedHalfEdge {
-                    he,
-                    edge,
-                }))
-            }
+            TornLoop::Dangling(what) => unreachable!(
+                "the ring-run walk from {h1:?} meets {what:?}, which does not resolve: the run's \
+                 keys are links of a body every door keeps tier-1-valid"
+            ),
+            TornLoop::Unclaimed { he, edge } => unreachable!(
+                "the ring-run walk meets {he:?}, whose edge {edge:?} does not claim it: on a \
+                 tier-1-valid body the edge <-> half-edge bijection holds"
+            ),
             TornLoop::Unclosed => desync("ring-run arc did not close"),
         })?
         // The operand gate refuses a spiric or spline carrier and no
@@ -2350,7 +2460,7 @@ fn cut_pair<T: Decide>(
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
-fn resolve_roles_geometric<T: Decide>(
+fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other_pristine: &Body<T>,
     face: FaceKey,
@@ -3513,5 +3623,254 @@ mod frame_dispatch_interval_tests {
             ),
             "parallel cylinder axes meet in rulings at the certified scalar"
         );
+    }
+}
+
+/// **The transverse cylinder × sphere frame** ([`cs_transverse_frame`]),
+/// held to what the facing test and the turn ranking read of a frame:
+/// along each loop of the analytic section the rotational sense
+/// `axis·((p − c) × t)` keeps one definite sign, and the loop turns once
+/// about the axis.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod transverse_cs_frame_rows {
+    use core::f64::consts::{PI, TAU};
+
+    use geom_core::{Affine3, Point3, Tol, Vec3};
+
+    use super::{FrameError, pair_section_frame};
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    /// A cylinder of radius `r` about the axis through `foot` along `a`
+    /// (unit), and a sphere of radius `big` centred `d` off that axis
+    /// along `e1` (unit, perpendicular to `a`) from `foot`.
+    #[derive(Clone, Copy)]
+    struct Pose {
+        foot: Point3<f64>,
+        a: Vec3<f64>,
+        e1: Vec3<f64>,
+        r: f64,
+        d: f64,
+        big: f64,
+    }
+
+    impl Pose {
+        fn at(r: f64, d: f64, big: f64) -> Self {
+            Self {
+                foot: Point3::new(0.0, 0.0, 0.0),
+                a: Vec3::new(0.0, 0.0, 1.0),
+                e1: Vec3::new(1.0, 0.0, 0.0),
+                r,
+                d,
+                big,
+            }
+        }
+
+        /// The same pose moved by `m`, the cylinder's stored origin slid
+        /// off the foot along the axis.
+        fn moved(self, m: &Affine3<f64>) -> Self {
+            Self {
+                foot: m.transform_point(self.foot),
+                a: m.transform_vec(self.a),
+                e1: m.transform_vec(self.e1),
+                ..self
+            }
+        }
+
+        fn center(self) -> Point3<f64> {
+            self.foot + self.e1 * self.d
+        }
+
+        fn surfaces(self) -> (geom::Surface<f64>, geom::Surface<f64>) {
+            (
+                geom::Surface::Cylinder {
+                    origin: self.foot + self.a * 0.37,
+                    axis: self.a,
+                    radius: self.r,
+                    u_ref: self.e1,
+                },
+                geom::Surface::Sphere {
+                    center: self.center(),
+                    radius: self.big,
+                    axis: self.a,
+                    u_ref: self.e1,
+                },
+            )
+        }
+
+        /// The section's loops, each a closed run of `(point, tangent)`
+        /// samples in its traversal order, read off the cylinder's chart:
+        /// a wall point at azimuth `θ` from `e1` lies on the sphere at
+        /// heights `±h(θ)`, `h² = R² − r² − d² + 2rd·cos θ`.
+        fn loops(self) -> Vec<Vec<(Point3<f64>, Vec3<f64>)>> {
+            let e2 = self.a.cross(self.e1);
+            let (r, d) = (self.r, self.d);
+            let h2 = |t: f64| self.big * self.big - r * r - d * d + 2.0 * r * d * t.cos();
+            let at = |t: f64, up: f64| {
+                let h = h2(t).sqrt();
+                let p = self.foot + (self.e1 * t.cos() + e2 * t.sin()) * r + self.a * (up * h);
+                let dh = -r * d * t.sin() / h;
+                let tan = (e2 * t.cos() - self.e1 * t.sin()) * r + self.a * (up * dh);
+                (p, tan * up)
+            };
+            let n = 400;
+            if h2(PI) > 0.0 {
+                // Two loops, each over the whole circle.
+                [1.0, -1.0]
+                    .into_iter()
+                    .map(|up| {
+                        (0..n)
+                            .map(|k| at(TAU * f64::from(k) / f64::from(n), up))
+                            .collect()
+                    })
+                    .collect()
+            } else {
+                // One loop over `|θ| < θ₀`, up one side and down the other,
+                // its samples kept off the azimuths where `h` vanishes.
+                let theta0 = ((r * r + d * d - self.big * self.big) / (2.0 * r * d)).acos();
+                let span = |k: i32| -theta0 + 2.0 * theta0 * (f64::from(k) + 0.5) / f64::from(n);
+                let up = (0..n).map(|k| at(span(k), 1.0));
+                let down = (0..n).rev().map(|k| at(span(k), -1.0));
+                vec![up.chain(down).collect()]
+            }
+        }
+    }
+
+    fn poses() -> Vec<(&'static str, Pose)> {
+        let twin = Affine3::rotation_about_axis(
+            Point3::new(0.3, -0.2, 0.7),
+            Vec3::new(1.0, 2.0, 3.0).normalize(),
+            0.7,
+        ) * Affine3::translation(Vec3::new(0.11, 0.23, -0.37));
+        let base = [
+            ("one loop, centre on the wall", Pose::at(0.5, 0.5, 0.3)),
+            ("one loop, centre inside", Pose::at(0.5, 0.35, 0.3)),
+            ("one loop, centre outside", Pose::at(0.5, 0.7, 0.3)),
+            ("one loop, near-coaxial wide", Pose::at(0.5, 0.1, 0.55)),
+            ("one loop, nearly a figure-eight", Pose::at(0.5, 0.3, 0.79)),
+            ("one loop, far off", Pose::at(0.5, 1.2, 0.9)),
+            ("two loops", Pose::at(0.5, 0.1, 0.7)),
+            ("two loops, wide", Pose::at(0.5, 0.2, 0.8)),
+            ("two loops, nearly a figure-eight", Pose::at(0.5, 0.3, 0.81)),
+            ("two loops, big ball", Pose::at(0.5, 0.05, 2.0)),
+        ];
+        base.iter()
+            .copied()
+            .chain(base.iter().map(|&(l, p)| (l, p.moved(&twin))))
+            .collect()
+    }
+
+    /// **Every loop turns once about the frame, its sense never radial.**
+    /// The frame is read through the kind dispatch in both operand
+    /// orders; along each analytic loop the sense keeps one sign with a
+    /// definite size, and the projected radius sweeps exactly one turn.
+    #[test]
+    fn every_section_loop_turns_once_about_the_transverse_frame() {
+        for (label, pose) in poses() {
+            let (cyl, sph) = pose.surfaces();
+            for (order, got) in [
+                (
+                    "cylinder first",
+                    pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, band()),
+                ),
+                (
+                    "sphere first",
+                    pair_section_frame(&sph, &cyl, geom_brep::RadiusEvidence::None, band()),
+                ),
+            ] {
+                let Ok(Some((c, axis))) = got else {
+                    panic!("{label}, {order}: a frame");
+                };
+                for (i, run) in pose.loops().iter().enumerate() {
+                    let senses: Vec<f64> = run
+                        .iter()
+                        .map(|&(p, t)| axis.dot((p - c).cross(t)))
+                        .collect();
+                    let sign = senses[0].signum();
+                    assert!(
+                        senses.iter().all(|s| s * sign > 1e-6),
+                        "{label}, {order}, loop {i}: the sense changes or vanishes along the \
+                         loop (min {:e}, max {:e})",
+                        senses.iter().copied().fold(f64::INFINITY, f64::min),
+                        senses.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                    );
+                    let radial = |p: Point3<f64>| {
+                        let u = p - c;
+                        u - axis * axis.dot(u)
+                    };
+                    let mut turn = 0.0;
+                    for k in 0..run.len() {
+                        let (u, v) = (radial(run[k].0), radial(run[(k + 1) % run.len()].0));
+                        turn += axis.dot(u.cross(v)).atan2(u.dot(v));
+                    }
+                    assert!(
+                        (turn.abs() - TAU).abs() < 1e-6,
+                        "{label}, {order}, loop {i}: the loop turns {turn} about the frame"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **Which frame**: a one-loop section turns about the axis through
+    /// the sphere's centre towards it from the cylinder's axis, and a
+    /// two-loop section about the cylinder's own axis.
+    #[test]
+    fn the_loop_count_picks_the_frame() {
+        for (label, pose) in poses() {
+            let (cyl, sph) = pose.surfaces();
+            let Ok(Some((c, axis))) =
+                pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, band())
+            else {
+                panic!("{label}: a frame");
+            };
+            let two = pose.big > pose.r + pose.d;
+            let (want_axis, on) = if two {
+                (pose.a, pose.foot)
+            } else {
+                (pose.e1, pose.center())
+            };
+            assert!(
+                axis.cross(want_axis).norm() < 1e-12 && (axis.norm() - 1.0).abs() < 1e-12,
+                "{label}: axis {axis:?}"
+            );
+            let off = c - on;
+            assert!(
+                off.cross(want_axis).norm() < 1e-12,
+                "{label}: centre {c:?} is off the frame's axis line"
+            );
+        }
+    }
+
+    /// **The poses with no frame keep `NoArm`; an undecided reach
+    /// escalates.** The walls touching at `θ = π` (`R = r + d`, the
+    /// figure-eight's node) and a coaxial pose, decided or in the band,
+    /// keep the dispatch's `NoArm`; a reach margin in the band escalates
+    /// under `bool_germ_frame_cs_reach`.
+    #[test]
+    fn a_tangency_or_a_coaxial_pose_keeps_no_arm() {
+        let eps = Tol::witness().get().eps;
+        for (label, pose, want) in [
+            ("node", Pose::at(0.5, 0.25, 0.75), "NoArm"),
+            ("coaxial", Pose::at(0.5, 0.0, 0.75), "NoArm"),
+            ("offset in band", Pose::at(0.5, 4.0 * eps, 0.75), "NoArm"),
+            (
+                "reach in band",
+                Pose::at(0.5, 0.25, 0.75 + 4.0 * eps),
+                "bool_germ_frame_cs_reach",
+            ),
+        ] {
+            let (cyl, sph) = pose.surfaces();
+            let got = pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, band());
+            let read = match got {
+                Err(FrameError::NoArm) => "NoArm",
+                Err(FrameError::Escalated(diag)) => diag.predicate.unwrap_or("unnamed"),
+                _ => "another answer",
+            };
+            assert_eq!(read, want, "{label}");
+        }
     }
 }

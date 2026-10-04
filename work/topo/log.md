@@ -5669,9 +5669,622 @@ blinding byte and the protocol hash are on
 `analysis/design-fork/topo-kef-kfmrh-across-keys`. Neither designer
 sees the other's report until both are in.
 
+## kef/kfmrh fork: first reports disagree; reconciliation round 1 (2026-10-01)
+
+Both designers delivered. Their first reports are recorded in
+`design-kef-round0.md` (A/B only), before reconciliation.
+
+- **A:** no refusal and no twins for the kills. The strand is a
+  representation defect, since descriptions store copies of face keys.
+  - Final state: derive the keys, so the strand becomes unrepresentable.
+  - Interim: the kills ask nothing, and the composing door's outermost
+    close debug-asserts the naming half of tier 3 check 2.
+- **B:** the kills refuse through `vouch_move` with describing twins;
+  the merge door re-describes; transient faces wear "no chart yet".
+
+Both found, independently:
+- the public coplanar merge returns stranded descriptions at rest, so I
+  filed `merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key`
+  (P2, M);
+- `emit_topo.rs`'s two `kef`s are test code.
+
+Reconciliation round 1 is out: each designer is shown the other's
+report and asked what moves it and whether its own argument is
+answered.
+
+PR 3673 is unaffected either way. Both keep the refusals on the
+chart-choosing doors. A would move `ring_move` with the kills, which
+the measurement says is harmless, since `ring_move` had zero production
+refusals.
+
+## Container restart #2: lanes recovered (2026-10-01)
+
+A container restart stopped every lane. Recovery:
+- **PR 3513, fix pass 6.** Its code (`6d6223b786`) and `## Fix pass 6`
+  body were done and pushed, and `e33aa63f4e` was green. The last head,
+  `71424a4252`, had no CI run, and main has moved 76 commits since. It
+  now conflicts in `dihedral.rs`, geom-brep `lib.rs`, pncad-py
+  `tests.rs` and `boolean/join.rs`. A merge-only lane
+  (`coinc-merge-brief.md`) is resolving it, and must keep NF-1's
+  semantics in `at_wedge`.
+- **PR 3669's fix pass.** Items 1–3 were pushed (`unreachable!`, the
+  two-ring row, the `loop.face` tear). The PR body, the mutants, CI and
+  the text items were not done. Resumed with `movehop-fixb-brief.md`.
+- **PR 3673's review.** Its uncommitted probe edits were saved as
+  `prerestart-probes.patch` in its scratch. Resumed with
+  `mefchart-rb-brief.md`.
+- **The designers.** Their reconciliation round 1 replies were lost.
+  Each is resumed from its transcript with the same round-1 message, so
+  blinding and context are intact.
+
+## Second denied deletion: the rebase target (2026-10-01)
+
+The resumed PR 3673 reviewer tried to delete stale artifacts in
+`/home/user/topo-rebase-target`. It targeted files from before today,
+over 20 MB, with no process holding them, about 6 GB in all, to fit
+downstream rebuilds. The classifier denied it ("Shared Scratch Sweep").
+The reviewer stopped, as briefed.
+
+Per the permission-laundering rule, nobody deletes there now. That
+makes two targets with denied deletions: loopanchor (earlier) and
+rebase. Disk is about 3.8 GB.
+
+The review is re-dispatched topo-only (`mefchart-rc-brief.md`). C1's
+downstream half is answered by hosted CI run 36852480689, which ran the
+dependent crates green with the refusals in place. **Reported to Ev**:
+build-target growth now needs Ev's call on deletions, or more disk.
+
+## kef/kfmrh fork, round 1: a clear split on one question (2026-10-01)
+
+Both designers were shown each other's first report. The results are
+recorded A/B-only in `design-kef-round1.md`, alongside round 0.
+
+**Now agreed by both, so no fork:**
+1. **The coplanar merge door re-describes what it moves.** This is the
+   filed P2 row.
+2. **Transient faces wear "no chart yet."** Chord-join slivers, the
+   boolean's section faces and the null face take the `mvfs`
+   placeholder, refused at rest as `UncertifiableSurface`, instead of a
+   borrowed key. Its reach is CLEAVE, HONE, REACH, TANG and ZIP ground,
+   plus BAND and CARVE for the blend's band faces.
+3. **A debug assertion at the outermost surgery-scope close**, that no
+   certified edge names a key neither face wears (D2 row 5). It can only
+   land after (1).
+
+**Split, on one question: the final state of `kef`/`kfmrh`.**
+- **B:** refuse keys-only through `vouch_move` (with an explicit
+  chartless-destination arm, as A pointed out), and add describing twins
+  that absorb `_minting`. This keeps the ratified text, and it follows
+  Ev's ruling 4 in PR 2527 (`5137001525`, verified): chart-relative
+  facts are stated at the site.
+- **A:** "C". Descriptions name sides rather than keys, which makes a
+  strand unrepresentable. It edits D2's ratified type listing, so it is
+  Ev's to decide regardless. In the interim the kills stay unchanged,
+  with the assertion as the backstop. A "would not fight" B's step 1
+  given (2).
+
+**No crossover**, so a further round would not narrow it. The `[ev]`
+PR opens once PR 3673 merges, since it carries the row. It will:
+- edit the row to state the question;
+- set `needs_ev: true`;
+- carry both `For Ev` sections verbatim, labelled A and B;
+- include the protocol row's recommendation half.
+
+The agreed part (1) is TOPO's and goes on the next free target. Parts (2)
+and (3) wait for the PR's package, because (2) spans other programs'
+ground and (3) needs (1) first.
+
+## The merge door re-describes: dispatched (2026-10-01)
+
+I dispatched agreed part (1) of the kef/kfmrh fork,
+`merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key`
+(P2), on the walk target. That target is empty again, with 6.1 GB free.
+
+What the brief asks for:
+- **Witness first:** a declared-planar merge on distinct keys that strands a
+  description, read as `DescriptionNotAdjacent`.
+- **Re-describe in the door:** the door re-describes its kept faces'
+  boundaries before it returns. The kept-face half of
+  `describe_minted_edges`' worklist moves into the door, so it has one home.
+- **Gate:** the door's gate checks tier 3's naming half, exactly.
+- **Identity:** the boolean's bodies must be identical by `deep_snapshot`.
+
+The brief also scopes the unit so it holds under either answer to the open
+question:
+- no `kef_describing`;
+- no new refusal;
+- no change to the representation.
+
+The lane stops if the clean route needs one of those.
+
+Brief: `mergedesc-impl-brief.md` (hash in `brief-hashes.txt`).
+
+## PR 3669 merged (2026-10-01)
+
+`movefac`'s mate hop now proves the face it hops to lists the loop it
+hopped through. The case it guards is `unreachable!`, carrying its
+premises (D2 row 4).
+
+- **Merged:** `7410cc68eb` from head `16bee7bbc5`.
+- **CI:** run 36861620526 passed, and the PR was clean when merged.
+- **Filed on SHELL and HONE:** the receipt's two walk rows.
+
+## PR 3513: main merged twice, one text pass before merge (2026-10-01)
+
+The merge lane merged main into PR 3513 twice: `490e3195d0`, then
+`1b897ca943`.
+- **CI:** run 36862468347 passed, and the PR is clean.
+- **NF-1:** I checked it myself. All 126 lines fix pass 6 added to
+  `dihedral.rs` survive at head, and main's `MustCarryDescription` sits
+  beside them.
+
+Main's sphere work brought three `BooleanError::coincidence` sites, and
+the lane gave each a named decision:
+- `bool_connect` raises `Coincidence(Section, Moot)`;
+- a new `SphereRoots`, lever-alone with `ByArm`;
+- a new `ArcSphereRoots`, lever-alone with `ByRung`.
+
+I accept all three. Lever-alone is always D4-compliant, and no executed
+row backs a tolerance offer at these sites yet.
+
+**Held for one pass:** `SpheresMeet`'s doc and `Display` still say the
+join has no curved × curved arm. On main it now has a sphere-pair arm,
+and the scan is reached only when the spheres meet off every edge. That
+is this PR's own defect class, so the text is fixed here rather than
+filed. The same lane was resumed to:
+- rewrite the text to what holds;
+- check that the lever is still true;
+- add the three new sites to the per-site table.
+
+## PR 3673 review: no MAJOR, fix pass dispatched (2026-10-01)
+
+The topo-only review at `74c301c76d` found the PR mergeable.
+- **C1 downstream:** answered by CI run 36852480689, where the change
+  filter picked sweep, editor-core, mesh and step-import.
+- **The doors:** each of the three refuses exactly the ruled condition,
+  every `Err` leaves the body deep-unchanged, and the `shell.rs`
+  reorder's output is identical.
+
+Rulings:
+- **Fix here: C3, the chord question.** `mef` asks its minted chord only
+  whether it names the new key, and that is weaker than adjacency. The
+  reviewer executed `Pair(cyl2, cap)` returning Ok where `set_edge_curve`
+  refuses `DescriptionNotAdjacent`. The question is this PR's own, so it
+  is fixed here: `mef` asks the chord `set_edge_curve`'s adjacency
+  question, in one home, refusing `DescriptionNotAdjacent`. That also
+  closes the `Inherit` half, which predates the PR. The receipt looks at
+  `mev`.
+- **Fix:** C6, five false `// Lifts` reasons, with every lift site
+  audited.
+- **Fix:** C8, the `kef` row counts a test helper. There are ten
+  production sites, and `rest.rs` has four calls.
+- **Fix:** Q3/C7, pin each door's lever separately. `ring_move`'s strand
+  lever survived a swap mutant.
+- **Fix:** C5, `mfkrh_plug` ends in a lever its caller cannot take.
+- **Fix:** the never-raised `(false, true)` arm, and its grammar.
+- **Fix:** Q4, doc rot in `rechart_edges`.
+- **Fix:** Q1, three prose copies of the rule.
+- **Not taken:** Q7, `vouch_move`'s parameter count.
+- **Not taken:** the always-refuse onto an analytic `New` chart, which is
+  by design and documented.
+
+Brief: `mefchart-fix-brief.md`, on the rebase target with its no-delete
+rule. The kef/kfmrh `[ev]` PR still waits on this merge, because PR 3673
+carries the row.
+
+## PR 3513: the text pass delivered, rows closed (2026-10-01)
+
+`SpheresMeet` now says what holds in all four places: the spheres meet
+off every edge, so the join's sphere-pair arm has no chord to run.
+- **The lever is kept.** Apart and nested still pass, per sweep
+  `offer_rows` `apart_*`/`nested_*`. "Cross an edge" was correctly not
+  added: `seam_crossing_pairs_reach_the_join` builds along the polar axis
+  but refuses `SectionNotPolar` off it, so it is not a pass in general.
+- **The table:** three rows added for the new sites.
+- **Main merged a third time** (`2b028c15c2`): `k_stats` keeps main's
+  `decide_negative` beside this branch's gate. CI run 36874169931
+  passed, and the PR is clean.
+
+I closed the three rows on the branch (`fa330e3b82`). Merge waits for CI
+on that commit.
+
+Left as is: `sweep/tests/m5_s13_pips.rs:293`'s doc comment still says the
+join has no curved × curved arm. It is main's text, in a test, outside
+this PR's fence.
+
+Branch hazard noted: closing the rows with `checkout -B` in a second
+worktree moved the branch the lane's worktree had checked out. Nothing
+was lost, since the lane's index equals its pushed head. Next time,
+close rows in the lane's own worktree, or detached.
+
+## Main red: the bounds census (2026-10-01)
+
+PR 3513's CI on `fa330e3b82` failed one check:
+`geom-core::all bounds_census::every_sole_bracket_bound_door_is_in_the_roster`.
+- **Main fails it on its own.** BAND's `905e834018` added the sole-`Bounds`
+  door `battery.rs::short_arm` without a roster line. No fix existed on
+  any open PR or branch.
+- **The fix:** I opened PR 3717 with one `Payload` line, the same
+  disposition as `classified`. The census passes 3/3.
+- **Ported into PR 3513** at `26906c5ae1`, with one standing-down comment
+  on the PR. That merge also brings PR 3513 up to current main.
+- I am subscribed to PR 3717 and will merge it when it is green.
+
+## PR 3513 and PR 3717 merged (2026-10-01)
+
+- **PR 3717** (the census roster line for `short_arm`): merged as
+  `0fbf5d1b9c`, after CI run 36881383483 passed. Main's census red is
+  fixed.
+- **PR 3513** ("every Boolean escalation names its decision, and only a
+  declarable coincidence offers a declaration"): merged as `8b6bcc204f`
+  from head `26906c5ae1`, after CI run 36881409782 passed (`gate ok`).
+  - It took six fix passes, three merges of main and one text pass.
+  - Its three rows were closed on the branch.
+
+**Unblocked by PR 3513:** merge-orientation-rung, plane-offset-rung and
+vertex-orbit.
+
+## Dispatched: the plane offset rung carries its decided margin (2026-10-01)
+
+`plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin`
+(P2) is dispatched on the loopanchor target, which PR 3513 left free. The
+no-delete rule there stands.
+- **Witness first:** a NaN-poisoned offset read as `DecidedCoincident`
+  or "exactly zero", plus a genuine decided zero as the no-regression
+  half.
+- **The change:** both readers get the typed arm that PR 3513's
+  `LadderRefusal::Coplanar` already carries.
+- **Disk:** 3.9 GB free. The lane builds topo only and stops under
+  2.5 GB.
+- **Next in the queue:** merge-orientation-rung waits for the merge-door
+  lane, since both are in `merge_faces.rs`.
 - 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-01 — From CLEAVE: claimed `euler-rebased-run-recertifies-through-the-plain-door` (moved to `work/cleave/`, parent `edge-mint-doors-read-the-nurbs-lane-from-the-policy`). The Euler surface's attachment gate (`Body::certify_edge_spec`), the fan `mev`'s re-basing gate and `set_face_surfaces_describing` now read the plane × NURBS lane off `AtRestPolicy::nurbs_lane()`, so the Euler doors that mint or re-describe an edge are bounded `AtRestPolicy` (all five scalars implement it), and a scalar holding no lane refuses the class with the new `EulerOpError::NurbsLaneUnsupported { edge, scalar }`. `set_edge_curve_nurbs_lane` is gone. (CLEAVE lane)
 
+## Resumed after the usage stop (2026-10-03)
+
+The weekly usage limit stopped every lane on 2026-10-01 at about
+16:30 UTC. Two lanes were cut off mid-work: the merge-door implementer
+(PR 3702, pushed at `5aeebf851b`) and the plane-offset implementer
+(uncommitted work, no PR). The container survived, and all three
+worktrees are intact.
+
+**PR 3673's fix pass** delivered before the stop, and CI run 36882285266
+on `8e9c2f69e9` passed.
+- **C3 (the chord):** `set_edge_curve`'s adjacency check now has one
+  home, `require_description_adjacent`. `mef` asks it of its chord where
+  the new face leaves the parent's key, and `DescriptionNotAdjacent.edge`
+  becomes `Option`.
+- **C3, the `Inherit` half, accepted not closed.** `chord_join.rs`'s
+  production section chords take their final description under `Inherit`
+  before the glue, and asking there reds 209 sweep tests. This is the
+  same transient class as the kef/kfmrh question going to Ev. The case is
+  filed as `minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`,
+  covering `mef` (5,789 production calls), `mekr` (798) and `mev` (1,283,
+  all fixtures).
+- **The lift audit:** 109 sites, 82 comments corrected, and one dead lift
+  removed.
+- **The plug:** it is now its own door, `MfkrhPlug`, with an executed
+  lever.
+- **Also done:** the `kef` count corrected to ten sites, the levers
+  pinned per door, the `(false, true)` arm raised by a row, and the doc
+  fixes.
+
+**Since then, main conflicts with PR 3673** in `attach.rs`, `euler.rs`,
+`refusal_routes.rs` and `m5_pr10_frontier.rs`. The fix lane was resumed
+to merge main, close the row in its own worktree, and push.
+
+**The two stopped lanes** were resumed from their transcripts. The
+merge-door lane's last commits re-baselined editor-core's
+`crossing_slots` and `corner_table` for a "new curve-slot order",
+against the brief's identity requirement. It is asked to account for
+that.
+
+## PR 3673 merged; the kef/kfmrh question is with Ev (2026-10-03)
+
+- **PR 3673 merged** as `fb9645a6ca` from head `8ca18814c1`, after CI
+  run 37133137602 passed. Main's conflicts (in `attach.rs`, `euler.rs`,
+  `refusal_routes.rs` and `m5_pr10_frontier.rs`) were resolved keeping
+  both sides. A new row on main that mints half a top onto its own key
+  is wrapped in the test lift. The row closed on the branch.
+- **The kef/kfmrh question is open as PR 3970.**
+  - The row states the question, with `design: true` and
+    `needs_ev: true`.
+  - `docs/DESIGN-FORK-LOG.md` has row 60, the recommendation half.
+  - The body carries both `For Ev` sections verbatim, labelled A and B.
+  - I am subscribed to the PR for Ev's comments.
+- **Disk:** Ev approved clearing idle build targets, and the loopanchor
+  target was cleared (9.7 GB free). Clearing the rebase target and the
+  finished worktree was then denied by the session's classifier, so they
+  are left for Ev.
+- **New lanes:** Ev suggested running them as cloud sessions, which have
+  their own disk and CPU.
+
+## Two lanes dispatched as cloud sessions (2026-10-03)
+
+At Ev's suggestion, these lanes run in their own cloud sessions, each
+with its own disk. They cannot message back, so each PR body carries a
+`## Lane report`, which I read on the PR.
+- **`vertex-orbit-reads-no-start-vertex`** (P3): session
+  `session_01XuSSciBoqb8AXQd3EBveGR`, branch
+  `topo/vertex-orbit-proves-its-start`. `orbit_walk` answers `Broken`
+  for a member with a foreign start, and pass 6 keeps naming foreign
+  members.
+- **`require-kill-anchors-empty-arm-refuses-loop-cycle-broken-for-a-collision`**
+  (P4): session `session_018DFjyKqfH5g9SnhMvPhMKK`, branch
+  `topo/kill-anchors-collision-refuses-its-own-variant`.
+
+## PR 3702 delivered; review dispatched (2026-10-03)
+
+The merge door re-describes its kept faces' boundaries with the boolean's
+own describer (`describe_edges`, at `Band::linear(tol)`). It then checks
+adjacency exactly, refusing `KeptBoundaryStranded`. The boolean's
+worklist keeps only the seam edges.
+- **Witness:** a two-face coplanar prism wall on distinct keys gave
+  `DescriptionNotAdjacent` on base, through both the declared and the
+  undeclared door.
+- **Identity:** every boolean body matches once curve keys are erased
+  (1235 of 1235 after merging main), and 1095 match exactly. The
+  difference is curve-slot order: re-describing takes new slots.
+- **Ruling:** editor-core's `crossing_slots` and `corner_table` are
+  re-baselined for that slot order. Per CLAUDE.md, a golden that moves
+  is re-baselined with what moved stated. The PR states it as deviation 1.
+- **CI:** run 37133708478 on `b6d81da606` passed.
+
+The review is on the walk target (`mergedesc-r-brief.md`). It asks
+whether `KeptBoundaryStranded` is a kernel-defect check (D2 row 4 or 5)
+rather than a typed refusal, and whether a standalone merge's refusal
+text names the merge door's own decision.
+
+## PR 3970: Ev's questions; round 2 on C′ (2026-10-03)
+
+- **Ev asked for the choices' implications.** I answered on the PR
+  (`5970789113`) under five headings: where the invariant lives, what
+  each loses, callers and API, cost and reversibility, and fit with the
+  rulings. I also described a middle path.
+- **Ev:** "c seems promising", but "C loses the exact-key evidence"
+  sounds like a real defect. Can C be modified?
+- **I proposed C′** (`5970907403`). Naming is by side. The certificate
+  carries a content-identity stamp of the surfaces it was certified on.
+  Stale is a typed state that tier 3 refuses at rest. Only a door that
+  changes geometry can make a description stale: same content asks
+  nothing, and different content refuses keys-only or is re-certified by
+  the twin.
+- **Round 2:** both designers stress-test C′
+  (`design-kef-r2-brief.md`), with the same model mapping as before,
+  A = Fable and B = Opus (byte 119). They check:
+  - content identity at `Dual`/interval;
+  - mid-surgery reads that trust a certificate;
+  - whether the stamp is a second copy of adjacency;
+  - `revert`'s side flip.
+
+## PR 3970, round 2: both designers correct C′ (2026-10-03)
+
+Both reports are posted verbatim on PR 3970 (`5971015111`). I also wrote
+them to `design-kef-A-r2.md` and `design-kef-B-r2.md` in the archive.
+
+**The correction:** my C′ rested on "payload equality, as `same_chart`
+compares". `same_chart` and `one_payload` are `Arc::ptr_eq`, and payload
+equality cannot be written for a generic scalar. It would also break
+Ev's PR 53 bit-identity retirement.
+
+**Both designers agree:**
+- pure C has a real wrong-answer path through three mid-surgery readers:
+  `mate_surface`, the boolean's smooth lane and the tangency source;
+- a stamp must be key identity or shared-`Arc` identity.
+
+**A:** C″. Descriptions hold the `Arc<Surface>` they were certified on,
+and freshness is `ptr_eq`. Analytic surfaces become `Arc`-held in the
+arena. Stale is a legal transient, refused at rest as `Scaffold` is, so
+`kef`/`kfmrh` need no refusal.
+
+**B:** B. A key's surface never changes within a body, so the key is the
+sound stamp, and C′ done soundly is B plus a side label. Stale is
+refused at the door, per PR 2527.
+
+**Left for Ev:** is a stale description a legal transient state or a
+door refusal?
+
+**Off-question, to file:** `bit_identity.rs` says "`Dual`, which no
+`Body` instantiates", which is stale.
+
+## PR 3702 review: mergeable, fix pass out (2026-10-03)
+
+The review at `b6d81da606` found no MAJOR.
+- **The witness:** reds on base, in its own target directory, and is
+  green at head.
+- **One home:** `describe_edges` is base's describer verbatim.
+- **The band:** equals the boolean's.
+- **Atomicity:** every `Err` is deep-unchanged.
+
+Ruled for the fix pass (sent to the implementer):
+1. `KeptBoundaryStranded` becomes a `debug_assert` (D2 row 5). The MC3
+   mutant leaves all 54 rows green.
+2. Pin `of_merge` with a row. The MC4 mutant leaves 2154/2154 green.
+3. The merge door's refusal states its own decision and lever, not the
+   boolean's "seam" or "A/B" text (D4 ¶1 (i)).
+4. Remove the `BooleanError` ⇄ `MergeCoplanarError` cycle and its silent
+   `into_inner` re-shape.
+5. Run tier 2 before the re-describe.
+6. Complete the receipt: nine omitted hits, plus `torusvessel`. Both
+   demos merge 0 groups.
+7. De-duplicate `boundary_edges`; the editor-core pins are re-baselined
+   again.
+8. Style.
+
+Accepted as is: refusing or repairing tier-3-invalid input where base
+shipped it.
+
+## PR 3970: Ev leans to B; B+ proposed; round 3 (2026-10-03)
+
+Ev found the case that C′ is essentially B compelling, and asked how B
+could be amended so that keeping two redundant forms in step is not
+done by hand.
+
+I proposed B+ (`5971084256`):
+1. **A `Vouched` token.** Every production write of `loop.face`,
+   cross-face `parent_loop` and `face.surface` goes through private
+   `Body` primitives that require a `Vouched` token, which only
+   `vouch_move` or a twin's certification can mint. A gate lists the
+   permitted writers.
+2. **One derivation.** The five re-key helpers become one function,
+   which the twin calls itself.
+3. **Earlier checks.** The naming check joins the `per-op-postcondition`
+   feature, so fuzzers red on the first operator that strands.
+
+Round 3: both designers test B+ (`design-kef-r3-brief.md`), with the
+same A/B mapping. They check:
+- token cycles, and whether the token is structural or only advisory;
+- whether one derivation works across `Chart` and `Intersection`;
+- whether the per-op check holds with legitimately transient strands;
+- what wrong-answer paths remain.
+
+## PR 3970, round 3: both designers recommend a corrected B+ (2026-10-03)
+
+Both reports are posted verbatim (`5971199683`), and the archive holds
+`design-kef-A-r3.md` and `design-kef-B-r3.md`.
+
+**Agreed corrections to my B+:**
+- A token on its own is advisory: the fields are `pub` behind
+  `pub(crate)` accessors.
+- No write site has a cycle: `vouch_move` already runs in the plan.
+- The per-op feature runs only `surgery::tests` and ignores surgery
+  scopes.
+- The right cut is three restaters into one, which re-certifies, while
+  the certificate-carrying maps (`with_remapped_surfaces`,
+  `with_chart_v_mirrored`) stay apart.
+- A chartless arm belongs inside `vouch_move`.
+- The adjacency predicate has three copies (`Named::adjacent_to`,
+  `require_description_adjacent` and tier 3's inline check). Fix that
+  regardless.
+
+**Split, three choices for Ev:**
+1. **Confining the writes:** private fields (B) or an allowlist gate (A).
+2. **The naming check:** promote it to tier 1 (B, which edits D1's
+   tier-1 list, Ev's M1 text) or keep one predicate plus the scope-close
+   assertion (A).
+3. **Key swaps:** the twin derives them (A), or the caller passes them in
+   (B, per ruling 4).
+
+**Off-question defects to file once Ev rules:**
+- the three-home adjacency predicate;
+- two readings of a listed spec's keys (`repoint` against literal);
+- `loop_rekeyed` and `carried_spec` disagreeing on chart images.
+
+## PR 3974 delivered (plane offset rung); cloud review out (2026-10-03)
+
+`CoincidenceMeasure` has three arms: `Zero` (with its decided margin),
+`Undecided` and `Unreadable`. Its `not_zero` is the one place the poison
+bit is read.
+- `Unreadable` is routed to `Escalated { SelfCheck::CarrierData }` with
+  the kernel-defect ending, and it no longer offers a declaration.
+- Three readers are fixed: `pair_finding`, the `Display`, and
+  `pair_door_verdict` (new on main).
+- The curved `data_rungs` shared the same encoding and are fixed too.
+- Witness (a) is a NaN plane via the test-support door, red on base.
+  Four mutants red.
+- Filed: `work/wire/refusal-menu-stamps-decided-coincident-on-an-in-band-coincidence.md`.
+- CI run 37136726064 passed.
+
+The cloud reviewer is session `session_01LgCrvCR6F6EXRiRFyL5SXV`. It is
+asked whether a NaN carrier datum is a kernel defect or malformed input
+with its own lever, and whether the `same_door` test change weakened a
+pin.
+
+## PR 3975 reviewed; PR 3972 delivered (2026-10-03)
+
+- **PR 3975 (EmptyAnchorsCollide).** The cloud review says mergeable.
+  - The witness is red on base, the re-baseline is sound (mutant C), and
+    the docs match the code.
+  - **MINOR:** the filed cycle-walk row missed three sites outside
+    `euler*.rs`: `movefac.rs:162`, `attach.rs:~570` and
+    `merge_faces.rs` `outermost_survivor`. I added them to the row on the
+    branch and closed the unit row there (`4cf9aaf5ad`).
+  - **Not taken:** the doc-wrap style and the Q1 two-check taste.
+  - **NOTE:** the `besides` exclusion is unpinned. It predates this PR.
+  - Merge waits on CI on `4cf9aaf5ad`.
+- **PR 3972 (vertex-orbit).** `orbit_walk` answers `Broken` at a foreign
+  start.
+  - Pass 6 walks the old walk, with identical reports over 1,056,000 torn
+    bodies.
+  - Both plan checks are retired. `mev`'s torn refusal becomes
+    `FanOrbitBroken`.
+  - `shell::valence` is fixed.
+  - Filed: the rho residue (965 of 1,103,470), `null_site` and
+    `strut_anchor` on cleave.
+  - CI run 37139069412 passed. The cloud reviewer is
+    `session_019aQcGAqQrs7aJVZHm9oi7i`.
+
+## PR 3975 merged (2026-10-03)
+
+`EmptyAnchorsCollide` merged as `7c4b912d40`, after CI run 37140779910
+passed. Its implementer and reviewer cloud sessions are archived.
+
+## PR 3702 fix pass delivered; row closed (2026-10-03)
+
+All eight rulings were applied.
+- `KeptBoundaryStranded` became a `debug_assert`.
+- `of_merge` is pinned by a row.
+- The door's own refusals are `KeptBoundaryUndecided` and
+  `KeptBoundaryUndescribed`, which state the kept face and edge and the
+  lever.
+- The error cycle is gone: the describer returns a plain payload.
+- Tier 2 runs first.
+- The receipt is complete, with nothing strands at a return.
+- `boundary_edges` is de-duplicated.
+- Style fixed.
+- **Re-baselined, with slot order moved again:** `corner_table`,
+  `kitchen_sink` and `part_select`.
+- **Identity on topo and sweep `ci`:** 3519 of 3521 bodies match with
+  curve keys erased. The other 2 come from an operand with renamed keys.
+  Refusals and empty results are identical.
+- **CI:** run 37142062879 on `f0cc34a662` passed.
+
+I closed the row on the branch from the lane's own worktree (`1d469db18e`).
+The merge waits on CI on that head.
+
+## PR 3702 merged; merge-orientation-rung dispatched (2026-10-03)
+
+- **PR 3702 merged** as `2096c0dfe6` from head `1d469db18e`, after CI
+  run 37143357176 passed. The merge door re-describes its kept faces'
+  boundaries, which is agreed part (1) of the kef/kfmrh fork.
+- **merge-orientation-rung** (P2) is dispatched as a cloud session on
+  branch `topo/merge-orientation-rung-levers-at-the-extent`. The rung
+  levers at the edge's extent at both the merge site and F7, the
+  tolerance offers are executed, and the witnesses are a circle-split
+  coplanar pair at each site.
+
+## Reviews of PR 3974 and PR 3972; fix passes out (2026-10-03)
+
+Both reviews said mergeable with no MAJOR. Both fix passes run as cloud
+sessions on the PR branches.
+
+**PR 3974** (fix session `session_01CK4BpdarqF33YwF7FGMinH`):
+1. ±∞ is poison too. Today it decides `Distinct`, and `pair_finding`
+   silently drops it. The finiteness check goes at the one place the
+   measure is built.
+2. `Unreadable` ends in `KERNEL_OR_FILE_DEFECT_ENDING`, as
+   `PoisonedSurfaceDatum` does, and the lead says "not finite". File
+   `SelfCheck::Normals` as the same class.
+3. One home for the `Unreadable` route (four copies today). Rows so that
+   M6–M9 red.
+4. `PairInBand`'s poison text.
+5. `same_door` compares arm for arm.
+6. **CLEAVE overlap.** `work/cleave/topo-mints-indeterminates-outside-the-funnel.md`
+   (P0, design, converged today) specifies `Coincidence::{Decided, InBand}`
+   for the same payload, with poison as `InBand`. The PR keeps its type
+   and appends `## Landed in PR 3974 (TOPO)` to CLEAVE's row. That section
+   states the type and the one divergence (poison is its own arm, because
+   a non-finite datum is not a coincidence to declare, per D4 ¶1 (i)),
+   for CLEAVE to adopt or reshape at its step 2.
+
+**PR 3972** (fix session `session_01D6gXstDbkxkajseVvrPDKC`): the walk
+proves its first member's vertex, but `orbit_projection`, `valence` and
+`arcs_along` never check `emanating.start == v`. The fix is one home, a
+vertex-keyed orbit read. The unproven walk is made structurally
+validator-only.
+
+The finished cloud sessions are archived.
 ## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
 
 Ev has opened a redesign of how a document says that one thing depends
@@ -5701,6 +6314,54 @@ the above — land it as planned. Park each row the hold covers
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
 
+## PR 3972 fix pass done; merge-orientation-rung opened as PR 3992 (2026-10-03)
+
+- **PR 3972.** `Body::vertex_orbit_of(v)` proves that `emanating`'s
+  start is `v`, then walks. `orbit_projection`, `valence` and
+  `arcs_along` read through it.
+  - The unproven walk now takes a `ValidatorSeal(())` whose field is
+    private to `validate`, so only pass 6 can call it.
+  - CI run 37145739183 on `537533a43e` passed.
+  - I closed the row on the branch (`29a02ddd24`). The merge waits on CI.
+- **PR 3974's fix pass:** its first push (`c5b0164`) is red on `test`.
+  The lane is still running and owns the fix.
+- **merge-orientation-rung** is open as PR 3992, waiting on CI. I am
+  subscribed.
+
+## PR 3972 merged (2026-10-03)
+
+vertex-orbit merged as `fb0b500ac4`, after CI run 37148216835 passed.
+
+## TOPO under the intent-refactor hold (2026-10-03)
+
+The hold notice (Ev, `[ev]` PR #3990) arrived in an earlier main merge,
+and Ev pointed it out in chat. Under it, units already started finish,
+and no new unit starts on the covered ground.
+
+**Started, so they finish as planned:**
+- PR 3974, the plane offset rung: undeclared-coincidence refusals and
+  the declared rung.
+- PR 3992, merge-orientation-rung: the declared-pair orientation rung.
+
+**Parked**, with `blocked_on: [3990]`, the PR-number form MSOLVE used;
+the hold's own row is not on main yet:
+- `a-boxed-rotation-refuses-not-rigid-at-every-placer` (placement);
+- `boolean-coincidence-route-still-holds-join-and-self-check-decisions`;
+- `boolean-declared-doors-still-offer-the-declare-menu`;
+- `boolean-in-band-arms-read-ahead-of-the-declaration`;
+- `coincidence-tangent-locus-contact-section-escalate-without-their-rung`;
+- `curved-pierce-frontier-tells-one-story-for-several-decisions`;
+- `declared-pair-verdict-answers-an-unreachable-distinct`;
+- `plane-orientation-offers-no-tolerance-at-a-declared-rest-door`;
+- `recl-membership-tangent-lump-arm-is-unreachable`.
+
+**Not covered, and still open:** the Euler, attach and description rows
+(including PR 3970's kef/kfmrh question, which is about topology, not
+intent), the walk rows, `circle-torus-lane-escalates-without-its-rung`
+and `valued-offer-raised-at-a-loops-first-in-band-reading-is-not-the-binding-one`
+(numeric rungs and offers, not declarations), and
+`merge-coplanar-refusals-open-with-a-stage-label` (message text). TOPO
+still has startable work, so the program is not blocked.
 ## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
 
 Ev ratified DESIGN.md D10 on PR #3990, and the ruling
@@ -5713,3 +6374,377 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## Hold re-pointed to D10 build (2026-10-03)
+
+Ev ratified D10 on PR #3990, and the hold now waits on
+`d10-one-way-to-say-intent-is-unbuilt`. TOPO's nine parked rows are
+re-pointed there. PR 3974 and PR 3992 were started before the hold, so
+they still finish. Per D10, coincidence is a margined verdict with no
+declarations, checked by the `unproven-coincidence` lint. Read it before
+any future unit on this ground.
+
+## PR 3974 ready to merge; PR 3992 under review (2026-10-03)
+
+**PR 3974's fix pass is verified.**
+- Finiteness is checked where the measure is built, so NaN and ±∞ are
+  both `Unreadable` through one route, ending as an operand defect.
+- New rows at the tangency screen and the maximal-faces gate.
+- `same_door` matches arm for arm.
+- `## Landed in PR 3974 (TOPO)` is appended to CLEAVE's mints row.
+- Filed: the boolean unreadable norm, and the flush band's poison story.
+- CI run 37148469133 passed. I closed the row on the branch
+  (`683aac41b0`), and the merge waits on CI.
+
+**PR 3992 delivered.**
+- F7 levers at `readback::edge_extent`, a certified lower bound on the
+  edge's diameter. `edge_chord_len` and its 1 m default are gone, and a
+  failed lookup refuses `Corruption::Edge`.
+- The merge door already levered at the pair's reach (CLEAVE
+  `07450b513`). It now also glues across a closed shared edge
+  (`delete_lone_ring`), which goes beyond the brief.
+- The offer is executed (T1). M1–M5 red. CI run 37148625668 passed.
+- Cloud reviewer: `session_01XyjeAwAqxdBgCMmtYYkCav`.
+
+## PR 3974 merged with main; PR 3992 review and fix pass (2026-10-03)
+
+- **PR 3974** went dirty against main. The only conflict was CLEAVE's
+  mints row: TOPO's `## Landed in PR 3974` and CLEAVE's "Step 1 landed"
+  and "Step 2 WIP, held by #3990". Both are kept (`6ee9164cd6`).
+  CLEAVE's step-2 WIP (`cleave/mints-coincidence`, its own
+  `Coincidence::{Decided, InBand}` with poison as `InBand`) is
+  unreviewed and held, so it does not collide in code. The divergence
+  stays recorded on the row for CLEAVE. The merge waits on CI.
+- **PR 3992's review** found no MAJOR. The MINOR is `merge_group`'s doc
+  stranded on `delete_lone_ring`.
+  - **NOTEs taken:** the closed-edge path gets the pruning's
+    `ring == outline` guard; witness (a) names the killed vertex; and
+    `CORNER_LEVER`'s "longer" becomes "spanning".
+  - **Not taken:** the closed-edge `CoplanarNeighbours` offer case, the
+    `Corruption` spelling, and the `kept_loop` assertion.
+  - The review also confirmed `edge_extent` is a lower bound for every
+    carrier, with closed NURBS still over-refusing, the safe side.
+  - The fix runs as cloud session `session_01KwoWmcpHhVj3Zd5UL2kCxL`.
+
+## PR 3974 merged (2026-10-03)
+
+The plane offset rung merged as `ccb3751050`, after CI run 37155436401
+passed on `6ee9164cd6`.
+
+## PR 3992 row closed; two new cloud lanes (2026-10-03)
+
+- **PR 3992's fix pass** is verified:
+  - `merge_group`'s doc is back on `merge_group`;
+  - the closed-edge path has the pruning's guard;
+  - (a) names the killed vertex;
+  - the corner lever text is corrected, and the remaining dihedral-arm
+    wording is filed separately.
+
+  CI run 37156237867 on `c363770fac` passed. I closed the row on the
+  branch (`f37b7b84ea`), and the merge waits on CI.
+- **New lanes, neither covered by the hold:**
+  - `face-surface-test-door-is-named-for-one-of-the-two-refusals-it-lifts`
+    (E): session `session_01D39JeJjawWBHbeTtBYafkm`. It reads the
+    current shape first, since PR 3673 made the door a scope, and then
+    renames or retires it.
+  - `a-fan-split-at-a-vertex-another-vertexs-torn-walk-merges-into`
+    (P3): session `session_01XPokQaPSW3ji8RWqQTFni7`. The proof is a
+    predecessor check (`mate(prev(m))` lands in the walk), and the
+    sweep's 965 must go to 0. The lane stops if rho shapes escape, since
+    the whole-arena alternative needs a cost ruling.
+- **`cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link` waits.**
+  Its question is the same as the stale-key split's
+  (`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`),
+  which is a design fork not yet run.
+
+## PR 3992 merged (2026-10-03)
+
+merge-orientation-rung merged as `8a7b2d1f36`, after CI run 37158737738
+passed. Both units started before the hold (PR 3974 and PR 3992) are now
+landed.
+
+## Stale-key fork dispatched (2026-10-03)
+
+The stale-key split (`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`,
+absorbing `cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link`) is a
+design fork, not held by D10. Two designers were dispatched concurrently on one
+problem statement (`/home/user/topo-orch/design-stalekey-problem.md`), which
+names no candidate. The blinding record is on
+`analysis/design-fork/topo-stale-key-provenance`.
+
+## Stale-key fork: [ev] PR 4006 opened (2026-10-03)
+
+The first reports agreed on the core: split refusals by key source at the raise site. They differed on four
+points of shape. Three converged within two rounds. Point (3), where "the kernel passed a bad key" is
+expressed, crossed three times, so per protocol rule 5 a further designer was dispatched. It proposed
+`KernelCalled(EulerOpError)` as the drivers' field type, and both originals accepted it in round 4.
+PR 4006 carries one recommendation. The only question for Ev is one D2-addendum sentence, which the code
+does not wait on. Fork-log row 63 holds the recommendation half; the designer mapping is on the analysis
+branch. Off-question defect still to file: `readback::DanglingRef` raises `Entity` for record links.
+
+## 23:30 check-in (2026-10-03)
+
+Merged main into the orchestration branch; no new notices. The test-door rename is PR 4005. Its lane report:
+92-site substitution, all suites green except two editor-core `c4_band` tests that need nextest's
+one-process mode and pass there. A cloud reviewer was dispatched (light review, E unit). The fan-split lane
+has no PR yet. PRs 3970 and 4006 are with Ev. Next check-in at 00:17 UTC.
+
+## PR 4005 merged (2026-10-04)
+
+The test-door rename merged as `7d2bf68522`. The reviewer's MAJOR finding: main had gained two callers of the
+old name (`boolean/reduce.rs`, `boolean/offer_rows.rs`). The lane fixed it by merging main and renaming both.
+The MINOR finding (row not closed) I fixed myself at `63eb19f82d`. CI was green on that head. Both sessions
+are archived.
+
+Dispatched (2026-10-04 00:14): `kev-describing-a-null-member-leaves-its-face-missing-its-rows` (P3, E;
+not covered by the D10 hold) to cloud lane session_015ZfwN2bbh26FjE3ZrtM1mM on branch
+`topo/kev-describing-null-member-remints`. The lane chooses, with a witness, between planning the re-mint
+over the loop the kill leaves and refusing a listed null member at the gate.
+
+## 00:17 check-in (2026-10-04)
+
+Merged main. The boxed-rotation row conflicted with MSOLVE's re-measure: took main's text and kept the D10
+park. The fan-split proof is PR 4007. Its lane report: `Body::orbit_inverts` (O(valence) predecessor check);
+minted-key orbit faults in the 1.26M-call torn sweep went 965 → 0, with 2,074 new refusals on torn input
+only; 4 mutants red. It filed `vertex-orbit-answers-part-of-a-torn-orbit` (P4). A cloud reviewer was
+dispatched and the implementer archived. No Ev reply on 3970 or 4006 yet. Next check-in at 01:10.
+
+## 01:10 check-in (2026-10-04)
+
+- PR 4007 review: fix first, three MINORs. (1) The docs overclaim: the inversion proof holds only while `prev`
+  is intact; a paired `next`+`prev` tear strands a member and `Ok`s, though no minted key reaches the row's
+  orbit errors. (2) The receipt misses `strut_tip` and `chord_join::null_site` (`unwrap_or_default`). (3) The row
+  is not closed. Also a duplicated 14-body fixture list. Ruling: narrow the docs and pin the limit as a row;
+  extend the P4 row; fix `null_site` here only if it is one line and reachable; close the row; share the list.
+  Fix lane session_01VbCnW5ecPGBKj27aAsxYXh is on the branch.
+- PR 4010 (kev_describing null member): the lane chose (a), one shared `null_description_rows` planner
+  given the loops the kill leaves. Three rows red on base; m1-m5 red; m6 survives as equivalent off a
+  period-wrapping chart (the open re-anchor row). Reviewer session_017JbbzhW9BnQTzjFniNVSRB dispatched.
+- Parked `boolean-unreadable-norm-ends-as-a-kernel-defect` on the D10 hold: its fix routes through the
+  coincidence refusals (`PoisonedCarrierDatum`, the plane rung).
+- No Ev reply on 3970 or 4006.
+
+## PR 4007 merged (2026-10-04)
+
+The fan-split orbit-inversion proof merged as `6306551594`. The fix pass at `00380fd1b4` met every ruled item.
+The claims are narrowed to an untorn `prev`, and the paired tear is pinned as
+`a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error`. The P4 row
+`vertex-orbit-answers-part-of-a-torn-orbit` now names `strut_tip`, the paired tear and `chord_join::null_site`.
+`null_site` is not fixed because the fix changes its signature at 8 call sites, and an instrumented panic was never
+reached across topo's suite. The row is closed and the 14-body list is shared (`VALID_BODIES`). CI was green on
+the head. The fix lane is archived.
+
+Dispatched (2026-10-04 01:40): `body-has-no-vertex-point-door` (P3) to cloud lane session_01Lnx869X3rvhXNsRUTFzP5H
+on branch `topo/body-vertex-points-door`. The door refuses a dangling point key with today's types (torn record,
+not the caller's key; PR 4006's split is not pre-built), and moves the demo and sweep-test callers onto it.
+
+## 02:03 check-in (2026-10-04)
+
+PR 4010 review: fix first. MINOR-1: the row is not closed. The code is sound (witness, choice (a), planner,
+atomicity, m6 reasoning and the receipt all confirmed). Ruled fixes: close the row; S4 (pcurves.rs gives the kill
+ops' posture two answers); S6 (the duplicated null-strut fixture); file NOTE-4 (a re-described certified member
+whose ends move leaves its far-face rows stale; pre-existing, unowned) and narrow the body's "wall leaves
+complete"; S5 (give the `unreachable!` messages their reason). S1-S3 are noted only. Fix lane
+session_01Vmcq6yUAfDSaVfayevjzLJ is on it; the reviewer is archived. Merged main. No Ev reply on 3970 or 4006.
+
+## PR 4010 merged; next unit dispatched (2026-10-04)
+
+The kev_describing null-member re-mint merged as `e9de523cd5`. Its fix pass at `06960aaae0` met every ruled item:
+the row is closed; `kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale` is filed; the
+null-strut fixture is shared (`test_support_fixtures.rs`); the S4 doc gives one answer; the S5 `unreachable!`
+messages state their reason. CI was green. The fix lane is archived.
+
+Dispatched `row-drop-walks-trust-the-loops-next-cycle` (P3, M) to session_01KnxHbJoTyTCWVHGSwLmidJ on
+branch `topo/row-drop-walks-prove-their-loop`. It must move the rows-to-drop read into the plan, reuse PR
+3511's walk proof, and measure a torn sweep before and after.
+
+## 02:55 check-in (2026-10-04)
+
+Merged main. The vertex-points door is PR 4014: `vertex_points() -> (VertexKey, Result<Point3, DanglingRef>)`
+rows; two production silent drops (offset_axial's extent, reduce's vertex-on-vertex fallback) now refuse
+typed; about 100 test and demo sites moved; 76 files. Its reviewer is session_01198wYWjdeWvf2PByLvLJS9, asked
+especially about the two behaviour changes and step-import's `.ok()`. The implementer is archived. The row-drop
+walks lane is running. No Ev reply on 3970 or 4006.
+
+## 03:47 check-in (2026-10-04)
+
+- PR 4014 review: fix first.
+  - M1: `offset_axial::is_axial_in` swallows `axial_frame`'s errors into `Ok(false)`, so on a torn body the
+    new `Corrupt` flips `is_axial` from `Ok(true)` to `Ok(false)` and `shell` takes the PerChart branch. Probed.
+  - Ruled: match only the not-axial arms; fold in `attach.rs push_out_top_and_front` (fence lifted); use
+    `corrupt_at` in reduce; give the vertex-to-point read one home with `readback::vertex_point_ref`.
+  - Fix lane session_018WgYRGNUYFk4bLdvsfCQkh.
+  - N2 is evidence for the stale-key fork (PR 4006): `ReplaceFaceError::Corrupt` and shell's "(kernel bug)"
+    are reached from a caller's torn input, so the defect claim is false there.
+- PR 4016 (row-drop walks) is up: the torn-sweep "wrote another face's row" count goes 510 → 0; 11 rows,
+  10 mutants red, 2 equivalent survivors; files shell, band and hone rows and a topo P4 residue. CI is still
+  running in-lane; a reviewer will be dispatched when the lane is idle.
+- No Ev reply on 3970 or 4006.
+
+## PR 4014 merged; PR 4016 to review (2026-10-04 04:24)
+
+The vertex_points door merged as `7a7b33e8e0`. The fix at `3e25f297af` met every ruled item: `is_axial_in` matches
+`TogetherAxialUnsupported` only, with a red-then-green row; the attach fold-in; `corrupt_at`; and one home,
+`Body::point_of`, which `readback::vertex_point_ref` calls. It also filed a sibling
+(`...-axial-reads-a-dangling-surface-as-not-axial`). CI was green and the fix lane is archived.
+
+PR 4016 (row-drop walks) is with reviewer session_01XNj6ptyshGWEG3NbtpAE6f, asked about torn `parent_loop`
+vs `claims`, the `kef` Err→Ok shift, the setter refusals and the SPENT_GRAFT re-baseline (7 → 1). The
+implementer is archived. Dispatched the P4 E cleanup `a-kill-refusal-row-keeps-a-rows-companion-...` to a
+cloud lane on `topo/kill-refusal-row-drops-rows-companion`.
+
+## 05:26 check-in (2026-10-04)
+
+- PR 4018 (rows companion, P4 E test cleanup) merged as `d60d3b1082` after my light review: test-only diff,
+  premise probe recorded, row closed, CI green. Lane archived.
+- PR 4016 review: verdict merge, with MINORs. I ruled C4 a defect to fix first. `kef` on a diverted loop went
+  from a typed `Err` (base) to `Ok`; in release the tear spreads (5 new ParentLoopMismatch), and in dev,
+  unscoped, the postcondition panics "kernel bug". Cause: `stored_rows` reads Corrupt and `remints` declines.
+  Ruled: a Corrupt loop refuses typed in every plan that decides a write from `remints`/`stored_rows`, with a
+  red-then-green row; the fuzz guard must be able to go red on base; fix the stale docs (review_d18 x3,
+  require_run_of, the face_cycles links); state and pin the paired next+parent_loop tear limit; add file:line to
+  the filings. Fix lane session_01C1yXhbRPCsVtVFui3nVKxn. Reviewer archived.
+- No Ev reply on 3970 or 4006.
+
+## PR 4006: Ev asked whether a torn body is reachable by input (2026-10-04 06:09)
+
+Answered on the PR: in shipped builds it is a kernel bug, except S14's refused-graft destination, which is caller
+misuse. The arenas are pub(crate), there is no Body deserializer, step-import validates tiers 1-3, and the test
+tear helpers are cfg(test)/test-features (gated). If S14 is closed by staging, Torn always means a kernel bug and
+the D2 sentence drops its aside. Noted the D9 MUST-panic alternative. Awaiting Ev's ruling.
+
+## PR 4016 merged; next unit (2026-10-04 06:20)
+
+The row-drop walks merged as `0bae21e6ad`. The fix at `5cd2dfdf55` met every ruled item. A site mint's plan refuses
+a loop that does not walk as its own (`kef_refuses_at_every_half_edge_of_a_diverted_sheet`). The fuzz guard
+seeds the sheet with diverting seeds. The paired next+parent_loop tear is stated in `loop_cycle_of`'s doc and
+pinned (`a_diversion_paired_with_a_parent_loop_tear_passes_the_proof`), and recorded on the P4 residue row.
+The stale docs are fixed, and the shell/band/hone filings cite file:line. CI was green; the fix lane is archived.
+
+Dispatched `a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass` (P3, M) to
+session_01S8KTUqDStHBaoKW1H8uxX2 on `topo/re-anchored-loop-rows-match-the-pass`. Its question is whether the
+defect is (a) the kill keeping rows, or (b) the pass deriving rows from an arbitrary `first`. It must stop and
+report if that turns out to be a real design fork.
+
+## PR 3970: Ev answered choice 1 (2026-10-04 06:41)
+
+Ev: "1. the final state should be B, and i also think it'd be best to go directly there rather than by way of A, but
+less sure on the second. for 2 and 3 i am still unsure". Recorded 1 = B (field privacy, compile-time). Round 4
+is dispatched to both designers (brief /home/user/topo-orch/design-kef-r4-brief.md): re-weigh 2 and 3 given 1 = B,
+and say whether to go direct to B. I acknowledged on the PR and will post the reports, then edit the row in
+place.
+
+## PR 4006: Ev ruled panic + close S14 (2026-10-04 06:45)
+
+Ev: "closing s14 and making this panic is the right end state. i'm not sure where the \"same call\" rule came from,
+but it's ok to use unreachable even for complex questions … as long as the current best understanding is that
+it's only reachable if there's a kernel bug". The "same call" rule is agent-written (`0286c64bac`, 2026-08-20, D18;
+carried by `99cc678bfd`). I asked Ev one scope question on the PR: does the panic cover the whole torn-body class
+(LoopCycleBroken, OrbitBroken, ... ShellError::Corrupt), which inverts the review_d18 sweeps and the release
+corrupt-input job, or only the new record-read misses? On confirm: edit the PR in place (the D2 note in Ev's rule;
+the row's final state: record miss → unreachable!, Argument typed, drivers' Argument → unreachable!, no
+KernelCalled), fill row 63, merge, then file S14 staging as the first unit, followed by the conversion.
+
+## PR 4006 ruled; recorded in place (2026-10-04 06:55)
+
+Ev confirmed the panic covers the whole torn-body class. Recorded at `0a6a27d97d`: the D2 rows 4/5 note in Ev's rule
+(the "same call" clause is retired as agent-written); the torn-body bullet is now row 4; D9 states the graft is
+staged; S14 closed with Ev quoted; `graft-stages-into-a-fresh-body-and-commits-on-success` (P1) filed as the
+first unit; the stale-key row carries the conversion, blocked on the graft; fork-log row 64 (renumbered) filled.
+Merge on green. Then dispatch the graft unit, followed by the conversion split by door family.
+
+## PR 4006 merged; graft staging dispatched (2026-10-04 06:56)
+
+The stale-key ruling merged as `65786fdeed`. Dispatched `graft-stages-into-a-fresh-body-and-commits-on-success`
+(P1) to session_01Ljd4egwgJ4GeUHKh3pkt7f on `topo/graft-stages-and-commits`: witness the spent destination,
+stage and commit, retire "spent, never resumable", remove any tier-1-property exemption, measure the cost on
+step-import. The torn-body conversion follows it, split by door family.
+
+PR 3970 round 4: B's report is in (`design-kef-B-r4.md`): 2 = tier 1 (likely); 3 = caller states (likely,
+close; a `Carry` argument is acceptable); 1 = direct (sure), with the scope widened to the curves/surfaces
+arenas. Waiting on A.
+
+## PR 3970 round 4 in (2026-10-04 ~07:00)
+
+Both reports are saved (`design-kef-A-r4.md`, `design-kef-B-r4.md`).
+- 1: both sure, go direct to privacy. B widens the scope to the curves and surfaces arenas.
+- 2: both likely, tier 1. A moved because of 1 = B.
+- 3: split. A says the twin derives; B says the caller states it, and accepts a `Carry` named argument.
+  - The open point is whether Ev's PR 2527 "no default" covered the describing door's unlisted edges.
+  - A found `kev_describing` re-certifies unlisted members today.
+- A's off-question finding: "no chart yet" is spelled as a poisoned NURBS net, which tier 3 reads. This is for the
+  privacy unit's brief.
+
+Posting the combined verbatim comment via `gh api` was denied by the auto-mode classifier. Per the denial I did
+not re-post it by another route; I put the summary to Ev in chat instead.
+
+## 07:22 check-in (2026-10-04): re-anchor rows is a design fork
+
+PR 4021 (the re-anchored rows unit) stopped at the witness as briefed. (b), a first-independent anchor, moves the
+class and adds an in-band seam decision, so the answer is (a); how (a) treats the keys-only kills is a fork
+(PR 2527 keys-only, the unconditional re-anchor, ~4,000 `kef_minting` calls that every producer re-mints after).
+Merged 4021 as `f4a478cb3a` (two ignored witness rows and the row text only, CI green) to keep the witness.
+The fork is dispatched: blinding byte 81 (Fable=A, Opus=B) on `analysis/design-fork/topo-kill-re-anchor-rows`,
+brief `/home/user/topo-orch/design-reanchor-problem.md` (no candidates; the designers are told not to read 4021's
+body or the row).
+
+## Re-anchor rows fork: [ev] PR 4024 opened (2026-10-04)
+
+The first reports split. A kept `first` as the lift origin, dropped the byte contract, and had keys-only kef refuse.
+B proposed an image plus an integer joint element, with the lift derived. Round 1: A moved to B's representation and
+corrected its kill formula; B kept it, made `first` the accessor origin, and adopted A's anchor analysis as the
+fallback. They converged. PR 4024 edits C4's seam sentence (Ev's ratified text) as the question; fork-log row 65
+holds the recommendation half. Before either answer lands, one probe should confirm the mixed-merge LoopDiscontinuity.
+
+## 08:25 check-in (2026-10-04)
+
+The graft staging is PR 4022. Its lane reports topo 2542/2542 and sweep 2040/2040; it filed two rows (the assembly
+door-sweep cost, and the pcurves refusal leaving the cache partly cleared) and closed S70 as "decided with S14(b)".
+The reviewer, session_013YHgGeDQKi9BwPZKkrnBsg, is asked in particular whether closing S70 is legitimate and
+whether review_d18's -121 lines drop coverage. The implementer is archived. No Ev reply on 3970 or 4024.
+
+## 09:27 check-in (2026-10-04)
+
+PR 4022 review: fix first, with tracker edits only. The code is sound: both witnesses go red on base, every
+graft door is atomic under two-fault probes, staging costs about 1.2-2x and is linear, and the gate is green.
+C6: closing S70 is correct (its Gates defer exactly to S14(b)). I applied the tracker edits myself at `d65dcd3065`:
+- MINOR-1: the graft's dead-destination `JoinDesync` → `VoidInsertError::Corrupt` conflation is added to the
+  stale-key row's argument class.
+- NOTE-3: the torn-source `JoinDesync` is added to the conversion list.
+- MINOR-2 and NOTE-1: the vacuity row notes that the `SPENT_GRAFT_EXPOSURE` remedy is retired and `mfkrh_plug`'s
+  count is unpinned.
+- NOTE-2: the perf row is marked design (a D1 sweep-placement question, to go to Ev) and the pre-existing `Recertify`
+  O(E^2) is noted.
+Merge on green. The reviewer is archived.
+- 09:30: probe lane `session_01TQ5SmsWUzFBBnFaP2pXr4c` dispatched. Read-only. It measures tier 3 right after the kill-kept mixed merges (`kef`/`kef_minting`) and wrapping-loop re-anchors (`kev`/`kemr`), the claim both re-anchor designers left unchecked. Its result goes into PR 4024 as evidence.
+- 09:47: **PR 4022 merged** at `23be564d1c` (CI green on `d65dcd3065`); unsubscribed. The stale-key row is unblocked (`blocked_on: []`, `status: dispatched`; `design` dropped, since Ev ruled). Torn-body conversion **unit 1 dispatched** (`session_013Lqym7SaJPyuPeoq8fkd3b`): `EulerOpError` with the `KeyFrom` lookup, `Argument(BadArgument)`, the torn variants made `unreachable!`, `reports_tier1_corruption` deleted, the drivers' `From` mapping, and the review_d18 sweeps and corrupt-input job inverted for these doors. Unit 2 (readback `DanglingRef::Geometry`, `PcurveMint::Corrupt`, shell, `ReplaceFaceError`, the boolean's `corrupt_at`, the graft's `JoinDesync` and `VoidInsertError::Corrupt`) follows.
+
+## 10:21 check-in (2026-10-04)
+
+- The first probe (`session_01TQ5SmsWUzFBBnFaP2pXr4c`) finished, but its report was only its final message, which this session has no tool to read. The session summary shows only fragments: "pole-skip margin bug (azimuth-free joint, zero lever)", "old-closure-joint re-anchor risk (432 faces at kef)", and "probe artifact (kemr wrapper)". I archived it and re-dispatched as `session_01J4BMEARWkSt9esBpr9dwhR`. The report is now pushed as `probe-report.md` on `analysis/probe/topo-kill-rows-tier3`, and the re-run must confirm or refute those three fragments. **Lesson:** a cloud lane that does not open a PR must deliver its report through a pushed file.
+- Unit 1 (`session_013Lqym7SaJPyuPeoq8fkd3b`) is running; no PR yet.
+- Nothing new on PR 3970 or PR 4024. No topo commits incoming on main.
+
+## 11:03: Ev ruled on PR 4024 (re-anchor rows)
+
+Ev, 11:02 on PR 4024: "this sounds good!", which ratifies R: a row is an image plus a joint element, the lift is derived by summing, and C4's seam sentence is edited. Settled in place at `d720e3c47a` (main merged in):
+- the row reads `## Ruled` / `## The final state`, with the fallback recorded as not taken;
+- `needs_ev` and `design` dropped, cost raised to H (a representation change across pcurves, the kills, revert and four readers);
+- fork-log row 65 filled (match y; byte 81, A = Fable, B = Opus);
+- the PR body opens with `## Ruled`.
+
+The row stays open as the build row. It will be dispatched after the probe report lands; the link primitive goes in PR 3970's module when that exists, so it is not blocked on it. Merge on green.
+
+Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; the seven-day rate window shows a warning, so dispatch frugally). The probe re-run has no report yet. Nothing new on PR 3970.
+- 11:06: **PR 4024 merged** at `76803eae5a` (CI green on `d720e3c47a`); unsubscribed. C4's seam sentence is now the joint-element form.
+
+## 11:46 check-in (2026-10-04)
+
+- **Probe report in** (`analysis/probe/topo-kill-rows-tier3`); the re-run session is archived.
+  - It confirms that mixed `kef` merges are tier-3-loud: 1,633 `kef_minting` and 8 `kef` faces, every one `LoopDiscontinuity`, none clean.
+  - 93 of them are the old closure joint left mid-loop by `kef`'s unconditional re-anchor.
+  - Evidence added to the re-anchor build row. Filed `the-pass-refuses-a-tier-3-clean-loop-anchored-past-a-pole-slit` (P3, M; snowman cap `LoopNotClosed`) and `pin-branch-meters-the-joint-arm-as-a-length-and-skips-an-in-band-shift` (P4, E; 0 live hits).
+  - The `kemr` "artifact" was the first probe's own wrapper.
+- The R build waits for PR 4029 (both touch `euler_kill.rs`).
+- **Unit 1 opened PR 4029** (about 9k lines, 58 files; every deleted variant's site converted; drivers through `from_driver()`; 11 + 8 editor-core chains closed; no goldens moved). Subscribed. Reviewer `session_01Th9v8RURstDac57y6oVuRv` dispatched; it posts its verdict as a PR comment.
+- Nothing new on PR 3970.

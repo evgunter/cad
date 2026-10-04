@@ -6129,6 +6129,33 @@ mod tests {
     use crate::program::ProfileProgram;
     use crate::test_support::len;
 
+    /// **The door's post-condition is checked, not assumed**: a write
+    /// that leaves a name leaf in a stored node refuses
+    /// `NameLeafWritten`, naming the node and the name. No public arm
+    /// reaches it — each lowers and checks what it writes first — so the
+    /// row hands [`super::door`] a write that does not, which is the
+    /// defect the check exists to refuse rather than store.
+    #[test]
+    fn a_write_that_leaves_a_name_leaf_refuses_name_leaf_written() {
+        let tol = geom_core::Tol::witness();
+        let (doc, [extrude, _, _]) = crate::test_support::clipped_cylinder(tol);
+        let width = crate::VarName::from_static("width");
+        let unlowered = crate::Expr::named(width.clone(), crate::Dimension::Length);
+        let refused = super::door(&doc, tol, |new, _| {
+            let node = new.nodes.get_mut(&extrude).expect("the extrude is live");
+            *node.expr_mut(crate::node::SlotId::Distance).expect("a distance slot") = unlowered;
+            Ok(())
+        })
+        .map(|_| ())
+        .expect_err("a stored name leaf is refused");
+        match refused {
+            super::EditError::NameLeafWritten { node, name } => {
+                assert_eq!((node.id(), name), (extrude, width));
+            }
+            other => panic!("the post-condition refuses, got {other:?}"),
+        }
+    }
+
     /// **The datum question is answered by the edit too**: the insert
     /// of a mate and a slot edit at a mate's frame-offset step write a
     /// mate's alignment datum, and nothing else does — not the insert

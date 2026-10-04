@@ -41,39 +41,31 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 /// kernel invariant or a kernel finding, where the key is what the bug
 /// report needs. Every other row names what it is about in words.
 const KERNEL_KEYED: &[&str] = &[
-    "Extrude/Op",
     "Revolve/VoidInsertion",
-    "Revolve/Op",
     "Revolve/Pcurve",
     "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/CorruptOperand",
     "Split/Reduce/CrossingInsertion",
-    "Split/Reduce/Euler",
     "Split/Join/SectionLoopMixed",
     "Split/Join/CutInvariant",
     "Split/Join/Corrupt",
-    "Split/Join/Euler",
     "Split/Join/SectionInvariant",
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/CutInvariant",
     "Boolean/Join/Corrupt",
-    "Boolean/Join/Euler",
     "Boolean/Join/SectionInvariant",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
-    "Split/Finish/Euler",
     "Split/Finish/NestingContradiction",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
-    "Loft/Euler",
     "Loft/Pcurve",
     "Blend/BodyNotIntact",
     "Blend/SurgeryInvariant",
     "Blend/Certify",
-    "Blend/Op",
     "Naming/SplitLineage",
     "Naming/FragmentLineage",
     "Naming/SeamVertexParentage",
@@ -349,40 +341,31 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
-    "Boolean/Join/Euler",
     "Boolean/Join/Section",
     "Boolean/Join/SectionInvariant",
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
     "Split/Finish/Corrupt",
     "Split/Finish/DegenerateSide",
-    "Split/Finish/Euler",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
     "Split/Join/CutInvariant",
-    "Split/Join/Euler",
     "Split/Join/Section",
     "Split/Join/SectionInvariant",
     "Split/Join/SectionLoopMixed",
     "Split/Join/UnpairedLooseEnds",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/CorruptOperand",
-    "Split/Reduce/CrossingInsertion",
-    "Split/Reduce/Euler",
     "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
-    "Blend/Op",
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
-    "Extrude/Op",
     "Extrude/SidePlane",
     "Loft/CapPlane",
-    "Loft/Euler",
     "Loft/SectionStructure",
     "Revolve/CapPlane",
     "Revolve/FullRangeAngle",
-    "Revolve/Op",
     "Revolve/VoidInsertion",
     "Skin/BadDegree",
     "Skin/DomainNotUnit",
@@ -400,8 +383,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Shell/OpenFaceRimNotExpressible",
     "Shell/OpenFaceStale",
     "Shell/OperandOuterShells",
-    "Shell/Partition",
-    "Shell/Rim",
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
@@ -633,10 +614,11 @@ mod payloads {
         }
     }
 
+    /// A refusal an operator gives a kernel driver: a fact about the
+    /// operation, never a bad argument, which a driver's own keys cannot
+    /// be ([`topo::EulerOpError::from_driver`]).
     pub(super) fn euler() -> topo::EulerOpError {
-        topo::EulerOpError::StaleKey {
-            key: topo::EntityId::Face(topo::FaceKey::default()),
-        }
+        topo::EulerOpError::DescriptionNotAdjacent { edge: None }
     }
 
     pub(super) fn pcurve() -> topo::PcurveMintError {
@@ -647,6 +629,55 @@ mod payloads {
 
     pub(super) fn newell() -> geom_brep::NewellError {
         geom_brep::NewellError::NotPlanar { vertex: 3 }
+    }
+}
+
+/// The chains that carry an operator's refusal out of a kernel
+/// driver. None is filed short of a recourse: a driver's keys are ones
+/// it read or minted, so an argument miss never reaches one typed
+/// ([`topo::EulerOpError::from_driver`] panics on it), and what reaches
+/// them is an operation refusal, which states its own recourse. That
+/// recourse is addressed to the driver's call, not to the person at
+/// the GUI — on [`payloads::euler`] it reads "describe it against the
+/// surfaces its faces wear" — which is
+/// `work/hone/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
+const DRIVER_CARRIED: &[&str] = &[
+    "Blend/Op",
+    "Boolean/Join/Euler",
+    "Extrude/Op",
+    "Loft/Euler",
+    "Revolve/Op",
+    "Shell/Partition",
+    "Shell/Rim",
+    "Split/Finish/Euler",
+    "Split/Join/Euler",
+    "Split/Reduce/CrossingInsertion",
+    "Split/Reduce/Euler",
+];
+
+#[test]
+fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
+    let carried = payloads::euler().to_string();
+    let (_, recourse) = carried
+        .split_once("Recourse: ")
+        .expect("the sample operation refusal states a recourse");
+    let rows: Vec<(String, String)> = node_refusals()
+        .into_iter()
+        .filter(|(name, _)| DRIVER_CARRIED.contains(&name.as_str()))
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    assert_eq!(
+        rows.len(),
+        DRIVER_CARRIED.len(),
+        "every driver-carried chain is rendered: {:?}",
+        rows.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+    for (name, text) in &rows {
+        assert!(
+            text.ends_with(recourse) && !text.contains("kernel bug"),
+            "{name} draws the carried operation refusal's recourse, and no kernel-bug \
+             claim beside it: {text}"
+        );
     }
 }
 
