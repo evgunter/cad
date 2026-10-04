@@ -1650,7 +1650,8 @@ fn a_corner_crossing_the_cubes_four_times_refuses_pairing_mismatch() {
 /// alternate round the corner. The shared corner's runs reconcile, and
 /// ∪ and ∖ with `y` first and `cube ∩ y` build at volumes that agree
 /// with each other; `y ∩ cube` and `cube ∪ y` refuse `JoinDesync` and
-/// `cube ∖ y` refuses `Euler(SelfLoopEdge)`: pinned as they stand.
+/// `cube ∖ y` refuses `PinchUncrossed` (its zips would fuse a pinch to
+/// itself, and no kept face can cross it): pinned as they stand.
 #[test]
 fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     let tol = Tol::witness();
@@ -1687,7 +1688,7 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
         match (op, got) {
             ("y ∩ cube" | "cube ∪ y", Err(BooleanError::JoinDesync { .. }))
-            | ("cube ∖ y", Err(BooleanError::Euler(_))) => {}
+            | ("cube ∖ y", Err(BooleanError::PinchUncrossed { .. })) => {}
             ("y ∪ cube" | "y ∖ cube" | "cube ∩ y", Ok(BooleanResult::Body(out))) => {
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
                 assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());

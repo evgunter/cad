@@ -755,14 +755,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // two, the half leaving the ring vertex faces the run's germ that
     // the walk clockwise about the pierced face's outward normal meets
     // first from the other run's start germ
-    // ([`super::insert::strut_order`]), except in an intersection,
-    // where it faces the start germ. That exception is MEASURED, not
-    // derived: the walk reads the end germ in 169 of 340 two-run
-    // poses per operand order. There the walk's facing refuses all
-    // 169 `SelfLoopEdge`, and this one builds 69 and refuses 100
-    // `JoinDesync` (`join_pierce_strut_facing.rs` holds the built
-    // ones). No reading of the germs' geometry yet says why
-    // (`work/join/the-intersection-ring-facing-is-measured-not-derived.md`).
+    // ([`super::insert::strut_order`]), in every op. Where that leaves
+    // both operands one vertex at a pinch, the zips would fuse it to
+    // itself, and `zip::cross_pinches` crosses it first.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end
@@ -773,7 +768,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // Two runs at most (refused above): the other run is `1 - i`.
             let leaving_faces_start = match runs.len() {
                 1 => false,
-                _ if op == BooleanOp::Intersect => true,
                 _ => super::insert::strut_order(
                     run_germs[1 - i].0.1,
                     n_pierced.vec(),

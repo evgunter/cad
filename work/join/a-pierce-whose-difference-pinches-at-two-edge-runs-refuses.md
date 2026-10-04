@@ -44,3 +44,28 @@ bisector, and not only where each run is a lone edge.
 This is the same question as `a-pierce-whose-wide-run-pinches-its-intersection-refuses`:
 which face carries a pinch's crossed corner when neither operand's
 kept faces run through both copies. Diagnose the two rows together.
+
+## Built
+
+Branch `join/pierce-pinch-families`.
+
+**First wrong state: the second seam's fusion of an already-fused
+pinch.** Cube ∖ prism keeps the cube's ring vertex `w` as one vertex
+for both runs (the walk's facing puts it on the kept Out side of both
+struts), and the prism's `v` as one vertex for both (its In side). The
+two lobes are two section polygons, two seams. Seam 1's zip fuses `w`
+and `v`. Seam 2's first pair is then one vertex on both sides, and its
+joint is a zero-length self-loop: `Euler(SelfLoopEdge)`. Every state
+before that was right: each operand's body passes tier 1, and the cube
+face passes `w` twice, on one ring, round the figure-eight hole.
+
+**Which face carries the crossed corner: the cube face.** Its kept
+region near `v` is two sectors, one in each cone of the pinch.
+`zip::cross_pinches` splits the vertex across that ring's two corners
+before the zips (`mev`, then `kemr`), which crosses them: the face ends
+with two holes meeting at `v`, and the zips fuse a tree.
+
+The widened family r1 measured (every pose with the +x and +y edges Out)
+and the 315°/225° corners' cube ∖ prism build the same way.
+
+Row: `join_pierce_strut_facing::two_edge_runs_build_in_every_op`.

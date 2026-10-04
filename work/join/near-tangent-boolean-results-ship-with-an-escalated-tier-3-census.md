@@ -93,6 +93,22 @@ REACH's `boolean-door-adopts-the-finished-body-type` gates results at
 tier 3′. It lists 11 other `CensusEscalated` results as a prerequisite;
 this class is a larger instance of the same prerequisite.
 
+**17 more runs, built by `join/pierce-pinch-families`** (the pinch
+crossing, `zip::cross_pinches`, and the walk's facing in every op),
+against main `81dde823` in release on `r1_pierce_probes cube` with the
+`R1_NT_D` set above. Main refused each: 12 "every chord arc separates a
+loose scaffolding pair" and 5 `Euler(SelfLoopEdge)`. Every tier-3′
+finding on them is `CensusEscalated` (118 findings, `ee_span`,
+`ee_overlap`, `ee_parallel`, margins 1.0e-9 to 5.5e-9), none definite.
+All lie at poses listed above:
+- notch307 `nt e0 a0 d1e-7` pc I; `nt e0 a1 d1e-7` pc I;
+  `nt e0 a3 d1e-8` pc I, cp I; `nt e0 a11 d-1e-8` cp S;
+  `nt e1 a4 d1e-8` pc I, cp I; `nt e1 a7 d1e-7` pc I;
+  `nt e1 a12 d-1e-8` cp S;
+- shallow200 `nt e0 a0 d1e-8` pc I, cp I; `nt e0 a1 d1e-8` pc I, cp I;
+  `nt e1 a5 d1e-8` cp I; `nt e1 a7 d1e-8` pc I; `nt e1 a13 d-1e-8` cp S;
+  `nt e1 a14 d-1e-8` cp S.
+
 ## The shape to give
 
 Take one pose per predicate and read which pair the census cannot

@@ -2064,6 +2064,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PierceRunsUnordered
+        | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CorruptOperand
         | BooleanErrorKind::CurvedPairUnsupported

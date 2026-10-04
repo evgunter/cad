@@ -1,7 +1,7 @@
 ---
 id: three-corners-alternating-round-a-corner-refuse-at-the-join
 kind: issue
-title: "Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or Euler(SelfLoopEdge) in three ops"
+title: "Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or PinchUncrossed in three ops"
 status: open
 opened: 2026-10-03
 priority: P1
@@ -22,7 +22,11 @@ others' cuts). Then:
   (∖ + ∩ = y; ∪ = 1 + ∖);
 - `y ∩ cube` and `cube ∪ y` refuse
   `JoinDesync { what: "conflicting seam vertex correspondence" }`;
-- `cube ∖ y` refuses `Euler(SelfLoopEdge)`.
+- `cube ∖ y` refuses `PinchUncrossed`. Its zips would fuse the pinch
+  at the shared corner to itself, and no kept face there can cross
+  between the two cones (`boolean::zip::cross_pinches`); it refused
+  `Euler(SelfLoopEdge)`, from that second fusion, until
+  `join/pierce-pinch-families`.
 
 The same on main before
 `work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`'s

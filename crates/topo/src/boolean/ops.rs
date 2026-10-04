@@ -250,8 +250,9 @@ pub struct BooleanNaming {
     /// has no result key (translate the kept column through
     /// `graft_vertices`).
     pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
-    /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
-    /// result keys.
+    /// Face absorption groups `(kept, absorbed…)`, result keys: the
+    /// pinch crossings' (`zip::cross_pinches`), then
+    /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
     /// Curved merge groups the output stage did NOT glue, as outside
     /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
@@ -602,6 +603,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
+    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep);
@@ -656,7 +659,11 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges,
         vertex_merges,
         weld_merges_b: fin.weld_merges_b,
-        merge_groups: merge_rows(&merged),
+        merge_groups: crossed
+            .iter()
+            .map(|&(absorbed, kept)| (kept, vec![absorbed]))
+            .chain(merge_rows(&merged))
+            .collect(),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
         face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
@@ -2589,6 +2596,11 @@ impl Descendants {
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
+    }
+
+    /// Face absorptions `(absorbed, kept)` outside the coplanar merge.
+    pub(super) fn absorb_faces(&mut self, rows: &[(FaceKey, FaceKey)]) {
+        self.faces.extend(rows.iter().copied());
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {

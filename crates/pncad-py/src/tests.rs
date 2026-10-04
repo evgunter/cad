@@ -4769,6 +4769,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "pierce_runs_unordered",
+            "pinch_uncrossed",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
             "rest_zip_unsupported",

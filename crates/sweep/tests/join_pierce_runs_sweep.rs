@@ -353,6 +353,28 @@ fn the_sweep_subset_ships_no_bad_body() {
     );
 }
 
+/// **A pinch no kept face can cross refuses typed.** With `v` on the
+/// cube's edge (direction `i = 6, j = 1`), cube ∖ prism pinches at `v`
+/// over two seams, and each cube face through `v` passes it twice on
+/// its outer loop, round a notch the prism cuts: crossing either would
+/// leave a ring meeting the outer loop. So the zips' second fusion of
+/// the point has no face to cross it, and the op refuses
+/// `PinchUncrossed` rather than fuse the vertex to itself
+/// (`a-pinch-no-kept-face-can-cross-refuses`).
+#[test]
+fn a_pinch_no_kept_face_can_cross_refuses_typed() {
+    let (place, lo, psis) = PLACEMENTS[1];
+    let (tag, r, _) = pose_runs((place, lo), (6, 1, psis[0]))
+        .into_iter()
+        .find(|(tag, ..)| tag.ends_with("cp S"))
+        .expect("the pose runs cube ∖ prism");
+    assert!(
+        matches!(r, Err(BooleanError::PinchUncrossed { .. })),
+        "{tag}: {}",
+        outcome(r, f64::NAN, tol())
+    );
+}
+
 /// The oracle against the kernel-free closed form the strut-facing row
 /// reads: a face placement at the bare tilt holds the prism's cut by
 /// the plane through `v`, and the empty and whole cases read 0 and 3.
