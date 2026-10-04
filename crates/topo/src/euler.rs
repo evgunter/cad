@@ -4220,7 +4220,12 @@ impl<T: Decide> Body<T> {
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        self.plan_site_mint(touched, |body, _| faces(body), Some(edge), tol)
+        self.plan_site_mint(
+            touched,
+            |body, _| faces(body),
+            crate::pcurves::SiteCarriers::New(edge),
+            tol,
+        )
     }
 
     /// **A site mint's plan**: which faces it re-mints, and the rows it
@@ -4241,7 +4246,7 @@ impl<T: Decide> Body<T> {
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
-        edge: Option<&EdgeCurve<T>>,
+        curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let read = touched.iter().map(|&lk| {
@@ -4251,7 +4256,7 @@ impl<T: Decide> Body<T> {
                     key: EntityId::Loop(lk),
                 })
         });
-        self.plan_site_mint_of(read, faces, edge, Some(tol))
+        self.plan_site_mint_of(read, faces, curves, Some(tol))
     }
 
     /// **A site mint's plan over the faces whose rows decide it**
@@ -4267,8 +4272,8 @@ impl<T: Decide> Body<T> {
     /// the body — and when none is read further, `faces` does not run.
     /// `faces` is handed those faces as found and describes the faces
     /// as the door leaves them; [`crate::pcurves::site_rows`] decides
-    /// each one. `edge` carries the door's new or described halves, and
-    /// is `None` for a door that names existing halves alone. `tol` is
+    /// each one. `curves` carries the door's new or described halves
+    /// ([`crate::pcurves::SiteCarriers`]). `tol` is
     /// the band the rows are derived at; `None` for a keys-only door,
     /// which derives nothing and refuses
     /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where a face would
@@ -4290,7 +4295,7 @@ impl<T: Decide> Body<T> {
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
-        edge: Option<&EdgeCurve<T>>,
+        curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
@@ -4347,7 +4352,7 @@ impl<T: Decide> Body<T> {
                 let Some(from) = from_of(face) else {
                     return Ok(SiteRows::Leave);
                 };
-                crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {
+                crate::pcurves::site_rows(self, face, from, curves, band).map_err(|refusal| {
                     EulerOpError::PcurveMint {
                         face: face.rows_from,
                         refusal,

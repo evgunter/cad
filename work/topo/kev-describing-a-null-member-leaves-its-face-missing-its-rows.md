@@ -2,10 +2,12 @@
 id: kev-describing-a-null-member-leaves-its-face-missing-its-rows
 kind: issue
 title: kev_describing gives a listed null member its first description without the re-mint set_edge_curve now runs
-status: open
+status: review
 opened: 2026-09-30
 priority: P3
 cost: E
+branch: topo/kev-describing-null-member-remints
+pr: 4010
 ---
 
 

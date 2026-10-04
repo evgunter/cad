@@ -876,7 +876,12 @@ impl<T: Decide> Body<T> {
     ///   through, adjacency coherence included, and its curve is
     ///   replaced by fresh insertion (the old one reaped iff orphaned).
     ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
-    ///   say why, and what tier 3 does with them).
+    ///   say why, and what tier 3 does with them) — except that a listed
+    ///   null edge's description is its first, and re-mints the faces
+    ///   its halves are on as `set_edge_curve`'s does, through the one
+    ///   planner both doors run, over each face as the kill leaves it:
+    ///   the killed halves gone, and every listed member's halves under
+    ///   the curve this door installs.
     /// - **An unlisted member** keeps its carrier and passes the
     ///   re-basing gate [`Body::mev`]'s fan site passes, under this
     ///   band: its stored description re-certified against the merged
@@ -926,7 +931,11 @@ impl<T: Decide> Body<T> {
     /// `StaleGeometry` / [`EulerOpError::RebasedNullEdge`] /
     /// [`EulerOpError::RebasedCarrier`] naming the first that fails).
     /// So an empty merged fan with an empty list asks nothing past the
-    /// structural list, and the two doors agree there.
+    /// structural list, and the two doors agree there. Last, where a
+    /// listed member is a null edge, its first description's site mint
+    /// is planned (`StaleKey` / `StaleGeometry` /
+    /// [`EulerOpError::LoopCycleBroken`] /
+    /// [`EulerOpError::PcurveMint`], as [`Body::set_edge_curve`]'s).
     ///
     /// # Errors
     ///
@@ -945,6 +954,11 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let plan = self.kev_plan(he)?;
         let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
+            .iter()
+            .map(|(edge, curve)| (*edge, curve))
+            .collect();
+        let rows = self.null_description_rows(&curves, |body| body.kev_loops_after(&plan), tol)?;
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
         // the killed edge (`kev_plan` proves it), so each one survives
@@ -952,6 +966,7 @@ impl<T: Decide> Body<T> {
         for (edge, curve) in described {
             self.replace_edge_curve(edge, curve);
         }
+        crate::pcurves::apply_site_rows(self, rows, None);
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEV_DELTA, "kev_describing");
         Ok(result)
@@ -1168,6 +1183,41 @@ impl<T: Decide> Body<T> {
         } else {
             Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
         }
+    }
+
+    /// The loops the kill rewires, as it leaves them: each loop it
+    /// re-anchors, in `next` order from its new anchor with the killed
+    /// halves gone (the unsplice's links only bridge them,
+    /// [`KevUnsplice::links`]), and the segment's loop empty. Where both
+    /// anchors name one loop the second wins, as in
+    /// [`KevUnsplice::loop_writes`]. Pure.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::LoopCycleBroken`] where a re-anchored loop's
+    /// cycle does not close.
+    fn kev_loops_after(
+        &self,
+        plan: &KevPlan,
+    ) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError> {
+        let [_, b, _, d] = plan.links;
+        let mut after: Vec<(LoopKey, Vec<HalfEdgeKey>)> = Vec::with_capacity(2);
+        for (r#loop, boundary) in plan
+            .unsplice
+            .loop_writes(plan.loops, [b.key(), d.key()], plan.v)
+        {
+            let cycle = match boundary {
+                LoopBoundary::Empty { .. } => Vec::new(),
+                LoopBoundary::Cycle { first } => {
+                    let mut cycle = self.site_cycle_from(first, r#loop)?;
+                    cycle.retain(|&h| h != plan.he && h != plan.m);
+                    cycle
+                }
+            };
+            after.retain(|(k, _)| *k != r#loop);
+            after.push((r#loop, cycle));
+        }
+        Ok(after)
     }
 
     /// [`Body::kev_describing`]'s gate: every listed spec certified
@@ -4352,5 +4402,100 @@ mod tests {
         body.get_half_edge_mut(he).unwrap().start = lone.vertex;
         let torn = EulerOpError::OrbitBroken { he };
         assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
+
+    // ------------------------------------------------------------------
+    // kev_describing: a listed null member's first description
+    // ------------------------------------------------------------------
+
+    /// What `kev_describing` is handed to re-describe.
+    type Listing = Vec<(EdgeKey, EdgeCurveSpec<f64>)>;
+
+    /// The minted cylinder wall over `[0.2, 1.4] x [0, 1]` with its
+    /// bottom rim split at the ruling `u = 0.8`, a strut up the ruling
+    /// to `v = 0.5` and a null strut at its tip: the wall missing the
+    /// null edge's two rows. Returns the body, the wall, the half that
+    /// kills the strut toward its tip, and the kill's listing (the
+    /// null edge, with the ruling line between its merged ends).
+    fn null_member_on_the_wall() -> (Body<f64>, FaceKey, HalfEdgeKey, Listing) {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<f64>::new();
+        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let rim = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body
+                    .get_curve_geom(body.get_edge(e).unwrap().curve)
+                    .and_then(crate::CurveGeom::certified)
+                    .unwrap();
+                matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+            })
+            .unwrap();
+        let m = body.split_edge(rim, 0.8, tol).unwrap().vertex;
+        let leaving = |body: &Body<f64>, v: VertexKey| {
+            let f = body.get_face(face).unwrap();
+            let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+                unreachable!("the wall's outer loop is a cycle")
+            };
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&h| body.get_half_edge(h).unwrap().start == v)
+                .unwrap()
+        };
+        let he = leaving(&body, m);
+        let strut = body
+            .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(0.8, 0.5), tol)
+            .unwrap();
+        let he = leaving(&body, strut.vertex);
+        let null = body
+            .mev_null(
+                MevSite::Fan { he1: he, he2: he },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {
+            strut.he_plus
+        } else {
+            strut.he_minus
+        };
+        let members = body.kev_merged_members(toward_tip).unwrap();
+        assert_eq!(members.len(), 1, "the tip's fan is the null edge alone");
+        let line = EdgeCurveSpec::line_between(members[0].start, members[0].end);
+        (body, face, toward_tip, vec![(null.edge, line)])
+    }
+
+    /// **The re-mint is planned before the kill mutates.** The wall's
+    /// far side has lost its curve entry, which neither the kill's plan
+    /// nor its gate reads; the null member's re-mint reads the wall
+    /// and refuses it, and the kill is not run: the body is deep
+    /// unchanged, every pcurve row included.
+    #[test]
+    fn a_refused_null_member_re_mint_leaves_the_body_untouched() {
+        let (mut body, face, toward_tip, listed) = null_member_on_the_wall();
+        let side = body
+            .edges()
+            .find(|(_, e)| {
+                body.get_curve_geom(e.curve)
+                    .and_then(crate::CurveGeom::certified)
+                    .is_some_and(|c| {
+                        matches!(c.carrier(), geom::Curve3::Line { origin, .. }
+                            if (origin.x - 1.4f64.cos()).abs() < 1e-12)
+                    })
+            })
+            .map(|(_, e)| e.curve)
+            .unwrap();
+        body.curves.remove(side).unwrap();
+        let refused = EulerOpError::PcurveMint {
+            face,
+            refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+        };
+        assert_err_deep_unchanged(&mut body, &refused, |b| {
+            b.kev_describing(toward_tip, &listed, Tol::witness())
+                .unwrap_err()
+        });
     }
 }
