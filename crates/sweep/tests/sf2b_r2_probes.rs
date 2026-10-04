@@ -324,16 +324,16 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         r_foot * r_foot + (y_foot - y_c) * (y_foot - y_c) - r_belly * r_belly
     );
     let before: Vec<f64> = pot
-        .vertices()
-        .filter_map(|(_, vd)| pot.get_point(vd.point).copied())
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| p.z.atan2(p.x))
         .collect();
     let hollow = topo::shell(&pot, T, tol)
         .expect("the bellied pot hollows")
         .body;
     let after: Vec<f64> = hollow
-        .vertices()
-        .filter_map(|(_, vd)| hollow.get_point(vd.point).copied())
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .filter(|p| (p.x * p.x + p.z * p.z).sqrt() > 1e-12)
         .map(|p| p.z.atan2(p.x))
         .collect();

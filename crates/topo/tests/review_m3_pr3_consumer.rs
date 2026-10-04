@@ -32,8 +32,8 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 /// shared-key hazard), and every geometry arena entry is referenced
 /// by a surviving entity (no orphan leaks).
 fn audit_geometry(body: &Body<f64>) {
-    for (_, v) in body.vertices() {
-        assert!(body.get_point(v.point).is_some(), "dangling point key");
+    for (_, p) in body.vertex_points() {
+        assert!(p.is_ok(), "dangling point key");
     }
     for (_, e) in body.edges() {
         assert!(body.get_curve_geom(e.curve).is_some(), "dangling curve key");

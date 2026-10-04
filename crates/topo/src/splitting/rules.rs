@@ -798,11 +798,8 @@ mod tests {
             .unwrap();
         let (far, far_d) = cube
             .body
-            .vertices()
-            .map(|(k, v)| {
-                let p = *cube.body.get_point(v.point).unwrap();
-                (k, (p - p_base).norm())
-            })
+            .vertex_points()
+            .map(|(k, p)| (k, (p.unwrap() - p_base).norm()))
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .unwrap();
         assert!(
