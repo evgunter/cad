@@ -510,10 +510,14 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 let pu = point(u)?;
                 // No row reaches the escalation: two pierces a band
                 // apart need the piercing operand's two edges a band
-                // apart, and the join escalates that waist at
-                // `bool_join_nearest` before the weld runs; a narrower
-                // one the profile insert refuses at the operand's build.
-                // An operand built elsewhere can still bring them here.
+                // apart. Seen from one germ the two sites lie in one
+                // half-turn unless they straddle its ends, and the join
+                // orders them there before the weld runs — escalating
+                // the waist at `bool_join_arc_travel` along a conic, at
+                // `bool_join_nearest` on a straight line; a narrower one
+                // the profile insert refuses at the operand's build. An
+                // operand built elsewhere, or two sites the half-turn
+                // parts, can still bring them here.
                 if !one_vertex(pu, point(w)?, band).map_err(|diag| BooleanError::Escalated {
                     decision: super::BooleanDecision::VertexOnVertex,
                     diag,

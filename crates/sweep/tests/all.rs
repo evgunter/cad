@@ -115,6 +115,10 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "pocket_ring_steep_ellipse.rs"]
+mod pocket_ring_steep_ellipse;
+#[path = "pocket_wall_crossing_a_side_face.rs"]
+mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
