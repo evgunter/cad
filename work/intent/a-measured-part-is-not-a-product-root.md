@@ -2,11 +2,11 @@
 id: a-measured-part-is-not-a-product-root
 kind: issue
 title: A Measure reading a part's faces consumes it, so a document that asserts a requirement over its own part has no product
-status: open
+status: parked
 opened: 2026-10-03
 priority: P2
 cost: M
-design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -48,3 +48,12 @@ Shapes a fix could take (not weighed here): a measure reference as an
 A12-style READING edge (evaluation order kept, root set untouched), or
 a product rule that gathers a body-denoting ancestor of a non-body
 root.
+
+## D10 disposition (2026-10-04)
+
+Its `[ev]` PR #3929 was closed as superseded by DESIGN.md D10 (#3990):
+nothing consumes anything and the product is an explicit list of
+`Body` variables, so a `Measure` reading the product's faces cannot
+strip it. INTENT stage 2 (operations and one dependency) builds that;
+this row closes with it, its acceptance being that a measured part
+stays in the product. Moved here from RECIPE.
