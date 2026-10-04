@@ -5345,6 +5345,7 @@ fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
             .iter()
             .map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len()))
             .collect();
+        eprintln!("ARMS {at}: samples {n:?} halvings {}", geom_brep::ssi::march::PROBE_HALVINGS.with(|c| c.get()));
         let [a, b] = n[..] else {
             panic!("{at}: expected two branches, got {n:?}");
         };

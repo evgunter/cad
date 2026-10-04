@@ -1072,7 +1072,42 @@ where
                     .into_iter()
                     .fold(h_quad, Real::min);
                 let h_cap = ctx.diagonal();
-                let h = Real::min(h_curve, h_cap);
+                let h0 = Real::min(h_curve, h_cap);
+                // PROBE (design fork, lane b): the predictor's acceptance.
+                // A step is kept only where the corrector moves its
+                // predicted state no further than the step rule claims
+                // the predictor deviates (k·δ·ε); a step whose predicted
+                // end leaves the domain must also have its predicted
+                // midpoint inside and accepted the same way. Otherwise
+                // halve, down to the band (where `ssi_step_progress`
+                // speaks).
+                let thr = probe_k() * SSI_STEP_DEVIATION * ctx.tol.meters();
+                let at = |h: f64| -> [f64; N] {
+                    core::array::from_fn(|i| {
+                        x[i] + h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i]
+                    })
+                };
+                let accepts = |pred: [f64; N]| -> bool {
+                    newton_refine(sys, pred, ctx.tol)
+                        .is_some_and(|r| distance_meters(sys, &pred, &r) <= thr)
+                };
+                let mut h = h0;
+                if probe_on() {
+                    while h * speed > band.escalate() {
+                        let pred = at(h);
+                        let ok = if exit.unsettled(x, pred, &ctx).is_some() {
+                            let mid = at(0.5 * h);
+                            exit.unsettled(x, mid, &ctx).is_none() && accepts(mid)
+                        } else {
+                            accepts(pred)
+                        };
+                        if ok {
+                            break;
+                        }
+                        h *= 0.5;
+                        PROBE_HALVINGS.with(|c| c.set(c.get() + 1));
+                    }
+                }
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
                 let bound = if h_curve < h_cap {
@@ -1224,6 +1259,19 @@ where
 /// Minimum-norm Newton onto `F = 0`, fixed cap, early exit at
 /// [`MarchTol::settling`]. `None` when the iteration poisons or fails to
 /// settle — never a best-effort state.
+thread_local! {
+    /// PROBE: halvings the acceptance test made on this thread.
+    pub static PROBE_HALVINGS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+fn probe_on() -> bool {
+    std::env::var("PROBE_ACCEPT").is_ok()
+}
+
+fn probe_k() -> f64 {
+    std::env::var("PROBE_K").ok().and_then(|s| s.parse().ok()).unwrap_or(1.0)
+}
+
 pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
     sys: &S,
     mut x: [f64; N],
