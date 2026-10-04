@@ -889,10 +889,12 @@ impl<T: Decide> Body<T> {
     /// shell's list names that shell and no solid but the shared one
     /// lists it ([`EulerOpError::KillLeavesDangling`] naming the first in
     /// arena order — tier-1-invalid input the kill would leave naming a
-    /// dead record); then, where `f1` would be
-    /// re-minted, the site mint's plan ([`Body::plan_moved_rows`]'s
-    /// errors, [`EulerOpError::PcurveMint`] naming `f1` among them —
-    /// `KeysOnly` at this door).
+    /// dead record); then the site mint's plan
+    /// ([`Body::plan_moved_rows`]'s errors): a loop of a face it reads,
+    /// on a chart that mints, that does not walk as its own
+    /// ([`EulerOpError::LoopCycleBroken`]), then, where `f1` would be
+    /// re-minted, [`EulerOpError::PcurveMint`] naming `f1` (`KeysOnly`
+    /// at this door).
     ///
     /// # Errors
     ///
@@ -1219,9 +1221,11 @@ impl<T: Decide> Body<T> {
     /// `to_face`'s key is not the ring's face's, no edge of the ring is
     /// stranded ([`EulerOpError::RechartStrandsDescriptions`], every one
     /// named, in cycle order) and every certified one names that key
-    /// ([`EulerOpError::RechartUnvouched`], the same); then, where
-    /// `to_face` would be re-minted, the site mint's plan
-    /// ([`Body::plan_moved_rows`]'s errors — `KeysOnly` at this door).
+    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors): a loop of a
+    /// face it reads, on a chart that mints, that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), then, where `to_face`
+    /// would be re-minted, `KeysOnly` at this door.
     ///
     /// # Errors
     ///
@@ -1340,9 +1344,9 @@ impl<T: Decide> Body<T> {
     /// The loop-re-parenting doors' chart decision: drops the stored
     /// row of every half-edge in `halves`, a moved loop's members, when
     /// the loop's new face is on a different CHART from its old one,
-    /// and touches nothing when it is not. [`Body::face_cycles`] is
-    /// the same answer for a face re-charted in place, where one chart
-    /// decision covers every loop the face has.
+    /// and touches nothing when it is not. A face re-charted in place
+    /// takes the same answer, one chart decision over every loop the
+    /// face has ([`Body::face_cycles`] proves them).
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes

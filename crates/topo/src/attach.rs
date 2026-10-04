@@ -117,8 +117,8 @@ impl<T: Decide> Body<T> {
     /// longer on — the loop-re-parenting doors' defect with the two
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
-    /// one drops the face's rows ([`Body::face_cycles`]), deriving
-    /// nothing. A caller that wants the face's rows on its new chart
+    /// one drops the rows of the face's loops, proven whole in the plan
+    /// ([`Body::face_cycles`]), deriving nothing. A caller that wants the face's rows on its new chart
     /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
     /// wherever the new surface does not mint — tier 3's pcurve pass
     /// skips such a face — so what the drop removes is a wrong row no
@@ -1034,7 +1034,8 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
     /// an edge, half, loop, face or surface does not resolve; what
     /// `rewired` raises; [`EulerOpError::Certification`] where `tol`
-    /// builds no band;
+    /// builds no band; [`EulerOpError::LoopCycleBroken`] naming a loop,
+    /// of a face on a chart that mints, that does not walk as its own;
     /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
     pub(crate) fn null_description_rows(

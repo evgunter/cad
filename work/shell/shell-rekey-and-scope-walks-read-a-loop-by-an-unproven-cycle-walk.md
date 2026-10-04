@@ -20,15 +20,18 @@ readers take a loop's edges from `Body::loop_cycle` with no
 `parent_loop` proof. Each decides a write on a staged clone of an
 operand that no entry gate validates:
 
-- `shell::loop_rekeyed` (`crates/topo/src/shell.rs`): the walked
+- `shell::loop_rekeyed` (`crates/topo/src/shell.rs:2344`, the walk
+  at `:2360`): the walked
   edges' specs go to `Body::set_edge_curve` through
   `rename_loop_surface` and to `Body::set_face_surfaces_describing`.
 - `offset_together::Scope::walk`
-  (`crates/topo/src/offset_together.rs`): the walked starts and edges
+  (`crates/topo/src/offset_together.rs:807`, the walk at `:822`): the
+  walked starts and edges
   decide which vertices `offset_planes_together` moves and which
   edges it re-describes (reached from `shell` too).
 - `replace_face::boundary_edges_into`
-  (`crates/topo/src/replace_face.rs`): `group_boundary` decides which
+  (`crates/topo/src/replace_face.rs:1635`, the walk at `:1645`):
+  `group_boundary` decides which
   edges get re-derived curves.
 
 A diverted walk re-describes or moves another face's records. Each

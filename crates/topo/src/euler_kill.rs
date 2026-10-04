@@ -1459,11 +1459,12 @@ impl<T: Decide> Body<T> {
     /// `next` or `prev` as the splice leaves it, no loop's `first` but
     /// the surviving loop's, no vertex's `emanating` but the endpoints'
     /// and no other edge's slot (`KillLeavesDangling` from the first
-    /// record, in that order and in arena order within each); then, where the surviving face would be re-minted,
-    /// the
-    /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
-    /// [`EulerOpError::PcurveMint`] naming the surviving face among
-    /// them — `KeysOnly` at this door).
+    /// record, in that order and in arena order within each); then the
+    /// site mint's plan ([`Body::plan_moved_rows`]'s errors): on a
+    /// face whose chart mints, a loop of it that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), and, where the surviving
+    /// face would be re-minted, [`EulerOpError::PcurveMint`] naming it
+    /// (`KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1869,10 +1870,12 @@ impl<T: Decide> Body<T> {
     /// key is not the demoting face's, no edge of the ring is stranded
     /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
     /// in cycle order) and every certified one names that key
-    /// ([`EulerOpError::RechartUnvouched`], the same); then, where the new face
-    /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
-    /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
-    /// among them — `KeysOnly` at this door).
+    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors): a loop of a
+    /// face it reads, on a chart that mints, that does not walk as its
+    /// own ([`EulerOpError::LoopCycleBroken`]), then, where the new face
+    /// would be minted, [`EulerOpError::PcurveMint`] naming the demoting
+    /// face (`KeysOnly` at this door).
     ///
     /// # Errors
     ///

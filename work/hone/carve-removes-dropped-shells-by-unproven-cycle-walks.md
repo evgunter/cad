@@ -71,9 +71,11 @@ found two more writes `split` decides from `loop_cycle` walks with no
 checks surface and curve kinds only; the closing `validate_closed` per
 side, `splitting/mod.rs`, is the only tier check):
 
-- `splitting::finish::describe_section_boundary` hands each walked
-  edge of a section face to `Body::set_edge_curve`.
-- `splitting::finish::section_plane_restatements` restates the walked
+- `splitting::finish::describe_section_boundary`
+  (`crates/topo/src/splitting/finish.rs:685`, the walk at `:701`) hands
+  each walked edge of a section face to `Body::set_edge_curve`.
+- `splitting::finish::section_plane_restatements` (`finish.rs:614`,
+  the walk at `:629`) restates the walked
   edges into `Body::set_face_surfaces_describing`.
 
 A diverted walk re-describes another face's edge. The same call swap

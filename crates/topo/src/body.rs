@@ -1447,6 +1447,13 @@ impl<T: Real> Body<T> {
     /// closes the walk reaches `he`. A `Some` can still close short of a
     /// member that claims the loop; [`Body::require_run_of`]'s `Whole`
     /// proof is the one that sees that.
+    ///
+    /// **A `next` tear paired with a `parent_loop` tear passes both.**
+    /// Divert the walk through another loop's member `x` and re-point
+    /// `x.parent_loop` at `r#loop`: every member the walk reaches claims
+    /// the loop, and no half-edge outside it does, so the walk answers
+    /// with `x` as a member. Only `x`'s untouched `prev` disagrees, and
+    /// nothing here reads `prev`.
     pub(crate) fn loop_cycle_of(
         &self,
         he: HalfEdgeKey,

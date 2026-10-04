@@ -2310,7 +2310,9 @@ impl<T: Decide> Body<T> {
     /// The first edge of the run to fail names the refusal. Last, the
     /// pcurve rows, for both sites: the loops the new halves join, their
     /// faces and those faces' surfaces resolve (`StaleKey` /
-    /// `StaleGeometry`); then, only where the site mint selects one of
+    /// `StaleGeometry`), and each of those faces on a chart that mints
+    /// has every loop walk as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint selects one of
     /// those faces, the loops the surgery rewires walk, every member
     /// claiming its loop ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
     /// `StaleGeometry`), and each face's row plan is minted
@@ -2524,7 +2526,9 @@ impl<T: Decide> Body<T> {
     /// same; `StaleKey` / `StaleGeometry` where a key the walk over the
     /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
-    /// the face's surface resolve; then, only where the site mint
+    /// the face's surface resolve, and on a chart that mints every loop
+    /// of the face walks as its own ([`EulerOpError::LoopCycleBroken`]);
+    /// then, only where the site mint
     /// selects that face, the old loop's cycle from `he1` walks, every
     /// member claiming the loop ([`EulerOpError::LoopCycleBroken`]),
     /// the new face's chart
@@ -3546,9 +3550,11 @@ impl<T: Decide> Body<T> {
     /// not dispose of. Refuses [`EulerOpError::LoopCycleBroken`]
     /// naming `from` otherwise. Returns the run as a set.
     ///
-    /// The walk steps `next` and reads no `parent_loop`, so a torn
-    /// `next` can divert it through another loop and back, or close it
-    /// past a member. The second proof reads the whole arena, bounded
+    /// A walk that steps `next` alone ([`Body::loop_cycle`]) can be
+    /// diverted by a torn `next` through another loop and back, or
+    /// closed past a member; one that checks each member's claim
+    /// ([`Body::loop_cycle_of`]) can only be closed past one. The first
+    /// proof catches the diversion, the second the closing. The second proof reads the whole arena, bounded
     /// as [`Body::require_kill_anchors`]'s `Lone` proof is. The
     /// validator reports these faults in its cycle pass
     /// (`ParentLoopMismatch`, `UnreachableHalfEdge`) and as
@@ -4336,8 +4342,10 @@ impl<T: Decide> Body<T> {
     /// In this order, per face of `read` as it is reached: what `read`
     /// raises naming it, then the face does not resolve
     /// ([`EulerOpError::StaleKey`]), or its surface does not
-    /// ([`EulerOpError::StaleGeometry`]), or a half of it does not
-    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
+    /// ([`EulerOpError::StaleGeometry`]), or, on a chart that mints, a
+    /// loop of it does not walk as its own
+    /// ([`EulerOpError::LoopCycleBroken`]) or a half of it does not
+    /// resolve ([`EulerOpError::PcurveMint`] naming the face); then, only when a
     /// face is read further, what `faces` raises; then
     /// [`EulerOpError::PcurveMint`] naming the face.
     pub(crate) fn plan_site_mint_of(
@@ -4366,8 +4374,17 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
-                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
+            if let Some(from) =
+                crate::pcurves::site_rows_from(self, face_data, surface).map_err(|refusal| {
+                    match refusal {
+                        crate::pcurves::SiteFromRefusal::LoopCycleBroken(r#loop) => {
+                            EulerOpError::LoopCycleBroken { r#loop }
+                        }
+                        crate::pcurves::SiteFromRefusal::Row(refusal) => {
+                            EulerOpError::PcurveMint { face, refusal }
+                        }
+                    }
+                })?
             {
                 minted.push((face, from));
             }

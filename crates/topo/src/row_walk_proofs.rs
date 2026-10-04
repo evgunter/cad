@@ -306,7 +306,8 @@ fn a_walk_from_a_member_refuses_a_loop_it_strays_out_of() {
 
 /// The two site-row plans a make operator runs, `mev`'s fan and `mef`'s
 /// chord, at every site of the diverted wall. A door that re-minted the
-/// wall from the walk wrote the split face's member in the wall's chart.
+/// wall from the walk wrote the split face's member in the wall's chart;
+/// each refuses the wall's walk instead, the body deep-unchanged.
 #[test]
 fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
     let s = sheet();
@@ -315,7 +316,8 @@ fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
     let stray = divert(&mut body, wall, split);
     let walk = body.loop_cycle(first_of(&body, wall)).unwrap();
     let members: Vec<HalfEdgeKey> = walk.iter().copied().filter(|&he| he != stray).collect();
-    let mut ran = 0;
+    let broken = Err(EulerOpError::LoopCycleBroken { r#loop: wall });
+    let mut plan_refused = 0;
     for &he in &members {
         let p = body.half_edge_start_point(he).unwrap();
         let tip = Point3::new(
@@ -327,18 +329,26 @@ fn the_make_operators_re_mint_no_row_of_a_loop_their_walk_strays_into() {
             b.mev_line(MevSite::Fan { he1: he, he2: he }, tip, tol())
                 .map(|_| ())
         });
-        ran += usize::from(got.is_ok());
+        assert!(got.is_err(), "mev_line fan at {he:?} returned {got:?}");
+        plan_refused += usize::from(got == broken);
         for &he2 in &members {
             if he2 != he {
                 let got = assert_other_rows_kept(&mut body.clone(), split, |b| {
                     b.mef_chord(MefSite::Chords { he1: he, he2 }, tol())
                         .map(|_| ())
                 });
-                ran += usize::from(got.is_ok());
+                assert!(
+                    got.is_err(),
+                    "mef_chord at {he:?}, {he2:?} returned {got:?}"
+                );
+                plan_refused += usize::from(got == broken);
             }
         }
     }
-    assert!(ran > 0, "some site reached its rows plan and ran to Ok");
+    assert!(
+        plan_refused > 0,
+        "some site reached its rows plan, which refused the wall's walk"
+    );
 }
 
 /// The pcurve pass over a named face clears and re-derives that face's
@@ -360,6 +370,61 @@ fn the_pass_over_one_face_leaves_the_rows_of_a_loop_its_walk_strays_into() {
         "the pass over the wall returned {got:?} and changed the split face's rows"
     );
     assert_eq!(got, Err(crate::PcurveMintError::Corrupt));
+}
+
+/// `kef` at every half-edge of the diverted sheet refuses typed, the body
+/// deep-unchanged. Its site-row plan reads the wall's rows to decide
+/// whether it re-mints the face; a loop that does not walk as its own
+/// has no rows to read, so the plan refuses rather than read it as
+/// nothing to re-mint and splice the tear further.
+#[test]
+fn kef_refuses_at_every_half_edge_of_a_diverted_sheet() {
+    let s = sheet();
+    let (wall, split) = (outer(&s.body, s.wall), outer(&s.body, s.split));
+    let mut body = s.body;
+    divert(&mut body, wall, split);
+    let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(he, _)| he).collect();
+    assert!(
+        halves.len() >= 14,
+        "the sheet's half-edges: {}",
+        halves.len()
+    );
+    for he in halves {
+        let got = assert_other_rows_kept(&mut body.clone(), split, |b| b.kef(he).map(|_| ()));
+        assert!(
+            got.is_err(),
+            "kef({he:?}) on the diverted sheet returned {got:?}"
+        );
+    }
+}
+
+/// **The limit of the claimed walk** ([`Body::loop_cycle_of`]): a
+/// diversion through the split face's `first` paired with that member's
+/// `parent_loop` re-pointed at the wall passes the claim and the `Whole`
+/// proof, so `kfmrh` moves the stray with the wall and drops its row.
+/// Only the stray's `prev` still names the split face's loop. This row
+/// pins the limit as it stands; a door that reads `prev` reds it.
+#[test]
+fn a_diversion_paired_with_a_parent_loop_tear_passes_the_proof() {
+    let s = sheet();
+    let (wall, split) = (outer(&s.body, s.wall), outer(&s.body, s.split));
+    let mut body = s.body;
+    let stray = divert(&mut body, wall, split);
+    body.get_half_edge_mut(stray).unwrap().parent_loop = wall;
+    assert!(body.pcurve(stray).is_some(), "the stray carries a row");
+    assert_eq!(
+        body.whole_cycle(wall).map(|cycle| cycle.contains(&stray)),
+        Ok(true),
+        "the walk, claim and Whole proof take the stray as a member"
+    );
+    let mut scope = body.begin_surgery();
+    let got = scope.kfmrh(s.seed, s.wall).map(|_| ());
+    drop(scope);
+    assert_eq!(got, Ok(()), "kfmrh moves the wall with the stray");
+    assert!(
+        body.pcurve(stray).is_none(),
+        "the stray's row is dropped with the wall's"
+    );
 }
 
 /// A walk closed past a member hands the door every row but that
@@ -625,16 +690,20 @@ fn row_calls(body: &Body<f64>) -> Vec<RowCall> {
 type RowTable = std::collections::BTreeMap<&'static str, [usize; 3]>;
 
 fn row_walk_rows(seeds: &[u64]) -> RowTable {
+    let bodies: Vec<(&str, BuildFixture)> = FIXTURES.iter().copied().chain([SHEET]).collect();
+    row_walk_rows_on(seeds, &bodies)
+}
+
+/// The split sheet as a [`row_walk_rows_on`] body.
+const SHEET: (&str, BuildFixture) = ("split sheet", |_| sheet().body);
+
+/// [`row_walk_rows`] over the named bodies.
+fn row_walk_rows_on(seeds: &[u64], bodies: &[(&str, BuildFixture)]) -> RowTable {
     use test_utils::fuzz::Rng;
-    let bodies: Vec<(&str, BuildFixture)> = FIXTURES
-        .iter()
-        .copied()
-        .chain([("split sheet", (|_| sheet().body) as BuildFixture)])
-        .collect();
     let mut table = RowTable::new();
     for &seed in seeds {
         for tears in [1, 2] {
-            for &(_, build) in &bodies {
+            for &(_, build) in bodies {
                 let mut body = build(tol());
                 let mut rng = Rng::from_seed(seed);
                 for _ in 0..tears {
@@ -694,6 +763,31 @@ fn row_walks_on_a_few_torn_bodies() {
         .map(|_| rng.next_u64())
         .collect();
     assert_no_foreign_row_written(&row_walk_rows(&seeds), &test_utils::fuzz::replay());
+}
+
+/// [`row_walk_rows_on`] the split sheet at four fixed seeds, asserting
+/// no `Ok` changed another face's rows. The seeds are fixture
+/// identifiers, not a search: their `NextForeign` tears route the wall's
+/// walk through the split face, so between them `kfmrh`,
+/// `kfmrh_minting`, `mef_chord`, `mev_line` and lifted `set_face_surface`
+/// each reach a foreign row through the walk they decide their rows by,
+/// and a walk that does not prove its members writes it.
+#[test]
+fn row_walks_on_seeds_that_divert_the_sheet() {
+    let table = row_walk_rows_on(&[5, 14, 97, 150], &[SHEET]);
+    for door in [
+        "kfmrh",
+        "kfmrh_minting",
+        "mef_chord",
+        "mev_line",
+        "set_face_surface",
+    ] {
+        assert!(
+            table.get(door).is_some_and(|c| c[0] > 0),
+            "{door} is called on the torn sheet"
+        );
+    }
+    assert_no_foreign_row_written(&table, "split sheet, seeds 5, 14, 97, 150");
 }
 
 /// **Evidence, not a gate**: [`row_walk_rows`] on seeds `1..=2000`,

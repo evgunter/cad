@@ -16,12 +16,13 @@ the pcurve rows walk and the Euler site-row walks through
 `Body::loop_cycle_of` (`crates/topo/src/body.rs`). That walk refuses a
 member that does not claim the loop. The blend surgery
 (`crates/sweep/src/blend/surgery.rs`) takes a ring's members from its
-own `loop_walk`, a wrapper over `Body::loop_cycle` with no
+own `loop_walk` (`surgery.rs:1950`; the walk at `:1957`), a wrapper
+over `Body::loop_cycle` with no
 `parent_loop` proof. Two writes follow from it:
 
-- `rim_phase` runs `split_fragment` → `Body::split_edge` on the
+- `rim_phase` (`surgery.rs:3300`) runs `split_fragment` (`:3189`) → `Body::split_edge` on the
   meridian at each walked ring vertex.
-- `wall_seam` chooses the host and mate seam edges the annulus carve
+- `wall_seam` (`surgery.rs:1903`) chooses the host and mate seam edges the annulus carve
   cuts. It cross-checks them against the vertex's edge orbit, not
   against `parent_loop`.
 
