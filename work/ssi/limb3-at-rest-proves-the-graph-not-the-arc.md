@@ -123,21 +123,40 @@ Not in scope: whether a carrier must lie within ε of the *locus* rather than wi
 Ev took the converged design ("sounds good, then!"), and it landed on
 the same branch:
 
-- `one_arc` (`ssi/one_arc.rs`) proves one piece per window (the count,
-  or the side cover through `boundary.rs`'s `side_cover`, the door
-  `side_region` reads too), links consecutive windows (a side's
-  stretch to its own side, a side to an arc through a shared solution),
-  and reaches both ends of the carrier (the end slice, or a solution
-  within ε of the end on it or a slice beside it). `one_arc_r3` reaches
-  both ends by Krawczyk on the end box's slice, or a box of diameter ε
-  about the end.
+- `one_arc` (`ssi/one_arc.rs`) proves one piece per window: the count
+  of two simple boundary zeros, or the side arm. A window's edge on a
+  wall side holds the side's piece where the boundary pass reads that
+  stretch (`boundary.rs`'s `read_stretch`, over the side's own
+  Bernstein section, `section.rs`'s `SectionReader`) within ε of the
+  plane with no piece of it clear by `clears`, the one test #3862's
+  rule decides a side by in `side_region`, and the side's cover
+  (`side_cover`, the door `side_region` reads too) holds every zero of
+  the window within ε of the side. `beyond_reach` screens a side
+  before the stretch is read.
+- It links consecutive windows: two stretches of one side where their
+  overlap reads within ε and no piece clear, a side to an arc or two
+  arcs through a shared solution on the knot's slice.
+- It reaches both ends of the carrier. An arc's end counts where the
+  end slice holds a zero, or a zero is certified within ε of the end on
+  a slice beside it (`near_end`, read as `Near::{Found, Far, Unknown}`;
+  a chord whose wall lies wholly farther than ε reads `Far`). A side's
+  end counts where the end, moved across onto the side, lands on its
+  stretch at a point read within ε and not clear. `Short` only where
+  that is certified not so, including a box that resolved no piece when
+  an end is certified unreached by its own box; `Undecided` otherwise.
+  `one_arc_r3` reaches both ends by Krawczyk on the end box's slice, or
+  a box of diameter ε about the end.
 - `certify_branch` runs it at every door; `Lane` selects no proof, the
   at-rest ℝ³ chain is cut to nothing. `SsiCertificate::tube_one_arc`
   retired, always true now.
-- `OneArcRefusal::Short`; `PlaneNurbsRefusal::TubeNotOneArc` with the
-  SSI door's ending; `pcurve_cache::ssi_refusal` names it.
+- `OneArcRefusal::{Count, Unlinked, Short, Undecided}`;
+  `PlaneNurbsRefusal::TubeNotOneArc`, and `pcurve_cache::ssi_refusal`
+  names it. Each door ends by its own one recourse (`TUBE_ONE_ARC` at a
+  search, `REST_ONE_ARC` at rest), the cause carried as data.
 
-The fold, half fold and tail fold refuse at rest
-(`ssi_limb3_one_arc.rs`); the 9 band-flush rows certify; the rail-end
-branch certifies on the search lane. The mutant table is in the PR body.
-
+The fold, half fold and tail fold refuse at rest; so do a phantom
+side, a fold on a side, a carrier past where a side's locus ends, and a
+side whose slope across it dips (`ssi_limb3_one_arc.rs`). The 9
+band-flush rows certify, and flush sides of cone and twisted walls; the
+rail-end branch certifies on the search lane. The mutant table is in
+the PR body.
