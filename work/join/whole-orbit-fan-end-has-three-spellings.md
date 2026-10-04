@@ -2,10 +2,11 @@
 id: whole-orbit-fan-end-has-three-spellings
 kind: issue
 title: The fan end next(mate(last)) is computed in three near-copies with three whole-orbit behaviours, and strut facing has two spellings
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
+closed: 2026-10-04
 ---
 
 ## What
@@ -83,3 +84,5 @@ on main and head.
 
 **Filed.** `a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op`
 (P0/H): the ring struts are a third facing spelling.
+
+Closed with PR 4004, 2026-10-04.
