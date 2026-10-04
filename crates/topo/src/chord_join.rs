@@ -347,7 +347,7 @@ pub enum SplitJoinError {
 
 impl From<EulerOpError> for SplitJoinError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 

@@ -357,7 +357,7 @@ impl From<BandError> for SplitReduceError {
 
 impl From<EulerOpError> for SplitReduceError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
@@ -745,7 +745,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let operand = if operand.solids().nth(1).is_some() {
         let mut body = operand.clone();
         body.merge_all_solids()
-            .map_err(|e| SplitError::Finish(finish::SplitFinishError::Euler(e)))?;
+            .map_err(|e| SplitError::Finish(finish::SplitFinishError::from(e)))?;
         flat = body;
         &flat
     } else {

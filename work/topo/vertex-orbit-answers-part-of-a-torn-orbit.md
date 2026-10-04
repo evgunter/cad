@@ -27,9 +27,10 @@ start at the vertex, but not necessarily all of them. Its readers today:
 
 - `kev_plan` (`euler_kill.rs`) reads the dying vertex's walk as a set
   and proves the set whole with `require_vertex_unnamed`, a whole-arena
-  pass that names the first stranded half-edge. Putting the inversion
-  proof inside `vertex_orbit` makes `kev_plan` refuse earlier with
-  `OrbitBroken { he: m }` and lose that name: tried in the PR that
+  pass whose panic names the first stranded half-edge. Putting the
+  inversion proof inside `vertex_orbit` makes `kev_plan` panic earlier,
+  at the walk, and lose that name (a refusal, `OrbitBroken { he: m }`,
+  when this was filed): tried in the PR that
   filed this row, six kev rows in `euler_kill` and `review_d18` red on
   the refusal they pin.
 - `boolean::sectors` (`along`, the sector edge reader) reads one step
@@ -91,6 +92,7 @@ invert. A paired tear (above) still passes that plan.
 ## The shape to give
 
 Either put the proof inside `vertex_orbit` and move `kev_plan` onto a
-walk that keeps naming the stranded half-edge, or keep the door as
+walk whose panic keeps naming the stranded half-edge (D2 row 4: a
+torn orbit panics naming the record), or keep the door as
 documented and say why a half-edge-keyed read may answer part of an
 orbit. No measured fault rides this today, so it is P4.

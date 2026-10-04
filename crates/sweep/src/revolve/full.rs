@@ -239,24 +239,22 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
     // file docs). ----
     body.kfmrh(start_disc, seed.face)?;
-    let c_plus = |body: &Body<T>, edge: EdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
-        Ok(body
-            .get_edge(edge)
-            .ok_or(topo::EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
-            .he_plus)
+    // Each copied-chain edge is read before the `kef` that kills it.
+    let c_plus = |body: &Body<T>, edge: EdgeKey| -> topo::HalfEdgeKey {
+        body.get_edge(edge)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "copied-chain edge {edge:?} was minted by this sweep and is not yet killed"
+                )
+            })
+            .he_plus
     };
-    let e_minus =
-        |body: &Body<T>, he: topo::HalfEdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
-            let edge = he_edge(body, he)?;
-            Ok(body
-                .get_edge(edge)
-                .ok_or(topo::EulerOpError::StaleKey {
-                    key: topo::EntityId::Edge(edge),
-                })?
-                .he_minus)
-        };
+    let e_minus = |body: &Body<T>, he: topo::HalfEdgeKey| -> topo::HalfEdgeKey {
+        let edge = he_edge(body, he);
+        body.get_edge(edge)
+            .unwrap_or_else(|| unreachable!("edge {edge:?} was read off live half-edge {he:?}"))
+            .he_minus
+    };
     // Copied-chain edges (the walls' mef edges), all present in the
     // lamina case (nothing is pinned). The defensive fallback to the
     // chain edge is unreachable; were it ever taken, the zip's own
@@ -265,12 +263,12 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     for (j, t) in swept.tops.iter().enumerate() {
         tops.push(match t {
             Some(e) => *e,
-            None => he_edge(&body, hes[j])?,
+            None => he_edge(&body, hes[j]),
         });
     }
     // The site's two keys are read out before the call: a `Surgery`
     // guard derefs, and a deref is not a two-phase borrow.
-    let (target, ring) = (e_minus(&body, hes[n - 1])?, c_plus(&body, tops[0])?);
+    let (target, ring) = (e_minus(&body, hes[n - 1]), c_plus(&body, tops[0]));
     let n0 = body.mekr(
         MekrSite::Cycles { target, ring },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
@@ -281,7 +279,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // carriers, re-certified at the survivor under the run's band.
     body.kev_describing(n0.he_plus, &[], tol)?;
     for j in 1..n {
-        let (he1, he2) = (e_minus(&body, hes[j - 1])?, c_plus(&body, tops[j])?);
+        let (he1, he2) = (e_minus(&body, hes[j - 1]), c_plus(&body, tops[j]));
         let nj = body.mef(
             MefSite::Chords { he1, he2 },
             EdgeCurveSpec::self_loop_circle_at(qs[j]),
@@ -289,10 +287,10 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
             tol,
         )?;
         body.kev_describing(nj.he_plus, &[], tol)?;
-        let victim = c_plus(&body, tops[j - 1])?;
+        let victim = c_plus(&body, tops[j - 1]);
         body.kef(victim)?;
     }
-    let victim = c_plus(&body, tops[n - 1])?;
+    let victim = c_plus(&body, tops[n - 1]);
     body.kef(victim)?;
 
     // ---- Phase 4: meridian upgrades — each surviving chain edge now
@@ -304,8 +302,8 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     let mut meridians: Vec<Option<EdgeKey>> = vec![None; n];
     for (j, he) in hes.iter().enumerate() {
         if let Some(f) = swept.faces[j] {
-            let wall = face_surface_key(&body, f)?;
-            let edge = he_edge(&body, *he)?;
+            let wall = face_surface_key(&body, f);
+            let edge = he_edge(&body, *he);
             upgrade_meridian_seam(&mut body, edge, wall, tol)?;
             meridians[j] = Some(edge);
         }
@@ -480,18 +478,21 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             }
         } else {
             // The far tip: the return-side half arriving there.
-            let edge = he_edge(&body, hes[k - 1])?;
+            let edge = he_edge(&body, hes[k - 1]);
             body.get_edge(edge)
-                .ok_or(topo::EulerOpError::StaleKey {
-                    key: topo::EntityId::Edge(edge),
-                })?
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "edge {edge:?} was read off live chain half-edge {:?}",
+                        hes[k - 1]
+                    )
+                })
                 .he_minus
         };
         // The wall states its classified sense — see
         // `partial::sweep_loop`.
         let surface = match (pair[i], i, cls.walls[wseg(i)]) {
             (true, 1.., WallClass::Wall { sense, .. }) => FaceSurface::Shared {
-                key: face_surface_key(&body, faces[i - 1])?,
+                key: face_surface_key(&body, faces[i - 1]),
                 sense,
             },
             (_, _, WallClass::Wall { kind, sense }) => FaceSurface::New {
@@ -515,8 +516,8 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // conventional; witness = carrier(π/2·|θ|-fraction) midpoint).
     for i in 1..k {
         let Some(strut) = &struts[i] else { continue };
-        let k_prev = face_surface_key(&body, faces[i - 1])?;
-        let k_next = face_surface_key(&body, faces[i])?;
+        let k_prev = face_surface_key(&body, faces[i - 1]);
+        let k_next = face_surface_key(&body, faces[i]);
         if k_prev == k_next {
             body.describe_at_rest(strut.edge, k_prev, tol)?;
             continue;
@@ -545,16 +546,22 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     for i in 1..k {
         let he1 = body
             .get_edge(tops[i])
-            .ok_or(topo::EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(tops[i]),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "band-1 rim {:?} was minted by this driver's mef; band 2 kills none",
+                    tops[i]
+                )
+            })
             .he_plus;
-        let e_prev = he_edge(&body, hes[i - 1])?;
+        let e_prev = he_edge(&body, hes[i - 1]);
         let he2 = body
             .get_edge(e_prev)
-            .ok_or(topo::EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(e_prev),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "edge {e_prev:?} was read off live chain half-edge {:?}",
+                    hes[i - 1]
+                )
+            })
             .he_minus;
         let center = frame.foot3(segs[wseg(i)].a);
         let rim = qpi[i] - center;
@@ -582,21 +589,21 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         // The band-2 wall is the same classified wall as its band-1
         // twin: same surface, same material side, same sense.
-        let twin = twin_wall(&body, faces[i])?;
+        let twin = twin_wall(&body, faces[i]);
         let mef = body.mef(MefSite::Chords { he1, he2 }, spec, twin, tol)?;
         band2_faces.push(mef.face);
         rims2.push(Some(mef.edge));
     }
     // The surviving wire face becomes segment 0's band-2 wall — it
     // takes wall 0's sense along with its surface.
-    let wall0 = twin_wall(&body, faces[0])?;
+    let wall0 = twin_wall(&body, faces[0]);
     body.set_face_surface(seed.face, wall0)?;
 
     // Band-2 latitude joins (same surface-key pairs as band 1).
     for i in 1..k {
         let Some(rim2) = rims2[i] else { continue };
-        let k_prev = face_surface_key(&body, band2_faces[i - 1])?;
-        let k_next = face_surface_key(&body, band2_faces[i])?;
+        let k_prev = face_surface_key(&body, band2_faces[i - 1]);
+        let k_next = face_surface_key(&body, band2_faces[i]);
         if k_prev == k_next {
             body.describe_at_rest(rim2, k_prev, tol)?;
             continue;
@@ -635,9 +642,12 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             continue;
         };
         plane[i] = true;
-        let pi_edge = body.get_edge(tops[i]).ok_or(topo::EulerOpError::StaleKey {
-            key: topo::EntityId::Edge(tops[i]),
-        })?;
+        let pi_edge = body.get_edge(tops[i]).unwrap_or_else(|| {
+            unreachable!(
+                "angle-π rim {:?} is minted here; only its own iteration's kef kills it",
+                tops[i]
+            )
+        });
         let (hp, hm) = (pi_edge.he_plus, pi_edge.he_minus);
         let twin_side = if body.face_of_half_edge(hp) == Some(band2_faces[i]) {
             hp
@@ -669,8 +679,8 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         if plane[i] {
             continue;
         }
-        let wall = face_surface_key(&body, faces[i])?;
-        let edge = he_edge(&body, hes[i])?;
+        let wall = face_surface_key(&body, faces[i]);
+        let edge = he_edge(&body, hes[i]);
         upgrade_meridian_seam(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
             body.describe_at_rest(tops[i], wall, tol)?;
@@ -701,7 +711,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             (None, None, None)
         } else {
             (
-                Some(he_edge(&body, hes[i])?),
+                Some(he_edge(&body, hes[i])),
                 Some(band2_faces[i]),
                 Some(tops[i]),
             )
@@ -752,17 +762,15 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
 /// is the classification itself: band 1 minted the twin off the wire
 /// face's placeholder chart, where its classified bit is written as
 /// stated.
-fn twin_wall<T: Decide>(
-    body: &Body<T>,
-    twin: FaceKey,
-) -> Result<FaceSurface<T>, topo::EulerOpError> {
-    let face = body.get_face(twin).ok_or(topo::EulerOpError::StaleKey {
-        key: topo::EntityId::Face(twin),
-    })?;
-    Ok(FaceSurface::Shared {
+#[track_caller]
+fn twin_wall<T: Decide>(body: &Body<T>, twin: FaceKey) -> FaceSurface<T> {
+    let face = body.get_face(twin).unwrap_or_else(|| {
+        unreachable!("band-1 wall {twin:?} was minted by this driver and band 2 kills no wall")
+    });
+    FaceSurface::Shared {
         key: face.surface,
         sense: face.sense,
-    })
+    }
 }
 
 /// Where a full revolve's plane wall ends its meridian slit.
@@ -792,10 +800,10 @@ fn unslit_plane_wall<T: Decide>(
     chain: topo::HalfEdgeKey,
     end: SlitEnd,
 ) -> Result<(), RevolveError> {
-    let edge = he_edge(body, chain)?;
-    let e = body.get_edge(edge).ok_or(topo::EulerOpError::StaleKey {
-        key: topo::EntityId::Edge(edge),
-    })?;
+    let edge = he_edge(body, chain);
+    let e = body.get_edge(edge).unwrap_or_else(|| {
+        unreachable!("edge {edge:?} was read off live chain half-edge {chain:?}")
+    });
     let mate = if e.he_plus == chain {
         e.he_minus
     } else {

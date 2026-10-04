@@ -18,7 +18,8 @@ face's loops, takes each member's mate through `Body::mate`, reads the
 mate's `parent_loop`, and returns that loop's `face` as a neighbour.
 Nothing proves that the face it names lists the loop (its `outer` or one
 of its `rings`), nor that the mate's own `edge` is the member's
-(`Body::proven_mate`'s `NotSameEdge`), nor that a walked loop is the
+(`Body::proven_mate`'s same-edge
+assertion), nor that a walked loop is the
 whole of its claimants.
 
 Its readers:
@@ -50,5 +51,6 @@ through a loop the seed face does not list
 ## Fix shape
 
 Hop through `Body::proven_mate` and prove that the face the mate's loop
-names lists the loop, refusing `ShellError::Corrupt` naming the loop, as
-`movefac`'s labelling refuses `NotOwned { child: Loop, owner: Face }`.
+names lists the loop, and on a miss panic naming the record (D2 row
+4), as `movefac`'s labelling does ("loop … names face …, which does not
+list it", `movefac.rs`).
