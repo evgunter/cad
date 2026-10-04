@@ -3423,8 +3423,9 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 10] = [
+const READ_DOORS: [&str; 11] = [
     "mint_pcurves",
+    "mint_pcurves_of",
     "face_pose",
     "face_carrier_kind",
     "edge_pose",
@@ -3437,10 +3438,11 @@ const READ_DOORS: [&str; 10] = [
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
-/// geometry, and two that carry it — planar faces for the face doors,
-/// and a disc's circle for the rim door.
+/// geometry, and three that carry it — planar faces for the face doors,
+/// a disc's circle for the rim door, and a minted cylinder-wall sheet,
+/// whose rows the mints' clones carry (a planar face holds none).
 #[cfg(not(debug_assertions))]
-const READ_FIXTURES: [(&str, BuildFixture); 5] = [
+const READ_FIXTURES: [(&str, BuildFixture); 6] = [
     FIXTURES[0],
     FIXTURES[1],
     FIXTURES[2],
@@ -3462,6 +3464,18 @@ const READ_FIXTURES: [(&str, BuildFixture); 5] = [
             tol,
         );
         prism.body
+    }),
+    ("minted cylinder-wall sheet", |tol| {
+        let mut body = Body::new();
+        crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        body
     }),
 ];
 
@@ -3497,6 +3511,12 @@ fn judge_read(
 /// it is the premise panic.
 #[cfg(not(debug_assertions))]
 const UNION_PREMISE: &str = "union: row-4 premise panics";
+
+/// The mints' floor: a torn body whose clone carried pcurve rows into
+/// the mint, so that a write hoisted above a premise panic shows in the
+/// clone's snapshot.
+#[cfg(not(debug_assertions))]
+const MINT_CARRIED_ROWS: &str = "mint: the torn clone carried rows";
 
 /// Every [`READ_DOORS`] door at every key of the torn `body`.
 #[cfg(not(debug_assertions))]
@@ -3556,20 +3576,43 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         body.vertex_points().for_each(drop);
         Ok(true)
     });
-    // The mint writes its body, so it runs on a clone, and a premise
-    // panic must leave that clone as it found it.
+    // The mints write their body, so each runs on a clone, and a
+    // premise panic must leave that clone as it found it — rows
+    // included, which is why the sweep mints its fixtures before
+    // tearing them.
     let snapshot = deep_snapshot(body);
-    let mut trial = body.clone();
-    judge_read(capture, &mut census, "mint_pcurves", || {
-        Ok(crate::pcurves::mint_pcurves(&mut trial, Tol::witness()).is_ok())
-    });
-    assert!(
-        deep_snapshot(&trial) == snapshot,
-        "mint_pcurves wrote to a torn body it did not finish"
+    if !body.pcurves.is_empty() {
+        census.note(MINT_CARRIED_ROWS);
+    }
+    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    for door in ["mint_pcurves", "mint_pcurves_of"] {
+        let mut trial = body.clone();
+        let minted = std::cell::Cell::new(false);
+        judge_read(capture, &mut census, door, || {
+            let tol = Tol::witness();
+            let answer = match door {
+                "mint_pcurves" => crate::pcurves::mint_pcurves(&mut trial, tol).map(drop),
+                _ => crate::pcurves::mint_pcurves_of(&mut trial, &faces, tol).map(drop),
+            };
+            minted.set(answer.is_ok());
+            match answer {
+                Err(e @ crate::pcurves::PcurveMintError::Stale { .. }) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
+        assert!(
+            minted.get() || deep_snapshot(&trial) == snapshot,
+            "{door} wrote to a torn body it did not finish"
+        );
+    }
+    // A torn body never finishes, so it reaches the boolean the one way
+    // the gate is still asked: carried with no verdict.
+    let other = crate::AtRestBody::not_run(
+        crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body,
     );
-    let other = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    let torn = crate::AtRestBody::not_run(body.clone());
     judge_read(capture, &mut census, "union", || {
-        Ok(crate::boolean::union(body, &other, Tol::witness()).is_ok())
+        Ok(crate::boolean::union(&torn, &other, Tol::witness()).is_ok())
     });
     for (l, _) in body.loops() {
         judge_read(capture, &mut census, "planar_loop_winding", || {
@@ -3682,6 +3725,15 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
         &removed,
         1,
         &format!("a removal never landed — {}", fuzz::replay()),
+    );
+    census.require_each(
+        &[MINT_CARRIED_ROWS],
+        1,
+        &format!(
+            "no torn clone carried a pcurve row into the mints, so a premise panic could not \
+             show a write — {}",
+            fuzz::replay()
+        ),
     );
     census.require_each(
         &[PREMISE, UNION_PREMISE],
