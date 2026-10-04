@@ -3,7 +3,9 @@
 //!
 //! The march spaces its samples by the curvature against ε, a design
 //! target and not a bound (`SSI_STEP_DEVIATION`), and on a straight
-//! stretch places only what the fit needs. Where limbs 1 and 2 refuse the
+//! stretch can place fewer than the cubic fit needs; those it is given
+//! by the same halving, before any certificate ([`fit_minimum`]).
+//! Where limbs 1 and 2 refuse the
 //! fitted carrier, the certificate names the spans it refused
 //! ([`Located`]); the gaps between samples those spans meet are halved,
 //! with one gap on each side of them, and the carrier is refitted and
@@ -39,14 +41,16 @@
 //! (`work/ssi/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
 
 use geom::NurbsCurve3;
-use geom_core::{Band, Margin, MarginDiag, Point3, Sign};
+use geom_core::{Band, Margin, MarginDiag, Point3};
 
-use crate::dihedral::decide;
+use crate::dihedral::decide_reported;
+use crate::recourse::Refused;
 
-use super::SsiError;
 use super::certify::{Located, SsiLimb};
 use super::march::{MarchContext, newton_refine, within};
+use super::section::BandVerdict;
 use super::system::LocalSystem;
+use super::{SSI_FIT_DEGREE, SsiError};
 
 /// Where refinement stopped short of a certificate
 /// ([`SsiError::RefinementExhausted`]).
@@ -130,7 +134,7 @@ pub(crate) fn stopped_falling(before: Option<RoundMargin>, last: Option<RoundMar
 /// refusal.
 pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
     sys: &S,
-    mut states: Vec<[f64; N]>,
+    states: Vec<[f64; N]>,
     ctx: &MarchContext<N>,
     band: Band,
     mut certify: impl FnMut(&[[f64; N]]) -> Result<C, Located>,
@@ -138,6 +142,7 @@ pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
 where
     S: LocalSystem<M, N>,
 {
+    let mut states = fit_minimum(sys, states, ctx, band).map_err(|short| short.refusal(None))?;
     let mut earlier = Vec::new();
     loop {
         let (error, at) = match certify(&states) {
@@ -168,7 +173,7 @@ where
             }
             match halve(sys, &pair[0], &pair[1], ctx, band) {
                 Halving::Settled(mid) => finer.push(mid),
-                Halving::InBand => in_band += 1,
+                Halving::InBand(_) => in_band += 1,
                 Halving::Unsettled => unsettled += 1,
             }
         }
@@ -199,12 +204,88 @@ where
     }
 }
 
+/// A polyline too short for its gaps to be halved to the fit's
+/// samples, half of one falling in the band ([`fit_minimum`]).
+#[derive(Debug)]
+pub(crate) struct Short {
+    /// The polyline's length, in metres.
+    pub(crate) length: f64,
+    /// The verdict on half its longest gap that falls in the band.
+    pub(crate) verdict: BandVerdict,
+}
+
+impl Short {
+    /// The sized refusal, carrying the certificate's refusal of the
+    /// branch's other candidate where one was tried.
+    pub(crate) fn refusal(self, limb: Option<SsiError>) -> SsiError {
+        SsiError::ShortBranchUncertified {
+            length: self.length,
+            limb: limb.map(Box::new),
+            verdict: self.verdict,
+        }
+    }
+}
+
+/// **The fit's minimum** (C3): `states` given the cubic's
+/// `SSI_FIT_DEGREE + 1` samples where it has fewer. Each round halves the
+/// longest gap whose midpoint settles ([`halve`]), so a polyline reaches
+/// the minimum exactly and nothing but the curvature and the
+/// certificate sets a count above it.
+///
+/// # Errors
+///
+/// [`Short`] where no gap can be halved and half of one falls in the
+/// band (`ssi_refine_halving`). Where every midpoint fails to settle
+/// instead, or there is no gap, the states come back short and the fit
+/// refuses them by name.
+pub(crate) fn fit_minimum<const M: usize, const N: usize, S>(
+    sys: &S,
+    mut states: Vec<[f64; N]>,
+    ctx: &MarchContext<N>,
+    band: Band,
+) -> Result<Vec<[f64; N]>, Short>
+where
+    S: LocalSystem<M, N>,
+{
+    let chord =
+        |states: &[[f64; N]], i: usize| (sys.point(&states[i + 1]) - sys.point(&states[i])).norm();
+    'round: while states.len() < SSI_FIT_DEGREE + 1 {
+        let mut gaps: Vec<usize> = (0..states.len().saturating_sub(1)).collect();
+        gaps.sort_by(|&i, &j| {
+            chord(&states, j)
+                .total_cmp(&chord(&states, i))
+                .then(i.cmp(&j))
+        });
+        let mut in_band = None;
+        for i in gaps {
+            match halve(sys, &states[i], &states[i + 1], ctx, band) {
+                Halving::Settled(mid) => {
+                    states.insert(i + 1, mid);
+                    continue 'round;
+                }
+                Halving::InBand(verdict) => {
+                    in_band.get_or_insert(verdict);
+                }
+                Halving::Unsettled => {}
+            }
+        }
+        return match in_band {
+            Some(verdict) => Err(Short {
+                length: (0..states.len() - 1).map(|i| chord(&states, i)).sum(),
+                verdict,
+            }),
+            None => Ok(states),
+        };
+    }
+    Ok(states)
+}
+
 /// What halving one gap gave.
 enum Halving<const N: usize> {
     /// The midpoint, settled onto the locus inside the domain.
     Settled([f64; N]),
-    /// Half the gap's chord does not clear the band.
-    InBand,
+    /// Half the gap's chord does not clear the band: the verdict on it.
+    InBand(BandVerdict),
     /// The midpoint did not settle onto the locus inside the domain, or
     /// settled onto an end.
     Unsettled,
@@ -224,11 +305,13 @@ where
     S: LocalSystem<M, N>,
 {
     let half = 0.5 * (sys.point(b) - sys.point(a)).norm();
-    if !matches!(
-        decide("ssi_refine_halving", Margin::of(half), band),
-        Ok(Sign::Positive)
-    ) {
-        return Halving::InBand;
+    match decide_reported("ssi_refine_halving", Margin::of(half), band) {
+        Ok(decided) => {
+            if let Some(refused) = Refused::of(decided, band) {
+                return Halving::InBand(BandVerdict::Refused(refused));
+            }
+        }
+        Err(cause) => return Halving::InBand(BandVerdict::Undecided(cause)),
     }
     let mid: [f64; N] = core::array::from_fn(|i| 0.5 * (a[i] + b[i]));
     match newton_refine(sys, mid, ctx.tol) {

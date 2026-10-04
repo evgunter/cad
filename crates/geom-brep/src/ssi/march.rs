@@ -39,8 +39,7 @@
 //!    small-contribution heuristic, p. 215: `H ≤ 2ρ/κ`, and the cubic
 //!    rung on `‖C‴⊥‖`), and the eventual cubic fit's between-sample
 //!    error within [`SSI_STEP_DEVIATION`]·ε (`H ≤ (24δε/κ³)^¼`). The
-//!    smallest binds, capped by the caller's `cap` and the domain's
-//!    diagonal. **`ssi_step_progress`** refuses if the step collapses
+//!    smallest binds, capped by the domain's diagonal. **`ssi_step_progress`** refuses if the step collapses
 //!    into the band — a stepper that cannot move at this tolerance says
 //!    so.
 //! 6. Advance by the cubic approximant, then **Newton refinement** to
@@ -409,8 +408,8 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 pub const SSI_STEP_DEVIATION: f64 = 0.02;
 
 /// The idealized stepper's fixed step, as a fraction of the caller's
-/// named extent, clipped by the march's cap and the domain's diagonal
-/// where those are shorter. Tiny by construction: the tangent-line step's own
+/// named extent, clipped by the domain's diagonal where that is
+/// shorter. Tiny by construction: the tangent-line step's own
 /// truncation is `O(h²κ)`, so at a thousandth of the feature extent it
 /// is far below ε on anything with sane curvature, and Newton removes
 /// what remains.
@@ -450,17 +449,9 @@ pub enum StepFault {
     DoesNotMove,
 }
 
-/// Which cap held a step short when the curvature did not: each lane
-/// caps its march by its own length, and each length has its own lever.
+/// Which cap held a step short when the curvature did not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StepCap {
-    /// The plane × NURBS lane's crossing march: a fifth of the distance
-    /// from the branch's crossing to the nearest crossing not yet used,
-    /// which another branch's crossing close by cuts short.
-    Crossing,
-    /// The ℝ³ lane's short-branch re-march: a fifth of the first trace's
-    /// own length.
-    ShortBranch,
     /// The domain box's diagonal, in state units: the longest step any
     /// march takes.
     Diagonal,
@@ -471,38 +462,14 @@ pub enum StepCap {
 
 impl StepCap {
     /// Every cap, in the fixed order [`StepBound`] breaks a tie in (D9).
-    const ALL: [Self; 4] = [
-        Self::Crossing,
-        Self::ShortBranch,
-        Self::Diagonal,
-        Self::Idealized,
-    ];
+    const ALL: [Self; 2] = [Self::Diagonal, Self::Idealized];
 
     fn index(self) -> usize {
         match self {
-            Self::Crossing => 0,
-            Self::ShortBranch => 1,
-            Self::Diagonal => 2,
-            Self::Idealized => 3,
+            Self::Diagonal => 0,
+            Self::Idealized => 1,
         }
     }
-}
-
-/// A march's step cap, in metres, and the length that sets it.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Cap {
-    /// The longest step, in metres.
-    pub metres: f64,
-    /// What sets it.
-    pub kind: StepCap,
-}
-
-impl Cap {
-    /// No caller cap: the domain's diagonal is the only one.
-    pub(crate) const NONE: Self = Self {
-        metres: f64::INFINITY,
-        kind: StepCap::Diagonal,
-    };
 }
 
 /// Which rungs held a march's steps short ([`SsiError::StepBudget`]):
@@ -532,7 +499,7 @@ pub const STEP_BOUND_MINORITY: (usize, usize) = (1, 4);
 impl StepBound {
     /// The rungs that held `steps` steps name: `curvature` by the
     /// curvature, `caps[k]` by [`StepCap::ALL`]`[k]`.
-    fn of(curvature: usize, caps: [usize; 4], steps: usize) -> Self {
+    fn of(curvature: usize, caps: [usize; 2], steps: usize) -> Self {
         let (num, den) = STEP_BOUND_MINORITY;
         let named = |n: usize| n * den >= steps * num;
         let mut cap = StepCap::ALL[0];
@@ -597,7 +564,7 @@ pub(crate) struct Held {
     /// Steps the curvature held.
     pub(crate) curvature: usize,
     /// Steps each cap held.
-    pub(crate) caps: [usize; 4],
+    pub(crate) caps: [usize; 2],
 }
 
 impl Held {
@@ -833,8 +800,7 @@ pub(crate) struct MarchContext<const N: usize> {
     /// The domain box in state coordinates, `[lo, hi]` per coordinate.
     pub domain: [[f64; 2]; N],
     /// The caller's named feature extent, in meters — the lever arm of
-    /// last resort and the scale of the idealized step. The realized
-    /// step's cap is [`march`]'s `cap`.
+    /// last resort and the scale of the idealized step.
     pub extent: f64,
     /// The candidate generator's step tolerance. Derived from the run
     /// band on every certifying door — see [`MarchTol`].
@@ -933,8 +899,7 @@ pub(crate) fn decide_transversality<const N: usize>(
     }
 }
 
-/// March one branch from `seed` (module docs), no step longer than
-/// `cap`.
+/// March one branch from `seed` (module docs).
 ///
 /// # Errors
 ///
@@ -956,7 +921,6 @@ pub(crate) fn march<const M: usize, const N: usize, S, E>(
     mode: StepperMode,
     direction: f64,
     band: Band,
-    cap: Cap,
 ) -> Result<Trace<N, E::End>, SsiError>
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
@@ -1016,18 +980,12 @@ where
         let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
-                let (h, held) = [
-                    (cap.metres / speed, cap.kind),
-                    (ctx.diagonal(), StepCap::Diagonal),
-                ]
-                .into_iter()
-                .fold(
-                    (
-                        (SSI_IDEALIZED_STEP * ctx.extent) / speed,
-                        StepCap::Idealized,
-                    ),
-                    |a, b| if b.0 < a.0 { b } else { a },
-                );
+                let idealized = (SSI_IDEALIZED_STEP * ctx.extent) / speed;
+                let (h, held) = if ctx.diagonal() < idealized {
+                    (ctx.diagonal(), StepCap::Diagonal)
+                } else {
+                    (idealized, StepCap::Idealized)
+                };
                 (scale(&d1, h), h * speed, StepBound::Cap(held))
             }
             StepperMode::Realized => {
@@ -1092,19 +1050,35 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_curve = [h_cub, h_fit].into_iter().fold(h_quad, Real::min);
-                let (h_cap, held) = if cap.metres / speed < ctx.diagonal() {
-                    (cap.metres / speed, cap.kind)
+                // (c) the same heuristic on the approximant the step
+                //     advances, the state's: `h²·‖d₂‖/2 ≤ ρ·h` and
+                //     `h³·‖d₃‖/6 ≤ ρ·h` in state units. On the ℝ⁴ lane
+                //     the state holds the wall chart's bending, which the
+                //     carrier rungs do not read, and a step they allow
+                //     would carry the predicted state off the locus where
+                //     the chart bends under a straight carrier.
+                let s_quad = if kappa != 0.0 {
+                    2.0 * SSI_STEP_RELATIVE / kappa
                 } else {
-                    (ctx.diagonal(), StepCap::Diagonal)
+                    f64::INFINITY
                 };
+                let n3_state = norm(&d3);
+                let s_cub = if n3_state != 0.0 && kappa_sq != f64::INFINITY {
+                    (6.0 * SSI_STEP_RELATIVE / n3_state).sqrt()
+                } else {
+                    f64::INFINITY
+                };
+                let h_curve = [h_cub, h_fit, s_quad, s_cub]
+                    .into_iter()
+                    .fold(h_quad, Real::min);
+                let h_cap = ctx.diagonal();
                 let h = Real::min(h_curve, h_cap);
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
                 let bound = if h_curve < h_cap {
                     StepBound::Curvature
                 } else {
-                    StepBound::Cap(held)
+                    StepBound::Cap(StepCap::Diagonal)
                 };
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
@@ -1479,22 +1453,20 @@ where
 /// seed as the join. A closed forward march needs no second pass: it
 /// already covered the component.
 ///
-/// The first march's steps are the curvature's against ε, no longer
-/// than the domain's diagonal. A trace with fewer samples than the
-/// cubic fit needs, and a positive length, is marched once more with
-/// its steps capped at that length over [`SHORT_BRANCH_STEPS`]. The rule
-/// is fixed and taken at most once (D9). Written for the ℝ³ state alone:
+/// The steps are the curvature's against ε, no longer than the
+/// domain's diagonal. A trace with fewer samples than the cubic fit
+/// needs is given them where it is fitted, by halving
+/// ([`super::refine::fit_minimum`]). Written for the ℝ³ state alone:
 /// the plane × NURBS lane knows its branches' ends before it marches and
 /// never reaches this.
 ///
 /// # Errors
 ///
-/// As [`march`]; a refusal in either direction, on either march, is the
-/// operation's. [`SsiError::TraceUnresolved`] when the first trace has
-/// no length to cut, or the re-march is still too short to fit: a limit
-/// of the march against the caller's slab, not a branch. A trace with a
-/// non-finite sample (a `NaN` length) goes to the fit, which refuses
-/// the sample by name.
+/// As [`march`]; a refusal in either direction is the operation's.
+/// [`SsiError::TraceUnresolved`] when a trace too short for the fit has
+/// no length to halve: a limit of the march against the caller's slab,
+/// not a branch. A trace with a non-finite sample (a `NaN` length) goes
+/// to the fit, which refuses the sample by name.
 pub(crate) fn march_both<S>(
     sys: &S,
     seed: [f64; 3],
@@ -1505,74 +1477,23 @@ pub(crate) fn march_both<S>(
 where
     S: LocalSystem<2, 3> + TransversalityData<3>,
 {
-    let first = march_both_at(sys, seed, ctx, mode, band, Cap::NONE)?;
-    if first.states.len() > SSI_FIT_DEGREE {
-        return Ok(first);
-    }
-    let length = arc_length(sys, &first.states);
-    if length.is_nan() {
-        // A non-finite sample: the fit refuses it by name. Finite
-        // samples whose chords overflow read `+∞`, which re-marches
-        // uncapped and refuses below if still short.
-        return Ok(first);
-    }
-    if length <= 0.0 {
-        return Err(SsiError::TraceUnresolved {
-            samples: first.states.len(),
-            step: first.longest_step,
-        });
-    }
-    let again = march_both_at(
-        sys,
-        seed,
-        ctx,
-        mode,
-        band,
-        Cap {
-            metres: length / SHORT_BRANCH_STEPS as f64,
-            kind: StepCap::ShortBranch,
-        },
-    )?;
-    if again.states.len() > SSI_FIT_DEGREE {
-        return Ok(again);
-    }
-    Err(SsiError::TraceUnresolved {
-        samples: again.states.len(),
-        step: again.longest_step,
-    })
-}
-
-/// How many steps a short branch's re-march cuts its length into: the
-/// fewest odd count that gives the cubic fit its samples without the
-/// two boundary ends, which [`push_boundary`] may drop. Odd, because a
-/// seed lands near the middle of a branch as often as not: from there
-/// an odd count leaves `n` states strictly inside the branch and each
-/// end half a step from the nearest, where an even one walks a state
-/// onto each end.
-pub(crate) const SHORT_BRANCH_STEPS: usize = (SSI_FIT_DEGREE + 1) | 1;
-
-/// [`march_both`]'s two marches and their splice, at one `cap`.
-fn march_both_at<S>(
-    sys: &S,
-    seed: [f64; 3],
-    ctx: MarchContext<3>,
-    mode: StepperMode,
-    band: Band,
-    cap: Cap,
-) -> Result<Trace<3, SlabEnd>, SsiError>
-where
-    S: LocalSystem<2, 3> + TransversalityData<3>,
-{
-    let fwd = march(sys, &SlabExit, seed, ctx, mode, 1.0, band, cap)?;
+    let fwd = march(sys, &SlabExit, seed, ctx, mode, 1.0, band)?;
     if fwd.end == SlabEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march(sys, &SlabExit, seed, ctx.rest(&fwd), mode, -1.0, band, cap)?;
+    let bwd = march(sys, &SlabExit, seed, ctx.rest(&fwd), mode, -1.0, band)?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half
     // without repeating the seed.
     states.extend_from_slice(&fwd.states[1..]);
+    let longest_step = Real::max(fwd.longest_step, bwd.longest_step);
+    if states.len() <= SSI_FIT_DEGREE && arc_length(sys, &states) <= 0.0 {
+        return Err(SsiError::TraceUnresolved {
+            samples: states.len(),
+            step: longest_step,
+        });
+    }
     Ok(Trace {
         states,
         // If either end is in band of the slab, the branch's end is in
@@ -1583,7 +1504,7 @@ where
             SlabEnd::Slab
         },
         steps: fwd.steps + bwd.steps,
-        longest_step: Real::max(fwd.longest_step, bwd.longest_step),
+        longest_step,
         held: fwd.held.plus(bwd.held),
     })
 }
@@ -1752,7 +1673,7 @@ pub(crate) mod tests {
             longest_step: 0.0,
             held: super::Held {
                 curvature: 1000,
-                caps: [0; 4],
+                caps: [0; 2],
             },
         };
         let r = march(
@@ -1763,7 +1684,6 @@ pub(crate) mod tests {
             StepperMode::Idealized,
             -1.0,
             band,
-            super::Cap::NONE,
         );
         match r {
             Err(SsiError::StepBudget { budget, bound, .. }) => {
@@ -1802,7 +1722,6 @@ pub(crate) mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                super::Cap::NONE,
             );
             match r {
                 Err(SsiError::StepUnusable {
@@ -1881,16 +1800,7 @@ pub(crate) mod tests {
         ];
         for (speed, mode, ctx, x0, fault) in rows {
             let sys = FixedSpeedR3::at_speed(speed);
-            let r = march(
-                &sys,
-                &super::SlabExit,
-                [x0, 0.0, 0.0],
-                ctx,
-                mode,
-                1.0,
-                band,
-                super::Cap::NONE,
-            );
+            let r = march(&sys, &super::SlabExit, [x0, 0.0, 0.0], ctx, mode, 1.0, band);
             let named = match (fault, &r) {
                 (None, Err(SsiError::StepCollapsed { speed, .. })) => *speed,
                 (Some(want), Err(SsiError::StepUnusable { speed, fault, .. }))
@@ -1977,7 +1887,6 @@ pub(crate) mod tests {
                 mode,
                 1.0,
                 band,
-                super::Cap::NONE,
             ) {
                 Err(ref e @ SsiError::Escalated { decision, .. }) => {
                     assert_eq!(decision, guard, "the poisoned operand's guard");
@@ -2025,7 +1934,6 @@ pub(crate) mod tests {
                 StepperMode::Realized,
                 1.0,
                 band,
-                super::Cap::NONE,
             );
             assert!(
                 !matches!(
@@ -2173,7 +2081,6 @@ pub(crate) mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                super::Cap::NONE,
             )
         };
         match run(0.1) {
@@ -2214,25 +2121,25 @@ pub(crate) mod tests {
     #[test]
     fn a_rung_is_named_from_a_quarter_of_the_steps() {
         use super::{StepBound, StepCap};
-        let crossing = |n: usize| [n, 0, 0, 0];
+        let idealized = |n: usize| [0, n];
         for (curvature, want) in [
-            (0, StepBound::Cap(StepCap::Crossing)),
-            (4, StepBound::Cap(StepCap::Crossing)),
-            (5, StepBound::Both(StepCap::Crossing)),
-            (15, StepBound::Both(StepCap::Crossing)),
+            (0, StepBound::Cap(StepCap::Idealized)),
+            (4, StepBound::Cap(StepCap::Idealized)),
+            (5, StepBound::Both(StepCap::Idealized)),
+            (15, StepBound::Both(StepCap::Idealized)),
             (16, StepBound::Curvature),
             (20, StepBound::Curvature),
         ] {
             assert_eq!(
-                StepBound::of(curvature, crossing(20 - curvature), 20),
+                StepBound::of(curvature, idealized(20 - curvature), 20),
                 want,
                 "{curvature} of 20"
             );
         }
         for (caps, want) in [
-            ([3, 0, 5, 0], StepCap::Diagonal),
-            ([0, 4, 0, 4], StepCap::ShortBranch),
-            ([0, 0, 0, 8], StepCap::Idealized),
+            ([5, 3], StepCap::Diagonal),
+            ([3, 5], StepCap::Idealized),
+            ([4, 4], StepCap::Diagonal),
         ] {
             assert_eq!(StepBound::of(0, caps, 8), StepBound::Cap(want), "{caps:?}");
         }
@@ -2287,17 +2194,7 @@ pub(crate) mod tests {
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
         let seed = [s - 0.5, 0.0, s, 0.5];
-        let trace = march(
-            &sys,
-            &RectExit,
-            seed,
-            ctx,
-            StepperMode::Realized,
-            1.0,
-            band,
-            super::Cap::NONE,
-        )
-        .unwrap();
+        let trace = march(&sys, &RectExit, seed, ctx, StepperMode::Realized, 1.0, band).unwrap();
         assert!(
             matches!(trace.end, RectEnd::Closed),
             "the level cut is a loop"

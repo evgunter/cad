@@ -4280,11 +4280,17 @@ fn half_cylinder(r: f64) -> NurbsSurface<f64> {
 /// apart. The Hermite cubic through the ends and their antiparallel
 /// tangents runs half a radius inside the arc at its middle, and limb 1
 /// refuses it or cannot call it. The march's step is `r/5`, the relative
-/// rung `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 2Kε` it falls
-/// in the band, so the march cannot progress either, and the answer is
-/// the sized refusal in the branch's length. At `r = 10Kε` the step
-/// clears the band, and the march traces the semicircle in sixteen
-/// steps or more. Every ε.
+/// rung `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 1.25Kε` and
+/// `r = 2Kε` it falls in the band, so the march cannot progress either.
+/// Halving the ends' gap settles the arc's apex, leaving two chords of
+/// `r·√2`. At `1.25Kε` half of one falls in the band, so the ends are too
+/// short to halve to the fit's samples, and the answer is the sized
+/// refusal in the branch's length, the Hermite's refusal in it; the
+/// ends' transversality lever, about the radius, still clears the band
+/// there, which it does not below about `1.1Kε`. At `2Kε` the chords
+/// halve, so the march's refusal stands. At `r = 10Kε` the step clears
+/// the band, and the march traces the semicircle in sixteen steps or
+/// more. Every ε.
 #[test]
 fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
     let k_eps = band().escalate();
@@ -4299,13 +4305,19 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
         extent: 1.0,
         floor_scale: 1.0,
     };
-    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(2.0 * k_eps), dom, band());
-    let Err(SsiError::ShortBranchUncertified { length, limb, .. }) = r else {
-        panic!("r = 2Kε: expected the short branch's refusal, got {r:?}");
+    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(1.25 * k_eps), dom, band());
+    let Err(SsiError::ShortBranchUncertified {
+        length,
+        limb: Some(limb),
+        ..
+    }) = r
+    else {
+        panic!("r = 1.25Kε: expected the short branch's refusal, got {r:?}");
     };
+    let arc = 2.0 * 2.0f64.sqrt() * 1.25 * k_eps;
     assert!(
-        (length - 4.0 * k_eps).abs() <= 1.0e-6 * k_eps,
-        "r = 2Kε: |AB| {length:e}"
+        (length - arc).abs() <= 1.0e-6 * k_eps,
+        "r = 1.25Kε: the two chords {length:e}"
     );
     assert!(
         matches!(
@@ -4318,7 +4330,18 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
                 ..
             }
         ),
-        "r = 2Kε: limb 1 refuses the cubic: {limb:?}"
+        "r = 1.25Kε: limb 1 refuses the cubic: {limb:?}"
+    );
+    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(2.0 * k_eps), dom, band());
+    assert!(
+        matches!(
+            r,
+            Err(SsiError::Escalated {
+                decision: geom_brep::ssi::TraceDecision::StepProgress,
+                ..
+            })
+        ),
+        "r = 2Kε: the march's refusal, got {r:?}"
     );
     let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(10.0 * k_eps), dom, band());
     let (out, span) = one_branch("r = 10Kε", r);
@@ -4932,26 +4955,19 @@ fn a_loop_whose_seeds_newton_carries_into_its_tube_is_found_once() {
 }
 
 /// **A spent step budget ends by the rung that held the steps short.**
-///
-/// - Curvature: the planted fixture at a thousand times its size, at
-///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds every
-///   step, which no extent lengthens: it names the domain, which cuts an
-///   open branch's step count, and the tolerance as the last resort,
-///   and no extent.
-/// - Cap: [`close_crossings_wall`] with its two branches meeting the
-///   bottom side 1e-4 m apart. Each straight branch's step is a fifth of
-///   the distance to the nearest crossing not yet used, the other
-///   branch's, so a metre takes 50 000 steps. The ending names moving
-///   the geometry so the branches meet the boundary farther apart, and
-///   pulling that lever, 0.2 m apart, certifies both
-///   (`work/ssi/ssi-a-step-capped-by-a-neighbouring-crossing-can-spend-the-step-budget.md`).
-///
-/// Both run at a band of their own, so the rung under test does not
-/// move with the run's ε.
+/// The planted fixture at a thousand times its size, at ε = 1e-12: the
+/// fit's between-sample rung `(ε/κ³)^¼` binds every step, which no
+/// extent lengthens, so the ending names the domain, which cuts an open
+/// branch's step count, and the tolerance as the last resort, and no
+/// extent. The idealized step's cap has its own row
+/// (`the_idealized_steppers_spent_budget_names_the_extent`), and the
+/// domain's diagonal ends an open branch in one step, so no other cap
+/// spends the budget. The row runs at a band of its own, so the rung
+/// under test does not move with the run's ε.
 #[test]
 fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
     use geom_brep::recourse::Reading;
-    use geom_brep::ssi::{StepBound, StepCap};
+    use geom_brep::ssi::StepBound;
     let s = 1000.0;
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -4988,33 +5004,6 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
         }
         other => panic!("the scaled planted fixture: expected the step budget, got {other:?}"),
     }
-
-    let close = |gap: f64| {
-        ssi::plane_nurbs_ssi(
-            &close_crossings_plane(),
-            &close_crossings_wall(gap, 1.0),
-            close_crossings_domain(),
-            band_at(1e-9),
-        )
-    };
-    match close(1.0e-4) {
-        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
-            assert_eq!(bound, StepBound::Cap(StepCap::Crossing), "{err}");
-            let shown = err.render(Reading::Build);
-            assert!(
-                shown.contains("held short by the nearest crossing's distance")
-                    && shown.contains(
-                        "Recourse: move the plane or the wall so no other branch meets its \
-                         boundary near this one",
-                    )
-                    && !shown.contains("feature extent"),
-                "{shown}"
-            );
-        }
-        other => panic!("crossings 1e-4 m apart: expected the step budget, got {other:?}"),
-    }
-    let out = close(0.2).unwrap_or_else(|e| panic!("crossings 0.2 m apart: {e}"));
-    assert_eq!(out.branches.len(), 2, "crossings 0.2 m apart: {out:?}");
 }
 
 /// The zigzag wall: `columns` columns 0.05 m apart along `x`,
@@ -5074,19 +5063,17 @@ fn close_crossings_domain() -> SsiDomain {
     }
 }
 
-/// **A straight marched branch takes only the samples its march
-/// gives.** The close-crossings wall's two branches meet the bottom
-/// side 0.2 m apart, so the first branch's Hermite runs to the other
-/// branch's crossing and is refused, and the branch is marched in steps
-/// of a fifth of that distance: 25 steps up its metre. No curvature
-/// rung binds, and the certificate, asked, refuses none of the samples:
-/// the marched branch certifies on the march's 26 states at every ε,
-/// and the second branch is one Hermite span. That a straight branch
-/// takes the fewest samples its fit needs now rests on the Hermite span
-/// (`a_straight_branch_is_one_hermite_span_at_any_length`); this row
-/// pins that a marched one is not refined past the march's states.
+/// **A straight marched branch takes the fit's four samples.** The
+/// close-crossings wall's two branches meet the bottom side 0.2 m apart,
+/// so the first branch's Hermite runs to the other branch's crossing and
+/// is refused, and the branch is marched. No curvature rung binds, so
+/// the march leaves the wall in one step of the domain's diagonal, and
+/// its two states are halved to the cubic's four (`fit_minimum`): the
+/// marched branch certifies on four samples at every ε, nothing the
+/// other branch's crossing reads, and the second branch is one Hermite
+/// span.
 #[test]
-fn a_straight_marched_branch_takes_only_the_samples_its_march_gives() {
+fn a_straight_marched_branch_takes_the_fits_four_samples() {
     let at = format!("ε {:e}", band().zero());
     let out = ssi::plane_nurbs_ssi(
         &close_crossings_plane(),
@@ -5099,47 +5086,8 @@ fn a_straight_marched_branch_takes_only_the_samples_its_march_gives() {
         panic!("{at}: expected two branches, got {}", out.branches.len());
     };
     let n = first.pcurve_b.as_ref().map_or(0, |c| c.control().len());
-    assert_eq!(n, 26, "{at}: the marched metre's samples");
+    assert_eq!(n, 4, "{at}: the marched metre's samples");
     assert!(one_cubic_span(&at, second), "{at}: the second branch");
-}
-
-/// **A marched branch whose last state lands δ short of the far side
-/// certifies.** A march ends at the crossing the boundary pass
-/// certified, and a last state nearer that crossing than half its own
-/// step gives way to it (`close_at`), so the fit never reads a final
-/// chord far shorter than the steps before it
-/// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
-/// The δ-short regime, a last state short of the edge by a length the
-/// step does not divide, is a branch stepped by another branch's
-/// crossing: the close-crossings wall's branches meet the bottom side
-/// 0.2 m apart, so the first branch's Hermite, to the other branch's
-/// crossing, is refused, and the branch is cut into steps of 0.04 m; at
-/// a height of `0.96 + δ` its 24th state lands δ short of the top.
-/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε. A straight
-/// branch whose fifth state lands on the far edge within rounding is
-/// one Hermite span, the Hermite tried first, and reaches no `close_at`.
-#[test]
-fn a_marched_branch_whose_last_state_lands_short_of_the_far_side_certifies() {
-    for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
-        let at = format!("δ = {delta:e} at ε {:e}", band().zero());
-        let h = 0.96 + delta;
-        let out = ssi::plane_nurbs_ssi(
-            &close_crossings_plane(),
-            &close_crossings_wall(0.2, h),
-            close_crossings_domain(),
-            band(),
-        )
-        .unwrap_or_else(|e| panic!("{at}: {e}"));
-        assert_eq!(out.branches.len(), 2, "{at}");
-        for b in &out.branches {
-            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
-            assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
-        }
-        assert!(
-            !one_cubic_span(&at, &out.branches[0]),
-            "{at}: the branch traced first is marched"
-        );
-    }
 }
 
 /// **The idealized stepper's spent budget names the extent.** The
@@ -5181,17 +5129,15 @@ fn the_idealized_steppers_spent_budget_names_the_extent() {
 /// **A branch cut short by its domain names a domain holding more of
 /// it.** The threaded cylinder's north loop cut to a cube of side `L`
 /// about `(0.11, 0, √(1 − 0.11²))`: the arc inside is about `L` long,
-/// re-marched in fifths of it. At `L` = 30 µm and ε 1e-6 the step,
-/// 6 µm, is too close to the band to call, and the ending names a
-/// domain holding more of the intersection; the same arc in a 0.3 mm
-/// cube certifies. The domain's diagonal only ever shortens a step, so
-/// a domain near the feature's size is no lever, and the extent sizes
-/// no realized step
-/// (`work/ssi/ssi-step-scale-recourse-cannot-help-a-re-marched-short-branch.md`).
+/// marched in a step of the cube's diagonal each way from its seed and
+/// given the fit's samples by halving. At `L` = 30 µm and ε 1e-6 half a
+/// gap, 7.5 µm, is too close to the band to call, so the arc is too
+/// short to halve, and the sized refusal names a domain holding more of
+/// the intersection, and no extent; the same arc in a 0.3 mm cube is
+/// halved to the fit's samples and certifies.
 #[test]
 fn a_branch_cut_short_by_its_domain_names_a_domain_holding_more_of_it() {
     use geom_brep::recourse::Reading;
-    use geom_brep::ssi::TraceDecision;
     let (s, c) = (sphere(), threaded_cylinder());
     let at = Point3::new(0.11, 0.0, (1.0f64 - 0.11 * 0.11).sqrt());
     let cube = |l: f64| SsiDomain {
@@ -5203,11 +5149,11 @@ fn a_branch_cut_short_by_its_domain_names_a_domain_holding_more_of_it() {
     let b = band_at(1e-6);
     match ssi::cylinder_sphere_ssi(&c, &s, cube(3e-5), b) {
         Err(
-            ref err @ SsiError::Escalated {
-                decision: TraceDecision::StepProgress,
-                ..
+            ref err @ SsiError::ShortBranchUncertified {
+                length, limb: None, ..
             },
         ) => {
+            assert!((length - 3e-5).abs() < 1e-6, "the arc's length {length:e}");
             let shown = err.render(Reading::Build);
             assert!(
                 shown.contains("name a domain that holds more of the intersection")
@@ -5215,7 +5161,7 @@ fn a_branch_cut_short_by_its_domain_names_a_domain_holding_more_of_it() {
                 "{shown}"
             );
         }
-        other => panic!("a 30 µm cube: expected the step escalated, got {other:?}"),
+        other => panic!("a 30 µm cube: expected the short branch's refusal, got {other:?}"),
     }
     let out = ssi::cylinder_sphere_ssi(&c, &s, cube(3e-4), b)
         .unwrap_or_else(|e| panic!("a 0.3 mm cube: {e}"));
@@ -5344,6 +5290,66 @@ fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
             assert!(
                 x.z.abs() <= sup && x.x.abs() <= 2.0 * sup / alpha,
                 "{at}: the carrier at {x:?} is off the line x = z = 0 (sup {sup:e})"
+            );
+        }
+    }
+}
+
+/// The two-arm wall `y = z/h + 2·gap² − 8(x − ½)²` on the unit square,
+/// `h` tall in `z`: the plane `y = 0` cuts it in two parabola arms that
+/// meet the bottom side `gap` apart, and `∂y/∂z = 1/h` keeps the wall
+/// transversal to the plane everywhere.
+fn arms_wall(gap: f64, h: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let g2 = 2.0 * gap * gap;
+    let mut control = Vec::with_capacity(6);
+    for (x, y) in [(0.0, g2 - 2.0), (0.5, g2 + 2.0), (1.0, g2 - 2.0)] {
+        for j in 0..2 {
+            control.push(Point3::new(x, y + f64::from(j), f64::from(j) * h));
+        }
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+}
+
+/// **A branch beside a close crossing is sampled by its own curvature.**
+/// The plane `y = 0` cuts [`arms_wall`] in two mirror-image arms whose
+/// crossings on the bottom side lie `gap` apart. Each arm's Hermite runs
+/// to the other's crossing, the nearest unused, and is refused, so each
+/// is marched, its step the curvature's against ε and no longer than the
+/// domain's diagonal: nothing the march reads belongs to the other arm.
+/// At gaps 1e-4, 1e-3 and 0.2 m and ε 1e-6, 1e-9 and 1e-12 both arms
+/// certify, and the mirror images take the same samples within a tenth,
+/// each its curvature's count, however close the other arm's crossing.
+#[test]
+fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.5),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.5, 0.0, 0.5),
+        half_extent: 3.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for eps in [1e-6, 1e-9, 1e-12] {
+        for gap in [1e-4, 1e-3, 0.2] {
+            let at = format!("gap {gap:e} at ε {eps:e}");
+            let out = ssi::plane_nurbs_ssi(&plane, &arms_wall(gap, 1.0), dom, band_at(eps))
+                .unwrap_or_else(|e| panic!("{at}: {e}"));
+            let n: Vec<usize> = out
+                .branches
+                .iter()
+                .map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len()))
+                .collect();
+            let [a, b] = n[..] else {
+                panic!("{at}: expected two branches, got {n:?}");
+            };
+            assert!(
+                a.abs_diff(b) <= a.max(b) / 10,
+                "{at}: the mirror arms' samples {n:?}"
             );
         }
     }
