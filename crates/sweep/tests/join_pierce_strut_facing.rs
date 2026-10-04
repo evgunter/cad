@@ -18,14 +18,27 @@
 //! meets first in the bare run and last in the whole-orbit one), and
 //! the other facing refuses `JoinDesync` in every op and order of
 //! either pose.
+//!
+//! **Two Out runs at one pierce.** Tilted so that the −z edge reads
+//! Out too (`TWO_RUNS`), the corner has two Out runs, the bisector
+//! alone and the −z edge alone, and the plane meets the prism in two
+//! lobes that touch at `v`. The union and the intersection pinch there
+//! (two cones of boundary meet at one point); each difference does
+//! not. Every op, in both orders, builds `SOUND` with one vertex at
+//! `v`. Red as the row was filed: every run refuses, `JoinDesync` or
+//! `Euler(SelfLoopEdge)`. Red too if the ring copies of an
+//! intersection keep the Out side (the zip meets the piercing vertex
+//! twice on both sides: `SelfLoopEdge`), or if a union's two copies
+//! are left unwelded (two vertices at `v`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common;
-
 use geom_core::{Point3, Tol};
-use topo::validate::{validate_closed, validate_geometric};
-use topo::{Body, BooleanDeclarations, BooleanResult, mass_properties, validate_pseudomanifold};
+use topo::test_support as fixtures;
+use topo::validate::validate_geometric;
+use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+
+use crate::common::differential::outcome;
 
 const PROFILE: [(f64, f64); 6] = [
     (0.0, 0.0),
@@ -37,6 +50,10 @@ const PROFILE: [(f64, f64); 6] = [
 ];
 const V: [f64; 3] = [1.0, 1.0, 1.0];
 const SIDE: f64 = 4.0;
+/// The bare-bisector tilt.
+const BARE: [f64; 3] = [1.0, 1.3, -0.7];
+/// The tilts at which the −z edge reads Out too: two Out runs.
+const TWO_RUNS: [[f64; 3]; 3] = [[1.0, 1.3, 0.7], [1.0, 1.3, 0.4], [1.2, 1.0, 0.3]];
 
 fn tol() -> Tol {
     Tol::witness()
@@ -59,7 +76,7 @@ fn cube_beyond(m: [f64; 3]) -> Body<f64> {
         m[2] * u[0] - m[0] * u[2],
         m[0] * u[1] - m[1] * u[0],
     ];
-    common::mapped_cube::<f64>(
+    fixtures::mapped_cube::<f64>(
         move |x, y, z| {
             let (a, b, c) = (SIDE * (x - 0.5), SIDE * (y - 0.5), SIDE * z);
             Point3::new(
@@ -114,10 +131,19 @@ fn prism_beyond(m: [f64; 3]) -> f64 {
         .sum()
 }
 
-/// Builds every op in both operand orders and checks each body at tiers
-/// 2, 3 and 3′ and by volume against the prism's cut by the plane.
+type Op = fn(
+    &Body<f64>,
+    &Body<f64>,
+    &BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<f64>, BooleanError>;
+
+/// Builds every op in both operand orders. Each body is `SOUND` by
+/// [`outcome`] (tiers 2 and 3′, the certificate, a legal operand, its
+/// volume), passes tier 3, holds the prism's cut by the plane to 1e-9,
+/// and has one vertex at `V`.
 fn assert_pose_builds(pose: &str, m: [f64; 3]) {
-    let prism = common::prism::<f64>(&PROFILE, 1.0, tol()).body;
+    let prism = fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body;
     let cube = cube_beyond(m);
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
@@ -126,45 +152,34 @@ fn assert_pose_builds(pose: &str, m: [f64; 3]) {
         ("prism-cube", &prism, &cube, va),
         ("cube-prism", &cube, &prism, vb),
     ] {
-        let ops: [(&str, _, f64); 3] = [
-            (
-                "union",
-                topo::union_with(x, y, &decls, tol()),
-                va + vb - shared,
-            ),
-            (
-                "intersect",
-                topo::intersect_with(x, y, &decls, tol()),
-                shared,
-            ),
-            (
-                "subtract",
-                topo::subtract_with(x, y, &decls, tol()),
-                vx - shared,
-            ),
+        let ops: [(&str, Op, f64); 3] = [
+            ("union", topo::union_with, va + vb - shared),
+            ("intersect", topo::intersect_with, shared),
+            ("subtract", topo::subtract_with, vx - shared),
         ];
-        for (op, r, want) in ops {
+        for (op, run, want) in ops {
             let what = format!("{pose}: {order} {op}");
-            let BooleanResult::Body(bb) = r.unwrap_or_else(|e| panic!("{what} refused: {e:?}"))
-            else {
-                panic!("{what}: overlapping operands cannot be Empty");
+            let line = outcome(run(x, y, &decls, tol()), want, tol());
+            assert!(line.starts_with("OK SOUND"), "{what}: {line}");
+            let Ok(BooleanResult::Body(bb)) = run(x, y, &decls, tol()) else {
+                panic!("{what}: a second run did not build");
             };
-            assert_eq!(validate_closed(&bb.body), Ok(()), "{what}: tier 2");
             assert_eq!(
                 validate_geometric(&bb.body, tol()),
                 Ok(()),
                 "{what}: tier 3"
-            );
-            assert_eq!(
-                validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
-                Ok(()),
-                "{what}: tier 3′"
             );
             let got = vol(&bb.body);
             assert!(
                 (got - want).abs() < 1e-9,
                 "{what}: volume {got}, want {want}"
             );
+            let at_v = bb
+                .body
+                .vertex_points()
+                .filter(|(_, p)| p.as_ref().is_ok_and(|p| [p.x, p.y, p.z] == V))
+                .count();
+            assert_eq!(at_v, 1, "{what}: vertices at the pierce point");
         }
     }
 }
@@ -173,25 +188,37 @@ fn assert_pose_builds(pose: &str, m: [f64; 3]) {
 /// arrival edge meets first, so `he_plus` faces it.
 #[test]
 fn a_bare_bisector_strut_faces_its_start_germ_with_he_plus() {
-    assert_pose_builds("bare", [1.0, 1.3, -0.7]);
+    assert_pose_builds("bare", BARE);
 }
 
 /// The whole-orbit run: the start germ is the one the walk meets last,
 /// so `he_minus` faces it.
 #[test]
 fn a_whole_orbit_strut_faces_its_start_germ_with_he_minus() {
-    assert_pose_builds("whole orbit", [-1.0, -1.3, 0.7]);
+    assert_pose_builds("whole orbit", BARE.map(|c| -c));
 }
 
-/// The oracle itself: the two poses cut the prism along one plane from
-/// opposite sides.
+/// Two Out runs at the corner, at each tilt.
 #[test]
-fn the_two_poses_split_the_prism() {
-    let (m, n) = ([1.0, 1.3, -0.7], [-1.0, -1.3, 0.7]);
-    let (a, b) = (prism_beyond(m), prism_beyond(n));
-    assert!(
-        (a + b - 3.0).abs() < 1e-12,
-        "{a} + {b} is not the prism's 3"
-    );
-    assert!(a > 0.5 && b > 0.5, "both cuts are substantial: {a}, {b}");
+fn two_out_runs_at_the_corner_build_in_every_op() {
+    for m in TWO_RUNS {
+        assert_pose_builds(&format!("two runs {m:?}"), m);
+    }
+}
+
+/// The oracle itself: each pose and its opposite cut the prism along
+/// one plane from either side.
+#[test]
+fn opposite_poses_split_the_prism() {
+    for m in TWO_RUNS.into_iter().chain([BARE]) {
+        let (a, b) = (prism_beyond(m), prism_beyond(m.map(|c| -c)));
+        assert!(
+            (a + b - 3.0).abs() < 1e-12,
+            "{m:?}: {a} + {b} is not the prism's 3"
+        );
+        assert!(
+            a > 0.5 && b > 0.5,
+            "{m:?}: both cuts are substantial: {a}, {b}"
+        );
+    }
 }

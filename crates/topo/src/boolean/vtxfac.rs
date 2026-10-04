@@ -741,33 +741,60 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         face: contact.face,
         ring_vertex: w,
     });
-    // (3) one ring null-edge strut per piercing-side run. Side labels
-    // are DERIVED sense data (PR 5.5, join module docs): the pierced
-    // solid's sense at each germ is the negation of the piercing
-    // solid's (the cross-solid anti-correlation theorem), so the half
-    // facing the run's start germ (piercing UP) is the pierced DOWN
-    // half — he_minus, starting at the created copy = `above_end`.
+    // (3) one ring null-edge strut per piercing-side run, each hung
+    // at the ring vertex. The copy takes the Out side (`above_end`),
+    // but for one case. The piercing vertex keeps every In run, so with
+    // several runs its In section face passes it once per run, and the
+    // zip fuses each vertex of a seam once. Where the op keeps both
+    // operands' In side, that face is zipped to the ring's In face,
+    // which must then pass a vertex per run: the copies take the In
+    // side and the ring vertex the Out.
+    // Side labels are DERIVED sense data (PR 5.5, join module docs):
+    // the pierced solid's sense at each germ is the negation of the
+    // piercing solid's (the cross-solid anti-correlation theorem), so
+    // the half facing the run's start germ (piercing UP) is the pierced
+    // DOWN half, the one starting at `above_end`.
+    let copies_in = runs.len() > 1
+        && super::finish::kept_side(op, piercing) == SideCode::In
+        && super::finish::kept_side(op, pierced) == SideCode::In;
+    let side = if copies_in {
+        NewVertexSide::Below
+    } else {
+        NewVertexSide::Above
+    };
     let mut ring_anchor: Option<HalfEdgeKey> = None;
     for (run_edge, &(start_germ, end_germ)) in run_edges.iter().zip(&run_germs) {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
         };
-        let created = pierced_body.mev_null(site, NewVertexSide::Above)?;
+        let created = pierced_body.mev_null(site, side)?;
         ring_anchor.get_or_insert(created.he_plus);
+        let (attr, down, up) = match side {
+            NewVertexSide::Above => (
+                NullEdge {
+                    below_end: w,
+                    above_end: created.vertex,
+                },
+                created.he_minus,
+                created.he_plus,
+            ),
+            NewVertexSide::Below => (
+                NullEdge {
+                    below_end: created.vertex,
+                    above_end: w,
+                },
+                created.he_plus,
+                created.he_minus,
+            ),
+        };
         let rec = BoolNullEdgeRecord {
             operand: pierced,
             at_vertex: w,
             edge: created.edge,
-            attr: NullEdge {
-                below_end: w,
-                above_end: created.vertex,
-            },
+            attr,
             dangling: true,
-            germs: [
-                half_germ(created.he_minus, start_germ),
-                half_germ(created.he_plus, end_germ),
-            ],
+            germs: [half_germ(down, start_germ), half_germ(up, end_germ)],
         };
         out.edges.push(rec);
         let (a_edge, b_edge, site) = match piercing {
