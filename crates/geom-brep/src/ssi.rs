@@ -14,7 +14,7 @@
 //! Four modules, four obligations, and the boundary between them is the
 //! whole design:
 //!
-//! - [`march`] generates candidates and is **trusted for nothing**. A
+//! - [`march`](mod@march) generates candidates and is **trusted for nothing**. A
 //!   branch jump is not caught by a step predicate (no local datum can
 //!   prove "no other branch within reach"); it becomes a certificate
 //!   refusal.

@@ -1288,7 +1288,7 @@ pub(crate) fn certify_located(
 /// certify at.
 ///
 /// A limb-1 or limb-2 refusal is located on the carrier in `at`
-/// ([`RefusedSpan`]), for [`super::march::refine_by_certificate`].
+/// ([`RefusedSpan`]), for [`super::refine::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
