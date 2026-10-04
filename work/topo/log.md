@@ -6557,3 +6557,11 @@ messages state their reason. CI was green. The fix lane is archived.
 Dispatched `row-drop-walks-trust-the-loops-next-cycle` (P3, M) to session_01KnxHbJoTyTCWVHGSwLmidJ on
 branch `topo/row-drop-walks-prove-their-loop`. It must move the rows-to-drop read into the plan, reuse PR
 3511's walk proof, and measure a torn sweep before and after.
+
+## 02:55 check-in (2026-10-04)
+
+Merged main. The vertex-points door is PR 4014: `vertex_points() -> (VertexKey, Result<Point3, DanglingRef>)`
+rows; two production silent drops (offset_axial's extent, reduce's vertex-on-vertex fallback) now refuse
+typed; about 100 test and demo sites moved; 76 files. Its reviewer is session_01198wYWjdeWvf2PByLvLJS9, asked
+especially about the two behaviour changes and step-import's `.ok()`. The implementer is archived. The row-drop
+walks lane is running. No Ev reply on 3970 or 4006.
