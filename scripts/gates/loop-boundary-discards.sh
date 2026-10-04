@@ -184,15 +184,11 @@ REGISTER=(
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
   "crates/topo/src/loop_winding.rs|planar_loop_winding_decided||1|audited: the discarded variant is answered by name, not passed over: the arm returns LoopWinding::Empty, which the merge's role pass reads as not positive and planar_loop_winding reads as no winding"
-  # The pruning's bridge target: the survivor's outline is read for a
-  # half-edge to join a lone-vertex ring to, and an EMPTY outline is not
-  # skipped but refused typed (LoopNotCycle naming that loop).
   # The survivor choice reads each member's rings for the faces they
   # border; a lone-vertex ring borders none, so passing it over answers
   # the question it asks.
   "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
-  "crates/topo/src/merge_faces.rs|delete_lone_ring||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
-  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds is LoopCycleBroken) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
+  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds panics) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
   # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry

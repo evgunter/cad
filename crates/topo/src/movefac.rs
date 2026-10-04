@@ -154,12 +154,13 @@ impl<T: Decide> Body<T> {
                          tier-1-valid body a face's loops name it",
                         loop_data.face
                     );
+                    assert!(
+                        matches!(loop_data.boundary, LoopBoundary::Cycle { .. })
+                            || !claims.contains_key(loop_key),
+                        "empty loop {loop_key:?} is claimed by a half-edge: on a \
+                         tier-1-valid body an empty loop has no half-edges"
+                    );
                     let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                        assert!(
-                            !claims.contains_key(loop_key),
-                            "empty loop {loop_key:?} is claimed by a half-edge: on a \
-                             tier-1-valid body an empty loop has no half-edges"
-                        );
                         continue; // empty loop: glues only its vertex
                     };
                     let cycle = self.loop_walk(first).closed("loop", first);
