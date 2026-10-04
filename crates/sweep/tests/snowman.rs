@@ -265,7 +265,6 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
     let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
     let mut pierces = 0;
     for (_, p) in body.vertex_points() {
-        let p = p.unwrap();
         let off_axis = p.x.hypot(p.z);
         if off_axis <= eps {
             continue;

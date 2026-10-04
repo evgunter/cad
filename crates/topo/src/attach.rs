@@ -2165,8 +2165,7 @@ mod tests {
     /// charts not yet moved.
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
         let rows: Vec<_> = body.vertex_points().collect();
-        for (v, p) in rows {
-            let mut p = p.unwrap();
+        for (v, mut p) in rows {
             if p.y == 0.0 {
                 p.y = -d;
             }

@@ -3520,7 +3520,6 @@ mod review_probes {
         for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
             let s = body(&ps, name);
             for (_, p) in s.vertex_points() {
-                let p = p.expect("vertex point");
                 let d = p.distance(g);
                 // 1e-12, not 0: the base keel vertex is placed AT the
                 // sphere by construction, and it gets there through a
@@ -3576,7 +3575,6 @@ mod review_probes {
             for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
                 let sb = body(&ps, name);
                 for (_, p) in sb.vertex_points() {
-                    let p = p.expect("vertex point");
                     let d = p.distance(bc);
                     assert!(
                         d > br,
@@ -3675,7 +3673,7 @@ mod review_probes {
                 let h = normal.cross(a).normalize();
                 let s: f64 = b
                     .vertex_points()
-                    .map(|(_, p)| p.expect("vertex point"))
+                    .map(|(_, p)| p)
                     .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
                     .map(|p| (p - n0).dot(h))
                     .sum();
@@ -3845,7 +3843,7 @@ mod review_probes {
             // The vertices ON this plane.
             let on: Vec<Point3<f64>> = b
                 .vertex_points()
-                .map(|(_, p)| p.expect("vertex point"))
+                .map(|(_, p)| p)
                 .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
                 .collect();
             assert_eq!(on.len(), 8, "a blade section has eight vertices");

@@ -504,8 +504,9 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                     continue;
                 }
                 let point = |v| {
-                    crate::readback::vertex_point_ref(body, v)
-                        .map_err(|_| desync("a kept pierce vertex has no point"))
+                    body.get_vertex(v)
+                        .map(|data| body.point_of(v, data))
+                        .ok_or(desync("a kept pierce vertex has no point"))
                 };
                 let pu = point(u)?;
                 // No row reaches the escalation: two pierces a band

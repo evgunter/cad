@@ -381,7 +381,6 @@ fn even_crossing_recovers_the_sliver() {
     // y ≥ 0.25 − ε, at least one strictly beyond (the rim apex band).
     let mut max_y = f64::NEG_INFINITY;
     for (_, p) in above.vertex_points() {
-        let p = p.unwrap();
         assert!(p.y >= 0.25 - 1e-9, "sliver vertex below the plane: {p:?}");
         max_y = max_y.max(p.y);
     }

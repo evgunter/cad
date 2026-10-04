@@ -109,7 +109,6 @@ fn solid_door_fingerprint() {
         let mut pts: Vec<(u64, u64, u64)> = b
             .vertex_points()
             .map(|(_, p)| {
-                let p = p.expect("vertex point");
                 (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
             })
             .collect();

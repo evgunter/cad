@@ -546,18 +546,16 @@ fn the_assertion_directions_keep_their_symbols() {
 /// which the alarm cannot see — a renamed tag compiles fine and
 /// silently breaks every caller branching on it.
 ///
-/// Every arm is constructible here, `Dangling`'s two lanes included:
-/// `DanglingRef` rides on the curated surface beside the refusal that
-/// carries it, so this crate names both lanes and pins both tags.
-/// The keys inside a lane are `topo`'s and come through the façade's
-/// whole re-export of that layer; the tag does not depend on which
-/// key kind a lane names, so a default key is the honest fixture.
+/// Every arm is constructible here. The key inside `Dangling` is
+/// `topo`'s and comes through the façade's whole re-export of that
+/// layer; the tag does not depend on which key kind it names, so a
+/// default key is the honest fixture.
 #[test]
 fn readback_refusal_tags_are_stable() {
     use crate::tags::interrogate_error_tag as tag;
     use pncad::document::{NodeStanding as S, RecipeNodeId};
-    use pncad::select::{DanglingRef, EntityKind, InterrogateError as E, ReadbackError as R};
-    use pncad::topo::{EntityId, GeomRef, SurfaceKey, VertexKey};
+    use pncad::select::{EntityKind, InterrogateError as E, ReadbackError as R};
+    use pncad::topo::{EntityId, VertexKey};
 
     let node = RecipeNodeId(0);
     assert_eq!(
@@ -584,21 +582,12 @@ fn readback_refusal_tags_are_stable() {
     assert_eq!(tag(&E::WholeBody), "whole_body");
     assert_eq!(tag(&E::NoBodies { payload: "datum" }), "no_bodies");
     assert_eq!(tag(&E::NoSuchBody { index: 1 }), "no_such_body");
-    // The geometry half arrives under its OWN tag, not a wrapper's —
-    // and `Dangling`'s two lanes arrive under one tag each, because
-    // a stale handle and a body whose own geometry reference dangles
-    // are different facts and a caller branches on which.
+    // The geometry half arrives under its OWN tag, not a wrapper's.
     assert_eq!(
         tag(&E::Readback(R::Dangling {
-            what: DanglingRef::Entity(EntityId::Vertex(VertexKey::default())),
+            what: EntityId::Vertex(VertexKey::default()),
         })),
         "dangling_entity"
-    );
-    assert_eq!(
-        tag(&E::Readback(R::Dangling {
-            what: DanglingRef::Geometry(GeomRef::Surface(SurfaceKey::default())),
-        })),
-        "dangling_geometry"
     );
     assert_eq!(
         tag(&E::Readback(R::NoCanonicalFrame { carrier: "nurbs" })),
@@ -5689,12 +5678,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "readback_error_tag",
-        values: &[
-            "dangling_entity",
-            "dangling_geometry",
-            "no_canonical_frame",
-            "no_carrier",
-        ],
+        values: &["dangling_entity", "no_canonical_frame", "no_carrier"],
         delegates: &[],
     },
     TagEntry {
@@ -6049,7 +6033,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "topology",
             "unsupported_entity",
             "unsupported_unit",
-            "vertex_without_point",
             "wall_column_structure",
             "wrong_entity_type",
         ],
@@ -6324,7 +6307,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("contact_contradicted", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
-    ("dangling_geometry", 2),
     // One fact at two doors: `node::declared_side_fault`, asked by the
     // edit doors and by the load door.
     ("declared_name_not_upstream", 2),

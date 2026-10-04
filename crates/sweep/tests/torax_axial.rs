@@ -96,7 +96,7 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 fn corners(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut out: Vec<(f64, f64)> = Vec::new();
     for (_, p) in body.vertex_points() {
-        let c = axial(p.expect("a vertex carries a point"));
+        let c = axial(p);
         if !out
             .iter()
             .any(|q| (q.0 - c.0).abs() < 1e-12 && (q.1 - c.1).abs() < 1e-12)
@@ -313,11 +313,11 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             .body;
         let want: Vec<Point3<f64>> = posed_after
             .vertex_points()
-            .map(|(_, p)| p.expect("point"))
+            .map(|(_, p)| p)
             .collect();
         let mut pool: Vec<Point3<f64>> = hollow_after
             .vertex_points()
-            .map(|(_, p)| p.expect("point"))
+            .map(|(_, p)| p)
             .collect();
         assert_eq!(want.len(), pool.len(), "{what}: vertex count under re-pose");
         for w in &want {
@@ -370,11 +370,10 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
     let on_operand: Vec<Point3<f64>> = operand
         .vertex_points()
-        .map(|(_, p)| p.expect("point"))
+        .map(|(_, p)| p)
         .collect();
     let mut cavity = 0;
     for (_, q) in posed.vertex_points() {
-        let q = q.expect("point");
         if on_operand.iter().any(|p| (*p - q).norm() < 1e-12) {
             continue;
         }
@@ -766,11 +765,11 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 
     let want: Vec<Point3<f64>> = posed_after
         .vertex_points()
-        .map(|(_, p)| p.expect("point"))
+        .map(|(_, p)| p)
         .collect();
     let mut pool: Vec<Point3<f64>> = offset_after
         .vertex_points()
-        .map(|(_, p)| p.expect("point"))
+        .map(|(_, p)| p)
         .collect();
     assert_eq!(want.len(), pool.len(), "vertex count under re-pose");
     for w in &want {

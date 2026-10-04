@@ -93,7 +93,7 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
     };
     let mut out: Vec<(u64, u64, u64)> = b
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         .collect();
     out.sort_unstable();

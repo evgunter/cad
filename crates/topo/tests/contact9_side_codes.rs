@@ -183,7 +183,7 @@ fn answers(
 /// `body`'s vertices are exactly `corners`, each within the band.
 fn has_corners(body: &Body<f64>, corners: &[Point3<f64>], what: &str) {
     let eps = Tol::witness().eps();
-    let points: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p.unwrap()).collect();
+    let points: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     assert_eq!(points.len(), corners.len(), "{what}: corners {points:?}");
     for c in corners {
         assert!(

@@ -44,7 +44,7 @@ fn charts(body: &Body<f64>) -> Vec<Chart> {
 }
 
 fn centroid(body: &Body<f64>) -> Point3<f64> {
-    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p.unwrap()).collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let mut s = Vec3::new(0.0, 0.0, 0.0);
     for p in &pts {
@@ -56,7 +56,7 @@ fn centroid(body: &Body<f64>) -> Point3<f64> {
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
@@ -69,7 +69,6 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 fn worst_incidence(body: &Body<f64>) -> f64 {
     let mut worst: f64 = 0.0;
     for (vk, p) in body.vertex_points() {
-        let p = p.unwrap();
         for fk in body.faces_of_vertex(vk).expect("orbit") {
             let f = body.get_face(fk).unwrap();
             if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {

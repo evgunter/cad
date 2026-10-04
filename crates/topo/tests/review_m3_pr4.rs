@@ -21,7 +21,6 @@ use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, vali
 fn dump<T: Decide>(b: &Body<T>) -> String {
     let mut s = String::new();
     for (vk, p) in b.vertex_points() {
-        let p = p.unwrap();
         s.push_str(&format!("{vk:?}:{p:?};"));
     }
     s.push_str(&format!(

@@ -123,9 +123,7 @@ mod rows {
         );
         let p = y
             .vertex_points()
-            .find(|(_, q)| {
-                (q.expect("an untorn sheet") - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12
-            })
+            .find(|(_, q)| (*q - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12)
             .map(|(k, _)| k)
             .expect("the sheet's corner");
         let tilt = (band.zero() + band.escalate()) / 2.0;

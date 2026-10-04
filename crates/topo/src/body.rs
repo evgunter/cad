@@ -76,8 +76,8 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
-    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
+    ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
@@ -1778,36 +1778,25 @@ impl<T: Real> Body<T> {
 
     /// **Every live vertex with its point**, in vertex slot-index order
     /// (deterministic per D9): [`Body::vertices`], then each record's
-    /// point through [`Body::get_point`], made once.
+    /// point, made once.
     ///
-    /// The vertex key is live by construction; only the point read can
-    /// fail. A vertex whose point key does not resolve is a torn body —
-    /// a record of the body names nothing — and its row carries that
-    /// refusal beside the key, rather than being skipped.
+    /// # Panics
     ///
-    /// # Errors
-    ///
-    /// A row's point is [`DanglingRef::Geometry`] naming the point key
-    /// the live vertex holds and the point arena does not.
-    pub fn vertex_points(
-        &self,
-    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
-        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    /// Where a live vertex's point key does not resolve: every public
+    /// door keeps the body tier-1-valid (D2 row 4).
+    pub fn vertex_points(&self) -> impl Iterator<Item = (VertexKey, Point3<T>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(k, v)))
     }
 
     /// The point `vertex`'s record names: the one read of a vertex's
     /// point key, behind both [`Body::vertex_points`] and
-    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
-    ///
-    /// # Errors
-    ///
-    /// [`DanglingRef::Geometry`] naming the point key when the point
-    /// arena does not hold it.
-    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
-        self.points
-            .get(vertex.point)
-            .copied()
-            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
+    /// [`readback::vertex_point`](crate::readback::vertex_point). A
+    /// miss panics naming the vertex (D2 row 4).
+    #[track_caller]
+    pub(crate) fn point_of(&self, key: VertexKey, vertex: &Vertex) -> Point3<T> {
+        self.points.get(vertex.point).copied().unwrap_or_else(|| {
+            crate::live::dangling_link(EntityId::Vertex(key), "point", GeomRef::Point(vertex.point))
+        })
     }
 
     /// All points, in slot-index order (deterministic per D9).
@@ -2244,11 +2233,16 @@ mod tests {
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
-        assert_eq!(
-            faces(&t.body),
-            Err(crate::readback::DanglingRef::Entity(
-                crate::entity::EntityId::Loop(LoopKey::default())
-            ))
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = faces(&t.body);
+        }));
+        assert!(
+            report.contains(&format!(
+                "{}'s parent_loop names {}",
+                EntityId::HalfEdge(t.hes_a[0]),
+                EntityId::Loop(LoopKey::default())
+            )),
+            "{report}"
         );
         // Typed `Result`, entity-AGNOSTIC: the same staleness is a
         // REFUSAL, not a `None` a caller may drop.
@@ -2684,9 +2678,9 @@ mod tests {
     /// The door against the chain it replaces, on the validator's own
     /// point tear (`validate`'s `dangling_geometry_is_reported`): the
     /// `filter_map` chain loses the torn vertex and reports a shorter
-    /// cloud; the door names the dangling key.
+    /// cloud; the door panics naming the vertex and its dangling key.
     #[test]
-    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+    fn vertex_points_panics_on_a_torn_point_where_the_chain_drops_it() {
         let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
             b.vertices()
                 .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
@@ -2697,12 +2691,7 @@ mod tests {
         let read: Vec<_> = t
             .body
             .vertex_points()
-            .map(|(k, p)| {
-                (
-                    k,
-                    p.expect("an untorn pillow reads every vertex").to_array(),
-                )
-            })
+            .map(|(k, p)| (k, p.to_array()))
             .collect();
         assert_eq!(
             read,
@@ -2719,14 +2708,22 @@ mod tests {
             t.vertices.len() - 1,
             "the chain silently drops the torn vertex"
         );
-        assert_eq!(
-            t.body
-                .vertex_points()
-                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
-                .collect::<Vec<_>>(),
-            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
-            "exactly the torn vertex refuses, naming itself and the dangling point key"
-        );
+        let report = crate::surgery::tests::panic_message(|| {
+            t.body.vertex_points().for_each(drop);
+        });
+        for fragment in [
+            format!(
+                "{}'s point names {}",
+                EntityId::Vertex(t.vertices[0]),
+                GeomRef::Point(dead)
+            ),
+            crate::live::NAMES_ONLY_LIVE.to_owned(),
+        ] {
+            assert!(
+                report.contains(&fragment),
+                "the torn vertex panics naming itself and its point key: {report}"
+            );
+        }
     }
 
     #[test]

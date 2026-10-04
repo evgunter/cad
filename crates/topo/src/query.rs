@@ -100,7 +100,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::readback::{CarrierAbsence, DanglingRef};
+use crate::readback::CarrierAbsence;
 
 /// The kinds, re-exported where their sets and predicates live.
 ///
@@ -504,9 +504,10 @@ pub enum RimError {
         /// Whether the chain dangles or branches there.
         how: RimBreak,
     },
-    /// A dangling reference on the way: a key the body does not hold,
-    /// or a geometry key a live entity names and the arena does not.
-    NotIntact(DanglingRef),
+    /// The seed edge the caller passed does not resolve in this body.
+    /// Every key the walk reads on from it is a record's, and resolves
+    /// (D2 row 4).
+    Stale(EdgeKey),
 }
 
 /// How a rim's chain fails to close at the vertex
@@ -562,13 +563,11 @@ impl core::fmt::Display for RimError {
                  surfaces end at one vertex more than twice. Select the edges \
                  one by one instead",
             ),
-            Self::NotIntact(DanglingRef::Entity(at)) => {
-                write!(f, "the body is not intact at {at}")
-            }
-            Self::NotIntact(DanglingRef::Geometry(at)) => write!(
+            Self::Stale(edge) => write!(
                 f,
-                "the body is not intact: a live entity names {at}, which does \
-                 not resolve"
+                "{} does not resolve in this body — the handle is stale, or it \
+                 belongs to another body's lineage",
+                EntityId::Edge(*edge)
             ),
         }
     }
@@ -576,36 +575,37 @@ impl core::fmt::Display for RimError {
 
 impl std::error::Error for RimError {}
 
-/// The refusal for a topological key that did not resolve.
-fn torn(id: EntityId) -> RimError {
-    RimError::NotIntact(DanglingRef::Entity(id))
+/// The two side surfaces of `e`, a live edge the walk reached,
+/// `he_plus` first.
+fn side_surfaces<T: Real>(body: &Body<T>, e: EdgeKey) -> (SurfaceKey, SurfaceKey) {
+    crate::readback::edge_sides_of(body, e, crate::live::proven(&body.edges, e, EntityId::Edge))
+        .surfaces()
 }
 
-/// An edge's two side surfaces, `he_plus` first, a dangling key
-/// renamed as the rim door's refusal.
-fn side_surfaces<T: Real>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<(SurfaceKey, SurfaceKey), RimError> {
-    Ok(crate::readback::edge_sides(body, e)
-        .map_err(RimError::NotIntact)?
-        .surfaces())
-}
-
-/// A half-edge's start and end vertices.
+/// The start and end vertices of `he`, `holder`'s field `field`.
 fn half_edge_ends<T: Real>(
     body: &Body<T>,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, VertexKey), EntityId> {
-    let h = body.get_half_edge(he).ok_or(EntityId::HalfEdge(he))?;
-    let end = body.half_edge_end(he).ok_or(EntityId::HalfEdge(he))?;
-    Ok((h.start, end))
+    holder: EntityId,
+    field: &'static str,
+) -> (VertexKey, VertexKey) {
+    use crate::live::linked;
+    let h = linked(&body.half_edges, he, EntityId::HalfEdge, holder, field);
+    let next = linked(
+        &body.half_edges,
+        h.next,
+        EntityId::HalfEdge,
+        EntityId::HalfEdge(he),
+        "next",
+    );
+    (h.start, next.start)
 }
 
-/// An edge's two end vertices, in `he_plus`-forward order.
-fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(VertexKey, VertexKey), EntityId> {
-    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
-    half_edge_ends(body, edge.he_plus)
+/// The two end vertices of `e`, a live edge the walk reached, in
+/// `he_plus`-forward order.
+fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
+    let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
+    half_edge_ends(body, edge.he_plus, EntityId::Edge(e), "he_plus")
 }
 
 /// The seed's two surfaces as an unordered pair, stored lower key
@@ -633,7 +633,7 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
             edge,
             kind: Some(other.kind()),
         }),
-        Err(CarrierAbsence::Dangling(at)) => Err(RimError::NotIntact(at)),
+        Err(CarrierAbsence::Dangling(edge)) => Err(RimError::Stale(edge)),
         Err(CarrierAbsence::NoCarrier) => Err(RimError::NotAnArc { edge, kind: None }),
     }
 }
@@ -687,10 +687,19 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
 /// [`RimError::NotAnArc`] when the seed carries no circle,
 /// [`RimError::CoSurface`] when its two sides are one surface,
 /// [`RimError::NotOneRim`] when the chain through it dangles or
-/// branches, [`RimError::NotIntact`] on a dangling reference.
+/// branches, [`RimError::Stale`] when the seed does not resolve.
+///
+/// # Panics
+///
+/// Where a record the walk reads from the live seed does not resolve,
+/// or a vertex orbit on the chain does not close (D2 row 4).
 pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
     seed_is_an_arc(body, edge)?;
-    let sides = crate::readback::edge_sides(body, edge).map_err(RimError::NotIntact)?;
+    let sides = crate::readback::edge_sides_of(
+        body,
+        edge,
+        crate::live::proven(&body.edges, edge, EntityId::Edge),
+    );
     let (plus, minus) = sides.surfaces();
     if plus == minus {
         return Err(RimError::CoSurface {
@@ -704,7 +713,7 @@ pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, Ri
     } else {
         sides.minus.half_edge
     };
-    let (start, mut frontier) = half_edge_ends(body, lower_side).map_err(torn)?;
+    let (start, mut frontier) = half_edge_ends(body, lower_side, EntityId::Edge(edge), "half-edge");
     let mut walked = vec![edge];
     loop {
         let arrived = *walked.last().unwrap_or(&edge);
@@ -713,7 +722,7 @@ pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, Ri
             return Ok(walked);
         }
         walked.push(next);
-        let (a, b) = edge_ends(body, next).map_err(torn)?;
+        let (a, b) = edge_ends(body, next);
         frontier = if a == frontier { b } else { a };
     }
 }
@@ -736,14 +745,18 @@ fn continuation<T: Real>(
     };
     let mut ends = 0usize;
     let mut next = None;
-    for k in body
-        .edges_of_vertex(at)
-        .ok_or_else(|| torn(EntityId::Vertex(at)))?
-    {
-        if !on_pair(side_surfaces(body, k)?, pair) {
+    let orbit = body.edges_of_vertex(at).unwrap_or_else(|| {
+        unreachable!(
+            "{}'s orbit does not walk, and the rim walk reached it from a live edge: {}",
+            EntityId::Vertex(at),
+            crate::body::WALKS_CLOSE
+        )
+    });
+    for k in orbit {
+        if !on_pair(side_surfaces(body, k), pair) {
             continue;
         }
-        let (a, b) = edge_ends(body, k).map_err(torn)?;
+        let (a, b) = edge_ends(body, k);
         ends += usize::from(a == at) + usize::from(b == at);
         if k != arrived || a == b {
             next = Some(k);

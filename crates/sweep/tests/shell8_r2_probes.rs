@@ -27,7 +27,6 @@ use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, vol
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
     body.vertex_points()
         .map(|(k, p)| {
-            let p = p.unwrap();
             (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         })
         .collect()

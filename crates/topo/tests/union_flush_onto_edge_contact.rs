@@ -192,7 +192,7 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
     let mut keys: Vec<topo::VertexKey> = body
         .vertex_points()
         .filter(|(_, q)| {
-            let q = q.unwrap();
+            let q = *q;
             (q.x, q.y, q.z) == p
         })
         .map(|(k, _)| k)

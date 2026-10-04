@@ -189,7 +189,7 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
     let corner = a
         .vertex_points()
         .find(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             (p.x, p.y, p.z) == (0.0, 0.0, 1.0)
         })
         .map(|(k, _)| k)

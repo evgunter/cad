@@ -6393,9 +6393,9 @@ pub(crate) fn tier3_local_checks_marked<
                 Sign::Positive
             };
             // Line, Circle and Ellipse carriers (banner); an empty
-            // ring, a loop riding a spiric or NURBS edge, and a torn
-            // lookup (unreachable on tier-1 input) are not asked.
-            let Ok(Some(winding)) = body.planar_loop_winding(l, outward, band) else {
+            // ring and a loop riding a spiric or NURBS edge are not
+            // asked. Tier 3 runs on a body tier 1 cleared.
+            let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };
             if winding == Ok(wrong) {

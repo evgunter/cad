@@ -724,16 +724,6 @@ BOUND_AS = {
     # `Denotation` and `ReadbackError` are spelled identically and are
     # accounted by rule 1, not here. They left the `gap` roster at
     # LIB-B-READBACK, which closed the family that chartered them.
-    #
-    # `DanglingRef` is `ReadbackError::Dangling`'s payload and crosses
-    # as `ReadbackError.variant`, the way `RootFault` crosses as
-    # `EditError.variant`: its two arms ARE the two tags —
-    # `dangling_entity` for a topological key that does not resolve,
-    # `dangling_geometry` for a geometry key reached from a live
-    # entity that does not — because which lookup came back empty is
-    # what a caller branches on. Python has no class for the payload
-    # and needs none; the tag carries the whole of it.
-    "DanglingRef": "ReadbackError.variant",
     "denotation": "Evaluation.denotation",
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
@@ -2429,12 +2419,9 @@ NOT_BOUND = {
     # caller holds opaque NAME text and never a key, so a sum over
     # keys has nothing to project either. What the sums' arms say
     # DOES reach Python, at the two doors where the arm is the answer
-    # rather than the site: `ReadbackError.variant` is
-    # `dangling_entity` or `dangling_geometry`, which is which of the
-    # two came back empty (`DanglingRef` is the `BOUND_AS` entry that
-    # records it), and `ValidationFinding.entity_kind` is which KIND of
-    # carrier a census refusal's entity subject is. Both project the
-    # discriminant and neither projects the key, which is why this row
+    # rather than the site: `ValidationFinding.entity_kind` is which
+    # KIND of carrier a census refusal's entity subject is. It projects
+    # the discriminant and not the key, which is why this row
     # does not move: the sum is still a sum over things Python cannot
     # hold.
     "EntityId": SHAPE,
@@ -3799,7 +3786,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
     "StepImportError::DeclarationUnresolved": "StepImportError.variant",
-    "StepImportError::VertexWithoutPoint": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",

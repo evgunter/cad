@@ -225,7 +225,7 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             assert!(
                 inner
                     .vertex_points()
-                    .map(|(_, q)| q.unwrap())
+                    .map(|(_, q)| q)
                     .filter(|q| (*q - p).norm() > 1e-9)
                     .all(|q| q.x.hypot(q.y) < 1.0 && q.z.abs() < 2.0),
                 "l {l} spin {spin}: the inner cube's corners are inside the drum"

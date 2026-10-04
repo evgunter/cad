@@ -2117,8 +2117,9 @@ fn vertex_point<T: Decide + Bounds>(
     body: &Body<T>,
     v: VertexKey,
 ) -> Result<Point3<T>, BooleanError> {
-    crate::readback::vertex_point_ref(body, v)
-        .map_err(|_| corrupt("face/edge box: vertex point lost"))
+    body.get_vertex(v)
+        .map(|data| body.point_of(v, data))
+        .ok_or(corrupt("face/edge box: vertex point lost"))
 }
 
 #[cfg(test)]

@@ -523,13 +523,7 @@ fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
 /// Every vertex point of `body`, sorted — what its placements put
 /// where.
 fn corner_points(body: &pncad::topo::Body<f64>) -> Vec<[f64; 3]> {
-    let mut out: Vec<[f64; 3]> = body
-        .vertex_points()
-        .map(|(_, p)| {
-            let p = p.expect("a built body's vertex carries its point");
-            [p.x, p.y, p.z]
-        })
-        .collect();
+    let mut out: Vec<[f64; 3]> = body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
     out.sort_by(|a, b| a.partial_cmp(b).expect("finite corners"));
     out
 }

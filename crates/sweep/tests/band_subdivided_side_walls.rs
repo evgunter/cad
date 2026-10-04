@@ -119,7 +119,7 @@ fn face_on(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> FaceKey {
         .filter(|f| {
             body.vertex_points().all(|(v, p)| {
                 let touches = body.faces_of_vertex(v).is_some_and(|fs| fs.contains(f));
-                !touches || on(p.unwrap())
+                !touches || on(p)
             })
         })
         .collect();

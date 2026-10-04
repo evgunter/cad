@@ -3605,62 +3605,6 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Resolves a vertex's point coordinates (the certification gate's
-    /// endpoints): the vertex's miss answered as `from` says
-    /// ([`KeySource`]), and its point's, a link the vertex holds, a
-    /// panic.
-    #[track_caller]
-    pub(crate) fn resolve_vertex_point<S: KeySource>(
-        &self,
-        vertex: VertexKey,
-        from: S,
-    ) -> S::Answer<Point3<T>> {
-        S::map(
-            lookup(&self.vertices, vertex, EntityId::Vertex, from),
-            |v| {
-                *link(EntityId::Vertex(vertex), "point")
-                    .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
-            },
-        )
-    }
-
-    /// `face`'s chart, a link its record holds.
-    #[track_caller]
-    pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
-        self.get_surface(data.surface).unwrap_or_else(|| {
-            dangling_link(
-                EntityId::Face(face),
-                "surface",
-                GeomRef::Surface(data.surface),
-            )
-        })
-    }
-
-    /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
-    /// names.
-    #[track_caller]
-    pub(crate) fn linked_vertex_point(
-        &self,
-        vertex: VertexKey,
-        holder: EntityId,
-        field: &'static str,
-    ) -> Point3<T> {
-        self.resolve_vertex_point(vertex, link(holder, field))
-    }
-
-    /// The key of a vertex's point, both resolving, with the misses
-    /// answered as [`Body::resolve_vertex_point`] answers them.
-    #[track_caller]
-    pub(crate) fn resolve_vertex_point_key<S: KeySource>(
-        &self,
-        vertex: VertexKey,
-        from: S,
-    ) -> S::Answer<PointKey> {
-        S::map(self.resolve_vertex_point(vertex, from), |_| {
-            self.vertices[vertex].point
-        })
-    }
-
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
     /// resolved from this body's arena and the plane × NURBS lane read

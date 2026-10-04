@@ -50,9 +50,14 @@
 //! decision is made; [`require_key`], [`Body::require_live`] and
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
-use crate::entity::{EntityId, GeomRef, HalfEdge, HalfEdgeKey};
+use crate::entity::{
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, VertexKey,
+};
 use crate::euler::{BadArgument, EulerOpError};
-use geom_core::Real;
+use crate::geometry::PointKey;
+use crate::null::CurveGeom;
+use geom::Surface;
+use geom_core::{Point3, Real};
 
 /// A [`HalfEdgeKey`] a lookup has returned — see the [module
 /// docs](self) for the precise claim and its one residue.
@@ -242,6 +247,70 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
 }
 
 impl<T: Real> Body<T> {
+    /// Resolves a vertex's point coordinates (the certification gate's
+    /// endpoints): the vertex's miss answered as `from` says
+    /// ([`KeySource`]), and its point's, a link the vertex holds, a
+    /// panic.
+    #[track_caller]
+    pub(crate) fn resolve_vertex_point<S: KeySource>(
+        &self,
+        vertex: VertexKey,
+        from: S,
+    ) -> S::Answer<Point3<T>> {
+        S::map(
+            lookup(&self.vertices, vertex, EntityId::Vertex, from),
+            |v| {
+                *link(EntityId::Vertex(vertex), "point")
+                    .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
+            },
+        )
+    }
+
+    /// `face`'s chart, a link its record holds.
+    #[track_caller]
+    pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
+        self.get_surface(data.surface).unwrap_or_else(|| {
+            dangling_link(
+                EntityId::Face(face),
+                "surface",
+                GeomRef::Surface(data.surface),
+            )
+        })
+    }
+
+    /// `edge`'s curve-arena entry, a link its record holds.
+    #[track_caller]
+    pub(crate) fn edge_curve_linked(&self, edge: EdgeKey, data: &Edge) -> &CurveGeom<T> {
+        self.get_curve_geom(data.curve).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
+        })
+    }
+
+    /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
+    /// names.
+    #[track_caller]
+    pub(crate) fn linked_vertex_point(
+        &self,
+        vertex: VertexKey,
+        holder: EntityId,
+        field: &'static str,
+    ) -> Point3<T> {
+        self.resolve_vertex_point(vertex, link(holder, field))
+    }
+
+    /// The key of a vertex's point, both resolving, with the misses
+    /// answered as [`Body::resolve_vertex_point`] answers them.
+    #[track_caller]
+    pub(crate) fn resolve_vertex_point_key<S: KeySource>(
+        &self,
+        vertex: VertexKey,
+        from: S,
+    ) -> S::Answer<PointKey> {
+        S::map(self.resolve_vertex_point(vertex, from), |_| {
+            self.vertices[vertex].point
+        })
+    }
+
     /// Requires a half-edge key to be live, answering a miss as `from`
     /// says ([`KeySource`]).
     ///

@@ -288,7 +288,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     };
     let mut z: Vec<f64> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| p.z)
         .collect();
     z.sort_by(f64::total_cmp);

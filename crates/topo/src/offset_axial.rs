@@ -840,7 +840,6 @@ fn axial_frame<T: Real>(
         if !scope.holds_vertex(vertex) {
             continue;
         }
-        let p = p.map_err(|_| ReplaceFaceError::Corrupt)?;
         extent = extent.max((p - origin).norm());
     }
     Ok(Frame {

@@ -789,7 +789,9 @@ pub(crate) fn vertex_point<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
 ) -> Result<Point3<T>, SplitJoinError> {
-    crate::readback::vertex_point_ref(body, v).map_err(|_| corrupt_vertex(v))
+    body.get_vertex(v)
+        .map(|data| body.point_of(v, data))
+        .ok_or_else(|| corrupt_vertex(v))
 }
 
 /// The outcome of retiring a fully-joined null edge (`cut`):

@@ -641,10 +641,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         operand,
         corruption: super::Corruption::Edge { edge, absence },
     };
-    for (edge_key, _) in body.edges() {
-        let sides = crate::readback::edge_sides(body, edge_key).map_err(|what| {
-            unreadable(edge_key, crate::readback::CarrierAbsence::Dangling(what))
-        })?;
+    for (edge_key, edge) in body.edges() {
+        let sides = crate::readback::edge_sides_of(body, edge_key, edge);
         let (f1, f2) = sides.faces();
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
@@ -3556,7 +3554,6 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     // has no incidence", a `None` says "no verdict at all" — and the
     // caller decides what each licenses.
     for (vy, py) in y.vertex_points() {
-        let py = py.map_err(|_| BooleanError::corrupt_at(x_is.other(), vy))?;
         if super::one_vertex(px, py, band).map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::VertexOnVertex,
             diag,
@@ -5001,7 +4998,7 @@ mod lying_on_rows {
 
     fn vertex_at(y: &Body<f64>, p: Point3<f64>) -> VertexKey {
         y.vertex_points()
-            .find(|(_, q)| (q.expect("an untorn operand") - p).norm() < 1e-12)
+            .find(|(_, q)| (*q - p).norm() < 1e-12)
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("a vertex at {p:?}"))
     }
@@ -5535,9 +5532,8 @@ mod operand_gate_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanDecision, BooleanError, Corruption, Operand, PlaneRung};
-    use crate::entity::GeomRef;
-    use crate::readback::{CarrierAbsence, DanglingRef};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
+    use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -5611,12 +5607,11 @@ mod neighbour_extent_rows {
         };
     }
 
-    /// **A curve lookup that fails is announced, never read as a
+    /// **A curve lookup that fails is a kernel bug, never read as a
     /// length**: a disc planted in the top, its circle's curve entry
-    /// then removed, refuses as a corrupt operand naming the edge and
-    /// the curve key.
+    /// then removed, panics naming the edge and the curve key (D2 row 4).
     #[test]
-    fn a_dangling_curve_refuses_as_a_corrupt_operand() {
+    fn a_dangling_curve_panics_naming_the_edge() {
         let (mut body, _, at) = top();
         let disc = plant_disc_face(
             &mut body,
@@ -5627,19 +5622,14 @@ mod neighbour_extent_rows {
         );
         let curve = body.edges[disc.edge].curve;
         body.curves.remove(curve).expect("the circle's entry");
-        let got = gate_maximal_faces(&body, Operand::A, band());
-        let Err(BooleanError::CorruptOperand {
-            operand: Operand::A,
-            corruption: Corruption::Edge { edge, absence },
-        }) = got
-        else {
-            panic!("the circle's extent does not read: {got:?}");
-        };
-        assert_eq!(edge, disc.edge, "the refusal names the circle");
-        assert_eq!(
-            absence,
-            CarrierAbsence::Dangling(DanglingRef::Geometry(GeomRef::Curve(curve))),
-            "and the curve key that does not resolve"
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = gate_maximal_faces(&body, Operand::A, band());
+        }));
+        let want = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(disc.edge),
+            GeomRef::Curve(curve)
         );
+        assert!(report.contains(&want), "{report}");
     }
 }

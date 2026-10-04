@@ -86,7 +86,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 fn xs(body: &topo::Body<f64>) -> Vec<f64> {
     let mut v: Vec<f64> = body
         .vertex_points()
-        .map(|(_, p)| p.unwrap())
+        .map(|(_, p)| p)
         .map(|p| p.x)
         .collect();
     v.sort_by(f64::total_cmp);

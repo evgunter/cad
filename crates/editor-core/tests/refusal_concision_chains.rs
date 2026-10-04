@@ -3202,7 +3202,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
-    use topo::{DanglingRef, EntityId, FaceKey, ReadbackError};
+    use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let sited = |node| SitedRef {
         at: RecipeNodeId(tagged(node)),
@@ -3318,7 +3318,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "Dangling",
             ReadbackError::Dangling {
-                what: DanglingRef::Entity(EntityId::Face(FaceKey::default())),
+                what: EntityId::Face(FaceKey::default()),
             },
         ),
         (
