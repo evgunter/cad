@@ -356,7 +356,7 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     };
     // Lifts RechartStrandsDescriptions: the planted horn torus is what tier 3 must report.
     out.body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             band_face,
             FaceSurface::New {
                 surface: Surface::Torus {

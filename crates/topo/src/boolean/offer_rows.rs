@@ -1328,7 +1328,7 @@ fn bent_disc(margin: f64) -> Result<(), BooleanError> {
     let along = Vec3::new(1.0, 0.0, 0.0);
     let theta = margin.asin();
     // Lifts RechartStrandsDescriptions: the bent disc is the gate's input; its circle is not the row.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         disc.face,
         crate::euler::FaceSurface::New {
             surface: plane_through(

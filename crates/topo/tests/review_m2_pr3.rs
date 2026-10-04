@@ -442,7 +442,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     );
 
     // Lifts RechartStrandsDescriptions: the stranded state tier 3 detects at rest is the row.
-    body.set_face_surface_stranding_for_tests(t.seed.face, swap())
+    body.set_face_surface_unvouched_for_tests(t.seed.face, swap())
         .unwrap();
 
     // Anchoring: the old plane is still referenced by four Intersection

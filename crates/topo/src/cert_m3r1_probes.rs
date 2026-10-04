@@ -90,7 +90,7 @@ fn m7_8_cube() -> (
     }
     // Lifts RechartStrandsDescriptions: the wall's edges are re-described next through the plane × NURBS lane.
     let wall = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             front,
             FaceSurface::New {
                 surface: nurbs_wall(0.0),
