@@ -1,0 +1,68 @@
+20c20
+< face i=0 j=3 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=3 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.951213493 want=0.951213493
+23c23
+< face i=0 j=3 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=3 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.951213493 want=0.951213493
+26c26
+< face i=0 j=4 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=4 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.668803985 want=0.668803985
+29c29
+< face i=0 j=4 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=4 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.668803985 want=0.668803985
+32c32
+< face i=0 j=5 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=5 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.357519186 want=0.357519186
+35c35
+< face i=0 j=5 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=0 j=5 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.357519186 want=0.357519186
+116c116
+< face i=2 j=5 psi=0 pc I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=2 j=5 psi=0 pc I: OK SOUND t2=true t3p=true cert=true operand=true v=0.305755256 want=0.305755256
+119c119
+< face i=2 j=5 psi=0 cp I: ERR JoinDesync { what: "derived ring role order separates a loose scaffolding pair" }
+---
+> face i=2 j=5 psi=0 cp I: OK SOUND t2=true t3p=true cert=true operand=true v=0.305755256 want=0.305755256
+258c258
+< face i=6 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(39v3), vertex: VertexKey(13v1) })
+---
+> face i=6 j=0 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.182133068 want=61.182133068
+264c264
+< face i=6 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v3), vertex: VertexKey(15v1) })
+---
+> face i=6 j=1 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.436742221 want=61.436742221
+270c270
+< face i=6 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(32v3), vertex: VertexKey(13v1) })
+---
+> face i=6 j=2 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.733156032 want=61.733156032
+300c300
+< face i=7 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(13v1) })
+---
+> face i=7 j=0 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.107070661 want=61.107070661
+306c306
+< face i=7 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(13v1) })
+---
+> face i=7 j=1 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.256816203 want=61.256816203
+312c312
+< face i=7 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v3), vertex: VertexKey(19v1) })
+---
+> face i=7 j=2 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.578335909 want=61.578335909
+342c342
+< face i=8 j=0 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(36v3), vertex: VertexKey(11v1) })
+---
+> face i=8 j=0 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.155762670 want=61.155762670
+348c348
+< face i=8 j=1 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(37v5), vertex: VertexKey(15v1) })
+---
+> face i=8 j=1 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.373605495 want=61.373605495
+354c354
+< face i=8 j=2 psi=0 cp S: ERR Euler(SelfLoopEdge { edge: EdgeKey(34v3), vertex: VertexKey(15v1) })
+---
+> face i=8 j=2 psi=0 cp S: OK SOUND t2=true t3p=true cert=true operand=true v=61.686532638 want=61.686532638

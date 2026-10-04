@@ -1,0 +1,93 @@
+diff --git a/crates/topo/src/boolean/vtxfac.rs b/crates/topo/src/boolean/vtxfac.rs
+index ad1f5d227..d92581b3b 100644
+--- a/crates/topo/src/boolean/vtxfac.rs
++++ b/crates/topo/src/boolean/vtxfac.rs
+@@ -762,6 +762,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+             // Two runs at most (refused above): the other run is `1 - i`.
+             let leaving_faces_start = match runs.len() {
+                 1 => false,
++                _ if op == BooleanOp::Intersect && std::env::var("R2M_INTERSTART").is_ok() => true,
+                 _ => super::insert::strut_order(
+                     run_germs[1 - i].0.1,
+                     n_pierced.vec(),
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index e1b8ae643..9080b60d1 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -203,6 +203,9 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+     tol: Tol,
+ ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+     let corr = |what| BooleanError::ZipCorrespondence { what };
++    if std::env::var("R2M_NOCROSS").is_ok() {
++        return Ok(Vec::new());
++    }
+     let sections: BTreeSet<FaceKey> = seams.iter().flat_map(|&(a, b)| [a, b]).collect();
+     let outer = |body: &Body<T>, f: FaceKey| -> Result<LoopKey, BooleanError> {
+         Ok(body
+@@ -244,16 +247,27 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                     continue;
+                 }
+                 let empty = Vec::new();
++                let direct = fused.get(&a).is_some_and(|c| c.iter().any(|_| true));
++                if std::env::var("R2I_TRACE").is_ok() {
++                    eprintln!("R2I collide pair j={j} fused_a={} fused_b={} root_eq_direct={direct}", fused.get(&a).map_or(0, Vec::len), fused.get(&b).map_or(0, Vec::len));
++                }
+                 let mut fresh = None;
+                 for (v, keep) in [(a, ob[j]), (b, rs[j])] {
+                     let moving = fused.get(&v).unwrap_or(&empty);
++                    let moving: &[HalfEdgeKey] = if std::env::var("R2M_MOVEONE").is_ok() && moving.len() > 1 { &moving[..1] } else { moving };
+                     if let Some(split) = split_across(body, v, keep, moving, &sections, tol)? {
++                        if std::env::var("R2I_TRACE").is_ok() {
++                            eprintln!("R2I split side={} moving={} kind={}", if v == a { "a" } else { "b" }, moving.len(), if split.absorbed.is_some() { "TwoFaces" } else { "OneLoop" });
++                        }
+                         absorbed.extend(split.absorbed);
+                         fresh = Some((v, split.vertex));
+                         break;
+                     }
+                 }
+                 let Some((v, new)) = fresh else {
++                    if std::env::var("R2I_TRACE").is_ok() {
++                        eprintln!("R2I uncrossed");
++                    }
+                     return Err(BooleanError::PinchUncrossed { vertex: a });
+                 };
+                 match vmap.get(&v).cloned() {
+@@ -327,6 +341,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+     };
+     let surface_of = |f: FaceKey| body.get_face(f).map(|d| d.surface);
+     let mut site = None;
++    let last = std::env::var("R2M_LAST").is_ok();
+     'search: for i in 0..n {
+         let (l, face) = face_of(orbit[i])?;
+         if sections.contains(&face) {
+@@ -338,14 +353,17 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             }
+             let (lj, fj) = face_of(orbit[j])?;
+             let outer = |f: FaceKey, l: LoopKey| body.get_face(f).is_some_and(|d| d.outer == l);
+-            let crossing = if lj == l && !outer(face, l) {
++            let crossing = if lj == l && !outer(face, l) && std::env::var("R2M_NOONELOOP").is_err() {
++                Some(Crossing::OneLoop)
++            } else if lj == l && std::env::var("R2M_OUTERLOOP").is_ok() {
+                 Some(Crossing::OneLoop)
+             } else if fj != face
++                && std::env::var("R2M_NOTWOFACE").is_err()
+                 && !sections.contains(&fj)
+                 && outer(face, l)
+                 && outer(fj, lj)
+                 && surface_of(fj).is_some()
+-                && surface_of(fj) == surface_of(face)
++                && (std::env::var("R2M_ANYSURF").is_ok() || surface_of(fj) == surface_of(face))
+             {
+                 Some(Crossing::TwoFaces)
+             } else {
+@@ -353,7 +371,9 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             };
+             if let Some(crossing) = crossing {
+                 site = Some((orbit[i], orbit[j], crossing));
+-                break 'search;
++                if !last {
++                    break 'search;
++                }
+             }
+         }
+     }

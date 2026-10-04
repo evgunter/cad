@@ -1,0 +1,5 @@
+    657 R2I collide pair j=_ fused_a=1 fused_b=1 root_eq_direct=true
+     29 R2I split side=a moving=1 kind=OneLoop
+    374 R2I split side=a moving=1 kind=TwoFaces
+     44 R2I split side=b moving=1 kind=TwoFaces
+    210 R2I uncrossed

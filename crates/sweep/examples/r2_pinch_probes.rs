@@ -446,7 +446,12 @@ fn run_all(tag: &str, prism: &AtRestBody<f64>, other: &AtRestBody<f64>, va: f64,
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let r = f(x, y, &decls, tol());
                 let vc = match &r {
-                    Ok(res) => res.body().map(|bb| vertex_check(&bb.body)).unwrap_or_default(),
+                    Ok(res) => res.body().map(|bb| {
+                        let t3 = if std::env::var("R2P_T3").is_ok() {
+                            format!(" T3={:?}", topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err())
+                        } else { String::new() };
+                        format!("{}{t3}", vertex_check(&bb.body))
+                    }).unwrap_or_default(),
                     Err(_) => String::new(),
                 };
                 format!("{} {vc}", outcome(r, want, tol()))
