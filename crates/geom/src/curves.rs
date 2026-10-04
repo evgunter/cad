@@ -42,6 +42,7 @@
 //! - **The conventional fields** here are `dir`, `axis` and `u_ref`
 //!   (unit; `u_ref ⊥ axis`), unchecked per the crate docs' rule.
 
+pub(crate) mod banded;
 pub mod boxes;
 pub mod compose;
 pub mod fit;

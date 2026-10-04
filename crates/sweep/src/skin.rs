@@ -552,8 +552,9 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 ///
 /// The Cartesian lane is bitwise conservative for the cases that
 /// already worked. The collocation solve factors the matrix once from
-/// the parameters alone and substitutes each right-hand-side column independently, so
-/// dropping the weight column cannot move the `x`/`y`/`z` columns; the
+/// the parameters alone and substitutes each right-hand-side column
+/// independently, so dropping the weight column cannot move the
+/// `x`/`y`/`z` columns; the
 /// row entries themselves are unchanged because `p.x * 1.0` is `p.x`
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
@@ -566,8 +567,8 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// The collocation system is `k × k` in the SECTION count `k` — not in
 /// the control count — with `4·n` (integral input: `3·n`) simultaneous
 /// right-hand sides (`n` = control points per section).
-/// `interpolate_columns` factors it by the fixed-order banded LU
-/// (`geom_core::linalg::lsq::BandedLu`): `O(k·q²)` for the
+/// `interpolate_columns` factors it by the fit's fixed-order banded LU
+/// (`geom::Collocation`): `O(k·q²)` for the
 /// factorization at v-degree `q`, plus `O(k·q·n)` for the
 /// substitutions, in `O(k·q + k·n)` memory.
 ///

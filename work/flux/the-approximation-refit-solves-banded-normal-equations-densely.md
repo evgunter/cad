@@ -29,6 +29,6 @@ day a consumer approximates thousands of samples (the comment in
 `approximate_with_params` as a later optimization).
 
 Fix shape: a banded normal-equations assembly and a banded Cholesky
-beside `lsq::factor_banded`. Whether the bit-identity argument
-`BandedLu`'s doc makes carries over (dropped terms exact `0 · x`, no sum
+beside the fit's banded LU (`crates/geom/src/curves/banded.rs`).
+Whether the bit-identity argument that module's doc makes carries over (dropped terms exact `0 · x`, no sum
 starting at `−0.0`) is the first thing to check.
