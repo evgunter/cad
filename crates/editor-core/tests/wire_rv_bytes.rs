@@ -169,7 +169,13 @@ fn exprs() -> Exprs {
             Expr::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
-        Expr::param(VarName::from_static("width"), Dimension::Length),
+        // A stored reader and an authored name: a program in a
+        // document holds the first, an edit log can hold the second.
+        Expr::add(
+            Expr::var(editor_core::VarId(0x3fa9_c1d2_a0b1_0001), Dimension::Length),
+            Expr::named(VarName::from_static("width"), Dimension::Length),
+        )
+        .unwrap(),
     )
     .unwrap();
     let angle = Expr::atan2(len(1.0), len(2.0)).unwrap();
@@ -195,7 +201,8 @@ fn exprs() -> Exprs {
 const EXPRESSION_VARIANTS: &[&str] = &[
     "Literal",
     "Count",
-    "Param",
+    "Var",
+    "Name",
     "Add",
     "Sub",
     "Neg",

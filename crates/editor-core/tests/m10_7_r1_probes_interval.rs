@@ -27,7 +27,7 @@ use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -429,7 +429,7 @@ fn bracket_with(
             &EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -503,7 +503,7 @@ fn r1_e2e_bracket_study() {
                     .or_insert(0usize) += 1;
             }
             println!("   refusals: {classes:?}");
-            println!("{}", MassBudget::of(v.accounting(), &analyzed).render());
+            println!("{}", MassBudget::of(v.accounting(), &analyzed).render(&doc));
             if dials.enabled {
                 let fails = failures(&doc, ParamBox::of(&analyzed), dials, tol);
                 for f in fails.iter().take(3) {

@@ -512,7 +512,7 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
     s.doc = doc;
     let index = Expr::add(
         Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
+            Expr::named(k.clone(), Dimension::Count),
             Expr::count(i64::MAX),
         )
         .unwrap(),
@@ -784,7 +784,7 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     s.doc = doc;
     let index = Expr::add(
         Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
+            Expr::named(k.clone(), Dimension::Count),
             Expr::count(i64::MAX),
         )
         .unwrap(),

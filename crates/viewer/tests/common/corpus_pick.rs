@@ -28,7 +28,7 @@
 
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
-use editor_core::{DocEdit, Evaluation, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
+use editor_core::{DocEdit, Evaluation, Expr, ProfileDoc, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
 use viewer::session::{DocSession, SessionOp};
@@ -320,7 +320,7 @@ pub fn wide_aim(index: &PickIndex) -> impl Iterator<Item = Aim> + '_ {
 ///
 /// If `doc` has neither.
 pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     for &node in doc.order().iter().rev() {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
@@ -338,13 +338,14 @@ pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
 }
 
 /// **A slot write as the session's op spells it**: `expr` unparsed into
-/// the text `SessionOp::SetSlotExpression` carries — the one spelling of
-/// that conversion the corpus pick suites share.
-pub fn set_slot(node: RecipeNodeId, slot: SlotId, expr: &Expr) -> SessionOp {
+/// the text `SessionOp::SetSlotExpression` carries, its readers written
+/// by the names `doc` holds — the one spelling of that conversion the
+/// corpus pick suites share.
+pub fn set_slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId, expr: &Expr) -> SessionOp {
     SessionOp::SetSlotExpression {
         node,
         slot,
-        text: unparse(expr),
+        text: doc.unparse(expr),
     }
 }
 
@@ -372,7 +373,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         landed("gallery_ring", "open", &session);
-        let outcome = session.perform(set_slot(node, slot, &expr));
+        let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         landed("gallery_ring", "the first edit", &session);
@@ -387,7 +388,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
             continue;
         }
         landed(doc.name, "open", &session);
-        let outcome = session.perform(set_slot(node, slot, &expr));
+        let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
         if outcome.refusal.is_some() {
             continue;
         }

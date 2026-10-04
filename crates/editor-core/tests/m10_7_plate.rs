@@ -35,7 +35,7 @@ pub(crate) const RADIUS: f64 = 1.25e-3;
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The plate, its two holes, the web measure and its assertion.
@@ -131,7 +131,7 @@ pub(crate) fn plate(
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,

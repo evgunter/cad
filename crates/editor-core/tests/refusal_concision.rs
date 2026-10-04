@@ -610,6 +610,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PierceRunsUnordered",
+            BooleanError::PierceRunsUnordered {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                runs: 3,
+            },
+        ),
+        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

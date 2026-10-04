@@ -143,7 +143,7 @@ fn dumbbell() -> Dumbbell {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Expr::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

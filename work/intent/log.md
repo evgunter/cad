@@ -82,3 +82,36 @@ the build (REACH's plate row still blocks on it by id); its one unfiled
 finding is `a-failed-requirement-refuses-the-whole-product`. Partly
 superseded and left open: FUSE's #3955 (note on FUSE's log). 22 others
 are not superseded.
+
+## 2026-10-04 — VARS PR 3 merged (PR 4027): readers read ids
+
+The implementer ran in its own cloud session, and the PR went to a dual
+review at frozen head `b07891634f`. Each reviewer ran in its own cloud
+session from one brief, identical modulo the lane label (sha256 prefixes
+`fe4eec8319d1d0a0` for r1 and `78488713d2fd5f35` for r2). Both returned
+APPROVE-WITH-FIXES with no MAJOR, so the tally is 0.
+
+The union and the rulings made at adjudication:
+
+- A variable is spoken from the document wherever one is at hand,
+  including a refusal re-spoken after a rename and an analysis box taken
+  before one. Memoized pattern refusals hold their formula as an `Expr`;
+  the `#hex` text scan is gone.
+- An unnamed variable has one spelling, `#<16 hex>`.
+- Split or inline across an unresolved reader refuses typed
+  (`UnresolvedVarCrossesCut`).
+- The door checks a post-condition: no stored node holds a `Name` leaf
+  (`NameLeafWritten`).
+- The id-free corpus digest is a committed guard.
+- One expression walker and one lowering rule.
+- Every surviving mutant has a row.
+
+The viewer's "param" vocabulary keeps its names until it is moved in one
+piece (`viewer-param-vocabulary-names-a-variable`). Two more items were
+filed: the Python classes, and `range.rs`'s synthetic name. An
+independent verifier session checked the fix pass: 8 of 9 mutants red and every probe held; the one survivor, the door post-condition, got its row in a second pass.
+
+`variables-replace-the-parameter-table` is closed. The spec is in
+`docs/doc-ledger/intent-vars-1-spec.md`. `no-dimensioned-literal-in-a-slot`
+and `parameters-defined-by-formulas` are unparked; the literal retirement
+is next.

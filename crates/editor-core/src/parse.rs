@@ -773,7 +773,7 @@ impl Parser<'_> {
                     // table's key, and an identifier the table lacks
                     // is echoed as the bytes read.
                     match self.params.get_key_value(name.as_str()) {
-                        Some((key, &dim)) => Ok(Some(Expr::param(key.clone(), dim))),
+                        Some((key, &dim)) => Ok(Some(Expr::named(key.clone(), dim))),
                         None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }

@@ -243,7 +243,8 @@ pub struct BooleanNaming {
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
-    /// A-side pinch welds' first, then the zips'.
+    /// A-side pinch welds' first, then the zips', then the pierce
+    /// welds' (`weld_pierce_copies`).
     pub vertex_merges: Vec<(VertexKey, VertexKey)>,
     /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
     /// order, in B-CLONE keys: they ran before the graft, so a dead key
@@ -609,6 +610,10 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
+    let welds =
+        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?;
+    desc.absorb_fusions(&welds);
+    vertex_merges.extend(welds);
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -2547,7 +2552,12 @@ impl Descendants {
     }
 
     pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
-        for &(dead, kept) in &rep.vertex_merges {
+        self.absorb_fusions(&rep.vertex_merges);
+    }
+
+    /// Vertex fusions after the zips, result keys, read as a zip's.
+    pub(super) fn absorb_fusions(&mut self, merges: &[(VertexKey, VertexKey)]) {
+        for &(dead, kept) in merges {
             self.vertices.push((dead, kept));
             self.fused.insert(dead);
             self.fused.insert(kept);
