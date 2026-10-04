@@ -2,10 +2,11 @@
 id: a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm
 kind: issue
 title: A tilted sphere section that passes through a face as a ring refuses NoCertifiedRun: the run-side arc rule has no cross-loop arm
-status: review
+status: closed
 opened: 2026-10-02
 pr: 3985
 branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -50,3 +51,8 @@ every op to the lens closed form (`tilted_sphere_pair.rs`,
 tour's snowman with its head moved 0.05 along `z` builds to the two-ball
 closed form (`demos/tour/src/snowman.rs`,
 `the_head_moved_out_of_the_seam_plane_builds_through_its_ring`).
+
+## Closed (2026-10-04)
+
+PR 3985 merged (`31eeed1268`); its answer above is on main, verified twice
+(`analysis/reach-verify/3985`, `analysis/reach-verify2/3985`).

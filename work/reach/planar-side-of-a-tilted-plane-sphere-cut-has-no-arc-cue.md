@@ -2,13 +2,14 @@
 id: planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue
 kind: issue
 title: The boolean's planar side of a plane x sphere cut tilted against the sphere's chart has no arc cue: it selects by the wall face's azimuth window, which a tilted section lacks
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal, arc-side-rule-has-two-predicates]
 pr: 3985
 branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -91,3 +92,11 @@ with the ball's polar axis tilted against the cut face, the op refuses
 on main. With the pole normal to the cut face every op builds and
 matches the closed-form cap volume. Whether it is this item's site or a
 neighbour of it is not established.
+
+## Closed (2026-10-04)
+
+PR 3985 merged (`31eeed1268`); its answer above is on main, verified twice
+(`analysis/reach-verify/3985`, `analysis/reach-verify2/3985`).
+The 2026-10-03 reading above refused `SectionNotPolar` on a main that
+predates PR 3985, which retires that variant; it is not re-measured
+here, so it carries no open claim against this item.
