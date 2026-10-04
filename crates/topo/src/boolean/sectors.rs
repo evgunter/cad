@@ -181,8 +181,9 @@ pub(super) fn build_sectors<T: Decide>(
             .unwrap_or_else(|| {
                 unreachable!(
                     "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
-                     gated operand holds none, and the boolean reads a vertex's sectors before \
-                     it hangs one there",
+                     gated operand holds none, and the boolean reads a vertex's sectors once, \
+                     before it hangs one there (no vertex pierces two faces or both pierces \
+                     and pairs)",
                     he_data.edge
                 )
             });

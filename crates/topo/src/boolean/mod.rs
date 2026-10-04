@@ -3811,6 +3811,26 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         covered.extend(out.covered);
     }
 
+    // The VF passes hang null struts at their piercing vertices and at
+    // ring vertices they mint, and every sector read (each VF contact's
+    // piercing vertex, each VV pair's two) reads an orbit as its operand
+    // gave it: so a vertex pierces at most one face, and a paired vertex
+    // pierces none.
+    debug_assert!(
+        [(&contacts.a_on_b, true), (&contacts.b_on_a, false)]
+            .into_iter()
+            .all(|(pierced, a_side)| {
+                pierced.iter().enumerate().all(|(i, f)| {
+                    !pierced[..i].iter().any(|g| g.vertex == f.vertex)
+                        && !contacts
+                            .vv
+                            .iter()
+                            .any(|c| f.vertex == if a_side { c.a } else { c.b })
+                })
+            }),
+        "a vertex is read by two sector passes after the first may hang a strut there: {contacts:?}"
+    );
+
     // Vertex-vertex classification, every pair read before the first
     // insertion: a vertex may sit in more than one pair (an operand
     // whose own contact left two vertices at one point pairs both with
