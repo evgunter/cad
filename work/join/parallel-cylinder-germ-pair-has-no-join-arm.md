@@ -2,11 +2,12 @@
 id: parallel-cylinder-germ-pair-has-no-join-arm
 kind: issue
 title: Two parallel cylinder walls meeting in rulings reach the join's germ-pair dispatch with no arm (CurvedBooleanUnsupported)
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [non-circle-conic-edge-refuses-against-every-curved-face, slab-cut-cylinder-refuses-sector-side]
+branch: join/parallel-cylinder-arm
 ---
 
 
@@ -36,3 +37,20 @@ at `(±0.45, 0)` and `(0, 0.48)`) stop earlier at the pierce-ring door
 The join-split arm for a parallel cylinder pair: the chord is a
 ruling of both walls, so each side's split rides its own wall's
 ruling — the plane × cylinder ruling arm's shape on both sides.
+
+## Built (branch `join/parallel-cylinder-arm`)
+
+`boolean::join::bool_connect` takes a cylinder × cylinder germ pair
+(the frame dispatch admits one only with parallel axes) through
+`GermLane::Rulings`: both sides split against the pair's radical plane
+(`parallel_radical_plane`), which holds both rulings and cuts each
+wall in exactly those two, so each side's chord is the plane ×
+cylinder ruling arm's straight chord on its own wall. A coaxial pair
+(offset decided zero, `bool_join_cc_axis_offset`) and a wall the plane
+only touches keep the refusal they had.
+
+The row's own poses now pass the join and stop at the classification's
+at-infinity probe, `Containment(VolumeUncertified)` (evidence added to
+`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+`crates/sweep/tests/parallel_cylinder_join.rs` holds seven poses against
+an uncut drum, 42 runs, SOUND at their closed-form volumes.

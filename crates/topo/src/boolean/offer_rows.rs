@@ -356,6 +356,11 @@ cases! {
         Withdrawn(Because::Passes) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
         TRANSVERSE_FRAME_SITE, Withdrawn(Because::Passes) => transverse_frame(-D);
+    // Two parallel walls whose axes stand a band apart: their radical
+    // plane's normal has no decided length. The coincidence names no
+    // tolerance; the tolerance it withdrew decides the offset.
+    parallel_axes_offset_in_band: "Coincidence(Section)", D, RADICAL_PLANE_SITE,
+        Withdrawn(Because::Passes) => parallel_radical_plane_at(D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
     arc_root_just_outside_its_span: "Crossing(OnEdge)", -D, ROOT_SITE, Valued =>
@@ -475,6 +480,11 @@ const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
      directly: a ball whose wall reaches the cylinder's far side within the band crosses it \
      near-tangent, which the crossing layer meets first",
+);
+const RADICAL_PLANE_SITE: Door = Door::Site(
+    "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
+     walls whose axes stand a band apart coincide or nest, which the coincidence ladder and \
+     the crossing layer meet first",
 );
 const ROOT_SITE: Door =
     Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
@@ -996,6 +1006,19 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     cs_pair_frame(&c, &s, geom_brep::CoaxialEvidence::Declared, band())
         .map(|_| ())
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+}
+
+/// The radical plane of a radius-0.5 cylinder about `z` and a
+/// radius-0.3 one about the parallel axis `offset` along `x`.
+fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
+    let wall = |x: f64, radius: f64| geom::Surface::Cylinder {
+        origin: Point3::new(x, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), band())
+        .map(|_| ())
 }
 
 /// The transverse frame of a radius-0.5 cylinder about `z` and a
@@ -2303,6 +2326,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
     ("join.rs", "nearer", "Coincide::Join", 1),
     ("join.rs", "nearer_along", "Coincide::Join", 1),
+    ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",

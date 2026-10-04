@@ -51,6 +51,10 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// Every crossing pose this reviewer could author must refuse TYPED —
 /// and if any ever answers, the answer must not be the operand-volume
 /// sum (the D10 double-count). Varied radii, axes, heights, offsets.
+/// A pose whose answer is audited carries the volume its solids share,
+/// and its answers are held to the closed form: the parallel pair, whose
+/// walls the join splits along their rulings, shares the lens of two
+/// discs of radius 1.5, 2.9 apart, over 3 of height.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     let tol = Tol::witness();
@@ -135,9 +139,25 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                              interpenetrating pair — the D10 wrong answer"
                         );
                     }
-                    panic!(
-                        "{name}/{op_name}: answered OK (volume {v}) — no cyl×cyl arm is \
-                         wired in PR-A, so an answer here needs its own audit"
+                    let shared = (*name == "parallel axes, shallow overlap").then(|| {
+                        let (r, half) = (1.5_f64, 1.45_f64);
+                        2.0 * (r * r * (half / r).acos() - half * (r * r - half * half).sqrt())
+                            * 3.0
+                    });
+                    let Some(shared) = shared else {
+                        panic!(
+                            "{name}/{op_name}: answered OK (volume {v}) — no join arm is \
+                             audited for this pose, so an answer here needs its own audit"
+                        );
+                    };
+                    let want = match op_name {
+                        "union" => va + vb - shared,
+                        "subtract" => va - shared,
+                        _ => shared,
+                    };
+                    assert!(
+                        (v - want).abs() < 1e-7,
+                        "{name}/{op_name}: volume {v}, the closed form {want}"
                     );
                 }
                 Ok(other) => panic!("{name}/{op_name}: unexpected non-body result {other:?}"),

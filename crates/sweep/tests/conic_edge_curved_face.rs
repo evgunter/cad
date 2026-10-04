@@ -285,11 +285,14 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 /// join, at the door that pose's germ pairs reach: a ball's wall ×
 /// sphere pair has its section frame and no chord lane for its quartic
 /// section (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
-/// `cylinder_sphere_frame` holds the same balls to their volumes), and
-/// a rod's parallel wall pair no join arm
-/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
-/// narrow rods too, since their pierce ring in the drum's wall joins
-/// (TANG, PR 3851; before it they stopped at the ring,
+/// `cylinder_sphere_frame` holds the same balls to their volumes). A
+/// rod's parallel walls join along their rulings
+/// (`parallel_cylinder_join` holds the rods to their volumes), and every
+/// op stops past the join, at the classification's at-infinity probe,
+/// which measures the cut wall in closed form only
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+/// The narrow rods' pierce ring in the drum's wall joins (TANG, PR
+/// 3851; before it they stopped at the ring,
 /// `SectionArcWindow { NoChartedRun }`). On the base the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
@@ -307,13 +310,10 @@ fn a_rim_crossing_reaches_the_join() {
             }
         )
     };
-    let no_arm = |e: &E| {
+    let past_the_join = |e: &E| {
         matches!(
             e,
-            E::CurvedBooleanUnsupported {
-                kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
+            E::Containment(topo::PointInSolidError::VolumeUncertified)
         )
     };
     type Door<'a> = &'a dyn Fn(&E) -> bool;
@@ -331,17 +331,17 @@ fn a_rim_crossing_reaches_the_join() {
         (
             "rod r 0.2 at (0.5, 0)",
             rod(0.2, 0.5, 0.0, 0.2, 0.25),
-            &no_arm,
+            &past_the_join,
         ),
         (
             "rod r 0.1 at (-0.45, 0)",
             rod(0.1, -0.45, 0.0, 0.5, 0.3),
-            &no_arm,
+            &past_the_join,
         ),
         (
             "rod r 0.1 at (0, 0.48)",
             rod(0.1, 0.0, 0.48, 0.3, 0.4),
-            &no_arm,
+            &past_the_join,
         ),
     ];
     for (label, b, at_the_door) in poses {
