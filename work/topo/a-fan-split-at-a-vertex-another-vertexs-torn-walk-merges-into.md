@@ -2,13 +2,14 @@
 id: a-fan-split-at-a-vertex-another-vertexs-torn-walk-merges-into
 kind: issue
 title: a fan mev at v proves v's walk, but another vertex's rho-shaped torn walk can merge into v's cycle, and the split leaves a minted key in an orbit error
-status: review
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
 refs: [vertex-orbit-reads-no-start-vertex]
 branch: topo/fan-split-proves-its-cycle-closed-to-others
 pr: 4007
+closed: 2026-10-04
 ---
 
 

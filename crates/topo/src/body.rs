@@ -1473,8 +1473,11 @@ impl<T: Real> Body<T> {
     /// [`Body::vertex_orbit`] refuses, or a walk a member's inverse step
     /// `mate(prev(·))` does not walk back ([`Body::orbit_inverts`]).
     /// Every vertex-keyed orbit read starts here, so none answers for a
-    /// walk another vertex's `emanating` lends it, or with part of an
-    /// orbit a torn `next` split or closed past some of its members.
+    /// walk another vertex's `emanating` lends it, or, while the `prev`
+    /// links are untorn, with part of an orbit a torn `next` split or
+    /// closed past some of its members. A `next` tear paired with a
+    /// `prev` tear that inverts it can still close the walk past
+    /// members, and this answers that part.
     pub(crate) fn vertex_orbit_of(&self, vertex: VertexKey) -> Option<Vec<HalfEdgeKey>> {
         let Some(first) = self.get_vertex(vertex)?.emanating else {
             return Some(Vec::new());
@@ -1578,11 +1581,11 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// Whether a `Closed` orbit walk is closed to every other walk: each
-    /// member's inverse step `mate(prev(·))` is the member before it.
-    /// The walk's own steps cannot show this: a torn `next` that splits
-    /// the orbit, or closes the walk past some of its members, leaves a
-    /// member reached by a step its `prev` does not invert. O(valence).
+    /// Whether each member of a `Closed` orbit walk has the member
+    /// before it as its inverse step `mate(prev(·))`. While the `prev`
+    /// links are untorn, a walk that inverts is its vertex's whole
+    /// orbit; a `prev` tear matching a `next` tear can make a walk past
+    /// some members invert too. O(valence).
     pub(crate) fn orbit_inverts(&self, orbit: &[HalfEdgeKey]) -> bool {
         let before = orbit.iter().cycle().skip(orbit.len().saturating_sub(1));
         orbit.iter().zip(before).all(|(&member, &before)| {

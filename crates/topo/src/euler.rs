@@ -2703,13 +2703,8 @@ impl<T: Decide> Body<T> {
     /// past `he2`, or anywhere on a strut's walk (whose run is empty),
     /// would have the split splice into a torn orbit.
     ///
-    /// The walk staying at the vertex does not make it the vertex's
-    /// whole orbit: a torn `next` can split the orbit in two, or close
-    /// the walk past members whose own walk then runs into it, and the
-    /// split would re-base some of the vertex's half-edges and strand
-    /// the rest. Each member's inverse step walking back to the member
-    /// before it ([`Body::orbit_inverts`]) proves no half-edge of the
-    /// vertex is left off the walk.
+    /// The walk inverts ([`Body::orbit_inverts`]), so while the `prev`
+    /// links are untorn it is the vertex's whole orbit.
     pub(crate) fn mev_fan_plan(
         &self,
         he1: HalfEdgeKey,
@@ -6665,6 +6660,54 @@ mod tests {
         assert_eq!(body.vertex_orbit_of(v), None, "vertex_orbit_of");
         assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
         assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
+    #[test]
+    fn a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error() {
+        // The stated limit of the inversion proof: the witness's `next`
+        // tear paired with `prev(c) = mate(a)` makes the walk `[a, c]`
+        // invert, so every vertex-keyed read answers it and every fan
+        // site splits, stranding `b`. The validator reports the split at
+        // `v`, and no minted key lands in an orbit error.
+        let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
+        let v = body.get_half_edge(a).unwrap().start;
+        body.get_half_edge_mut(c).unwrap().prev = body.mate(a).unwrap();
+        assert!(body.orbit_inverts(&[a, c]), "the walk inverts");
+        assert_eq!(body.vertex_orbit_of(v), Some(vec![a, c]), "b is stranded");
+        for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
+            let mut trial = body.clone();
+            let mut scope = trial.begin_surgery();
+            let site = MevSite::Fan { he1, he2 };
+            let created = scope
+                .mev_null(site, crate::NewVertexSide::Above)
+                .unwrap_or_else(|err| panic!("{site:?} refused {err:?}"));
+            drop(scope);
+            let errors = validate(&trial).unwrap_err();
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. } if *vertex == v
+                )),
+                "{site:?}: the split at v is reported: {errors:?}"
+            );
+            let minted = |he: &HalfEdgeKey| [created.he_plus, created.he_minus].contains(he);
+            for error in &errors {
+                let names_a_minted_key = match error {
+                    crate::ValidationError::OrbitForeignMember { vertex, half_edge } => {
+                        *vertex == created.vertex || minted(half_edge)
+                    }
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. }
+                    | crate::ValidationError::VertexOrbitOverrun { vertex } => {
+                        *vertex == created.vertex
+                    }
+                    _ => false,
+                };
+                assert!(
+                    !names_a_minted_key,
+                    "{site:?}: {error:?} names a minted key"
+                );
+            }
+        }
     }
 
     #[test]
