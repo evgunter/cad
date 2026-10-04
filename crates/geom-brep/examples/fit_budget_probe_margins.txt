@@ -1,0 +1,149 @@
+CASE eps=1e-6 d=0.05 cut=oblique
+REFINE round=0 samples=9 located=31 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.0086945469177687e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=17 located=6 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.221394418466151e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE ok rounds=2 samples=21
+CASE eps=1e-6 d=0.05 cut=tilt
+REFINE ok rounds=0 samples=10
+CASE eps=1e-6 d=0.25 cut=oblique
+REFINE round=0 samples=20 located=22 err=CertificateLimb { limb: OnLocus, value: 1.2911909983100293e-5 }
+REFINE round=1 samples=29 located=12 err=CertificateLimb { limb: OnLocus, value: 1.4769359780194322e-5 }
+REFINE round=2 samples=36 located=3 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(4.990047905844161e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=39
+CASE eps=1e-6 d=0.25 cut=tilt
+REFINE ok rounds=0 samples=30
+CASE eps=1e-6 d=1 cut=oblique
+REFINE round=0 samples=61 located=15 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(5.312006804236455e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=70 located=9 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(5.2482419474318265e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=2 samples=76 located=4 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(2.352823168421198e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE ok rounds=3 samples=81
+CASE eps=1e-6 d=1 cut=tilt
+REFINE round=0 samples=60 located=8 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.3166118869197696e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=65 located=5 err=CertificateLimb { limb: HullSup, value: 1.0361630831685943e-5 }
+REFINE ok rounds=2 samples=68
+CASE eps=1e-6 d=3 cut=oblique
+CASE eps=1e-6 d=3 cut=tilt
+REFINE round=0 samples=102 located=17 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.1839181697310919e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=113 located=9 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(9.706948441296049e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE round=2 samples=123 located=4 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(3.325101302964516e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=128
+CASE eps=1e-6 d=2 cut=oblique
+REFINE round=0 samples=92 located=16 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(4.795241406621295e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=102 located=14 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(4.371158368928947e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=2 samples=112 located=3 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.9459099393780734e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=120
+CASE eps=1e-6 d=2 cut=tilt
+REFINE round=0 samples=81 located=14 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.1835111355351266e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=91 located=5 err=CertificateLimb { limb: HullSup, value: 5.148494891787269e-5 }
+REFINE round=2 samples=95 located=2 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(6.007273404815024e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=99
+CASE eps=1e-6 d=2 cut=zcut
+REFINE ok rounds=0 samples=62
+CASE eps=1e-9 d=0.05 cut=oblique
+REFINE round=0 samples=34 located=51 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(5.02508236319052e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=66 located=24 err=CertificateLimb { limb: OnLocus, value: 1.6597256556714302e-7 }
+REFINE round=2 samples=81 located=24 err=CertificateLimb { limb: OnLocus, value: 1.8724508815542806e-8 }
+REFINE round=3 samples=97 located=18 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.5605855935708271e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE ok rounds=4 samples=114
+CASE eps=1e-9 d=0.05 cut=tilt
+REFINE ok rounds=0 samples=50
+CASE eps=1e-9 d=0.25 cut=oblique
+REFINE round=0 samples=131 located=22 err=CertificateLimb { limb: OnLocus, value: 3.8741033825759744e-6 }
+REFINE round=1 samples=147 located=17 err=CertificateLimb { limb: OnLocus, value: 3.8351580044132597e-7 }
+REFINE round=2 samples=160 located=12 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.380720545242042e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=3 samples=168 located=8 err=CertificateLimb { limb: HullSup, value: 1.006069526299611e-8 }
+REFINE ok rounds=4 samples=177
+CASE eps=1e-9 d=0.25 cut=tilt
+REFINE ok rounds=0 samples=161
+CASE eps=1e-9 d=1 cut=oblique
+REFINE round=0 samples=372 located=14 err=CertificateLimb { limb: HullSup, value: 1.3564645352515227e-6 }
+REFINE round=1 samples=386 located=9 err=CertificateLimb { limb: HullSup, value: 1.5391880558990635e-7 }
+REFINE round=2 samples=397 located=8 err=CertificateLimb { limb: HullSup, value: 4.960030108858482e-8 }
+REFINE round=3 samples=405 located=7 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(3.31319921505007e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=4 samples=414
+CASE eps=1e-9 d=1 cut=tilt
+REFINE round=0 samples=326 located=8 err=CertificateLimb { limb: OnLocus, value: 1.8767596518536578e-6 }
+REFINE round=1 samples=332 located=7 err=CertificateLimb { limb: OnLocus, value: 6.450415824374537e-7 }
+REFINE round=2 samples=335 located=9 err=CertificateLimb { limb: OnLocus, value: 1.2721929251910989e-8 }
+REFINE round=3 samples=340 located=12 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.2143377906232866e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=4 samples=349 located=1 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.9408707699977177e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=5 samples=352
+CASE eps=1e-9 d=3 cut=oblique
+CASE eps=1e-9 d=3 cut=tilt
+REFINE round=0 samples=574 located=29 err=CertificateLimb { limb: OnLocus, value: 5.95508656646335e-8 }
+REFINE round=1 samples=601 located=18 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.7081624623954876e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=2 samples=617 located=12 err=CertificateLimb { limb: HullSup, value: 3.7478774966848393e-7 }
+REFINE round=3 samples=630 located=13 err=CertificateLimb { limb: HullSup, value: 3.56853171457066e-8 }
+REFINE round=4 samples=642 located=7 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.403530319224232e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=5 samples=654
+CASE eps=1e-9 d=2 cut=oblique
+REFINE round=0 samples=556 located=18 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(4.322579997390348e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=573 located=10 err=CertificateLimb { limb: HullSup, value: 1.9215292551560777e-8 }
+REFINE round=2 samples=584 located=2 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.9545744462723745e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=589
+CASE eps=1e-9 d=2 cut=tilt
+REFINE round=0 samples=465 located=17 err=CertificateLimb { limb: HullSup, value: 2.0884056131653905e-7 }
+REFINE round=1 samples=484 located=9 err=CertificateLimb { limb: HullSup, value: 2.2260797941103233e-8 }
+REFINE round=2 samples=495 located=3 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(5.757093149444671e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=500
+CASE eps=1e-9 d=2 cut=zcut
+REFINE round=0 samples=346 located=1 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.0585996302757386e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=1 samples=349
+CASE eps=1e-12 d=0.05 cut=oblique
+REFINE round=0 samples=238 located=196 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.3658141945974166e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=424 located=62 err=CertificateLimb { limb: OnLocus, value: 1.7310704059167475e-10 }
+REFINE round=2 samples=486 located=24 err=CertificateLimb { limb: OnLocus, value: 1.9364910124365144e-11 }
+REFINE round=3 samples=510 located=21 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.5089640384818993e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=4 samples=532 located=4 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.225499681226671e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE round=5 samples=543 located=2 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.1856960061393696e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=6 samples=549
+CASE eps=1e-12 d=0.05 cut=tilt
+REFINE ok rounds=0 samples=278
+CASE eps=1e-12 d=0.25 cut=oblique
+REFINE round=0 samples=796 located=79 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.0675260832903934e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=1 samples=872 located=27 err=CertificateLimb { limb: HullSup, value: 2.598933326240137e-10 }
+REFINE round=2 samples=902 located=16 err=CertificateLimb { limb: HullSup, value: 3.482393218846586e-11 }
+REFINE round=3 samples=923 located=6 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.238953720251245e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=4 samples=932
+CASE eps=1e-12 d=0.25 cut=tilt
+REFINE ok rounds=0 samples=902
+CASE eps=1e-12 d=1 cut=oblique
+REFINE round=0 samples=2127 located=53 err=CertificateLimb { limb: HullSup, value: 3.9763090044716384e-10 }
+REFINE round=1 samples=2182 located=20 err=CertificateLimb { limb: HullSup, value: 6.249236018041419e-11 }
+REFINE round=2 samples=2206 located=13 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(9.833310006403133e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=3 samples=2222
+CASE eps=1e-12 d=1 cut=tilt
+REFINE round=0 samples=1816 located=15 err=CertificateLimb { limb: OnLocus, value: 1.6080017483397209e-6 }
+REFINE round=1 samples=1829 located=10 err=CertificateLimb { limb: OnLocus, value: 5.953470102427423e-7 }
+REFINE round=2 samples=1838 located=10 err=CertificateLimb { limb: OnLocus, value: 1.3078988810067905e-8 }
+REFINE round=3 samples=1844 located=14 err=CertificateLimb { limb: OnLocus, value: 3.2344504862850074e-9 }
+REFINE round=4 samples=1854 located=22 err=CertificateLimb { limb: OnLocus, value: 2.2044798102524777e-10 }
+REFINE round=5 samples=1872 located=38 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(4.134186680886862e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=6 samples=1906 located=52 err=CertificateLimb { limb: HullSup, value: 1.0344726400413171e-11 }
+REFINE round=7 samples=1961 located=1 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.1250327795705605e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=8 samples=1965
+CASE eps=1e-12 d=3 cut=oblique
+CASE eps=1e-12 d=3 cut=tilt
+REFINE round=0 samples=3266 located=120 err=CertificateLimb { limb: OnLocus, value: 8.477441421061415e-11 }
+REFINE round=1 samples=3383 located=50 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(3.948986730169101e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=2 samples=3438 located=26 err=CertificateLimb { limb: OnLocus, value: 1.5212247385635556e-11 }
+REFINE round=3 samples=3466 located=21 err=CertificateEscalated { limb: OnLocus, cause: Indeterminate { margin: MarginDiag(Value(1.3252144637761492e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_on_locus_foot") } }
+REFINE round=4 samples=3487 located=20 err=CertificateLimb { limb: HullSup, value: 3.022813666178143e-10 }
+REFINE round=5 samples=3507 located=31 err=CertificateLimb { limb: HullSup, value: 2.075212249362595e-11 }
+REFINE round=6 samples=3542 located=2 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.3588044924702858e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE round=7 samples=3548 located=1 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(1.0494977868841934e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=8 samples=3552
+CASE eps=1e-12 d=2 cut=oblique
+REFINE round=0 samples=3123 located=63 err=CertificateLimb { limb: HullSup, value: 2.1952067469356975e-8 }
+REFINE round=1 samples=3188 located=24 err=CertificateLimb { limb: HullSup, value: 2.1141933759352252e-9 }
+REFINE round=2 samples=3220 located=14 err=CertificateLimb { limb: HullSup, value: 4.829242561701914e-10 }
+REFINE round=3 samples=3238 located=16 err=CertificateLimb { limb: HullSup, value: 4.0610737539151e-11 }
+REFINE round=4 samples=3258 located=7 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.9411503268674814e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=5 samples=3268
+CASE eps=1e-12 d=2 cut=tilt
+REFINE round=0 samples=2616 located=57 err=CertificateLimb { limb: HullSup, value: 1.3541880256050252e-9 }
+REFINE round=1 samples=2678 located=22 err=CertificateLimb { limb: HullSup, value: 1.713192227103118e-10 }
+REFINE round=2 samples=2710 located=15 err=CertificateLimb { limb: HullSup, value: 2.8972310741615195e-11 }
+REFINE round=3 samples=2728 located=7 err=CertificateEscalated { limb: HullSup, cause: Indeterminate { margin: MarginDiag(Value(2.086304629635064e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("ssi_hull_sup_chart") } }
+REFINE ok rounds=4 samples=2740
+CASE eps=1e-12 d=2 cut=zcut
+REFINE ok rounds=0 samples=1943
