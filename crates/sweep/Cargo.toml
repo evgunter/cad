@@ -110,3 +110,7 @@ rayon = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "r2probe"
+path = "tests/r2probe.rs"

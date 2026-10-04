@@ -241,10 +241,11 @@ fn roofs() -> (Body<f64>, Body<f64>) {
         tol(),
     );
     fixtures::describe_as_intersections(&mut w1, tol());
+    let tri2 = [(-2.4, -0.2), (2.4, -0.2), (0.0, 1.0)];
     let mut w2 = Body::<f64>::new();
     fixtures::prism_ops(
         &mut w2,
-        &tri,
+        &tri2,
         (-2.5, 2.5),
         |p, q, t| Point3::new(p, -t, q),
         fixtures::FaceGeometry::Certified,
@@ -261,6 +262,7 @@ fn roof_halves(along_x: bool) -> Vec<Half> {
         ([0.5, 0.0, 1.0], [-0.5, 0.0, 1.0])
     };
     let (ext, lat) = if along_x { (0, 1) } else { (1, 0) };
+    let (half, floor) = if along_x { (2.0, 0.0) } else { (2.4, 0.2) };
     let mut e = [0.0; 3];
     e[ext] = 1.0;
     let mut l = [0.0; 3];
@@ -268,11 +270,11 @@ fn roof_halves(along_x: bool) -> Vec<Half> {
     vec![
         (a, 1.0),
         (b, 1.0),
-        ([0.0, 0.0, -1.0], 0.0),
+        ([0.0, 0.0, -1.0], floor),
         (e, 2.5),
         (e.map(|c| -c), 2.5),
-        (l, 2.0),
-        (l.map(|c| -c), 2.0),
+        (l, half),
+        (l.map(|c| -c), half),
     ]
 }
 
