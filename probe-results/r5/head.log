@@ -1,0 +1,187 @@
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-6
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.18s
+
+TIME .199814860
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-9
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.07s
+
+TIME .076041904
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-12
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.08s
+
+TIME .089146422
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-6
+
+running 1 test
+STRAIGHT ε 1e-6: samples 4 halvings 0
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.06s
+
+TIME .083979894
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-9
+
+running 1 test
+STRAIGHT ε 1e-9: samples 4 halvings 0
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.08s
+
+TIME .098061671
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-12
+
+running 1 test
+STRAIGHT ε 1e-12: samples 4 halvings 0
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.11s
+
+TIME .140022883
+DONE m5
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [61]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [176]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [683]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [77]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [238]
+β=-4 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-6 ε 1e-6: Ok 1 branch(es), samples [87]
+β=-6 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-6 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-6: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-8 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-6: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-9: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+β=-16 ε 1e-12: CrossingUnmatched { from: Some(BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.30000000000000004 }) }
+    ssi: the branch from the wall's u = low side at parameter 3.0000000000000004e-1 found no crossing of the wall's boundary to end at: the march lost the branch. Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+test zz_rev4034_probes::probe_bend_single_detail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 8.84s
+
+TIME 8.849680761
+DONE bend
+ARMSRUN ε 1e-6
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-6: samples [49, 49] halvings 0
+ARMS gap 1e-3 at ε 1e-6: samples [49, 49] halvings 0
+ARMS gap 2e-1 at ε 1e-6: samples [30, 30] halvings 0
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 1.06s
+
+TIME 1.069760987
+ARMSRUN ε 1e-9
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-9: samples [262, 262] halvings 0
+ARMS gap 1e-3 at ε 1e-9: samples [265, 265] halvings 0
+ARMS gap 2e-1 at ε 1e-9: samples [145, 145] halvings 0
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 2.40s
+
+TIME 2.408207660
+ARMSRUN ε 1e-12
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-12: samples [1464, 1465] halvings 0
+ARMS gap 1e-3 at ε 1e-12: samples [1462, 1462] halvings 0
+ARMS gap 2e-1 at ε 1e-12: samples [784, 784] halvings 0
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 22.95s
+
+TIME 22.962775310
+DONE arms
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+DONE pairing
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=0         ε 1e-6  ERR CrossingUnmatched                           1.23s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=0         ε 1e-9  ERR CrossingUnmatched                           1.38s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=0       ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 3, unsettled: 1 })    0.65s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=0       ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 3, unsettled: 1 })    1.65s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=0        ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 2 })    0.61s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=0        ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 2 })    1.55s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=0          ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 2 })    1.49s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.87s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=0         ε 1e-6  ERR CrossingUnmatched                           2.59s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=0         ε 1e-9  ERR CrossingUnmatched                           2.30s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=0       ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.24s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=0       ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.27s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=0        ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.26s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=0        ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.23s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=0          ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      1.02s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.88s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=0         ε 1e-6  ERR CrossingUnmatched                           2.32s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=0         ε 1e-9  ERR CrossingUnmatched                           2.35s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=0       ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.25s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=0       ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.25s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=0        ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.17s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=0        ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.17s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=0          ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.68s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=0          ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.68s
+bend single β=-0.5 n=2 h=0                       ε 1e-6  OK  1 branches samples [52]    0.25s
+bend single β=-0.5 n=2 h=0                       ε 1e-9  OK  1 branches samples [142]    0.57s
+bend single β=-2 n=2 h=0                         ε 1e-6  OK  1 branches samples [61]    0.20s
+bend single β=-2 n=2 h=0                         ε 1e-9  OK  1 branches samples [176]    0.65s
+bend single β=-8 n=2 h=0                         ε 1e-6  ERR CrossingUnmatched                           0.13s
+bend single β=-8 n=2 h=0                         ε 1e-9  ERR CrossingUnmatched                           0.15s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-9  OK  2 branches samples [20, 20]    0.05s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.01s
+dip q=0.05 c=-1e-4 n=4 sep=8.9e-2 h=0            ε 1e-9  OK  2 branches samples [18, 18]    0.04s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.01s
+dip q=0.05 c=-1e-3 n=4 sep=2.8e-1 h=0            ε 1e-9  OK  2 branches samples [15, 15]    0.03s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.09s
+dip q=0.2 c=-5e-6 n=4 sep=1.0e-2 h=0             ε 1e-9  OK  2 branches samples [54, 54]    0.12s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-6  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    0.09s
+dip q=0.2 c=-1e-4 n=4 sep=4.5e-2 h=0             ε 1e-9  OK  2 branches samples [52, 52]    0.09s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=0             ε 1e-6  OK  2 branches samples [9, 9]    0.02s
+dip q=0.2 c=-1e-3 n=4 sep=1.4e-1 h=0             ε 1e-9  OK  2 branches samples [47, 47]    0.04s
+dip q=1 c=-5e-6 n=4 sep=4.5e-3 h=0               ε 1e-6  ERR TubeNotOneArc                               0.08s
+DONE stb
+ALLDONE

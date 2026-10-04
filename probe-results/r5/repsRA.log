@@ -1,0 +1,167 @@
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-6
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.13s
+
+TIME .160228143
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-9
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.12s
+
+TIME .147885712
+M5 a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ε 1e-12
+
+running 1 test
+test m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.15s
+
+TIME .161257983
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-6
+
+running 1 test
+STRAIGHT ε 1e-6: samples 4 halvings 2
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.13s
+
+TIME .156949716
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-9
+
+running 1 test
+STRAIGHT ε 1e-9: samples 4 halvings 2
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.11s
+
+TIME .128282815
+M5 a_straight_marched_branch_takes_the_fits_four_samples ε 1e-12
+
+running 1 test
+STRAIGHT ε 1e-12: samples 4 halvings 2
+test m5_pr7_ssi::a_straight_marched_branch_takes_the_fits_four_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.12s
+
+TIME .135979083
+DONE m5
+
+running 1 test
+β=-2 ε 1e-6: Ok 1 branch(es), samples [49]
+β=-2 ε 1e-9: Ok 1 branch(es), samples [209]
+β=-2 ε 1e-12: Ok 1 branch(es), samples [1058]
+β=-4 ε 1e-6: Ok 1 branch(es), samples [59]
+β=-4 ε 1e-9: Ok 1 branch(es), samples [248]
+β=-4 ε 1e-12: Ok 1 branch(es), samples [1297]
+β=-6 ε 1e-6: Ok 1 branch(es), samples [54]
+β=-6 ε 1e-9: Ok 1 branch(es), samples [270]
+β=-6 ε 1e-12: Ok 1 branch(es), samples [1399]
+β=-8 ε 1e-6: Ok 1 branch(es), samples [59]
+β=-8 ε 1e-9: Ok 1 branch(es), samples [284]
+β=-8 ε 1e-12: Ok 1 branch(es), samples [1474]
+β=-16 ε 1e-6: Ok 1 branch(es), samples [60]
+β=-16 ε 1e-9: Ok 1 branch(es), samples [305]
+β=-16 ε 1e-12: Ok 1 branch(es), samples [1578]
+test zz_rev4034_probes::probe_bend_single_detail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 20.74s
+
+TIME 20.751929863
+DONE bend
+ARMSRUN ε 1e-6
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-6: samples [69, 69] halvings 80
+ARMS gap 1e-3 at ε 1e-6: samples [69, 69] halvings 162
+ARMS gap 2e-1 at ε 1e-6: samples [48, 48] halvings 242
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 1.43s
+
+TIME 1.446518130
+ARMSRUN ε 1e-9
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-9: samples [388, 388] halvings 516
+ARMS gap 1e-3 at ε 1e-9: samples [385, 385] halvings 1028
+ARMS gap 2e-1 at ε 1e-9: samples [271, 271] halvings 1550
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 2.94s
+
+TIME 2.952140724
+ARMSRUN ε 1e-12
+
+running 1 test
+ARMS gap 1e-4 at ε 1e-12: samples [2196, 2187] halvings 3010
+ARMS gap 1e-3 at ε 1e-12: samples [2193, 2193] halvings 6028
+ARMS gap 2e-1 at ε 1e-12: samples [1500, 1500] halvings 9014
+test m5_pr7_ssi::a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 12.67s
+
+TIME 12.684676243
+DONE arms
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.00s
+
+DONE pairing
+
+running 1 test
+test zz_rev4034_probes::probe_straight_then_bend ... bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=15        ε 1e-6  ERR TubeStraddles                               1.67s
+bend pair g=1e-2 β=-2 n=4 sep=5.6e-3 h=21        ε 1e-9  ERR TubeStraddles                               2.86s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=12      ε 1e-6  ERR TubeStraddles                               0.29s
+bend pair g=1e-2 β=-0.5 n=4 sep=1.0e-2 h=18      ε 1e-9  ERR TubeStraddles                               0.71s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=12       ε 1e-6  ERR TubeStraddles                               0.41s
+bend pair g=1e-2 β=0.5 n=4 sep=1.0e-2 h=18       ε 1e-9  ERR TubeStraddles                               0.80s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=14         ε 1e-6  ERR TubeStraddles                               1.18s
+bend pair g=1e-2 β=2 n=4 sep=1.0e-2 h=19         ε 1e-9  ERR TubeStraddles                               2.88s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=10        ε 1e-6  ERR TubeStraddles                               2.38s
+bend pair g=1e-3 β=-2 n=4 sep=5.6e-4 h=17        ε 1e-9  ERR TubeStraddles                               3.79s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=10      ε 1e-6  ERR TubeStraddles                               0.35s
+bend pair g=1e-3 β=-0.5 n=4 sep=1.0e-3 h=17      ε 1e-9  ERR TubeStraddles                               0.89s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=10       ε 1e-6  ERR TubeStraddles                               0.33s
+bend pair g=1e-3 β=0.5 n=4 sep=1.0e-3 h=17       ε 1e-9  ERR TubeStraddles                               0.88s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=12         ε 1e-6  ERR TubeStraddles                               1.11s
+bend pair g=1e-3 β=2 n=4 sep=1.0e-3 h=15         ε 1e-9  ERR TubeStraddles                               2.03s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=10        ε 1e-6  ERR TubeStraddles                               2.33s
+bend pair g=1e-4 β=-2 n=4 sep=5.6e-5 h=15        ε 1e-9  ERR TubeStraddles                               3.05s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=10      ε 1e-6  ERR TubeStraddles                               0.31s
+bend pair g=1e-4 β=-0.5 n=4 sep=1.0e-4 h=14      ε 1e-9  ERR TubeStraddles                               0.75s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=10       ε 1e-6  ERR TubeStraddles                               0.27s
+bend pair g=1e-4 β=0.5 n=4 sep=1.0e-4 h=14       ε 1e-9  ERR TubeStraddles                               0.89s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=12         ε 1e-6  ERR TubeStraddles                               0.82s
+bend pair g=1e-4 β=2 n=4 sep=1.0e-4 h=14         ε 1e-9  ERR TubeStraddles                               1.87s
+bend single β=-0.5 n=2 h=15                      ε 1e-6  OK  1 branches samples [32]    0.06s
+bend single β=-0.5 n=2 h=23                      ε 1e-9  OK  1 branches samples [130]    0.18s
+bend single β=-2 n=2 h=15                        ε 1e-6  OK  1 branches samples [49]    0.10s
+bend single β=-2 n=2 h=30                        ε 1e-9  OK  1 branches samples [209]    0.28s
+bend single β=-8 n=2 h=34                        ε 1e-6  OK  1 branches samples [59]    0.22s
+bend single β=-8 n=2 h=147                       ε 1e-9  OK  1 branches samples [284]    0.50s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-6  OK  2 branches samples [4, 4]    0.02s
+dip q=0.05 c=-5e-6 n=4 sep=2.0e-2 h=0            ε 1e-9  OK  2 branches samples [20, 20]    0.05s
+DONE stb
+ALLDONE

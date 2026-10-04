@@ -1,0 +1,34 @@
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-6  OK  2 branches samples [41, 42]    0.28s
+hyperbola c=1e-2 [plain] n=4 sep=5.4e-1 h=0      ε 1e-9  OK  2 branches samples [197, 199]    0.88s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.17s
+hyperbola c=1e-2 [near-degenerate-axes] n=4 sep=5.4e-1 h=0 ε 1e-9  OK  2 branches samples [120, 114]    0.80s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 8.99s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.14s
+hyperbola c=1e-4 [plain] n=4 sep=5.0e-1 h=0      ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 5, unsettled: 1 })   15.25s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.12s
+hyperbola c=1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.12s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 22.79s
+
+
+running 1 test
+test zz_rev4034_probes::probe_pairing_against_truth ... hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=0     ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.11s
+hyperbola c=-1e-4 [plain] n=4 sep=5.0e-1 h=0     ε 1e-9  ERR RefinementExhausted(NothingToHalve { in_band: 6, unsettled: 1 })    5.50s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-6  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.13s
+hyperbola c=-1e-4 [near-degenerate-axes] n=4 sep=5.0e-1 h=0 ε 1e-9  ERR Fit(TooFewPoints { have: 2, need: 4 })      0.16s
+WRONG CERTIFIED: 0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 11.81s
+
+ALLDONE
