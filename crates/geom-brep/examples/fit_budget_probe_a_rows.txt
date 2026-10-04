@@ -1,0 +1,748 @@
+# probe-a-out (dome at 1e-9/1e-12/1e-13, floors at 1e-14/1e-15, rational walls); margins = first failing limb's value per round
+== dome-1e-12-0.05-oblique.log
+   ok rounds=6 nonmono_steps=1 n: [238, 424, 486, 510, 532, 543]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [196, 62, 24, 21, 4, 2]
+      margins: ['3.37e-12', '1.73e-10', '1.94e-11', '1.51e-12', '1.23e-12', '1.19e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 6
+      REFINE ok rounds=6 samples=549
+   ROW eps=1e-12 d=0.05 cut=oblique secs=0.8 OK branches=1 [549:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-12-0.05-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=278
+   ROW eps=1e-12 d=0.05 cut=tilt secs=0.1 OK branches=1 [278:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.493
+== dome-1e-12-0.05-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=154
+   ROW eps=1e-12 d=0.05 cut=zcut secs=0.1 OK branches=1 [154:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }
+== dome-1e-12-0.5-oblique.log
+   ok rounds=4 nonmono_steps=0 n: [1321, 1379, 1405, 1423]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [58, 23, 14, 8]
+      margins: ['2.73e-09', '4.09e-10', '7.15e-11', '4.77e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 4
+      REFINE ok rounds=4 samples=1432
+   ROW eps=1e-12 d=0.5 cut=oblique secs=1.9 OK branches=1 [1432:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-12-0.5-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=1413
+   ROW eps=1e-12 d=0.5 cut=tilt secs=0.8 OK branches=1 [1413:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.437
+== dome-1e-12-0.5-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=843
+   ROW eps=1e-12 d=0.5 cut=zcut secs=0.4 OK branches=1 [843:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 },
+== dome-1e-12-1-oblique.log
+   ok rounds=3 nonmono_steps=0 n: [2127, 2182, 2206]
+      limbs: ['HullSup', 'HullSup', 'HullSup']
+      located: [53, 20, 13]
+      margins: ['3.98e-10', '6.25e-11', '9.83e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan'] nonmono= 3
+      REFINE ok rounds=3 samples=2222
+   ROW eps=1e-12 d=1 cut=oblique secs=3.7 OK branches=1 [2222:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 
+== dome-1e-12-1-tilt.log
+   ok rounds=8 nonmono_steps=1 n: [1816, 1829, 1838, 1844, 1854, 1872, 1906, 1961]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [15, 10, 10, 14, 22, 38, 52, 1]
+      margins: ['1.61e-06', '5.95e-07', '1.31e-08', '3.23e-09', '2.2e-10', '4.13e-12', '1.03e-11', '1.13e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 8
+      REFINE ok rounds=8 samples=1965
+   ROW eps=1e-12 d=1 cut=tilt secs=5.6 OK branches=1 [1965:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 }
+== dome-1e-12-1-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=1343
+   ROW eps=1e-12 d=1 cut=zcut secs=0.7 OK branches=1 [1343:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, 
+== dome-1e-12-3-oblique.log
+   ok rounds=5 nonmono_steps=0 n: [3675, 3819, 3865, 3897, 3910]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [144, 32, 19, 10, 14]
+      margins: ['2.47e-08', '3.4e-09', '8.74e-10', '6.37e-11', '4.23e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 5
+      REFINE ok rounds=5 samples=3927
+   ROW eps=1e-12 d=3 cut=oblique secs=12.4 OK branches=1 [3927:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0
+== dome-1e-12-3-tilt.log
+   ok rounds=8 nonmono_steps=2 n: [3266, 3383, 3438, 3466, 3487, 3507, 3542, 3548]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [120, 50, 26, 21, 20, 31, 2, 1]
+      margins: ['8.48e-11', '3.95e-12', '1.52e-11', '1.33e-12', '3.02e-10', '2.08e-11', '1.36e-12', '1.05e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 8
+      REFINE ok rounds=8 samples=3552
+   ROW eps=1e-12 d=3 cut=tilt secs=15.5 OK branches=1 [3552:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.125 
+== dome-1e-12-3-zcut.log
+   ok rounds=1 nonmono_steps=0 n: [2256]
+      limbs: ['HullSup']
+      located: [2]
+      margins: ['2.94e-12']
+      hullsup: ['nan', 'nan'] nonmono= 1
+      REFINE ok rounds=1 samples=2262
+   ROW eps=1e-12 d=3 cut=zcut secs=2.0 OK branches=1 [2262:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, 
+== dome-1e-13-0.05-oblique.log
+   ok rounds=4 nonmono_steps=1 n: [426, 752, 864, 917]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [335, 109, 45, 29]
+      margins: ['5.9e-12', '8.15e-13', '7.5e-12', '4.75e-13']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 4
+      REFINE ok rounds=4 samples=950
+   ROW eps=1e-13 d=0.05 cut=oblique secs=1.0 OK branches=1 [950:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-13-0.05-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=493
+   ROW eps=1e-13 d=0.05 cut=tilt secs=0.2 OK branches=1 [493:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.493
+== dome-1e-13-0.05-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=273
+   ROW eps=1e-13 d=0.05 cut=zcut secs=0.1 OK branches=1 [273:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }
+== dome-1e-13-0.5-oblique.log
+   ok rounds=5 nonmono_steps=0 n: [2346, 2445, 2500, 2521, 2541]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [98, 41, 17, 16, 14]
+      margins: ['3.76e-09', '5.52e-10', '1.24e-10', '8.31e-12', '5.26e-13']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 5
+      REFINE ok rounds=5 samples=2558
+   ROW eps=1e-13 d=0.5 cut=oblique secs=5.9 OK branches=1 [2558:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-13-0.5-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=2511
+   ROW eps=1e-13 d=0.5 cut=tilt secs=1.5 OK branches=1 [2511:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.437
+== dome-1e-13-0.5-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=1499
+   ROW eps=1e-13 d=0.5 cut=zcut secs=0.8 OK branches=1 [1499:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }
+== dome-1e-13-1-oblique.log
+   ok rounds=3 nonmono_steps=0 n: [3782, 3877, 3925]
+      limbs: ['HullSup', 'HullSup', 'HullSup']
+      located: [95, 40, 19]
+      margins: ['9.39e-11', '1.19e-11', '1.34e-12']
+      hullsup: ['nan', 'nan', 'nan', 'nan'] nonmono= 3
+      REFINE ok rounds=3 samples=3948
+   ROW eps=1e-13 d=1 cut=oblique secs=9.3 OK branches=1 [3948:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 
+== dome-1e-13-1-tilt.log
+   ok rounds=36 nonmono_steps=15 n: [3226, 3229, 3233, 3239, 3245, 3251, 3257, 3263, 3270, 3274, 3281, 3287, 3326, 3333, 3340, 3381, 3389, 3397, 3404, 3408, 3415, 3459, 3513, 3517, 3524, 3531, 3538, 3545, 3552, 3555, 3577, 3589, 3593, 3597, 3601, 3605]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'OnLocus', 'HullSup', 'HullSup', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [2, 3, 3, 3, 3, 3, 3, 4, 1, 4, 3, 37, 4, 3, 38, 4, 4, 3, 1, 3, 39, 45, 1, 3, 3, 4, 3, 3, 2, 8, 3, 1, 1, 1, 1, 1]
+      margins: ['3.78e-13', '7.17e-13', '2.24e-13', '5.06e-13', '6.42e-13', '4.31e-13', '4.02e-13', '1.47e-12', '1.28e-13', '8.07e-13', '4.62e-13', '2.08e-12', '1.64e-12', '3.89e-13', '8.24e-13', '1.04e-12', '9.28e-13', '7.04e-13', '1.29e-13', '4.4e-13', '1.72e-10', '1.03e-11', '1.15e-13', '2.21e-13', '6.02e-13', '1.4e-12', '3.89e-13', '5.84e-13', '1.87e-13', '6.35e-13', '1.18e-13', '1.16e-13', '1.13e-13', '1.1e-13', '1.07e-13', '1.03e-13']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 36
+      REFINE ok rounds=36 samples=3609
+   ROW eps=1e-13 d=1 cut=tilt secs=35.3 OK branches=1 [3609:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 
+== dome-1e-13-1-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=2388
+   ROW eps=1e-13 d=1 cut=zcut secs=1.4 OK branches=1 [2388:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, 
+== dome-1e-13-3-oblique.log
+   ok rounds=5 nonmono_steps=0 n: [6539, 6809, 6883, 6931, 6967]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [270, 60, 30, 19, 7]
+      margins: ['1.62e-09', '1.89e-10', '3.25e-11', '2.47e-12', '1.68e-13']
+      hullsup: ['1.89e-10', '3.25e-11', '2.47e-12', '1.68e-13', '9.99e-14', 'nan'] nonmono= 1
+      REFINE ok rounds=5 samples=6980
+   ROW eps=1e-13 d=3 cut=oblique secs=33.8 OK branches=1 [6980:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0
+== dome-1e-13-3-tilt.log
+   ok rounds=6 nonmono_steps=1 n: [5866, 6075, 6161, 6210, 6242, 6278]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup']
+      located: [210, 78, 34, 24, 33, 26]
+      margins: ['4.27e-12', '1.15e-10', '3.33e-12', '2.82e-12', '2.59e-13', '2.32e-13']
+      hullsup: ['3.25e-09', '7.42e-10', '5.42e-11', '3.59e-12', '2.32e-13', '9.58e-14', 'nan'] nonmono= 1
+      REFINE ok rounds=6 samples=6310
+   ROW eps=1e-13 d=3 cut=tilt secs=32.3 OK branches=1 [6310:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.125 
+== dome-1e-13-3-zcut.log
+   ok rounds=1 nonmono_steps=0 n: [4011]
+      limbs: ['HullSup']
+      located: [2]
+      margins: ['4.24e-13']
+      hullsup: ['3.38e-14', 'nan'] nonmono= 1
+      REFINE ok rounds=1 samples=4017
+   ROW eps=1e-13 d=3 cut=zcut secs=4.9 OK branches=1 [4017:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.20000
+== dome-1e-14-1-level.log
+   unfinished rounds=2 nonmono_steps=0 n: [18299, 23395]
+      limbs: ['HullSup', 'HullSup']
+      located: [4697, 9251]
+      margins: ['2.39e-14', '2.26e-14']
+      hullsup: ['2.26e-14', 'nan'] nonmono= 1
+== dome-1e-14-1-oblique.log
+   unfinished rounds=32 nonmono_steps=13 n: [6635, 6643, 6648, 6655, 6662, 6669, 6676, 6684, 6690, 6701, 6709, 10291, 10303, 10310, 10322, 10330, 10337, 17266, 17278, 17286, 17293, 17299, 17308, 17316, 17322, 17330, 17337, 17345, 17352, 17360, 17367, 17375]
+      limbs: ['HullSup', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [4, 4, 5, 5, 4, 4, 5, 3, 5, 5, 3470, 6, 4, 5, 4, 3, 6728, 5, 4, 3, 3, 5, 4, 3, 4, 3, 4, 4, 4, 3, 4, 13278]
+      margins: ['1.66e-14', '1e-13', '6.83e-14', '2.52e-14', '2.59e-13', '1.26e-13', '2.88e-13', '4.2e-14', '2.47e-13', '3.07e-13', '2.8e-13', '2.43e-13', '9.53e-14', '1.01e-13', '7.77e-14', '3.6e-14', '2.06e-11', '2.36e-13', '1.6e-13', '6.71e-14', '6.61e-14', '3.14e-13', '9.61e-14', '3.54e-14', '1.68e-13', '5.93e-14', '8.32e-14', '1.92e-13', '1.1e-13', '3.06e-14', '1.23e-13', '1.35e-12']
+      hullsup: ['1.39e-13', '2.27e-13', '1.47e-13', '2.59e-13', '1.26e-13', '2.88e-13', '4.2e-14', '2.47e-13', '3.07e-13', '3.24e-10', '2.43e-13', '9.53e-14', '1.01e-13', '7.77e-14', '3.6e-14', '2.06e-11', '2.36e-13', '1.6e-13', '6.71e-14', '6.61e-14', '3.14e-13', '9.61e-14', '3.54e-14', '1.68e-13', '5.93e-14', '8.32e-14', '1.92e-13', '1.1e-13', '3.06e-14', '1.23e-13', '1.35e-12', 'nan'] nonmono= 15
+== dome-1e-14-1-zcut.log
+   unfinished rounds=6 nonmono_steps=3 n: [4245, 5074, 6623, 9458, 14965, 25459]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [635, 1219, 2302, 4451, 8633, 16980]
+      margins: ['1.59e-14', '1.69e-14', '1.77e-14', '1.68e-14', '1.7e-14', '1.62e-14']
+      hullsup: ['1.69e-14', '1.77e-14', '1.68e-14', '1.7e-14', '1.62e-14', 'nan'] nonmono= 3
+== dome-1e-15-1-level.log
+   ROW eps=1e-15 d=1 cut=level secs=0.0 ERR SettlingUnresolvable(SettlingRefusal { lane: Chart { speed: SupSpeed(2.2360679774997902) }, reach: 
+== dome-1e-15-1-oblique.log
+   ROW eps=1e-15 d=1 cut=oblique secs=0.0 ERR SettlingUnresolvable(SettlingRefusal { lane: Chart { speed: SupSpeed(2.2360679774997902) }, reach
+== dome-1e-15-1-zcut.log
+   ROW eps=1e-15 d=1 cut=zcut secs=0.0 ERR SettlingUnresolvable(SettlingRefusal { lane: Chart { speed: SupSpeed(2.2360679774997902) }, reach: 1
+== dome-1e-9-0.05-oblique.log
+   ok rounds=4 nonmono_steps=1 n: [34, 66, 81, 97]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus']
+      located: [51, 24, 24, 18]
+      margins: ['5.03e-09', '1.66e-07', '1.87e-08', '1.56e-09']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 4
+      REFINE ok rounds=4 samples=114
+   ROW eps=1e-9 d=0.05 cut=oblique secs=0.1 OK branches=1 [114:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0
+== dome-1e-9-0.05-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=50
+   ROW eps=1e-9 d=0.05 cut=tilt secs=0.0 OK branches=1 [50:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.49375
+== dome-1e-9-0.05-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=28
+   ROW eps=1e-9 d=0.05 cut=zcut secs=0.0 OK branches=1 [28:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, 
+== dome-1e-9-0.5-oblique.log
+   ok rounds=3 nonmono_steps=1 n: [235, 249, 261]
+      limbs: ['OnLocus', 'HullSup', 'HullSup']
+      located: [15, 11, 4]
+      margins: ['6.15e-09', '8.62e-09', '1.51e-09']
+      hullsup: ['nan', 'nan', 'nan', 'nan'] nonmono= 3
+      REFINE ok rounds=3 samples=270
+   ROW eps=1e-9 d=0.5 cut=oblique secs=0.3 OK branches=1 [270:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 
+== dome-1e-9-0.5-tilt.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=252
+   ROW eps=1e-9 d=0.5 cut=tilt secs=0.2 OK branches=1 [252:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.4375 
+== dome-1e-9-0.5-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=151
+   ROW eps=1e-9 d=0.5 cut=zcut secs=0.1 OK branches=1 [151:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, 
+== dome-1e-9-1-oblique.log
+   ok rounds=4 nonmono_steps=0 n: [372, 386, 397, 405]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [14, 9, 8, 7]
+      margins: ['1.36e-06', '1.54e-07', '4.96e-08', '3.31e-09']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 4
+      REFINE ok rounds=4 samples=414
+   ROW eps=1e-9 d=1 cut=oblique secs=0.5 OK branches=1 [414:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 },
+== dome-1e-9-1-tilt.log
+   ok rounds=5 nonmono_steps=0 n: [326, 332, 335, 340, 349]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup']
+      located: [8, 7, 9, 12, 1]
+      margins: ['1.88e-06', '6.45e-07', '1.27e-08', '3.21e-09', '2.94e-09']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 5
+      REFINE ok rounds=5 samples=352
+   ROW eps=1e-9 d=1 cut=tilt secs=0.5 OK branches=1 [352:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 }, 
+== dome-1e-9-1-zcut.log
+   ok rounds=0 nonmono_steps=0 n: []
+      limbs: []
+      located: []
+      margins: []
+      hullsup: ['nan'] nonmono= 0
+      REFINE ok rounds=0 samples=240
+   ROW eps=1e-9 d=1 cut=zcut secs=0.1 OK branches=1 [240:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, to
+== dome-1e-9-3-oblique.log
+   ok rounds=2 nonmono_steps=0 n: [655, 685]
+      limbs: ['HullSup', 'HullSup']
+      located: [30, 12]
+      margins: ['5.94e-08', '6.34e-09']
+      hullsup: ['nan', 'nan', 'nan'] nonmono= 2
+      REFINE ok rounds=2 samples=699
+   ROW eps=1e-9 d=3 cut=oblique secs=0.6 OK branches=1 [699:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 },
+== dome-1e-9-3-tilt.log
+   ok rounds=5 nonmono_steps=1 n: [574, 601, 617, 630, 642]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [29, 18, 12, 13, 7]
+      margins: ['5.96e-08', '1.71e-09', '3.75e-07', '3.57e-08', '2.4e-09']
+      hullsup: ['nan', 'nan', 'nan', 'nan', 'nan', 'nan'] nonmono= 5
+      REFINE ok rounds=5 samples=654
+   ROW eps=1e-9 d=3 cut=tilt secs=1.3 OK branches=1 [654:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.125 }, 
+== dome-1e-9-3-zcut.log
+   ok rounds=1 nonmono_steps=0 n: [402]
+      limbs: ['HullSup']
+      located: [2]
+      margins: ['1.95e-09']
+      hullsup: ['nan', 'nan'] nonmono= 1
+      REFINE ok rounds=1 samples=408
+   ROW eps=1e-9 d=3 cut=zcut secs=0.3 OK branches=1 [408:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 0.2 }, to
+== rational-1e-12.log
+   ok rounds=9 nonmono_steps=0 n: [6, 11, 21, 41, 81, 161, 321, 641, 775]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 49, 69, 108, 185, 337, 133, 1]
+      margins: ['0.00307', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '4.16e-10', '2.59e-11', '1.61e-12']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '4.16e-10', '2.59e-11', '1.61e-12', '6.39e-13', '0.129'] nonmono= 1
+      REFINE ok rounds=9 samples=779
+   ok rounds=9 nonmono_steps=0 n: [6, 11, 21, 41, 81, 161, 321, 641, 775]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 49, 69, 108, 185, 337, 133, 1]
+      margins: ['0.00308', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '4.16e-10', '2.59e-11', '1.62e-12']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '4.16e-10', '2.59e-11', '1.62e-12', '6.4e-13', '0.0108'] nonmono= 1
+      REFINE ok rounds=9 samples=779
+   ok rounds=6 nonmono_steps=1 n: [64, 127, 253, 505, 910, 926]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [93, 156, 274, 408, 4, 2]
+      margins: ['3.04e-11', '2.4e-12', '9.44e-10', '6.01e-11', '3.79e-12', '1.04e-12']
+      hullsup: ['1.37e-08', '9.44e-10', '6.01e-11', '3.79e-12', '1.04e-12', '9.55e-13', '0.0108'] nonmono= 1
+      REFINE ok rounds=6 samples=934
+   ok rounds=6 nonmono_steps=1 n: [64, 127, 253, 505, 910, 926]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [93, 156, 274, 408, 4, 2]
+      margins: ['3.04e-11', '2.4e-12', '9.45e-10', '6.01e-11', '3.79e-12', '1.04e-12']
+      hullsup: ['1.37e-08', '9.45e-10', '6.01e-11', '3.79e-12', '1.04e-12', '9.56e-13', '0.0558'] nonmono= 1
+      REFINE ok rounds=6 samples=934
+   ok rounds=7 nonmono_steps=1 n: [60, 119, 237, 473, 855, 1071, 1271]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [89, 147, 259, 396, 219, 194, 1]
+      margins: ['6.23e-09', '2.41e-10', '4.94e-12', '1.24e-12', '1.9e-09', '1.17e-10', '7.3e-12']
+      hullsup: ['6.96e-06', '4.88e-07', '3.11e-08', '1.9e-09', '1.17e-10', '7.3e-12', '9.96e-13', '0.0558'] nonmono= 1
+      REFINE ok rounds=7 samples=1274
+   ok rounds=7 nonmono_steps=1 n: [60, 119, 237, 473, 855, 1071, 1271]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [89, 147, 259, 396, 219, 194, 1]
+      margins: ['6.23e-09', '2.41e-10', '4.94e-12', '1.24e-12', '1.9e-09', '1.17e-10', '7.3e-12']
+      hullsup: ['6.96e-06', '4.88e-07', '3.11e-08', '1.9e-09', '1.17e-10', '7.3e-12', '9.95e-13', '0.128'] nonmono= 1
+      REFINE ok rounds=7 samples=1274
+   ok rounds=9 nonmono_steps=0 n: [6, 11, 21, 41, 81, 161, 321, 641, 775]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 49, 69, 108, 185, 337, 133, 1]
+      margins: ['0.00307', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '4.16e-10', '2.59e-11', '1.61e-12']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '4.16e-10', '2.59e-11', '1.61e-12', '6.4e-13', '0.129'] nonmono= 1
+      REFINE ok rounds=9 samples=779
+   ok rounds=9 nonmono_steps=0 n: [6, 11, 21, 41, 81, 161, 321, 641, 775]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 49, 69, 108, 185, 337, 133, 1]
+      margins: ['0.00308', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '4.16e-10', '2.59e-11', '1.62e-12']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '4.16e-10', '2.59e-11', '1.62e-12', '6.4e-13', '0.397'] nonmono= 1
+      REFINE ok rounds=9 samples=779
+   ok rounds=14 nonmono_steps=0 n: [5, 9, 17, 33, 65, 129, 257, 513, 773, 1013, 1017, 1021, 1025, 1029]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [33, 37, 45, 61, 93, 156, 282, 264, 242, 1, 1, 1, 1, 1]
+      margins: ['0.0177', '0.00341', '0.000161', '1e-05', '6.95e-07', '4.15e-08', '2.54e-09', '1.64e-10', '1.03e-11', '1.15e-12', '1.11e-12', '1.08e-12', '1.04e-12', '1.02e-12']
+      hullsup: ['0.00341', '0.000161', '1e-05', '6.95e-07', '4.15e-08', '2.54e-09', '1.64e-10', '1.03e-11', '1.15e-12', '1.11e-12', '1.08e-12', '1.04e-12', '1.02e-12', '6.6e-13', '0.372'] nonmono= 1
+      REFINE ok rounds=14 samples=1033
+   ok rounds=11 nonmono_steps=0 n: [5, 9, 17, 33, 65, 129, 257, 513, 773, 987, 999]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [33, 37, 45, 61, 92, 155, 282, 265, 210, 3, 1]
+      margins: ['0.0168', '0.00307', '0.000112', '6.29e-06', '6.93e-07', '6.44e-08', '4.95e-09', '3.43e-10', '2.26e-11', '1.43e-12', '1.05e-12']
+      hullsup: ['0.00307', '0.000112', '6.29e-06', '6.93e-07', '6.44e-08', '4.95e-09', '3.43e-10', '2.26e-11', '1.43e-12', '1.05e-12', '9.82e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=11 samples=1003
+== rational-1e-9.log
+   ok rounds=7 nonmono_steps=0 n: [6, 11, 21, 41, 81, 140, 168]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 48, 66, 64, 20, 2]
+      margins: ['0.00307', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '1.08e-09']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '1.08e-09', '9.25e-10', '0.129'] nonmono= 1
+      REFINE ok rounds=7 samples=176
+   ok rounds=7 nonmono_steps=0 n: [6, 11, 21, 41, 81, 140, 168]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 48, 66, 64, 20, 2]
+      margins: ['0.00308', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '1.08e-09']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '1.08e-09', '9.26e-10', '0.0108'] nonmono= 1
+      REFINE ok rounds=7 samples=176
+   ok rounds=5 nonmono_steps=1 n: [12, 23, 45, 89, 160]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [41, 52, 69, 74, 2]
+      margins: ['2.86e-08', '2.44e-09', '1.25e-06', '9.17e-08', '6.03e-09']
+      hullsup: ['1.44e-05', '1.25e-06', '9.17e-08', '6.03e-09', '8.81e-10', '0.0108'] nonmono= 1
+      REFINE ok rounds=5 samples=168
+   ok rounds=5 nonmono_steps=1 n: [12, 23, 45, 89, 160]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [41, 52, 69, 74, 2]
+      margins: ['2.85e-08', '2.44e-09', '1.25e-06', '9.17e-08', '6.03e-09']
+      hullsup: ['1.44e-05', '1.25e-06', '9.17e-08', '6.03e-09', '8.81e-10', '0.0558'] nonmono= 1
+      REFINE ok rounds=5 samples=168
+   ok rounds=6 nonmono_steps=1 n: [12, 23, 45, 89, 164, 219]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [41, 52, 72, 92, 56, 3]
+      margins: ['8e-06', '1.46e-07', '1.47e-09', '1.12e-06', '7.28e-08', '4.43e-09']
+      hullsup: ['0.000332', '1.81e-05', '1.12e-06', '7.28e-08', '4.43e-09', '8.34e-10', '0.0558'] nonmono= 1
+      REFINE ok rounds=6 samples=229
+   ok rounds=6 nonmono_steps=1 n: [12, 23, 45, 89, 164, 219]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [41, 52, 72, 92, 56, 3]
+      margins: ['8e-06', '1.46e-07', '1.47e-09', '1.12e-06', '7.28e-08', '4.43e-09']
+      hullsup: ['0.000332', '1.81e-05', '1.12e-06', '7.28e-08', '4.43e-09', '8.34e-10', '0.128'] nonmono= 1
+      REFINE ok rounds=6 samples=229
+   ok rounds=7 nonmono_steps=0 n: [6, 11, 21, 41, 81, 140, 168]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 48, 66, 64, 20, 2]
+      margins: ['0.00307', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '1.08e-09']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.73e-09', '1.08e-09', '9.25e-10', '0.129'] nonmono= 1
+      REFINE ok rounds=7 samples=176
+   ok rounds=7 nonmono_steps=0 n: [6, 11, 21, 41, 81, 140, 168]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [34, 39, 48, 66, 64, 20, 2]
+      margins: ['0.00308', '0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '1.08e-09']
+      hullsup: ['0.000325', '2.33e-05', '1.62e-06', '1.1e-07', '6.74e-09', '1.08e-09', '9.26e-10', '0.397'] nonmono= 1
+      REFINE ok rounds=7 samples=176
+   ok rounds=8 nonmono_steps=0 n: [5, 9, 17, 33, 65, 119, 154, 188]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [33, 37, 45, 59, 69, 41, 31, 1]
+      margins: ['0.0177', '0.00341', '0.000161', '1e-05', '6.95e-07', '4.15e-08', '2.53e-09', '1.12e-09']
+      hullsup: ['0.00341', '0.000161', '1e-05', '6.95e-07', '4.15e-08', '2.53e-09', '1.12e-09', '9.28e-10', '0.372'] nonmono= 1
+      REFINE ok rounds=8 samples=192
+   ok rounds=8 nonmono_steps=0 n: [5, 9, 17, 33, 65, 119, 154, 187]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [33, 37, 45, 58, 66, 41, 30, 1]
+      margins: ['0.0168', '0.00307', '0.000112', '6.29e-06', '6.93e-07', '6.44e-08', '4.95e-09', '1.05e-09']
+      hullsup: ['0.00307', '0.000112', '6.29e-06', '6.93e-07', '6.44e-08', '4.95e-09', '1.05e-09', '9.96e-10', 'nan'] nonmono= 1
+      REFINE ok rounds=8 samples=191
+
+# probe-a-out2 (with HULLSUP: limb 2's whole-carrier sup per certify call)
+== dome-1e-12-0.05-oblique.log
+   ok rounds=6 nonmono_steps=1 n: [238, 424, 486, 510, 532, 543]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [196, 62, 24, 21, 4, 2]
+      margins: ['3.37e-12', '1.73e-10', '1.94e-11', '1.51e-12', '1.23e-12', '1.19e-12']
+      hullsup: ['1.53e-09', '3.06e-10', '2e-11', '1.23e-12', '1.19e-12', '9.76e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=6 samples=549
+   ROW eps=1e-12 d=0.05 cut=oblique secs=0.8 OK branches=1 [549:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-12-0.5-oblique.log
+   ok rounds=4 nonmono_steps=0 n: [1321, 1379, 1405, 1423]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [58, 23, 14, 8]
+      margins: ['2.73e-09', '4.09e-10', '7.15e-11', '4.77e-12']
+      hullsup: ['4.09e-10', '7.15e-11', '4.77e-12', '9.33e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=4 samples=1432
+   ROW eps=1e-12 d=0.5 cut=oblique secs=2.2 OK branches=1 [1432:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-12-1-oblique.log
+   ok rounds=3 nonmono_steps=0 n: [2127, 2182, 2206]
+      limbs: ['HullSup', 'HullSup', 'HullSup']
+      located: [53, 20, 13]
+      margins: ['3.98e-10', '6.25e-11', '9.83e-12']
+      hullsup: ['6.25e-11', '9.83e-12', '9.98e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=3 samples=2222
+   ROW eps=1e-12 d=1 cut=oblique secs=3.5 OK branches=1 [2222:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0 
+== dome-1e-12-1-tilt.log
+   ok rounds=8 nonmono_steps=1 n: [1816, 1829, 1838, 1844, 1854, 1872, 1906, 1961]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [15, 10, 10, 14, 22, 38, 52, 1]
+      margins: ['1.61e-06', '5.95e-07', '1.31e-08', '3.23e-09', '2.2e-10', '4.13e-12', '1.03e-11', '1.13e-12']
+      hullsup: ['9.54e-06', '8.71e-07', '5.04e-08', '2.94e-09', '1.72e-10', '1.03e-11', '1.13e-12', '8.4e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=8 samples=1965
+   ROW eps=1e-12 d=1 cut=tilt secs=5.5 OK branches=1 [1965:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 }
+== dome-1e-12-3-oblique.log
+   ok rounds=5 nonmono_steps=0 n: [3675, 3819, 3865, 3897, 3910]
+      limbs: ['HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [144, 32, 19, 10, 14]
+      margins: ['2.47e-08', '3.4e-09', '8.74e-10', '6.37e-11', '4.23e-12']
+      hullsup: ['3.4e-09', '8.74e-10', '6.37e-11', '4.23e-12', '1e-12', 'nan'] nonmono= 1
+      REFINE ok rounds=5 samples=3927
+   ROW eps=1e-12 d=3 cut=oblique secs=11.8 OK branches=1 [3927:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0
+== dome-1e-12-3-tilt.log
+   ok rounds=8 nonmono_steps=2 n: [3266, 3383, 3438, 3466, 3487, 3507, 3542, 3548]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [120, 50, 26, 21, 20, 31, 2, 1]
+      margins: ['8.48e-11', '3.95e-12', '1.52e-11', '1.33e-12', '3.02e-10', '2.08e-11', '1.36e-12', '1.05e-12']
+      hullsup: ['1.19e-07', '3.47e-08', '3.93e-09', '3.02e-10', '2.08e-11', '1.36e-12', '1.05e-12', '9.9e-13', 'nan'] nonmono= 1
+      REFINE ok rounds=8 samples=3552
+   ROW eps=1e-12 d=3 cut=tilt secs=15.4 OK branches=1 [3552:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.125 
+== dome-1e-13-0.05-oblique.log
+   ok rounds=4 nonmono_steps=1 n: [426, 752, 864, 917]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup']
+      located: [335, 109, 45, 29]
+      margins: ['5.9e-12', '8.15e-13', '7.5e-12', '4.75e-13']
+      hullsup: ['9.64e-11', '7.5e-12', '4.75e-13', '9.8e-14', 'nan'] nonmono= 1
+      REFINE ok rounds=4 samples=950
+   ROW eps=1e-13 d=0.05 cut=oblique secs=0.9 OK branches=1 [950:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.
+== dome-1e-13-1-tilt.log
+   ok rounds=36 nonmono_steps=15 n: [3226, 3229, 3233, 3239, 3245, 3251, 3257, 3263, 3270, 3274, 3281, 3287, 3326, 3333, 3340, 3381, 3389, 3397, 3404, 3408, 3415, 3459, 3513, 3517, 3524, 3531, 3538, 3545, 3552, 3555, 3577, 3589, 3593, 3597, 3601, 3605]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'OnLocus', 'HullSup', 'HullSup', 'OnLocus', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup', 'HullSup']
+      located: [2, 3, 3, 3, 3, 3, 3, 4, 1, 4, 3, 37, 4, 3, 38, 4, 4, 3, 1, 3, 39, 45, 1, 3, 3, 4, 3, 3, 2, 8, 3, 1, 1, 1, 1, 1]
+      margins: ['3.78e-13', '7.17e-13', '2.24e-13', '5.06e-13', '6.42e-13', '4.31e-13', '4.02e-13', '1.47e-12', '1.28e-13', '8.07e-13', '4.62e-13', '2.08e-12', '1.64e-12', '3.89e-13', '8.24e-13', '1.04e-12', '9.28e-13', '7.04e-13', '1.29e-13', '4.4e-13', '1.72e-10', '1.03e-11', '1.15e-13', '2.21e-13', '6.02e-13', '1.4e-12', '3.89e-13', '5.84e-13', '1.87e-13', '6.35e-13', '1.18e-13', '1.16e-13', '1.13e-13', '1.1e-13', '1.07e-13', '1.03e-13']
+      hullsup: ['2.84e-12', '2.24e-13', '5.06e-13', '6.42e-13', '4.31e-13', '4.02e-13', '1.47e-12', '1.28e-13', '8.07e-13', '4.62e-13', '4.99e-08', '1.64e-12', '3.89e-13', '2.94e-09', '1.04e-12', '9.28e-13', '7.04e-13', '1.29e-13', '4.4e-13', '1.72e-10', '1.03e-11', '1.15e-13', '2.21e-13', '6.02e-13', '1.4e-12', '3.89e-13', '5.84e-13', '1.87e-13', '6.35e-13', '1.18e-13', '1.16e-13', '1.13e-13', '1.1e-13', '1.07e-13', '1.03e-13', '9.91e-14', 'nan'] nonmono= 14
+      REFINE ok rounds=36 samples=3609
+   ROW eps=1e-13 d=1 cut=tilt secs=35.7 OK branches=1 [3609:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 
+== dome-1e-9-0.05-oblique.log
+   ok rounds=4 nonmono_steps=1 n: [34, 66, 81, 97]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus']
+      located: [51, 24, 24, 18]
+      margins: ['5.03e-09', '1.66e-07', '1.87e-08', '1.56e-09']
+      hullsup: ['4.76e-07', '1e-07', '7.1e-09', '4.24e-10', 'nan'] nonmono= 1
+      REFINE ok rounds=4 samples=114
+   ROW eps=1e-9 d=0.05 cut=oblique secs=0.1 OK branches=1 [114:Crossings { from: BoundaryPoint { side: ChartSide { fixed: U, end: Low }, t: 1.0
+== dome-1e-9-1-tilt.log
+   ok rounds=5 nonmono_steps=0 n: [326, 332, 335, 340, 349]
+      limbs: ['OnLocus', 'OnLocus', 'OnLocus', 'OnLocus', 'HullSup']
+      located: [8, 7, 9, 12, 1]
+      margins: ['1.88e-06', '6.45e-07', '1.27e-08', '3.21e-09', '2.94e-09']
+      hullsup: ['9.67e-06', '8.71e-07', '5.04e-08', '2.94e-09', '4.15e-10', 'nan'] nonmono= 1
+      REFINE ok rounds=5 samples=352
+   ROW eps=1e-9 d=1 cut=tilt secs=0.5 OK branches=1 [352:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.375 }, 
+== dome-1e-9-3-tilt.log
+   ok rounds=5 nonmono_steps=1 n: [574, 601, 617, 630, 642]
+      limbs: ['OnLocus', 'OnLocus', 'HullSup', 'HullSup', 'HullSup']
+      located: [29, 18, 12, 13, 7]
+      margins: ['5.96e-08', '1.71e-09', '3.75e-07', '3.57e-08', '2.4e-09']
+      hullsup: ['1.17e-06', '3.75e-07', '3.57e-08', '2.4e-09', '7.76e-10', 'nan'] nonmono= 1
+      REFINE ok rounds=5 samples=654
+   ROW eps=1e-9 d=3 cut=tilt secs=1.2 OK branches=1 [654:Crossings { from: BoundaryPoint { side: ChartSide { fixed: V, end: Low }, t: 0.125 }, 
+
+# floors at 1e-14 (raw rounds)
+== dome-1e-14-1-level.log
+REFINE round=0 samples=18299 located=4697 err=CertificateEscalated { limb: HullSup, margin=2.3877226447073472e-14
+REFINE round=1 samples=23395 located=9251 err=CertificateEscalated { limb: HullSup, margin=2.2611607890302954e-14
+== dome-1e-14-1-oblique.log
+REFINE round=0 samples=6635 located=4 err=CertificateEscalated { limb: HullSup, margin=1.659783421814609e-14
+REFINE round=1 samples=6643 located=4 err=CertificateEscalated { limb: OnLocus, margin=9.997558336749535e-14
+REFINE round=2 samples=6648 located=5 err=CertificateEscalated { limb: OnLocus, margin=6.830647159006276e-14
+REFINE round=3 samples=6655 located=5 err=CertificateEscalated { limb: OnLocus, margin=2.5174307083375425e-14
+REFINE round=4 samples=6662 located=4 err=CertificateLimb { limb: HullSup, value: 2.592093206743584e-13 }
+REFINE round=5 samples=6669 located=4 err=CertificateLimb { limb: HullSup, value: 1.2570500196318335e-13 }
+REFINE round=6 samples=6676 located=5 err=CertificateLimb { limb: HullSup, value: 2.8840818622200004e-13 }
+REFINE round=7 samples=6684 located=3 err=CertificateEscalated { limb: HullSup, margin=4.196643033083092e-14
+REFINE round=8 samples=6690 located=5 err=CertificateLimb { limb: HullSup, value: 2.469136006766348e-13 }
+REFINE round=9 samples=6701 located=5 err=CertificateLimb { limb: HullSup, value: 3.0692115515762453e-13 }
+REFINE round=10 samples=6709 located=3470 err=CertificateLimb { limb: OnLocus, value: 2.8034896955525076e-13 }
+REFINE round=11 samples=10291 located=6 err=CertificateLimb { limb: HullSup, value: 2.434441537246812e-13 }
+REFINE round=12 samples=10303 located=4 err=CertificateEscalated { limb: HullSup, margin=9.534040223968532e-14
+REFINE round=13 samples=10310 located=5 err=CertificateLimb { limb: HullSup, value: 1.0147438445073931e-13 }
+REFINE round=14 samples=10322 located=4 err=CertificateEscalated { limb: HullSup, margin=7.771561172376096e-14
+REFINE round=15 samples=10330 located=3 err=CertificateEscalated { limb: HullSup, margin=3.597122599785507e-14
+REFINE round=16 samples=10337 located=6728 err=CertificateLimb { limb: HullSup, value: 2.0553087632639663e-11 }
+REFINE round=17 samples=17266 located=5 err=CertificateLimb { limb: HullSup, value: 2.361444373377708e-13 }
+REFINE round=18 samples=17278 located=4 err=CertificateLimb { limb: HullSup, value: 1.603994714827195e-13 }
+REFINE round=19 samples=17286 located=3 err=CertificateEscalated { limb: HullSup, margin=6.708522626297508e-14
+REFINE round=20 samples=17293 located=3 err=CertificateEscalated { limb: HullSup, margin=6.611378111642807e-14
+REFINE round=21 samples=17299 located=5 err=CertificateLimb { limb: HullSup, value: 3.1413760481768804e-13 }
+REFINE round=22 samples=17308 located=4 err=CertificateEscalated { limb: HullSup, margin=9.60898027813073e-14
+REFINE round=23 samples=17316 located=3 err=CertificateEscalated { limb: HullSup, margin=3.544387006115812e-14
+REFINE round=24 samples=17322 located=4 err=CertificateLimb { limb: HullSup, value: 1.682820549575581e-13 }
+REFINE round=25 samples=17330 located=3 err=CertificateEscalated { limb: HullSup, margin=5.925815393936773e-14
+REFINE round=26 samples=17337 located=4 err=CertificateEscalated { limb: HullSup, margin=8.318346012003985e-14
+REFINE round=27 samples=17345 located=4 err=CertificateLimb { limb: HullSup, value: 1.9184653865522705e-13 }
+REFINE round=28 samples=17352 located=4 err=CertificateLimb { limb: HullSup, value: 1.1032841307212493e-13 }
+REFINE round=29 samples=17360 located=3 err=CertificateEscalated { limb: HullSup, margin=3.064215547965432e-14
+REFINE round=30 samples=17367 located=4 err=CertificateLimb { limb: HullSup, value: 1.2273515537231106e-13 }
+REFINE round=31 samples=17375 located=13278 err=CertificateLimb { limb: HullSup, value: 1.3477471961441125e-12 }
+== dome-1e-14-1-zcut.log
+REFINE round=0 samples=4245 located=635 err=CertificateEscalated { limb: HullSup, margin=1.588392140510398e-14
+REFINE round=1 samples=5074 located=1219 err=CertificateEscalated { limb: HullSup, margin=1.694710640471449e-14
+REFINE round=2 samples=6623 located=2302 err=CertificateEscalated { limb: HullSup, margin=1.7711700267805306e-14
+REFINE round=3 samples=9458 located=4451 err=CertificateEscalated { limb: HullSup, margin=1.684012183860691e-14
+REFINE round=4 samples=14965 located=8633 err=CertificateEscalated { limb: HullSup, margin=1.695095510267267e-14
+REFINE round=5 samples=25459 located=16980 err=CertificateEscalated { limb: HullSup, margin=1.6246559758371865e-14
+# rational walls
+== 1e-12
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030742335446035207 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.0003250927655212167 }
+REFINE round=2 samples=21 located=49 err=CertificateLimb { limb: HullSup, value: 2.327928330908736e-5 }
+REFINE round=3 samples=41 located=69 err=CertificateLimb { limb: HullSup, value: 1.6229595547463781e-6 }
+REFINE round=4 samples=81 located=108 err=CertificateLimb { limb: HullSup, value: 1.10064466166671e-7 }
+REFINE round=5 samples=161 located=185 err=CertificateLimb { limb: HullSup, value: 6.728983851971318e-9 }
+REFINE round=6 samples=321 located=337 err=CertificateLimb { limb: HullSup, value: 4.15943751179259e-10 }
+REFINE round=7 samples=641 located=133 err=CertificateLimb { limb: HullSup, value: 2.5855664574250704e-11 }
+REFINE round=8 samples=775 located=1 err=CertificateEscalated { limb: HullSup, margin=1.6139017663384652e-12
+REFINE ok rounds=9 samples=779
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030773521394821747 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.0003254365403823213 }
+REFINE round=2 samples=21 located=49 err=CertificateLimb { limb: HullSup, value: 2.3302962374275128e-5 }
+REFINE round=3 samples=41 located=69 err=CertificateLimb { limb: HullSup, value: 1.6245928710774507e-6 }
+REFINE round=4 samples=81 located=108 err=CertificateLimb { limb: HullSup, value: 1.1016466200490342e-7 }
+REFINE round=5 samples=161 located=185 err=CertificateLimb { limb: HullSup, value: 6.735002980633869e-9 }
+REFINE round=6 samples=321 located=337 err=CertificateLimb { limb: HullSup, value: 4.163122791567125e-10 }
+REFINE round=7 samples=641 located=133 err=CertificateLimb { limb: HullSup, value: 2.587819720899576e-11 }
+REFINE round=8 samples=775 located=1 err=CertificateEscalated { limb: HullSup, margin=1.61526314061279e-12
+REFINE ok rounds=9 samples=779
+REFINE round=0 samples=64 located=93 err=CertificateLimb { limb: OnLocus, value: 3.042965851820239e-11 }
+REFINE round=1 samples=127 located=156 err=CertificateEscalated { limb: OnLocus, margin=2.4020191912037798e-12
+REFINE round=2 samples=253 located=274 err=CertificateLimb { limb: HullSup, value: 9.4449842285794e-10 }
+REFINE round=3 samples=505 located=408 err=CertificateLimb { limb: HullSup, value: 6.011748772316194e-11 }
+REFINE round=4 samples=910 located=4 err=CertificateEscalated { limb: HullSup, margin=3.7919512405784194e-12
+REFINE round=5 samples=926 located=2 err=CertificateEscalated { limb: HullSup, margin=1.0387889299692076e-12
+REFINE ok rounds=6 samples=934
+REFINE round=0 samples=64 located=93 err=CertificateLimb { limb: OnLocus, value: 3.043944836031603e-11 }
+REFINE round=1 samples=127 located=156 err=CertificateEscalated { limb: OnLocus, margin=2.40047304563717e-12
+REFINE round=2 samples=253 located=274 err=CertificateLimb { limb: HullSup, value: 9.44762413034545e-10 }
+REFINE round=3 samples=505 located=408 err=CertificateLimb { limb: HullSup, value: 6.013467010132964e-11 }
+REFINE round=4 samples=910 located=4 err=CertificateEscalated { limb: HullSup, margin=3.792971941815415e-12
+REFINE round=5 samples=926 located=2 err=CertificateEscalated { limb: HullSup, margin=1.0385500634777258e-12
+REFINE ok rounds=6 samples=934
+REFINE round=0 samples=60 located=89 err=CertificateLimb { limb: OnLocus, value: 6.229034455700459e-9 }
+REFINE round=1 samples=119 located=147 err=CertificateLimb { limb: OnLocus, value: 2.413733179994324e-10 }
+REFINE round=2 samples=237 located=259 err=CertificateEscalated { limb: OnLocus, margin=4.943376579837757e-12
+REFINE round=3 samples=473 located=396 err=CertificateEscalated { limb: OnLocus, margin=1.2377700962923761e-12
+REFINE round=4 samples=855 located=219 err=CertificateLimb { limb: HullSup, value: 1.899639124288244e-9 }
+REFINE round=5 samples=1071 located=194 err=CertificateLimb { limb: HullSup, value: 1.1740615329869645e-10 }
+REFINE round=6 samples=1271 located=1 err=CertificateEscalated { limb: HullSup, margin=7.296761917627524e-12
+REFINE ok rounds=7 samples=1274
+REFINE round=0 samples=60 located=89 err=CertificateLimb { limb: OnLocus, value: 6.229034593426313e-9 }
+REFINE round=1 samples=119 located=147 err=CertificateLimb { limb: OnLocus, value: 2.413733241168122e-10 }
+REFINE round=2 samples=237 located=259 err=CertificateEscalated { limb: OnLocus, margin=4.9433771194644216e-12
+REFINE round=3 samples=473 located=396 err=CertificateEscalated { limb: OnLocus, margin=1.2377703870808193e-12
+REFINE round=4 samples=855 located=219 err=CertificateLimb { limb: HullSup, value: 1.8996391274928866e-9 }
+REFINE round=5 samples=1071 located=194 err=CertificateLimb { limb: HullSup, value: 1.174061512427881e-10 }
+REFINE round=6 samples=1271 located=1 err=CertificateEscalated { limb: HullSup, margin=7.296760776328888e-12
+REFINE ok rounds=7 samples=1274
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030742325125556027 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.0003250926647625038 }
+REFINE round=2 samples=21 located=49 err=CertificateLimb { limb: HullSup, value: 2.327927502225998e-5 }
+REFINE round=3 samples=41 located=69 err=CertificateLimb { limb: HullSup, value: 1.6229588938146816e-6 }
+REFINE round=4 samples=81 located=108 err=CertificateLimb { limb: HullSup, value: 1.1006442102975638e-7 }
+REFINE round=5 samples=161 located=185 err=CertificateLimb { limb: HullSup, value: 6.728980934449911e-9 }
+REFINE round=6 samples=321 located=337 err=CertificateLimb { limb: HullSup, value: 4.159432464493462e-10 }
+REFINE round=7 samples=641 located=133 err=CertificateLimb { limb: HullSup, value: 2.5855503438431112e-11 }
+REFINE round=8 samples=775 located=1 err=CertificateEscalated { limb: HullSup, margin=1.614197195793562e-12
+REFINE ok rounds=9 samples=779
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030773511077430847 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.00032543643965322964 }
+REFINE round=2 samples=21 located=49 err=CertificateLimb { limb: HullSup, value: 2.3302954087999006e-5 }
+REFINE round=3 samples=41 located=69 err=CertificateLimb { limb: HullSup, value: 1.6245922104685178e-6 }
+REFINE round=4 samples=81 located=108 err=CertificateLimb { limb: HullSup, value: 1.101646167149265e-7 }
+REFINE round=5 samples=161 located=185 err=CertificateLimb { limb: HullSup, value: 6.735000509272374e-9 }
+REFINE round=6 samples=321 located=337 err=CertificateLimb { limb: HullSup, value: 4.163123680247663e-10 }
+REFINE round=7 samples=641 located=133 err=CertificateLimb { limb: HullSup, value: 2.58781842798798e-11 }
+REFINE round=8 samples=775 located=1 err=CertificateEscalated { limb: HullSup, margin=1.615410480936739e-12
+REFINE ok rounds=9 samples=779
+REFINE round=0 samples=5 located=33 err=CertificateLimb { limb: HullSup, value: 0.01772249825394118 }
+REFINE round=1 samples=9 located=37 err=CertificateLimb { limb: HullSup, value: 0.0034111412600456954 }
+REFINE round=2 samples=17 located=45 err=CertificateLimb { limb: HullSup, value: 0.000160524118404134 }
+REFINE round=3 samples=33 located=61 err=CertificateLimb { limb: HullSup, value: 1.0004639024866462e-5 }
+REFINE round=4 samples=65 located=93 err=CertificateLimb { limb: HullSup, value: 6.949744753710567e-7 }
+REFINE round=5 samples=129 located=156 err=CertificateLimb { limb: HullSup, value: 4.1533161632849814e-8 }
+REFINE round=6 samples=257 located=282 err=CertificateLimb { limb: HullSup, value: 2.538909801772126e-9 }
+REFINE round=7 samples=513 located=264 err=CertificateLimb { limb: HullSup, value: 1.644729173791913e-10 }
+REFINE round=8 samples=773 located=242 err=CertificateLimb { limb: HullSup, value: 1.031862048300697e-11 }
+REFINE round=9 samples=1013 located=1 err=CertificateEscalated { limb: HullSup, margin=1.147731638272701e-12
+REFINE round=10 samples=1017 located=1 err=CertificateEscalated { limb: HullSup, margin=1.1111270514793962e-12
+REFINE round=11 samples=1021 located=1 err=CertificateEscalated { limb: HullSup, margin=1.0757747900181019e-12
+REFINE round=12 samples=1025 located=1 err=CertificateEscalated { limb: HullSup, margin=1.0414781709892178e-12
+REFINE round=13 samples=1029 located=1 err=CertificateEscalated { limb: HullSup, margin=1.0179606171255639e-12
+REFINE ok rounds=14 samples=1033
+REFINE round=0 samples=5 located=33 err=CertificateLimb { limb: HullSup, value: 0.016837038670884184 }
+REFINE round=1 samples=9 located=37 err=CertificateLimb { limb: HullSup, value: 0.003068222347082025 }
+REFINE round=2 samples=17 located=45 err=CertificateLimb { limb: HullSup, value: 0.00011168920132686728 }
+REFINE round=3 samples=33 located=61 err=CertificateLimb { limb: HullSup, value: 6.28858187778644e-6 }
+REFINE round=4 samples=65 located=92 err=CertificateLimb { limb: HullSup, value: 6.934104997176719e-7 }
+REFINE round=5 samples=129 located=155 err=CertificateLimb { limb: HullSup, value: 6.441231136847391e-8 }
+REFINE round=6 samples=257 located=282 err=CertificateLimb { limb: HullSup, value: 4.9503055208077195e-9 }
+REFINE round=7 samples=513 located=265 err=CertificateLimb { limb: HullSup, value: 3.429554705521199e-10 }
+REFINE round=8 samples=773 located=210 err=CertificateLimb { limb: HullSup, value: 2.2564820507481795e-11 }
+REFINE round=9 samples=987 located=3 err=CertificateEscalated { limb: HullSup, margin=1.429751971589073e-12
+REFINE round=10 samples=999 located=1 err=CertificateEscalated { limb: HullSup, margin=1.0532795825714557e-12
+REFINE ok rounds=11 samples=1003
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 680 filtered out; finished in 11.01s
+== 1e-9
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030742335540418437 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.00032509276659938914 }
+REFINE round=2 samples=21 located=48 err=CertificateLimb { limb: HullSup, value: 2.3279283243700577e-5 }
+REFINE round=3 samples=41 located=66 err=CertificateLimb { limb: HullSup, value: 1.6229595823346114e-6 }
+REFINE round=4 samples=81 located=64 err=CertificateLimb { limb: HullSup, value: 1.1006447462421565e-7 }
+REFINE round=5 samples=140 located=20 err=CertificateEscalated { limb: HullSup, margin=6.728988009807527e-9
+REFINE round=6 samples=168 located=2 err=CertificateEscalated { limb: HullSup, margin=1.076337707766739e-9
+REFINE ok rounds=7 samples=176
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030773521394835777 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.00032543654038296165 }
+REFINE round=2 samples=21 located=48 err=CertificateLimb { limb: HullSup, value: 2.3302962213713246e-5 }
+REFINE round=3 samples=41 located=66 err=CertificateLimb { limb: HullSup, value: 1.6245928800843046e-6 }
+REFINE round=4 samples=81 located=64 err=CertificateLimb { limb: HullSup, value: 1.1016466290174357e-7 }
+REFINE round=5 samples=140 located=20 err=CertificateEscalated { limb: HullSup, margin=6.735002980149551e-9
+REFINE round=6 samples=168 located=2 err=CertificateEscalated { limb: HullSup, margin=1.0774053352930745e-9
+REFINE ok rounds=7 samples=176
+REFINE round=0 samples=12 located=41 err=CertificateLimb { limb: OnLocus, value: 2.856788047513946e-8 }
+REFINE round=1 samples=23 located=52 err=CertificateEscalated { limb: OnLocus, margin=2.4440386497876567e-9
+REFINE round=2 samples=45 located=69 err=CertificateLimb { limb: HullSup, value: 1.2547744775239001e-6 }
+REFINE round=3 samples=89 located=74 err=CertificateLimb { limb: HullSup, value: 9.167476622070516e-8 }
+REFINE round=4 samples=160 located=2 err=CertificateEscalated { limb: HullSup, margin=6.026159450245165e-9
+REFINE ok rounds=5 samples=168
+REFINE round=0 samples=12 located=41 err=CertificateLimb { limb: OnLocus, value: 2.8532630112173456e-8 }
+REFINE round=1 samples=23 located=52 err=CertificateEscalated { limb: OnLocus, margin=2.443732010467137e-9
+REFINE round=2 samples=45 located=69 err=CertificateLimb { limb: HullSup, value: 1.2545665247673815e-6 }
+REFINE round=3 samples=89 located=74 err=CertificateLimb { limb: HullSup, value: 9.166130349798133e-8 }
+REFINE round=4 samples=160 located=2 err=CertificateEscalated { limb: HullSup, margin=6.0252616712631384e-9
+REFINE ok rounds=5 samples=168
+REFINE round=0 samples=12 located=41 err=CertificateLimb { limb: OnLocus, value: 7.997371262341562e-6 }
+REFINE round=1 samples=23 located=52 err=CertificateLimb { limb: OnLocus, value: 1.458055620289086e-7 }
+REFINE round=2 samples=45 located=72 err=CertificateEscalated { limb: OnLocus, margin=1.4671826412057225e-9
+REFINE round=3 samples=89 located=92 err=CertificateLimb { limb: HullSup, value: 1.118367453286717e-6 }
+REFINE round=4 samples=164 located=56 err=CertificateLimb { limb: HullSup, value: 7.284241343700002e-8 }
+REFINE round=5 samples=219 located=3 err=CertificateEscalated { limb: HullSup, margin=4.4303569007420234e-9
+REFINE ok rounds=6 samples=229
+REFINE round=0 samples=12 located=41 err=CertificateLimb { limb: OnLocus, value: 7.997001061337026e-6 }
+REFINE round=1 samples=23 located=52 err=CertificateLimb { limb: OnLocus, value: 1.4580556189839647e-7 }
+REFINE round=2 samples=45 located=72 err=CertificateEscalated { limb: OnLocus, margin=1.4671834839981828e-9
+REFINE round=3 samples=89 located=92 err=CertificateLimb { limb: HullSup, value: 1.118367453303452e-6 }
+REFINE round=4 samples=164 located=56 err=CertificateLimb { limb: HullSup, value: 7.284241351198234e-8 }
+REFINE round=5 samples=219 located=3 err=CertificateEscalated { limb: HullSup, margin=4.43035791295401e-9
+REFINE ok rounds=6 samples=229
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030742325219946212 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.0003250926658413171 }
+REFINE round=2 samples=21 located=48 err=CertificateLimb { limb: HullSup, value: 2.3279274956720063e-5 }
+REFINE round=3 samples=41 located=66 err=CertificateLimb { limb: HullSup, value: 1.6229589212527922e-6 }
+REFINE round=4 samples=81 located=64 err=CertificateLimb { limb: HullSup, value: 1.1006442903872483e-7 }
+REFINE round=5 samples=140 located=20 err=CertificateEscalated { limb: HullSup, margin=6.728984943523162e-9
+REFINE round=6 samples=168 located=2 err=CertificateEscalated { limb: HullSup, margin=1.0763370779271144e-9
+REFINE ok rounds=7 samples=176
+REFINE round=0 samples=6 located=34 err=CertificateLimb { limb: HullSup, value: 0.0030773511077437903 }
+REFINE round=1 samples=11 located=39 err=CertificateLimb { limb: HullSup, value: 0.000325436439652908 }
+REFINE round=2 samples=21 located=48 err=CertificateLimb { limb: HullSup, value: 2.330295392713078e-5 }
+REFINE round=3 samples=41 located=66 err=CertificateLimb { limb: HullSup, value: 1.6245922191751096e-6 }
+REFINE round=4 samples=81 located=64 err=CertificateLimb { limb: HullSup, value: 1.1016461806042345e-7 }
+REFINE round=5 samples=140 located=20 err=CertificateEscalated { limb: HullSup, margin=6.7350002112142866e-9
+REFINE round=6 samples=168 located=2 err=CertificateEscalated { limb: HullSup, margin=1.0774047528019257e-9
+REFINE ok rounds=7 samples=176
+REFINE round=0 samples=5 located=33 err=CertificateLimb { limb: HullSup, value: 0.017722495776515437 }
+REFINE round=1 samples=9 located=37 err=CertificateLimb { limb: HullSup, value: 0.003411140261603259 }
+REFINE round=2 samples=17 located=45 err=CertificateLimb { limb: HullSup, value: 0.00016052395365632335 }
+REFINE round=3 samples=33 located=59 err=CertificateLimb { limb: HullSup, value: 1.0004613424323374e-5 }
+REFINE round=4 samples=65 located=69 err=CertificateLimb { limb: HullSup, value: 6.949713976556047e-7 }
+REFINE round=5 samples=119 located=41 err=CertificateLimb { limb: HullSup, value: 4.1532947376390073e-8 }
+REFINE round=6 samples=154 located=31 err=CertificateEscalated { limb: HullSup, margin=2.527668470542503e-9
+REFINE round=7 samples=188 located=1 err=CertificateEscalated { limb: HullSup, margin=1.1210789050983553e-9
+REFINE ok rounds=8 samples=192
+REFINE round=0 samples=5 located=33 err=CertificateLimb { limb: HullSup, value: 0.016837038669648523 }
+REFINE round=1 samples=9 located=37 err=CertificateLimb { limb: HullSup, value: 0.0030682223465999807 }
+REFINE round=2 samples=17 located=45 err=CertificateLimb { limb: HullSup, value: 0.0001116891989337926 }
+REFINE round=3 samples=33 located=58 err=CertificateLimb { limb: HullSup, value: 6.288581261506449e-6 }
+REFINE round=4 samples=65 located=66 err=CertificateLimb { limb: HullSup, value: 6.934113174903569e-7 }
+REFINE round=5 samples=119 located=41 err=CertificateLimb { limb: HullSup, value: 6.441261670432443e-8 }
+REFINE round=6 samples=154 located=30 err=CertificateEscalated { limb: HullSup, margin=4.950578171017202e-9
+REFINE round=7 samples=187 located=1 err=CertificateEscalated { limb: HullSup, margin=1.046383723082507e-9
+REFINE ok rounds=8 samples=191
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 680 filtered out; finished in 3.01s

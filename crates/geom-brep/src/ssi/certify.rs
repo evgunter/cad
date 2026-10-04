@@ -444,6 +444,9 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 what: "the implicit composite refused the fitted carrier",
             }
         })?;
+        if std::env::var_os("CAD_SCRATCH_REFINE").is_some() {
+            eprintln!("HULLSUP {:?}", composite.sup_bound() * to_meters);
+        }
         Ok(Hull {
             sup: composite.sup_bound() * to_meters,
             breaks: composite.num.breaks().to_vec(),
@@ -572,6 +575,9 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                        requirement)",
                 }
             })?;
+        if std::env::var_os("CAD_SCRATCH_REFINE").is_some() {
+            eprintln!("HULLSUP {:?}", residual.sup_bound());
+        }
         Ok(Hull {
             sup: residual.sup_bound(),
             breaks: residual.breaks().to_vec(),
