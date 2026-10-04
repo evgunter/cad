@@ -6508,3 +6508,18 @@ park. The fan-split proof is PR 4007. Its lane report: `Body::orbit_inverts` (O(
 minted-key orbit faults in the 1.26M-call torn sweep went 965 → 0, with 2,074 new refusals on torn input
 only; 4 mutants red. It filed `vertex-orbit-answers-part-of-a-torn-orbit` (P4). A cloud reviewer was
 dispatched and the implementer archived. No Ev reply on 3970 or 4006 yet. Next check-in at 01:10.
+
+## 01:10 check-in (2026-10-04)
+
+- PR 4007 review: fix first, three MINORs. (1) The docs overclaim: the inversion proof holds only while `prev`
+  is intact; a paired `next`+`prev` tear strands a member and `Ok`s, though no minted key reaches the row's
+  orbit errors. (2) The receipt misses `strut_tip` and `chord_join::null_site` (`unwrap_or_default`). (3) The row
+  is not closed. Also a duplicated 14-body fixture list. Ruling: narrow the docs and pin the limit as a row;
+  extend the P4 row; fix `null_site` here only if it is one line and reachable; close the row; share the list.
+  Fix lane session_01VbCnW5ecPGBKj27aAsxYXh is on the branch.
+- PR 4010 (kev_describing null member): the lane chose (a), one shared `null_description_rows` planner
+  given the loops the kill leaves. Three rows red on base; m1-m5 red; m6 survives as equivalent off a
+  period-wrapping chart (the open re-anchor row). Reviewer session_017JbbzhW9BnQTzjFniNVSRB dispatched.
+- Parked `boolean-unreadable-norm-ends-as-a-kernel-defect` on the D10 hold: its fix routes through the
+  coincidence refusals (`PoisonedCarrierDatum`, the plane rung).
+- No Ev reply on 3970 or 4006.
