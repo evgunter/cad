@@ -762,30 +762,44 @@ fn a_carrier_past_a_flush_stretch_into_a_clear_one_refuses_as_an_overrun() {
     }
 }
 
-/// **A side whose slope across it fades refuses by the cover alone.**
-/// `z = (10⁻³ + (1 − 10⁻³)·y)·x − ½ε` over `[0, 1]²`, and the carrier
-/// along `x = 0`. `|φ| = ½ε` along the side and no piece of it is clear,
-/// and the screen ahead of the cover reads `|φ|` over the window's
-/// steepest rise, which is about `½ε`, so it passes the side on. But where
-/// the slope fades the locus lies `½ε / s` from the side, up to 500ε,
-/// and the side's cover reaches past ε. The side holds no piece there,
-/// and the carrier refuses. Red under the side arm skipping
-/// `side_cover`, which the screen does not cover here.
+/// **A side whose slope across it dips refuses by its cover.**
+/// `z = s(y)·x − ½ε` over `[0, 1]²`, `s` quadratic over each of eight
+/// C0 spans of `y`, from `10⁻³` at a span's ends to 1 at its middle, and
+/// the carrier along `x = 0`. `|φ| = ½ε` along the side and no piece of
+/// it is clear, and the screen ahead of the cover reads `|φ|` over each
+/// window's steepest rise, 1, so it passes the side on. But at a span's
+/// ends the locus lies `½ε / s`, up to 500ε, from the side, so the side's
+/// cover reaches past ε: no window holds the side's piece, and the
+/// chain, 500ε from the locus at each knot, refuses. Red under the side
+/// arm skipping `side_cover`, where it certifies.
 #[test]
-fn a_side_whose_slope_across_it_fades_refuses_by_its_cover() {
-    let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let (lo, b) = (1e-3, -0.5 * eps());
+fn a_side_whose_slope_across_it_dips_refuses_by_its_cover() {
+    let (lo, b, m) = (1e-3, -0.5 * eps(), 8);
+    let mut kv = vec![0.0, 0.0, 0.0];
+    for i in 1..m {
+        #[allow(clippy::cast_precision_loss)]
+        let t = f64::from(i) / f64::from(m);
+        kv.extend([t, t]);
+    }
+    kv.extend([1.0, 1.0, 1.0]);
+    let n = 2 * m + 1;
+    let mut control = Vec::new();
+    for x in [0.0, 1.0] {
+        for j in 0..n {
+            let y = f64::from(j) / f64::from(n - 1);
+            let s = if j % 2 == 0 { lo } else { 2.0 - lo };
+            control.push(Point3::new(x, y, s * x + b));
+        }
+    }
     let wall = NurbsSurface::new(
-        lin(),
-        lin(),
-        vec![
-            Point3::new(0.0, 0.0, b),
-            Point3::new(0.0, 1.0, b),
-            Point3::new(1.0, 0.0, lo + b),
-            Point3::new(1.0, 1.0, 1.0 + b),
-        ],
-        vec![1.0; 4],
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(kv, 2).unwrap(),
+        control,
+        vec![1.0; 2 * n as usize],
     )
     .unwrap();
-    refuses_by_its_tube(&format!("the fading slope, ε {:e}", eps()), declared(&wall, (0.0, 1.0)));
+    refuses_by_its_tube(
+        &format!("the dipping slope, ε {:e}", eps()),
+        declared(&wall, (0.0, 1.0)),
+    );
 }

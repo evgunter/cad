@@ -44,9 +44,11 @@
 //! lands on its stretch at a point the boundary pass reads within ε of
 //! the plane and not clear. [`Shortfall::Short`] is read only where that
 //! is certified not so, and a reading that resolves neither is
-//! [`Shortfall::Undecided`], unless an end is certified far from every
-//! solution of its box: then a box that resolved no piece cannot rescue
-//! the chain, and the refusal is `Short`.
+//! [`Shortfall::Undecided`]. A side's end whose `|φ|` is not certified
+//! within ε is such a reading. Where a box resolves no piece but an end
+//! is certified unreached by its own box (by that box's piece, or by an
+//! arc's reading where it has none), no chain reaches that end, and the
+//! refusal is `Short`.
 //!
 //! **The walks.**
 //! - Chart edges ([`boundary_zeros`]): each edge is cut into runs, each
@@ -803,21 +805,23 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
         ),
     ];
     let readers = side_readers(boxes, plane);
-    let pieces = clipped
-        .iter()
-        .map(|r| piece(boxes, plane, (domain, &readers), *r, band))
-        .collect::<Result<Vec<Piece>, Shortfall>>();
+    let piece_at = |k: usize| piece(boxes, plane, (domain, &readers), clipped[k], band);
+    let pieces = (0..clipped.len()).map(piece_at).collect::<Result<Vec<Piece>, Shortfall>>();
     // A window that resolves no piece leaves the chain undecided, unless
-    // an end of the carrier is certified far from every solution of its
-    // window by an arc's own standard: then the carrier certainly
-    // overruns what the chain holds there, whatever the undecided
-    // window holds.
+    // an end of the carrier is certified unreached by its window: by
+    // its piece's own reading where it resolves one, and by an arc's
+    // where it resolves none (no side holds it). No piece of the chain
+    // reaches that end, whatever the undecided window holds.
+    let unreached = |&(k, q, end): &(usize, (f64, f64), CarrierEnd)| match piece_at(k) {
+        Ok(p) => {
+            reaches_end(boxes, plane, (&readers, band.zero()), (p, clipped[k]), q, end)
+                == Err(Shortfall::Short)
+        }
+        Err(Shortfall::Undecided) => end_far(boxes, plane, clipped[k], q, end, band.zero()),
+        Err(_) => false,
+    };
     let pieces = match pieces {
-        Err(Shortfall::Undecided)
-            if carrier_ends
-                .iter()
-                .any(|&(k, q, end)| end_far(boxes, plane, clipped[k], q, end, band.zero())) =>
-        {
+        Err(Shortfall::Undecided) if carrier_ends.iter().any(unreached) => {
             return Err(Shortfall::Short);
         }
         other => other?,

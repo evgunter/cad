@@ -86,7 +86,7 @@ side of the wall's domain that the boundary pass reads within ε of the
 plane with no piece of it clear (the side's own section and the clear
 test C3 decides a side by), whose cover puts every solution in the box
 within ε of the side. That piece meets the slice through every knot
-two boxes share and the slices through both ends of the carrier, an
+two boxes share and the slices through both ends of the carrier: an
 arc's end counting also where a zero of the locus is certified within ε
 of the carrier's end, on a slice beside it, and a side's where the end,
 moved across onto the side, lands on its stretch at a point the

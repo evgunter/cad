@@ -1063,7 +1063,9 @@ pub enum OneArcRefusal {
     /// The chain's pieces stop short of an end of the carrier, certified:
     /// an arc's box holds no solution on the slice through that end and
     /// none within ε of it, or a side's stretch does not reach the end,
-    /// or the boundary pass reads the side clear there.
+    /// or the boundary pass reads the side clear there. Read also where a
+    /// box resolved no piece, when the end is certified unreached by its
+    /// own box: no chain reaches it.
     Short,
     /// A walk of a box's boundary resolved no count, or a linking
     /// reading no sign. A solution on the boundary may be tangential to
