@@ -255,7 +255,7 @@ use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
 use crate::attach::{Slot, require_description_adjacent};
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
@@ -2776,8 +2776,7 @@ impl<T: Decide> Body<T> {
             let Some(position) = cycle.iter().position(|&he| he == he2) else {
                 unreachable!(
                     "{he2:?} claims loop {loop_key:?} and the cycle walk from {he1:?}, which \
-                     claims it too, never reaches it: on a tier-1-valid body a loop's next \
-                     cycle is the half-edges that claim it"
+                     claims it too, never reaches it: {CYCLES_ARE_CLAIMANTS}"
                 )
             };
             cycle[..position].to_vec()
@@ -3265,8 +3264,7 @@ impl<T: Decide> Body<T> {
             assert!(
                 holds,
                 "the {boundary:?} a kill writes for loop {name:?} does not hold once the kill \
-                 has run: on a tier-1-valid body a loop's next cycle is the half-edges that \
-                 claim it, so the anchor read one step from a killed half stays in the loop"
+                 has run: {CYCLES_ARE_CLAIMANTS}, so the anchor read one step from a killed half stays in the loop"
             );
             if let LoopBoundary::Empty { vertex } = boundary
                 && let Some(other) = self.empty_at_besides(vertex, target.as_slice())
@@ -3314,8 +3312,7 @@ impl<T: Decide> Body<T> {
         for member in members {
             assert!(
                 self.claims(member, from),
-                "{member:?}, walked as a member of loop {from:?}'s cycle, does not claim it: on \
-                 a tier-1-valid body a loop's next cycle is the half-edges that claim it"
+                "{member:?}, walked as a member of loop {from:?}'s cycle, does not claim it: {CYCLES_ARE_CLAIMANTS}"
             );
             run.insert(member, ());
         }
@@ -3325,8 +3322,7 @@ impl<T: Decide> Body<T> {
             })
         {
             unreachable!(
-                "{stray:?} claims loop {from:?} and its cycle walk does not reach it: on a \
-                 tier-1-valid body a loop's next cycle is the half-edges that claim it"
+                "{stray:?} claims loop {from:?} and its cycle walk does not reach it: {CYCLES_ARE_CLAIMANTS}"
             );
         }
         run
@@ -4254,7 +4250,7 @@ impl<T: Decide> Body<T> {
         self.loop_cycle_of(he, r#loop).unwrap_or_else(|| {
             unreachable!(
                 "the cycle walk of loop {loop:?} from {he:?} does not close on the half-edges \
-                 that claim it: on a tier-1-valid body a loop's next cycle is exactly those",
+                 that claim it: {CYCLES_ARE_CLAIMANTS}",
                 loop = r#loop
             )
         })
@@ -4307,8 +4303,7 @@ impl<T: Decide> Body<T> {
             crate::pcurves::LoopRows::NoCycle => Vec::new(),
             crate::pcurves::LoopRows::Corrupt => unreachable!(
                 "loop {loop:?} does not resolve, or its cycle walk does not close on the \
-                 half-edges that claim it: on a tier-1-valid body every loop's next cycle is \
-                 exactly those",
+                 half-edges that claim it: {CYCLES_ARE_CLAIMANTS}",
                 loop = r#loop
             ),
         }

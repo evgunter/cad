@@ -338,7 +338,7 @@ use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
@@ -2960,8 +2960,7 @@ pub(crate) fn site_rows_from<T: Decide>(
     let rows = stored_rows(body, face);
     if let Some(r#loop) = rows.broken() {
         unreachable!(
-            "loop {loop:?} of the face a site mint reads does not walk as its own: on a \
-             tier-1-valid body every loop's next cycle closes on the half-edges that claim it",
+            "loop {loop:?} of the face a site mint reads does not walk as its own: {CYCLES_ARE_CLAIMANTS}",
             loop = r#loop
         );
     }

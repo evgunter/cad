@@ -127,6 +127,10 @@ pub(crate) enum Walk {
 pub(crate) const WALKS_CLOSE: &str =
     "every public door keeps the body tier-1-valid, where every such walk closes";
 
+/// The premise a loop walk that strays from its loop's claimants breaks.
+pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
+    "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
+
 impl Walk {
     /// The members of a walk a tier-1-valid body closes: the `what` walk
     /// from `first`, which every public door keeps closing (each `next`

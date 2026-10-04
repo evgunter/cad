@@ -64,7 +64,7 @@ use crate::validate;
 use geom_core::Tol;
 
 /// The premise a walk that does not close names.
-const WALK: &str = "every public door keeps the body tier-1-valid, where every such walk closes";
+const WALK: &str = crate::body::WALKS_CLOSE;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)

@@ -234,7 +234,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
 use crate::attach::Slot;
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
@@ -502,8 +502,7 @@ impl<T: Decide> Body<T> {
         let Some(position) = cycle.iter().position(|member| member.key() == he2) else {
             unreachable!(
                 "{he2:?} claims loop {loop_key:?} and the cycle walk from {he1:?}, which claims \
-                 it too, never reaches it: on a tier-1-valid body a loop's next cycle is the \
-                 half-edges that claim it"
+                 it too, never reaches it: {CYCLES_ARE_CLAIMANTS}"
             )
         };
         // he1's side (strictly between he1 and he2): becomes the ring.

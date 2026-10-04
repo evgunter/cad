@@ -24,7 +24,7 @@
 
 use geom_core::Decide;
 
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
@@ -168,8 +168,7 @@ impl<T: Decide> Body<T> {
                     assert!(
                         claims.get(loop_key) == Some(&run.len()),
                         "loop {loop_key:?}'s cycle walk is not every half-edge that claims it: \
-                         on a tier-1-valid body a loop's next cycle is the half-edges that \
-                         claim it"
+                         {CYCLES_ARE_CLAIMANTS}"
                     );
                     for member in cycle {
                         let mate =
