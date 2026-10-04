@@ -209,8 +209,9 @@ states taking the march's transversality decision. Where anything
 refuses it (that decision at either end, the march tolerance, or the
 certificate), a march runs from the crossing to the unused
 crossing on the side it leaves, the one nearest where its last step
-meets that side, its step the curvature's against ε and no longer than
-the domain's diagonal, so nothing it reads belongs to another branch; a
+meets that side, its step the curvature's against ε, the carrier's and
+the bend of the branch's own chart path alike, and no longer than the
+domain's diagonal, so nothing it reads belongs to another branch; a
 march that leaves where no crossing matches refuses as the march's
 limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
