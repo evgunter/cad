@@ -323,6 +323,9 @@ fn shape(name: &str) -> Option<Shape> {
         "reflex315" => Some(wedge(315.0, 0.0)),
         "shallow" => Some(wedge(195.0, 0.0)),
         "flat181" => Some(wedge(181.0, 7.0)),
+        "flat180" => Some(wedge(180.0, 0.0)),
+        "flat180t" => Some(wedge(180.0, 13.0)),
+        "flat179" => Some(wedge(179.0, 3.0)),
         "convex90" => Some(wedge(90.0, 20.0)),
         "box" => Some(wedge(90.0, 0.0)),
         "convex120" => Some(wedge(120.0, 0.0)),
@@ -376,7 +379,17 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
             }
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, &d, tol())));
             let line = match r {
-                Ok(r) => outcome(r, want, tol()),
+                Ok(r) => {
+                    let why = match &r {
+                        Ok(res) => res.body().and_then(|bb| {
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                                .err()
+                                .map(|e| format!(" T3WHY {e:?}"))
+                        }),
+                        Err(_) => None,
+                    };
+                    outcome(r, want, tol()) + &why.unwrap_or_default()
+                }
                 Err(_) => "PANIC".into(),
             };
             out.push(format!("{tag}: {line}"));
