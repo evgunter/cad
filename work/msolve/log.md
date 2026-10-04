@@ -1434,3 +1434,15 @@ in `docs/doc-ledger/msolve-14-spec.md`.
 
 Under the intent-refactor hold, nothing in the program may start now.
 The program goes to `blocked`, and the orchestrator stops.
+
+## 2026-10-04 — the program is blocked; the orchestrator stops
+
+MSOLVE-14 was the last unit already started, and it merged on PR 3986
+with DR-70. The MSOLVE-14 lane had filed
+`the-mate-solve-reads-the-platform-atan2`, a D9 row: the solve's two
+angles read the platform's `atan2`. It is mate-solve ground, so it is
+parked on D10's build with the rest. Every live row is now parked, and
+`work/msolve/program.md` reads `blocked`. Nothing starts until D10 is
+built. When it is, the parked rows are re-cut against D10, MSOLVE-15
+first: its spec on `msolve/15-frame-offset-carries-the-roll` is stale.
+The orchestrator's scheduled check-in is deleted.
