@@ -49,7 +49,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, VarEnv,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
     StepId, ValuePayload, resolve_loops, unparse,
 };
@@ -390,7 +390,7 @@ pub fn held_loops(
             node: doc.spoken(node),
         });
     };
-    held_program(doc.spoken(node), program, &doc.param_env::<f64>())
+    held_program(doc.spoken(node), program, &doc.var_env::<f64>())
 }
 
 /// [`held_loops`] of a program in hand — `node` only names it in a
@@ -404,7 +404,7 @@ pub fn held_loops(
 pub fn held_program(
     node: SpokenNode,
     program: &ProfileProgram,
-    env: &ParamEnv<f64>,
+    env: &VarEnv<f64>,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let held = Node::Profile(program.clone());
     // Every argument, asked of the node's own slot walk. An address
@@ -1074,7 +1074,7 @@ pub fn preview(
     // program: a preview has no plane node and does not need one — the
     // plane it draws on arrives as a placement, from the frame the
     // form is pointed at.
-    let env = ParamEnv::default();
+    let env = VarEnv::default();
     let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());

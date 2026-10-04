@@ -55,8 +55,8 @@ fn try_push(
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("r2-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("r2-noparams", Tol::witness()).var_env::<f64>()
 }
 
 /// Faces of one surface kind on one node's value, canonically ordered.

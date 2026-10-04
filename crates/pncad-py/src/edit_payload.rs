@@ -419,7 +419,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::PayloadUnknownDocParam { name, node } => EditPayload {
+        EditError::PayloadUnknownVarName { name, node } => EditPayload {
             node: Some(node.id()),
             param: Some(name),
             ..none
@@ -427,7 +427,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // `declared`/`referenced` are the same two concepts
         // `SlotDimensionMismatch` calls `expected`/`found` — what the
         // door required, and what it was offered.
-        EditError::PayloadDocParamDimension {
+        EditError::PayloadVarKind {
             name,
             node,
             declared,
@@ -439,13 +439,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(*referenced)),
             ..none
         },
-        EditError::SlotUnknownDocParam { name, node, slot } => EditPayload {
+        EditError::SlotUnknownVarName { name, node, slot } => EditPayload {
             node: Some(node.id()),
             param: Some(name),
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::SlotDocParamDimension {
+        EditError::SlotVarKind {
             name,
             node,
             slot,
@@ -459,13 +459,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(*referenced)),
             ..none
         },
-        EditError::ContinuousParamCannotBeCount { var }
-        | EditError::DocParamCountHasNoUnit { var }
-        | EditError::DocParamCountHasNoDistribution { var }
+        EditError::ContinuousVarCannotBeCount { var }
+        | EditError::VarCountHasNoUnit { var }
+        | EditError::VarCountHasNoDistribution { var }
         // The field the refusal names does not cross: a caller holds
         // the parameter it just submitted, and `non_finite_doc_param`
         // plus the Rust sentence say which float it was.
-        | EditError::NonFiniteDocParam { var, field: _ }
+        | EditError::NonFiniteVar { var, field: _ }
         | EditError::InvalidDistribution { var, fault: _ } => EditPayload {
             param: var.name(),
             ..none
@@ -494,7 +494,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(offered.dimension())),
             ..none
         },
-        EditError::DocParamValueKindMismatch {
+        EditError::VarValueKindMismatch {
             var,
             declared,
             offered,
@@ -508,7 +508,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // declaration's dimension and `found` what the offered unit
         // measures — the pair `slot_doc_param_dimension` already
         // spells, over a unit rather than over a reference.
-        EditError::DocParamUnitMismatch {
+        EditError::VarUnitMismatch {
             var,
             unit,
             declared,

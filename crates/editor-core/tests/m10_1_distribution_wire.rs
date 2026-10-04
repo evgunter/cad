@@ -242,7 +242,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
             lo: -0.1,
             hi: 0.1
         }),
-        Err(EditError::NonFiniteDocParam {
+        Err(EditError::NonFiniteVar {
             var: sv(Distribution::TruncatedNormal {
                 sigma: f64::NAN,
                 lo: -0.1,
@@ -257,7 +257,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
             lo: f64::NEG_INFINITY,
             hi: 0.1
         }),
-        Err(EditError::NonFiniteDocParam {
+        Err(EditError::NonFiniteVar {
             var: sv(Distribution::Band {
                 lo: f64::NEG_INFINITY,
                 hi: 0.1

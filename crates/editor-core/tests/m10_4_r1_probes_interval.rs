@@ -1015,11 +1015,11 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), editor_core::VarId(0)).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId(0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
-    let env = seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), a.var_named("h1").expect("h1"))
+    let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
     let mut ones = 0_usize;
     let mut zeros = 0_usize;

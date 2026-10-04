@@ -56,8 +56,8 @@ fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (Profile
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).var_env::<f64>()
 }
 
 fn faces_of_kind(
@@ -1115,7 +1115,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::PayloadUnknownDocParam { .. }),
+        matches!(err, EditError::PayloadUnknownVarName { .. }),
         "got {err:?}"
     );
 }

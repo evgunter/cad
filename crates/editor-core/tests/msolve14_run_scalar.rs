@@ -632,7 +632,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         axis: [0.0, 1.0, 0.0].map(scl),
         angle: ang(0.2),
     })
-    .eval(&doc.param_env::<f64>(), fixture::band())
+    .eval(&doc.var_env::<f64>(), fixture::band())
     .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
@@ -1123,7 +1123,7 @@ fn assert_pose_encloses_corners(
         var_of(doc, &param),
         BoxAxis::Varying { lo, hi },
     )]));
-    let env = editor_core::param_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
+    let env = editor_core::var_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
     let reach = editor_core::mate_reach::<Interval>(opts, Tol::witness());
     let poses = editor_core::mate::solve_document_at(doc, &env, &reach, Tol::witness());
     assert!(

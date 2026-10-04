@@ -11,7 +11,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Expr, Frame, FrameSite,
-    FreeValue, FreeVar, Node, ParamEnv, PersistError, Placement, ProfileDoc, ProfileProgram,
+    FreeValue, FreeVar, Node, VarEnv, PersistError, Placement, ProfileDoc, ProfileProgram,
     REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload,
     VarName, VectorSlot, evaluate, load, save,
 };
@@ -89,7 +89,7 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
 }
 
 fn motion(p: &Placement) -> Affine3<f64> {
-    p.eval::<f64>(&ParamEnv::default(), band())
+    p.eval::<f64>(&VarEnv::default(), band())
         .expect("the placement evaluates")
 }
 

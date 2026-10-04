@@ -1405,7 +1405,7 @@ pub fn prism_edges(doc: &editor_core::ProfileDoc, node: RecipeNodeId, n: u32) ->
 pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p
-            .pieces(&doc.param_env::<f64>(), Tol::witness())
+            .pieces(&doc.var_env::<f64>(), Tol::witness())
             .expect("the profile's program replays and validates"),
         other => panic!("node {} is not a profile: {other:?}", profile.0),
     }

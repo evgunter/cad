@@ -320,7 +320,7 @@ pub fn wide_aim(index: &PickIndex) -> impl Iterator<Item = Aim> + '_ {
 ///
 /// If `doc` has neither.
 pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     for &node in doc.order().iter().rev() {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {

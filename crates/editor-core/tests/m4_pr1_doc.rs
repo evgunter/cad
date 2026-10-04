@@ -21,7 +21,7 @@ struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {

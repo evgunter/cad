@@ -26,7 +26,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, NodeStanding, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
+    GeomPred, NamePat, Node, NodeStanding, VarEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
     SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
 };
 use geom::SurfaceKind;
@@ -73,8 +73,8 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, cube, datum)
 }
 
-fn no_params() -> ParamEnv<f64> {
-    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).param_env::<f64>()
+fn no_params() -> VarEnv<f64> {
+    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).var_env::<f64>()
 }
 
 fn all(kind: EntityKind) -> Selector {

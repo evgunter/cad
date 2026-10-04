@@ -9,8 +9,8 @@
 //! **canonical prefix encoding of the expression tree** under the
 //! identity of the parameter table it was lowered against: a scope
 //! prefix ([`ParamScope`]), then one tag byte per AST node, operands in
-//! [`Expr::child`] order, literals as their `f64` BITS, parameters as
-//! their names. It is injective — every distinct (scope, expression)
+//! [`Expr::child`] order, literals as their `f64` BITS, variable readers
+//! as their minted ids (a name is not identity, VR8). It is injective — every distinct (scope, expression)
 //! pair has a distinct byte string — so token equality IS expression
 //! equality within one parameter table rather than a claim about it,
 //! and [`invert`] reads a token back to a slot address holding it.
@@ -21,9 +21,9 @@
 //!
 //! # The scope
 //!
-//! A parameter name is scoped to the document that declares it. Two
-//! documents that both call their blend radius `r` hold two
-//! parameters, and the two meet inside ONE evaluation whenever a part
+//! A variable id is scoped to the document that minted it. Two
+//! documents that both hold a blend radius `r` hold two variables,
+//! and their ids can coincide (two documents' mint chains can run alike), and the two meet inside ONE evaluation whenever a part
 //! is instantiated — the referenced document's product is placed with
 //! `transform_rigid`, which carries these records verbatim because a
 //! rigid map cannot change a radius. So the token names the TABLE as
@@ -119,7 +119,7 @@ use crate::ident::{DocRef, DocumentId};
 // of operands than it claims cannot round-trip.
 const T_LITERAL: u8 = 0x01;
 const T_COUNT_LITERAL: u8 = 0x02;
-const T_PARAM: u8 = 0x03;
+const T_VAR: u8 = 0x04;
 const T_ADD: u8 = 0x10;
 const T_SUB: u8 = 0x11;
 const T_NEG: u8 = 0x12;
@@ -201,21 +201,17 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
             out.push(T_COUNT_LITERAL);
             out.extend_from_slice(&n.to_be_bytes());
         }
-        ExprKind::Param(name) => {
-            out.push(T_PARAM);
-            let bytes = name.as_str().as_bytes();
-            // A length prefix, because a name is the one payload with
-            // no fixed width. The width is `u32`, saturating: a name
-            // beyond four gigabytes is not a name any document can
-            // hold, and if one ever arrived the prefix would name the
-            // first `u32::MAX` bytes and the slice would carry exactly
-            // those — still a prefix code, still self-delimiting,
-            // never a panic.
-            let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-            out.extend_from_slice(&len.to_be_bytes());
-            out.extend_from_slice(&bytes[..len as usize]);
-            out.push(dim_code(expr.dim()));
+        // The variable's identity alone: its kind is fixed (VR3), so
+        // the reader's cached dimension says nothing the id does not,
+        // and a name is not identity (VR8: a rename moves no token).
+        ExprKind::Var(var) => {
+            out.push(T_VAR);
+            out.extend_from_slice(&var.0.to_be_bytes());
         }
+        ExprKind::Name(name) => unreachable!(
+            "the name {name} reached a coincidence token: the edit door lowers every name \
+             leaf, and the load door refuses a snapshot holding one"
+        ),
         ExprKind::Add(a, b) => binary(T_ADD, a, b, out),
         ExprKind::Sub(a, b) => binary(T_SUB, a, b, out),
         ExprKind::Mul(a, b) => binary(T_MUL, a, b, out),
@@ -711,8 +707,6 @@ mod tests {
     enum Shape {
         /// A leaf with a fixed payload width in bytes.
         Leaf(usize),
-        /// The parameter leaf: a length-prefixed name and a dimension.
-        Name,
         Unary,
         Binary,
     }
@@ -721,7 +715,7 @@ mod tests {
     const ALPHABET: &[(&str, u8, Shape)] = &[
         ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
         ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_PARAM", T_PARAM, Shape::Name),
+        ("T_VAR", T_VAR, Shape::Leaf(8)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -763,7 +757,7 @@ mod tests {
         let arms = match ExprKind::Neg(Box::new(len(0.0))) {
             ExprKind::Literal(_)
             | ExprKind::CountLiteral(_)
-            | ExprKind::Param(_)
+            | ExprKind::Var(_)
             | ExprKind::Add(..)
             | ExprKind::Sub(..)
             | ExprKind::Mul(..)
@@ -792,12 +786,6 @@ mod tests {
         match shape {
             Shape::Leaf(width) => {
                 let end = at + 1 + width;
-                (end <= bytes.len()).then_some(end)
-            }
-            Shape::Name => {
-                let len_bytes: [u8; 4] = bytes.get(at + 1..at + 5)?.try_into().ok()?;
-                let len = u32::from_be_bytes(len_bytes) as usize;
-                let end = at + 5 + len + 1;
                 (end <= bytes.len()).then_some(end)
             }
             Shape::Unary => parse_node(bytes, at + 1),

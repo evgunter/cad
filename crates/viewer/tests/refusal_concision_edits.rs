@@ -235,16 +235,16 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "SlotUnknownDocParam",
-            EditError::SlotUnknownDocParam {
+            "SlotUnknownVarName",
+            EditError::SlotUnknownVarName {
                 name: param(),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
         ),
         (
-            "SlotDocParamDimension",
-            EditError::SlotDocParamDimension {
+            "SlotVarKind",
+            EditError::SlotVarKind {
                 name: param(),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
@@ -253,15 +253,15 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "PayloadUnknownDocParam",
-            EditError::PayloadUnknownDocParam {
+            "PayloadUnknownVarName",
+            EditError::PayloadUnknownVarName {
                 name: param(),
                 node: s(5, "Measure"),
             },
         ),
         (
-            "PayloadDocParamDimension",
-            EditError::PayloadDocParamDimension {
+            "PayloadVarKind",
+            EditError::PayloadVarKind {
                 name: param(),
                 node: s(5, "Measure"),
                 declared: Dimension::Angle,
@@ -296,8 +296,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "ContinuousParamCannotBeCount",
-            EditError::ContinuousParamCannotBeCount { var: spoken_var() },
+            "ContinuousVarCannotBeCount",
+            EditError::ContinuousVarCannotBeCount { var: spoken_var() },
         ),
         (
             "UnknownVar",
@@ -328,24 +328,24 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "DocParamCountHasNoUnit",
-            EditError::DocParamCountHasNoUnit { var: spoken_var() },
+            "VarCountHasNoUnit",
+            EditError::VarCountHasNoUnit { var: spoken_var() },
         ),
         (
-            "DocParamCountHasNoDistribution",
-            EditError::DocParamCountHasNoDistribution { var: spoken_var() },
+            "VarCountHasNoDistribution",
+            EditError::VarCountHasNoDistribution { var: spoken_var() },
         ),
         (
-            "DocParamUnitMismatch",
-            EditError::DocParamUnitMismatch {
+            "VarUnitMismatch",
+            EditError::VarUnitMismatch {
                 var: spoken_var(),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
             },
         ),
         (
-            "DocParamValueKindMismatch",
-            EditError::DocParamValueKindMismatch {
+            "VarValueKindMismatch",
+            EditError::VarValueKindMismatch {
                 var: spoken_var(),
                 declared: Dimension::Count,
                 offered: FreeValue::Continuous(2.5),
@@ -398,8 +398,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "NonFiniteDocParam",
-            EditError::NonFiniteDocParam {
+            "NonFiniteVar",
+            EditError::NonFiniteVar {
                 var: spoken_var(),
                 field: DocParamField::Offset(DistributionField::Sigma),
             },
@@ -714,7 +714,7 @@ fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFaul
         }
         DistributionFault::NominalOutsideSupport { .. } => None,
         // No row: no edit door raises it, because `distribution_fault_error`
-        // routes a non-finite offset to `NonFiniteDocParam`, which has
+        // routes a non-finite offset to `NonFiniteVar`, which has
         // its own.
         DistributionFault::NonFinite { .. } => None,
     }

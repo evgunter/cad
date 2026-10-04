@@ -386,7 +386,7 @@ fn the_annotation_door_refuses_typed() {
     // A count is structural, fixed under any error analysis.
     assert_eq!(
         refuse("ribs", Some(sigma())),
-        EditError::DocParamCountHasNoDistribution { var: sv("ribs") }
+        EditError::VarCountHasNoDistribution { var: sv("ribs") }
     );
     // The E2 invariants, by the same check the persistence doors run,
     // split by CLASS: a non-finite offset is a non-finite float on a
@@ -413,7 +413,7 @@ fn the_annotation_door_refuses_typed() {
                 hi: 0.0
             })
         ),
-        EditError::NonFiniteDocParam {
+        EditError::NonFiniteVar {
             var: sv("wall"),
             field: editor_core::DocParamField::Offset(editor_core::DistributionField::Lo),
         },
@@ -458,7 +458,7 @@ fn the_annotation_door_refuses_typed() {
 /// `Err` without an `EditError` around it.
 #[test]
 fn the_count_refusal_names_its_parameter_and_the_door_renders_alone() {
-    let shown = EditError::DocParamCountHasNoDistribution { var: sv("ribs") }.to_string();
+    let shown = EditError::VarCountHasNoDistribution { var: sv("ribs") }.to_string();
     assert!(
         shown.starts_with("ribs is a count"),
         "{shown:?} describes the parameter instead of naming it"
@@ -566,7 +566,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
                 var: p("ribs").into(),
                 distribution: Some(sigma()),
             },
-            EditError::DocParamCountHasNoDistribution { var: sv("ribs") },
+            EditError::VarCountHasNoDistribution { var: sv("ribs") },
         ),
         (
             "\"sigma\": 0.00001",

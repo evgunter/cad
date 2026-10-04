@@ -191,7 +191,7 @@ fn child_band_row() {
             node,
             &Selector::of(NamePat::any()),
             &[],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("select_where short-circuits before its band"),

@@ -854,7 +854,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::PayloadDocParamDimension {
+        &EditError::PayloadVarKind {
             name: name.clone(),
             node: held(3, "Measure"),
             declared: Dimension::Length,
@@ -877,7 +877,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::SlotDocParamDimension {
+        &EditError::SlotVarKind {
             name: name.clone(),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
@@ -888,7 +888,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::DocParamValueKindMismatch {
+        &EditError::VarValueKindMismatch {
             var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
             declared: Dimension::Length,
             offered: FreeValue::Count(2),
@@ -897,7 +897,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::DocParamCountHasNoDistribution {
+        &EditError::VarCountHasNoDistribution {
             var: editor_core::SpokenVar::new(editor_core::VarId(7), Some(name.clone())),
         },
         &["is a count", "structural parameter", "no distribution"],
@@ -1046,10 +1046,10 @@ test_utils::f6_variants! {
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
-        SlotUnknownDocParam,
-        SlotDocParamDimension,
-        PayloadUnknownDocParam,
-        PayloadDocParamDimension,
+        SlotUnknownVarName,
+        SlotVarKind,
+        PayloadUnknownVarName,
+        PayloadVarKind,
         EpsilonInvalid,
         Roots,
         NotAGauge,
@@ -1231,7 +1231,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::SlotUnknownDocParam {
+            SnapshotError::SlotUnknownVarName {
                 node: node(),
                 slot: SlotId::Radius,
                 name: VarName::from_static("fillet"),
@@ -1243,7 +1243,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::SlotDocParamDimension {
+            SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
                 name: VarName::from_static("depth"),
@@ -1253,7 +1253,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["depth", "as a length", "declared angle"],
         ),
         (
-            SnapshotError::PayloadUnknownDocParam {
+            SnapshotError::PayloadUnknownVarName {
                 node: held(5, "Measure"),
                 name: VarName::from_static("depth"),
             },
@@ -1264,7 +1264,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::PayloadDocParamDimension {
+            SnapshotError::PayloadVarKind {
                 node: held(5, "Measure"),
                 name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
@@ -1554,23 +1554,23 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     let name = VarName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
-        arm(&EditError::SlotUnknownDocParam {
+        arm(&EditError::SlotUnknownVarName {
             name: name.clone(),
             node: held(5, "Extrude"),
             slot: SlotId::Radius,
         }),
-        arm(&EditError::SlotDocParamDimension {
+        arm(&EditError::SlotVarKind {
             name: name.clone(),
             node: held(5, "Extrude"),
             slot: SlotId::Radius,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
-        arm(&EditError::PayloadUnknownDocParam {
+        arm(&EditError::PayloadUnknownVarName {
             name: name.clone(),
             node: held(5, "Extrude"),
         }),
-        arm(&EditError::PayloadDocParamDimension {
+        arm(&EditError::PayloadVarKind {
             name: name.clone(),
             node: held(5, "Extrude"),
             declared: Dimension::Length,
@@ -1578,23 +1578,23 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
         }),
     ];
     let load_door: Vec<(String, String)> = vec![
-        arm(&SnapshotError::SlotUnknownDocParam {
+        arm(&SnapshotError::SlotUnknownVarName {
             node: node(),
             slot: SlotId::Radius,
             name: name.clone(),
         }),
-        arm(&SnapshotError::SlotDocParamDimension {
+        arm(&SnapshotError::SlotVarKind {
             node: node(),
             slot: SlotId::Radius,
             name: name.clone(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
-        arm(&SnapshotError::PayloadUnknownDocParam {
+        arm(&SnapshotError::PayloadUnknownVarName {
             node: node(),
             name: name.clone(),
         }),
-        arm(&SnapshotError::PayloadDocParamDimension {
+        arm(&SnapshotError::PayloadVarKind {
             node: node(),
             name,
             declared: Dimension::Length,
@@ -3315,8 +3315,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     let node = || held(5, "Extrude");
     let framed: Vec<(&str, String)> = vec![
         (
-            "EditError::SlotUnknownDocParam",
-            EditError::SlotUnknownDocParam {
+            "EditError::SlotUnknownVarName",
+            EditError::SlotUnknownVarName {
                 name: name.clone(),
                 node: held(5, "Extrude"),
                 slot: SlotId::Radius,
@@ -3324,8 +3324,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             .to_string(),
         ),
         (
-            "EditError::ContinuousParamCannotBeCount",
-            EditError::ContinuousParamCannotBeCount {
+            "EditError::ContinuousVarCannotBeCount",
+            EditError::ContinuousVarCannotBeCount {
                 var: spoken.clone(),
             }
             .to_string(),
@@ -3348,8 +3348,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             .to_string(),
         ),
         (
-            "SnapshotError::SlotUnknownDocParam",
-            SnapshotError::SlotUnknownDocParam {
+            "SnapshotError::SlotUnknownVarName",
+            SnapshotError::SlotUnknownVarName {
                 node: node(),
                 slot: SlotId::Radius,
                 name: name.clone(),
@@ -3500,7 +3500,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(4, "Measure")],
         ),
         (
-            EditError::PayloadUnknownDocParam {
+            EditError::PayloadUnknownVarName {
                 name: name.clone(),
                 node: held(4, "Measure"),
             },

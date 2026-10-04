@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use editor_core::{
     DimensionError, DocEdit, EditError, EvalOptions, Expr, ExprPath, LoopProgram, MeasureExpr,
-    Node, NodeResult, ParamEnv, ParseError, PersistError, ProfileDoc, ProfileProgram,
+    Node, NodeResult, VarEnv, ParseError, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, content_pin,
     eval, eval_count, parse_expr, unparse,
 };
@@ -205,7 +205,7 @@ fn wrap_distance(text: &str, levels: usize) -> (String, usize) {
 #[test]
 fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
-        let env = ParamEnv::<f64>::default();
+        let env = VarEnv::<f64>::default();
         for (label, e, value) in [
             ("a left-nested sum", deep_length(0.5, BOUND), 0.5),
             (
@@ -217,7 +217,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         ] {
             assert_eq!(eval(&e, &env), Ok(value), "{label} evaluates at f64");
             assert!(
-                eval(&e, &ParamEnv::<Interval>::default()).is_ok(),
+                eval(&e, &VarEnv::<Interval>::default()).is_ok(),
                 "{label} evaluates at Interval"
             );
             let copy = e.clone();

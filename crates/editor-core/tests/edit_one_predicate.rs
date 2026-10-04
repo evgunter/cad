@@ -1005,7 +1005,7 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
 ///
 /// `FreeVar::first_non_finite` is the one rule and both doors ask it:
 /// the nominal first, then the annotation's offsets. The edit door
-/// names its answer `EditError::NonFiniteDocParam` and the load door
+/// names its answer `EditError::NonFiniteVar` and the load door
 /// `NonFiniteSite::DocParam`, and each carries the field the predicate
 /// identified — a door that dropped it would be answering a coarser
 /// question than the one that was asked.
@@ -1047,7 +1047,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
-            Err(EditError::NonFiniteDocParam { var: n, field }) => {
+            Err(EditError::NonFiniteVar { var: n, field }) => {
                 assert_eq!(n.name(), Some(&name));
                 assert_eq!(field, expected, "the edit door names the offending float");
             }
@@ -1080,7 +1080,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 ///
 /// `FreeVar::is_continuous_count` is the one rule and both doors ask
 /// it; this row pins the edit door's answer
-/// (`ContinuousParamCannotBeCount`).
+/// (`ContinuousVarCannotBeCount`).
 ///
 /// At the load door the same document refuses by another name, and
 /// that is what this row asserts: no unit in the table measures a
@@ -1104,7 +1104,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::ContinuousParamCannotBeCount { var: n }) => {
+        Err(EditError::ContinuousVarCannotBeCount { var: n }) => {
             assert_eq!(n.name(), Some(&name));
         }
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),

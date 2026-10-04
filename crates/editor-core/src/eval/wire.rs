@@ -140,7 +140,7 @@ pub(crate) struct LaneEnv<'a, T> {
     pub lift: super::ProfileLift,
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
-    pub params: &'a crate::expr::ParamEnv<T>,
+    pub params: &'a crate::expr::VarEnv<T>,
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
@@ -150,7 +150,7 @@ pub(crate) struct LaneEnv<'a, T> {
     /// embeds — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
-    pub nominal: &'a crate::expr::ParamEnv<f64>,
+    pub nominal: &'a crate::expr::VarEnv<f64>,
     /// The E4 seed this evaluation carries, by its variable (`None` on
     /// the build path). Consulted by the one place the lift cannot
     /// reach: a C6/D9-pinned section refuses a seed it would otherwise
@@ -396,7 +396,7 @@ pub(crate) fn instance_frame<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
     poses: &crate::mate::SolvedPoses<T>,
-    env: &crate::expr::ParamEnv<T>,
+    env: &crate::expr::VarEnv<T>,
     tol: Tol,
 ) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
     if poses.fault(id).is_some() {
@@ -4450,12 +4450,9 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
     // a parameter this program reads would arrive at the skinned
     // surface as a constant — a finite, wrong zero tangent.
-    // Keyed by the variable: the program's readers read names in this
-    // unit, so the variable's own name is what they are asked for.
+    // Keyed by the variable, which is what the program's readers read.
     if let Some(param) = lane.seed
-        && doc
-            .var_name(param)
-            .is_some_and(|name| program.references(name))
+        && program.reads(param)
     {
         return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
     }
@@ -5617,7 +5614,7 @@ mod stepped_operand_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
-    use crate::expr::{Dimension, Expr, ParamEnv, eval};
+    use crate::expr::{Dimension, Expr, VarEnv, eval};
     use geom_core::{Affine3, Band, Tol, Vec3};
 
     fn band() -> Band {
@@ -5629,7 +5626,7 @@ mod stepped_operand_tests {
     }
 
     fn value(e: &Expr) -> f64 {
-        eval::<f64>(e, &ParamEnv::default()).unwrap()
+        eval::<f64>(e, &VarEnv::default()).unwrap()
     }
 
     /// **The negative spacing's recourse, followed.** The refusal

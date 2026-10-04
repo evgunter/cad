@@ -385,7 +385,7 @@ fn build(tol: Tol) -> Die {
     // CALLS (SELECT-DESIGN §§1-2). Both atoms are EXACT — they read the
     // carrier's enum tag — so they are total: no funnel, no margin, and
     // `expect` here is a statement about the atoms, not optimism.
-    let params = doc.param_env::<f64>();
+    let params = doc.var_env::<f64>();
 
     // The twelve box edges: the only LINES in the pipped cube. Every
     // pip cavity contributes circles (two rim arcs, two meridian

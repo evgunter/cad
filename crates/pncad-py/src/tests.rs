@@ -1862,8 +1862,8 @@ fn expression_text_door_tags_are_stable() {
 /// expression whose exact arithmetic overflows `i64` and the text
 /// door refuses the literals that would build one.
 ///
-/// The environments come from `Doc::param_env`, which is the door the
-/// binding uses — building a `ParamEnv` by hand would pin the map
+/// The environments come from `Doc::var_env`, which is the door the
+/// binding uses — building a `VarEnv` by hand would pin the map
 /// against bindings no document produces, and the
 /// `param_dimension_mismatch` case in particular is only honest
 /// because it is what a redeclared parameter actually does: an
@@ -1907,7 +1907,7 @@ fn expression_evaluation_tags_are_stable() {
     declared.insert(width.clone(), Dimension::Length);
     let parse = |src: &str| parse_expr(src, &declared).expect("a well-formed expression");
 
-    let bound = lengths.param_env::<f64>();
+    let bound = lengths.var_env::<f64>();
 
     // The value the whole family exists for: an expression a caller
     // could not otherwise evaluate without re-implementing the
@@ -1923,14 +1923,14 @@ fn expression_evaluation_tags_are_stable() {
     );
 
     assert_eq!(
-        tag(&eval(&parse("width"), &empty.param_env::<f64>()).expect_err("no binding")),
+        tag(&eval(&parse("width"), &empty.var_env::<f64>()).expect_err("no binding")),
         "unknown_param"
     );
 
     // The expression's reference recorded a length; this document
     // declares the same name as a count.
     assert_eq!(
-        tag(&eval(&parse("width"), &counts.param_env::<f64>())
+        tag(&eval(&parse("width"), &counts.var_env::<f64>())
             .expect_err("the dimensions disagree")),
         "param_dimension_mismatch"
     );
@@ -2924,14 +2924,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- document parameters ----
     carries(
-        &E::PayloadUnknownDocParam {
+        &E::PayloadUnknownVarName {
             name: param(),
             node: sp(1),
         },
         &["node", "param"],
     );
     carries(
-        &E::PayloadDocParamDimension {
+        &E::PayloadVarKind {
             name: param(),
             node: sp(1),
             declared: Dimension::Length,
@@ -2940,7 +2940,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "param", "expected", "found"],
     );
     carries(
-        &E::SlotUnknownDocParam {
+        &E::SlotUnknownVarName {
             name: param(),
             node: sp(1),
             slot: SlotId::Count,
@@ -2948,7 +2948,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "slot", "param"],
     );
     carries(
-        &E::SlotDocParamDimension {
+        &E::SlotVarKind {
             name: param(),
             node: sp(1),
             slot: SlotId::Count,
@@ -2957,7 +2957,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "slot", "param", "expected", "found"],
     );
-    carries(&E::ContinuousParamCannotBeCount { var: spv() }, &["param"]);
+    carries(&E::ContinuousVarCannotBeCount { var: spv() }, &["param"]);
     carries(
         &E::UnknownVar {
             var: param().into(),
@@ -2994,14 +2994,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["param", "expected", "found"],
     );
     carries(
-        &E::NonFiniteDocParam {
+        &E::NonFiniteVar {
             var: spv(),
             field: pncad::document::DocParamField::Nominal,
         },
         &["param"],
     );
     carries(
-        &E::DocParamValueKindMismatch {
+        &E::VarValueKindMismatch {
             var: spv(),
             declared: Dimension::Length,
             offered: FreeValue::Count(3),
@@ -4490,12 +4490,12 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "slot",
             "unknown",
-            EditError::SlotUnknownDocParam {
+            EditError::SlotUnknownVarName {
                 name: name(),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
             },
-            SnapshotError::SlotUnknownDocParam {
+            SnapshotError::SlotUnknownVarName {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
@@ -4504,14 +4504,14 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "slot",
             "dimension",
-            EditError::SlotDocParamDimension {
+            EditError::SlotVarKind {
                 name: name(),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
-            SnapshotError::SlotDocParamDimension {
+            SnapshotError::SlotVarKind {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
@@ -4522,11 +4522,11 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "payload",
             "unknown",
-            EditError::PayloadUnknownDocParam {
+            EditError::PayloadUnknownVarName {
                 name: name(),
                 node: spoken.clone(),
             },
-            SnapshotError::PayloadUnknownDocParam {
+            SnapshotError::PayloadUnknownVarName {
                 node: spoken.clone(),
                 name: name(),
             },
@@ -4534,13 +4534,13 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "payload",
             "dimension",
-            EditError::PayloadDocParamDimension {
+            EditError::PayloadVarKind {
                 name: name(),
                 node: spoken.clone(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
-            SnapshotError::PayloadDocParamDimension {
+            SnapshotError::PayloadVarKind {
                 node: spoken.clone(),
                 name: name(),
                 declared: Dimension::Length,
@@ -4918,16 +4918,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "appearance_wrong_kind",
             "assertion_dimension",
             "assertion_target",
-            "continuous_param_cannot_be_count",
+            "continuous_var_cannot_be_count",
             "declare_names_missing_node",
             "declared_name_not_upstream",
             "declared_site_not_an_operand",
             "delete_would_dangle",
             "dimension",
-            "doc_param_count_has_no_distribution",
-            "doc_param_count_has_no_unit",
-            "doc_param_unit_mismatch",
-            "doc_param_value_kind_mismatch",
+            "var_count_has_no_distribution",
+            "var_count_has_no_unit",
+            "var_unit_mismatch",
+            "var_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
@@ -4952,15 +4952,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_unresolved_in_evaluation",
             "node_id_collides",
             "non_finite_alignment",
-            "non_finite_doc_param",
+            "non_finite_var",
             "non_finite_placement",
             "non_rigid_placement",
             "not_a_gauge",
             "not_structural_slot",
             "offset_on_non_instance",
             "path_off_tree",
-            "payload_doc_param_dimension",
-            "payload_unknown_doc_param",
+            "payload_var_kind",
+            "payload_unknown_var_name",
             "pin_unchanged",
             "placement_axis",
             "placement_rule_mismatch",
@@ -4984,8 +4984,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
-            "slot_doc_param_dimension",
-            "slot_unknown_doc_param",
+            "slot_var_kind",
+            "slot_unknown_var_name",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "too_few_members",
@@ -5939,15 +5939,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "node_not_minted",
             "not_a_gauge",
             "order_mismatch",
-            "payload_doc_param_dimension",
-            "payload_unknown_doc_param",
+            "payload_var_kind",
+            "payload_unknown_var_name",
             "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
             "slot_dimension",
-            "slot_doc_param_dimension",
-            "slot_unknown_doc_param",
+            "slot_var_kind",
+            "slot_unknown_var_name",
             "step_ids",
             "var_kind",
             "var_name_twice",
@@ -6394,8 +6394,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // agree word for word is held by
     // `the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`;
     // these four rows say only that the sharing is deliberate.
-    ("payload_doc_param_dimension", 2),
-    ("payload_unknown_doc_param", 2),
+    ("payload_var_kind", 2),
+    ("payload_unknown_var_name", 2),
     ("pcurve", 6),
     ("pcurves", 3),
     // One fact for the boolean, the shell and the split: the result sort
@@ -6414,8 +6414,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("sliver_join", 2),
     ("sliver_rim", 2),
     // The slot-addressed half of the four above, same pin.
-    ("slot_doc_param_dimension", 2),
-    ("slot_unknown_doc_param", 2),
+    ("slot_var_kind", 2),
+    ("slot_unknown_var_name", 2),
     ("smooth_join_refuted", 2),
     ("step_ids", 3),
     ("structure", 3),

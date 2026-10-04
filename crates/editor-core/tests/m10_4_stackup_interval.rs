@@ -197,7 +197,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Sited
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("the surface-kind atom is exact");
@@ -1162,7 +1162,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("exact atom");

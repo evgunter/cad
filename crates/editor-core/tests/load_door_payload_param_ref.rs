@@ -6,10 +6,10 @@
 //! `MeasureExpr` value leaves and a `Node::Assertion`'s bound
 //! (`node::payload_exprs`) — ask the same one predicate the slot
 //! expressions ask. The two doors only name its answer: the edit door
-//! as `EditError::PayloadUnknownDocParam` and
-//! `EditError::PayloadDocParamDimension`, the load door as
-//! `SnapshotError::PayloadUnknownDocParam` and
-//! `SnapshotError::PayloadDocParamDimension`. So a file cannot carry a
+//! as `EditError::PayloadUnknownVarName` and
+//! `EditError::PayloadVarKind`, the load door as
+//! `SnapshotError::PayloadUnknownVarName` and
+//! `SnapshotError::PayloadVarKind`. So a file cannot carry a
 //! payload expression an edit door would have refused.
 //!
 //! **One row per FACT, naming both doors' refusals for it**: a
@@ -152,7 +152,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
     }
 
@@ -160,7 +160,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
+        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownVarName { node, name: n })) => {
             assert_eq!((node.id(), n), (measure, name));
         }
         other => panic!("the load door must refuse an undeclared payload param, got {other:?}"),
@@ -197,7 +197,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     match load(&retype_to_angle(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadDocParamDimension {
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
             node,
             name: n,
             declared,
@@ -242,14 +242,14 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
+        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownVarName { node, name: n })) => {
             assert_eq!((node.id(), n), (assertion, name));
         }
         other => panic!("the load door must refuse an undeclared bound param, got {other:?}"),
@@ -331,7 +331,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
+        Err(PersistError::Snapshot(SnapshotError::SlotUnknownVarName {
             node,
             slot,
             name: n,
@@ -408,7 +408,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
     });
 
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
+        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownVarName { node, name: n })) => {
             assert_eq!((node.id(), n), (assertion, name));
         }
         other => panic!(

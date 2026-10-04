@@ -1196,7 +1196,7 @@ impl Doc {
     fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<super::step::Piece>>> {
         let program = profile_of(&self.inner, profile)?;
         let pieces = program
-            .pieces(&self.inner.param_env::<f64>(), Tol::witness())
+            .pieces(&self.inner.var_env::<f64>(), Tol::witness())
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
@@ -1566,7 +1566,7 @@ impl Doc {
     /// names both dimensions, and `non_finite_result` is the
     /// arithmetic having overflowed or hit a pole.
     fn eval(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<Py<PyAny>> {
-        let env = self.inner.param_env::<f64>();
+        let env = self.inner.var_env::<f64>();
         let value = d::eval(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))?;
         // Re-dimensioning what `eval` erased: the expression's own
         // dimension is what says which quantity the number is, and it
@@ -1603,7 +1603,7 @@ impl Doc {
     /// it actually has — a count is never inferred from a continuous
     /// value.
     fn eval_count(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<i64> {
-        let env = self.inner.param_env::<f64>();
+        let env = self.inner.var_env::<f64>();
         d::eval_count(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))
     }
 

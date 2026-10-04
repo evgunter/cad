@@ -175,7 +175,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Sited
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("the surface-kind atom is exact");
@@ -513,7 +513,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
 #[test]
 fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     let s = slab(None, None);
-    let env = seed_env::<Dual64, _>(&s.doc, s.doc.param_env::<Dual64>(), var(&s.doc, "w"))
+    let env = seed_env::<Dual64, _>(&s.doc, s.doc.var_env::<Dual64>(), var(&s.doc, "w"))
         .expect("w is continuous");
     let binding = |n: &'static str| match env.bindings[&name(n)] {
         ParamValue::Continuous { value, .. } => value,

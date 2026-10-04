@@ -1602,7 +1602,8 @@ pub enum NodeErrorKind {
         spacing: geom_core::MarginDiag,
         /// The authored direction negated, each component spelled as
         /// a user writes it: with the spacing made positive, it builds
-        /// the same copies.
+        /// the same copies. A reader is spelled by its id (`#<16 hex>`),
+        /// which the speaker says by name ([`crate::spoken::Speaker::formula`]).
         reversed: [String; 3],
     },
     /// A linear pattern's spacing is zero at tolerance, so every copy
@@ -1614,7 +1615,8 @@ pub enum NodeErrorKind {
     /// A circular pattern's step reaches a full turn at tolerance, or
     /// passes it.
     FullRangeStep {
-        /// The step as authored.
+        /// The step as authored, a reader spelled by its id as in
+        /// `NegativeSpacing::reversed`.
         step: String,
         /// What the step evaluated to, in radians, when it is not a
         /// literal (a literal's text already says), for the sentence
@@ -2494,7 +2496,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "pattern count {count} is not at least 1")
             }
             Self::NegativeSpacing { spacing, reversed } => {
-                let [x, y, z] = reversed;
+                let [x, y, z] = reversed.each_ref().map(|text| by.formula(text));
                 write!(
                     f,
                     "the pattern spacing evaluated to {spacing} m, below zero, and a spacing is \
@@ -2518,7 +2520,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 evaluated,
                 turns,
             } => {
-                write!(f, "the pattern step {step}")?;
+                write!(f, "the pattern step {}", by.formula(step))?;
                 if let Some(radians) = evaluated {
                     write!(f, ", which evaluated to {radians} rad,")?;
                 }
@@ -2539,14 +2541,16 @@ impl crate::spoken::Say for NodeErrorKind {
                     StepTurns::Within(within) if evaluated.is_some() => write!(
                         f,
                         " is past a full turn, and a step is an angle within one. Recourse: \
-                         make it evaluate within one turn; {within} does, and places every copy \
-                         where this does, up to rounding"
+                         make it evaluate within one turn; {} does, and places every copy \
+                         where this does, up to rounding",
+                        by.formula(within)
                     ),
                     StepTurns::Within(within) => write!(
                         f,
                         " is past a full turn, and a step is an angle within one. Recourse: \
-                         write it as {within}, which places every copy where this does, up to \
-                         rounding"
+                         write it as {}, which places every copy where this does, up to \
+                         rounding",
+                        by.formula(within)
                     ),
                     StepTurns::Unresolved => write!(
                         f,
@@ -3788,8 +3792,8 @@ where
     // evaluated over that box" a fact about the run rather than about
     // each call site.
     let env = match opts.param_box.as_deref() {
-        None => doc.param_env::<T>(),
-        Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
+        None => doc.var_env::<T>(),
+        Some(b) => match crate::analysis::var_env_over::<T, _>(doc, b) {
             Ok(env) => env,
             Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
         },
@@ -3808,7 +3812,7 @@ where
     // The NOMINAL environment, built beside the lane one and carried
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
-    let nominal_env = doc.param_env::<f64>();
+    let nominal_env = doc.var_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -4138,7 +4142,7 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 /// lookup, and the op wiring.
 fn eval_node<T>(
     doc: &Doc<ProfileProgram>,
-    env: &crate::expr::ParamEnv<T>,
+    env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
@@ -4708,7 +4712,7 @@ mod tag {
         ///
         /// * A COUNT slot writes no nominal word. [`crate::expr::eval_count`]
         ///   reads the document's exact `Count` binding at every
-        ///   scalar and [`crate::analysis::param_env_over`] widens
+        ///   scalar and [`crate::analysis::var_env_over`] widens
         ///   only `Continuous` parameters, so a count's lane word IS
         ///   its nominal.
         /// * A `Profile` node has no slots here at all — its program
@@ -6269,20 +6273,20 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
         }
         K::Value(e) => {
             h.write_tag(tag::measure_expr::VALUE);
-            // The value leaf's literal BITS and parameter names — the
-            // same two facts `Expr::bit_eq` compares, so two leaves
-            // that are bit-equal hash equal and no others do.
+            // The value leaf's literal BITS and the variables it reads
+            // — the same two facts `Expr::bit_eq` compares, so two
+            // leaves that are bit-equal hash equal and no others do.
             let mut bits = Vec::new();
             e.literal_bits(&mut bits);
             h.write_u64(bits.len() as u64);
             for b in bits {
                 h.write_u64(b);
             }
-            let mut params = Vec::new();
-            e.param_refs(&mut params);
-            h.write_u64(params.len() as u64);
-            for (name, dim) in params {
-                h.write_str(name.as_str());
+            let mut reads = Vec::new();
+            e.var_reads(&mut reads);
+            h.write_u64(reads.len() as u64);
+            for (var, dim) in reads {
+                h.write_u64(var.0);
                 h.write_tag(dimension_tag(dim));
             }
         }

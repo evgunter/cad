@@ -304,7 +304,7 @@ fn distributed_plate() -> ProfileDoc {
             &[editor_core::GeomPred::SurfaceKind(
                 editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the hole wall is an exact atom");

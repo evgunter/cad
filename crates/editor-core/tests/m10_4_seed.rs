@@ -318,13 +318,13 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     // DOCUMENT first, so an unknown name refuses as unknown even at a
     // scalar that would have refused the tangent.
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), var(&doc, "nope")).err(),
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "nope")).err(),
         Some(SeedError::UnknownParam {
             param: spoken(&doc, "nope")
         })
     );
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), var(&doc, "w")).err(),
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "w")).err(),
         Some(SeedError::TangentUnrepresentable {
             param: spoken(&doc, "w")
         })
@@ -338,7 +338,7 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
 #[test]
 fn the_seed_is_exactly_one_and_zero_by_construction() {
     let doc = two_param_web();
-    let env = seed_env::<Dual64, _>(&doc, doc.param_env::<Dual64>(), var(&doc, "hole_r"))
+    let env = seed_env::<Dual64, _>(&doc, doc.var_env::<Dual64>(), var(&doc, "hole_r"))
         .expect("hole_r is continuous");
     let binding = |n: &'static str| match env.bindings[&name(n)] {
         ParamValue::Continuous { value, .. } => value,

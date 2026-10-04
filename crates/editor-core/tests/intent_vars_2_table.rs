@@ -26,7 +26,7 @@ use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     Dimension, Distribution, DocEdit, EditError, Expr, FreeValue, FreeVar, MeasureExpr, Node,
     ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDef, VarId,
-    VarKind, VarName, apply, load, param_env_over, save,
+    VarKind, VarName, apply, load, var_env_over, save,
 };
 use geom_core::Tol;
 use geom_core::predicate::{Band, Margin, Sign};
@@ -189,7 +189,7 @@ fn decide(m: Sym<f64>) -> Result<Sign, geom_core::predicate::Indeterminate> {
 }
 
 /// The value `env` binds `name` to.
-fn bound(name: &'static str, env: &editor_core::ParamEnv<Sym<f64>>) -> Sym<f64> {
+fn bound(name: &'static str, env: &editor_core::VarEnv<Sym<f64>>) -> Sym<f64> {
     match env.bindings[&n(name)] {
         editor_core::ParamValue::Continuous { value, .. } => value,
         ref other => panic!("{name}: {other:?}"),
@@ -205,7 +205,7 @@ fn the_symbol_is_the_variables_id() {
     let (w_id, v_id) = (id(&doc, "w"), id(&doc, "v"));
     let leaf = ParamBox::from_axes(BTreeMap::new());
     let (same, counts) = session(|| {
-        let env = param_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
+        let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
         let w = bound("w", &env);
         decide(w - w)
     });
@@ -213,7 +213,7 @@ fn the_symbol_is_the_variables_id() {
     assert_eq!(counts.symbolic_zero, 1, "w − w is a theorem");
 
     let (_, counts) = session(|| {
-        let env = param_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
+        let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
         decide(bound("w", &env) - bound("v", &env))
     });
     assert_eq!(
@@ -223,7 +223,7 @@ fn the_symbol_is_the_variables_id() {
 
     for (name, var) in [("w", w_id), ("v", v_id)] {
         let (_, counts) = session(|| {
-            let env = param_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
+            let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
             let by_hand = Sym::<f64>::from_f64(VALUE)
                 + Sym::param_over(ParamSymbol::new(var.0), 0.0, 0.0, 0.0);
             decide(bound(name, &env) - by_hand)
@@ -250,7 +250,7 @@ fn a_kind_is_fixed() {
     )
     .unwrap_err();
     assert!(
-        matches!(&err, EditError::DocParamValueKindMismatch { var, .. } if var.id() == w),
+        matches!(&err, EditError::VarValueKindMismatch { var, .. } if var.id() == w),
         "{err:?}"
     );
     let err = step(

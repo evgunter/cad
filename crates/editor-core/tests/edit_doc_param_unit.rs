@@ -290,13 +290,13 @@ fn the_unit_door_refuses_typed() {
     // A count is a number, not a quantity.
     assert_eq!(
         refuse("ribs", mm()),
-        EditError::DocParamCountHasNoUnit { var: sv("ribs") }
+        EditError::VarCountHasNoUnit { var: sv("ribs") }
     );
     // The unit must MEASURE the declared dimension — the pairing the
     // save/load validator refuses a document for.
     assert_eq!(
         refuse("wall", deg()),
-        EditError::DocParamUnitMismatch {
+        EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
             declared: Dimension::Length,
@@ -344,7 +344,7 @@ fn the_unit_door_refuses_typed() {
     );
 }
 
-/// **The mismatch sentence, in the right ORDER.** `DocParamUnitMismatch`
+/// **The mismatch sentence, in the right ORDER.** `VarUnitMismatch`
 /// carries two dimensions and renders both, so a rendering that swapped
 /// them would still contain both words and still name the parameter —
 /// invisible to the row above. This one pins each dimension to the
@@ -539,12 +539,12 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         (
             "\"Name\": \"wall\"",
             "\"Name\": \"ribs\"",
-            EditError::DocParamCountHasNoUnit { var: sv("ribs") },
+            EditError::VarCountHasNoUnit { var: sv("ribs") },
         ),
         (
             "\"unit\": \"mm\"",
             "\"unit\": \"deg\"",
-            EditError::DocParamUnitMismatch {
+            EditError::VarUnitMismatch {
                 var: sv("wall"),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
@@ -567,7 +567,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
                 var: var.clone(),
                 unit: mm(),
             },
-            EditError::DocParamCountHasNoUnit { var } => DocEdit::SetVarUnit {
+            EditError::VarCountHasNoUnit { var } => DocEdit::SetVarUnit {
                 var: var.id().into(),
                 unit: mm(),
             },
@@ -734,7 +734,7 @@ fn the_table_has_exactly_one_scalar_row() {
 }
 
 /// **The sibling door, swept.** The review found this row's claim
-/// inverted: `EditError::DocParamUnitMismatch`'s rustdoc said the
+/// inverted: `EditError::VarUnitMismatch`'s rustdoc said the
 /// pairing fault was refused "at the edit door, before it can reach a
 /// document at all", while the whole-definition door still let a mismatched
 /// pair into a live document and only save/load objected. The finding
@@ -766,7 +766,7 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &editor_core::RefusingReach,
         )
         .expect_err("a length written in degrees is refused at the edit door"),
-        EditError::DocParamUnitMismatch {
+        EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
             declared: Dimension::Length,

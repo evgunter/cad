@@ -396,11 +396,17 @@ pub struct Speaker<'a> {
 /// A document a [`Speaker`] reads nodes off, whatever its program.
 trait HoldsNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+    /// The name the document holds for the variable `id`, if any.
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
 }
 
 impl<P> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        self.var_name(id).cloned()
     }
 }
 
@@ -409,24 +415,37 @@ impl<P> HoldsNodes for Doc<P> {
 /// carries whole, so the door's refusal speaks them ([`Speaker::held`])
 /// with no document at hand. Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HeldNodes(Box<[SpokenNode]>);
+pub struct HeldNodes {
+    nodes: Box<[SpokenNode]>,
+    vars: Box<[SpokenVar]>,
+}
 
 impl HeldNodes {
     /// These nodes spoken again from `doc`, a later version of the
     /// document they were held from ([`SpokenNode::respoken`]).
     #[must_use]
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
-        Self(self.0.iter().map(|node| node.respoken(doc)).collect())
+        Self {
+            nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
+            vars: self.vars.iter().map(|var| doc.spoken_var(var.id())).collect(),
+        }
     }
 }
 
 impl HoldsNodes for HeldNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
-        self.0
+        self.nodes
             .iter()
             .find(|node| node.id() == id)
             .cloned()
             .unwrap_or_else(|| SpokenNode::absent(id))
+    }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        self.vars
+            .iter()
+            .find(|var| var.id() == id)
+            .and_then(|var| var.name().cloned())
     }
 }
 
@@ -434,6 +453,7 @@ impl HoldsNodes for HeldNodes {
 struct Recording<'d, P> {
     doc: &'d Doc<P>,
     said: core::cell::RefCell<Vec<SpokenNode>>,
+    vars: core::cell::RefCell<Vec<SpokenVar>>,
 }
 
 impl<P> HoldsNodes for Recording<'_, P> {
@@ -445,6 +465,15 @@ impl<P> HoldsNodes for Recording<'_, P> {
         }
         node
     }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        let var = self.doc.spoken_var(id);
+        let mut said = self.vars.borrow_mut();
+        if said.iter().all(|held| held.id() != id) {
+            said.push(var.clone());
+        }
+        var.name().cloned()
+    }
 }
 
 /// **Every node `value`'s sentence names, as `doc` holds it now**
@@ -455,6 +484,7 @@ pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
     let recording = Recording {
         doc,
         said: core::cell::RefCell::new(Vec::new()),
+        vars: core::cell::RefCell::new(Vec::new()),
     };
     let speaker = Speaker {
         doc: Some(&recording),
@@ -463,7 +493,10 @@ pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
     // The sentence is written only to be heard: the nodes it names are
     // what is kept.
     let _ = Said(value, speaker).to_string();
-    HeldNodes(recording.said.into_inner().into_boxed_slice())
+    HeldNodes {
+        nodes: recording.said.into_inner().into_boxed_slice(),
+        vars: recording.vars.into_inner().into_boxed_slice(),
+    }
 }
 
 impl<'a> Speaker<'a> {
@@ -518,6 +551,41 @@ impl<'a> Speaker<'a> {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
         }
+    }
+
+    /// **A formula's text, its readers said**: text [`crate::unparse`]
+    /// wrote with no names writes each reader `#<16 hex>`, and this
+    /// speaker says each such reader by the name its document holds,
+    /// leaving the ones it holds none for. A refusal kept by an
+    /// evaluation memo holds such text, so a rename — which recomputes
+    /// nothing — still reads in the sentence.
+    #[must_use]
+    pub fn formula(self, text: &str) -> String {
+        let Some(doc) = self.doc else {
+            return text.to_owned();
+        };
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(at) = rest.find('#') {
+            out.push_str(&rest[..at]);
+            let tail = &rest[at + 1..];
+            let hex = tail.get(..16).filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
+            match hex
+                .and_then(|h| u64::from_str_radix(h, 16).ok())
+                .and_then(|bits| doc.speak_var(crate::var::VarId(bits)))
+            {
+                Some(name) => {
+                    out.push_str(name.as_str());
+                    rest = &tail[16..];
+                }
+                None => {
+                    out.push('#');
+                    rest = tail;
+                }
+            }
+        }
+        out.push_str(rest);
+        out
     }
 
     /// The name `name`, its minting node said: `face name minted by

@@ -50,7 +50,7 @@ fn wall(
         panic!("an extrude's operand is a profile");
     };
     let piece = program
-        .pieces(&doc.param_env::<f64>(), Tol::witness())
+        .pieces(&doc.var_env::<f64>(), Tol::witness())
         .expect("the profile replays")
         .edge(loop_index, segment)
         .expect("the position is the profile's");

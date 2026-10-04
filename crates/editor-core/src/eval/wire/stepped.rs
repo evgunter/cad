@@ -116,7 +116,7 @@ impl<T: Decide> SteppedOperands<T> {
             },
         };
         Err(NodeErrorKind::FullRangeStep {
-            step: crate::expr::unparse(authored),
+            step: crate::expr::unparse(authored, &|_| None),
             evaluated: authored.literal_value().is_none().then_some(seen.margin),
             turns,
         })
@@ -188,9 +188,9 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
     within.map_or_else(
         |_| {
             let op = if positive { '-' } else { '+' };
-            format!("{} {op} {} deg", crate::expr::unparse(authored), 360 * held)
+            format!("{} {op} {} deg", crate::expr::unparse(authored, &|_| None), 360 * held)
         },
-        |e| crate::expr::unparse(&e),
+        |e| crate::expr::unparse(&e, &|_| None),
     )
 }
 
@@ -204,8 +204,8 @@ fn negated(authored: &Expr) -> String {
         None => Expr::neg(authored.clone()),
     };
     flipped.map_or_else(
-        |_| format!("-({})", crate::expr::unparse(authored)),
-        |e| crate::expr::unparse(&e),
+        |_| format!("-({})", crate::expr::unparse(authored, &|_| None)),
+        |e| crate::expr::unparse(&e, &|_| None),
     )
 }
 

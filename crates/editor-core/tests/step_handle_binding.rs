@@ -19,7 +19,7 @@ test_utils::gated_to![
 
 use crate::fixture::{self, insert, tol};
 use editor_core::{
-    AuthoredStep, DocEdit, EditError, LoopProgram, Node, ParamEnv, PieceRole, ProfileDoc,
+    AuthoredStep, DocEdit, EditError, LoopProgram, Node, VarEnv, PieceRole, ProfileDoc,
     ProfileEdgeRef, ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, keep_grid,
 };
 use geom_core::{Point2, Tol};
@@ -127,7 +127,7 @@ fn a_handle_binds_to_the_id_its_placement_minted() {
             role: PieceRole::RunOut
         }
     );
-    let drawn = p.pieces(&ParamEnv::default(), tol()).unwrap();
+    let drawn = p.pieces(&VarEnv::default(), tol()).unwrap();
     assert!(
         drawn.edges[0].contains(&wall),
         "the run out is a drawn piece: {drawn:?}"

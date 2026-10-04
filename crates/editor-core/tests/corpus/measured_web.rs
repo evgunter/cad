@@ -126,7 +126,7 @@ pub fn document() -> CorpusDoc {
             &[editor_core::GeomPred::SurfaceKind(
                 editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the surface-kind atom is exact");

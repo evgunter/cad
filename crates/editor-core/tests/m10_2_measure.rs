@@ -185,8 +185,8 @@ fn faces_of_kind(
         .collect()
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).var_env::<f64>()
 }
 
 /// One wall per hole, found the way a user finds them: evaluate, then

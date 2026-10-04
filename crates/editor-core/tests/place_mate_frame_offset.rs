@@ -254,12 +254,12 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     };
     let err = refused(named("nowhere", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotUnknownDocParam { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotUnknownVarName { slot: s, .. } if *s == slot),
         "{err:?}"
     );
     let err = refused(named("tilt", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotDocParamDimension { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotVarKind { slot: s, .. } if *s == slot),
         "{err:?}"
     );
 }

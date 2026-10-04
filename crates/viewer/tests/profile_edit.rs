@@ -20,7 +20,7 @@ use crate::common;
 use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
-    DocEdit, EditError, Expr, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId,
+    DocEdit, EditError, Expr, LoopProgram, Node, VarEnv, ProfileProgram, RecipeNodeId, SlotId,
     StepArg, StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -260,7 +260,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let held = sketch::held_program(
             pncad::document::SpokenNode::absent(node),
             &program,
-            &ParamEnv::default(),
+            &VarEnv::default(),
         )
         .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);

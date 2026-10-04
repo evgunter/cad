@@ -439,7 +439,7 @@ class TestPlateParam(unittest.TestCase):
                 )
             )
         self.assertEqual(
-            ctx.exception.variant, "doc_param_value_kind_mismatch"
+            ctx.exception.variant, "var_value_kind_mismatch"
         )
 
     def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):

@@ -7,7 +7,7 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, ParamEnv, RecipeNodeId, SitedRef, SlotId,
+    Dimension, DocEdit, EditError, Expr, FreeVar, VarEnv, RecipeNodeId, SitedRef, SlotId,
     VarName, eval, eval_count,
 };
 use geom_core::Tol;
@@ -20,7 +20,7 @@ struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -153,7 +153,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
             .unwrap()
             .expr(SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
-        &pos.param_env(),
+        &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
@@ -161,7 +161,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
             .unwrap()
             .expr(SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
-        &neg.param_env(),
+        &neg.var_env(),
     )
     .unwrap();
     assert_ne!(vp.to_bits(), vn.to_bits(), "bits differ");
@@ -258,7 +258,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
     // mul(Scalar, Length) → Length: constructible with BOTH refs.
     let expr = Expr::mul(p_scl, p_len).unwrap();
     // eval: whichever binding "q" has, one ref mismatches — typed.
-    let mut env: ParamEnv<f64> = ParamEnv::default();
+    let mut env: VarEnv<f64> = VarEnv::default();
     env.bindings.insert(
         VarName::from_static("q"),
         editor_core::ParamValue::Continuous {
@@ -289,7 +289,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(res, Err(EditError::SlotDocParamDimension { .. })),
+        matches!(res, Err(EditError::SlotVarKind { .. })),
         "got {res:?}"
     );
 }
@@ -301,7 +301,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
 /// error as any other out-of-range count — never a panic.
 #[test]
 fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
-    let env = ParamEnv::<f64>::default();
+    let env = VarEnv::<f64>::default();
     for n in [
         i64::MIN,
         i64::MAX,
@@ -352,7 +352,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         slot: SlotId::Origin(Axis3::X),
         path: vec![1],
     };
-    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.param_env()).unwrap();
+    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.var_env()).unwrap();
     assert_eq!(before, 2.0);
     // Replace the ANCESTOR (whole slot, path []) with 5.0 + 7.0.
     let replaced = a
@@ -372,7 +372,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         .unwrap()
         .doc;
     // The old path still RESOLVES — to a different subexpression.
-    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.param_env()).unwrap();
+    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.var_env()).unwrap();
     assert_eq!(after, 7.0, "silent re-point (witness): 2.0 became 7.0");
     // Arity-shrinking ancestor replace: old path now dangles as None
     // (detectable, but an Option, not a typed error).
@@ -417,7 +417,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         path: vec![0],
     };
     let check = |d: &Doc| {
-        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.param_env()).unwrap();
+        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.var_env()).unwrap();
         assert_eq!(v.to_bits(), marker.to_bits(), "referent bits");
     };
     check(&a.doc);
@@ -743,7 +743,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     assert_eq!(a1.record, a2.record);
     // eval purity in (expr, params): repeated evals bit-identical.
     let expr = Expr::div(len(0.1), scl(0.3)).unwrap();
-    let env = ParamEnv::<f64>::default();
+    let env = VarEnv::<f64>::default();
     let (v1, v2) = (
         eval::<f64>(&expr, &env).unwrap(),
         eval::<f64>(&expr, &env).unwrap(),
@@ -761,7 +761,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
 #[test]
 fn r6_nonfinite_doors_closed() {
     use editor_core::{DimensionError, EvalError};
-    let env = ParamEnv::<f64>::default();
+    let env = VarEnv::<f64>::default();
     // Door 2: pole and indeterminate-form conduits refused.
     assert_eq!(
         eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env),
@@ -811,7 +811,7 @@ fn r6_nonfinite_doors_closed() {
         );
         assert_eq!(
             res.unwrap_err(),
-            EditError::NonFiniteDocParam {
+            EditError::NonFiniteVar {
                 var: spoken,
                 field: editor_core::DocParamField::Nominal,
             },
@@ -830,8 +830,8 @@ fn r6_nonfinite_doors_closed() {
 fn r8_interval_lane_representative_and_zero_divisor() {
     use editor_core::eval;
     use geom_core::Interval;
-    let env_f = ParamEnv::<f64>::default();
-    let env_i = ParamEnv::<Interval>::default();
+    let env_f = VarEnv::<f64>::default();
+    let env_i = VarEnv::<Interval>::default();
     let cases: Vec<Expr> = vec![
         Expr::add(len(0.1), len(0.2)).unwrap(),
         Expr::mul(scl(3.0), Expr::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
@@ -935,7 +935,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // cannot move the pattern count: value before == after.
     let n_before = eval_count(
         doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
     )
     .unwrap();
     let a2 = doc
@@ -951,7 +951,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     assert!(!a2.record.structural);
     let n_after = eval_count(
         a2.doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
-        &a2.doc.param_env::<f64>(),
+        &a2.doc.var_env::<f64>(),
     )
     .unwrap();
     assert_eq!(n_before, n_after);
@@ -1023,13 +1023,13 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
             assert_eq!(ea.dim(), eb.dim(), "slot dim {id:?}/{slot:?}");
             if slot.is_structural() {
                 let (va, vb) = (
-                    eval_count(ea, &a.param_env::<f64>()),
-                    eval_count(eb, &b.param_env::<f64>()),
+                    eval_count(ea, &a.var_env::<f64>()),
+                    eval_count(eb, &b.var_env::<f64>()),
                 );
                 assert_eq!(va, vb, "count slot {id:?}/{slot:?}");
             } else {
-                let va = eval::<f64>(ea, &a.param_env()).unwrap();
-                let vb = eval::<f64>(eb, &b.param_env()).unwrap();
+                let va = eval::<f64>(ea, &a.var_env()).unwrap();
+                let vb = eval::<f64>(eb, &b.var_env()).unwrap();
                 assert_eq!(
                     va.to_bits(),
                     vb.to_bits(),

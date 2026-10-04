@@ -230,7 +230,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotUnknownDocParam {
+        Err(EditError::SlotUnknownVarName {
             name: n,
             node,
             slot,
@@ -246,7 +246,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         crate::wire::wire_undeclare(wire, name.as_str());
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
+        Err(PersistError::Snapshot(SnapshotError::SlotUnknownVarName {
             node,
             slot,
             name: n,
@@ -291,7 +291,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDocParamDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
             name: n,

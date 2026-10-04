@@ -14,7 +14,7 @@
 //!   param-ref doors for the param TABLE, which are different faults.
 //! - The dimension arm's rendered prose names the node (PROBE 3) —
 //!   ADOPTED: the fact is now a word of the F6 case for
-//!   `SnapshotError::PayloadDocParamDimension` in `display_contract`,
+//!   `SnapshotError::PayloadVarKind` in `display_contract`,
 //!   which is the census that owns rendered prose, so the probe is
 //!   gone rather than kept as a second copy of it.
 //! - The noun both payload arms use (PROBE 4): it said "measurement
@@ -203,7 +203,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadDocParamDimension {
+        Err(EditError::PayloadVarKind {
             declared,
             referenced,
             ..
@@ -226,8 +226,8 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 /// was the measure's noun applied to both.
 ///
 /// The repaired sentence says "payload expression", at the load door
-/// here and at the edit door's twins (`EditError::PayloadUnknownDocParam`
-/// / `PayloadDocParamDimension`). This row pins it over an
+/// here and at the edit door's twins (`EditError::PayloadUnknownVarName`
+/// / `PayloadVarKind`). This row pins it over an
 /// ASSERTION's refusal, which is the half nothing else renders: the F6
 /// cases in `display_contract.rs` build the arms directly and never
 /// reach an assertion fixture, so a regression to the measure's noun
@@ -236,7 +236,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
-        SnapshotError::PayloadUnknownDocParam {
+        SnapshotError::PayloadUnknownVarName {
             node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
             name: VarName::from_static("depth"),
         }
@@ -254,7 +254,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     // The edit door's twin, the same noun.
     let edit = format!(
         "{}",
-        EditError::PayloadUnknownDocParam {
+        EditError::PayloadUnknownVarName {
             name: VarName::from_static("depth"),
             node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
         }

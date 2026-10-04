@@ -1375,7 +1375,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 geom::SurfaceKind::Cylinder,
             ))],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             tol,
         )
         .expect("exact atom");

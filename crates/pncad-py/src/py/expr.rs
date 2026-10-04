@@ -18,7 +18,7 @@
 //! shape `Evaluation.face_frame` already has and for its reason: the
 //! answer is only meaningful against the document that supplies the
 //! table, and threading the table in separately would let the two
-//! drift. `ParamEnv` itself therefore never crosses — it is built
+//! drift. `VarEnv` itself therefore never crosses — it is built
 //! inside the door from the document in hand, exactly as
 //! `Evaluation` already builds one for `select_where`.
 //!

@@ -25,7 +25,7 @@
 //! classes, fillet fits), which must be decided once, identically for
 //! every lane — exactly the stored-f64-bits behavior the retired
 //! representation had. Node MAGNITUDE slots stay lane-live; the
-//! asymmetry is inherited from `Doc::param_env`, not invented here.
+//! asymmetry is inherited from `Doc::var_env`, not invented here.
 //!
 //! # Caches (V3)
 //!
@@ -38,9 +38,9 @@ use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
-use crate::doc::VarName;
+use crate::var::VarId;
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
-use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
+use crate::expr::{Dimension, DimensionError, EvalError, Expr, VarEnv, UnitSym, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
 use geom_core::Tol;
 
@@ -514,22 +514,18 @@ pub trait ProfilePayload: serde::Serialize {
     fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut Expr)> {
         Vec::new()
     }
-    /// Whether any expression of this program reads the document
-    /// parameter `name` — over [`ProfilePayload::rows`], so every
-    /// payload answers it the one way.
-    fn references(&self, name: &VarName) -> bool {
-        let mut refs = Vec::new();
-        for (_, e) in self.rows() {
-            e.param_refs(&mut refs);
-        }
-        refs.iter().any(|(n, _)| n == name)
+    /// Whether any expression of this program reads the variable
+    /// `var` — over [`ProfilePayload::rows`], so every payload answers
+    /// it the one way.
+    fn reads(&self, var: VarId) -> bool {
+        self.rows().into_iter().any(|(_, e)| e.reads(var))
     }
     /// The authoring-time check (VQ9): resolve + replay + validate
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
     /// binding that is ever evaluated. A payload with no program has
     /// nothing to check.
-    fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
+    fn check(&self, _env: &VarEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
     }
     /// **The loop programs this payload holds**, program order — the
@@ -593,7 +589,7 @@ pub trait ProfilePayload: serde::Serialize {
     /// [`ProfileProgram::pieces`]'s refusals, for the same causes.
     fn drawn_pieces(
         &self,
-        env: &ParamEnv<f64>,
+        env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
 }
@@ -1407,7 +1403,7 @@ impl LoopProgram {
             .collect()
     }
 
-    row_readers!(loop_roles -> (u32, StepArg));
+    row_readers!(pub(crate) loop_roles -> (u32, StepArg));
 
     /// Every expression the loop holds, exclusive.
     pub(crate) fn exprs_mut(&mut self) -> Vec<&mut Expr> {
@@ -1441,7 +1437,7 @@ impl LoopProgram {
 /// resolve — the invariant [`role_of`]'s identity lookup rests on.
 fn leaf<'r, T: Decide>(
     roles: Vec<((u32, StepArg), &'r Expr)>,
-    env: &'r ParamEnv<T>,
+    env: &'r VarEnv<T>,
     loop_: u32,
 ) -> impl Fn(&Expr) -> Result<T, (SlotId, EvalError)> + 'r {
     move |e| {
@@ -1456,7 +1452,7 @@ fn leaf<'r, T: Decide>(
 /// against are one borrow.
 fn res_chain_step<T: Decide>(
     s: &ProgramStep,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
     loop_: u32,
     step: u32,
 ) -> Result<Step<T>, (SlotId, EvalError)> {
@@ -1610,7 +1606,7 @@ impl LoopProgram {
     /// The failing slot plus the evaluator's refusal, unaltered.
     pub fn resolve<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
         loop_: u32,
     ) -> Result<Vec<Step<T>>, (SlotId, EvalError)> {
         match self {
@@ -1668,7 +1664,7 @@ impl LoopProgram {
 /// The failing slot plus the evaluator's refusal, unaltered.
 pub fn resolve_loops<T: Decide>(
     loops: &[LoopProgram],
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
 ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
     loops
         .iter()
@@ -1678,12 +1674,12 @@ pub fn resolve_loops<T: Decide>(
 }
 
 impl ProfileProgram {
-    /// Whether any expression of this program reads the document
-    /// parameter `name` — the question a C6/D9-pinned consumer of the
-    /// program (a loft's or a sweep's section) asks before a seed on
-    /// that parameter is silently embedded as a constant.
-    pub fn references(&self, name: &VarName) -> bool {
-        ProfilePayload::references(self, name)
+    /// Whether any expression of this program reads the variable
+    /// `var` — the question a C6/D9-pinned consumer of the program (a
+    /// loft's or a sweep's section) asks before a seed on that variable
+    /// is silently embedded as a constant.
+    pub fn reads(&self, var: VarId) -> bool {
+        ProfilePayload::reads(self, var)
     }
 
     /// Resolves every loop at f64 — [`resolve_loops`] over this
@@ -1694,7 +1690,7 @@ impl ProfileProgram {
     /// The failing slot plus the evaluator's refusal, unaltered.
     pub fn resolve<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
     ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
         resolve_loops(&self.loops, env)
     }
@@ -1981,7 +1977,7 @@ impl ProfileProgram {
     ///
     /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
     /// [`ProgramRefusal::Geometry`] or [`ProgramRefusal::Validate`].
-    pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+    pub fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         self.validated(env, tol).map(|_| ())
     }
 
@@ -1994,7 +1990,7 @@ impl ProfileProgram {
     /// account), so this and [`ProfileProgram::check`] cannot disagree.
     fn validated(
         &self,
-        env: &ParamEnv<f64>,
+        env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
@@ -2035,7 +2031,7 @@ impl ProfileProgram {
     /// where the replay and the naming anchor disagree.
     pub fn pieces(
         &self,
-        env: &ParamEnv<f64>,
+        env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<crate::eval::ProfilePieces, ProgramRefusal> {
         if !self.carries_step_ids() {
@@ -2108,7 +2104,7 @@ impl ProfileProgram {
     /// [`ProfileProgram::validated`]'s.
     fn replay_records(
         &self,
-        env: &ParamEnv<f64>,
+        env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<
         (
@@ -2377,12 +2373,12 @@ macro_rules! program_rows {
 impl ProfilePayload for ProfileProgram {
     row_readers!(program_rows -> (u32, u32, StepArg));
 
-    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+    fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
     }
     fn drawn_pieces(
         &self,
-        env: &ParamEnv<f64>,
+        env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
         Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())

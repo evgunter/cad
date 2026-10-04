@@ -20,7 +20,7 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Expr, ParamEnv, ParseError, VarName, eval, eval_count, parse_expr,
+    Dimension, DimensionError, Expr, VarEnv, ParseError, VarName, eval, eval_count, parse_expr,
     unparse,
 };
 use proptest::prelude::*;
@@ -45,7 +45,7 @@ fn bits(e: &Expr) -> Vec<u64> {
 }
 
 fn ev(e: &Expr) -> f64 {
-    eval::<f64>(e, &ParamEnv::default()).expect("finite eval")
+    eval::<f64>(e, &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn unit_suffixed_literals_land_in_canonical_units() {
 fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
-    assert_eq!(eval_count(&five, &ParamEnv::<f64>::default()), Ok(5));
+    assert_eq!(eval_count(&five, &VarEnv::<f64>::default()), Ok(5));
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
         assert_eq!(p(src).dim(), Dimension::Scalar, "{src}");
     }
@@ -390,7 +390,7 @@ proptest! {
         let text = text.unwrap();
         let e = parse_expr(&text, &no_params()).expect(&text);
         prop_assert_eq!(e.dim(), dim, "{}", &text);
-        let back = eval::<f64>(&e, &ParamEnv::default()).expect(&text);
+        let back = eval::<f64>(&e, &VarEnv::default()).expect(&text);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "{}", &text);
     }
 }

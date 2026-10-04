@@ -505,7 +505,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

@@ -57,7 +57,7 @@ use std::sync::Arc;
 use editor_core::UnitSym;
 use editor_core::VarId;
 use editor_core::analysis::{
-    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, param_env_over,
+    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, var_env_over,
 };
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
@@ -294,7 +294,7 @@ fn the_parameter_door_widens_exactly_the_declared_axes() {
     let doc = two_param_plate(uniform(0.01), uniform(0.0));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let env = param_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
+    let env = var_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
     let ParamValue::Continuous { value: radius, .. } = env.bindings[&name("hole_r")] else {
         panic!("hole_r is continuous")
     };
@@ -318,7 +318,7 @@ fn a_widened_box_at_f64_refuses_loudly() {
     let doc = two_param_plate(uniform(0.01), uniform(0.01));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = Arc::new(ParamBox::of(&analyzed));
-    assert!(param_env_over::<f64, _>(&doc, &box_).is_err());
+    assert!(var_env_over::<f64, _>(&doc, &box_).is_err());
     let opts = EvalOptions {
         param_box: Some(box_),
         ..EvalOptions::default()

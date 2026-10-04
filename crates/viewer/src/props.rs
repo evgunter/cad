@@ -631,7 +631,7 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
             source: None,
         };
     };
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
         eval_count(expr, &env)
             .map(SlotValue::Count)

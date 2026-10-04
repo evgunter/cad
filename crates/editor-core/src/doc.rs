@@ -11,7 +11,7 @@ use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::distribution::{Distribution, DistributionFault, DistributionField};
-use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
+use crate::expr::{Dimension, Expr, ExprPath, VarEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
@@ -226,8 +226,8 @@ impl core::fmt::Display for FreeValue {
 ///
 /// The two reasons a notation edit is refused, decided in ONE place —
 /// the door — so that its callers only route them. The edit vocabulary
-/// maps these to [`crate::EditError::DocParamCountHasNoUnit`] and
-/// [`crate::EditError::DocParamUnitMismatch`]; nothing re-derives which
+/// maps these to [`crate::EditError::VarCountHasNoUnit`] and
+/// [`crate::EditError::VarUnitMismatch`]; nothing re-derives which
 /// of the two applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplayUnitRefusal {
@@ -273,8 +273,8 @@ impl core::error::Error for DisplayUnitRefusal {}
 /// reason: the two ways the annotation door can refuse, decided in ONE
 /// place — the door — so that its callers only route them. The edit
 /// vocabulary maps these to
-/// [`crate::EditError::DocParamCountHasNoDistribution`] and to the
-/// fault's own refusals ([`crate::EditError::NonFiniteDocParam`],
+/// [`crate::EditError::VarCountHasNoDistribution`] and to the
+/// fault's own refusals ([`crate::EditError::NonFiniteVar`],
 /// [`crate::EditError::InvalidDistribution`]); nothing re-derives
 /// which applies.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -338,32 +338,39 @@ impl core::fmt::Display for DocParamField {
     }
 }
 
-/// **What makes an expression's document-parameter references
-/// unusable** ([`Doc::param_ref_fault`], spec D6) — one vocabulary for
-/// the edit doors and the load door.
+/// **What is wrong with one leaf of an expression that reads a
+/// variable** ([`Doc::var_read_faults`]) — one vocabulary for the edit
+/// doors and the load door, which each decide which of these refuse.
 ///
-/// The rule is the variable table's: a reference names a declared
-/// variable, and reads it at the dimension it was declared with. An
-/// expression carries the dimension it read at, so a (re)declaration
-/// that moves a parameter's dimension breaks every expression
-/// referencing it — which is why the edit door re-asks this of every
-/// slot after a declaration lands, and why a file can carry a pairing
-/// no edit door would have written.
+/// A stored reader names a minted variable and reads it at that
+/// variable's kind. The edit door refuses every arm below for a leaf it
+/// writes; the load door refuses a name and an unminted id, and a
+/// kind that disagrees with a live variable, and admits a dead reader,
+/// which is a deleted variable's unresolved reader (VR7).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ParamRefFault {
-    /// The expression names a parameter the document does not declare.
-    Unknown {
+pub(crate) enum VarReadFault {
+    /// An authored name leaf, unlowered.
+    Name {
         /// The name it reads.
         name: VarName,
     },
-    /// The parameter is declared, at another dimension than the
-    /// expression reads it at.
-    Dimension {
-        /// The name it reads.
-        name: VarName,
-        /// The dimension the declaration carries.
+    /// A reader of an id this document never minted as a variable's.
+    Unminted {
+        /// The id.
+        var: VarId,
+    },
+    /// A reader of a variable the document minted and no longer holds.
+    Dead {
+        /// The id.
+        var: VarId,
+    },
+    /// A reader of a live variable, at another dimension than its kind.
+    Kind {
+        /// The variable.
+        var: VarId,
+        /// The dimension its kind reads at.
         declared: Dimension,
-        /// The dimension the expression reads it at.
+        /// The dimension the leaf reads it at.
         referenced: Dimension,
     },
 }
@@ -1080,40 +1087,80 @@ impl<P> Doc<P> {
         self.order.is_empty()
     }
 
-    /// **The param-table rule, asked of one expression** — the first
-    /// reference it makes that the table cannot answer, or `None`.
-    ///
-    /// One home for the question (spec D6), with FOUR callers — the
-    /// two doors' two walks each, one over a node's SLOT expressions
-    /// and one over the PAYLOAD expressions no slot addresses
-    /// (`crate::node::payload_exprs`):
-    ///
-    /// - the edit door's `edit::check_param_refs` (slots) and the
-    ///   payload arm of `edit::check_node_slots`;
-    /// - the load door's `persist::check::first_slot_param_ref_fault`
-    ///   and `first_payload_param_ref_fault`.
-    ///
-    /// Each names this one answer in its own vocabulary; none of them
-    /// re-states the rule.
-    pub(crate) fn param_ref_fault(&self, expr: &Expr) -> Option<ParamRefFault> {
-        let mut refs = Vec::new();
-        expr.param_refs(&mut refs);
-        refs.into_iter().find_map(|(name, referenced)| {
-            match self
-                .var_named(name.as_str())
-                .and_then(|id| self.vars.get(&id))
-            {
-                None => Some(ParamRefFault::Unknown { name }),
-                Some(var) if var.kind().dimension() != referenced => {
-                    Some(ParamRefFault::Dimension {
-                        declared: var.kind().dimension(),
-                        name,
-                        referenced,
-                    })
+    /// **Every faulty variable leaf of one expression**, in pre-order:
+    /// its name leaves, then its readers the table cannot answer
+    /// ([`VarReadFault`]). Both doors ask it, each of the slot and the
+    /// payload expressions it walks, and each decides which arms refuse.
+    pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
+        let mut names = Vec::new();
+        expr.named_reads(&mut names);
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        names
+            .into_iter()
+            .map(|(name, _)| VarReadFault::Name { name })
+            .chain(reads.into_iter().filter_map(|(var, referenced)| {
+                match self.vars.get(&var) {
+                    None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
+                    None => Some(VarReadFault::Unminted { var }),
+                    Some(held) if held.kind().dimension() != referenced => {
+                        Some(VarReadFault::Kind {
+                            var,
+                            declared: held.kind().dimension(),
+                            referenced,
+                        })
+                    }
+                    Some(_) => None,
                 }
-                Some(_) => None,
+            }))
+            .collect()
+    }
+
+    /// **The scope the edit door lowers a name in**: the variable the
+    /// document names `name`, with the dimension its kind reads at.
+    pub(crate) fn lowering_scope(&self, name: &VarName) -> Option<(VarId, Dimension)> {
+        let id = self.var_named(name.as_str())?;
+        Some((id, self.vars.get(&id)?.kind().dimension()))
+    }
+
+    /// **The nodes that read `var`**, in document order: one walk over
+    /// every node's slot expressions (a profile's program arguments
+    /// among them) and its payload expressions.
+    pub fn var_readers(&self, var: VarId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.order
+            .iter()
+            .copied()
+            .filter(|id| self.nodes.get(id).is_some_and(|node| node_reads(node, var)))
+            .collect()
+    }
+
+    /// The live variables no expression reads, in declaration order.
+    pub(crate) fn unread_vars(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut read = std::collections::BTreeSet::new();
+        for node in self.nodes.values() {
+            for expr in node_exprs(node) {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                read.extend(reads.into_iter().map(|(var, _)| var));
             }
-        })
+        }
+        self.var_order
+            .iter()
+            .copied()
+            .filter(|var| !read.contains(var))
+            .collect()
+    }
+
+    /// **The text of `expr`**, its readers written by the names this
+    /// document holds ([`crate::unparse`]).
+    pub fn unparse(&self, expr: &Expr) -> String {
+        crate::expr::unparse(expr, &|id| self.var_names.get(&id))
     }
 
     /// The variables, by id.
@@ -1353,14 +1400,10 @@ impl<P> Doc<P> {
     /// The evaluation environment for this document's parameters,
     /// embedding stored exact values into any [`Real`] `T` (spec D4:
     /// the evaluator is scalar-generic; units erase here, GQ5).
-    pub fn param_env<T: Real>(&self) -> ParamEnv<T> {
+    pub fn var_env<T: Real>(&self) -> VarEnv<T> {
         let bindings = self
             .free_vars()
-            .filter_map(|(id, free)| {
-                // Readers read names in this unit, so a variable is
-                // bound under its name (the load door refuses one with
-                // none).
-                let name = self.var_name(id)?;
+            .map(|(id, free)| {
                 // The nominal alone crosses into evaluation: a
                 // distribution is document metadata the scalar channel
                 // never sees (E1).
@@ -1371,11 +1414,26 @@ impl<P> Doc<P> {
                     },
                     FreeVar::Count { value } => ParamValue::Count(value),
                 };
-                Some((name.clone(), v))
+                (id, v)
             })
             .collect();
-        ParamEnv { bindings }
+        VarEnv { bindings }
     }
+}
+
+/// Every expression `node` carries: its slot expressions, then its
+/// payload expressions.
+pub(crate) fn node_exprs<P: crate::ProfilePayload>(node: &Node<P>) -> Vec<&Expr> {
+    node.rows()
+        .into_iter()
+        .map(|(_, expr)| expr)
+        .chain(crate::node::payload_exprs(node).into_iter().flatten())
+        .collect()
+}
+
+/// Whether any expression `node` carries reads `var`.
+pub(crate) fn node_reads<P: crate::ProfilePayload>(node: &Node<P>, var: VarId) -> bool {
+    node_exprs(node).into_iter().any(|expr| expr.reads(var))
 }
 
 impl<P: PartialEq + crate::ProfilePayload> Doc<P> {

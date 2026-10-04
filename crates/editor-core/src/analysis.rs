@@ -407,7 +407,7 @@ pub trait AxisScalar: geom_core::Real {
     fn axis(lo: f64, hi: f64) -> Option<Self>;
 
     /// The same axis, with the VARIABLE'S IDENTITY in hand — the door
-    /// [`param_env_over`] calls (E12).
+    /// [`var_env_over`] calls (E12).
     ///
     /// The default DELEGATES to [`AxisScalar::axis`] and discards the
     /// id, so every existing scalar is unaffected by this seam: `f64`,
@@ -641,8 +641,8 @@ impl core::fmt::Display for SeedError {
 /// other binding — unseeded parameters and, through `T::from_f64`,
 /// every literal — keeps tangent zero by construction.
 ///
-/// The environment is whichever door built it ([`crate::Doc::param_env`]
-/// or [`param_env_over`]), so seeding composes with the parameter box
+/// The environment is whichever door built it ([`crate::Doc::var_env`]
+/// or [`var_env_over`]), so seeding composes with the parameter box
 /// by doing nothing besides the one tangent write. **One seed per
 /// environment is the caller's obligation, not this door's check**
 /// (E4: n parameters ⇒ n independent passes): an environment records
@@ -660,9 +660,9 @@ impl core::fmt::Display for SeedError {
 /// per-scalar capability refusal comes only after the name is real.
 pub fn seed_env<T: SeedScalar, P>(
     doc: &Doc<P>,
-    mut env: crate::expr::ParamEnv<T>,
+    mut env: crate::expr::VarEnv<T>,
     seed: VarId,
-) -> Result<crate::expr::ParamEnv<T>, SeedError> {
+) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
     match doc.free(seed) {
         None => Err(SeedError::UnknownParam { param: spoken }),
@@ -673,9 +673,8 @@ pub fn seed_env<T: SeedScalar, P>(
             // binding; answering `UnknownParam` on a broken pairing (a
             // caller's env built from a different document) is
             // fail-honest, never a wrong number.
-            let Some(crate::expr::ParamValue::Continuous { value, .. }) = doc
-                .var_name(seed)
-                .and_then(|name| env.bindings.get_mut(name))
+            let Some(crate::expr::ParamValue::Continuous { value, .. }) =
+                env.bindings.get_mut(&seed)
             else {
                 return Err(SeedError::UnknownParam { param: spoken });
             };
@@ -1000,7 +999,7 @@ impl ParamBox {
 ///
 /// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
 /// arithmetic so the enclosure rounds outward; `Count` parameters bind
-/// exactly as [`Doc::param_env`] binds them (they are structural, never
+/// exactly as [`Doc::var_env`] binds them (they are structural, never
 /// axes). A parameter the box does not name binds its nominal.
 ///
 /// # Errors
@@ -1008,10 +1007,10 @@ impl ParamBox {
 /// [`ParamBoxError::UnknownParam`] when the box names a parameter the
 /// document does not have; [`ParamBoxError::AxisUnrepresentable`] when
 /// `T` cannot carry a widened axis.
-pub fn param_env_over<T: AxisScalar, P>(
+pub fn var_env_over<T: AxisScalar, P>(
     doc: &Doc<P>,
     box_: &ParamBox,
-) -> Result<crate::expr::ParamEnv<T>, ParamBoxError> {
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
     for &id in box_.axes.keys() {
         if !matches!(doc.free(id), Some(FreeVar::Continuous { .. })) {
             return Err(ParamBoxError::UnknownParam {
@@ -1021,11 +1020,8 @@ pub fn param_env_over<T: AxisScalar, P>(
     }
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
-        // Bound under its name, as `Doc::param_env` binds it: the two
-        // environment doors read one iteration base.
-        let Some(name) = doc.var_name(id) else {
-            continue;
-        };
+        // Bound by id, as `Doc::var_env` binds it: the two environment
+        // doors read one iteration base.
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);
@@ -1046,9 +1042,9 @@ pub fn param_env_over<T: AxisScalar, P>(
             }
             FreeVar::Count { value } => crate::expr::ParamValue::Count(value),
         };
-        bindings.insert(name.clone(), v);
+        bindings.insert(id, v);
     }
-    Ok(crate::expr::ParamEnv { bindings })
+    Ok(crate::expr::VarEnv { bindings })
 }
 
 /// Why a mass could not be computed.
