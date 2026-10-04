@@ -992,15 +992,11 @@ topology change is stated, not emergent.
   by name — and the two sites where a borrow forbids the guard are
   held instead by a runtime depth read at the next phase boundary. The
   reach of each, and what none of them sees, is
-  `work/perf/door-scopes-outside-topo-are-unguarded`. **The one door outside the
-  property is `instance`'s graft**, a raw transplant: a `JoinDesync`
-  raised mid-transplant leaves the destination partially written and
-  *spent, never resumable*, so a caller that discards the `Err` and
-  keeps the body can fire a later postcondition from API misuse rather
-  than a kernel bug. That state class is the open ruling **S14**
-  (`work/pipe/S14.md`), Ev's; row 0 below reframes it (stage
-  into a fresh body and commit on success, the shape
-  `merge_coplanar_faces` already uses) without answering it.
+  `work/perf/door-scopes-outside-topo-are-unguarded`. **`instance`'s graft is held to the
+  property by staging** (S14, Ev, PR 4006): it transplants into a fresh
+  body and commits only on success, the shape `merge_coplanar_faces`
+  already uses, so a refused graft leaves the caller's destination as
+  it was and no public door leaves a body tier-1-invalid.
 - Essentially no unsafe Rust outside vetted dependencies.
 
 **The bug-vs-invalid-state taxonomy (the D2 addendum).** Silent discard
@@ -1045,25 +1041,23 @@ swallowed.
   (Q1). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
 - *Rows 4 and 5 split on re-derivation, not on cost.* `unreachable!` is
-  for an invariant the code can *observe* — a failed lookup of a key
-  minted in the same call or proven live by a check in the same call
-  (`topo`'s `Live` brand; a shared helper takes a proven-live key as
-  its argument type and is `#[track_caller]`), **never** by the body's
-  tier-1 validity, which is a whole-body property no single call
-  establishes. `debug_assert` is for a check that *re-derives* the
+  for a state the current best understanding says only a kernel bug
+  reaches, however many interacting parts that understanding rests on
+  (Ev, PR 4006): a failed lookup of a key minted or proven live in the
+  same call (`topo`'s `Live` brand; a shared helper takes a proven-live
+  key as its argument type and is `#[track_caller]`), and equally a
+  failed read through a record of a body that every door keeps
+  tier-1-valid. `debug_assert` is for a check that *re-derives* the
   invariant (`assert_euler_postcondition`, O(body)). Row 4's message
   states WHY the state cannot occur, not merely what was violated, and
   carries the values a reader debugging it would want; this stays
   prose, not a gate (`topo`'s `d18_no_unreachable_message_can_impersonate_the_postcondition`
   forbids one spelling and that is all a shape gate can do).
-- *A torn body is a typed refusal that names the defect.* A failed
-  read through a record the body holds (a `next`, a `parent_loop`, a
-  mate slot, a face's surface key), on a body assumed tier-1-valid, is
-  neither row 1 (no input reaches it, S14's partly written graft
-  destination aside) nor row 4 (no proof in the same call excludes
-  it). It is a typed corruption refusal ending in the
-  defect ending (`geom_core::KERNEL_DEFECT_ENDING`), and never the same
-  variant as a refusal about the caller's arguments.
+- *A torn body is a kernel bug.* A failed read through a record the
+  body holds (a `next`, a `parent_loop`, a mate slot, a face's surface
+  key) is row 4: `unreachable!`, its message naming the record and why
+  it cannot dangle. A key the caller passed that does not resolve is
+  row 1, a typed refusal stating the fact, and never the same variant.
 - *Row 5's boundary:* `debug_assert` also serves the expensive check
   whose failure PROBABLY indicates a bug — a tripwire, not a proof.
   Its contract: (i) the assertion's absence never changes shipped

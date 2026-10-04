@@ -7,8 +7,8 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-needs_ev: true
-refs: [euler-op-corruption-refusals-end-in-a-tag, cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link]
+blocked_on: [graft-stages-into-a-fresh-body-and-commits-on-success]
+refs: [euler-op-corruption-refusals-end-in-a-tag, cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link, S14]
 ---
 
 
@@ -85,60 +85,51 @@ still answer them. Only the wrapper (`ExtrudeError::Op`,
 `ShellError::Partition`, …) knows the caller was the kernel, so the
 wrapper has to say so, whichever way the variant splits.
 
-## The question
+## Ruled
 
-Which of an operator's inputs failed to hold is known at every raise
-site from the code alone. It is an **argument** (a key or pairing the
-caller passed in) or a **record** (a field the operator read out of the
-body: `next`/`prev`, `parent_loop`, a loop's `first`, a face's surface
-key, an edge's mate slot). The shared lookups throw that away.
-`cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link` has the same
-cause: `Walk` tells `Broken` from `Overrun`, and `loop_cycle` merges them.
+Ev, PR 4006, 2026-10-04 (quoted in full on `work/pipe/S14.md`): a state
+that only a kernel bug reaches panics, by the current best understanding
+however many parts it rests on, and that covers the whole torn-body
+refusal class. S14 closes first, by staging the graft.
 
-The designers' final state:
+## The final state
 
-1. **`EulerOpError::Torn(TornBody)`**: the body is not tier-1-valid.
-   - `Dangling { from, link, to }`: a record whose field names nothing.
-     It takes the record half of `StaleKey`/`StaleGeometry` and every
-     walk that meets an unresolved link, so both directions of the probe
-     above refuse the same value.
-   - A bijection arm beside `UnclaimedHalfEdge`: the record half of
-     `NotSameEdge`.
-   - `LoopCycleBroken`, kept only for a walk whose links all resolve but
-     that does not close.
-   - The existing corruption variants, moved in unchanged.
+Which input failed is known at every raise site from the code alone: an
+**argument** (a key or pairing the caller passed) or a **record** (a field
+the operator read out of the body). The shared lookups throw that away
+today.
 
-   Its Display ends in `KERNEL_DEFECT_ENDING` once.
-2. **`EulerOpError::Argument(BadArgument)`**: `Stale { role, key }` and
-   `NotMates { he1, he2 }` (`kemr`'s pair). It states the fact, with no
-   defect claim and no recourse.
-3. **One crate-internal lookup** takes `KeyFrom::Arg(role)` or
-   `KeyFrom::Link { holder, link }` and builds the refusal from it.
-   - `Walk::Broken` carries the hop that failed.
-   - `require_live`, `require_halves`, `proven_mate` and
-     `resolve_vertex_point` take the source they are given.
-4. **`KernelCalled(EulerOpError)`** is the field type of every kernel
-   driver's wrapper (11 wrapper types, 15 fields today: sweep, boolean,
-   splitting, merge_faces, shell, replace_face, step-import).
-   - Its Display, written once in topo, ends `Torn` and `Argument` in
-     the defect ending. A bare `write!(f, "{source}")` is therefore
-     right, and so is each driver's `From`.
-   - A bare `EulerOpError` field reads as "this door forwards a caller's
-     keys". None does today.
-   - `Reading` stays a render parameter, because step-import reads at
-     `Adopt`.
-5. **Drivers' own lookups** of keys they minted use the driver's own
-   defect variant, not `EulerOpError::StaleKey`. `ShellError::Corrupt`
-   is the precedent.
-6. **`reports_tier1_corruption` is deleted.**
-   - "Is this a kernel defect" is `KernelCalled::is_defect`, meaning
-     `Torn | Argument`.
-   - `merge_faces`' `OpPlacement` keeps its exhaustive match and reads
-     an `Argument` from keys it read off the body as an arena fault.
-   - The `FILED_NO_RECOURSE` admissions for the Euler chains in
-     `refusal_concision_chains.rs` retire.
+1. **A record miss is `unreachable!`** (D2 row 4). Its message names the
+   record (holder, link, key) and why it cannot dangle. That covers:
+   - the record half of `StaleKey`, `StaleGeometry` and `NotSameEdge`;
+   - every walk that meets an unresolved link (so both directions of
+     the probe above end alike);
+   - every existing torn-body variant: `LoopCycleBroken`, `OrbitBroken`,
+     `FanOrbitBroken`, `LoopNotCycle`, `EmptyAnchorsCollide`,
+     `KillLeavesDangling`, `NotOwned`, `PcurveMint::Corrupt`,
+     `readback::DanglingRef::Geometry`, `ShellError::Corrupt`,
+     `ReplaceFaceError::Corrupt`, and the boolean's `corrupt_at`.
+   The proofs behind them stay; only the reaction changes.
+2. **An argument miss stays typed (row 1):** `EulerOpError::Argument(BadArgument)`
+   with `Stale { role, key }` and `NotMates { he1, he2 }`. It states the
+   fact, with no defect claim and no recourse.
+3. **One crate-internal lookup takes the key's source** (`KeyFrom::Arg(role)`
+   or `KeyFrom::Link { holder, link }`), so no site resolves a key without
+   saying where it came from. `Walk::Broken` names the hop that failed.
+4. **A kernel driver passing a bad key is itself a kernel bug.** Its
+   `From<EulerOpError>` sends `Argument(_)` to `unreachable!` and passes real
+   operation refusals through. A driver's own lookups of keys it minted
+   are `unreachable!` too, not a borrowed `EulerOpError::StaleKey`.
+5. **`reports_tier1_corruption` is deleted.** `merge_faces`' `OpPlacement`
+   loses its arena-fault arm (an arena read that fails now panics).
+6. **The tests invert.** The torn-body sweeps in `review_d18` and the
+   `corrupt input (release profile)` CI job assert today that a torn body
+   refuses typed and never panics; they assert the panic and its message
+   instead. Atomicity rows on real argument and operation refusals stay.
 
-**For Ev:** the sentence this PR adds to the D2 addendum's rows 4/5 note
-in `docs/DESIGN.md`. It records what the tree does today: row 1 says
-"reachable by input" and a torn body is not, while row 4 needs a proof
-made in the same call. The code above does not depend on it.
+Sequencing: `graft-stages-into-a-fresh-body-and-commits-on-success` first.
+The conversion is large, so split it by door family when dispatching.
+
+The designers' two rounds recommended a typed `Torn` refusal; Ev chose the
+panic. Their argument-vs-record split, the source-taking lookup and the
+argument variant carry over.
