@@ -890,14 +890,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 /// against at insertion. An earlier segment's `mef` can divide it,
 /// leaving the key on a fragment neither half is in any more, whose
 /// window covers a part of the wall the arc does not lie in; so the
-/// halves name the fragment. A recorded face one half still sits on is
-/// read itself when the other half sits on another face of the same
-/// carrier — a declared tangency's fillet faces share one, and the
-/// recorded face is the region the germ was taken on.
+/// halves name the fragment. A recorded face either half still sits on
+/// is read itself: a declared tangency's fillet puts the two halves on
+/// two faces, and the recorded one is the region the germ was taken on.
 ///
-/// Halves on a face outside the lineage, on two faces of different
-/// carriers, or on two faces neither of which is the recorded one name
-/// no region to read a window on: refused rather than guessed at.
+/// Halves together on a face outside the lineage, or on two faces
+/// neither of which is the recorded one, name no region to read a
+/// window on: refused rather than guessed at.
 fn wall_region<T: Decide>(
     body: &Body<T>,
     recorded: FaceKey,
@@ -909,39 +908,20 @@ fn wall_region<T: Decide>(
         body.face_of_half_edge(he)
             .ok_or(desync("a segment half or its loop no longer resolves"))
     };
-    let carrier = |f: FaceKey| -> Result<_, BooleanError> {
-        Ok(body
-            .get_face(f)
-            .ok_or(desync("a segment half's face no longer resolves"))?
-            .surface)
-    };
     let (f1, f2) = (face_of(h1)?, face_of(h2)?);
-    if f1 == f2 {
-        return if crate::chord_join::lineage(recorded, fragments).contains(&f1) {
-            Ok(f1)
-        } else {
-            Err(desync(
-                "a segment's halves sit on a face that is neither its germ face nor a fragment \
-                 of it (no region window)",
-            ))
-        };
-    }
-    let other = if f1 == recorded {
-        f2
-    } else if f2 == recorded {
-        f1
-    } else {
-        return Err(desync(
+    if f1 == recorded || f2 == recorded {
+        Ok(recorded)
+    } else if f1 != f2 {
+        Err(desync(
             "a segment's germ face holds neither of its halves and they sit on two faces of \
              one wall (no region window)",
-        ));
-    };
-    if carrier(other)? == carrier(recorded)? {
-        Ok(recorded)
+        ))
+    } else if crate::chord_join::lineage(recorded, fragments).contains(&f1) {
+        Ok(f1)
     } else {
         Err(desync(
-            "a segment's halves sit on its germ face and a face of another carrier (no region \
-             window)",
+            "a segment's halves sit on a face that is neither its germ face nor a fragment of \
+             it (no region window)",
         ))
     }
 }
@@ -1150,28 +1130,40 @@ fn find_match<T: Decide>(
     fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
-    let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
+    // Each germ's nearest partner along its own line, kept with the scan
+    // position it was met at; then the nearest of those, met in scan
+    // order, so an exact tie goes to the pair scanned first.
+    let mut own: std::collections::BTreeMap<Slot, (usize, Reach<T>, (Slot, Slot))> =
+        std::collections::BTreeMap::new();
+    let mut at = 0;
     for (cand, rec) in open.iter().enumerate() {
-        for &cs in &slots(&rec.a) {
-            let mut own: Option<(Reach<T>, (Slot, Slot))> = None;
-            for (entry, e) in open.iter().enumerate() {
-                if entry == cand {
-                    continue;
-                }
+        for (entry, e) in open.iter().enumerate() {
+            if entry == cand {
+                continue;
+            }
+            for &cs in &slots(&rec.a) {
                 for &es in &slots(&e.a) {
                     let Some(reach) = partners(open, red, sa, sb, (cand, cs), (entry, es), band)?
                     else {
                         continue;
                     };
-                    own = keep_nearer(own, (reach, ((entry, es), (cand, cs))), |c, b| {
-                        nearer_along(c, b, band)
-                    })?;
+                    at += 1;
+                    let met = (at, reach, ((entry, es), (cand, cs)));
+                    match own.get(&(cand, cs)) {
+                        Some(&(_, kept, _)) if !nearer_along(reach, kept, band)? => {}
+                        _ => {
+                            own.insert((cand, cs), met);
+                        }
+                    }
                 }
             }
-            if let Some(o) = own {
-                best = keep_nearer(best, o, |c, b| nearer(c, b, band))?;
-            }
         }
+    }
+    let mut met: Vec<_> = own.into_values().collect();
+    met.sort_by_key(|&(at, ..)| at);
+    let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
+    for (_, reach, m) in met {
+        best = keep_nearer(best, (reach, m), |c, b| nearer(c, b, band))?;
     }
     Ok(best.map(|(_, m)| m))
 }
