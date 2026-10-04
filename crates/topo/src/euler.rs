@@ -1016,9 +1016,10 @@ pub enum EulerOpError {
         he2: HalfEdgeKey,
     },
     /// The clockwise orbit walk from `he1` failed to close, reached a
-    /// half-edge that does not start at `he1`'s vertex, or closed
-    /// without visiting `he2` (despite the matching start vertex) —
-    /// tier-1-invalid input.
+    /// half-edge that does not start at `he1`'s vertex, closed on a
+    /// member whose inverse step `mate(prev(·))` is not the member
+    /// before it, or closed without visiting `he2`
+    /// (despite the matching start vertex) — tier-1-invalid input.
     FanOrbitBroken {
         /// The half-edge the orbit was walked from.
         he1: HalfEdgeKey,
@@ -1504,8 +1505,8 @@ impl EulerOpError {
                  vertices"
             ),
             Self::FanOrbitBroken { he1, he2 } => format!(
-                "mev fan: the clockwise vertex orbit from {he1:?} never \
-                 reaches {he2:?}. {}",
+                "mev fan: the clockwise vertex orbit from {he1:?} is not a \
+                 closed orbit of its vertex reaching {he2:?}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotSameLoop { he1, he2 } => format!(
@@ -2287,12 +2288,14 @@ impl<T: Decide> Body<T> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]); the
     /// start vertex and its point resolve (`StaleKey` /
     /// [`EulerOpError::StaleGeometry`]); the orbit walk from `he1`
-    /// closes and reaches `he2` ([`EulerOpError::FanOrbitBroken`]);
-    /// every half-edge on it starts at the start vertex
-    /// ([`EulerOpError::OrbitBroken`] — tier-1-invalid input: a torn
-    /// `next` can walk it through another vertex's half-edge), a
-    /// strut's walk included, since the strut splices into that orbit;
-    /// both `prev` links resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
+    /// closes, every half-edge on it starts at the start vertex, and
+    /// it reaches `he2` ([`EulerOpError::FanOrbitBroken`] —
+    /// tier-1-invalid input: a torn `next` can walk it through another
+    /// vertex's half-edge), a strut's walk included, since the strut
+    /// splices into that orbit; both `prev` links resolve
+    /// (`StaleKey`); each member's inverse step `mate(prev(·))` is the
+    /// member before it (`FanOrbitBroken`: a torn `next` can split the
+    /// orbit, or close the walk past some of its members). `Lone`: the loop resolves (`StaleKey`); it
     /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
     /// the geometry gate: `curve` certifies
@@ -2740,6 +2743,9 @@ impl<T: Decide> Body<T> {
     /// that orbit. A torn half-edge in the run would be re-based; one
     /// past `he2`, or anywhere on a strut's walk (whose run is empty),
     /// would have the split splice into a torn orbit.
+    ///
+    /// The walk inverts ([`Body::orbit_inverts`]), so while the `prev`
+    /// links are untorn it is the vertex's whole orbit.
     pub(crate) fn mev_fan_plan(
         &self,
         he1: HalfEdgeKey,
@@ -2771,6 +2777,9 @@ impl<T: Decide> Body<T> {
         // the mutation below cannot fail midway (atomicity).
         let he1_prev = self.require_live(he1_prev)?;
         let he2_prev = self.require_live(he2_prev)?;
+        if !self.orbit_inverts(&orbit) {
+            return Err(EulerOpError::FanOrbitBroken { he1, he2 });
+        }
         Ok(MevFanPlan {
             v,
             point,
@@ -6639,6 +6648,106 @@ mod tests {
         let (mut cube, halves) = twice_torn_cube();
         for he in [halves[5], halves[6]] {
             every_fan_door_refuses_the_torn_walk(&mut cube, he, he);
+        }
+    }
+
+    /// The declined cube torn by one `next` write, on `mate(a)`, a
+    /// half-edge that starts at another vertex and ends at the seed
+    /// corner `v`, whose clockwise orbit is `[a, b, c]`: `v`'s walk from
+    /// `a` skips `b` and closes `[a, c]` at `v`, and `b`'s walk runs into
+    /// that cycle and never returns to `b`. A static witness: the walk
+    /// from `a` passes the start proof, and is not `v`'s orbit.
+    fn cube_with_a_walk_run_into_a_corner() -> (Body<f64>, [HalfEdgeKey; 3]) {
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
+        let mut body = cube.body;
+        let v = cube.seed.vertex;
+        let a = body.get_vertex(v).unwrap().emanating.unwrap();
+        let &[_, b, c] = body.vertex_orbit(a).unwrap().as_slice() else {
+            unreachable!("a cube corner meets three edges")
+        };
+        let torn = body.mate(a).unwrap();
+        assert_ne!(
+            body.get_half_edge(torn).unwrap().start,
+            v,
+            "torn at another vertex"
+        );
+        body.get_half_edge_mut(torn).unwrap().next = c;
+        assert_eq!(body.vertex_orbit(a), Some(vec![a, c]), "closes at v past b");
+        assert_eq!(body.vertex_orbit(b), None, "b's walk runs into [a, c]");
+        (body, [a, b, c])
+    }
+
+    #[test]
+    fn a_fan_split_refuses_a_walk_another_walk_runs_into() {
+        // Every fan site on the cycle the walk from `a` closes, struts
+        // included: a split there would re-base part of `v`'s orbit and
+        // strand `b` on the walk that runs into it, and the plan refuses
+        // before any write.
+        let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
+        for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
+            every_fan_door_refuses_the_torn_walk(&mut body, he1, he2);
+        }
+    }
+
+    #[test]
+    fn a_vertex_keyed_read_refuses_a_walk_another_walk_runs_into() {
+        // `v`'s emanating `a` walks `[a, c]`, which meets two of the
+        // three edges at `v`; every vertex-keyed read refuses rather than
+        // answer part of the orbit.
+        let (body, [a, ..]) = cube_with_a_walk_run_into_a_corner();
+        let v = body.get_half_edge(a).unwrap().start;
+        assert_eq!(body.get_vertex(v).unwrap().emanating, Some(a));
+        assert_eq!(body.vertex_orbit_of(v), None, "vertex_orbit_of");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
+    #[test]
+    fn a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error() {
+        // The stated limit of the inversion proof: the witness's `next`
+        // tear paired with `prev(c) = mate(a)` makes the walk `[a, c]`
+        // invert, so every vertex-keyed read answers it and every fan
+        // site splits, stranding `b`. The validator reports the split at
+        // `v`, and no minted key lands in an orbit error.
+        let (mut body, [a, _, c]) = cube_with_a_walk_run_into_a_corner();
+        let v = body.get_half_edge(a).unwrap().start;
+        body.get_half_edge_mut(c).unwrap().prev = body.mate(a).unwrap();
+        assert!(body.orbit_inverts(&[a, c]), "the walk inverts");
+        assert_eq!(body.vertex_orbit_of(v), Some(vec![a, c]), "b is stranded");
+        for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
+            let mut trial = body.clone();
+            let mut scope = trial.begin_surgery();
+            let site = MevSite::Fan { he1, he2 };
+            let created = scope
+                .mev_null(site, crate::NewVertexSide::Above)
+                .unwrap_or_else(|err| panic!("{site:?} refused {err:?}"));
+            drop(scope);
+            let errors = validate(&trial).unwrap_err();
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. } if *vertex == v
+                )),
+                "{site:?}: the split at v is reported: {errors:?}"
+            );
+            let minted = |he: &HalfEdgeKey| [created.he_plus, created.he_minus].contains(he);
+            for error in &errors {
+                let names_a_minted_key = match error {
+                    crate::ValidationError::OrbitForeignMember { vertex, half_edge } => {
+                        *vertex == created.vertex || minted(half_edge)
+                    }
+                    crate::ValidationError::SplitVertexOrbit { vertex, .. }
+                    | crate::ValidationError::VertexOrbitOverrun { vertex } => {
+                        *vertex == created.vertex
+                    }
+                    _ => false,
+                };
+                assert!(
+                    !names_a_minted_key,
+                    "{site:?}: {error:?} names a minted key"
+                );
+            }
         }
     }
 
