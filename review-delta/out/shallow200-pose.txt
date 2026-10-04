@@ -1,0 +1,74 @@
+######## eps 1e-9 tilt 1e-7
+eps=0.000000001 band=1e-8 tilt=1e-7
+pc U: built v=67.13661361553739 (va=3.1999999999999997 vb=64) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.996756406158484, 0.9993512812316968, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.345e-2 a=([3.996756411954752, 0.999350567015084, 1.0], [2.0, 0.6, 1.0]) b=([2.0, 0.6, 1.0], [3.996756411954752, 0.9993512823909505, 0.999999787207216])
+pc I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+pc S: built v=3.136613615537381 (va=3.1999999999999997 vb=64) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.996756406158484, 0.9993512812316968, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp U: built v=67.13661361553739 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.345e-2 a=([2.0, 0.6, 1.0], [3.996756411954752, 0.999350567015084, 1.0]) b=([3.996756411954752, 0.9993512823909505, 0.999999787207216], [2.0, 0.6, 1.0])
+cp I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+cp S: built v=63.93661361553739 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+######## eps 1e-6 tilt 1e-7
+eps=0.000001 band=9.999999999999999e-6 tilt=1e-7
+pc U: built v=67.13661361553746 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[VvContact { a: VertexKey(12v1), b: VertexKey(23v1) }] a_on_b=0 b_on_a=0
+   IND VV gap=2.036e-7 recorded=true same_point=false at [3.9967564003622162, 0.9993512800724432, 1.0]
+   IND EE gap=2.036e-7 interior=false samples=19 inband_len~3.141e-5 a=([4.0, 1.0, 1.0], [3.9967564003622162, 0.9993512800724432, 1.0]) b=([3.996756411954752, -1.284527350305809, 1.67935299901226], [3.996756411954752, 0.9993512221096603, 0.9999998051382424])
+   IND EE gap=2.036e-7 interior=false samples=19 inband_len~3.141e-5 a=([4.0, 1.0, 1.0], [3.9967564003622162, 0.9993512800724432, 1.0]) b=([3.996756411954752, 0.9993512221096603, 0.9999998051382424], [3.996756411954752, 2.549451917282046, 0.5389131822281836])
+pc I: built v=0.06338638446256842 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+pc S: built v=3.1366136155374313 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp U: built v=67.13661361553743 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[VvContact { a: VertexKey(10v1), b: VertexKey(23v1) }] a_on_b=0 b_on_a=0
+   IND VV gap=7.015e-7 recorded=true same_point=false at [3.996756411954752, 0.999350567015084, 1.0]
+   IND EE gap=7.015e-7 interior=false samples=19 inband_len~3.141e-5 a=([3.996756411954752, -1.284527350305809, 1.67935299901226], [3.996756411954752, 0.999350567015084, 1.0]) b=([4.0, 1.0, 1.0], [3.99675627438247, 0.999351254876494, 1.0])
+   IND EE gap=2.036e-7 interior=false samples=19 inband_len~3.141e-5 a=([3.996756411954752, 0.999350567015084, 1.0], [3.996756411954752, 2.549451917282046, 0.5389131822281836]) b=([4.0, 1.0, 1.0], [3.99675627438247, 0.999351254876494, 1.0])
+cp I: built v=0.06338638446256843 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp S: built v=63.936613615537425 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+######## eps 1e-6 tilt 1e-4
+eps=0.000001 band=9.999999999999999e-6 tilt=1e-4
+pc U: built v=67.13672228429 (va=3.1999999999999997 vb=64.00000000000001) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.996761787780792, 0.9993523575561584, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.344e-2 a=([3.9967675740736683, 0.9986381841846255, 1.0], [2.0, 0.6, 1.0]) b=([2.0, 0.6, 1.0], [3.9967675740736683, 0.9993535148147341, 0.9997872060264545])
+pc I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+pc S: built v=3.1367222842900073 (va=3.1999999999999997 vb=64.00000000000001) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.996761787780792, 0.9993523575561584, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp U: built v=67.13672228429 (va=3.1999999999999997 vb=64.00000000000001) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.344e-2 a=([2.0, 0.6, 1.0], [3.9967675740736683, 0.9986381841846255, 1.0]) b=([3.9967675740736683, 0.9993535148147341, 0.9997872060264545], [2.0, 0.6, 1.0])
+cp I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+cp S: built v=63.93672228429 (va=3.1999999999999997 vb=64.00000000000001) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+######## eps 1e-12 tilt 1e-10
+eps=0.000000000001 band=1e-11 tilt=1e-10
+pc U: built v=67.1366135067681 (va=3.1999999999999997 vb=63.99999999999999) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.9967564007772163, 0.9993512801554433, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.345e-2 a=([3.9967564007830125, 0.9993512794412265, 1.0], [2.0, 0.6, 1.0]) b=([2.0, 0.6, 1.0], [3.9967564007830125, 0.9993512801566027, 0.9999999997872072])
+pc I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+pc S: built v=3.1366135067681 (va=3.1999999999999997 vb=63.99999999999999) t3p=Err([UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(13v1), b: EdgeKey(25v5) }, witness: "(3.9967564007772163, 0.9993512801554433, 1.0)" }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp U: built v=67.1366135067681 (va=3.1999999999999997 vb=63.99999999999999) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+   IND EE gap=0.000e0 interior=false samples=82 inband_len~8.345e-2 a=([2.0, 0.6, 1.0], [3.9967564007830125, 0.9993512794412265, 1.0]) b=([3.9967564007830125, 0.9993512801566027, 0.9999999997872072], [2.0, 0.6, 1.0])
+cp I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+cp S: built v=63.93661350676809 (va=3.1999999999999997 vb=63.99999999999999) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+######## eps 1e-12 tilt 1e-7
+eps=0.000000000001 band=1e-11 tilt=1e-7
+pc U: built v=67.13661361553739 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+pc I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+pc S: built v=3.136613615537381 (va=3.1999999999999997 vb=64) t3p=Ok(())
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp U: built v=67.13661361553739 (va=3.1999999999999997 vb=64) t3p=Err([CensusEscalated { cause: Indeterminate { margin: MarginDiag(Value(6.688871678761643e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("pm_census_ee_span") } }, CensusEscalated { cause: Indeterminate { margin: MarginDiag(Value(-4.023892330451417e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("pm_census_ee_span") } }])
+   contacts.vv=[] a_on_b=0 b_on_a=0
+cp I: ERR JoinDesync { what: "every chord arc separates a loose scaffolding pair" }
+cp S: built v=63.93661361553739 (va=3.1999999999999997 vb=64) t3p=Err([CensusEscalated { cause: Indeterminate { margin: MarginDiag(Value(6.688871678761643e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("pm_census_ee_span") } }, CensusEscalated { cause: Indeterminate { margin: MarginDiag(Value(-4.023892330451417e-12, None)), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("pm_census_ee_span") } }])
+   contacts.vv=[] a_on_b=0 b_on_a=0

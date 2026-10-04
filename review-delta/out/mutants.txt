@@ -1,0 +1,92 @@
+##### NONE
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... ok
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2132 filtered out; finished in 3.12s
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... ok
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... ok
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.24s
+##### M_NOWELD
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... ok
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... FAILED
+thread 'join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body' (10232) panicked at crates/sweep/tests/join_pierce_runs_sweep.rs:336:5:
+24 bad lines:
+face i=0 j=3 psi=0 pc U: face FaceKey(16v5) runs through two vertices at v
+face i=0 j=3 psi=0 cp U: face FaceKey(2v1) runs through two vertices at v
+face i=0 j=4 psi=0 pc U: face FaceKey(12v5) runs through two vertices at v
+face i=0 j=4 psi=0 cp U: face FaceKey(2v1) runs through two vertices at v
+face i=0 j=5 psi=0 pc U: face FaceKey(12v5) runs through two vertices at v
+face i=0 j=5 psi=0 cp U: face FaceKey(2v1) runs through two vertices at v
+face i=0 j=6 psi=0 pc U: face FaceKey(16v5) runs through two vertices at v
+face i=0 j=6 psi=0 cp U: face FaceKey(2v1) runs through two vertices at v
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... FAILED
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... FAILED
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... ok
+thread 'join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference' (10319) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:219:17:
+thread 'join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op' (10322) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:219:17:
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.18s
+##### M_NOKFMRH
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... ok
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... FAILED
+thread 'join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body' (10327) panicked at crates/sweep/tests/join_pierce_runs_sweep.rs:336:5:
+24 bad lines:
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2132 filtered out; finished in 2.92s
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... FAILED
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... FAILED
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... ok
+thread 'join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference' (10390) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+thread 'join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op' (10393) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.16s
+##### M_NOTWIN
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... FAILED
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... ok
+thread 'join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band' (10397) panicked at crates/sweep/tests/join_pierce_runs_sweep.rs:481:13:
+union: the near-tangent pose did not build
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2132 filtered out; finished in 2.65s
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... FAILED
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... FAILED
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... ok
+thread 'join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference' (10414) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+thread 'join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op' (10417) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.13s
+##### M_RUNS1
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... FAILED
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... ok
+thread 'join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band' (10421) panicked at crates/sweep/tests/join_pierce_runs_sweep.rs:481:13:
+union: the near-tangent pose did not build
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2132 filtered out; finished in 2.49s
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... FAILED
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... FAILED
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... FAILED
+thread 'join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference' (10436) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+thread 'join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection' (10438) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+thread 'join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op' (10439) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.11s
+##### M_INTERWALK
+test join_pierce_runs_sweep::a_near_tangent_two_run_pierce_builds_with_no_edge_pair_in_band ... ok
+test join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2132 filtered out; finished in 2.95s
+test join_pierce_strut_facing::a_whole_orbit_strut_faces_its_start_germ_with_he_minus ... ok
+test join_pierce_strut_facing::a_bare_bisector_strut_faces_its_start_germ_with_he_plus ... ok
+test join_pierce_strut_facing::opposite_poses_split_the_prism ... ok
+test join_pierce_strut_facing::a_wide_run_builds_its_union_and_difference ... ok
+test join_pierce_strut_facing::two_edge_runs_build_their_union_and_intersection ... ok
+test join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op ... FAILED
+thread 'join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op' (10463) panicked at crates/sweep/tests/join_pierce_strut_facing.rs:182:13:
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 2128 filtered out; finished in 0.17s
+MUTDONE
