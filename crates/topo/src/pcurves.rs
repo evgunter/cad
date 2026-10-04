@@ -8,14 +8,19 @@
 //!
 //! # The half-edge IS the key (spec §1)
 //!
-//! A pcurve belongs to an (edge, face-side) incidence, and the
-//! half-edge is exactly that incidence. Seam edges are the forcing
+//! A pcurve row belongs to an (edge, face-side) incidence, and the
+//! half-edge is exactly that incidence. A row is two things: the
+//! edge's IMAGE in the face's chart — its certified chart curve, a
+//! function of the edge and the chart alone ([`crate::Body::pcurve`])
+//! — and the half-edge's JOINT ELEMENT, the deck transformation that
+//! carries its image onto the end of its predecessor's image
+//! ([`crate::Body::joint`], [`crate::joint`]). Seam edges are the forcing
 //! case and the reason no coarser key works: a full cylinder wall
 //! closed by its seam meridian has **both half-edges of one edge in
-//! one loop of one face**, on one surface, with two different chart
-//! curves (`u = α` and `u = α + 2π`). "Per edge" cannot hold two;
-//! "per (edge, face)" cannot hold two either. Per half-edge has no
-//! special case — [`crate::Body::pcurve`].
+//! one loop of one face**, on one surface, with one image and two
+//! joint elements, which the loop's lift places at `u = α` and
+//! `u = α + 2π`. "Per edge" cannot hold the two joints; "per (edge,
+//! face)" cannot either. Per half-edge has no special case.
 //!
 //! # What gets minted, and what deliberately does not
 //!
@@ -54,19 +59,32 @@
 //!   (`Pcurve::IsoArc`). Only the mvfs placeholder mints nothing: it
 //!   is not a described surface.
 //!
-//! # The one-branch walk (spec §3)
+//! # The loop walk: images and joint elements (spec §3)
 //!
 //! A [`geom_brep::Pcurve`] cannot express a branch jump: its azimuth
-//! channel is `α + β·t` with one stored `α`. What remains is *which*
-//! branch `α + kτ` each half-edge of a face takes, and that is decided
-//! **once per loop**, by walking the loop in `next` order and pinning
-//! each half-edge's entry chart point to the previous half-edge's exit
-//! chart point. The pinning is then **certified**: the two chart points
-//! must agree within ε *through the map* (azimuth metered at the chart
-//! radius, height directly), or the walk refuses typed
-//! ([`PcurveMintError::LoopDiscontinuity`]). The loop must also close
-//! — with a total azimuth advance of zero, or exactly one period for a
-//! loop that wraps the chart (the seam case).
+//! channel is `α + β·t` with one stored `α`. So a row stores the image
+//! on the branch its derivation answers, and the branch a loop's chain
+//! takes is integers: each joint's ELEMENT, the whole number of periods
+//! per angular channel (and, on a sphere, the involution twin) that
+//! carries the half-edge's image onto its predecessor's exit
+//! ([`decide_joint`]). The element is decided between two images, so
+//! it is a function of the two edges and the chart, and **no stored
+//! byte depends on which half-edge is a loop's `first`**. The decision
+//! is **certified**: the two chart points must agree within ε *through
+//! the map* (azimuth metered at the chart radius, height directly), or
+//! the walk refuses typed ([`PcurveMintError::LoopDiscontinuity`]). At
+//! a joint on the chart's singular set — a pole, an apex — the azimuth
+//! has no lever and its periods are not decided: the element is the
+//! reset marker, which carries the rest ([`JointElement::Reset`]).
+//!
+//! A loop's **lift** — the chain of chart curves its readers draw — is
+//! its images moved by the elements summed along it ([`loop_lift`]),
+//! and its **winding** is the elements composed once around
+//! ([`Winding`]). The loop must close: its winding a whole period of
+//! the azimuth at most (none counted across a reset), of an angular
+//! second channel at most, or — on a sphere — the involution
+//! ([`Winding::closes`]), read off conjugation invariants, so the
+//! verdict is the same from every member.
 //!
 //! This is the M2 PR 5 meridian finding generalized:
 //! "the junction's meridian column unwrapped nearest prev_u, but past
@@ -202,18 +220,13 @@
 //! below) is on no face, so it is on no plane face, and it travels as
 //! found — not a refusal, because the boolean's `revert` of a split
 //! operand carries such rows routinely, and the graft or the
-//! producer's closing mint disposes of them. The loop walk's branch
-//! choice is re-stated too, without touching a row: the forward walk
-//! parks a periodic chart's one-period wrap at the loop's closure,
-//! the joint before `first`, and that joint would sit mid-chain once
-//! the loop runs the other way — so `revert` moves every loop's
-//! `first` to its source predecessor, which puts the same joint at
-//! the reversed closure (`crate::entity::LoopBoundary::Cycle`'s
-//! `first` states the invariant; the anchor bullet in `revert`'s
-//! module docs carries the argument). Tier 3 of a reverted body whose
-//! faces carry rows reports nothing but `NegativeVolume`; `sweep`'s
-//! `revert_periodic_wrap` rows pin that on the two-arc sphere's
-//! cavity and a cone through its apex.
+//! producer's closing mint disposes of them. Each joint element moves
+//! onto its source predecessor, inverted — the same joint read from
+//! the other side — and no loop's `first` moves (the joint bullet in
+//! `revert`'s module docs). Tier 3 of a reverted body whose faces
+//! carry rows reports nothing but `NegativeVolume`; `sweep`'s
+//! `revert_periodic_wrap` rows pin that on the two-arc sphere's cavity
+//! and a cone through its apex.
 //!
 //! The **loop-re-parenting** doors hold the same posture for a
 //! different reason: [`crate::Body::kfmrh`],
@@ -274,12 +287,21 @@
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
 //! kill ops other than [`crate::Body::kev_describing`] (above). These
-//! are primitives, and they are what the stale-row
-//! consequence below is about. A kill that takes the last null edge
-//! off a loop leaves the rows that loop missed while it was held open
-//! missing: `kemr`, `kev` and `kef` take no `Tol` to mint with, and
-//! [`crate::Body::kef_minting`] runs its site mint only over a remnant
-//! whose rows do not stand
+//! are primitives: they keep every image they find, and on each joint
+//! they make they write its element keys-only and exactly. A kill sums
+//! the elements of the joints it bridges ([`crate::Body::kev`],
+//! [`crate::Body::kef`], [`crate::Body::kemr`]; [`JointElement::then`]):
+//! an edge's two halves share one image, so where one ends the other
+//! begins, and the sum carries the survivor's image onto the
+//! predecessor's exit exactly as the pass's decision there does. A null
+//! edge is a point with no image: its halves carry the identity, and
+//! the joint out of one keeps the element read across the point, so a
+//! kill of it sums the same way. So on a face whose rows are the pass's,
+//! a kill leaves the pass's rows, byte for byte. A kill that takes the
+//! last null edge off a loop leaves the rows that loop missed while it
+//! was held open missing: `kemr`, `kev` and `kef` take no `Tol` to mint
+//! with, and [`crate::Body::kef_minting`] runs its site mint only over a
+//! remnant whose rows do not stand
 //! (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
@@ -4241,25 +4263,27 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ///    complete face and a half-minted one alike. The stored certificate
 ///    is never consulted (re-certification re-derives, it does not
 ///    trust, exactly as [`geom_brep::EdgeCurve::recertify`]). The window
-///    is the stored rows' and not a fresh walk's: a loop's rows may
-///    stand a whole period over, or on a sphere's involution twin, from
-///    a fresh walk and describe the same face (`Body::revert`'s
-///    re-statement), so no branch enters what a row is measured
-///    against.
-/// 4. **Each loop's one-branch continuity is re-checked** on the stored
-///    pcurves, as the mint's walk reads the loop: every joint exactly,
-///    except the one the walk lets wrap (into the cycle's first
-///    half-edge), read as the closure, which may wrap the chart by a
-///    whole period. The chain runs once around from the loop's first
-///    stored row. A half-edge that stores no row is carried by the image
-///    the mint would derive there, pinned as the walk pins it, so the
-///    rows either side of a gap are measured across it and the wrap is
-///    read whenever the chain reaches it (at the next stored row, where
-///    the gap is the cycle's first half-edge); a gap the derivation
-///    cannot place breaks the chain. So a body whose branches were
-///    tampered with fails here even if each pcurve certifies in
-///    isolation, and the verdict hangs neither on which half-edge is the
-///    gap nor on the branch the loop's rows stand on.
+///    is the stored rows' and not a fresh walk's: a loop's images may
+///    stand a whole period over from the derivation and describe the
+///    same face, so no branch enters what a row is measured against.
+/// 4. **Each joint's element is re-decided, and the winding is their
+///    sum.** At every joint of every loop — the one into the cycle's
+///    `first` read as every other — the element is decided between the
+///    two images ([`decide_joint`]) and the stored one read against it:
+///    the same element, or another that carries the same two points
+///    where the chart's symmetry fixes the joint, of the kind the lever
+///    decides (a reset exactly where the lever is not definite);
+///    anything else is a [`PcurveMintError::LoopDiscontinuity`]. A
+///    half-edge that stores no image is carried by the image the mint
+///    would derive there, and the joints either side of it by the
+///    elements decided there, so the rows either side of a gap are
+///    measured across it; a gap the derivation cannot place leaves its
+///    two joints unread. Where every joint reads, the elements composed
+///    once around must close ([`Winding::closes`],
+///    [`PcurveMintError::LoopNotClosed`]). So a body whose elements
+///    were tampered with fails here even if each image certifies in
+///    isolation, and no verdict hangs on which half-edge is `first`,
+///    which is the gap, or which branch the loop's images stand on.
 ///
 /// **Check 5 (trim containment) is vacuous here**: every row is
 /// measured against the hull of the stored rows, its own box among
@@ -4294,13 +4318,12 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         // it stores, the window they hull out to, and the gaps.
         let stored = stored_rows(body, face_key);
         // Every stored row is measured against the window the stored
-        // rows hull out to, on a complete face and a half-minted one
+        // images hull out to, on a complete face and a half-minted one
         // alike. The derivation's window is no reference for them: a
-        // loop's rows may stand one whole period over (or, on a sphere,
-        // on the involution twin) from a fresh walk and describe the
-        // same face — the re-statement `Body::revert` makes — so what a
-        // row may not do is checked where no branch enters: its
-        // interval against its edge's (below).
+        // loop's images may stand one whole period over from the
+        // derivation and describe the same face, so what a row may not
+        // do is checked where no branch enters: its interval against its
+        // edge's (below).
         let window = if stored.complete() {
             stored.window
         } else {
@@ -4510,8 +4533,11 @@ pub(crate) mod staleness_posture {
         /// is the minting posture ([`super::site_rows`]), and a door in
         /// this bucket that mints half-edges says so in its note.
         Transfers,
-        /// Leaves the map exactly as it found it — a primitive, or a
-        /// write the map is not keyed on. What this bucket rests on is
+        /// Leaves every image as it found it — a primitive, or a write
+        /// the map is not keyed on — and writes on each joint it makes
+        /// the element it sums from the joints it bridges (a kill) or
+        /// carries across a null edge's point (`mev_null`), keys-only
+        /// and exact (module docs). What this bucket rests on is
         /// the tier-3 pcurve pass, and only as far as that pass looks
         /// (module docs): it reports a face missing any of its rows,
         /// and a stored row that no longer certifies; it is silent about a complete
@@ -4654,8 +4680,10 @@ pub(crate) mod staleness_posture {
             (
                 "mev_null",
                 Neither,
-                "Euler operator minting a NULL edge: scaffolding with no carrier, so no row \
-             to derive, and the loop it joins is held open, missing the edge's two rows. \
+                "Euler operator minting a NULL edge: scaffolding with no carrier, so no image \
+             to derive, and the loop it joins is held open, missing the edge's two images; \
+             its halves carry the identity element and the joint out of each keeps its \
+             successor's, read across the edge's point. \
              The door that releases the loop mints it whole, except on a spline chart: an \
              operator rewiring it out from under the edge (the boolean's and the \
              splitting lane's joins) or the edge's first description \
@@ -4664,8 +4692,17 @@ pub(crate) mod staleness_posture {
              (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`); \
              tier 2 refuses a null edge at rest",
             ),
-            ("kemr", Neither, "Euler operator"),
-            ("kev", Neither, "kill op"),
+            (
+                "kemr",
+                Neither,
+                "Euler operator: each side's closing joint takes the sum of the two elements \
+             it bridges",
+            ),
+            (
+                "kev",
+                Neither,
+                "kill op: the joint it makes takes the sum of the elements it bridges",
+            ),
             (
                 "kev_describing",
                 Completes,
@@ -4784,8 +4821,9 @@ pub(crate) mod staleness_posture {
              where the surviving face is on the dying face's chart (`Body::same_chart`) and \
              loses them where it is not (`Body::drop_rows`); where they do not stand and the \
              surviving face's rows were complete on an analytic chart it refuses `KeysOnly` \
-             before mutating, and a spline chart keeps the drop; the two killed halves' rows \
-             outlive their keys as every kill op's do",
+             before mutating, and a spline chart keeps the drop; where they stand, each \
+             joint it makes takes the sum of the two elements it bridges; the two killed \
+             halves' rows outlive their keys as every kill op's do",
             ),
             (
                 "kef_minting",
@@ -5613,5 +5651,195 @@ mod polar_shift_tests {
             [1.0, 0.25, -0.5, 1.0, 0.125, -0.375],
             "the trigonometric and linear coefficients are not a branch"
         );
+    }
+}
+
+#[cfg(test)]
+mod pole_slit_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use core::f64::consts::{FRAC_PI_2, PI};
+
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::{Body, FaceKey, FaceSurface, LoopBoundary, MefSite, MevSite};
+
+    /// The unit sphere's point at chart `(u, v)`: axis `+z`, seam `+x`.
+    fn at(u: f64, v: f64) -> Point3<f64> {
+        Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin())
+    }
+
+    /// **The snowman's cap, built to the shape the probe saw.** A cap of
+    /// the unit sphere above the latitude `v = 0.5`, bounded by two rim
+    /// arcs (`u ∈ [0, π]`, its carrier's parameter a period below, and
+    /// `[π, 2π]`) and a meridian slit up `u = π`
+    /// from the rim to the north pole and back: rim arc, slit up, slit
+    /// down, rim arc. Returns the body, the cap and the cap's loop
+    /// members.
+    fn slit_cap() -> (Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>) {
+        let tol = Tol::witness();
+        let v0 = 0.5;
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(0.0, v0), true).unwrap();
+        let sphere = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        radius: 1.0,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let rim_plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.0, 0.0, v0.sin()),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        let rim = |t0: f64, t1: f64| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: sphere,
+                s2: rim_plane,
+                witness: at(0.5 * (t0 + t1), v0),
+            },
+            carrier: Curve3::Circle {
+                center: Point3::new(0.0, 0.0, v0.sin()),
+                axis: Vec3::unit_z(),
+                radius: v0.cos(),
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: t0,
+            param_end: t1,
+        };
+        let first_arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(PI, v0),
+                // A period below the azimuth it covers, `[0, π]`: its
+                // image's base sits a period below the slit's.
+                rim(-2.0 * PI, -PI),
+                tol,
+            )
+            .unwrap();
+        let second_arc = body
+            .mef(
+                MefSite::Chords {
+                    he1: first_arc.he_minus,
+                    he2: first_arc.he_plus,
+                },
+                rim(PI, 2.0 * PI),
+                FaceSurface::Shared {
+                    key: sphere,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap();
+        // The cap runs the rim with `u` increasing, seen from above.
+        let cap_loop = body
+            .get_half_edge(first_arc.he_plus)
+            .unwrap()
+            .parent_loop;
+        assert_eq!(
+            body.get_half_edge(second_arc.he_plus)
+                .unwrap()
+                .parent_loop,
+            cap_loop,
+            "both rim arcs run forward around the cap"
+        );
+        let cap = body.get_loop(cap_loop).unwrap().face;
+        // The slit: up the meridian `u = π`, a great circle in the plane
+        // `y = 0`, from the rim to the north pole.
+        let meridian_plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        });
+        body.mev(
+            MevSite::Fan {
+                he1: second_arc.he_plus,
+                he2: second_arc.he_plus,
+            },
+            at(0.0, FRAC_PI_2),
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: meridian_plane,
+                    witness: at(PI, 0.5 * (v0 + FRAC_PI_2)),
+                },
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: Vec3::unit_y(),
+                    radius: 1.0,
+                    u_ref: Vec3::new(-1.0, 0.0, 0.0),
+                },
+                param_start: v0,
+                param_end: FRAC_PI_2,
+            },
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol).unwrap();
+        let LoopBoundary::Cycle { first } = body.get_loop(cap_loop).unwrap().boundary else {
+            panic!("the cap's loop is a cycle")
+        };
+        let members = body.loop_cycle(first).unwrap();
+        assert_eq!(members.len(), 4, "rim arc, slit up, slit down, rim arc");
+        (body, cap, members)
+    }
+
+    /// The cap's stored rows — each half-edge's image and joint element —
+    /// as text, by half-edge.
+    fn rows(body: &Body<f64>, members: &[crate::HalfEdgeKey]) -> Vec<String> {
+        members
+            .iter()
+            .map(|&he| format!("{he:?} {:?} {:?}", body.pcurve(he), body.joint(he)))
+            .collect()
+    }
+
+    /// **The pass re-mints a pole-slit loop from every anchor, and reads
+    /// what tier 3 reads.** The slit's two halves meet at the pole, a
+    /// zero-lever joint whose element is the reset marker: the closure
+    /// counts no azimuth across it, in the pass and at tier 3 alike. So
+    /// with the loop anchored at each of its four half-edges in turn the
+    /// pass mints the cap, writes the same images and elements, and
+    /// tier 3 reads it clean (`work/topo/the-pass-refuses-a-tier-3-clean-
+    /// loop-anchored-past-a-pole-slit`: the pass refused `LoopNotClosed`
+    /// where the walk from the anchor carried the pole's free azimuth
+    /// gap into its closure).
+    #[test]
+    fn a_pole_slit_loop_re_mints_from_every_anchor() {
+        let (mut body, cap, members) = slit_cap();
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
+        let pole_joints = members
+            .iter()
+            .filter(|&&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
+            .count();
+        assert_eq!(pole_joints, 1, "the slit's turn at the pole is the one reset");
+        let minted = rows(&body, &members);
+        for &anchor in &members {
+            body.get_loop_mut(cap_loop).unwrap().boundary = LoopBoundary::Cycle { first: anchor };
+            crate::mint_pcurves_of(&mut body, &[cap], Tol::witness())
+                .unwrap_or_else(|e| panic!("anchored at {anchor:?}, the pass refuses: {e:?}"));
+            assert_eq!(rows(&body, &members), minted, "anchored at {anchor:?}");
+            assert_eq!(
+                super::validate_pcurves(&body, band),
+                vec![],
+                "anchored at {anchor:?}"
+            );
+            assert!(
+                body.loop_lift(cap_loop).is_ok(),
+                "anchored at {anchor:?}, the loop lifts"
+            );
+        }
     }
 }
