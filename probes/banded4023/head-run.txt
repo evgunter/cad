@@ -1,0 +1,41 @@
+collocation (fit rows): Tally { cases: 7798, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 5, pivot: NaN } banded LsqDegenerate { pivot_index: 5, pivot: 0.0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 2, pivot: NaN } banded LsqDegenerate { pivot_index: 2, pivot: 0.0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 5, pivot: NaN } banded LsqDegenerate { pivot_index: 5, pivot: 0.0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 4, pivot: NaN } banded LsqDegenerate { pivot_index: 4, pivot: 0.0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 2, pivot: NaN } banded LsqDegenerate { pivot_index: 2, pivot: 0.0 }
+ERRDIFF generic-finite: dense LsqDegenerate { pivot_index: 2, pivot: NaN } banded LsqDegenerate { pivot_index: 2, pivot: 0.0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+ERRBITS generic-negzero-entries: dense LsqDegenerate { pivot_index: 2, pivot: 0.0 } banded LsqDegenerate { pivot_index: 2, pivot: -0.0 }
+ERRBITS generic-negzero-entries: dense LsqDegenerate { pivot_index: 2, pivot: 0.0 } banded LsqDegenerate { pivot_index: 2, pivot: -0.0 }
+ERRBITS generic-negzero-entries: dense LsqDegenerate { pivot_index: 1, pivot: 0.0 } banded LsqDegenerate { pivot_index: 1, pivot: -0.0 }
+ERRBITS generic-negzero-entries: dense LsqDegenerate { pivot_index: 3, pivot: 0.0 } banded LsqDegenerate { pivot_index: 3, pivot: -0.0 }
+ERRBITS generic-negzero-entries: dense LsqDegenerate { pivot_index: 4, pivot: 0.0 } banded LsqDegenerate { pivot_index: 4, pivot: -0.0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+ACCEPT-MISMATCH generic-nonfinite-entries n=5: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 3, pivot: NaN }) / None)
+ACCEPT-MISMATCH generic-nonfinite-entries n=9: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 8, pivot: NaN }) / None)
+ACCEPT-MISMATCH generic-nonfinite-entries n=6: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 2, pivot: NaN }) / None)
+ACCEPT-MISMATCH generic-nonfinite-entries n=6: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 3, pivot: NaN }) / None)
+ERRBITS generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 5, pivot: NaN } banded LsqDegenerate { pivot_index: 5, pivot: NaN }
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 1, pivot: NaN } banded LsqDegenerate { pivot_index: 6, pivot: NaN }
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 7, pivot: NaN } banded LsqDegenerate { pivot_index: 7, pivot: inf }
+ACCEPT-MISMATCH generic-nonfinite-entries n=7: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 6, pivot: NaN }) / None)
+ACCEPT-MISMATCH generic-nonfinite-entries n=9: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 5, pivot: NaN }) / None)
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 4, pivot: NaN } banded LsqDegenerate { pivot_index: 4, pivot: inf }
+ACCEPT-MISMATCH generic-nonfinite-entries n=6: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 4, pivot: NaN }) / None)
+ERRBITS generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 6, pivot: NaN } banded LsqDegenerate { pivot_index: 6, pivot: NaN }
+ACCEPT-MISMATCH generic-nonfinite-entries n=3: dense ok=false banded ok=true (Some(LsqDegenerate { pivot_index: 2, pivot: NaN }) / None)
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 2, pivot: NaN } banded LsqDegenerate { pivot_index: 5, pivot: NaN }
+ERRBITS generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 7, pivot: NaN } banded LsqDegenerate { pivot_index: 7, pivot: NaN }
+ERRBITS generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 4, pivot: 0.0 } banded LsqDegenerate { pivot_index: 4, pivot: -0.0 }
+ERRBITS generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 5, pivot: NaN } banded LsqDegenerate { pivot_index: 5, pivot: NaN }
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 3, pivot: NaN } banded LsqDegenerate { pivot_index: 7, pivot: -inf }
+ERRDIFF generic-nonfinite-entries: dense LsqDegenerate { pivot_index: 6, pivot: NaN } banded LsqDegenerate { pivot_index: 7, pivot: -0.0 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+4a overflow witness: dense Err(LsqDegenerate { pivot_index: 2, pivot: NaN })
+   banded Ok([[NaN], [inf], [0.8333333333333333], [0.8333333333333334], [0.8333333333333334]])
+4b NaN-entry witness: dense Err(LsqDegenerate { pivot_index: 1, pivot: NaN })
+   banded Ok([[NaN], [0.6666666666666667], [0.6666666666666666]])
+4c -0 entry: dense Ok([[1.3333333333333333], [0.3333333333333333], [-0.0]])
+   banded Ok([[1.3333333333333333], [0.3333333333333333], [0.0]])

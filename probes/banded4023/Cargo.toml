@@ -1,0 +1,11 @@
+[package]
+name = "banded4023"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+geom-core = { path = "../../crates/geom-core" }
+geom = { path = "../../crates/geom" }

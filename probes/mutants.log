@@ -1,0 +1,41 @@
+=== M1
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 0.03s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.05s
+collocation (fit rows): Tally { cases: 7798, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 148, nanloose_diff: 148, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+=== M2
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 0.07s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.15s
+collocation (fit rows): Tally { cases: 7798, strict_diff: 3766, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 102, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 34, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+=== M3
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 0.04s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.05s
+collocation (fit rows): Tally { cases: 7798, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 5, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+=== M4
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 0.07s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.03s
+collocation (fit rows): Tally { cases: 7798, strict_diff: 999, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 28, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 83, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+=== M5
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 0.05s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.06s
+collocation (fit rows): Tally { cases: 7798, strict_diff: 4289, nanloose_diff: 1076, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 } skipped_params=86
+rational/unclamped: Tally { cases: 384, strict_diff: 142, nanloose_diff: 35, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 0 }
+generic finite (no -0 entries): Tally { cases: 40000, strict_diff: 225, nanloose_diff: 116, accept_mismatch: 0, err_mismatch: 10, err_bits_mismatch: 0 }
+generic with -0.0 entries: Tally { cases: 40000, strict_diff: 0, nanloose_diff: 0, accept_mismatch: 0, err_mismatch: 0, err_bits_mismatch: 4255 }
+generic with non-finite/huge entries: Tally { cases: 40000, strict_diff: 104, nanloose_diff: 104, accept_mismatch: 1489, err_mismatch: 566, err_bits_mismatch: 688 }
+MUTDONE
