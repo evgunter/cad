@@ -6546,3 +6546,14 @@ ops' posture two answers); S6 (the duplicated null-strut fixture); file NOTE-4 (
 whose ends move leaves its far-face rows stale; pre-existing, unowned) and narrow the body's "wall leaves
 complete"; S5 (give the `unreachable!` messages their reason). S1-S3 are noted only. Fix lane
 session_01Vmcq6yUAfDSaVfayevjzLJ is on it; the reviewer is archived. Merged main. No Ev reply on 3970 or 4006.
+
+## PR 4010 merged; next unit dispatched (2026-10-04)
+
+The kev_describing null-member re-mint merged as `e9de523cd5`. Its fix pass at `06960aaae0` met every ruled item:
+the row is closed; `kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale` is filed; the
+null-strut fixture is shared (`test_support_fixtures.rs`); the S4 doc gives one answer; the S5 `unreachable!`
+messages state their reason. CI was green. The fix lane is archived.
+
+Dispatched `row-drop-walks-trust-the-loops-next-cycle` (P3, M) to session_01KnxHbJoTyTCWVHGSwLmidJ on
+branch `topo/row-drop-walks-prove-their-loop`. It must move the rows-to-drop read into the plan, reuse PR
+3511's walk proof, and measure a torn sweep before and after.
