@@ -6724,3 +6724,15 @@ Merge on green. The reviewer is archived.
 - The first probe (`session_01TQ5SmsWUzFBBnFaP2pXr4c`) finished, but its report was only its final message, which this session has no tool to read. The session summary shows only fragments: "pole-skip margin bug (azimuth-free joint, zero lever)", "old-closure-joint re-anchor risk (432 faces at kef)", and "probe artifact (kemr wrapper)". I archived it and re-dispatched as `session_01J4BMEARWkSt9esBpr9dwhR`. The report is now pushed as `probe-report.md` on `analysis/probe/topo-kill-rows-tier3`, and the re-run must confirm or refute those three fragments. **Lesson:** a cloud lane that does not open a PR must deliver its report through a pushed file.
 - Unit 1 (`session_013Lqym7SaJPyuPeoq8fkd3b`) is running; no PR yet.
 - Nothing new on PR 3970 or PR 4024. No topo commits incoming on main.
+
+## 11:03: Ev ruled on PR 4024 (re-anchor rows)
+
+Ev, 11:02 on PR 4024: "this sounds good!", which ratifies R: a row is an image plus a joint element, the lift is derived by summing, and C4's seam sentence is edited. Settled in place at `d720e3c47a` (main merged in):
+- the row reads `## Ruled` / `## The final state`, with the fallback recorded as not taken;
+- `needs_ev` and `design` dropped, cost raised to H (a representation change across pcurves, the kills, revert and four readers);
+- fork-log row 65 filled (match y; byte 81, A = Fable, B = Opus);
+- the PR body opens with `## Ruled`.
+
+The row stays open as the build row. It will be dispatched after the probe report lands; the link primitive goes in PR 3970's module when that exists, so it is not blocked on it. Merge on green.
+
+Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; the seven-day rate window shows a warning, so dispatch frugally). The probe re-run has no report yet. Nothing new on PR 3970.
