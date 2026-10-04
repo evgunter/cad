@@ -76,9 +76,10 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
-    Solid, SolidKey, Vertex, VertexKey,
+    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
+    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
+use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
@@ -1469,10 +1470,15 @@ impl<T: Real> Body<T> {
     /// [`Body::vertex_orbit`] from that half-edge, once the half-edge is
     /// proven to start at `vertex`. `Some(empty)` for a vertex with no
     /// emanating half-edge; `None` on a stale vertex, an `emanating` that
-    /// does not resolve or starts at another vertex, or a walk
-    /// [`Body::vertex_orbit`] refuses. Every vertex-keyed orbit read
-    /// starts here, so none answers for a walk another vertex's
-    /// `emanating` lends it.
+    /// does not resolve or starts at another vertex, a walk
+    /// [`Body::vertex_orbit`] refuses, or a walk a member's inverse step
+    /// `mate(prev(·))` does not walk back ([`Body::orbit_inverts`]).
+    /// Every vertex-keyed orbit read starts here, so none answers for a
+    /// walk another vertex's `emanating` lends it, or, while the `prev`
+    /// links are untorn, with part of an orbit a torn `next` split or
+    /// closed past some of its members. A `next` tear paired with a
+    /// `prev` tear that inverts it can still close the walk past
+    /// members, and this answers that part.
     pub(crate) fn vertex_orbit_of(&self, vertex: VertexKey) -> Option<Vec<HalfEdgeKey>> {
         let Some(first) = self.get_vertex(vertex)?.emanating else {
             return Some(Vec::new());
@@ -1481,6 +1487,7 @@ impl<T: Real> Body<T> {
             return None;
         }
         self.vertex_orbit(first)
+            .filter(|orbit| self.orbit_inverts(orbit))
     }
 
     /// The edges meeting `vertex`, each ONCE — or `None` where the
@@ -1575,6 +1582,21 @@ impl<T: Real> Body<T> {
         })
     }
 
+    /// Whether each member of a `Closed` orbit walk has the member
+    /// before it as its inverse step `mate(prev(·))`. While the `prev`
+    /// links are untorn, a walk that inverts is its vertex's whole
+    /// orbit; a `prev` tear matching a `next` tear can make a walk past
+    /// some members invert too. O(valence).
+    pub(crate) fn orbit_inverts(&self, orbit: &[HalfEdgeKey]) -> bool {
+        let before = orbit.iter().cycle().skip(orbit.len().saturating_sub(1));
+        orbit.iter().zip(before).all(|(&member, &before)| {
+            self.half_edges
+                .get(member)
+                .and_then(|data| self.mate(data.prev))
+                == Some(before)
+        })
+    }
+
     /// [`Body::orbit_walk`] without the start proof: a torn `next` can
     /// close it `Closed` through other vertices' half-edges. The
     /// [`ValidatorSeal`] only `validate` can mint keeps it the
@@ -1583,9 +1605,26 @@ impl<T: Real> Body<T> {
         self.bounded_walk(first, Self::orbit_step)
     }
 
-    fn orbit_step(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+    /// One clockwise step of `he`'s vertex orbit, `next(mate(he))`
+    /// ([`Body::vertex_orbit`]); `None` on a stale key or a broken mate.
+    pub(crate) fn orbit_step(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
         let mate = self.mate(he)?;
         self.half_edges.get(mate).map(|half_edge| half_edge.next)
+    }
+
+    /// Where a null edge moving the orbit run `first ..= last` (walked
+    /// clockwise, [`Body::orbit_step`]) to a new vertex lands: the
+    /// run's fan end is the orbit successor of `last`, read in the body
+    /// as it stands, so earlier splices at the vertex are counted.
+    /// [`RunSite::WholeOrbit`] when that successor is `first` again;
+    /// `None` on a stale key or a broken mate.
+    pub(crate) fn run_site(&self, first: HalfEdgeKey, last: HalfEdgeKey) -> Option<RunSite> {
+        let he2 = self.orbit_step(last)?;
+        Some(if he2 == first {
+            RunSite::WholeOrbit { corner: first }
+        } else {
+            RunSite::Fan { he1: first, he2 }
+        })
     }
 
     /// The shared bounded-walk engine: iterates `step` from `first` until
@@ -1660,6 +1699,40 @@ impl<T: Real> Body<T> {
     /// All vertices, in slot-index order (deterministic per D9).
     pub fn vertices(&self) -> impl Iterator<Item = (VertexKey, &Vertex)> {
         self.vertices.iter()
+    }
+
+    /// **Every live vertex with its point**, in vertex slot-index order
+    /// (deterministic per D9): [`Body::vertices`], then each record's
+    /// point through [`Body::get_point`], made once.
+    ///
+    /// The vertex key is live by construction; only the point read can
+    /// fail. A vertex whose point key does not resolve is a torn body —
+    /// a record of the body names nothing — and its row carries that
+    /// refusal beside the key, rather than being skipped.
+    ///
+    /// # Errors
+    ///
+    /// A row's point is [`DanglingRef::Geometry`] naming the point key
+    /// the live vertex holds and the point arena does not.
+    pub fn vertex_points(
+        &self,
+    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    }
+
+    /// The point `vertex`'s record names: the one read of a vertex's
+    /// point key, behind both [`Body::vertex_points`] and
+    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
+    ///
+    /// # Errors
+    ///
+    /// [`DanglingRef::Geometry`] naming the point key when the point
+    /// arena does not hold it.
+    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
+        self.points
+            .get(vertex.point)
+            .copied()
+            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
     }
 
     /// All points, in slot-index order (deterministic per D9).
@@ -2227,6 +2300,47 @@ mod tests {
         assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
     }
 
+    /// A run's fan end is its last member's orbit successor, and a run
+    /// holding the whole orbit is the strut in the corner before its
+    /// first member, from whichever member the run starts.
+    #[test]
+    fn run_site_reads_the_fan_end_and_names_the_whole_orbit() {
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness());
+        let body = cube.body;
+        let (_, v) = body.vertices().next().unwrap();
+        let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
+        let [h0, h1, h2] = orbit[..] else {
+            panic!("a cube corner has valence 3: {orbit:?}");
+        };
+        assert_eq!(
+            body.run_site(h0, h1),
+            Some(RunSite::Fan { he1: h0, he2: h2 }),
+            "a two-edge run ends at the third"
+        );
+        assert_eq!(
+            body.run_site(h2, h2),
+            Some(RunSite::Fan { he1: h2, he2: h0 }),
+            "a one-edge run ends at its successor"
+        );
+        for (first, last) in [(h0, h2), (h1, h0), (h2, h1)] {
+            let site = body.run_site(first, last);
+            assert_eq!(
+                site,
+                Some(RunSite::WholeOrbit { corner: first }),
+                "the run {first:?} ..= {last:?} holds the whole orbit"
+            );
+            assert_eq!(
+                site.unwrap().mev_site(),
+                crate::MevSite::Fan {
+                    he1: first,
+                    he2: first
+                },
+                "the whole orbit's null edge is the strut before {first:?}"
+            );
+        }
+        assert_eq!(body.run_site(h0, HalfEdgeKey::default()), None);
+    }
+
     /// The vertex doors answer the orbit's projection, each entity once
     /// at its FIRST reach, in orbit order — pinned against the orbit
     /// itself rather than against a sorted set, so a door that sorted,
@@ -2490,6 +2604,54 @@ mod tests {
         // And so does the projection the recipe layer reads.
         assert_eq!(body.point_source(point), None);
         assert_eq!(body.surface_source(surface), None);
+    }
+
+    /// The door against the chain it replaces, on the validator's own
+    /// point tear (`validate`'s `dangling_geometry_is_reported`): the
+    /// `filter_map` chain loses the torn vertex and reports a shorter
+    /// cloud; the door names the dangling key.
+    #[test]
+    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+        let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
+            b.vertices()
+                .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
+                .filter_map(|(k, v)| b.get_point(v.point).map(|p| (k, p.to_array())))
+                .collect()
+        };
+        let mut t = pillow(Tol::witness());
+        let read: Vec<_> = t
+            .body
+            .vertex_points()
+            .map(|(k, p)| {
+                (
+                    k,
+                    p.expect("an untorn pillow reads every vertex").to_array(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            chain(&t.body),
+            "on a valid body the door yields exactly get_vertex/get_point's points"
+        );
+        assert_eq!(read.len(), t.vertices.len(), "one row per live vertex");
+
+        let dead = t.body.add_point(origin());
+        t.body.points.remove(dead);
+        t.body.get_vertex_mut(t.vertices[0]).unwrap().point = dead;
+        assert_eq!(
+            chain(&t.body).len(),
+            t.vertices.len() - 1,
+            "the chain silently drops the torn vertex"
+        );
+        assert_eq!(
+            t.body
+                .vertex_points()
+                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
+                .collect::<Vec<_>>(),
+            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
+            "exactly the torn vertex refuses, naming itself and the dangling point key"
+        );
     }
 
     #[test]

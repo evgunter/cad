@@ -847,11 +847,10 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
 /// on where every vertex is and how many entities they hold.
 fn point_bits(body: &Body<f64>) -> (usize, usize, usize, Vec<[u64; 3]>) {
     let mut coords: Vec<[u64; 3]> = body
-        .vertices()
-        .filter_map(|(k, _)| {
-            body.get_vertex(k)
-                .and_then(|v| body.get_point(v.point))
-                .map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
+        .vertex_points()
+        .map(|(_, p)| {
+            let p = p.unwrap();
+            [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
         })
         .collect();
     coords.sort_unstable();

@@ -284,8 +284,8 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         other => panic!("expected a body, got {}", other.kind_name()),
     };
     let mut z: Vec<f64> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k).and_then(|v| body.get_point(v.point)))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| p.z)
         .collect();
     z.sort_by(f64::total_cmp);

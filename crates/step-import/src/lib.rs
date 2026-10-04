@@ -983,9 +983,7 @@ fn resolve_declarations(
     for c in contacts {
         match *c {
             ImportContact::VertexRest { at } => {
-                let candidates = body
-                    .vertices()
-                    .map(|(vk, v)| (vk, body.get_point(v.point).copied()));
+                let candidates = body.vertex_points().map(|(vk, p)| (vk, p.ok()));
                 records
                     .vv
                     .push(vertex_rest_contact(candidates, at, eps_in)?);

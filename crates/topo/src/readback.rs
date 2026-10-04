@@ -134,23 +134,7 @@ impl<T: Real> Pose<T> {
     }
 }
 
-/// The reference a read-back followed and could not resolve, in the
-/// crate's own vocabulary rather than in prose.
-///
-/// A read-back walks from a topological key to the geometry key it
-/// names; either step can come back empty, and which one did is the
-/// difference between a stale handle and a corrupt body. Callers with
-/// their own stale-reference vocabulary (the operator layer's
-/// `EulerOpError::StaleKey` / `StaleGeometry`) map the two arms
-/// straight across.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DanglingRef {
-    /// A topological key that does not resolve.
-    Entity(EntityId),
-    /// A geometry key, reached from a live entity, that does not
-    /// resolve.
-    Geometry(GeomRef),
-}
+pub use crate::entity::DanglingRef;
 
 impl From<DanglingRef> for ReadbackError {
     fn from(what: DanglingRef) -> Self {
@@ -483,9 +467,7 @@ pub fn vertex_point_ref<T: Real>(
     let v = body
         .get_vertex(vertex)
         .ok_or(DanglingRef::Entity(EntityId::Vertex(vertex)))?;
-    body.get_point(v.point)
-        .copied()
-        .ok_or(DanglingRef::Geometry(GeomRef::Point(v.point)))
+    body.point_of(v)
 }
 
 /// **The walk to an edge's certified carrier** — edge, then its

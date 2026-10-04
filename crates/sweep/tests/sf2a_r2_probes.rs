@@ -155,11 +155,8 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     // signed along the STORED normal so every plane moves INWARD.
     let centroid = {
         let (mut x, mut y, mut z, mut n) = (0.0, 0.0, 0.0, 0.0);
-        for (k, _) in chamfered.vertices() {
-            let p = chamfered
-                .get_vertex(k)
-                .and_then(|v| chamfered.get_point(v.point))
-                .unwrap();
+        for (_, p) in chamfered.vertex_points() {
+            let p = p.unwrap();
             x += p.x;
             y += p.y;
             z += p.z;
@@ -452,14 +449,16 @@ fn r2a_zero_total_offset_reports_singular() {
         })
         .collect();
     let before: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     topo::offset_planes_together(&mut body, &moves, band(), tol)
         .expect("a zero offset is a no-move, not a singular corner");
     let after: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     println!("[r2a] all-zero distances: {} points, unmoved", after.len());
     assert_eq!(

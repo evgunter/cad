@@ -48,11 +48,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);
     assert!((radius - 1.0).abs() < 1e-12);
     // The two vertices are the poles (0, ±1, 0).
-    let mut ys: Vec<f64> = t
-        .body
-        .vertices()
-        .map(|(_, v)| t.body.get_point(v.point).unwrap().y)
-        .collect();
+    let mut ys: Vec<f64> = t.body.vertex_points().map(|(_, p)| p.unwrap().y).collect();
     ys.sort_by(f64::total_cmp);
     assert!((ys[0] + 1.0).abs() < 1e-12 && (ys[1] - 1.0).abs() < 1e-12);
     // Key bundle: the axis segment is omitted; the arc survives as the
