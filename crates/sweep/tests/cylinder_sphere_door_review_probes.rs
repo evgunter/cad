@@ -58,6 +58,7 @@ fn review_cs_door_battery() {
                                 + &match &e {
                                     topo::BooleanError::CurvedBooleanUnsupported { kind, .. } => format!("({kind:?})"),
                                     topo::BooleanError::GermFrameUnsupported { a_kind, b_kind, .. } => format!("({a_kind:?},{b_kind:?})"),
+                                    topo::BooleanError::Join(j) => format!("({j:?})"),
                                     _ => String::new(),
                                 }
                         }

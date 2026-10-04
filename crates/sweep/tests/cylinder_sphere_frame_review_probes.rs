@@ -194,3 +194,19 @@ fn review_probe_battery() {
         }
     }
 }
+
+/// The skew row's placement 1 (90° about `x`, then `(0.3, 0.2, 0.1)`):
+/// two drums with perpendicular skew axes, which the row's list of skew
+/// placements (2, 3, 5) leaves out.
+#[test]
+#[ignore = "review probe: skew placement 1"]
+fn skew_placement_one() {
+    let tol = Tol::witness();
+    let a = cyl(0.5, 1.0);
+    let m = Affine3::translation(Vec3::new(0.3, 0.2, 0.1))
+        * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
+    let b = topo::transform_rigid(&a, &m, tol).unwrap();
+    for (l, x, y) in [("A∪B", &a, &b), ("B∪A", &b, &a)] {
+        println!("SKEW1 {l}: {:?}", topo::union(x, y, tol).err().map(|e| door(&e)));
+    }
+}
