@@ -802,7 +802,9 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
     ];
     let readers = side_readers(boxes, plane);
     let piece_at = |k: usize| piece(boxes, plane, (domain, &readers), clipped[k], band);
-    let pieces = (0..clipped.len()).map(piece_at).collect::<Result<Vec<Piece>, Shortfall>>();
+    let pieces = (0..clipped.len())
+        .map(piece_at)
+        .collect::<Result<Vec<Piece>, Shortfall>>();
     // A window that resolves no piece leaves the chain undecided, unless
     // an end of the carrier is certified unreached by its window: by the
     // side's reading where a side holds the window's piece, and by an
@@ -810,8 +812,14 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
     // undecided window holds.
     let unreached = |&(k, q, end): &(usize, (f64, f64), CarrierEnd)| match piece_at(k) {
         Ok(p @ Piece::Side(_)) => {
-            reaches_end(boxes, plane, (&readers, band.zero()), (p, clipped[k]), q, end)
-                == Err(Shortfall::Short)
+            reaches_end(
+                boxes,
+                plane,
+                (&readers, band.zero()),
+                (p, clipped[k]),
+                q,
+                end,
+            ) == Err(Shortfall::Short)
         }
         _ => end_far(boxes, plane, clipped[k], q, end, band.zero()),
     };

@@ -894,7 +894,7 @@ impl Pass<'_> {
 /// The curve along `side` of `wall`'s domain: a row of a clamped wall's
 /// net, verbatim. Every `KnotVector` is clamped by construction, so no
 /// extraction beyond the copy is needed.
-pub(crate) fn side_row<T: geom_core::Real>(
+pub(crate) fn side_row<T: CertifiedBounds>(
     wall: &geom::NurbsSurface<T>,
     side: ChartSide,
 ) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {

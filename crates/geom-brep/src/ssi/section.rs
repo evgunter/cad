@@ -242,7 +242,9 @@ impl Pieces {
 
 /// The hull of the Bernstein ratios `h_i/W_i` of pieces (every weight
 /// positive): an enclosure of `φ = h/W` over them.
-fn ratio_hull<'a>(pieces: impl Iterator<Item = (&'a Vec<Interval>, &'a Vec<Interval>)>) -> Interval {
+fn ratio_hull<'a>(
+    pieces: impl Iterator<Item = (&'a Vec<Interval>, &'a Vec<Interval>)>,
+) -> Interval {
     pieces
         .flat_map(|(hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
         .reduce(Interval::hull)
