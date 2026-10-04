@@ -73,7 +73,7 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
-use crate::splitting::ConicPlaneMeet;
+use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -411,13 +411,11 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 ///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
 ///    strut, an empty loop, a null edge, a split shell — as
 ///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
-/// 2. the edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing
-///    lanes handle all three; the both-split point lane still needs a
-///    `Line`, and says so where it refuses); a `Nurbs` or spiric edge
-///    refuses [`BooleanError::CurvedEdgeUnsupported`] wherever it sits
-///    — a rung-3 INPUT operand is outside the supported envelope,
-///    rung-3 edges being what the zip MINTS rather than what it
-///    consumes;
+/// 2. the edge carriers ([`gate_operand_edges`]): `Line`/`Circle`/
+///    `Ellipse` pass (every lane reads all three; the both-split point
+///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
+///    or spiric edge refuses [`BooleanError::CurvedEdgeUnsupported`]
+///    wherever it sits;
 /// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
 ///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
 ///    definitely negative refuses [`BooleanError::InsideOutOperand`];
@@ -471,15 +469,34 @@ fn surface_of<'a, T: Decide>(
 }
 
 /// [`gate_operand`]'s edge carriers.
+///
+/// **What it still guards.** The sweep's two crossing arms refuse a
+/// spiric or spline edge typed on their own
+/// ([`BooleanError::CrossingCarrierUnsupported`]), so the gate is not
+/// what keeps them sound. Behind the sweep, these sites have no row for
+/// either kind and would answer one as a kernel invariant or read it
+/// wrong:
+///
+/// - the join's germ frame along an edge of both solids
+///   (`join::germ_section_frame`: `JoinDesync`);
+/// - the join's ring run and the chord joiner's run edges
+///   (`join::ring_run_ccw`, `chord_join`'s run-edge reading:
+///   `SectionInvariant`);
+/// - the sector walk at an ON vertex (`sectors::build_sectors`), which
+///   takes a spline's chord as its departure direction;
+/// - the continuation scan ([`refuse_undeclared_continuations`]), which
+///   cannot bound a face a spline edge bounds (`ClassificationInvariant`).
+///
+/// Retiring it is `work/reach/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
             geom::Curve3::Line { .. }
             | geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. } => {}
-            // The boolean fence: no join, section or pierce arm
-            // reads a spiric, so an operand carrying one refuses
-            // here, at the gate, as a spline does.
+            // The sweep's arms read a spiric or a spline only to refuse
+            // it; the sites behind the sweep (docs above) cannot, so the
+            // operand refuses here.
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 return Err(BooleanError::CurvedEdgeUnsupported {
                     operand,
@@ -1204,8 +1221,29 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             {
                 let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                 let (t0, t1) = curve.params();
+                let lane = crate::splitting::plane_crossing_lane(
+                    curve.carrier(),
+                    t0,
+                    t1,
+                    plane.origin,
+                    plane.normal,
+                    band,
+                );
+                let meet = match lane {
+                    PlaneCrossingLane::Line => None,
+                    // A spiric or a spline: its endpoints' sides neither
+                    // find its crossings nor place them.
+                    PlaneCrossingLane::Unlaned => {
+                        return Err(BooleanError::CrossingCarrierUnsupported {
+                            operand: x_is,
+                            edge: edge_key,
+                            face,
+                        });
+                    }
+                    PlaneCrossingLane::Conic(meet) => Some(meet),
+                };
                 let covers = edge_covers(x, x_is, &edge, face, declared);
-                let touch_at_end = if covers.is_empty() {
+                let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
                 } else {
                     let read =
@@ -1240,22 +1278,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     ((s1 == Sign::Zero) != (s2 == Sign::Zero) && off_end_admitted())
                         .then_some(s1 == Sign::Zero)
                 };
-                match crate::splitting::conic_plane_crossing_roots(
-                    curve.carrier(),
-                    t0,
-                    t1,
-                    plane.origin,
-                    plane.normal,
-                    band,
-                ) {
-                    Err(()) => {} // a line: the M3 lane below owns it
-                    Ok(ConicPlaneMeet::Miss) => continue,
+                match meet {
+                    // A line: the endpoint lane below owns it.
+                    None => {}
+                    Some(ConicPlaneMeet::Miss) => continue,
                     // The conic's plane is parallel to the face's: off
                     // it, a miss; in it, the line lane's `(Zero, Zero)`
                     // posture — both endpoints through
                     // `vertex_on_face`, the interior left to the
                     // neighbour faces.
-                    Ok(ConicPlaneMeet::Parallel { offset }) => {
+                    Some(ConicPlaneMeet::Parallel { offset }) => {
                         match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
@@ -1285,7 +1317,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         continue;
                     }
-                    Ok(ConicPlaneMeet::Roots(_)) if touch_at_end.is_some() => {
+                    Some(ConicPlaneMeet::Roots(_)) if touch_at_end.is_some() => {
                         let Some(first_end) = touch_at_end else {
                             return Err(BooleanError::ClassificationInvariant {
                                 what: "conic lane: the one-sided touch lost its sides",
@@ -1299,7 +1331,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         continue;
                     }
-                    Ok(ConicPlaneMeet::Roots(Err(fault))) => {
+                    Some(ConicPlaneMeet::Roots(Err(fault))) => {
                         return Err(BooleanError::Escalated {
                             decision: BooleanDecision::of_conic_root(
                                 fault,
@@ -1315,7 +1347,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             diag: fault.diag(),
                         });
                     }
-                    Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
+                    Some(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
                             let containment =
@@ -1959,9 +1991,9 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         ))
     .then(|| (side(pu), side(pv)));
     let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
-    match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
-        (geom::Curve3::Line { .. }, _) => {}
-        (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, Some(conic)) => 'clearance: {
+    match (geom_brep::Conic::of(curve.carrier()), curve.carrier()) {
+        (None, geom::Curve3::Line { .. }) => {}
+        (Some(conic), _) => 'clearance: {
             if end_on_carrier {
                 break 'clearance;
             }
@@ -2160,14 +2192,17 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        // A `Spiric` or `Nurbs` carrier. The operand gate refuses both
-        // first (`gate_operand_edges`), so the pipeline never reaches
-        // here with one; the arm keeps its typed door rather than lean
-        // on that nesting. No enclosure of its residual along an arc
-        // exists here — the sampled one needs bounds on the carrier's
-        // speed and acceleration over the span
-        // (`work/reach/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule.md`).
-        _ => return Err(frontier()),
+        // Neither a line nor a conic: a `Spiric` or `Nurbs` carrier. No
+        // enclosure of its residual along an arc exists here (the sampled
+        // one needs bounds on the carrier's speed and acceleration over
+        // the span), so nothing finds its crossings, as at the planar arm.
+        (None, _) => {
+            return Err(BooleanError::CrossingCarrierUnsupported {
+                operand: x_is,
+                edge: edge_key,
+                face,
+            });
+        }
     }
     // The one-sided cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
@@ -2830,7 +2865,7 @@ enum PlaneSide {
 ///   decided off the circle;
 /// - a conic: its crossings strictly inside its span (the splitting
 ///   lane's certified roots,
-///   [`crate::splitting::conic_plane_crossing_roots`]) each decided off
+///   [`crate::splitting::plane_crossing_lane`]) each decided off
 ///   the circle, or a plane of its own decided parallel and off.
 ///
 /// Everything else answers `false`: an undecided point, a conic lying
@@ -2903,8 +2938,15 @@ fn boundary_meets_circle_only_at<T: Decide>(
                         return Ok(false);
                     };
                     let (t0, t1) = c.params();
-                    let clear = match c.carrier() {
-                        geom::Curve3::Line { .. } => {
+                    let clear = match crate::splitting::plane_crossing_lane(
+                        c.carrier(),
+                        t0,
+                        t1,
+                        center,
+                        axis,
+                        band,
+                    ) {
+                        PlaneCrossingLane::Line => {
                             let (pa, pb) = (point(a)?, point(b)?);
                             match (sa, sb) {
                                 (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
@@ -2918,27 +2960,16 @@ fn boundary_meets_circle_only_at<T: Decide>(
                                 _ => false,
                             }
                         }
-                        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-                            match crate::splitting::conic_plane_crossing_roots(
-                                c.carrier(),
-                                t0,
-                                t1,
-                                center,
-                                axis,
-                                band,
-                            ) {
-                                Ok(ConicPlaneMeet::Miss) => true,
-                                Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
-                                    roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
-                                }
-                                Ok(ConicPlaneMeet::Parallel { offset }) => matches!(
-                                    decide("bool_arc_plane_side", Margin::of(offset), band),
-                                    Ok(Sign::Positive | Sign::Negative)
-                                ),
-                                Err(()) | Ok(ConicPlaneMeet::Roots(Err(_))) => false,
-                            }
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
+                            roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
                         }
-                        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => false,
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
+                            decide("bool_arc_plane_side", Margin::of(offset), band),
+                            Ok(Sign::Positive | Sign::Negative)
+                        ),
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
+                        | PlaneCrossingLane::Unlaned => false,
                     };
                     if !clear {
                         return Ok(false);
@@ -3838,6 +3869,10 @@ mod undeclared_rule_rows {
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
 pub(super) mod coplanar_conic_rows;
+
+#[cfg(test)]
+#[path = "planar_lane_carrier_rows.rs"]
+mod planar_lane_carrier_rows;
 
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its
