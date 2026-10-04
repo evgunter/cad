@@ -6801,3 +6801,10 @@ All findings adopted:
 
 Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and implementer (about $93) archived. The seven-day rate warning has cleared (five-hour window, allowed). Nothing new on PR 3970.
 - 18:53 check-in: the PR 4033 fix lane is still working (the style item on panic labels); head unchanged. Nothing new on PR 3970. No topo commits incoming. The R build waits for 4033 (`pcurves.rs`).
+- 19:28: **PR 4033 merged** at `0933bc2662` (CI green on fix head `3937ebf9`).
+  - Every finding mapped. The mint mutation goes red in both entries. A minted cylinder fixture plus a rows-carried floor were added.
+  - The strut arm goes through `orbit_step_at`. VF/VV exclusivity is debug-asserted.
+  - Three face-cycle walks made one. Remaining torn reads converted or named on the families row.
+  - Main's PR 3987 (`AtRestBody`) was merged in.
+
+  Fix lane archived (about $14). **Stale-key row closed** (both units merged; items 1-6 hold for every named variant). The residue row `torn-body-refusal-families-beyond-the-six-doors` gets P3 and M. **R build dispatched** (`session_01Gh7MVn8yRcX5XCDaEt6YQK`; the re-anchor row is `dispatched`). It includes the pole-slit row, takes the in-band-lever row optionally, is accepted on a probe re-run (every kill-kept face byte-equal and tier-3-clean), and may be staged in 2-3 PRs.
