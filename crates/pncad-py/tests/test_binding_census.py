@@ -900,7 +900,7 @@ BOUND_AS = {
     # were true when written: the arms differed only in PROSE, so
     # there was no Python shape to point at. There is one now, and it
     # is a word per arm — twenty-two for `RevolveError`, forty-two for
-    # `BooleanError`, twenty-two for `ShellError` — minted by an
+    # `BooleanError`, twenty-three for `ShellError` — minted by an
     # exhaustive match, so a kernel arm added without a word stops the
     # bindings compiling. What still has no Python spelling is the
     # arm's FIELDS, and that is the payload question, tracked

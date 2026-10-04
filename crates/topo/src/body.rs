@@ -1146,11 +1146,10 @@ impl<T: Real> Body<T> {
     ///
     /// - **A refusal that distinguishes the hops.**
     ///   `offset_together::scope_of_moves` names the caller's own
-    ///   stale face key on hop 1 and the body's incoherence on hop 2;
-    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
-    ///   a typed refusal for the caller's face on hop 1 and a panic
-    ///   for a face's shell that does not resolve on hop 2.
-    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   stale face key on hop 1 and panics naming the face's `shell`
+    ///   link on hop 2; [`Body::kfmrh`](crate::Body::kfmrh) does it
+    ///   twice, the same way.
+    ///   `offset_together::scope_walks::the_two_hops_answer_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
     /// - **A caller still using the intermediate shell key.**
     ///   `seqgen::fusion_remake_shell` refuses uniformly, but its

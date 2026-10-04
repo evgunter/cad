@@ -6304,7 +6304,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("cap_plane", 3),
     ("certify", 2),
     ("contact_contradicted", 2),
-    ("corrupt", 3),
+    ("corrupt", 2),
     ("cosurface_escalated", 2),
     // One fact at two doors: `node::declared_side_fault`, asked by the
     // edit doors and by the load door.
