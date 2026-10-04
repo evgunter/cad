@@ -607,7 +607,7 @@ impl Candidates {
         let edge_boxes: Vec<Aabb> = geo
             .edges
             .iter()
-            .map(|e| edge_box(body, e.key, pad).unwrap_or_else(|_| Aabb::poison()))
+            .map(|e| edge_box(body, e.key, pad))
             .collect();
         let face_boxes: Vec<Aabb> = geo
             .faces

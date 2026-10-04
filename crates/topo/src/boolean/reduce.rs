@@ -71,7 +71,7 @@ use super::refusal_routes::NeighbourOffset;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
@@ -407,10 +407,11 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 /// **The operand gate's BODY-scoped half**, in order:
 ///
 /// 1. a closed solid at rest, by the validator's own verdict
-///    ([`crate::validate_closed`]): a tier-1 finding refuses as
-///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
-///    strut, an empty loop, a null edge, a split shell — as
-///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
+///    ([`crate::validate_closed`]): tier-2 scaffolding — a strut, an
+///    empty loop, a null edge, a split shell — refuses as
+///    [`BooleanError::ScaffoldingOperand`], carrying the findings. A
+///    tier-1 finding panics naming the first: every public door keeps
+///    a body tier-1-valid, so only a kernel bug hands one in;
 /// 2. the edge carriers ([`gate_operand_edges`]): `Line`/`Circle`/
 ///    `Ellipse` pass (every lane reads all three; the both-split point
 ///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
@@ -433,11 +434,12 @@ pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let (broken, scaffolding) = crate::validate::closed_by_tier(body);
-    if !broken.is_empty() {
-        return Err(BooleanError::CorruptOperand {
-            operand,
-            corruption: super::Corruption::Structure { errors: broken },
-        });
+    if let Some(first) = broken.first() {
+        unreachable!(
+            "operand {operand:?} fails tier 1 ({} findings, the first {first:?}): every public \
+             door keeps the body tier-1-valid",
+            broken.len()
+        );
     }
     if !scaffolding.is_empty() {
         return Err(BooleanError::ScaffoldingOperand {
@@ -629,18 +631,14 @@ pub(super) fn face_oriented_source<T: Decide>(
 /// [`BooleanError::NonMaximalFaces`]. Numeric coplanarity NEVER
 /// triggers the refusal; a near-coplanar dihedral surfaces as the
 /// predicate's own typed escalation instead. The ladder is levered at
-/// the shared edge's extent ([`crate::readback::edge_extent`]); an edge
-/// whose sides or extent do not read refuses
-/// [`BooleanError::CorruptOperand`].
+/// the shared edge's extent ([`crate::readback::edge_extent`]). It runs
+/// on an operand [`gate_operand`] passed, so every edge it reads holds
+/// a certified carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let unreadable = |edge, absence| BooleanError::CorruptOperand {
-        operand,
-        corruption: super::Corruption::Edge { edge, absence },
-    };
     for (edge_key, edge) in body.edges() {
         let sides = crate::readback::edge_sides_of(body, edge_key, edge);
         let (f1, f2) = sides.faces();
@@ -672,8 +670,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         };
         // The extent, not the chord: a closed edge's ends are one
         // vertex, and its faces still meet along all of it.
-        let arm = crate::readback::edge_extent(body, edge_key)
-            .map_err(|absence| unreadable(edge_key, absence))?;
+        let arm = crate::readback::edge_extent(body, edge_key).unwrap_or_else(|absence| {
+            unreachable!(
+                "{operand:?}'s edge {edge_key:?}, read out of its arena, has no extent \
+                 ({absence:?}): the operand gate refuses a null edge as scaffolding"
+            )
+        });
         // Same-operand comparison: sources apply (a shared recipe
         // source IS declared coplanarity — the pair should have been
         // merged by the producing op); cross-operand declared pairs
@@ -795,7 +797,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
     band: Band,
     pad: f64,
     face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
-    edge_box: impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
+    edge_box: impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
 ) -> Result<Vec<super::SettledPair>, BooleanError> {
     let mut settled = Vec::new();
     let a_faces: Vec<(FaceKey, bvh::Aabb)> = a
@@ -850,7 +852,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                 _ => continue,
             };
             if edge_boxes.is_none() {
-                edge_boxes = Some([face_edges(a, &edge_box)?, face_edges(b, &edge_box)?]);
+                edge_boxes = Some([face_edges(a, &edge_box), face_edges(b, &edge_box)]);
             }
             let [ea, eb] = edge_boxes
                 .as_ref()
@@ -884,11 +886,11 @@ type FaceEdges = std::collections::BTreeMap<FaceKey, Vec<(EdgeKey, bvh::Aabb)>>;
 /// Every face's boundary edges, each with the box the driver hands in.
 fn face_edges<T: Decide>(
     body: &Body<T>,
-    edge_box: &impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
-) -> Result<FaceEdges, BooleanError> {
+    edge_box: &impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
+) -> FaceEdges {
     let mut out = FaceEdges::new();
     for (key, edge) in body.edges() {
-        let bx = edge_box(body, key)?;
+        let bx = edge_box(body, key);
         let f1 = body.face_of_half_edge(edge.he_plus);
         let f2 = body
             .face_of_half_edge(edge.he_minus)
@@ -897,7 +899,7 @@ fn face_edges<T: Decide>(
             out.entry(f).or_default().push((key, bx));
         }
     }
-    Ok(out)
+    out
 }
 
 /// **Do two edges share a CURVE, not merely a point?** Two faces meet
@@ -937,34 +939,33 @@ fn edges_share_a_curve<T: Decide>(
     pad: f64,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "continuation scan: an edge lost its geometry",
-    };
-    let sampled = |body: &Body<T>, key: EdgeKey| -> Result<Option<_>, BooleanError> {
-        let edge = body.get_edge(key).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(CurveGeom::certified)
-        else {
-            return Ok(None);
-        };
+    // Both edges are ones the scan read out of their operands.
+    let sampled = |body: &Body<T>, key: EdgeKey| {
+        let edge = crate::live::proven(&body.edges, key, EntityId::Edge);
+        let curve = body.edge_curve_linked(key, edge).certified()?;
         let (t0, t1) = curve.params();
         let mid = (t0 + t1) * T::from_f64(0.5);
         let carrier = curve.carrier().clone();
-        if carrier.param_near(carrier.eval(mid), mid).is_none() {
-            return Ok(None);
-        }
-        let end = |he| -> Result<Point3<T>, BooleanError> {
-            let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            body.get_vertex(v)
-                .and_then(|v| body.get_point(v.point))
-                .copied()
-                .ok_or_else(corrupt)
+        carrier.param_near(carrier.eval(mid), mid)?;
+        let end = |he, field| {
+            let v = crate::live::linked(
+                &body.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(key),
+                field,
+            )
+            .start;
+            body.linked_vertex_point(v, EntityId::HalfEdge(he), "start")
         };
-        let points = [end(edge.he_plus)?, end(edge.he_minus)?, carrier.eval(mid)];
-        Ok(Some((carrier, t0, t1, mid, points)))
+        let points = [
+            end(edge.he_plus, "he_plus"),
+            end(edge.he_minus, "he_minus"),
+            carrier.eval(mid),
+        ];
+        Some((carrier, t0, t1, mid, points))
     };
-    let (Some(cx), Some(cy)) = (sampled(x, ex)?, sampled(y, ey)?) else {
+    let (Some(cx), Some(cy)) = (sampled(x, ex), sampled(y, ey)) else {
         let run = |lo_x: f64, hi_x: f64, lo_y: f64, hi_y: f64| hi_x.min(hi_y) - lo_x.max(lo_y);
         let runs = [
             run(bx.min_x, bx.max_x, by.min_x, by.max_x),
@@ -1108,14 +1109,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // preserved pair-for-pair.
         #[cfg(feature = "sweep-testing")]
         let candidates: Vec<usize> = match &tree {
-            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)?),
+            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)),
             // The idealized reference's candidate set: every face, in
             // arena order. Reachable only through the gated
             // `SweepStrategy::Idealized`, and compiled out with it.
             None => (0..faces.len()).collect(),
         };
         #[cfg(not(feature = "sweep-testing"))]
-        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad)?);
+        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad));
         let mut ci = 0;
         'faces: while let Some(&j) = candidates.get(ci) {
             ci += 1;
@@ -2811,7 +2812,7 @@ fn arc_chain_reaches<T: Decide>(
     // A chain visits each edge of `y` at most once.
     let mut at = from;
     for _ in 0..y.edges().count() {
-        let steps = super::arcs::arcs_along(y, at, dir, band)?.map_err(escalated)?;
+        let steps = super::arcs::arcs_along(y, at, dir, band).map_err(escalated)?;
         let [step] = steps[..] else {
             return Ok(false);
         };
@@ -3587,7 +3588,12 @@ pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
-        ContainError::Corrupt => BooleanError::corrupt_at(operand, VertexKey::default()),
+        // `ContainError::Corrupt` also carries the curved doors'
+        // folded refusals (`contain::solid_err`), some reachable by a
+        // sound face, so it is no proof of a torn operand.
+        ContainError::Corrupt => BooleanError::ClassificationInvariant {
+            what: "a containment read of an operand face answered ContainError::Corrupt",
+        },
     }
 }
 
@@ -5495,36 +5501,37 @@ mod clearance_rows {
     }
 }
 
-/// **The operand gate answers a broken body as broken.** A tier-1
-/// finding is not scaffolding an edit left behind, so it refuses as
-/// [`BooleanError::CorruptOperand`] carrying tier 1's findings, never
-/// as [`BooleanError::ScaffoldingOperand`]. No public door tears a
-/// body, so the row tears one in-crate.
+/// **The operand gate panics on a broken body.** A tier-1 finding is
+/// not scaffolding an edit left behind but a body no public door
+/// leaves, so the gate panics naming the operand and tier 1's first
+/// finding, never refusing as [`BooleanError::ScaffoldingOperand`].
+/// No public door tears a body, so the row tears one in-crate.
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
+#[allow(clippy::expect_used)]
 mod operand_gate_rows {
-    use crate::boolean::{BooleanError, BooleanOp, Corruption, Operand, boolean_reduce};
+    use crate::boolean::{BooleanOp, boolean_reduce};
     use crate::test_support_fixtures::brick;
     use geom_core::Tol;
 
     #[test]
-    fn a_tier_one_broken_operand_refuses_as_corrupt() {
+    fn a_tier_one_broken_operand_panics_naming_it() {
         let tol = Tol::witness();
         let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
         let vertex = b.vertices().next().expect("a vertex").0;
         b.vertex_provenance.remove(vertex);
         let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
-        let got = boolean_reduce(BooleanOp::Union, &a, &b, tol);
-        let Err(BooleanError::CorruptOperand {
-            operand,
-            corruption: Corruption::Structure { errors },
-        }) = got
-        else {
-            panic!("want CorruptOperand with tier 1's findings, got {got:?}");
-        };
-        assert_eq!(operand, Operand::B, "the refusal names the torn operand");
-        assert_eq!(errors, want, "the payload is tier 1's own verdict");
+        let report = crate::surgery::tests::panic_message(|| {
+            let _ = boolean_reduce(BooleanOp::Union, &a, &b, tol);
+        });
+        let first = format!("{:?}", want[0]);
+        for fragment in [
+            "operand B fails tier 1",
+            first.as_str(),
+            "every public door keeps the body tier-1-valid",
+        ] {
+            assert!(report.contains(fragment), "want {fragment:?} in: {report}");
+        }
     }
 }
 

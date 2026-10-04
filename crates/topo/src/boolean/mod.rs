@@ -1516,28 +1516,6 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
-/// Where a [`BooleanError::CorruptOperand`] found its operand broken.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Corruption {
-    /// Tier 1 ([`crate::validate()`]) refused the operand at the gate.
-    Structure {
-        /// The validator's tier-1 findings, each naming its entity.
-        errors: Vec<ValidationError>,
-    },
-    /// The neighbourhood of this vertex could not be walked.
-    Vertex {
-        /// The vertex.
-        vertex: VertexKey,
-    },
-    /// This edge's sides or extent could not be read.
-    Edge {
-        /// The edge.
-        edge: EdgeKey,
-        /// The lookup that came back empty.
-        absence: crate::readback::CarrierAbsence,
-    },
-}
-
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2030,15 +2008,6 @@ pub enum BooleanError {
     ClassificationInvariant {
         /// Human-oriented description of the violated invariant.
         what: &'static str,
-    },
-    /// An operand is not a well-formed closed solid: tier 1 refuses it
-    /// at the operand gate, or a traversal failed at one of its
-    /// vertices.
-    CorruptOperand {
-        /// The operand.
-        operand: Operand,
-        /// Where the breakage was found.
-        corruption: Corruption,
     },
     /// `split_edge` refused while inserting a crossing (site attached,
     /// inner error whole).
@@ -2571,8 +2540,6 @@ pub enum BooleanErrorKind {
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
-    /// [`BooleanError::CorruptOperand`].
-    CorruptOperand,
     /// [`BooleanError::CrossingInsertion`].
     CrossingInsertion,
     /// [`BooleanError::CurvedPairUnsupported`].
@@ -2641,14 +2608,6 @@ fn backstop_subject(operand: Option<Operand>) -> &'static str {
 }
 
 impl BooleanError {
-    /// A traversal of `operand` failed at `vertex`.
-    pub(crate) const fn corrupt_at(operand: Operand, vertex: VertexKey) -> Self {
-        Self::CorruptOperand {
-            operand,
-            corruption: Corruption::Vertex { vertex },
-        }
-    }
-
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -2770,7 +2729,6 @@ impl BooleanError {
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
-            Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
@@ -2863,27 +2821,6 @@ fn meeting_recourse(kind: &str) -> String {
          a plane, cylinder or sphere face, or move them so the {kind} face stays \
          clear of the other solid"
     )
-}
-
-impl core::fmt::Display for Corruption {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Structure { errors } => write!(
-                f,
-                "it fails {} of the kernel's structural checks, so the Boolean refuses it",
-                errors.len()
-            ),
-            Self::Vertex { vertex } => write!(
-                f,
-                "the neighbourhood of vertex {vertex:?} could not be walked"
-            ),
-            Self::Edge { edge, absence } => write!(
-                f,
-                "edge {edge:?} could not be read: {}",
-                crate::readback::ReadbackError::from(*absence)
-            ),
-        }
-    }
 }
 
 impl core::fmt::Display for BooleanError {
@@ -3245,14 +3182,6 @@ impl core::fmt::Display for BooleanError {
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
             }
-            Self::CorruptOperand {
-                operand,
-                corruption,
-            } => write!(
-                f,
-                "the {} operand is a broken body: {corruption}",
-                operand_word(*operand)
-            ),
             Self::CrossingInsertion {
                 operand, source, ..
             } => write!(
@@ -5595,15 +5524,6 @@ mod tests {
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
-            BooleanError::corrupt_at(Operand::A, VertexKey::default()),
-            BooleanError::CorruptOperand {
-                operand: Operand::B,
-                corruption: Corruption::Structure {
-                    errors: vec![ValidationError::MissingProvenance {
-                        entity: crate::entity::EntityId::Vertex(VertexKey::default()),
-                    }],
-                },
-            },
             BooleanError::CurvedPairUnsupported {
                 op: None,
                 site: PairRefusalSite::OperandGate,
@@ -5765,7 +5685,6 @@ mod tests {
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
-                BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",

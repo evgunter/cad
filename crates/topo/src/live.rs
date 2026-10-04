@@ -177,6 +177,39 @@ impl KeySource for Link {
     }
 }
 
+/// A key this call already resolved, minted, or read out of a record
+/// it resolved ([`proven`]): a lookup through it answers the record,
+/// and its miss is a kernel bug that panics naming the key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Proven;
+
+impl KeySource for Proven {
+    type Answer<V> = V;
+
+    #[track_caller]
+    fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
+        found.unwrap_or_else(|| unproven(key))
+    }
+
+    #[track_caller]
+    fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
+        found.unwrap_or_else(|| unproven(key))
+    }
+
+    fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
+        f(answer)
+    }
+}
+
+/// The panic for a [`Proven`] key that does not resolve.
+#[track_caller]
+fn unproven(key: impl core::fmt::Display) -> ! {
+    unreachable!(
+        "{key}, which this call resolved or read out of a record, does not resolve: \
+         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}"
+    )
+}
+
 /// The panic for a link that does not resolve: `holder`'s field `link`
 /// names `key`. Only a kernel bug reaches it ([`NAMES_ONLY_LIVE`]).
 #[track_caller]
@@ -223,13 +256,7 @@ pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     key: K,
     id: fn(K) -> I,
 ) -> &V {
-    arena.get(key).unwrap_or_else(|| {
-        unreachable!(
-            "{}, which this call resolved or read out of a record, does not resolve: \
-             nothing removes a record during a plan, and {NAMES_ONLY_LIVE}",
-            id(key)
-        )
-    })
+    arena.get(key).unwrap_or_else(|| unproven(id(key)))
 }
 
 /// Requires a key to be live in its arena, answering a miss as `from`
@@ -296,6 +323,51 @@ impl<T: Real> Body<T> {
         field: &'static str,
     ) -> Point3<T> {
         self.resolve_vertex_point(vertex, link(holder, field))
+    }
+
+    /// One clockwise step of `he`'s vertex orbit, `next(mate(he))`
+    /// ([`Body::orbit_step`]), for a `he` this call proved: every hop
+    /// past it is a link, and a miss panics.
+    #[track_caller]
+    pub(crate) fn proven_orbit_step(&self, he: HalfEdgeKey) -> HalfEdgeKey {
+        let edge = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+        let Some(claim) = linked(
+            &self.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        )
+        .claim(he) else {
+            unreachable!(
+                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
+                 body an edge claims the two half-edges that name it"
+            )
+        };
+        linked(
+            &self.half_edges,
+            claim.mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "slot",
+        )
+        .next
+    }
+
+    /// `he`'s end vertex, `start(next(he))` ([`Body::half_edge_end`]),
+    /// for a `he` this call proved: its `next` is a link, and a miss
+    /// panics.
+    #[track_caller]
+    pub(crate) fn proven_half_edge_end(&self, he: HalfEdgeKey) -> VertexKey {
+        let next = proven(&self.half_edges, he, EntityId::HalfEdge).next;
+        linked(
+            &self.half_edges,
+            next,
+            EntityId::HalfEdge,
+            EntityId::HalfEdge(he),
+            "next",
+        )
+        .start
     }
 
     /// The key of a vertex's point, both resolving, with the misses

@@ -150,8 +150,9 @@ use geom::surfaces::nurbs::NurbsSurface;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
-use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
+use crate::body::{Body, WALKS_CLOSE};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::{linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -186,10 +187,6 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
 /// pure number, levered by the cylinder's radius
 /// ([`UnitVec3::levered`]).
 pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
-
-fn corrupt(what: &'static str) -> BooleanError {
-    BooleanError::ClassificationInvariant { what }
-}
 
 /// One coordinate's ENCLOSURE, in whatever scalar the reading lane
 /// works in — **the form the per-kind extents below are written
@@ -1271,8 +1268,8 @@ pub(crate) fn conic_extent<T: Real>(
 /// side, so a kind added to [`Surface`] cannot acquire a box by
 /// falling through a wildcard, and none can be silently left without
 /// one either. A face whose surface key does not RESOLVE is a
-/// different answer — that is arena corruption, and the callers here
-/// report it as such rather than folding it in here. A box can still
+/// different answer — a torn body, on which the callers here panic
+/// rather than folding it in here. A box can still
 /// come out POISON (an unboxable boundary edge, a poisoned
 /// description); that is the value, not the rule.
 ///
@@ -1350,8 +1347,8 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 /// The [`FaceBoxRule`] for a surface — the single kind→rule mapping. A
 /// kind added to [`Surface`] gets its arm by being written here, never
 /// by falling through a wildcard in some consumer. Takes a RESOLVED
-/// surface: a missing one is corruption, which is the caller's to
-/// report and not a rule.
+/// surface: a missing one is a torn body, which is the caller's to
+/// meet and not a rule.
 ///
 /// The cylinder's axis is decided here, under [`BOX_CYLINDER_AXIS`]:
 /// [`slab_extent`] reads it as a unit direction and a carrier's axis is
@@ -1430,22 +1427,23 @@ pub(crate) fn face_box_rule<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when the face's topology
-/// is corrupt (a lost entity, an unwalkable loop). A face whose
-/// surface key does not resolve is corruption, NOT a kind without a
-/// box — the two are separate answers here. So is a cylinder whose
-/// axis has no decided length under `band` ([`face_box_rule`]): a
-/// broken carrier.
+/// [`BooleanError::ClassificationInvariant`] for a cylinder whose axis
+/// has no decided length under `band` ([`face_box_rule`]): a broken
+/// carrier.
+///
+/// # Panics
+///
+/// Where `face`, which the caller read out of `body`, or a record on
+/// the walk from it does not resolve, or a loop walk does not close
+/// (D2 row 4).
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
     band: Band,
 ) -> Result<Aabb, BooleanError> {
-    let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
-    let surface = body
-        .get_surface(f.surface)
-        .ok_or(corrupt("face box: surface lost"))?;
+    let f = proven(&body.faces, face, EntityId::Face);
+    let surface = body.face_surface_linked(face, f);
     // The axial range over the boundary's own hull. Taking the hull
     // first (rather than each edge box separately) is a superset of
     // every per-edge range because the projection is linear — looser,
@@ -1455,83 +1453,86 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // `f64::min` that ignores it.
     // The axial window from the boundary's OWN locus (per edge), not
     // from the corners of a box around it — see `edge_axial_span`.
-    let axial_window =
-        |axis: Vec3<T>, origin: Point3<T>| -> Result<Option<Span<f64>>, BooleanError> {
-            let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
-            let mut acc: Option<Span<f64>> = None;
-            let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-            for lk in loops_of(f) {
-                let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-                match l.boundary {
-                    LoopBoundary::Empty { vertex } => {
-                        let p = bracket_point(vertex_point(body, vertex)?);
+    let axial_window = |axis: Vec3<T>, origin: Point3<T>| -> Option<Span<f64>> {
+        let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
+        let mut acc: Option<Span<f64>> = None;
+        let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
+        for lk in loops_of(f) {
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(face),
+                "loop",
+            );
+            match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    let p = bracket_point(body.linked_vertex_point(
+                        vertex,
+                        EntityId::Loop(lk),
+                        "vertex",
+                    ));
+                    grow(edge_axial_span(
+                        &origin,
+                        &axis,
+                        &AxialCarrier::Chord,
+                        (&p, &p),
+                    ));
+                }
+                LoopBoundary::Cycle { first } => {
+                    for he in body.loop_walk(first).closed("loop", first) {
+                        let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                        let e = linked(
+                            &body.edges,
+                            ek,
+                            EntityId::Edge,
+                            EntityId::HalfEdge(he),
+                            "edge",
+                        );
+                        let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
+                        let carrier = body
+                            .get_curve_geom(e.curve)
+                            .and_then(crate::null::CurveGeom::certified)
+                            .map(geom_brep::EdgeCurve::carrier);
+                        let axial = match edge_box_rule(carrier) {
+                            // No axial-span closed form is written
+                            // for the spiric; a box that cannot
+                            // claim is the honest answer.
+                            EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
+                                AxialCarrier::Unclaimable
+                            }
+                            EdgeBoxRule::Chord => AxialCarrier::Chord,
+                            EdgeBoxRule::ConicAmplitude {
+                                center,
+                                axis: c_axis,
+                                semi_u,
+                                semi_v,
+                                u_ref,
+                            } => AxialCarrier::Conic {
+                                center: bracket_point(center),
+                                u_ref: bracket_vector(u_ref),
+                                v_ref: bracket_vector(c_axis.cross(u_ref)),
+                                semi_u: semi_u.hi(),
+                                semi_v: semi_v.hi(),
+                                params: body
+                                    .get_curve_geom(e.curve)
+                                    .and_then(crate::null::CurveGeom::certified)
+                                    .map(geom_brep::EdgeCurve::params)
+                                    .map(|(a, b)| (a.lo(), b.hi())),
+                            },
+                        };
                         grow(edge_axial_span(
                             &origin,
                             &axis,
-                            &AxialCarrier::Chord,
-                            (&p, &p),
+                            &axial,
+                            (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
                         ));
-                    }
-                    LoopBoundary::Cycle { first } => {
-                        for he in body
-                            .loop_cycle(first)
-                            .ok_or(corrupt("face box: unwalkable loop"))?
-                        {
-                            let ek = body
-                                .get_half_edge(he)
-                                .ok_or(corrupt("face box: half-edge lost"))?
-                                .edge;
-                            let e = body.get_edge(ek).ok_or(corrupt("face box: edge lost"))?;
-                            let end = |h| -> Result<SpanBox<f64>, BooleanError> {
-                                let vk = body
-                                    .get_half_edge(h)
-                                    .ok_or(corrupt("face box: half-edge lost"))?
-                                    .start;
-                                Ok(bracket_point(vertex_point(body, vk)?))
-                            };
-                            let carrier = body
-                                .get_curve_geom(e.curve)
-                                .and_then(crate::null::CurveGeom::certified)
-                                .map(geom_brep::EdgeCurve::carrier);
-                            let axial = match edge_box_rule(carrier) {
-                                // No axial-span closed form is written
-                                // for the spiric; a box that cannot
-                                // claim is the honest answer.
-                                EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
-                                    AxialCarrier::Unclaimable
-                                }
-                                EdgeBoxRule::Chord => AxialCarrier::Chord,
-                                EdgeBoxRule::ConicAmplitude {
-                                    center,
-                                    axis: c_axis,
-                                    semi_u,
-                                    semi_v,
-                                    u_ref,
-                                } => AxialCarrier::Conic {
-                                    center: bracket_point(center),
-                                    u_ref: bracket_vector(u_ref),
-                                    v_ref: bracket_vector(c_axis.cross(u_ref)),
-                                    semi_u: semi_u.hi(),
-                                    semi_v: semi_v.hi(),
-                                    params: body
-                                        .get_curve_geom(e.curve)
-                                        .and_then(crate::null::CurveGeom::certified)
-                                        .map(geom_brep::EdgeCurve::params)
-                                        .map(|(a, b)| (a.lo(), b.hi())),
-                                },
-                            };
-                            grow(edge_axial_span(
-                                &origin,
-                                &axis,
-                                &axial,
-                                (&end(e.he_plus)?, &end(e.he_minus)?),
-                            ));
-                        }
                     }
                 }
             }
-            Ok(acc)
-        };
+        }
+        acc
+    };
     // The torus arm's chart window, read through the ONE walk
     // (`face_window_steps` -> `torus_chart_window`) the census lane and
     // the construction rows also enter, so no fail mode can drift
@@ -1541,9 +1542,11 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // this lane's `f64` brackets, each end taken outward
     // (`lo()`/`hi()`), so a bracketed cache widens the window rather
     // than narrowing it.
-    let chart_window = |major: T, minor: T| -> Result<Option<TorusWindowPair<f64>>, BooleanError> {
-        let steps = face_window_steps(body, face).ok_or(corrupt("face box: unwalkable loop"))?;
-        Ok(torus_chart_window(&steps, major, minor).map(|(u, v)| {
+    let chart_window = |major: T, minor: T| -> Option<TorusWindowPair<f64>> {
+        let steps = face_window_steps(body, face).unwrap_or_else(|| {
+            unreachable!("the window walk of {face:?}'s loops does not close: {WALKS_CLOSE}")
+        });
+        torus_chart_window(&steps, major, minor).map(|(u, v)| {
             (
                 Span {
                     lo: u.lo.lo(),
@@ -1554,10 +1557,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     hi: v.hi.hi(),
                 },
             )
-        }))
+        })
     };
-    let rule = face_box_rule(surface, band).map_err(|_| {
-        corrupt("face box: a cylinder's axis has no decided length (a broken cylinder carrier)")
+    let rule = face_box_rule(surface, band).map_err(|_| BooleanError::ClassificationInvariant {
+        what: "face box: a cylinder's axis has no decided length (a broken cylinder carrier)",
     })?;
     let boxed = match rule {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
@@ -1573,7 +1576,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         } => {
             let (c, ax) = (bracket_point(center), bracket_vector(axis));
             let whole = torus_extent(&c, &ax, major_radius.hi(), minor_radius.hi());
-            match chart_window(major_radius, minor_radius)? {
+            match chart_window(major_radius, minor_radius) {
                 None => aabb_of(whole),
                 Some((u, v)) => aabb_of(meet(
                     torus_window_extent(
@@ -1604,7 +1607,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             axis,
             radius,
         } => {
-            let Some(h) = axial_window(axis.get(), origin)? else {
+            let Some(h) = axial_window(axis.get(), origin) else {
                 return Ok(Aabb::poison());
             };
             let slab = aabb_of(slab_extent(
@@ -1618,14 +1621,14 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             // the boundary's own box is what makes the box trim-scoped
             // in azimuth as well as axially — see [`clip_to_boundary`]
             // for why that is sound and why it needs no chart work.
-            clip_to_boundary(slab, boundary_hull(body, f)?)
+            clip_to_boundary(slab, boundary_hull(body, face, f))
         }
         FaceBoxRule::ConeSlab {
             apex,
             axis,
             half_angle,
         } => {
-            let Some(h) = axial_window(axis, apex)? else {
+            let Some(h) = axial_window(axis, apex) else {
                 return Ok(Aabb::poison());
             };
             let axis_span = bracket_vector(axis);
@@ -1643,7 +1646,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 sin.hi() / cos.lo(),
             ))
         }
-        FaceBoxRule::BoundaryHull => boundary_hull(body, f)?.unwrap_or_else(Aabb::poison),
+        FaceBoxRule::BoundaryHull => boundary_hull(body, face, f).unwrap_or_else(Aabb::poison),
     };
     Ok(boxed.padded(pad))
 }
@@ -1746,32 +1749,33 @@ fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
 /// boundary VERTEX.
 fn boundary_hull<T: Decide + Bounds>(
     body: &Body<T>,
+    face: FaceKey,
     f: &crate::entity::Face,
-) -> Result<Option<Aabb>, BooleanError> {
+) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
     for lk in loops_of(f) {
-        let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+        let l = linked(
+            &body.loops,
+            lk,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "loop",
+        );
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
-                let p = vertex_point(body, vertex)?;
+                let p = body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
                 grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
             }
             LoopBoundary::Cycle { first } => {
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or(corrupt("face box: unwalkable loop"))?
-                {
-                    let ek = body
-                        .get_half_edge(he)
-                        .ok_or(corrupt("face box: half-edge lost"))?
-                        .edge;
-                    grow(edge_box(body, ek, 0.0)?);
+                for he in body.loop_walk(first).closed("loop", first) {
+                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                    grow(edge_box(body, ek, 0.0));
                 }
             }
         }
     }
-    Ok(acc)
+    acc
 }
 
 /// **The one soundness rule for an edge's box** — [`FaceBoxRule`]'s
@@ -1939,31 +1943,23 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
 /// instantiation, and therefore a superset of the edge's locus or the
 /// poison box.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`BooleanError::ClassificationInvariant`] when the edge's topology
-/// is corrupt.
-pub(crate) fn edge_box<T: Decide + Bounds>(
-    body: &Body<T>,
-    edge: EdgeKey,
-    pad: f64,
-) -> Result<Aabb, BooleanError> {
-    let e = body.get_edge(edge).ok_or(corrupt("edge box: edge lost"))?;
-    let start_of = |he| -> Result<Point3<T>, BooleanError> {
-        let vk = body
-            .get_half_edge(he)
-            .ok_or(corrupt("edge box: half-edge lost"))?
-            .start;
-        vertex_point(body, vk)
-    };
-    let (a, b) = (start_of(e.he_plus)?, start_of(e.he_minus)?);
+/// Where `edge`, which the caller read out of `body`, or a record on
+/// the way to its ends does not resolve (D2 row 4).
+pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f64) -> Aabb {
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (a, b) = (
+        edge_end_point(body, edge, e.he_plus, "he_plus"),
+        edge_end_point(body, edge, e.he_minus, "he_minus"),
+    );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
     let certified = body
         .get_curve_geom(e.curve)
         .and_then(crate::null::CurveGeom::certified);
     let carrier = certified.map(geom_brep::EdgeCurve::carrier);
     let boxed = match edge_box_rule(carrier) {
-        EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
+        EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
         EdgeBoxRule::Spiric => certified
             .and_then(|curve| {
@@ -1988,10 +1984,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
             // `certified` is `Some` here — the rule names this arm only
             // for a certified conic carrier — and the door answers for
             // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4). Not `corrupt(..)`: that
-            // refusal names an arena lookup a malformed BODY can fail,
-            // and this state is not a property of any body — it is the
-            // rule↔door pairing inside this file.
+            // that says so (D2 addendum row 4).
             certified
                 .and_then(|curve| {
                     let (t0, t1) = curve.params();
@@ -2005,7 +1998,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
                 })
         }
     };
-    Ok(boxed.padded(pad))
+    boxed.padded(pad)
 }
 
 /// The subdivision count [`arc_extent`] and [`edge_axial_span`] use.
@@ -2110,16 +2103,24 @@ pub(crate) fn arc_extent<X: Real>(
     }
 }
 
-/// Either empty lookup means the same thing here — a corrupt body —
-/// so the read-back door's discriminated reference collapses to one
-/// verdict.
-fn vertex_point<T: Decide + Bounds>(
+/// The start point of `edge`'s half `he`, which `edge`'s field `field`
+/// names: every hop is a link.
+#[track_caller]
+fn edge_end_point<T: Real>(
     body: &Body<T>,
-    v: VertexKey,
-) -> Result<Point3<T>, BooleanError> {
-    body.get_vertex(v)
-        .map(|data| body.point_of(v, data))
-        .ok_or(corrupt("face/edge box: vertex point lost"))
+    edge: EdgeKey,
+    he: HalfEdgeKey,
+    field: &'static str,
+) -> Point3<T> {
+    let start = linked(
+        &body.half_edges,
+        he,
+        EntityId::HalfEdge,
+        EntityId::Edge(edge),
+        field,
+    )
+    .start;
+    body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
 }
 
 #[cfg(test)]
@@ -4766,7 +4767,7 @@ pub(crate) mod tests {
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(crate::null::CurveGeom::certified)
             .unwrap();
-        let b = edge_box(&body, edge, 0.0).unwrap();
+        let b = edge_box(&body, edge, 0.0);
         let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
         for i in 0..=20_000 {
             let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
@@ -4888,7 +4889,7 @@ pub(crate) mod tests {
     fn the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs() {
         for (what, body, scale) in adversarial_conic_sectors() {
             let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0).unwrap();
+            let b = edge_box(&body, edge, 0.0);
             let (t0, t1) = curve.params();
             let slack = 1e-12 * (1.0 + scale);
             for i in 0..=20_000 {
@@ -4918,7 +4919,7 @@ pub(crate) mod tests {
     fn the_conic_edge_box_is_the_exact_extremal_construction() {
         for (what, body, scale) in adversarial_conic_sectors() {
             let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0).unwrap();
+            let b = edge_box(&body, edge, 0.0);
             let (t0, t1) = curve.params();
             let (c, p, q) = conic_frame(curve.carrier());
             let tol = 1e-12 * (1.0 + scale);

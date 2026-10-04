@@ -138,8 +138,9 @@ use super::{
     VfContact, VvContact,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::live::{linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
@@ -1062,21 +1063,19 @@ impl PairVerdict {
     }
 }
 
-/// Does the face carry a lone-vertex loop?
-fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> Result<bool, BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "section certificate: a face loop is lost",
-    };
-    let fd = body.get_face(face).ok_or_else(corrupt)?;
-    for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        if matches!(
-            body.get_loop(l).ok_or_else(corrupt)?.boundary,
-            LoopBoundary::Empty { .. }
-        ) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+/// Does the face, which the caller read out of `body`, carry a
+/// lone-vertex loop?
+#[track_caller]
+fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
+    let fd = proven(&body.faces, face, EntityId::Face);
+    core::iter::once(fd.outer)
+        .chain(fd.rings.iter().copied())
+        .any(|l| {
+            matches!(
+                linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary,
+                LoopBoundary::Empty { .. }
+            )
+        })
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
@@ -1146,8 +1145,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] for a face whose loops do
-/// not resolve.
+/// The section certificate's own refusals.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
@@ -1156,7 +1154,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
     use super::section_cert::{Refusal, Side, certify, classify};
-    if has_lone_vertex(a, fa.face)? || has_lone_vertex(b, fb.face)? {
+    if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(Refusal::LoneVertex));
     }
     let (box_a, box_b) = (&fa.bbox, &fb.bbox);
@@ -1213,42 +1211,34 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
 
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for a loop, cycle or
-/// half-edge that does not resolve, and the edge box's own errors.
+/// `face` is one the caller read out of `body`.
+#[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     region: &bvh::Aabb,
     pad: f64,
-) -> Result<bool, BooleanError> {
-    let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let fd = body
-        .get_face(face)
-        .ok_or(corrupt("face boundary: the face is lost"))?;
+) -> bool {
+    let fd = proven(&body.faces, face, EntityId::Face);
     for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let l = body
-            .get_loop(lk)
-            .ok_or(corrupt("face boundary: a face loop is lost"))?;
+        let l = linked(
+            &body.loops,
+            lk,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "loop",
+        );
         let LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
-        for he in body
-            .loop_cycle(first)
-            .ok_or(corrupt("face boundary: an unwalkable loop"))?
-        {
-            let ek = body
-                .get_half_edge(he)
-                .ok_or(corrupt("face boundary: a half-edge is lost"))?
-                .edge;
-            if boxes::edge_box(body, ek, pad)?.overlaps(region) {
-                return Ok(true);
+        for he in body.loop_walk(first).closed("loop", first) {
+            let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            if boxes::edge_box(body, ek, pad).overlaps(region) {
+                return true;
             }
         }
     }
-    Ok(false)
+    false
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B
@@ -1502,8 +1492,8 @@ fn ball_against_plane<T: Decide>(
 fn event_pairs<T: Real>(
     red: &BooleanReduction<T>,
 ) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
-    let a_faces = faces_by_vertex(&red.a)?;
-    let b_faces = faces_by_vertex(&red.b)?;
+    let a_faces = faces_by_vertex(&red.a);
+    let b_faces = faces_by_vertex(&red.b);
     let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
     let around = |operand: Operand, v: VertexKey| {
         let m = match operand {
@@ -1541,26 +1531,23 @@ fn event_pairs<T: Real>(
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
-fn faces_by_vertex<T: Real>(
-    body: &Body<T>,
-) -> Result<BTreeMap<VertexKey, Vec<FaceKey>>, BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "interior-loop guard: a reduction operand is not walkable",
-    };
+fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {
         for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             // A lone-vertex loop's vertex bounds the face as much as a
             // cycle's do.
-            let vertices = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
-                LoopBoundary::Empty { vertex } => vec![vertex],
-                LoopBoundary::Cycle { first } => body
-                    .loop_cycle(first)
-                    .ok_or_else(corrupt)?
-                    .into_iter()
-                    .map(|he| body.get_half_edge(he).map(|h| h.start).ok_or_else(corrupt))
-                    .collect::<Result<Vec<_>, _>>()?,
-            };
+            let vertices =
+                match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary
+                {
+                    LoopBoundary::Empty { vertex } => vec![vertex],
+                    LoopBoundary::Cycle { first } => body
+                        .loop_walk(first)
+                        .closed("loop", first)
+                        .into_iter()
+                        .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
+                        .collect(),
+                };
             for v in vertices {
                 let faces = out.entry(v).or_default();
                 if !faces.contains(&face) {
@@ -1569,7 +1556,7 @@ fn faces_by_vertex<T: Real>(
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// The graft map as sorted-order row vectors (naming emission).
@@ -3090,7 +3077,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
                                 let circle_box = centred_box(foot, rho, pad);
-                                if face_boundary_meets(y, yf, &circle_box, pad)? {
+                                if face_boundary_meets(y, yf, &circle_box, pad) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
                                         face,
@@ -3627,9 +3614,11 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
-                        voids::VoidInsertError::Corrupt { what } => {
-                            BooleanError::JoinDesync { what }
-                        }
+                        voids::VoidInsertError::StaleSolid { .. }
+                        | voids::VoidInsertError::SolidCount { .. } => unreachable!(
+                            "the void fallback grafts a one-solid B carve into the one solid \
+                             of the A carve it holds: {e:?}"
+                        ),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }

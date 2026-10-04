@@ -88,9 +88,6 @@ Its third fix pass adds `SphereQuestion` (under
 `PlaneRung::Norm`; `BooleanError::SpheresMeet { verdict }` carries
 `geom_brep::recourse::Refused`, as `CurvedSectorSideUnsupported` does.
 
-CLEAVE (PR 3860) adds `Corruption`, carried by
-`BooleanError::CorruptOperand { corruption, .. }`: `Structure { errors }`
-(tier 1 refused the operand at the operand gate) or `Vertex { vertex }`
-(a traversal failed at that vertex). It is declared in
-`crates/topo/src/boolean/mod.rs` beside `BooleanError`, and is a payload
-rung of `BooleanError` itself, filed here with the others.
+`Corruption` and `BooleanError::CorruptOperand` are gone: a tier-1
+operand at the gate, and a traversal that fails at a vertex, panic
+naming the record (D2 row 4), so neither is a rung to place.
