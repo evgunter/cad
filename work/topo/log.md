@@ -6702,3 +6702,17 @@ The graft staging is PR 4022. Its lane reports topo 2542/2542 and sweep 2040/204
 door-sweep cost, and the pcurves refusal leaving the cache partly cleared) and closed S70 as "decided with S14(b)".
 The reviewer, session_013YHgGeDQKi9BwPZKkrnBsg, is asked in particular whether closing S70 is legitimate and
 whether review_d18's -121 lines drop coverage. The implementer is archived. No Ev reply on 3970 or 4024.
+
+## 09:27 check-in (2026-10-04)
+
+PR 4022 review: fix first, with tracker edits only. The code is sound: both witnesses go red on base, every
+graft door is atomic under two-fault probes, staging costs about 1.2-2x and is linear, and the gate is green.
+C6: closing S70 is correct (its Gates defer exactly to S14(b)). I applied the tracker edits myself at `d65dcd3065`:
+- MINOR-1: the graft's dead-destination `JoinDesync` → `VoidInsertError::Corrupt` conflation is added to the
+  stale-key row's argument class.
+- NOTE-3: the torn-source `JoinDesync` is added to the conversion list.
+- MINOR-2 and NOTE-1: the vacuity row notes that the `SPENT_GRAFT_EXPOSURE` remedy is retired and `mfkrh_plug`'s
+  count is unpinned.
+- NOTE-2: the perf row is marked design (a D1 sweep-placement question, to go to Ev) and the pre-existing `Recertify`
+  O(E^2) is noted.
+Merge on green. The reviewer is archived.
