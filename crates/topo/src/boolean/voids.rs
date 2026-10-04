@@ -304,10 +304,12 @@ pub fn insert_void<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`VoidInsertError`] — the evidence refusals before any mutation; a
-/// destination count that does not match the cavity's solid count as
-/// [`VoidInsertError::Corrupt`], the graft's own arity refusal
-/// verbatim; revert and graft refusals verbatim.
+/// [`VoidInsertError`] — the evidence refusals; a destination count
+/// that does not match the cavity's solid count, or a destination
+/// solid that does not resolve in `dst`, as
+/// [`VoidInsertError::Corrupt`], the graft's own refusal verbatim;
+/// revert and graft refusals verbatim. Every refusal leaves `dst`
+/// unchanged (the graft is staged).
 pub fn insert_voids<T: Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],

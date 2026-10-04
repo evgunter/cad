@@ -245,6 +245,15 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "refuses a hollow cavity before any mutation, then calls `insert_hollow_voids` — same \
          body, same assertion",
     ),
+    (
+        "graft_disjoint",
+        "checks the source holds one solid, then calls `graft_disjoint_all` — same body, \
+         same assertion",
+    ),
+    (
+        "graft_disjoint_all",
+        "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
@@ -382,25 +391,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
     ),
     ("clear_null_face_pair", "removes that annotation"),
-    // ---- The exception. Not a waiver: a recorded hole. ----
-    (
-        "graft_disjoint",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
-    (
-        "graft_disjoint_all",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
-    (
-        "graft_disjoint_all_keyed",
-        "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
-         empty destination solid per source solid before transplanting, and a refusal \
-         raised mid-transplant leaves `dst` partially written (its own docs: spent, \
-         never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
-         caller that discards the `Err` can fire a later operator's postcondition from \
-         API MISUSE rather than a kernel bug — the state class D9's footnote says \
-         cannot occur. Open as S14; this entry records it, it does not excuse it.",
-    ),
 ];
 
 /// **The closure property the module docs of [`crate::euler`] and D9's
@@ -424,10 +414,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// pipelines composed of asserting operators; setters declaring the
 /// tier-1 postcondition themselves (which, like an operator's, is
 /// swept at the door rather than at the write); and setters writing
-/// fields tier 1 does not constrain. The fifth kind has exactly one member and is the
-/// finding that produced this test — `instance`'s grafts do NOT
-/// preserve tier 1 on their failure path, which their own docs
-/// concede, and which is open as S14.
+/// fields tier 1 does not constrain. There is no fifth kind: a door
+/// that does not preserve tier 1 is a finding, not an entry.
 ///
 /// Stale entries are caught in both directions: an entry naming a door
 /// that no longer exists, or one that has since started asserting,

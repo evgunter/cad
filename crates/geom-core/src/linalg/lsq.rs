@@ -1,6 +1,9 @@
-//! Dense small least squares for the fitting systems (M5 PR 4, C12.8's
-//! first consumer) — the Book's Eqs. 9.65–9.67 shape (`NᵀN`-style normal
-//! equations) plus the square collocation solve interpolation needs.
+//! Dense least squares for the fitting systems — the Book's Eqs.
+//! 9.65–9.67 shape (`NᵀN`-style normal equations) — and the dense square
+//! solve. The interpolating fit's collocation system is banded and is
+//! solved banded beside the fit (`geom`'s `Collocation`), where its
+//! contract is the collocation rows'; [`solve_square`] is the dense
+//! reference that solve is pinned bit for bit against.
 //!
 //! # This is C6's f64 lane — structure machinery only
 //!
@@ -21,9 +24,7 @@
 //!   index order exactly as written; the orders are stated per
 //!   function.
 //! - **No allocation surprises.** Plain `Vec`s sized from the inputs;
-//!   no external BLAS (nondeterminism), no banded exploitation yet —
-//!   correctness first; the systems are small (fitting-sized), and a
-//!   banded path can join later without changing the contract.
+//!   no external BLAS (nondeterminism).
 //! - **Totality.** No panics: internal indexing is justified by the
 //!   validated shapes; malformed shapes are typed refusals; non-finite
 //!   input reaches the pivot tests as NaN and refuses there
@@ -74,6 +75,17 @@ pub enum LsqError {
         /// Unknown columns.
         cols: usize,
     },
+    /// A banded matrix (the fit's banded collocation LU, `geom`'s
+    /// `Collocation`) whose row windows do not have the shape its LU
+    /// needs: a window that starts left of the
+    /// previous row's (the first-nonzero property, which keeps the
+    /// factor's fill inside every window), a window that runs past the
+    /// last column, or a window list whose length differs from the row
+    /// count.
+    BandShape {
+        /// The first row whose window breaks the shape.
+        row: usize,
+    },
     /// An empty matrix (no rows, or rows of zero length).
     Empty,
 }
@@ -107,6 +119,13 @@ impl core::fmt::Display for LsqError {
                 "lsq: underdetermined ({rows} rows < {cols} cols). Recourse: supply at least \
                  as many rows as columns — this solve has no unique minimizer below that, and \
                  reordering for a pivot is not offered (D9)"
+            ),
+            LsqError::BandShape { row } => write!(
+                f,
+                "lsq: row {row}'s band window does not fit the banded LU (it starts left of \
+                 the previous row's, runs past the last column, or has no row). Recourse: \
+                 supply one window per row, each starting no earlier than the one before and \
+                 ending inside the matrix"
             ),
             LsqError::Empty => f.write_str(
                 "lsq: empty system. Recourse: supply a matrix with at least one row of \
@@ -242,10 +261,13 @@ pub fn solve_normal(a: &[Vec<f64>], b: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, Lsq
 }
 
 /// Exact solve of a **square** system `A·x = b` per RHS column, via
-/// fixed-order Doolittle LU — **no pivoting** (D9: the collocation
-/// matrices this serves have their shape fixed by the knot/parameter
-/// structure; a zero pivot under the fixed order is the typed
-/// [`LsqError::LsqDegenerate`] refusal, never a row swap).
+/// fixed-order Doolittle LU — **no pivoting** (D9: a zero pivot under
+/// the fixed order is the typed [`LsqError::LsqDegenerate`] refusal,
+/// never a row swap).
+///
+/// No shipped code calls it: it is the dense reference the fit's banded
+/// collocation solve (`geom`'s `Collocation`) reproduces bit for bit,
+/// and its tests and the review probes call it as that oracle.
 ///
 /// `a` is `n × n` as rows; `b` is `n × k`; result `n × k`. Association:
 /// every inner product `Σ_{q<i} Lᵢq·Uqⱼ` ascending `q`; substitutions
@@ -482,9 +504,10 @@ mod tests {
                 matrix_rows: 3,
             },
             LsqError::Underdetermined { rows: 2, cols: 3 },
+            LsqError::BandShape { row: 4 },
             LsqError::Empty,
         ];
-        assert_eq!(arms.len(), 5, "an arm was added without a row here");
+        assert_eq!(arms.len(), 6, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

@@ -33,6 +33,9 @@
 //!   per source key, so records that named one dead source entity
 //!   still name one result key. A split lineage therefore chases
 //!   inside `dst` to the root it reached in `src`.
+//! - **A refusal writes nothing.** The transplant is staged in a fresh
+//!   body and committed into `dst` only once it has succeeded in full
+//!   (`graft_staged`).
 //! - The returned [`GraftMap`] is the ONLY bridge between source keys
 //!   and result keys; downstream consumers (the seam zip's
 //!   record-keyed correspondence, contact-record remapping) read it
@@ -225,7 +228,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     src: &Body<T>,
     bridge: Bridge,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_impl(dst, Targets::Existing(dst_solids), src, bridge).map(|(map, _)| map)
+    graft_staged(dst, Targets::Existing(dst_solids), src, bridge).map(|(map, _)| map)
 }
 
 /// [`graft_solids_with`] onto destination solids minted here, one per
@@ -237,7 +240,117 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
     src: &Body<T>,
     bridge: Bridge,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    graft_solids_impl(dst, Targets::Minted, src, bridge)
+    graft_staged(dst, Targets::Minted, src, bridge)
+}
+
+/// **Every graft is staged: a refusal leaves `dst` deep-unchanged.**
+/// The transplant runs into a fresh body, which is where every refusal
+/// arises — a destination solid that does not resolve in `dst` is
+/// refused before it, since the stage cannot see `dst` — and only a
+/// transplant that succeeded in full is committed: grafted from the
+/// stage into `dst` with the stage's certificates carried verbatim.
+/// The stage is a well-formed body this call built, so the commit
+/// cannot refuse; it mints in the stage's slot order, which is the
+/// source's, so `dst` ends key for key as a transplant straight into
+/// it would leave it. The cost is a second transplant of the source,
+/// never a copy of `dst`.
+fn graft_staged<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    targets: Targets<'_>,
+    src: &Body<T>,
+    bridge: Bridge,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
+    #[cfg(any(test, feature = "test-support"))]
+    BRIDGES.with(|b| b.borrow_mut().push(bridge));
+    let mut stage = Body::new();
+    let (staged, _) = match targets {
+        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge)?,
+        Targets::Existing(dst_solids) => {
+            if dst_solids.iter().any(|&k| dst.get_solid(k).is_none()) {
+                return Err(BooleanError::JoinDesync {
+                    what: "graft destination solid does not resolve in the destination",
+                });
+            }
+            // One stand-in per destination solid, in the same order, so
+            // the commit lands each staged solid's shells positionally.
+            let stand_ins: Vec<SolidKey> = dst_solids
+                .iter()
+                .map(|_| {
+                    stage
+                        .solids
+                        .insert(crate::entity::Solid { shells: Vec::new() })
+                })
+                .collect();
+            graft_solids_impl(&mut stage, Targets::Existing(&stand_ins), src, bridge)?
+        }
+    };
+    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys) {
+        Ok(done) => done,
+        Err(e) => unreachable!(
+            "graft commit refused ({e:?}): the stage is a body this call built from a \
+             transplant that succeeded, every reference in it minted by that transplant, \
+             and every destination solid was checked live (kernel bug)"
+        ),
+    };
+    Ok((staged.then(&committed), solids))
+}
+
+/// A graft unstaged, straight into `dst` (`dst_solids` empty mints):
+/// the reference a row holds the staged graft against.
+#[cfg(test)]
+pub(crate) fn graft_unstaged<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
+    src: &Body<T>,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
+    let targets = if dst_solids.is_empty() {
+        Targets::Minted
+    } else {
+        Targets::Existing(dst_solids)
+    };
+    graft_solids_impl(dst, targets, src, Bridge::RemapKeys)
+}
+
+impl GraftMap {
+    /// The bridge of `self` (source → stage) followed by `next`
+    /// (stage → destination). Every stage key `self` names was minted
+    /// by the transplant that built the stage, so `next` holds it.
+    fn then(&self, next: &Self) -> Self {
+        fn chain<K: Key>(a: &SecondaryMap<K, K>, b: &SecondaryMap<K, K>) -> SecondaryMap<K, K> {
+            a.iter()
+                .map(|(k, &mid)| {
+                    let Some(&out) = b.get(mid) else {
+                        unreachable!(
+                            "graft commit: stage key {mid:?} was minted by the staging \
+                             transplant and the commit walks every stage key (kernel bug)"
+                        )
+                    };
+                    (k, out)
+                })
+                .collect()
+        }
+        Self {
+            vertices: chain(&self.vertices, &next.vertices),
+            faces: chain(&self.faces, &next.faces),
+            edges: chain(&self.edges, &next.edges),
+            dead_edges: self
+                .dead_edges
+                .iter()
+                .map(|(&k, mid)| {
+                    let Some(&out) = next.dead_edges.get(mid) else {
+                        unreachable!(
+                            "graft commit: dead stage edge {mid:?} stands for a source key a \
+                             staged record names, and the commit forwards that record again \
+                             (kernel bug)"
+                        )
+                    };
+                    (k, out)
+                })
+                .collect(),
+            surfaces: chain(&self.surfaces, &next.surfaces),
+            shells: chain(&self.shells, &next.shells),
+        }
+    }
 }
 
 /// Which destination solids a graft's source solids land in.
@@ -259,8 +372,6 @@ fn graft_solids_impl<T: geom_core::Decide>(
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
     };
-    #[cfg(any(test, feature = "test-support"))]
-    BRIDGES.with(|b| b.borrow_mut().push(bridge));
     // Arity is this door's precondition, distinct from corruption: the
     // caller states which destination each source solid lands in, so a
     // count mismatch is a caller error, never a thing to guess at.
