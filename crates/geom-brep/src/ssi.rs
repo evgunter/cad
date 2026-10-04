@@ -1945,52 +1945,28 @@ const OPEN_END: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The closure's tangent decision (`ssi_closure_tangent`), refused when
-/// the trace comes back across or against the way it left: the locus
-/// cusps or crosses itself. Read on its sign-certain arm alone, since
-/// the closure angle is the march's own.
-/// Limb 3's one-arc proof at a search ([`SsiError::TubeNotOneArc`]):
-/// a second arc of the locus in a traced branch's tube, the locus
-/// grazing the searched region inside it, or two pieces of the chain
-/// that do not join, clear by moving the geometry or the region.
+/// Limb 3's one-arc decision at a search ([`SsiError::TubeNotOneArc`]):
+/// one recourse whatever the cause ([`OneArcRefusal`], the payload's
+/// data). The tube must hold one arc of the locus from end to end of the
+/// traced branch and nothing else; moving the geometry or the region
+/// clears an arc missing, a second arc, a graze of the region, a gap
+/// between pieces, or a branch running past its arc.
 const TUBE_ONE_ARC: SizedDecision = SizedDecision {
-    lever: "move the geometry, or the searched region, until no second arc of the locus or \
-            graze of the region's boundary lies in a traced branch's tube",
+    lever: "move the geometry, or the searched region, until each traced branch's tube \
+            holds one arc of the locus, end to end, and nothing else",
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
 
-/// Limb 3 at a search, [`OneArcRefusal::Short`]: the traced branch's
-/// carrier runs past the end of its arc, which moving the geometry or
-/// the region a little clears.
-const TUBE_SHORT: SizedDecision = SizedDecision {
-    lever: "move the geometry, or the searched region, a little, so the traced branch ends \
-            where its arc does",
-    size: "overrun",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
-
-/// Limb 3 at rest ([`crate::PlaneNurbsRefusal::TubeNotOneArc`]): the
-/// stored edge's curve joins two arcs of its faces' crossing, or runs
-/// beside one that leaves it; the stored curve is what the lever edits.
+/// Limb 3's one-arc decision at rest
+/// ([`crate::PlaneNurbsRefusal::TubeNotOneArc`]): one recourse whatever
+/// the cause. The stored curve is what the lever edits.
 const REST_ONE_ARC: SizedDecision = SizedDecision {
-    lever: "store the edge's curve along one arc of its faces' crossing, or move the faces \
-            so no second arc lies beside it",
+    lever: "store the edge's curve along one arc of its faces' crossing, end to end, with \
+            no second arc beside it",
     size: "clearance",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
-
-/// Limb 3 at rest, [`OneArcRefusal::Short`]: the stored edge's curve
-/// runs past the end of its faces' crossing.
-const REST_SHORT: SizedDecision = SizedDecision {
-    lever: "end the edge's curve where its faces' crossing ends",
-    size: "overrun",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -2006,16 +1982,15 @@ pub enum OneArcDoor {
 }
 
 impl OneArcRefusal {
-    /// The ending this cause carries at `door`, read at `reading`: a
-    /// certified count, missing link or short end is the sign-certain
-    /// arm of its door's lever; a walk that resolved nothing escalates.
+    /// The ending this refusal carries at `door`, read at `reading`: the
+    /// door's one recourse ([`TUBE_ONE_ARC`], [`REST_ONE_ARC`]), on its
+    /// sign-certain arm for a certified count, missing link or short
+    /// end, and escalating for a walk that resolved nothing.
     #[must_use]
     pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
-        let decision = match (door, self) {
-            (OneArcDoor::Search, Self::Short) => TUBE_SHORT,
-            (OneArcDoor::Search, _) => TUBE_ONE_ARC,
-            (OneArcDoor::AtRest, Self::Short) => REST_SHORT,
-            (OneArcDoor::AtRest, _) => REST_ONE_ARC,
+        let decision = match door {
+            OneArcDoor::Search => TUBE_ONE_ARC,
+            OneArcDoor::AtRest => REST_ONE_ARC,
         };
         match self {
             Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),

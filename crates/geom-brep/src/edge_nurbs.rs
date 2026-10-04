@@ -412,8 +412,8 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             }
             Self::TubeNotOneArc { rungs, cause } => write!(
                 f,
-                "at {rungs} rungs the uniqueness tube was a graph but not proved to hold one arc \
-                 spanning the declared carrier; at the narrowest, {cause}"
+                "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
+                 at the narrowest, {cause}"
             ),
             Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
@@ -884,6 +884,41 @@ mod tests {
         ];
         let weights = vec![1.0, 0.7, 1.3, 2.0, 0.9, 1.0];
         NurbsCurve2::new(knots, control, weights).unwrap()
+    }
+
+    /// **Limb 3's at-rest refusal is held to the concision standard**,
+    /// every cause at every reading: its payload then its ending, at most
+    /// 75 words, with one recourse that never speaks of a search. Red
+    /// under a lever that names the searched region at rest, and under
+    /// the payload and ending growing past the budget.
+    #[test]
+    fn the_tube_not_one_arc_refusal_renders_within_the_standard() {
+        use crate::recourse::Reading;
+        use crate::ssi::OneArcRefusal;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let undecided = geom_core::k_stats::decide_positive(
+            "ssi_tube_one_arc",
+            geom_core::Margin::of(f64::NAN),
+            band,
+        )
+        .unwrap_err();
+        for cause in [
+            OneArcRefusal::Count { solutions: 0 },
+            OneArcRefusal::Count { solutions: 4 },
+            OneArcRefusal::Unlinked,
+            OneArcRefusal::Short,
+            OneArcRefusal::Undecided(undecided),
+        ] {
+            let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
+            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+                let ending = refusal.ending(reading).unwrap();
+                let rendered = format!("{refusal} {ending}");
+                let words = rendered.split_whitespace().count();
+                assert!(words <= 75, "{words} words: {rendered}");
+                assert_eq!(rendered.matches("Recourse").count(), 1, "{rendered}");
+                assert!(!rendered.contains("searched region"), "{rendered}");
+            }
+        }
     }
 
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an

@@ -31,19 +31,22 @@
 //! every solution in the box within ε of the side ([`read_stretch`],
 //! [`side_stretch`]). The piece is that stretch of the side, as a region
 //! of the locus, not a curve. Two stretches of one side link where their
-//! overlap reads no piece clear; a stretch reaches an end of the carrier
-//! where the end, moved across onto the side, lands on it at a point that
-//! reads not clear.
+//! overlap reads within ε and no piece of it clear.
 //!
 //! **One arc, spanning the carrier.** Consecutive boxes whose pieces
 //! share a solution hold one connected arc between them, and every
-//! solution in the chain lies on it. The first box's piece reaches the
-//! carrier's start and the last box's its end, so the arc runs from end
-//! to end of the carrier: a carrier overrunning its arc refuses. An arc
-//! reaches an end where the slice through it holds a solution, or a
-//! solution lies within ε of it; [`Shortfall::Short`] is read only where
-//! that is certified not so, and a reading that resolves neither is
-//! [`Shortfall::Undecided`].
+//! solution in the chain lies on it. The first box's piece meets the
+//! slice through the carrier's start and the last box's the slice
+//! through its end, so the arc runs from end to end of the carrier: a
+//! carrier overrunning its arc refuses. An arc's end counts also where a
+//! zero of the locus is certified within ε of the carrier's end on a
+//! slice beside it; a side's where the end, moved across onto the side,
+//! lands on its stretch at a point the boundary pass reads within ε of
+//! the plane and not clear. [`Shortfall::Short`] is read only where that
+//! is certified not so, and a reading that resolves neither is
+//! [`Shortfall::Undecided`], unless an end is certified far from every
+//! solution of its box: then a box that resolved no piece cannot rescue
+//! the chain, and the refusal is `Short`.
 //!
 //! **The walks.**
 //! - Chart edges ([`boundary_zeros`]): each edge is cut into runs, each
@@ -504,8 +507,9 @@ enum Near {
 /// within `eps` metres of `end`: its ends take certified opposite signs,
 /// and the chord is cut at [`EXIT_CUT`], keeping the sign change, until
 /// the wall over the part kept lies within `eps` of `end`
-/// ([`Near::Found`]), or wholly farther ([`Near::Far`]). A chord with
-/// both ends certified of one sign is [`Near::Far`]; an unsigned point,
+/// ([`Near::Found`]), or wholly farther ([`Near::Far`]). A chord whose
+/// wall lies wholly farther than `eps` from `end`, or with both ends
+/// certified of one sign, is [`Near::Far`]; an unsigned point,
 /// a missed slice, a cut below `f64` resolution or the halvings spent
 /// are [`Near::Unknown`].
 fn crossing_near<T: CertifiedBounds>(
@@ -518,6 +522,12 @@ fn crossing_near<T: CertifiedBounds>(
     let Some([a, b]) = slice(p, e, r) else {
         return Near::Unknown;
     };
+    // The wall over the whole chord farther than `eps` from the end: no
+    // solution on it is near, whatever its signs.
+    let chord = boxes.rect_box(a.0.min(b.0), a.0.max(b.0), a.1.min(b.1), a.1.max(b.1));
+    if nearest(chord, end) > eps {
+        return Near::Far;
+    }
     let (Some(sa), Some(sb)) = (sign_at(boxes, plane, a), sign_at(boxes, plane, b)) else {
         return Near::Unknown;
     };
@@ -562,8 +572,9 @@ fn crossing_near<T: CertifiedBounds>(
 /// pointing back along the carrier and `δ` halved towards `q`
 /// ([`crossing_near`]). The shifted slices read an end at a crossing of
 /// the wall's domain side or corner, where the slice through `q` itself
-/// leaves the domain at once. [`Near::Far`] only where every slice read
-/// is.
+/// leaves the domain at once. A shifted slice that misses the window is
+/// not read: it holds none of the window's solutions. [`Near::Far`] only
+/// where every slice read is.
 fn near_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
@@ -581,12 +592,16 @@ fn near_end<T: CertifiedBounds>(
         if p == q {
             return all;
         }
+        d *= 0.5;
+        // A slice that misses the window holds none of its solutions.
+        if slice(p, e, r).is_none() {
+            continue;
+        }
         match crossing_near(boxes, plane, r, (p, e), end) {
             Near::Found => return Near::Found,
             Near::Unknown => all = Near::Unknown,
             Near::Far => {}
         }
-        d *= 0.5;
     }
     Near::Unknown
 }
@@ -618,8 +633,12 @@ struct CarrierEnd {
 ///   ([`holds_zero`]), or the carrier's end lies within ε of a solution
 ///   in the window ([`near_end`]).
 ///
-/// [`Shortfall::Short`] only where that is certified not so; a reading
-/// that resolves neither is [`Shortfall::Undecided`].
+/// [`Shortfall::Short`] only where that is certified not so: an arc's
+/// end certified far ([`end_reading`]), a side's end off its stretch or
+/// on a point the pass reads clear. A reading that resolves neither is
+/// [`Shortfall::Undecided`]: an arc's end read neither way, a side's end
+/// whose `φ` is refused, or whose `|φ|` is not certified within ε
+/// ([`Reading::Beyond`], which is no certificate that it is beyond).
 fn reaches_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
@@ -648,18 +667,51 @@ fn reaches_end<T: CertifiedBounds>(
                 Reading::Refused | Reading::Beyond => Err(Shortfall::Undecided),
             }
         }
-        Piece::Crossing => match holds_zero(boxes, plane, q, end.e, r) {
-            Some(true) => Ok(()),
-            reading => match (
-                near_end(boxes, plane, (q, end.e, end.tau), r, (end.at, eps)),
-                reading,
-            ) {
-                (Near::Found, _) => Ok(()),
-                (Near::Far, Some(false)) => Err(Shortfall::Short),
-                _ => Err(Shortfall::Undecided),
-            },
+        Piece::Crossing => match end_reading(boxes, plane, r, q, end, eps) {
+            Near::Found => Ok(()),
+            Near::Far => Err(Shortfall::Short),
+            Near::Unknown => Err(Shortfall::Undecided),
         },
     }
+}
+
+/// How the window `r` reads the carrier's end `q` by an arc's standard:
+/// [`Near::Found`] where the slice through the end holds a solution
+/// ([`holds_zero`]) or one lies within ε of the end ([`near_end`]);
+/// [`Near::Far`] where the slice is certified to hold none and every
+/// near reading is certified far; else [`Near::Unknown`].
+fn end_reading<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    r: UvRect,
+    q: (f64, f64),
+    end: CarrierEnd,
+    eps: f64,
+) -> Near {
+    match holds_zero(boxes, plane, q, end.e, r) {
+        Some(true) => Near::Found,
+        reading => match (
+            near_end(boxes, plane, (q, end.e, end.tau), r, (end.at, eps)),
+            reading,
+        ) {
+            (Near::Found, _) => Near::Found,
+            (Near::Far, Some(false)) => Near::Far,
+            _ => Near::Unknown,
+        },
+    }
+}
+
+/// Whether the window `r`'s solutions are certified far from the
+/// carrier's end `q` ([`end_reading`]).
+fn end_far<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    r: UvRect,
+    q: (f64, f64),
+    end: CarrierEnd,
+    eps: f64,
+) -> bool {
+    end_reading(boxes, plane, r, q, end, eps) == Near::Far
 }
 
 /// **Consecutive windows hold one piece between them**, read on the
@@ -724,11 +776,52 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
         .map(|(w, _)| meet(w.rect, domain))
         .collect::<Option<Vec<UvRect>>>()
         .ok_or(Shortfall::Undecided)?;
+    let (Some(first), Some(last)) = (windows.first(), windows.last()) else {
+        return Err(Shortfall::Undecided);
+    };
+    let n = windows.len() - 1;
+    // The tangent at a span's middle is `e⊥` turned back: `(e.1, −e.0)`.
+    let back = |e: (f64, f64), sense: f64| (sense * e.1, -sense * e.0);
+    let carrier_ends = [
+        (
+            0,
+            at(first.0.ends.0),
+            CarrierEnd {
+                e: first.1,
+                tau: back(first.1, 1.0),
+                at: ends[0],
+            },
+        ),
+        (
+            n,
+            at(last.0.ends.1),
+            CarrierEnd {
+                e: last.1,
+                tau: back(last.1, -1.0),
+                at: ends[1],
+            },
+        ),
+    ];
     let readers = side_readers(boxes, plane);
     let pieces = clipped
         .iter()
         .map(|r| piece(boxes, plane, (domain, &readers), *r, band))
-        .collect::<Result<Vec<Piece>, Shortfall>>()?;
+        .collect::<Result<Vec<Piece>, Shortfall>>();
+    // A window that resolves no piece leaves the chain undecided, unless
+    // an end of the carrier is certified far from every solution of its
+    // window by an arc's own standard: then the carrier certainly
+    // overruns what the chain holds there, whatever the undecided
+    // window holds.
+    let pieces = match pieces {
+        Err(Shortfall::Undecided)
+            if carrier_ends
+                .iter()
+                .any(|&(k, q, end)| end_far(boxes, plane, clipped[k], q, end, band.zero())) =>
+        {
+            return Err(Shortfall::Short);
+        }
+        other => other?,
+    };
     for k in 1..windows.len() {
         let overlap = meet(clipped[k - 1], clipped[k]).ok_or(Shortfall::Undecided)?;
         let (w, e) = windows[k - 1];
@@ -741,23 +834,14 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
             (at(w.ends.1), e),
         )?;
     }
-    let (Some(first), Some(last)) = (windows.first(), windows.last()) else {
-        return Err(Shortfall::Undecided);
-    };
-    let n = windows.len() - 1;
-    // The tangent at a span's middle is `e⊥` turned back: `(e.1, −e.0)`.
-    let back = |e: (f64, f64), sense: f64| (sense * e.1, -sense * e.0);
-    for (k, t, e, end, tau) in [
-        (0, first.0.ends.0, first.1, ends[0], back(first.1, 1.0)),
-        (n, last.0.ends.1, last.1, ends[1], back(last.1, -1.0)),
-    ] {
+    for (k, q, end) in carrier_ends {
         reaches_end(
             boxes,
             plane,
             (&readers, band.zero()),
             (pieces[k], clipped[k]),
-            at(t),
-            CarrierEnd { e, tau, at: end },
+            q,
+            end,
         )?;
     }
     Ok(())

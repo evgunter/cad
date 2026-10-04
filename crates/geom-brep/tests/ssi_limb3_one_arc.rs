@@ -694,3 +694,98 @@ fn a_carrier_along_a_side_whose_locus_wanders_past_eps_refuses_at_rest() {
         declared(&wall, (0.0, 1.0)),
     );
 }
+
+/// `z = k·x + h(y)` over `[0, 1]²`: degree 1 in `u`, degree 2 in `v`,
+/// with `hs.len() = 2m + 1` heights over `m` C0 quadratic spans (each
+/// interior knot doubled), `y` linear in `v`.
+fn c0_wall(k: f64, hs: &[f64]) -> NurbsSurface<f64> {
+    let n = hs.len();
+    let m = (n - 1) / 2;
+    let mut kv = vec![0.0, 0.0, 0.0];
+    for i in 1..m {
+        #[allow(clippy::cast_precision_loss)]
+        let t = i as f64 / m as f64;
+        kv.extend([t, t]);
+    }
+    kv.extend([1.0, 1.0, 1.0]);
+    let kvv = KnotVector::clamped(kv, 2).unwrap();
+    let kvu = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::new();
+    for x in [0.0, 1.0] {
+        for (j, h) in hs.iter().enumerate() {
+            #[allow(clippy::cast_precision_loss)]
+            let y = j as f64 / (n - 1) as f64;
+            control.push(Point3::new(x, y, k * x + h));
+        }
+    }
+    NurbsSurface::new(kvu, kvv, control, vec![1.0; 2 * n]).unwrap()
+}
+
+/// **A carrier running past a flush stretch into one the boundary pass
+/// reads clear refuses as an overrun.** `z = 10x + h(y)`, `h = 0` for
+/// `y ≤ ½` and rising to `0.6ε` at `y = 1`: the side `x = 0` is the
+/// locus up to `y = ½`, and past it the plane is clear of the side
+/// within the band. A carrier along the side to `y = 1` (or to 0.6)
+/// overruns its arc: [`OneArcRefusal::Short`], a certain verdict, not an
+/// undecided one. The carrier to `y = ½` certifies. Red under an
+/// undecided end window refusing as undecided.
+#[test]
+fn a_carrier_past_a_flush_stretch_into_a_clear_one_refuses_as_an_overrun() {
+    let e = eps();
+    let m = 64;
+    let hs: Vec<f64> = (0..=2 * m)
+        .map(|j| {
+            #[allow(clippy::cast_precision_loss)]
+            let y = j as f64 / (2 * m) as f64;
+            if y <= 0.5 {
+                0.0
+            } else {
+                0.6 * e * ((y - 0.5) / 0.5).powi(2)
+            }
+        })
+        .collect();
+    let wall = c0_wall(10.0, &hs);
+    let got = declared(&wall, (0.0, 0.5));
+    assert!(got.is_ok(), "the carrier to y = ½, ε {e:e}: {got:?}");
+    for to in [0.6, 1.0] {
+        let got = declared(&wall, (0.0, to));
+        assert!(
+            matches!(
+                got,
+                Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                    cause: ssi::OneArcRefusal::Short,
+                    ..
+                })
+            ),
+            "the carrier to y = {to}, ε {e:e}: {got:?}"
+        );
+    }
+}
+
+/// **A side whose slope across it fades refuses by the cover alone.**
+/// `z = (10⁻³ + (1 − 10⁻³)·y)·x − ½ε` over `[0, 1]²`, and the carrier
+/// along `x = 0`. `|φ| = ½ε` along the side and no piece of it is clear,
+/// and the screen ahead of the cover reads `|φ|` over the window's
+/// steepest rise, which is about `½ε`, so it passes the side on. But where
+/// the slope fades the locus lies `½ε / s` from the side, up to 500ε,
+/// and the side's cover reaches past ε. The side holds no piece there,
+/// and the carrier refuses. Red under the side arm skipping
+/// `side_cover`, which the screen does not cover here.
+#[test]
+fn a_side_whose_slope_across_it_fades_refuses_by_its_cover() {
+    let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let (lo, b) = (1e-3, -0.5 * eps());
+    let wall = NurbsSurface::new(
+        lin(),
+        lin(),
+        vec![
+            Point3::new(0.0, 0.0, b),
+            Point3::new(0.0, 1.0, b),
+            Point3::new(1.0, 0.0, lo + b),
+            Point3::new(1.0, 1.0, 1.0 + b),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    refuses_by_its_tube(&format!("the fading slope, ε {:e}", eps()), declared(&wall, (0.0, 1.0)));
+}

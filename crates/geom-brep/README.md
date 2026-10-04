@@ -86,12 +86,13 @@ side of the wall's domain that the boundary pass reads within ε of the
 plane with no piece of it clear (the side's own section and the clear
 test C3 decides a side by), whose cover puts every solution in the box
 within ε of the side. That piece meets the slice through every knot
-two boxes share and both ends of the carrier: an arc's end counting
-where a zero of the locus is certified within ε of the carrier's end,
-on its slice or on one beside it, and a side's where the end, moved
-across onto the side, lands on its stretch at a point the boundary
-pass does not read clear. So the arc spans the carrier (chart edges
-walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+two boxes share and the slices through both ends of the carrier, an
+arc's end counting also where a zero of the locus is certified within ε
+of the carrier's end, on a slice beside it, and a side's where the end,
+moved across onto the side, lands on its stretch at a point the
+boundary pass reads within ε of the plane and not clear. So the arc
+spans the carrier (chart edges walked in runs of one sign or monotone,
+ℝ³ faces by Krawczyk). A
 rung whose chain is a graph but not one arc gives way to a narrower one.
 With none certified, the narrowest rung probed speaks: its band verdict
 where it straddled, `SsiError::TubeNotOneArc` with what it found where
