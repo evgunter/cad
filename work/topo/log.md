@@ -6580,3 +6580,15 @@ walks lane is running. No Ev reply on 3970 or 4006.
   10 mutants red, 2 equivalent survivors; files shell, band and hone rows and a topo P4 residue. CI is still
   running in-lane; a reviewer will be dispatched when the lane is idle.
 - No Ev reply on 3970 or 4006.
+
+## PR 4014 merged; PR 4016 to review (2026-10-04 04:24)
+
+The vertex_points door merged as `7a7b33e8e0`. The fix at `3e25f297af` met every ruled item: `is_axial_in` matches
+`TogetherAxialUnsupported` only, with a red-then-green row; the attach fold-in; `corrupt_at`; and one home,
+`Body::point_of`, which `readback::vertex_point_ref` calls. It also filed a sibling
+(`...-axial-reads-a-dangling-surface-as-not-axial`). CI was green and the fix lane is archived.
+
+PR 4016 (row-drop walks) is with reviewer session_01XNj6ptyshGWEG3NbtpAE6f, asked about torn `parent_loop`
+vs `claims`, the `kef` Err→Ok shift, the setter refusals and the SPENT_GRAFT re-baseline (7 → 1). The
+implementer is archived. Dispatched the P4 E cleanup `a-kill-refusal-row-keeps-a-rows-companion-...` to a
+cloud lane on `topo/kill-refusal-row-drops-rows-companion`.
