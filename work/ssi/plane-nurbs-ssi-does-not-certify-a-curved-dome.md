@@ -2,11 +2,13 @@
 id: plane-nurbs-ssi-does-not-certify-a-curved-dome
 kind: issue
 title: ssi: plane × NURBS certifies a curved 3×3 quadratic dome at ε 1e-6 and 1e-9 but not at 1e-12, where the march asks the cubic fit for more samples than its budget; what changes is a design fork
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: H
-design: true
+pr: 4028
+branch: ssi/retire-fit-budget
+closed: 2026-10-04
 ---
 
 (Filed 2026-10-02 by SSI lane `ssi-stp` from a designer's probe; causes
@@ -249,3 +251,53 @@ is a wrong carrier. Proposed: **P2**, `design: true`. The open question
 is how the certificate's sample count scales with ε, which is
 interval and error propagation, and no architecture is being built on
 the present budget.
+
+## Closed (2026-10-04, PR 4028)
+
+The fork converged (`work/ssi/log.md`, 2026-10-04): the fit's
+collocation solve is banded (PR 4023), `SSI_MAX_FIT_SAMPLES` and
+`FitSampleBudget` are retired, and one resource wall bounds a branch's
+samples, marched or inserted (`SSI_MAX_STEPS`, 20 000 steps). Every
+curved-dome cut certifies at ε 1e-6, 1e-9 and 1e-12; the refusals left
+are other rows' (`WindowShortOfWall`, `CellBudget`). Re-measured on
+`ssi/retire-fit-budget`, release, on a 4-vCPU box shared with other
+builds (times are pessimistic). `OK n (m+kr)`: certified on `n`
+samples, the march's `m` refined over `k` rounds; the bracket after
+`WSW` is the same cut in a window of half-extent 4 m.
+
+**ε 1e-12**
+
+| d (κ) | oblique | tilt | level loop | zcut |
+|---|---|---|---|---|
+| 0.05 (0.1) | OK 549 (238+6r), 1.0 s | OK 278, 0.2 s | OK 5787, 8.0 s | OK 154, 0.2 s |
+| 0.25 (0.5) | OK 932 (796+4r), 1.5 s | OK 902, 0.8 s | OK 5787, 5.9 s | OK 509, 0.3 s |
+| 0.5 (1) | OK 1432 (1321+4r), 3.5 s | OK 1413, 1.2 s | OK 5787, 7.4 s | OK 843, 0.6 s |
+| 1 (2) | OK 2222 (2127+3r), 6.0 s | OK 1965 (1816+8r), 8.4 s | OK 5787, 6.2 s | OK 1343, 1.0 s |
+| 2 (4) | OK 3268 (3123+5r), 15.2 s | OK 2740 (2616+4r), 9.7 s | OK 5787, 6.9 s | OK 1943, 1.9 s |
+| 3 (6) | WSW [OK 3927 (3675+5r), 11.8 s] | OK 3552 (3266+8r), 21.1 s | OK 5787, 7.6 s | WSW [OK 2262 (2256+1r), 1.8 s] |
+| 4 (8) | WSW [OK 4371 (3994+4r), 10.3 s] | WSW [`CellBudget`] | OK 5787, 8.2 s | WSW [OK 2441 (2435+1r), 2.4 s] |
+
+**ε 1e-13**
+
+| d (κ) | oblique | tilt | level loop | zcut |
+|---|---|---|---|---|
+| 0.05 (0.1) | OK 950 (426+4r), 1.5 s | OK 493, 0.3 s | OK 10291, 17.1 s | OK 273, 0.2 s |
+| 0.25 (0.5) | OK 1665 (1393+6r), 5.4 s | OK 1603, 1.3 s | OK 10291, 13.7 s | OK 905, 0.5 s |
+| 0.5 (1) | OK 2558 (2346+5r), 9.3 s | OK 2511, 2.5 s | OK 10291, 14.6 s | OK 1499, 0.8 s |
+| 1 (2) | OK 3948 (3782+3r), 12.3 s | OK 3609 (3226+36r), 36.9 s | OK 10291, 13.8 s | OK 2388, 1.8 s |
+| 2 (4) | OK 5792 (5570+4r), 29.3 s | OK 4832 (4653+4r), 19.3 s | OK 10291, 14.2 s | OK 3454, 2.8 s |
+| 3 (6) | WSW [OK 6980 (6539+5r), 30.7 s] | OK 6310 (5866+6r), 33.2 s | OK 10291, 14.3 s | WSW [OK 4017 (4011+1r), 4.1 s] |
+| 4 (8) | WSW [OK 7804 (7085+9r), 57.0 s] | WSW [`CellBudget`] | OK 10291, 15.7 s | WSW [OK 4335 (4329+1r), 4.7 s] |
+
+At ε 1e-14 (d = 1) every cut meets the wall, typed
+`RefinementExhausted { stop: StepBudget }`: the level loop marches
+18 299 samples and the first round would take 23 395; the zcut's limb-2
+margin stays at 1.6–1.8e-14 m in band while its samples grow 4 245 →
+14 965 over 5 rounds; the oblique and tilt take 32 and 37 rounds. Each
+run's peak RSS is 24–30 MB, and the longest (the oblique) takes 233 s.
+Pinned by `a_loop_past_the_step_budget_refuses_typed_at_the_wall` and
+`refinement_past_the_arithmetics_floor_meets_the_wall_typed`; the two
+dome rows now pin certification at 1e-12
+(`a_curved_domes_level_loop_certifies_at_every_eps`,
+`a_curved_domes_oblique_arc_certifies_refined_across_its_inflections`).
+

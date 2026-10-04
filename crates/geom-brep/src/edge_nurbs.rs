@@ -436,6 +436,12 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
 ///
+/// The image is re-derived here on a fixed schedule of foot points, not
+/// read from the pcurve the trace fitted, so on a carrier of many spans
+/// its limb-2 bound is this lane's own: it need not reproduce the SSI
+/// door's certificate bit for bit. The door that re-certifies the
+/// trace's own triple is [`crate::ssi::certify_rung3`].
+///
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal`], carrying the measured bound whenever one

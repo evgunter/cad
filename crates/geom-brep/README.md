@@ -152,14 +152,21 @@ finite, a step that is not finite or does not move the state
 (`StepCollapsed`) refuses naming the speed. The step is the
 curvature's against ε, and no extent caps it. The certificate decides
 how many samples a carrier gets: where limb 1 or 2 refuses the fitted
-carrier on a margin that is a number, it names the spans it refused,
-every gap between samples that a refused span meets is halved with one
-gap on each side of it, the new sample settled onto the locus, and the
-carrier is refitted and certified again (`ssi/refine.rs`). A gap is
-halved only while half of it clears the band, and no round hands the
-fit more than its budget; where refinement can go no further, the
-certificate's refusal stands, naming where refinement stopped
-(`SsiError::RefinementExhausted`).
+carrier, definitely or in band, on a margin that is not poisoned, it
+names the spans it refused, every gap between samples that a refused
+span meets is halved with one gap on each side of it, the new sample
+settled onto the locus, and the carrier is refitted and certified again
+(`ssi/refine.rs`). A gap is halved only while half of it clears the
+band, and no round gives the branch more steps (gaps between samples)
+than the march may take (`SSI_MAX_STEPS`, one wall per branch on its
+steps, whether marched or split by refinement: a named resource wall
+like the cell budget, not a derivation); where refinement can go no
+further, the certificate's refusal stands, naming where refinement
+stopped and the limb and margin each earlier round refused
+(`SsiError::RefinementExhausted`). At the wall, a margin that stopped
+falling over the last two rounds ends in the tolerance as the
+arithmetic's floor; one still falling ends as the curvature-held
+march's does.
 A straight branch so takes the fewest samples its fit needs, and a
 curved one more only where its certificate refused. Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot

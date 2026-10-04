@@ -2749,7 +2749,6 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::CrossingUnmatched { .. }
         | E::ShortBranchUncertified { .. }
         | E::WindowShortOfWall { .. }
-        | E::FitSampleBudget { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::InvalidMarchTol { .. }
