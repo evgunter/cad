@@ -210,8 +210,8 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
 /// would be a bound on a different quantity at each corner.
 fn encloses_corner(body: &Body<Interval>, rho: f64, h: f64, what: &str) {
     let mut best: Option<(f64, f64, f64, f64, f64)> = None;
-    for (_, vtx) in body.vertices() {
-        let p = *body.get_point(vtx.point).expect("a vertex carries a point");
+    for (_, p) in body.vertex_points() {
+        let p = p.expect("a vertex carries a point");
         let r = (p.x * p.x + p.z * p.z).sqrt();
         let (rlo, rhi, hlo, hhi) = (r.lo(), r.hi(), p.y.lo(), p.y.hi());
         if rlo <= rho && rho <= rhi && hlo <= h && h <= hhi {

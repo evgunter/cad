@@ -376,10 +376,8 @@ pub(super) fn classify_vertices<T: Decide>(
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
-    for (vertex_key, vertex) in body.vertices() {
-        let p = *body
-            .get_point(vertex.point)
-            .ok_or(SplitReduceError::CorruptOperand { vertex: vertex_key })?;
+    for (vertex_key, p) in body.vertex_points() {
+        let p = p.map_err(|_| SplitReduceError::CorruptOperand { vertex: vertex_key })?;
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),

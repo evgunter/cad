@@ -3844,12 +3844,11 @@ mod tests {
                 .curve;
             body.curves.remove(torn).unwrap();
         };
-        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
         let refuses = |body: &mut Body<f64>,
                        wall: FaceKey,
                        door: &str,
                        op: &dyn Fn(&mut Body<f64>) -> EulerOpError| {
-            let (before, rows_before) = (deep_snapshot(body), rows(body));
+            let before = deep_snapshot(body);
             assert_eq!(
                 op(body),
                 EulerOpError::PcurveMint {
@@ -3858,8 +3857,11 @@ mod tests {
                 },
                 "{door}"
             );
-            assert_eq!(deep_snapshot(body), before, "{door}: the body is untouched");
-            assert_eq!(rows(body), rows_before, "{door}: every row is where it was");
+            assert_eq!(
+                deep_snapshot(body),
+                before,
+                "{door}: the body is untouched, every pcurve row included"
+            );
         };
 
         // `kfmrh`: the seed's outer loop demotes into the wall.

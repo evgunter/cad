@@ -61,7 +61,7 @@ The boundary pass retired `push_boundary` on this lane: a branch ends at
 the crossing the pass certified, and `ssi/ends.rs`'s `close_at` lets a
 last marched state nearer that crossing than half its own step give way
 to it. The fixture above (as `m5_pr7_ssi.rs`'s
-`a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies`)
+`a_marched_branch_whose_last_state_lands_short_of_the_far_side_certifies`)
 certifies at every δ in the table at ε 1e-6, 1e-9 and 1e-12. What is
 left is the ℝ³ lane, whose `push_boundary` still appends the bisected
 slab crossing however close it lies to the last state; that lane's slab
@@ -78,7 +78,7 @@ crossing, so the wall height `(31/32 + δ)·256/255` left the last state
 `close_at`'s pop removed. At height `31/32 + δ` the last state lands δ
 short (measured: the final chord equals δ at every δ in the table),
 and `m5_pr7_ssi.rs`'s
-`a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies` now
+`a_marched_branch_whose_last_state_lands_short_of_the_far_side_certifies` now
 builds that height.
 
 | δ | ε 1e-6 | ε 1e-9 | ε 1e-12 | 1e-9, pop removed | 1e-12, pop removed |

@@ -76,8 +76,8 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
-    Solid, SolidKey, Vertex, VertexKey,
+    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
+    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
@@ -1732,6 +1732,40 @@ impl<T: Real> Body<T> {
         self.vertices.iter()
     }
 
+    /// **Every live vertex with its point**, in vertex slot-index order
+    /// (deterministic per D9): [`Body::vertices`], then each record's
+    /// point through [`Body::get_point`], made once.
+    ///
+    /// The vertex key is live by construction; only the point read can
+    /// fail. A vertex whose point key does not resolve is a torn body —
+    /// a record of the body names nothing — and its row carries that
+    /// refusal beside the key, rather than being skipped.
+    ///
+    /// # Errors
+    ///
+    /// A row's point is [`DanglingRef::Geometry`] naming the point key
+    /// the live vertex holds and the point arena does not.
+    pub fn vertex_points(
+        &self,
+    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    }
+
+    /// The point `vertex`'s record names: the one read of a vertex's
+    /// point key, behind both [`Body::vertex_points`] and
+    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
+    ///
+    /// # Errors
+    ///
+    /// [`DanglingRef::Geometry`] naming the point key when the point
+    /// arena does not hold it.
+    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
+        self.points
+            .get(vertex.point)
+            .copied()
+            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
+    }
+
     /// All points, in slot-index order (deterministic per D9).
     pub fn points(&self) -> impl Iterator<Item = (PointKey, &Point3<T>)> {
         self.points.iter()
@@ -2601,6 +2635,54 @@ mod tests {
         // And so does the projection the recipe layer reads.
         assert_eq!(body.point_source(point), None);
         assert_eq!(body.surface_source(surface), None);
+    }
+
+    /// The door against the chain it replaces, on the validator's own
+    /// point tear (`validate`'s `dangling_geometry_is_reported`): the
+    /// `filter_map` chain loses the torn vertex and reports a shorter
+    /// cloud; the door names the dangling key.
+    #[test]
+    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+        let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
+            b.vertices()
+                .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
+                .filter_map(|(k, v)| b.get_point(v.point).map(|p| (k, p.to_array())))
+                .collect()
+        };
+        let mut t = pillow(Tol::witness());
+        let read: Vec<_> = t
+            .body
+            .vertex_points()
+            .map(|(k, p)| {
+                (
+                    k,
+                    p.expect("an untorn pillow reads every vertex").to_array(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            chain(&t.body),
+            "on a valid body the door yields exactly get_vertex/get_point's points"
+        );
+        assert_eq!(read.len(), t.vertices.len(), "one row per live vertex");
+
+        let dead = t.body.add_point(origin());
+        t.body.points.remove(dead);
+        t.body.get_vertex_mut(t.vertices[0]).unwrap().point = dead;
+        assert_eq!(
+            chain(&t.body).len(),
+            t.vertices.len() - 1,
+            "the chain silently drops the torn vertex"
+        );
+        assert_eq!(
+            t.body
+                .vertex_points()
+                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
+                .collect::<Vec<_>>(),
+            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
+            "exactly the torn vertex refuses, naming itself and the dangling point key"
+        );
     }
 
     #[test]

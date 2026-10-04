@@ -190,10 +190,10 @@ fn sheared(tri: [(f64, f64); 3], shear: (f64, f64), tol: Tol) -> Body<f64> {
 /// The vertices of `body` at `p`, sorted.
 fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
     let mut keys: Vec<topo::VertexKey> = body
-        .vertices()
-        .filter(|(_, v)| {
-            body.get_point(v.point)
-                .is_some_and(|q| (q.x, q.y, q.z) == p)
+        .vertex_points()
+        .filter(|(_, q)| {
+            let q = q.unwrap();
+            (q.x, q.y, q.z) == p
         })
         .map(|(k, _)| k)
         .collect();

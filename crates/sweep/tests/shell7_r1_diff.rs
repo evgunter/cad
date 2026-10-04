@@ -66,11 +66,8 @@ fn dump(label: &str, body: &Body<f64>) {
             c.description()
         );
     }
-    for (k, v) in body.vertices() {
-        println!(
-            "[r1diff] {label}: vertex {k:?} point={:?}",
-            body.get_point(v.point).unwrap()
-        );
+    for (k, p) in body.vertex_points() {
+        println!("[r1diff] {label}: vertex {k:?} point={:?}", p.unwrap());
     }
     match topo::mass_properties(body, tol()) {
         Ok(p) => println!(

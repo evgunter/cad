@@ -92,8 +92,8 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
         panic!("node {} has no body", test_utils::refusal::tag(node.0))
     };
     let mut out: Vec<(u64, u64, u64)> = b
-        .vertices()
-        .filter_map(|(_, v)| b.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p.unwrap())
         .map(|p| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         .collect();
     out.sort_unstable();
