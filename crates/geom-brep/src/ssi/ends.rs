@@ -565,6 +565,7 @@ impl<'a> Ends<'a> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use geom_core::{Band, Indeterminate, MarginDiag};
 
