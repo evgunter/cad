@@ -67,8 +67,10 @@ generator branch.
 
 `movefac`'s copy now proves more than the other two read. Its mate hop
 goes through `Body::proven_mate` and proves that the face the mate's
-loop names lists that loop (`NotOwned { child: Loop, owner: Face }`),
-and an empty loop any half-edge claims refuses `LoopCycleBroken`. On a
+loop names lists that loop, and that no half-edge claims an empty
+loop; since PR 4029 each panics naming the record (D2 row 4), where
+PR 3669 refused `NotOwned { child: Loop, owner: Face }` and
+`LoopCycleBroken`. On a
 valid body the relation is unchanged
 (`movefac::tests::valid_fixtures_partition_as_their_records_do`, now
 from each shell's face list and its reverse). `seqgen::shell_components`

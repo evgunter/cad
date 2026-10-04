@@ -554,7 +554,9 @@ impl std::error::Error for ExtrudeError {}
 
 impl From<EulerOpError> for ExtrudeError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 
@@ -839,7 +841,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = face_surface_key(&body, bottom_face)?;
+    let bottom_surface = face_surface_key(&body, bottom_face);
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(LoopBase { hes });
 
@@ -959,14 +961,17 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let qs = &points[li];
         let n = segs.len();
         for j in 0..n {
-            let wall = face_surface_key(&body, side_faces[li][j])?;
+            let wall = face_surface_key(&body, side_faces[li][j]);
             let q_from = qs[j];
             let q_to = qs[(j + 1) % n];
             let bottom_rim = body
                 .get_half_edge(base.hes[j])
-                .ok_or(EulerOpError::StaleKey {
-                    key: topo::EntityId::HalfEdge(base.hes[j]),
-                })?
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "base half-edge {:?} was minted by this driver and nothing kills it",
+                        base.hes[j]
+                    )
+                })
                 .edge;
             upgrade_rim(
                 &mut body,
@@ -1123,14 +1128,12 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let Some(strut) = struts[j] else { continue };
         let f_prev = faces[(j + n - 1) % n];
         let f_next = faces[j];
-        let k_prev = face_surface_key(body, f_prev)?;
-        let k_next = face_surface_key(body, f_next)?;
+        let k_prev = face_surface_key(body, f_prev);
+        let k_next = face_surface_key(body, f_next);
         let s_prev = body
             .get_surface(k_prev)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_prev),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_prev:?} is held by live face {f_prev:?}"));
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
             // surfaces under-determine (a cocircular split, or the
@@ -1159,9 +1162,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let s_next = body
             .get_surface(k_next)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_next),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
         let mid = qs[j] + w * T::from_f64(0.5);
         match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
             Ok(DihedralClass::Transverse) => {
@@ -1302,14 +1303,16 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let bottom_rims = segments
             .iter()
             .map(|&j| {
-                Ok(body
-                    .get_half_edge(hes[j])
-                    .ok_or(EulerOpError::StaleKey {
-                        key: topo::EntityId::HalfEdge(hes[j]),
-                    })?
-                    .edge)
+                body.get_half_edge(hes[j])
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "base half-edge {:?} was minted by this driver and nothing kills it",
+                            hes[j]
+                        )
+                    })
+                    .edge
             })
-            .collect::<Result<_, EulerOpError>>()?;
+            .collect();
         walls.push(SideWall {
             face: faces[run.first],
             strut: lead.edge,
@@ -1370,7 +1373,7 @@ fn side_surface<T: Decide>(
     let j = run.first;
     let sense = segs[j].wall_sense;
     if let Some(f) = swept::shared_wall(pair, faces, j, origin) {
-        let key = face_surface_key(body, f)?;
+        let key = face_surface_key(body, f);
         return Ok(FaceSurface::Shared { key, sense });
     }
     let end = run.end(n);
@@ -1450,33 +1453,25 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 ) -> Result<(), ExtrudeError> {
     let curve_key = body
         .get_edge(edge)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Edge(edge),
-        })?
+        .unwrap_or_else(|| {
+            unreachable!("rim edge {edge:?} was read off a live half-edge this driver minted")
+        })
         .curve;
     let curve = body
         .get_curve_geom(curve_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(curve_key),
-        })?
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = carrier.mid_point(t0, t1);
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
-    let s_cap = body
-        .get_surface(cap)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(cap),
-        })?;
-    let s_wall = body
-        .get_surface(wall)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(wall),
-        })?;
+    let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
+        unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
+    });
+    let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
+        unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
+    });
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {

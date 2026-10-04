@@ -586,6 +586,28 @@ pub struct Trace<const N: usize, E> {
     pub steps: usize,
     /// The longest step the march minted, in metres.
     pub longest_step: f64,
+    /// Which rungs held the steps short.
+    pub(crate) held: Held,
+}
+
+/// How many of a march's steps each rung held short: the curvature, and
+/// each cap by [`StepCap::ALL`]'s order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Held {
+    /// Steps the curvature held.
+    pub(crate) curvature: usize,
+    /// Steps each cap held.
+    pub(crate) caps: [usize; 4],
+}
+
+impl Held {
+    /// Both marches' tallies.
+    fn plus(self, other: Self) -> Self {
+        Self {
+            curvature: self.curvature + other.curvature,
+            caps: core::array::from_fn(|k| self.caps[k] + other.caps[k]),
+        }
+    }
 }
 
 /// How a march ends an open branch: one implementation per lane, so a
@@ -819,9 +841,24 @@ pub(crate) struct MarchContext<const N: usize> {
     pub tol: MarchTol,
     /// Step budget.
     pub max_steps: usize,
+    /// The steps an earlier march of the same branch spent, and the
+    /// rungs that held them ([`Self::rest`]); none on a branch's first.
+    pub(crate) spent: (usize, Held),
 }
 
 impl<const N: usize> MarchContext<N> {
+    /// This context for the second half of a branch marched both ways
+    /// from its seed: the steps `half` spent come off the budget, so the
+    /// budget is the branch's ([`super::SSI_MAX_STEPS`]), and a refusal
+    /// names the rungs that held both halves.
+    pub(crate) fn rest<E>(&self, half: &Trace<N, E>) -> Self {
+        Self {
+            max_steps: self.max_steps.saturating_sub(half.steps),
+            spent: (self.spent.0 + half.steps, self.spent.1.plus(half.held)),
+            ..*self
+        }
+    }
+
     /// The domain box's diagonal, in state units: the longest step the
     /// stepper takes. The trace ends at its first exit, so a longer step
     /// buys nothing, and it costs the trace twice. Landed far outside the
@@ -934,8 +971,7 @@ where
     let mut seed_tangent: Option<[f64; N]> = None;
     let mut left_start = false;
     let mut steps = 0usize;
-    let mut curvature_bound = 0usize;
-    let mut cap_bound = [0usize; 4];
+    let mut held = Held::default();
     let mut longest_step = 0.0f64;
 
     while steps < ctx.max_steps {
@@ -1120,6 +1156,7 @@ where
                     end,
                     steps: steps + 1,
                     longest_step,
+                    held,
                 });
             }
             return Err(SsiError::StepRefinementFailed {
@@ -1130,8 +1167,8 @@ where
         next = refined;
         steps += 1;
         match bound {
-            StepBound::Curvature => curvature_bound += 1,
-            StepBound::Cap(held) | StepBound::Both(held) => cap_bound[held.index()] += 1,
+            StepBound::Curvature => held.curvature += 1,
+            StepBound::Cap(cap) | StepBound::Both(cap) => held.caps[cap.index()] += 1,
         }
 
         // ---- the lane's exit ----
@@ -1141,6 +1178,7 @@ where
                 end,
                 steps,
                 longest_step,
+                held,
             });
         }
 
@@ -1180,6 +1218,7 @@ where
                                 end: E::CLOSED,
                                 steps,
                                 longest_step,
+                                held,
                             });
                         }
                         Ok(Sign::Zero | Sign::Negative) => {
@@ -1199,10 +1238,12 @@ where
         states.push(next);
         x = next;
     }
+    let (spent, before) = ctx.spent;
+    let held = held.plus(before);
     Err(SsiError::StepBudget {
         mode: mode.name(),
-        budget: ctx.max_steps,
-        bound: StepBound::of(curvature_bound, cap_bound, steps),
+        budget: ctx.max_steps + spent,
+        bound: StepBound::of(held.curvature, held.caps, steps + spent),
     })
 }
 
@@ -1526,7 +1567,7 @@ where
     if fwd.end == SlabEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march(sys, &SlabExit, seed, ctx, mode, -1.0, band, cap)?;
+    let bwd = march(sys, &SlabExit, seed, ctx.rest(&fwd), mode, -1.0, band, cap)?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half
@@ -1543,6 +1584,7 @@ where
         },
         steps: fwd.steps + bwd.steps,
         longest_step: Real::max(fwd.longest_step, bwd.longest_step),
+        held: fwd.held.plus(bwd.held),
     })
 }
 
@@ -1651,6 +1693,84 @@ pub(crate) mod tests {
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
             self.arm
+        }
+    }
+
+    /// **A branch marched both ways from its seed spends one step
+    /// budget.** The idealized stepper crosses the unit context's domain
+    /// from its centre in about a thousand steps each way. Under a budget
+    /// that holds each half but not the two together, the second half
+    /// spends what the first left and refuses, naming the branch's budget.
+    #[test]
+    fn a_branch_marched_both_ways_spends_one_step_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |max_steps| {
+            super::march_both(
+                &sys,
+                [0.0, 0.0, 0.0],
+                MarchContext {
+                    max_steps,
+                    ..unit_ctx(band)
+                },
+                StepperMode::Idealized,
+                band,
+            )
+        };
+        let steps = run(4096).unwrap().states.len() - 1;
+        assert!(
+            (1800..2200).contains(&steps),
+            "about a thousand steps each way: {steps}"
+        );
+        let budget = steps * 3 / 4;
+        match run(budget) {
+            Err(SsiError::StepBudget { budget: named, .. }) => {
+                assert_eq!(named, budget, "the branch's budget, named");
+            }
+            other => panic!("expected the step budget at {budget} steps, got {other:?}"),
+        }
+    }
+
+    /// **A second half's refusal names the rungs that held both halves.**
+    /// A first half of 1000 steps the curvature held, then an idealized
+    /// second half the wall stops at 100 steps: the curvature held 1000
+    /// of the branch's 1100 steps and the idealized cap under a quarter,
+    /// so the bound is the curvature's, where the second half alone
+    /// would name the cap.
+    #[test]
+    fn a_second_halfs_refusal_names_the_rungs_that_held_both_halves() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = MarchContext {
+            max_steps: 1100,
+            ..unit_ctx(band)
+        };
+        let first = super::Trace {
+            states: Vec::new(),
+            end: super::SlabEnd::Slab,
+            steps: 1000,
+            longest_step: 0.0,
+            held: super::Held {
+                curvature: 1000,
+                caps: [0; 4],
+            },
+        };
+        let r = march(
+            &sys,
+            &super::SlabExit,
+            [0.0, 0.0, 0.0],
+            ctx.rest(&first),
+            StepperMode::Idealized,
+            -1.0,
+            band,
+            super::Cap::NONE,
+        );
+        match r {
+            Err(SsiError::StepBudget { budget, bound, .. }) => {
+                assert_eq!(budget, 1100, "the branch's budget, named");
+                assert_eq!(bound, super::StepBound::Curvature, "both halves' rungs");
+            }
+            other => panic!("expected the step budget, got {other:?}"),
         }
     }
 
@@ -1796,6 +1916,7 @@ pub(crate) mod tests {
             extent: 1.0,
             tol: MarchTol::from_band(band, reaching(1.0)).unwrap(),
             max_steps: 64,
+            spent: Default::default(),
         }
     }
 
@@ -2161,6 +2282,7 @@ pub(crate) mod tests {
             extent: 1.0,
             tol: MarchTol::from_band(band, reaching(2.0)).unwrap(),
             max_steps: 4096,
+            spent: Default::default(),
         };
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);

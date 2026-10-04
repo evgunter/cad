@@ -22,7 +22,7 @@ sample budget at fine ε. Ev ruled this acceptable (option (i)): the same
 walls refuse identically mid-wall, so it is the certificate's existing
 limit, not a boundary defect, and there is no fallback to a region.
 
-Pinned by `a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit`
+Pinned by `a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit` (since renamed, below)
 (`crates/geom-brep/tests/m5_pr7_ssi.rs`), measured 2026-10-03 on the
 plane `x = 3ε`; the plane `x = 1 mm`, mid-wall, answers the same kind
 on every wall at every ε:
@@ -38,6 +38,16 @@ on every wall at every ε:
 The square of weights `2, ½, 1, 4` refuses the same way at `x = 0.9ε`:
 its side's certified distance reads loose with those weights, so even a
 plane within ε of the side is not certified coincident and traces.
+
+**Re-measured 2026-10-04, on `ssi/retire-fit-budget`:** with the fit
+sample budget retired and refinement by certification answering limbs 1
+and 2, every wall in the table certifies one metre-long branch at the
+plane `x = 3ε` and at `x = 1 mm`, at ε 1e-6, 1e-9 and 1e-12. The row
+pinning it is now
+`a_rational_walls_plane_three_eps_off_its_edge_certifies_as_mid_wall`.
+The table above is the 2026-10-03 measurement; no refusal on it stands,
+so what this idea would answer is cost (the iso-curve needs no march and
+no refinement), not a refusal.
 
 ## The idea ("use what we already know")
 
