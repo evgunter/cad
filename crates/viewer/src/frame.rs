@@ -229,9 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName,
+    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding,
     ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
-    ResolveFault, Said, SlotId, Speaker,
+    ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -2895,14 +2895,14 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// expression's context does not determine the new parameter's
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
-pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
         // door would declare. The text is a token the lexer read, so
         // the constructor admits it; its answer is folded rather than
         // trusted.
-        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
+        ParseError::UnknownParam { name, .. } => VarName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }

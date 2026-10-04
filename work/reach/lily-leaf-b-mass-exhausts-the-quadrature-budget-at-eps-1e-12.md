@@ -2,9 +2,12 @@
 id: lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12
 kind: issue
 title: The k-probe sweep panics at eps 1e-12: lily_leaf_b's mass exhausts the quadrature budget (since #3838)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
+pr: 3976
+branch: reach/lily-leaf-1e12
+closed: 2026-10-03
 ---
 
 
@@ -40,3 +43,7 @@ treats a typed `QuadratureBudget` refusal as a sample rather than a
 panic. Which of the two is SHOW's call, with QUAD's budget item
 (`work/quad/`, filed with PR 3838) in view. Not REACH's ground, so not
 fixed here.
+
+## Closed
+
+PR 3976. The probe sweep reads a swept leaf's volume as a number or as a certified bracket, through `topo::VolumeReading`, so `lily_leaf_b` at ε 1e-12 is read as its bracket rather than panicking. The bracket rows check that each bracket encloses Pappus's closed form, and the sweep exits 0 at all three ε. The kernel's looser 1e-12 range sits with QUAD's rounds-limit item.

@@ -164,13 +164,14 @@ pub(super) fn require_same<T: Decide>(
             ),
             diag,
         )),
-        Err(PlaneEqError::Undeclared { diag, relation }) => {
-            Err(BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(o1, s1.face), (o2, s2.face)],
-                relation,
-            })
-        }
+        Err(PlaneEqError::Undeclared {
+            coincidence,
+            relation,
+        }) => Err(super::undeclared_coincidence(
+            coincidence,
+            [(o1, s1.face), (o2, s2.face)],
+            relation,
+        )),
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }
@@ -1652,7 +1653,7 @@ mod tests {
                 );
                 let text = err.to_string();
                 let lever = "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance";
+                             span clearly more than the tolerance";
                 let ending = if class.is_some() {
                     format!(
                         "{lever}, or, if this length of the corner's shorter edge is intended, \

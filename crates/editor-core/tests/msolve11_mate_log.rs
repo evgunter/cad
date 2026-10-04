@@ -499,14 +499,14 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
 /// range at `k = 1`.
 #[test]
 fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
-    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
     let mut s = scene("msolve11-part-index");
-    let k = ParamName::from_static("k");
+    let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
         DocEdit::SetDocParam {
             name: k.clone(),
-            value: DocParam::Count { value: 0 },
+            value: FreeVar::Count { value: 0 },
         },
     );
     s.doc = doc;
@@ -545,7 +545,7 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
         s.doc.clone(),
         DocEdit::SetDocParamValue {
             name: k,
-            value: DocParamValue::Count(1),
+            value: FreeValue::Count(1),
         },
     );
     s.doc = doc;
@@ -735,7 +735,7 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
 /// `work/msolve/a-placer-row-states-what-a-poisoned-row-cannot.md`.
 #[test]
 fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
-    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
     let mut store = PartStore::new();
     let (base_ref, base_body) = store.insert_part(
         slab("msolve11-poisoned-base", BASE_WIDTH, BASE_HEIGHT),
@@ -773,12 +773,12 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         block_body,
         pattern,
     };
-    let k = ParamName::from_static("k");
+    let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
         DocEdit::SetDocParam {
             name: k.clone(),
-            value: DocParam::Count { value: 0 },
+            value: FreeVar::Count { value: 0 },
         },
     );
     s.doc = doc;
@@ -810,7 +810,7 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         s.doc.clone(),
         DocEdit::SetDocParamValue {
             name: k,
-            value: DocParamValue::Count(1),
+            value: FreeValue::Count(1),
         },
     );
     s.doc = doc;
@@ -900,7 +900,7 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     use editor_core::analysis::{AnalysisPolicy, analyzed_box};
     use editor_core::drive::{DriveConfig, DriveRefusal};
     use editor_core::range::{RangeField, RangeSeed, derive};
-    use editor_core::{Dimension, DocParam, ParamName};
+    use editor_core::{Dimension, FreeVar, VarName};
     let mut s = scene("msolve11-drive");
     let eps = Tol::witness().get().eps;
     // A tilt whose levered sine lands in the band over this pair's arm.
@@ -933,12 +933,12 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
         };
         mates.push(s.add(node));
     }
-    let w = ParamName::from_static("w");
+    let w = VarName::from_static("w");
     let (doc, _) = fixture::step(
         s.doc.clone(),
         DocEdit::SetDocParam {
             name: w.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            value: FreeVar::continuous(Dimension::Length, 1.0),
         },
     );
     let derived = derive(

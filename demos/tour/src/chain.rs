@@ -104,9 +104,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -290,8 +290,8 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> ParamName {
-    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
+pub fn joint_name(k: usize) -> VarName {
+    VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
 fn len(v: f64) -> Expr {
@@ -316,18 +316,12 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(
-    doc: &mut ProfileDoc,
-    name: ParamName,
-    value: f64,
-    distribution: Distribution,
-    tol: Tol,
-) {
+fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
             name,
-            value: DocParam::continuous_with(Dimension::Angle, value, distribution),
+            value: FreeVar::continuous_with(Dimension::Angle, value, distribution),
         },
         tol,
         &RefusingReach,

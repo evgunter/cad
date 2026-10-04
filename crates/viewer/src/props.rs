@@ -35,7 +35,7 @@
 //!
 //! **A document parameter keeps both rules, through its own pair of
 //! doors.** [`ParamRow::unit`] is the notation its DECLARATION names
-//! ([`DocParam::Continuous`]'s `display_unit`), the panel divides and
+//! ([`FreeVar::Continuous`]'s `display_unit`), the panel divides and
 //! multiplies by it exactly as it does for a slot ([`shown_in`] /
 //! [`authored_in`], through `crate::forms::FieldWriting`), and the
 //! two facts move separately: [`param_edit`] writes a number into a
@@ -57,7 +57,7 @@
 //!
 //! **A parameter is authored in a notation at both of its doors.**
 //! [`doc_param`] mints a declaration through
-//! `DocParam::written_length`/`written_angle` — total doors, so the
+//! `FreeVar::written_length`/`written_angle` — total doors, so the
 //! unit measures the dimension by construction — and the standing
 //! row's field reads `50 mm` through the ONE parser a
 //! unit-bearing number has in this workspace, `editor_core::parse`.
@@ -132,8 +132,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node,
-    ParamName, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, UnitSym, VectorSlot, eval,
+    Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, UnitSym, VarName, VectorSlot, eval,
     eval_count, unparse,
 };
 use pncad::prelude::{M, PI, RAD};
@@ -495,7 +495,7 @@ pub enum SlotDriver {
     /// deduplicated — the affordance's navigation targets.
     Expression {
         /// The parameters this expression reads.
-        params: Vec<ParamName>,
+        params: Vec<VarName>,
     },
 }
 
@@ -513,7 +513,7 @@ impl SlotDriver {
         if refs.is_empty() && expr.child(0).is_none() {
             return Self::Literal;
         }
-        let mut params: Vec<ParamName> = Vec::new();
+        let mut params: Vec<VarName> = Vec::new();
         for (name, _) in refs {
             if !params.contains(&name) {
                 params.push(name);
@@ -898,7 +898,7 @@ pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) ->
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamRow {
     /// The parameter's name.
-    pub name: ParamName,
+    pub name: VarName,
     /// Its declared dimension.
     pub dimension: Dimension,
     /// Its exact stored value, canonical.
@@ -924,12 +924,12 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
             name: name.clone(),
             dimension: param.dim(),
             value: match param {
-                DocParam::Continuous { value, .. } => SlotValue::Continuous(*value),
-                DocParam::Count { value } => SlotValue::Count(*value),
+                FreeVar::Continuous { value, .. } => SlotValue::Continuous(*value),
+                FreeVar::Count { value } => SlotValue::Count(*value),
             },
             unit: match param {
-                DocParam::Continuous { display_unit, .. } => Some(display_unit.def()),
-                DocParam::Count { .. } => None,
+                FreeVar::Continuous { display_unit, .. } => Some(display_unit.def()),
+                FreeVar::Count { .. } => None,
             },
         })
         .collect()
@@ -979,7 +979,7 @@ pub fn slot_edit(
     })
 }
 
-/// The `DocParam` a dimension, a value and a NOTATION mint — the
+/// The `FreeVar` a dimension, a value and a NOTATION mint — the
 /// panel's CREATE-parameter affordance, where a declaration really is
 /// being authored from parts. Moving an existing parameter's value is
 /// [`param_edit`]'s door and re-noting it is [`param_unit_edit`]'s;
@@ -993,7 +993,7 @@ pub fn slot_edit(
 /// `None` is the field that names no notation (a `Count`, a bare
 /// `Scalar`), and the canonical declaration is right for it.
 ///
-/// **Minted through `DocParam::written_length` /
+/// **Minted through `FreeVar::written_length` /
 /// `written_angle`, which are TOTAL**: each takes a typed view that is
 /// an index into a row of its own quantity, so the unit measures the
 /// dimension by construction and there is no pairing left for the
@@ -1017,28 +1017,28 @@ pub fn slot_edit(
 /// the draft behind a form field is canonical whatever the picker
 /// says (`crate::widgets::unit_field`), so applying the factor here
 /// would apply it twice.
-pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> DocParam {
+pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> FreeVar {
     let value = match value {
-        SlotValue::Count(value) => return DocParam::Count { value },
+        SlotValue::Count(value) => return FreeVar::Count { value },
         SlotValue::Continuous(value) => value,
     };
     // No notation offered at all: the canonical declaration is the
     // whole of what there is to mint.
     let Some(unit) = unit else {
-        return DocParam::continuous(dimension, value);
+        return FreeVar::continuous(dimension, value);
     };
     let written = match dimension {
         Dimension::Length => unit
             .as_length()
-            .map(|unit| DocParam::written_length(WrittenLength::canonical_in(value, unit))),
+            .map(|unit| FreeVar::written_length(WrittenLength::canonical_in(value, unit))),
         Dimension::Angle => unit
             .as_angle()
-            .map(|unit| DocParam::written_angle(WrittenAngle::canonical_in(value, unit))),
+            .map(|unit| FreeVar::written_angle(WrittenAngle::canonical_in(value, unit))),
         // A dimension with no written door — a bare `Scalar` — has one
         // unit and the canonical declaration already names it, so
         // being handed it is no mistake and nothing to refuse.
         Dimension::Scalar | Dimension::Count => {
-            return DocParam::continuous(dimension, value);
+            return FreeVar::continuous(dimension, value);
         }
     };
     written.unwrap_or_else(|| {
@@ -1060,7 +1060,7 @@ pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) 
 /// The refusals (an undeclared name, a `Count`, a unit that does not
 /// measure the declared dimension) belong to the edit door; this is
 /// the spelling, not a second validator.
-pub fn param_unit_edit(name: ParamName, unit: UnitDef) -> DocEdit<ProfileProgram> {
+pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> {
     DocEdit::SetDocParamUnit {
         name,
         unit: UnitSym::from_def(&unit),
@@ -1079,12 +1079,12 @@ pub fn param_unit_edit(name: ParamName, unit: UnitDef) -> DocEdit<ProfileProgram
 ///
 /// The refusals (an undeclared name, a kind mismatch) belong to the
 /// edit door; this is the spelling, not a second validator.
-pub fn param_edit(name: ParamName, value: SlotValue) -> DocEdit<ProfileProgram> {
+pub fn param_edit(name: VarName, value: SlotValue) -> DocEdit<ProfileProgram> {
     DocEdit::SetDocParamValue {
         name,
         value: match value {
-            SlotValue::Count(value) => DocParamValue::Count(value),
-            SlotValue::Continuous(value) => DocParamValue::Continuous(value),
+            SlotValue::Count(value) => FreeValue::Count(value),
+            SlotValue::Continuous(value) => FreeValue::Continuous(value),
         },
     }
 }

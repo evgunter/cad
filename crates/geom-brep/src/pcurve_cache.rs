@@ -2675,6 +2675,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
+        // Only a marching door refines; the refusal it could not answer
+        // is the certificate's, and reads as it.
+        E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
         E::CertificateLimb { limb, value } => (
             Some(limb),
             "a certificate limb exceeded ε",

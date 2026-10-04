@@ -1139,7 +1139,7 @@ class TestDocParamEquality(unittest.TestCase):
     """LIB-PYBUNDLE rider (a): `DocParam` mirrors Rust's `PartialEq`.
 
     Which is IEEE comparison of the stored value, NOT the bit
-    comparison `DocParam::bit_eq` makes — so the two spellings of zero
+    comparison `FreeVar::bit_eq` makes — so the two spellings of zero
     are the SAME parameter here and different ones to `bit_eq`,
     exactly as in Rust. The hash follows the equality it mirrors."""
 

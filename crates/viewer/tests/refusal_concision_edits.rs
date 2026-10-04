@@ -22,8 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId,
-    SpokenName, SpokenNode, StableName, StepIdFault,
+    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, RootFault, SlotId, SpokenName,
+    SpokenNode, StableName, StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -51,8 +51,8 @@ fn missing() -> SpokenName {
     SpokenName::absent(stable_name())
 }
 
-fn param() -> ParamName {
-    ParamName::from_static("width")
+fn param() -> VarName {
+    VarName::from_static("width")
 }
 
 fn n(id: u64) -> RecipeNodeId {
@@ -71,7 +71,7 @@ fn s(id: u64, kind: &'static str) -> SpokenNode {
 /// Every `EditError` arm, on a representative payload.
 fn edit_refusals() -> Vec<(&'static str, EditError)> {
     use editor_core::edit::CarryForwardDoor;
-    use editor_core::{DocParamField, DocParamValue};
+    use editor_core::{DocParamField, FreeValue};
     vec![
         (
             "UnknownNode",
@@ -322,7 +322,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::DocParamValueKindMismatch {
                 name: param(),
                 declared: Dimension::Count,
-                offered: DocParamValue::Continuous(2.5),
+                offered: FreeValue::Continuous(2.5),
             },
         ),
         (

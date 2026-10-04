@@ -26,7 +26,7 @@ use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Expr, Frame, Node,
-    ParamName, ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, VarName,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -3064,7 +3064,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::from_static("margin")),
+        Some(VarName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(

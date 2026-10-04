@@ -35,9 +35,7 @@ test_utils::gated_to![
 
 use crate::fixture;
 
-use editor_core::{
-    Dimension, DocEdit, DocParam, MetaValue, Node, ParamName, ProfileDoc, load, save,
-};
+use editor_core::{Dimension, DocEdit, FreeVar, MetaValue, Node, ProfileDoc, VarName, load, save};
 use fixture::{desc, len};
 use geom_core::Tol;
 use proptest::prelude::*;
@@ -54,8 +52,8 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("p"),
-            value: DocParam::continuous(Dimension::Length, value),
+            name: VarName::from_static("p"),
+            value: FreeVar::continuous(Dimension::Length, value),
         },
     );
     // **The profile has no raw-float channel any more.** v4's was the
@@ -108,8 +106,7 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(DocParam::Continuous { value: p, .. }) =
-        doc.params().get(&ParamName::from_static("p"))
+    let Some(FreeVar::Continuous { value: p, .. }) = doc.params().get(&VarName::from_static("p"))
     else {
         panic!("param lost");
     };

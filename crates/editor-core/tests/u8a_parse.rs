@@ -20,13 +20,13 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Expr, ParamEnv, ParamName, ParseError, eval, eval_count, parse_expr,
+    Dimension, DimensionError, Expr, ParamEnv, ParseError, VarName, eval, eval_count, parse_expr,
     unparse,
 };
 use proptest::prelude::*;
 use test_utils::fuzz;
 
-fn no_params() -> BTreeMap<ParamName, Dimension> {
+fn no_params() -> BTreeMap<VarName, Dimension> {
     BTreeMap::new()
 }
 
@@ -160,16 +160,16 @@ fn precedence_and_child_order_match_the_ast_descend_indices() {
 #[test]
 fn params_resolve_against_the_callers_table() {
     let mut params = no_params();
-    params.insert(ParamName::from_static("width"), Dimension::Length);
-    params.insert(ParamName::from_static("n"), Dimension::Count);
-    params.insert(ParamName::from_static("mm"), Dimension::Scalar);
+    params.insert(VarName::from_static("width"), Dimension::Length);
+    params.insert(VarName::from_static("n"), Dimension::Count);
+    params.insert(VarName::from_static("mm"), Dimension::Scalar);
     let e = parse_expr("width + 25 mm", &params).unwrap();
     assert_eq!(e.dim(), Dimension::Length);
     let mut refs = Vec::new();
     e.param_refs(&mut refs);
     assert_eq!(
         refs,
-        vec![(ParamName::from_static("width"), Dimension::Length)]
+        vec![(VarName::from_static("width"), Dimension::Length)]
     );
     assert_eq!(parse_expr("n", &params).unwrap().dim(), Dimension::Count);
     // A param may share a unit's name: position disambiguates (an
@@ -489,8 +489,8 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::from_static("S"), Dimension::Scalar);
-        params.insert(ParamName::from_static("N"), Dimension::Count);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         prop_assert_eq!(e.dim(), dim, "{}", &src);
     }
@@ -503,7 +503,7 @@ proptest! {
 // units get their own assertions rather than riding along.
 
 /// The declared parameters the unparse suites resolve names against.
-fn rt_params() -> BTreeMap<ParamName, Dimension> {
+fn rt_params() -> BTreeMap<VarName, Dimension> {
     [
         ("w", Dimension::Length),
         ("a", Dimension::Angle),
@@ -511,7 +511,7 @@ fn rt_params() -> BTreeMap<ParamName, Dimension> {
         ("n", Dimension::Count),
     ]
     .into_iter()
-    .map(|(name, dim)| (ParamName::from_static(name), dim))
+    .map(|(name, dim)| (VarName::from_static(name), dim))
     .collect()
 }
 
@@ -767,10 +767,10 @@ fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Expr {
         quantity::unit_by_symbol(symbols[rng.below(symbols.len())]).expect("a table symbol")
     };
     match (dim, rng.below(6)) {
-        (Dimension::Length, 0) => Expr::param(ParamName::from_static("w"), dim),
-        (Dimension::Angle, 0) => Expr::param(ParamName::from_static("a"), dim),
-        (Dimension::Scalar, 0) => Expr::param(ParamName::from_static("s"), dim),
-        (Dimension::Count, 0) => Expr::param(ParamName::from_static("n"), dim),
+        (Dimension::Length, 0) => Expr::param(VarName::from_static("w"), dim),
+        (Dimension::Angle, 0) => Expr::param(VarName::from_static("a"), dim),
+        (Dimension::Scalar, 0) => Expr::param(VarName::from_static("s"), dim),
+        (Dimension::Count, 0) => Expr::param(VarName::from_static("n"), dim),
         (Dimension::Length, _) => {
             Expr::literal_with_unit(value, dim, unit(&["m", "mm", "cm", "in"], rng))
                 .expect("a finite length")
@@ -904,8 +904,8 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3)),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::from_static("S"), Dimension::Scalar);
-        params.insert(ParamName::from_static("N"), Dimension::Count);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         let text = unparse(&e);
         let back = parse_expr(&text, &params).expect(&text);

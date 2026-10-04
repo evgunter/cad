@@ -31,8 +31,8 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    CapEnd, Datum, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
 
@@ -48,8 +48,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn box_of(axis: &'static str) -> ParamBox {
@@ -67,7 +67,7 @@ fn box_of(axis: &'static str) -> ParamBox {
 fn declare_with(r: &mut Recorder, axis: &'static str, nominal: f64, hw: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -148,6 +148,7 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -441,6 +442,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
             ..ClearanceConfig::default()
         },
         oracle: &NoTangents,
+        resolver: None,
     };
     let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
     println!(

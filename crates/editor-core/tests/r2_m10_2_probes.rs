@@ -18,12 +18,12 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
-    DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
-    PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
-    apply, evaluate, select_where,
+    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
+    EntityKind, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -1224,7 +1224,7 @@ fn r2_probe_file_is_live() {
 }
 
 #[allow(dead_code)]
-fn unused(_: Axis3, _: DocParamValue, _: NodeErrorKind) {}
+fn unused(_: Axis3, _: FreeValue, _: NodeErrorKind) {}
 
 // ===============================================================
 // The required e2e: author a measured document, hand it to a
@@ -1419,8 +1419,8 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("s"),
-            value: DocParam::Continuous {
+            name: VarName::from_static("s"),
+            value: FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -1433,7 +1433,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1447,7 +1447,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                 profile: d1.order()[1],
                 distance: Expr::div(
                     len(13.0),
-                    Expr::param(ParamName::from_static("s"), Dimension::Scalar),
+                    Expr::param(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
@@ -1487,8 +1487,8 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("s"),
-            value: DocParam::Continuous {
+            name: VarName::from_static("s"),
+            value: FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -1501,7 +1501,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);

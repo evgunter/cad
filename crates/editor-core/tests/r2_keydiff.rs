@@ -15,8 +15,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation,
-    Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, apply, evaluate,
+    BooleanOp, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, FreeVar,
+    Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -78,8 +78,8 @@ fn r2_measure_free_content_keys() {
     let d1 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("t"),
-            value: DocParam::Continuous {
+            name: VarName::from_static("t"),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -115,7 +115,7 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: bp,
-                distance: Expr::param(ParamName::from_static("t"), Dimension::Length),
+                distance: Expr::param(VarName::from_static("t"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

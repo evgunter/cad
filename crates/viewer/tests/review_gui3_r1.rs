@@ -26,8 +26,8 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EvalOutcome, Expr, FreeVar, LoopProgram, Node, ProfileProgram,
+    RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
@@ -42,8 +42,8 @@ use viewer::{docio, props, tree};
 /// R1's own parameter name, so this suite's document reads apart from
 /// the unit suites' in the aggregated binary. No row asserts on the
 /// name.
-fn depth_param() -> ParamName {
-    ParamName::from_static("r1_depth")
+fn depth_param() -> VarName {
+    VarName::from_static("r1_depth")
 }
 
 /// A triangle, for the same reason as `depth_param` — it reads apart
@@ -66,7 +66,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            value: FreeVar::continuous(Dimension::Length, 0.002),
         },
         tol,
     );
@@ -309,7 +309,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            value: FreeVar::continuous(Dimension::Length, 0.002),
         },
         tol,
     );
