@@ -6652,3 +6652,14 @@ Ev confirmed the panic covers the whole torn-body class. Recorded at `0a6a27d97d
 staged; S14 closed with Ev quoted; `graft-stages-into-a-fresh-body-and-commits-on-success` (P1) filed as the
 first unit; the stale-key row carries the conversion, blocked on the graft; fork-log row 64 (renumbered) filled.
 Merge on green. Then dispatch the graft unit, followed by the conversion split by door family.
+
+## PR 4006 merged; graft staging dispatched (2026-10-04 06:56)
+
+The stale-key ruling merged as `65786fdeed`. Dispatched `graft-stages-into-a-fresh-body-and-commits-on-success`
+(P1) to session_01Ljd4egwgJ4GeUHKh3pkt7f on `topo/graft-stages-and-commits`: witness the spent destination,
+stage and commit, retire "spent, never resumable", remove any tier-1-property exemption, measure the cost on
+step-import. The torn-body conversion follows it, split by door family.
+
+PR 3970 round 4: B's report is in (`design-kef-B-r4.md`): 2 = tier 1 (likely); 3 = caller states (likely,
+close; a `Carry` argument is acceptable); 1 = direct (sure), with the scope widened to the curves/surfaces
+arenas. Waiting on A.
