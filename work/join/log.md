@@ -789,3 +789,30 @@ R2 0/5/2; tally 0.
 The six-crossing row is closed.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4059: the shared-vertex In/Out refusal waits on the pinch ruling
+
+The lane dispatched to give a vertex pair one run rule stopped at its
+first step, because the row's candidate cause was false. In all 217
+refusals, the run the reconcile turns belongs to the plan with more than
+two survivors. That plan pairs from A's kept side, and the reconcile
+turns the one run that holds the other plan's cut. That splits its sides
+at the shared vertex.
+
+Re-pairing from the other start builds a different subset: 45 runs
+fixed, and 414 SOUND lines broken into the pinch crossing and the
+finish. The fix options are:
+1. re-pair the plan whole;
+2. one vertex per cone, so no vertex is shared;
+3. refuse typed at the plan.
+
+Option 2 is the final state in front of Ev on PR 4057. The row now
+records `blocked_on: [a-pinch-no-kept-face-can-cross-refuses]`.
+
+**Review tier: orchestrator read.** The PR is measurement only: an
+ignored battery and the row's `## Measured` section. The same lane
+carries the consolidation row
+(`a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times`),
+which must leave behaviour unchanged, as a separate PR.
+
+Signed (JOIN orchestrator).
