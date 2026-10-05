@@ -152,8 +152,9 @@
 //! splitting lane's join, whose chord `mef`s leave the section's null
 //! halves on the sliver between the chords — or the edge's first
 //! description ([`crate::Body::set_edge_curve`], or a
-//! [`crate::Body::kev_describing`] that lists it), which re-walks every
-//! loop of the face; on a spline chart either leaves the face as found.
+//! [`crate::Body::kev_describing`] that lists it), which walks every
+//! loop of the face and mints what it misses; on a spline chart either
+//! leaves the face as found.
 //! A face half-minted any other way is left as found. Other doors still
 //! produce a half-minted face
 //! ([`PcurveMintError::MissingCache`] lists them), so a producer's final
@@ -5001,8 +5002,8 @@ pub(crate) mod staleness_posture {
              would trade for a re-mint on every swap that certifies. A NULL edge's first \
              description is where its halves' rows can first be derived: on a face they are \
              on whose only gaps a null edge holds open, every loop no other null edge holds \
-             open is re-minted whole before the door mutates, and on one no null edge is \
-             left on, every loop, whatever it missed",
+             open has what it misses minted before the door mutates, and on one no null \
+             edge is left on, every loop does",
             ),
             (
                 "describe_at_rest",

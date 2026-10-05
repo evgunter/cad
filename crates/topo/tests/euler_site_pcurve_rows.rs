@@ -1018,8 +1018,8 @@ fn a_description_after_an_operator_on_the_half_minted_wall_completes_it() {
 /// whatever else it misses.** A wall carrying a two-half ring, one
 /// ring half's row detached — a gap no null edge holds — and a null
 /// strut at a corner of the outer loop. Describing the strut leaves no
-/// null edge on the wall, so the description re-walks and mints every
-/// loop: the wall leaves complete, the ring's gap filled, with the
+/// null edge on the wall, so the description walks every loop and
+/// mints what it misses: the wall leaves complete, the ring's gap filled, with the
 /// minting pass's rows. At this unit's first review head the wall kept
 /// three missing rows, the described edge's own two among them.
 /// (Adopted from the review's probe C2.)
