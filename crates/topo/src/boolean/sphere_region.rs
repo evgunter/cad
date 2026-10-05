@@ -174,6 +174,13 @@ struct Hit<T> {
 ///
 /// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
 /// an outer loop with no cycle.
+///
+/// # Panics
+///
+/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// curve is not one with no certified carrier. The links hold at rest
+/// and, on the reduction's working copies, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_face_region<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -193,10 +200,7 @@ pub(crate) fn sphere_face_region<T: Decide>(
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
             let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
                 return Ok(None);
             };
             let geom::Curve3::Circle {

@@ -234,6 +234,27 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
     );
 }
 
+/// `sphere_region.rs` `sphere_face_region`: a torn curve panics, where
+/// it read as an edge with no certified carrier and answered "no
+/// region". The walk reads each edge's curve before it asks anything of
+/// the sphere, so a cylinder sheet's boundary reaches the read.
+#[test]
+fn the_sphere_region_panics_on_a_torn_curve() {
+    use super::sphere_region::sphere_face_region;
+    let (mut body, face) = cyl_sheet();
+    let ask =
+        |b: &Body<f64>| sphere_face_region(b, face, Point3::origin(), 1.0).map(|r| r.is_some());
+    assert!(ask(&body).is_ok(), "the sound sheet answers");
+    let he = outer_members(&body, face)[0];
+    let named = drop_curve(&mut body, he);
+    assert_torn_op_panics(
+        "sphere_face_region",
+        &mut body,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| ask(b),
+    );
+}
+
 /// `surface_group.rs` `unmated_boundary` (through `wrap_rims`): a torn
 /// curve on an unmated edge panics, where it read as an edge that is
 /// not a circle and answered "does not wrap".
