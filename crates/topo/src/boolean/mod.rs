@@ -144,7 +144,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
-pub(crate) use contain::loop_circle;
+pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{

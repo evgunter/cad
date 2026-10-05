@@ -1876,7 +1876,12 @@ mod attribution {
                     },
                 )),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
-                topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::EmptyLoop(
+                    Default::default(),
+                )),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::LoopUnreadable(
+                    Default::default(),
+                )),
             ]
         };
         // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted

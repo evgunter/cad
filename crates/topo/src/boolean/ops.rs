@@ -3140,9 +3140,15 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                             what: "extent scan: contfp ray schedule exhausted",
                                         }
                                     }
-                                    ContainError::Corrupt => {
+                                    ContainError::StaleFace(face) => {
+                                        super::contain::driver_face_stale(face)
+                                    }
+                                    ContainError::EmptyLoop(_)
+                                    | ContainError::LoopUnreadable(_)
+                                    | ContainError::Curved(_) => {
                                         BooleanError::ClassificationInvariant {
-                                            what: "extent scan: contfp met corrupt topology",
+                                            what: "extent scan: contfp could not read the face's \
+                                                   boundary",
                                         }
                                     }
                                     ContainError::Uncrossable(cause) => {

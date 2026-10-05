@@ -3591,11 +3591,15 @@ pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
-        // `ContainError::Corrupt` also carries the curved doors'
-        // folded refusals (`contain::solid_err`), some reachable by a
-        // sound face, so it is no proof of a torn operand.
-        ContainError::Corrupt => BooleanError::ClassificationInvariant {
-            what: "a containment read of an operand face answered ContainError::Corrupt",
+        ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
+        ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read met a lone-vertex loop on an operand face",
+        },
+        ContainError::LoopUnreadable(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read could not walk a loop of an operand face",
+        },
+        ContainError::Curved(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read of a curved operand face refused its chart read",
         },
     }
 }
