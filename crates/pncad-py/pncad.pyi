@@ -3970,12 +3970,20 @@ class Doc:
     def order(self) -> list[NodeId]: ...
     @property
     def params(self) -> dict[VarName, FreeVar]:
-        """The document's named parameters, by name.
+        """The document's named free parameters, by name, in
+        declaration order. A defined variable is listed by
+        `Doc.definitions` instead.
 
-        The read side of `DocEdit.declare_var`, and the only door
-        that answers a whole parameter back: `Doc.eval` answers a
+        The read side of a free `DocEdit.declare_var`, and the only
+        door that answers a whole parameter back: `Doc.eval` answers a
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""
+    @property
+    def definitions(self) -> dict[VarName, Expr]:
+        """The document's named defined variables, by name, in
+        declaration order: each one's definition, reading variables by
+        id (`Doc.unparse` writes it by name). With `Doc.params` it
+        lists every named variable once. A snapshot, not a view."""
     @property
     def vars(self) -> dict[Var, FreeVar]:
         """The document's free variables, by identity, in declaration

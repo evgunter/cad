@@ -36,7 +36,9 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{DocParamField, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault};
+use crate::doc::{
+    DocParamField, ExpansionFault, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault,
+};
 use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
@@ -591,23 +593,21 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 
 /// The first variable, in declaration order, whose definition reads it
 /// back, or whose expansion outgrows the bound
-/// ([`Walk::DefinitionCycle`]).
+/// ([`Walk::DefinitionCycle`]): the search the edit door asks
+/// ([`crate::Doc::expansion_fault`]).
 fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
-    for &id in &snapshot.var_order {
-        if let Some(cycle) = snapshot.definition_cycle(id) {
-            return Some(SnapshotError::DefinitionCycle {
-                var: snapshot.spoken_var(id),
-                through: cycle.into_iter().map(|v| snapshot.spoken_var(v)).collect(),
-            });
-        }
-    }
-    let sizes = snapshot.expansion_nodes();
-    snapshot.var_order.iter().find_map(|id| {
-        let nodes = *sizes.get(id)?;
-        (nodes > crate::edit::DEFINITION_NODE_BOUND).then(|| SnapshotError::DefinitionTooLarge {
-            var: snapshot.spoken_var(*id),
+    Some(match snapshot.expansion_fault()? {
+        ExpansionFault::Cycle { var, through } => SnapshotError::DefinitionCycle {
+            var: snapshot.spoken_var(var),
+            through: through
+                .into_iter()
+                .map(|v| snapshot.spoken_var(v))
+                .collect(),
+        },
+        ExpansionFault::TooLarge { var, nodes } => SnapshotError::DefinitionTooLarge {
+            var: snapshot.spoken_var(var),
             nodes,
-        })
+        },
     })
 }
 
@@ -1423,24 +1423,23 @@ impl core::fmt::Display for SnapshotError {
                 referenced,
             } => write!(
                 f,
-                "{read} is declared {declared} but the definition of {var} reads it as \
-                 {referenced}"
-            ),
-            Self::DefinitionCycle { var, through } => {
-                write!(f, "the definition of {var} reads {var} back, through ")?;
-                for (i, held) in through.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(" → ")?;
-                    }
-                    write!(f, "{held}")?;
+                "{}",
+                crate::edit::DefinitionVarKindSentence {
+                    var,
+                    read,
+                    declared: *declared,
+                    referenced: *referenced,
                 }
-                write!(f, " → {var}")
-            }
+            ),
+            Self::DefinitionCycle { var, through } => write!(
+                f,
+                "{}",
+                crate::edit::DefinitionCycleSentence { var, through }
+            ),
             Self::DefinitionTooLarge { var, nodes } => write!(
                 f,
-                "{var} expands, through the definitions it reads, to {nodes} expression nodes, \
-                 past the bound of {}",
-                crate::edit::DEFINITION_NODE_BOUND
+                "{}",
+                crate::edit::DefinitionTooLargeSentence { var, nodes: *nodes }
             ),
             Self::NameOnMissingVar { var, name } => write!(
                 f,

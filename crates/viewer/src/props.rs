@@ -943,8 +943,9 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
         .collect()
 }
 
-/// One defined variable, as the panel shows it: read-only, its
-/// formula as the document's names write it.
+/// One defined variable, as the panel shows it: its formula as the
+/// document's names write it, in a field that takes a new formula or a
+/// value ([`crate::session::SessionOp::SetParamText`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct DefinedRow {
     /// The variable.
@@ -955,10 +956,13 @@ pub struct DefinedRow {
     pub dimension: Dimension,
     /// Its definition, unparsed (`Doc::unparse`).
     pub formula: String,
+    /// What the definition evaluates to, or `None` when it refuses.
+    pub value: Option<SlotValue>,
 }
 
 /// Every defined variable, declaration order.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
+    let env = doc.var_env::<f64>();
     doc.var_order()
         .iter()
         .filter_map(|&var| {
@@ -968,6 +972,11 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
                 label: doc.spoken_var(var),
                 dimension: expr.dim(),
                 formula: doc.unparse(expr),
+                value: if expr.dim() == Dimension::Count {
+                    eval_count(expr, &env).ok().map(SlotValue::Count)
+                } else {
+                    eval(expr, &env).ok().map(SlotValue::Continuous)
+                },
             })
         })
         .collect()

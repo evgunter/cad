@@ -152,6 +152,31 @@ class TestADefinedVariable(unittest.TestCase):
                 DocEdit.set_var_value(VarName("height"), FreeValue.length(1 * m))
             )
         self.assertEqual(caught.exception.variant, "not_a_free_var")
+        # Read where `missing` is declared, written where it is not.
+        elsewhere = Doc("variables-elsewhere")
+        elsewhere.apply(
+            DocEdit.declare_var(VarName("missing"), FreeVar.length(1 * m))
+        )
+        with self.assertRaises(EditError) as caught:
+            doc.apply(
+                DocEdit.declare_var(
+                    VarName("depth"), elsewhere.parse_formula("missing * 2.0")
+                )
+            )
+        self.assertEqual(caught.exception.variant, "definition_unknown_var_name")
+        self.assertEqual(
+            caught.exception.param,
+            "depth",
+            "a definition's faults name the variable defined",
+        )
+
+    def test_a_defined_variable_is_listed_by_name(self):
+        doc, _ = self.defined()
+        self.assertEqual(list(doc.params), [VarName("base")])
+        self.assertEqual(list(doc.definitions), [VarName("height")])
+        self.assertEqual(
+            doc.unparse(doc.definitions[VarName("height")]), "base * 2.0"
+        )
 
 
 if __name__ == "__main__":

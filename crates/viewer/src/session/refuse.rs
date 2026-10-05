@@ -16,8 +16,9 @@
 
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram, RecipeNodeId, Said,
-    SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
+    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
+    held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -272,6 +273,16 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchParam(VarId),
+    /// A parameter's field was given a constant expression that does
+    /// not evaluate to a value — a non-finite result, or a count past
+    /// its range. Constant text typed as a value is folded here, before
+    /// any door, so the evaluator's refusal is this door's to forward.
+    ConstantRefused {
+        /// The parameter whose field was typed into.
+        var: SpokenVar,
+        /// The evaluator's refusal, in its own words.
+        source: EvalError,
+    },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
     /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
@@ -429,6 +440,10 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::ConstantRefused { var, source } => Self::ConstantRefused {
+                var: var.respoken(doc),
+                source,
+            },
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -473,6 +488,7 @@ impl Refusal {
             Self::DrivenByExpression { .. }
             | Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -513,6 +529,7 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -775,6 +792,9 @@ impl core::fmt::Display for Refusal {
                     f,
                     "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"
                 )
+            }
+            Self::ConstantRefused { var, source } => {
+                write!(f, "the value typed for {var} does not evaluate: {source}")
             }
             Self::EmptyName => {
                 write!(

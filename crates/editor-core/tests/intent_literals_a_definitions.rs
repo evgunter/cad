@@ -27,7 +27,8 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, split, var_env_over,
 };
-use geom_core::{Bounds, Interval, Tol};
+use geom_core::predicate::{Band, Margin, Sign};
+use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, FaceKey, SurfaceField};
 
 /// The input's value, metres (dyadic, so `2·w` and `w + w` agree to
@@ -264,10 +265,13 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
 
 // --------------------------------------------------------------- row 3
 
-/// Row 3: `SetVarValue w` re-runs the reader of `h` and nothing else,
-/// and the document diff lists `h` beside `w`.
+/// Row 3: `SetVarValue w` puts `h` in the document diff beside `w` —
+/// the diff closes over definitions — and re-runs the reader of `h` and
+/// nothing else. The closure is what this row guards: the recompute
+/// count alone cannot see it go, because the memo is content-keyed and
+/// a stale diff still leaves the reader of `h` to recompute.
 #[test]
-fn an_input_edit_reruns_the_reader_of_its_definition() {
+fn an_input_edit_closes_the_diff_over_its_definitions() {
     let doc = w_and_h("intent-literals-a-invalidation");
     let doc = declare(&doc, "v", free(0.5));
     let (doc, [_, _, reads_h]) = block(doc, 0.0, named("h"));
@@ -654,7 +658,7 @@ fn definitions_bind_after_what_they_read() {
     .doc;
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
     assert_eq!(doc.var_order(), &[h, w]);
-    assert_eq!(doc.definition_order(), &[w, h]);
+    assert_eq!(doc.definition_order(), vec![w, h]);
     let env = doc.var_env::<f64>();
     assert_eq!(
         env.bindings.get(&h),
@@ -897,4 +901,247 @@ fn the_load_door_reads_liveness_through_definitions() {
         panic!("not AnonymousVarUnread: {err:?}")
     };
     assert_eq!(var.id(), h, "the definition is the first to go");
+}
+
+// ------------------------------------------------ the review's rows
+
+/// A slot reading `g := h`, `h := 2·w` lowers to the token a slot
+/// spelling `2·w` writes: the expansion goes all the way down, not one
+/// definition deep.
+#[test]
+fn a_nested_definition_lowers_as_its_whole_expansion() {
+    let doc = w_and_h("intent-literals-a-nested-token");
+    let doc = declare(&doc, "g", VarDecl::defined(named("h")));
+    let (doc, by_g) = filleted(doc, 0.0, named("g"));
+    let (doc, by_formula) = filleted(doc, 4.0, times(2.0, "w"));
+    let ev = eval_after(&doc, None);
+    assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
+    assert_eq!(
+        radius_token(body_of(&ev, by_g)),
+        radius_token(body_of(&ev, by_formula))
+    );
+}
+
+/// A variable declared BEFORE the chain it is redefined to read is
+/// counted after that chain: `x := c10 + c10`, each `cₖ` doubling the
+/// one before, expands to 8191 nodes and refuses at `x` — the size of a
+/// definition is taken in definition order, not declaration order.
+#[test]
+fn the_bound_counts_a_reader_declared_before_what_it_reads() {
+    const CHAIN: [&str; 11] = [
+        "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+    ];
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-early-reader"),
+        Tol::witness(),
+    );
+    let doc = declare(&doc, "x", free(1.0));
+    let doc = declare(&doc, "w", free(W));
+    let mut doc = declare(
+        &doc,
+        CHAIN[0],
+        VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+    );
+    for pair in CHAIN.windows(2) {
+        doc = declare(
+            &doc,
+            pair[1],
+            VarDecl::defined(Formula::add(named(pair[0]), named(pair[0])).unwrap()),
+        );
+    }
+    match try_step(
+        &doc,
+        DocEdit::DefineVar {
+            var: n("x").into(),
+            def: VarDecl::defined(Formula::add(named("c10"), named("c10")).unwrap()),
+        },
+    ) {
+        Err(EditError::DefinitionTooLarge { var, nodes }) => {
+            assert_eq!((var.id(), nodes), (id(&doc, "x"), 4097));
+        }
+        other => panic!("{:?}", other.map(|applied| applied.doc.len())),
+    }
+}
+
+/// `g := h + 1 mm` declared first, `h := w + w`, and `w` deleted: `h`
+/// is still ordered before `g` though its read is dead, so `g` refuses
+/// with the refusal it came through, not as a read of an unbound `h`.
+#[test]
+fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-dead-read"),
+        Tol::witness(),
+    );
+    let doc = declare(&doc, "g", free(1.0));
+    let doc = declare(&doc, "h", free(1.0));
+    let doc = declare(&doc, "w", free(W));
+    let (g, h, w) = (id(&doc, "g"), id(&doc, "h"), id(&doc, "w"));
+    let doc = step(
+        &doc,
+        DocEdit::DefineVar {
+            var: n("g").into(),
+            def: VarDecl::defined(Formula::add(named("h"), len(0.001)).unwrap()),
+        },
+    )
+    .doc;
+    let doc = step(
+        &doc,
+        DocEdit::DefineVar {
+            var: n("h").into(),
+            def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+        },
+    )
+    .doc;
+    let doc = step(&doc, DocEdit::DeleteVar { var: n("w").into() }).doc;
+    assert_eq!(doc.definition_order(), vec![h, g]);
+    assert_eq!(
+        doc.var_env::<f64>().refused.get(&g),
+        Some(&EvalError::DefinitionRefused {
+            var: h,
+            source: Box::new(EvalError::UnresolvedVar { var: w }),
+        })
+    );
+}
+
+/// Inlining into a host that already holds the part's `w` and
+/// `h := w + w` under the same names, at other ids, shares them: the
+/// part's definition is compared re-pointed at the host's ids.
+#[test]
+fn inline_shares_a_definition_the_host_already_holds() {
+    let with_definition = |seed: &str| {
+        let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
+        let doc = declare(&doc, "w", free(W));
+        declare(
+            &doc,
+            "h",
+            VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+        )
+    };
+    let part = with_definition("intent-literals-a-shared-part");
+    let (part, _) = block(part, 0.0, named("h"));
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part.clone(), Tol::witness());
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-shared-host"),
+        Tol::witness(),
+    );
+    let host = declare(&host, "z", free(1.0));
+    let host = declare(&host, "w", free(W));
+    let host = declare(
+        &host,
+        "h",
+        VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+    );
+    assert_ne!(id(&host, "w"), id(&part, "w"), "the ids differ");
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let inlined = inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the host's w and h are the part's");
+    assert_eq!(
+        inlined.doc.var_order(),
+        host.var_order(),
+        "nothing declared twice"
+    );
+    assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
+}
+
+/// Monte Carlo over a document holding `h := 2·w`, `w` toleranced:
+/// every draw binds `h` from that draw's `w`, so `h`'s summary is
+/// exactly twice `w`'s (doubling is exact in binary), and no draw goes
+/// unmeasured.
+#[test]
+fn monte_carlo_binds_a_definition_in_every_draw() {
+    let doc = w_and_h("intent-literals-a-mc");
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: n("w").into(),
+            distribution: Some(Distribution::Normal { sigma: 0.001 }),
+        },
+    )
+    .doc;
+    let mut doc = doc;
+    for name in ["w", "h"] {
+        doc = step(
+            &doc,
+            DocEdit::InsertNode {
+                node: Box::new(Node::measure(MeasureExpr::value(named(name)), Vec::new()).unwrap()),
+            },
+        )
+        .doc;
+    }
+    let config = editor_core::mc::McConfig {
+        samples: 64,
+        ..editor_core::mc::McConfig::default()
+    };
+    let report = editor_core::mc::monte_carlo(
+        &doc,
+        &analyzed_box(&doc, &AnalysisPolicy::default()),
+        &config,
+        Tol::witness(),
+    )
+    .expect("a normal law samples");
+    let [w, h] = report.measures.as_slice() else {
+        panic!("two measures: {:?}", report.measures)
+    };
+    assert_eq!((w.measured, h.measured), (64, 64));
+    assert!(w.sigma > 0.0, "w varies: {w:?}");
+    assert_eq!(
+        (h.mean, h.sigma, h.min, h.max),
+        (2.0 * w.mean, 2.0 * w.sigma, 2.0 * w.min, 2.0 * w.max)
+    );
+}
+
+/// The symbolic tier binds a definition over its inputs' symbols:
+/// with `h := w + w`, `h − 2·w` is a theorem, decided Zero by the
+/// symbolic tier and not by a number.
+#[test]
+fn the_symbolic_tier_reads_a_definition_through_its_inputs_symbols() {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-symbolic"),
+        Tol::witness(),
+    );
+    let doc = declare(&doc, "w", free(W));
+    let doc = declare(
+        &doc,
+        "h",
+        VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+    );
+    let (w, h) = (id(&doc, "w"), id(&doc, "h"));
+    let leaf = ParamBox::from_axes(std::collections::BTreeMap::new());
+    let session = |decide_it: bool| {
+        geom_core::sym::with_session_rules(
+            SymBudget {
+                max_terms: 4096,
+                max_degree: 128,
+            },
+            SymRules::shipped(),
+            || {
+                let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
+                let bound = |var| match env.bindings[&var] {
+                    ParamValue::Continuous { value, .. } => value,
+                    ref other => panic!("{var}: {other:?}"),
+                };
+                decide_it.then(|| {
+                    geom_core::k_stats::decide(
+                        "intent_literals_a",
+                        Margin::of(bound(h) - Sym::<f64>::from_f64(2.0) * bound(w)),
+                        Band::new(1.0e-9, 1.0e-8).unwrap(),
+                    )
+                })
+            },
+        )
+    };
+    let (_, binding) = session(false);
+    let (decided, counts) = session(true);
+    assert_eq!(decided, Some(Ok(Sign::Zero)));
+    assert_eq!(
+        counts.symbolic_zero,
+        binding.symbolic_zero + 1,
+        "h − 2·w is a theorem"
+    );
 }

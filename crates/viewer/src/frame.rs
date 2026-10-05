@@ -2940,6 +2940,7 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchParam(_)
+        | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }
         | Refusal::Duplicate(_)

@@ -483,6 +483,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // variable it reads, or the cycle, rides in the sentence.
         EditError::NotAFreeVar { var, door: _ }
         | EditError::DefinitionCycle { var, through: _ }
+        | EditError::DefinitionUnknownVarName { var, name: _ }
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
             ..none
@@ -490,10 +491,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::DefinitionTooLarge { var, nodes } => EditPayload {
             param: var.name(),
             count: Some(*nodes),
-            ..none
-        },
-        EditError::DefinitionUnknownVarName { var: _, name } => EditPayload {
-            param: Some(name),
             ..none
         },
         EditError::DefinitionVarKind {

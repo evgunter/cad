@@ -1481,10 +1481,13 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
-    /// **The document's named parameters**, by name (`Doc::var_names`,
-    /// each read through `Doc::free`).
+    /// **The document's named free parameters**, by name, in
+    /// declaration order (`Doc::var_names`, each read through
+    /// `Doc::free`). A defined variable is listed by
+    /// [`Self::definitions`] instead: it holds no value, notation or
+    /// distribution of its own.
     ///
-    /// The read side of `DocEdit.declare_var`, and the only door
+    /// The read side of a free `DocEdit.declare_var`, and the only door
     /// that answers a whole parameter back: `Doc.eval` answers a
     /// parameter reference's NUMBER, with the dimension and the
     /// authored notation both erased, so a consumer showing a
@@ -1505,9 +1508,32 @@ impl Doc {
         Ok(out)
     }
 
-    /// **The document's variables**, by identity, in declaration order —
-    /// the named ones and the anonymous ones (whose identity is all an
-    /// edit can address them by).
+    /// **The document's named defined variables**, by name, in
+    /// declaration order: each one's definition, reading variables by
+    /// id. The read side of a defined `DocEdit.declare_var` and of
+    /// `DocEdit.define_var`; with [`Self::params`] it lists every named
+    /// variable once.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for &id in self.inner.var_order() {
+            let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            if let Some(name) = self.inner.var_name(id) {
+                out.set_item(VarName(name.clone()), super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(out)
+    }
+
+    /// **The document's free variables**, by identity, in declaration
+    /// order — the named ones and the anonymous ones (whose identity is
+    /// all an edit can address them by). A defined variable's
+    /// definition is [`Self::definition`].
     ///
     /// A snapshot, not a view: the map is built here and mutating it
     /// changes no document.
