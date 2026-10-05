@@ -393,12 +393,13 @@ impl SpokenName {
         &self.0.minter
     }
 
-    /// **This name with each profile step `doc` still draws said where
-    /// `doc` draws it**, and each step `doc` no longer draws where it
-    /// sat when this was spoken: for a row about the edit that made
-    /// `doc`, which says a step it dropped where the step was, and a
-    /// step it kept where the step is now — its old row may be another
-    /// step's. Its nodes are kept as spoken.
+    /// **This name with its profile steps said as `doc` draws them**,
+    /// its nodes kept as spoken: for a row about the edit that made
+    /// `doc`, read with `doc`'s program on screen. A step `doc` still
+    /// draws is said where it sits now; one `doc` no longer draws, by
+    /// its tag, as [`HeldNodes::respoken`] says it — the row it sat at
+    /// may now be another step's, so no sentence mixes the two
+    /// programs' rows.
     #[must_use]
     pub fn steps_respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         let held = &self.0.held;
@@ -406,10 +407,13 @@ impl SpokenName {
             self.name().clone(),
             self.minter().clone(),
             HeldNodes {
-                steps: held
-                    .steps
+                facts: held
+                    .facts
                     .iter()
-                    .map(|&(id, at)| (id, doc.step(id).unwrap_or(at)))
+                    .filter_map(|fact| match *fact {
+                        NodeFact::Step(id, _) => Some(NodeFact::Step(id, doc.step(id)?)),
+                        other => Some(other),
+                    })
                     .collect(),
                 ..held.clone()
             },
@@ -617,16 +621,18 @@ impl fmt::Display for StepAt {
 pub struct HeldNodes {
     nodes: Box<[SpokenNode]>,
     vars: Box<[SpokenVar]>,
-    /// The profile steps the words name, where the document held them.
-    steps: Box<[(StepId, StepAt)]>,
-    /// What the words read off a node beyond its name: one slice, so a
-    /// refusal carrying these stays three pointers wide.
+    /// What the words read beyond a node's name — where a profile step
+    /// sits, a feature's sole profile, a Boolean's operation: one
+    /// slice, so a refusal carrying these stays three pointers wide.
     facts: Box<[NodeFact]>,
 }
 
-/// One thing a sentence's words read off a node ([`HeldNodes::facts`]).
+/// One thing a sentence's words read off the document beyond a node's
+/// name ([`HeldNodes::facts`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NodeFact {
+    /// A profile step, where the document drew it.
+    Step(StepId, StepAt),
     /// A feature, with the one profile it read.
     SoleProfile(RecipeNodeId, RecipeNodeId),
     /// A Boolean, with its operation.
@@ -634,57 +640,51 @@ enum NodeFact {
 }
 
 impl NodeFact {
-    fn node(self) -> RecipeNodeId {
+    /// What the fact is about: one fact is kept per key.
+    fn key(self) -> (u8, u64) {
         match self {
-            Self::SoleProfile(node, _) | Self::Op(node, _) => node,
+            Self::Step(id, _) => (0, id.0),
+            Self::SoleProfile(node, _) => (1, node.0),
+            Self::Op(node, _) => (2, node.0),
         }
     }
 
-    /// This fact read again from `doc`: as `doc` holds the node now, or
-    /// as it was where `doc` does not hold it; let go where `doc` holds
-    /// the node and no longer answers it.
+    /// This fact read again from `doc`. A step where `doc` draws it
+    /// now, let go where `doc` no longer draws it — then said by its
+    /// tag, since the row it sat at may now be another step's. A node's
+    /// fact as `doc` holds the node now, or as it was where `doc` does
+    /// not hold it; let go where `doc` holds the node and no longer
+    /// answers it.
     fn respoken<P: ProfilePayload>(self, doc: &Doc<P>) -> Option<Self> {
-        if doc.node(self.node()).is_none() {
-            return Some(self);
-        }
         match self {
-            Self::SoleProfile(feature, _) => {
+            Self::Step(id, _) => Some(Self::Step(id, doc.step(id)?)),
+            Self::SoleProfile(feature, _) if doc.node(feature).is_some() => {
                 Some(Self::SoleProfile(feature, doc.sole_profile(feature)?))
             }
-            Self::Op(boolean, _) => Some(Self::Op(boolean, doc.boolean_op(boolean)?)),
+            Self::Op(boolean, _) if doc.node(boolean).is_some() => {
+                Some(Self::Op(boolean, doc.boolean_op(boolean)?))
+            }
+            held => Some(held),
         }
     }
 }
 
 impl HeldNodes {
-    /// Keeps `fact`, once per node and kind of fact.
+    /// Keeps `fact`, once per key.
     fn keep(&mut self, fact: NodeFact) {
-        let same = |held: &NodeFact| {
-            core::mem::discriminant(held) == core::mem::discriminant(&fact)
-                && held.node() == fact.node()
-        };
-        if !self.facts.iter().any(same) {
+        if self.facts.iter().all(|held| held.key() != fact.key()) {
             self.facts = self.facts.iter().copied().chain([fact]).collect();
         }
     }
-}
 
-impl HeldNodes {
     /// These nodes spoken again from `doc`, a later version of the
-    /// document they were held from ([`SpokenNode::respoken`]); a step
-    /// `doc` still draws, where it sits there now. A step `doc` no
-    /// longer draws is let go, and said by its tag: the row it sat at
-    /// may now be another step's.
+    /// document they were held from ([`SpokenNode::respoken`]), and
+    /// each fact read again ([`NodeFact::respoken`]).
     #[must_use]
     pub fn respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         Self {
             nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
             vars: self.vars.iter().map(|var| var.respoken(doc)).collect(),
-            steps: self
-                .steps
-                .iter()
-                .filter_map(|&(id, _)| Some((id, doc.step(id)?)))
-                .collect(),
             facts: self
                 .facts
                 .iter()
@@ -711,9 +711,10 @@ impl HoldsNodes for HeldNodes {
     }
 
     fn step(&self, id: StepId) -> Option<StepAt> {
-        self.steps
-            .iter()
-            .find_map(|&(step, at)| (step == id).then_some(at))
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Step(held, at) if held == id => Some(at),
+            _ => None,
+        })
     }
 
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
@@ -765,11 +766,7 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
 
     fn step(&self, id: StepId) -> Option<StepAt> {
         let at = self.doc.step(id)?;
-        let mut said = self.said.borrow_mut();
-        if said.steps.iter().all(|(held, _)| *held != id) {
-            said.steps = said.steps.iter().copied().chain([(id, at)]).collect();
-        }
-        drop(said);
+        self.said.borrow_mut().keep(NodeFact::Step(id, at));
         // The step's profile is said where the feature does not fix
         // it, so it is kept as a node the words may name.
         let _ = self.speak(at.profile);
