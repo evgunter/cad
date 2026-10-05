@@ -334,21 +334,13 @@ pub enum LoopBoundary {
     /// points back via [`HalfEdge::parent_loop`].
     Cycle {
         /// The cycle's anchor: the half-edge every walk of the cycle
-        /// starts at. Any member closes the cycle, and tier 1 asks
-        /// nothing more of it — but on a loop whose face carries
-        /// stored pcurve rows on a periodic chart the anchor is
-        /// load-bearing: the one-branch loop walk
-        /// (`crate::pcurves`, "The one-branch walk") pins every joint
-        /// of the cycle to its predecessor's exit, so a one-period
-        /// wrap of the chart's azimuth can be REPORTED only at the
-        /// closure — the joint between the cycle's last half-edge and
-        /// this one — and the stored rows are continuous in the
-        /// walk's order from here. A producer that reverses a cycle
-        /// therefore moves `first` to its source predecessor
-        /// (`crate::Body::revert`), which keeps that joint the
-        /// closure; a producer that re-anchors a minted loop anywhere
-        /// else owes a re-mint of its rows (the `Transfers` posture in
-        /// `crate::pcurves`).
+        /// starts at, and where a loop's lift starts
+        /// ([`crate::Body::loop_lift`]). Any member closes the cycle,
+        /// and nothing else asks more of it: a pcurve row is an image
+        /// and a joint element, each a function of edges and the chart
+        /// (`crate::pcurves`, "The loop walk"), so no stored byte
+        /// depends on which member is `first`, and a door may move it
+        /// freely.
         first: HalfEdgeKey,
     },
 }

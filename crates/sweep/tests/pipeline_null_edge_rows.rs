@@ -74,10 +74,11 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         .filter_map(|he| {
             let c = body.pcurve(he)?;
             Some(format!(
-                "{he:?} {:?} {:?} {:?}",
+                "{he:?} {:?} {:?} {:?} {:?}",
                 c.params(),
                 c.pcurve(),
-                c.certificate()
+                c.certificate(),
+                body.joint(he)
             ))
         })
         .collect();

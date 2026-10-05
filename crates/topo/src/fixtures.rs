@@ -211,6 +211,7 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
         curves,
         surfaces,
         pcurves,
+        joints,
         null_faces,
         solid_provenance,
         shell_provenance,
@@ -241,6 +242,7 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
     walk_arena(&mut lines, keys, "curve", curves);
     walk_arena(&mut lines, keys, "surface", surfaces);
     walk(&mut lines, "pcurve", pcurves.iter());
+    walk(&mut lines, "joint", joints.iter());
     walk(&mut lines, "null-face", null_faces.iter());
     walk(&mut lines, "solid-provenance", solid_provenance.iter());
     walk(&mut lines, "shell-provenance", shell_provenance.iter());
@@ -1813,12 +1815,19 @@ mod tests {
         };
         let before = deep_snapshot(&s.body);
         type Insert<'a> = Box<dyn Fn(&mut Body<f64>) + 'a>;
-        let rows: [(&str, Insert); 7] = [
+        let rows: [(&str, Insert); 8] = [
             (
                 "pcurves",
                 Box::new(|b| {
                     let k = fresh(|k| b.pcurves.contains_key(k));
                     b.pcurves.insert(k, cache.clone());
+                }),
+            ),
+            (
+                "joints",
+                Box::new(|b| {
+                    let k = fresh(|k| b.joints.contains_key(k));
+                    b.joints.insert(k, crate::JointElement::IDENTITY);
                 }),
             ),
             (

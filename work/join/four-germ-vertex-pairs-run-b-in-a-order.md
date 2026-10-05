@@ -116,6 +116,24 @@ to where it starts, and the probe's 42 poses building sound at tiers
 2, 3′ and the certificate with the closed-form volume, no pose of
 the JOIN-1 batteries moving from sound or to a wrong body.
 
+## Addendum (2026-10-05): the strut form
+
+The same overlap, where the second run is a strut rather than a fan:
+the first run's fan carries the half bounding the strut's corner to its
+copy vertex, so the strut has no corner left at `vertex`. On main
+`45dc18f9` the strut hung at the copy silently and the join refused
+`JoinDesync` downstream; after PR 4033 the orbit-step check at the
+strut site aborted the process. `insert.rs` `mint_directed` now refuses
+it typed, `ClassificationInvariant` "an earlier run at the vertex
+carried a strut's corner to its copy", before any strut read: 56 poses
+of `crates/sweep/tests/join_rc_probes.rs` `rc_wide_battery`, all `b ∖
+a`, at sqQ1 −20°, dLeft 190°, dDown 100°, dRight 7° and 33°, eBot
+−20°, eLeft 0° and 33° (every other op at those poses refuses
+`JoinDesync` on both heads). This row's fix (each solid's own run
+order) should make that refusal unreachable; pinned by
+`join_rc_probes::a_strut_beside_its_pairs_fan_builds_every_op`,
+which flips when it lands.
+
 ## Built (branch `join/reflex-corner-vertex-vertex`)
 
 The run-order fix above is built there (`insert::run_order`, each
@@ -128,4 +146,6 @@ the last two. `join1_r1_reflex_battery`: the probe's 120 sheared
 ∩/∪/`a ∖ b` runs at `sx < 0` on `sqQ1`, `dRight`, `eBot` and `eLeft`
 are 120 `SOUND` (main 78), and 0 runs move from a refusal to a wrong
 body. The REST-zip wrong volume this row waited on does not reappear:
-the join now builds those unions itself.
+the join now builds those unions itself. The addendum's strut form is
+the third companion's: on the branch its 56 `b ∖ a` poses build `SOUND`,
+and its pin flips to a build.

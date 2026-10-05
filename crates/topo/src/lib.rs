@@ -172,6 +172,7 @@ pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod joint;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -690,6 +691,7 @@ pub use boolean::{
     lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
     subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
+pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.

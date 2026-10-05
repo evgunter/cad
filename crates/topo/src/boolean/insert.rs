@@ -1016,7 +1016,18 @@ fn mint_directed<T: Decide>(
         // faces its own germ on the side of the one that half faces.
         Some(from_is_lo == faces_lower)
     } else if empty {
-        let arrival = proven(&body.half_edges, sectors[gf.0].he, EntityId::HalfEdge).edge;
+        // A strut's corner half still starts at the vertex: wherever
+        // several runs cut it, struts mint before any fan
+        // (`SideRun::shared`), and a fan is the only mint that moves a
+        // sector's half. A breach refuses typed here rather than at the
+        // orbit step.
+        let arrival = proven(&body.half_edges, sectors[gf.0].he, EntityId::HalfEdge);
+        if arrival.start != vertex {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "an earlier run at the vertex carried a strut's corner to its copy",
+            });
+        }
+        let arrival = arrival.edge;
         // At a shared vertex the corner may already hold another
         // pair's strut, so its departure edge is read off the sectors.
         let departure_he = if run.shared {
@@ -1172,6 +1183,12 @@ fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> u
 /// One clockwise orbit step from `he`, a half-edge starting at
 /// `vertex`, proven to land on one that starts there too: a strut site
 /// is one half, which no later read ties to `vertex`.
+///
+/// The caller establishes that `he` starts at `vertex`: `mint_directed`
+/// refuses a strut whose corner half an earlier run of the same plan
+/// carried to its copy (`ClassificationInvariant`) before any caller
+/// reaches here, and the `keyed` sort mints shared struts before any fan,
+/// whose `mev_null` is the only mint that moves a sector's half.
 #[track_caller]
 fn orbit_step_at<T: geom_core::Real>(
     body: &Body<T>,
@@ -1183,7 +1200,8 @@ fn orbit_step_at<T: geom_core::Real>(
     if start != vertex {
         unreachable!(
             "the orbit step from {he:?} at {vertex:?} lands on {next:?}, which starts at \
-             {start:?}: {WALKS_CLOSE}"
+             {start:?}: mint_directed checks that a strut's corner half still starts at its \
+             vertex, and the keyed sort mints shared struts before any fan moves a half"
         );
     }
     next

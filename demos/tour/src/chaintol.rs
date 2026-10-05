@@ -21,15 +21,18 @@
 //! part), and the loop walk's comparison of two azimuths at every joint
 //! (`pcurve_loop_continuity`). The first sets the certifiable box at
 //! EVERY link count, the one-link chain included, with the second about
-//! 5% further out, both well below the walls the rest of this header
-//! measured before the mint:
+//! twice as far out, both well below the walls the rest of this header
+//! measured before the mint. Check 5 reads each row against the window
+//! the face's images hull out to, and on each pin cylinder's second
+//! half the window's low end is the seam's image alone, so the escape
+//! there compares one widened enclosure with itself:
 //!
 //! | links | `Sym<Interval>`, first refusal over the whole study | widest box that certifies whole |
 //! |---|---|---|
-//! | 1 | `pcurve_loop_continuity` | `1.223e-6` of the study |
-//! | 2 | `pcurve_loop_continuity` | `4.244e-7` |
-//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `2.169e-7` |
-//! | 4 | `dihedral_arm` | `1.318e-7` |
+//! | 1 | `pcurve_loop_continuity` | `6.510e-7` of the study |
+//! | 2 | `pcurve_loop_continuity` | `2.216e-7` |
+//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `1.117e-7` |
+//! | 4 | `dihedral_arm` | `6.751e-8` |
 //!
 //! ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`], at the default ε.)
 //! Over the whole study the first refusal is an evaluation-order fact;
@@ -400,7 +403,7 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `1.317e-4` at ε = 1e-6 against `1.318e-7` at
+    // with ε — MEASURED, `6.747e-5` at ε = 1e-6 against `6.751e-8` at
     // the default — because the wall is an enclosure escalating against
     // the band (the placed rows' angular comparisons since the extrude
     // closes with the pcurve mint), so the box is ε-relative. Before
@@ -427,7 +430,7 @@ pub fn narration(tol: Tol) {
         );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
-             number, and the box moves with ε (1.317e-4 at 1e-6, measured). No enclosure is \
+             number, and the box moves with ε (6.747e-5 at 1e-6, measured). No enclosure is \
              reported here; the cell's CI row measures the fraction at the default ε."
         );
         return;
@@ -787,7 +790,14 @@ mod tests {
     ///   positive part, whose enclosure `[0, hi]` refuses once `hi`
     ///   passes ε;
     /// - the loop walk's `pcurve_loop_continuity`, a symmetric `±hi`
-    ///   that crosses ε about 5% further out.
+    ///   that crosses ε about twice as far out.
+    ///
+    /// Check 5 measures each row against the window the face's IMAGES
+    /// hull out to. On each pin cylinder's second half that window's low
+    /// end is the seam's image alone (its element places it a period up,
+    /// beside the half's rim arcs), so the escape compares one widened
+    /// enclosure with itself: twice its width, at half the box the
+    /// continuity margin allows.
     ///
     /// Both sit far below the `dihedral_wedge` wall this cell measured
     /// before the mint. The follow-on that retires check 5 and restates
@@ -797,17 +807,21 @@ mod tests {
     /// published `[1.0, 0.3702, 0.1851, 0.111]`.
     ///
     /// Just above the wall, at `1.02×`, the first refusal is check 5
-    /// escalating. At `1.10×`, past the next wall, it is the continuity
-    /// enclosure, met first in evaluation order.
+    /// escalating, at every link count. At `2.1×`, past the continuity
+    /// wall, the one- and two-link chains meet the continuity enclosure
+    /// first in evaluation order; the three- and four-link chains still
+    /// meet a later pin's check 5 first (measured through `2.4×`).
     #[test]
     fn the_wall_is_check_5s_escape_and_continuity_is_next() {
         let tol = Tol::witness();
         for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
             let links = i + 1;
-            for (over, wall) in [
-                (1.02, "pcurve_trim_containment"),
-                (1.10, "pcurve_loop_continuity"),
-            ] {
+            let next = if links <= 2 {
+                "pcurve_loop_continuity"
+            } else {
+                "pcurve_trim_containment"
+            };
+            for (over, wall) in [(1.02, "pcurve_trim_containment"), (2.1, next)] {
                 let built = chain(links, JOINT_SIGMA * f * over, POSITION_BOUND, tol);
                 let row = sym_leaf(links, &built.doc);
                 assert!(
@@ -883,8 +897,8 @@ mod tests {
     /// any of them is a change in that claim.
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
-    /// the default — because the fractions move with ε: `1.318e-7` at
-    /// the default against `1.317e-4` at `1e-6`, measured (an
+    /// the default — because the fractions move with ε: `6.751e-8` at
+    /// the default against `6.747e-5` at `1e-6`, measured (an
     /// escalating wall, so ε-relative; before the pcurve mint the wall
     /// was the wedge and the fractions moved a few percent, for the
     /// reason the module header's "What sets the wall"
