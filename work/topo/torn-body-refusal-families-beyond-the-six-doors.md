@@ -34,7 +34,7 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 | `ChartRegionError::Corrupt` | `chart_region.rs` | 42 | yes: `chart_region_overlap`'s faces | split |
 | `StepExportError::Corrupt` | `step-export/src/{lib,writer,volume}.rs` | 26 | no (whole body) | panic; the "shell carries no faces" arm is a schema fact and may stay |
 | `SplitFinishError::Corrupt`, `::TornComponent` | `splitting/finish.rs` | 22 | no (driver) | panic |
-| `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed. `contfp` carries it as `ContainError::LoopUnreadable` |
+| `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed. `contfp` carries it as `ContainError::LoopUnreadable`. `cycle_steps`' and `loop_hull`'s eight record hops past a resolved loop are links now, and panic (PR 4048) |
 | `MassPropsError::Corrupt`, `LoopEdgesError::Corrupt` | `props.rs` (and `mesh/src/curved.rs`) | 17 | no (whole body) | an empty loop is legal tier-1 scaffolding and stays typed under its own name; key misses panic |
 | `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | panic; reachable typed today through `VoidInsertError::Revert` on a torn cavity |
 | `TouchVerdict::Corrupt`, `Undecided::CorruptInstance` | `census.rs` | 13 | no (the census runs on bodies tier 1 admits) | panic |

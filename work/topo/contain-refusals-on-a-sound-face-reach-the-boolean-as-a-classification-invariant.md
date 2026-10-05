@@ -3,7 +3,7 @@ id: contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invar
 kind: issue
 title: The boolean answers ContainError's reachable refusals as ClassificationInvariant
 status: open
-priority: P3
+priority: P2
 cost: E
 refs: [torn-body-refusal-families-beyond-the-six-doors]
 opened: 2026-10-05
@@ -27,6 +27,10 @@ The boolean's two consumers still fold all three into
 That is the shape the old `ContainError::Corrupt` arm had, kept as it
 was so the battery's line set did not move in the PR that split the
 variant.
+
+P2: `ClassificationInvariant` is a kernel-bug claim, and these are
+states a sound operand reaches (a partial cone or torus face, a wall
+outline the door has no arm for, a whole-turn scaffold circle).
 
 ## Direction
 
