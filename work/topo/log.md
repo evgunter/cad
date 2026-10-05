@@ -6953,3 +6953,57 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Their files are disjoint. Both briefs carry the at-rest/mid-op rule and the full battery requirement.
 - `torn-body-refusal-families-beyond-the-six-doors` goes back to `open`: no lane holds its residue since PR 4048 merged.
 - Nothing new on PR 3970.
+
+## 10:30 check-in (2026-10-05)
+
+- PR 4054 (sync) merged at `589daf99`.
+- **PR 4053 review: fix first.** The re-make is sound: the labelling matches, the shell order holds, and no input the reviewer built broke it. But the PR's one new skip condition is untested: mutations M4 (drop the ring-free filter) and M6 (never admit the skip) stay green.
+  - NITs: the `None` doc overstates; two policies in `may_skip_roundtrip_at` (Kev answers, Movefac panics); the `sense = true` assumption is unstated; "retains" reads as keeps.
+  - Style: seqgen now copies `movefac`'s labelling (a fourth consumer for the walks row); a stale fuzz sample.
+  - Fix lane `session_01RRXbYXC7cR1PXifta7fcwW` dispatched for all of it except Q7 (door threading: taste, declined). Reviewer (about $2.1) and implementer (about $3.4) archived.
+- **The contain lane opened PR 4055** (+254/-69, 11 files). It measured first: none of the routed arms is reachable on a gated operand, and the batteries move 0 lines.
+  - `esc` (mid-op) routes `Curved` → `Containment`, and the others → the new `PointInFaceRefused`.
+  - The extent scan (at rest) keeps `EmptyLoop` as an invariant, premised on tier 2.
+  - `Containment`'s `Display` loses "the solids do not cross", which was already false at two raisers.
+  - It conflicted with main on its own row's status line; I merged main in and kept `closed` (`700d0ed3`).
+  - Subscribed. Reviewer `session_01N4kLf3CaQuwaYs326CpQWW` dispatched (FULL). It checks the at-rest premise of the extent scan's inputs, and whether a ratified clause states the old `Display` meaning.
+- **Dispatched** `boundary-on-the-new-chart-has-two-homes-in-the-attach-doors` (P3, M; `attach.rs`; no overlap) → `session_01LKocsNRnizpgjZhDr8YckW`. `kef`/`kfmrh` are excluded (PR 3970's question). The lane stops and asks on a ratified clause or a real fork.
+- Torn-reads lane: no PR yet. Nothing new on PR 3970.
+
+## 10:55 (2026-10-05)
+
+- **PR 4053 merged** at `e63e549b` (head `8d3f2d76`). The review fixes:
+  - rows (a), ring on the first face (a different `f2`, Done), and (b), every face ringed (skip admitted, form unchanged), plus the c=3 not-last row; M1/M4/M6 are all red;
+  - the `None` doc matches the code;
+  - one policy in `may_skip_roundtrip_at` (Kev's);
+  - `GENERATOR_SENSE`, checked once in `kfmrh_then_plug`;
+  - the walks row lists seqgen's labelling as a fourth API need (`review_m1_pr4`'s vertex-glued walk is a different relation);
+  - the fuzz sample was re-taken.
+  - Fix lane archived (about $1.7).
+- **PR 4055:** CI lint failed at my merge head `700d0ed3`. `payload-rung-sweep.py --check` flagged the new `PointInFaceCause` as an undispositioned rung. That is the PR's own miss: the lane ran `scripts/gates/*.sh` but not this second step. I filed it under `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (the row that holds `BooleanError`'s rungs), with an evidence paragraph, and pushed `15c8ed5a`. The reviewer is still running.
+
+## 11:34 check-in (2026-10-05)
+
+- **PR 4055 review: merge, no BLOCKING.**
+  - The measurement is confirmed by tracing every `Err` path. `Curved` carries only `CorruptFace` or `Loop(CorruptLoop)`.
+  - The premises hold: `esc` keeps only `StaleFace` (a key-liveness premise); the extent scan reads only gated operands or rigid re-charts.
+  - No ratified text states the old `Display`. Batteries: 15 shards + 47 tests, 0 moved, 0 panics.
+  - MINORs:
+    - the operand fix has no witness (M4/M5 green on the whole ci profile);
+    - `Containment(CorruptFace)` now tells a user their face is broken for a kernel arena miss;
+    - an open REACH row's symptom text no longer reproduces.
+  - Style (sure): "a loop could not be walked" comes out of `esc` as two variants by chart, and `PointInFaceCause` re-spells `ContainError`.
+  - Folded in before merge via fix lane `session_0139BWEAKtKxCKt4Ucv5M6yn`:
+    - one variant carrying `ContainError` whole (the census precedent), unless the lane shows why not;
+    - an operand witness;
+    - row evidence;
+    - the word-budget guard;
+    - the `RayExhausted` text check;
+    - the `Containment` doc stating a meaning instead of listing raisers.
+  - Reviewer (about $4.1) and implementer (about $8.8) archived.
+- **The torn-reads lane opened PR 4056** (+516/-114, 8 files).
+  - `rest.rs`, `classify.rs` and `chord_join.rs` `null_site` are converted, plus sweep hits in the same files. Mid-op panics rest on link resolution (operators leave written links resolving); caller keys stay typed. `null_site` → `Result<_, VertexKey>`.
+  - 5 witnesses, each red under a mutation. Batteries: all 84 shards + 47 tests, 0 moved.
+  - Filed `torn-hops-read-as-absent-across-the-boolean` (about 45 hits) and `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
+  - Subscribed. Reviewer `session_012s3TpxmuWke9NCG4HawBji` dispatched (FULL): it attacks the link-resolution premise at each mid-op site, `has_edge`'s new desync, and `site_of`'s `ClassificationInvariant`. Implementer archived (about $9.0).
+- PR 4057 (`[ev]` pinch at rest) is JOIN's, not ours. Nothing new on PR 3970. Moved-boundary lane: no PR yet.

@@ -2071,6 +2071,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
+        | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::NonMaximalFaces
@@ -2408,18 +2409,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    (
-        "circle_cylinder.rs",
-        "-",
-        "BooleanDecision::ArcCylinderRoots",
-        2,
-    ),
-    (
-        "circle_sphere.rs",
-        "-",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2428,16 +2417,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcSphereRoots",
-        1,
+        2,
     ),
     (
         "finish.rs",
@@ -2548,12 +2537,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
-    (
-        "ops.rs",
-        "sphere_extent_scan",
-        "BooleanDecision::Containment",
-        1,
-    ),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
         "ops.rs",
@@ -2700,6 +2683,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
+    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
