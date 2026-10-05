@@ -128,7 +128,8 @@ use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::live::{linked, proven};
 use crate::ray_parity::{self, ParityRows};
 use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRows};
 use crate::validate::decide;
@@ -1131,30 +1132,30 @@ struct LoopStep<'b, T: geom_core::Real> {
     curve: Option<&'b geom_brep::EdgeCurve<T>>,
 }
 
-/// The steps of `loop`'s cycle from its half-edge `first`.
+/// The steps of a loop's cycle from its half-edge `first`, which the
+/// caller read out of the loop: every hop is a link, and a miss panics.
 fn cycle_steps<T: Decide>(
     body: &Body<T>,
-    r#loop: LoopKey,
     first: crate::entity::HalfEdgeKey,
-) -> Result<Vec<LoopStep<'_, T>>, PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+) -> Vec<LoopStep<'_, T>> {
     let mut steps = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
-        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        // A curve key that does not resolve is corruption; a resolved
-        // entry that is null scaffolding is a zero-length chord.
+    for he in body.loop_walk(first).closed("loop", first) {
+        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let edge = linked(
+            &body.edges,
+            h.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        // A null-scaffolding curve is a zero-length chord.
         steps.push(LoopStep {
-            point: *body.get_point(point).ok_or_else(corrupt)?,
+            point: body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"),
             edge: h.edge,
-            curve: body
-                .get_curve_geom(edge.curve)
-                .ok_or_else(corrupt)?
-                .certified(),
+            curve: body.edge_curve_linked(h.edge, edge).certified(),
         });
     }
-    Ok(steps)
+    steps
 }
 
 /// The ball holding a step's edge beyond its end vertices: `None` for
@@ -1197,7 +1198,7 @@ pub(crate) fn carrier_loop<T: Decide>(
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
@@ -1363,14 +1364,11 @@ pub(crate) fn loop_hull<T: Decide>(
     let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
         LoopBoundary::Cycle { first } => first,
         LoopBoundary::Empty { vertex } => {
-            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
-            return Ok((
-                vec![*body.get_point(point).ok_or_else(corrupt)?],
-                Vec::new(),
-            ));
+            let point = body.linked_vertex_point(vertex, EntityId::Loop(r#loop), "boundary");
+            return Ok((vec![point], Vec::new()));
         }
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let mut balls = Vec::new();
     for step in &steps {
         balls.extend(step_ball(r#loop, step)?);
@@ -1579,7 +1577,7 @@ fn certify_plane<T: Decide>(
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);

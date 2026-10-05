@@ -3615,9 +3615,27 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let q = Point3::new(0.5, 0.5, 0.0);
     for (face, _) in body.faces() {
         use crate::boolean::ContainError;
+        use crate::boolean::solid_contain::PointInSolidError as Solid;
         let contain = |answer: Result<bool, ContainError>| match answer {
             Err(e @ ContainError::StaleFace(_)) => Err(e.to_string()),
-            answer => Ok(answer.unwrap_or(false)),
+            Ok(_)
+            | Err(
+                ContainError::Escalated(_)
+                | ContainError::RayExhausted
+                | ContainError::EmptyLoop(_)
+                | ContainError::Uncrossable(_)
+                | ContainError::Curved(
+                    Solid::Escalated { .. }
+                    | Solid::PartialConeFace { .. }
+                    | Solid::PartialTorusFace { .. }
+                    | Solid::WallOutlineUnsupported { .. },
+                ),
+            ) => Ok(answer.is_ok()),
+            // A scaffold circle or a conic wound past a period is a loop
+            // a sound face holds; the same answer over a loop with a torn
+            // hop is a record's miss.
+            Err(ContainError::LoopUnreadable(lk)) if loop_reads_whole(body, lk) => Ok(false),
+            Err(e) => panic!("a torn read answered a refusal a sound face cannot give: {e}"),
         };
         judge_read(capture, &mut census, "contfp", || {
             contain(crate::boolean::contfp(body, face, Vec3::unit_z(), q, band).map(|_| true))
@@ -3651,6 +3669,26 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         Ok(crate::splitting::split_reduce(body, &plane, Tol::witness()).is_ok())
     });
     census
+}
+
+/// Whether every record `lk`'s cycle names resolves: its boundary's
+/// walk closes, and each half-edge's edge, curve and start point is live.
+#[cfg(not(debug_assertions))]
+fn loop_reads_whole(body: &Body<f64>, lk: crate::entity::LoopKey) -> bool {
+    let Some(LoopBoundary::Cycle { first }) = body.get_loop(lk).map(|l| l.boundary) else {
+        return false;
+    };
+    body.loop_cycle(first).is_some_and(|cycle| {
+        cycle.into_iter().all(|he| {
+            body.get_half_edge(he).is_some_and(|h| {
+                body.get_edge(h.edge)
+                    .is_some_and(|e| body.get_curve_geom(e.curve).is_some())
+                    && body
+                        .get_vertex(h.start)
+                        .is_some_and(|v| body.get_point(v.point).is_some())
+            })
+        })
+    })
 }
 
 /// The arenas a read-sweep removal tear drops one live record of,
@@ -3779,5 +3817,55 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
              premise — {}",
             fuzz::replay()
         ),
+    );
+}
+
+/// **A caller's key that does not resolve answers typed** (D2 row 1):
+/// a face or vertex the body once held, freed so the body around it is
+/// sound, handed to the public read doors. `contfp` and
+/// `curved_face_containment` answer `StaleFace` naming it, and
+/// `classify_neighborhood` `StaleVertex`; a door that read the key as a
+/// record would panic instead.
+#[test]
+fn a_callers_key_that_does_not_resolve_answers_typed() {
+    use crate::boolean::ContainError;
+    use crate::splitting::SplitReduceError;
+    use geom_core::{Band, Vec3};
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    let (live_face, face_data) = body.faces().next().map(|(k, f)| (k, f.clone())).unwrap();
+    let face = body.faces.insert(face_data);
+    body.faces.remove(face);
+    let (_, vertex_data) = body.vertices().next().map(|(k, v)| (k, v.clone())).unwrap();
+    let vertex = body.vertices.insert(vertex_data);
+    body.vertices.remove(vertex);
+    assert!(
+        body.get_face(live_face).is_some() && body.get_face(face).is_none(),
+        "the freed face is stale and its source is live"
+    );
+    let q = Point3::new(0.5, 0.5, 0.0);
+    assert_eq!(
+        crate::boolean::contfp(&body, face, Vec3::unit_z(), q, band),
+        Err(ContainError::StaleFace(face)),
+        "contfp"
+    );
+    assert_eq!(
+        crate::boolean::curved_face_containment(&body, face, q, band),
+        Err(ContainError::StaleFace(face)),
+        "curved_face_containment"
+    );
+    let plane = crate::test_support_fixtures::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        Tol::witness(),
+    );
+    let sides: slotmap::SecondaryMap<crate::entity::VertexKey, crate::splitting::PlaneSide> = body
+        .vertices()
+        .map(|(v, _)| (v, crate::splitting::PlaneSide::Above))
+        .collect();
+    let got = crate::splitting::classify_neighborhood(&body, &plane, &sides, vertex, band);
+    assert!(
+        matches!(got, Err(SplitReduceError::StaleVertex { vertex: v }) if v == vertex),
+        "classify_neighborhood: {got:?}"
     );
 }
