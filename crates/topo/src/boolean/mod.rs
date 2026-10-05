@@ -2008,10 +2008,11 @@ pub enum BooleanError {
     /// face's boundary crosses from one to the other there, and the
     /// pre-pass crosses only two corners of one ring, or the corners of
     /// two faces of one surface and sense, one of them ringless. Here
-    /// none offer: the one face through the point twice passes it on
-    /// its outer loop, round a hole touching that loop there, and
-    /// crossing it would leave a ring meeting the outer loop. Which body
-    /// is right there is open
+    /// none offer. On every residue line measured (that row's table),
+    /// the one face through the point twice passes it on its outer
+    /// loop, round a hole touching that loop there, and crossing it
+    /// would leave a ring meeting the outer loop. Which body is right
+    /// there is open
     /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
     PinchUncrossed {
         /// The pinch vertex, in the joined body's keys.

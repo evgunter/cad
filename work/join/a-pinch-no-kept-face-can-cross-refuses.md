@@ -39,7 +39,7 @@ bow-tie (`LoopRoleInverted` under that build) are the same nested
 shape: `kemr` left the outer role on the hole-shaped half, so both
 loops read inverted, and the list goes on to `RingMeetsOuter` at the
 point (`outcome` cuts error text at 110 characters, which hid it).
-Measured on every such line: main's 49 (staircase 43, near-tangent 4,
+Measured on every such line: main's 48 (staircase 43, near-tangent 4,
 notch327 1, see below), and review r2's 184 on main before PR 4036
 (`cced486c`, its cube set: 184/184 carry both inversions and the
 meeting). A true bow-tie, one face's outer loop passing the point twice
@@ -120,5 +120,17 @@ ring). That covers an island face pinched to its hole's ring:
 - review r2's 5 cylinder lines cross, then refuse at FLUX's volume
   lane (`VolumeUncomputable { RingOnCurvedFace }`), refusal to refusal.
 
+PR 4051's review measured further island families going refusal to
+`SOUND` (its `r4051_island_probes.rs`, on
+`join/pinch-uncrossed-residue-review`), with no other line moved:
+- a deeper hole, h = 6: 22 more lines; a shallow one, h = 0.6: 8;
+- two holes, a plane through a corner of each, two islands in one op:
+  60;
+- a U-shaped hole, a plane through both arm tips, one island pinched
+  twice: 38, plus 2 at a single tip.
+
 Pinned by
-`join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`.
+`join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`
+and, for the twice-pinched island and the face `kef` kills there,
+`join_pierce_runs_sweep::an_island_pinched_twice_to_its_holes_ring_dies_at_each_crossing`
+(`u2tip mid side=12 psi=0 th54`).

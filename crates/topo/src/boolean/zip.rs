@@ -376,7 +376,23 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 && chart_of(fj).is_some()
                 && chart_of(fj) == chart_of(face)
             {
-                Some(Crossing::TwoFaces)
+                // `kef` kills only a ringless face, so the one that dies
+                // is decided here: `face` where it is ringless, else `fj`,
+                // which the test above then makes ringless. No pose
+                // reached has two ringed faces of one chart at `v`; were
+                // one to pass with the dying face holding a ring, `kef`
+                // would refuse typed (`FaceHasRings`).
+                Some(if ringless(face) {
+                    Crossing::TwoFaces {
+                        dies: Half::Plus,
+                        kept: fj,
+                    }
+                } else {
+                    Crossing::TwoFaces {
+                        dies: Half::Minus,
+                        kept: face,
+                    }
+                })
             } else {
                 None
             };
@@ -402,23 +418,14 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             body.kemr(made.he_plus, made.he_minus)?;
             None
         }
-        Crossing::TwoFaces => {
-            let face_of = |he: HalfEdgeKey| -> Result<(FaceKey, bool), BooleanError> {
-                let face = body
-                    .get_half_edge(he)
-                    .and_then(|h| body.get_loop(h.parent_loop))
-                    .ok_or_else(|| corr("a pinch split's edge no longer resolves"))?
-                    .face;
-                let ringless = body.get_face(face).is_some_and(|d| d.rings.is_empty());
-                Ok((face, ringless))
+        Crossing::TwoFaces { dies, kept } => {
+            // `he_plus` lies in `he1`'s loop and `he_minus` in `he2`'s,
+            // and `kef` kills the face of the half it is given.
+            let he = match dies {
+                Half::Plus => made.he_plus,
+                Half::Minus => made.he_minus,
             };
-            // `kef` kills the face of the half-edge it is given, which
-            // must hold no ring.
-            let (dies, kept) = match (face_of(made.he_plus)?, face_of(made.he_minus)?) {
-                ((_, true), (kept, _)) => (made.he_plus, kept),
-                ((kept, false), _) => (made.he_minus, kept),
-            };
-            Some((body.kef_minting(dies, tol)?.killed_face, kept))
+            Some((body.kef_minting(he, tol)?.killed_face, kept))
         }
     };
     Ok(Some(Split {
@@ -439,9 +446,18 @@ struct Split {
 enum Crossing {
     /// Both corners are one loop's: `kemr` splits the loop in two.
     OneLoop,
-    /// The corners are two faces' of one surface and sense, one of
-    /// them ringless: `kef` makes them one face.
-    TwoFaces,
+    /// The corners are two faces' of one surface and sense: `kef` kills
+    /// the ringless one, the face of the minted edge's half `dies`, into
+    /// `kept`.
+    TwoFaces { dies: Half, kept: FaceKey },
+}
+
+/// A half of the edge a pinch split mints: `Plus` in the first
+/// corner's loop, `Minus` in the second's.
+#[derive(Clone, Copy)]
+enum Half {
+    Plus,
+    Minus,
 }
 
 /// Zips one section-face pair (module docs).
