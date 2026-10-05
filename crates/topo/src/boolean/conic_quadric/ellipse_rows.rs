@@ -113,7 +113,6 @@ fn assert_matches_oracle(
 
 /// Crossings of a sphere and of a wall, two and four per turn, at
 /// several arcs (the roots are reported about each arc's midpoint).
-
 #[test]
 fn crossings_match_the_true_distance() {
     let thin = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.3);
@@ -152,7 +151,6 @@ fn crossings_match_the_true_distance() {
         );
     }
 }
-
 
 #[test]
 fn a_clear_carrier_is_a_miss() {
@@ -254,7 +252,10 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
         let nearest = (0..=2000)
             .map(|k| distance(&w, section.eval(TAU * f64::from(k) / 2000.0)))
             .fold(f64::NEG_INFINITY, f64::max);
-        assert!(nearest.abs() <= band.zero(), "{label}: touches the wall, {nearest:e}");
+        assert!(
+            nearest.abs() <= band.zero(),
+            "{label}: touches the wall, {nearest:e}"
+        );
         if offset == 0.0 {
             assert!(
                 matches!(got, Ok(CircleRoots::OnSurface)),
@@ -269,7 +270,10 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
             );
         } else {
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain) | Err(BooleanError::Escalated { .. })),
+                matches!(
+                    got,
+                    Ok(CircleRoots::Uncertain) | Err(BooleanError::Escalated { .. })
+                ),
                 "{label}: a tangency is no certified answer, got {got:?}"
             );
         }

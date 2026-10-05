@@ -245,8 +245,7 @@ fn a_near_tangent_crossing_is_placed_within_the_finest_band() {
     for delta in [2f64.powi(-14), 2f64.powi(-17), 2f64.powi(-20)] {
         let d = 1.0 + R - delta;
         let want = 2.0 * (delta * (2.0 * R - delta) / (4.0 * d)).sqrt().asin();
-        let CircleRoots::Certified { count: 2, thetas } = near_tangent(delta, fine_band())
-        else {
+        let CircleRoots::Certified { count: 2, thetas } = near_tangent(delta, fine_band()) else {
             panic!("δ = {delta:e}: the extremes straddle, so two roots");
         };
         let ts = [thetas[0], thetas[1]];
@@ -317,8 +316,7 @@ fn a_small_sphere_grazing_a_large_circle_is_placed_from_its_near_extreme() {
         let delta = (rho + r) - d;
         let want = 2.0 * (delta * (2.0 * r - delta) / (4.0 * d * rho)).sqrt().asin();
         let CircleRoots::Certified { count: 2, thetas } =
-            conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band)
-                .unwrap()
+            conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band).unwrap()
         else {
             panic!("δ = {delta:e}: the small sphere crosses the circle twice");
         };

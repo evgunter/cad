@@ -74,8 +74,8 @@ mod carrier_cross;
 pub mod carrier_eq;
 mod circle_roots;
 mod circle_torus;
-mod conic_quadric;
 pub(crate) mod combine;
+mod conic_quadric;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
 #[cfg(test)]

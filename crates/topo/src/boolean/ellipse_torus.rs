@@ -246,9 +246,6 @@ mod tests {
         }
     }
 
-    /// Crossings of a sphere and of a wall, two and four per turn, at
-    /// several arcs (the roots are reported about each arc's midpoint).
-
     /// **Against a torus, up to eight crossings, certified wherever the
     /// band can place them.** The residual is of degree four: an ellipse
     /// in the torus's equatorial plane, centred on its axis, with

@@ -48,8 +48,7 @@ struct Pose {
 
 impl Pose {
     fn carrier<T: Real>(self) -> geom::Curve3<T> {
-        let v =
-            |a: [f64; 3]| Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]));
+        let v = |a: [f64; 3]| Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]));
         geom::Curve3::Circle {
             center: Point3::new(
                 T::from_f64(self.c[0]),
@@ -278,21 +277,37 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                 "{label}: A₂ {a2:e} is (ρ·sin α)²/4r = {closed:e}, to within its rounding"
             );
             let deepest = (0..=1000)
-                .map(|k| off_wall(pose, core::f64::consts::TAU * f64::from(k) / 1000.0, 0.0, 0.0, r))
+                .map(|k| {
+                    off_wall(
+                        pose,
+                        core::f64::consts::TAU * f64::from(k) / 1000.0,
+                        0.0,
+                        0.0,
+                        r,
+                    )
+                })
                 .fold(0.0_f64, |m, d| m.max(d.abs()));
             let got = conic_quadric_roots(&pose.carrier(), -0.5, 0.5, &wall(0.0, 0.0, r), band);
             if on {
-                assert!(deepest <= band.zero(), "{label}: on the wall, {deepest:e} at most");
+                assert!(
+                    deepest <= band.zero(),
+                    "{label}: on the wall, {deepest:e} at most"
+                );
                 assert!(
                     matches!(got, Ok(CircleRoots::OnSurface)),
                     "{label}: on the wall to within the band, got {got:?}"
                 );
             } else {
-                assert!(deepest > band.escalate(), "{label}: {deepest:e} inside at most");
+                assert!(
+                    deepest > band.escalate(),
+                    "{label}: {deepest:e} inside at most"
+                );
                 assert!(
                     !matches!(
                         got,
-                        Ok(CircleRoots::OnSurface | CircleRoots::Miss | CircleRoots::Certified { .. })
+                        Ok(CircleRoots::OnSurface
+                            | CircleRoots::Miss
+                            | CircleRoots::Certified { .. })
                     ),
                     "{label}: a tangency from inside, got {got:?}"
                 );
