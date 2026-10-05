@@ -2,7 +2,7 @@
 id: boundary-on-the-new-chart-has-two-homes-in-the-attach-doors
 kind: issue
 title: whether a moved face's boundary lies on its new chart has two homes in the attach doors, and they disagree on curved charts and the lone vertex
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P3
 cost: M

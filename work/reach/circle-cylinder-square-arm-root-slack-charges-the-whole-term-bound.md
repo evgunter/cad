@@ -12,8 +12,10 @@ refs: [circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12]
 
 ## What
 
-The circle × cylinder door's square arm
-(`crates/topo/src/boolean/circle_cylinder.rs`, `circle_cylinder_roots`)
+The conic × quadric door's first-harmonic arm on a circle against a
+wall (`crates/topo/src/boolean/conic_quadric/mod.rs`,
+`conic_quadric_roots`; the circle × cylinder door's square arm before
+the two doors were one)
 hands the shared first-harmonic door
 (`circle_roots::first_harmonic_roots`) the extremes `c₀ ∓ A₁` with the
 harmonics' whole `noise` on each and no phase charge. That is the
@@ -38,6 +40,16 @@ The dual review of PR 3752 (recorded in
 at ε 1e-12 the square arm certifies none of 8,120 near-tangent poses,
 every one refused `Uncertain`, none answered wrongly.
 
+The arm now takes every circle whose second harmonic is in the zero
+band, up to a tilt of `2√(r·zero)` rather than the zero band's own
+width, so the class is wider: on the arm-switch probe of
+`conic-quadric-first-harmonic-arm-refuses-crossings-the-ladder-places`,
+the newly routed poses the ladder had certified and the arm refuses
+with `A₂` under a hundredth of the band — this charge, not the
+dropped harmonic — number 38 of 380 at ε 1e-9, 7 of 220 at 1e-6 and
+85 of 500 at 1e-12 (shallow crossings of two near-equal circles, e.g.
+a 1 m circle 1e-6 m off a 1 m wall's axis).
+
 ## What the fix is
 
 The same as the sphere's: with the circle square to the wall, its
@@ -50,7 +62,7 @@ second harmonic stays charged to both. Measure the 8,120-pose probe
 before and after.
 
 The tilted arm's ladder slack (`circle_roots::half_angle_roots`,
-`bool_circle_cylinder_ladder_root_slack`) has the same shape — a
+the `bool_conic_quadric_*` ladder rows) has the same shape — a
 uniform `noise` over `|F′|` — but no closed-form extremes to factor;
 GERM's `circle-torus-root-slack-crowds-the-zero-band-at-1e-12` asks
 that question of the same ladder.

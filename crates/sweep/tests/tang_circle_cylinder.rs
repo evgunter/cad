@@ -1,5 +1,5 @@
 //! **A rim circle crossing a cylinder wall**, end to end: the poses the
-//! circle × cylinder root lane (`topo::boolean::circle_cylinder`)
+//! conic × quadric root door (`topo::boolean::conic_quadric`)
 //! settles, and the door each one reaches next.
 //!
 //! - **A crossing of the CARRIER outside the wall's trim builds.** A
@@ -7,9 +7,9 @@
 //!   the cylinder's rim circles cross the prism's wall carrier on the
 //!   side the wall face does not cover, and the certified roots place
 //!   both crossings outside its trim — no event, where the crossing
-//!   layer used to keep its pierce door. Square to the axes (the lane's
-//!   square arm) and with the prism tilted (its half-angle
-//!   arm), every boolean builds and meters at the closed form.
+//!   layer used to keep its pierce door. Square to the axes (the door's
+//!   first-harmonic arm) and with the prism tilted (its half-angle
+//!   ladder), every boolean builds and meters at the closed form.
 //! - **A genuine pierce reaches the cylinder pair's join.** Two
 //!   parallel equal-radius cylinders staggered in height: each rim
 //!   circle pierces the other wall, the lane certifies where, the
@@ -165,7 +165,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 /// `A`'s rim circles cross the prism's wall CARRIER at `x < d`, beside
 /// the flat, which the wall face does not cover: the root lane places
 /// both crossings outside its trim. Square to the axes that is the
-/// lane's square arm, tilted its half-angle quartic.
+/// door's first-harmonic arm, tilted its half-angle quartic.
 #[test]
 fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
@@ -270,7 +270,7 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
 /// it by less than the zero band, keeps the pierce door.** Two parallel
 /// unit cylinders `2 + δ` apart, staggered, `|δ|` at most half the zero
 /// band: each rim circle's extreme residual against the other wall is
-/// `δ`. The square arm decides on that exact extreme, puts it in the
+/// `δ`. The first-harmonic arm decides on that exact extreme, puts it in the
 /// zero band and escalates to `Uncertain`, and the crossing layer keeps
 /// its door, naming a rim circle. The half-angle ladder does not decide
 /// on the residual's range and can certify an in-band configuration as a

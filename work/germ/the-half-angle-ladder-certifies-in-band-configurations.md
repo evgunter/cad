@@ -65,7 +65,7 @@ review's measurements, on the same door: certified roots up to 1.9e-6 m
 off the wall at ε = 1e-6 (an eccentric millimetre ellipse); `Miss` at
 in-band grazes of 50 m and 500 m walls (circle) and a 5 m wall
 (ellipse); `CountDisagrees` across definite 1e-8–2e-8 m crossings. Rows:
-`circle_cylinder::tests::a_graze_is_read_by_its_depth`,
-`ellipse_roots::tests::a_graze_is_read_by_its_depth`, and
-`ellipse_roots::fuzz_rows` (a true-distance oracle at three bands, with
+`conic_quadric::circle_wall_rows::a_graze_is_read_by_its_depth`,
+`conic_quadric::ellipse_rows::a_graze_is_read_by_its_depth`, and
+`conic_quadric::ellipse_rows::fuzz_rows` (a true-distance oracle at three bands, with
 the counterexample's seed pinned). This row can close with that PR.
