@@ -6858,3 +6858,32 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
 - Dispatched two lanes (both rows now `dispatched`):
   - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
   - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
+- 01:40: PR 4045 (sync) merged at `2e28e78c5c`.
+  - **PR 4043 review: merge** (diagnosis sure, placement sure, atomic). It found one small doc fix: `orbit_step_at`'s `unreachable!` still cited `WALKS_CLOSE`, the premise the PR refuted.
+  - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
+  - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
+  - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
+- 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
+- 01:57: **PR 4037 merged** at `201239b0e4`. The code head `e57bfa67` was green on its `pull_request` and dispatch runs; the head commit `41d6248d` is the render bot's `[skip ci]` re-baselines; the test merge with main (after 4043) was clean.
+  - The fix lane mapped all 13 findings: tier 3 strict with the pole-twin row; helpers compare elements (about 15 dumps swept); kev/kemr sum witnesses; `Deck::apply` returns `Option` with `LiftGap`; reset canonicalised; closure miss at index 0; `KillTurnEscalated`; keys-only kev refuses where it would write `None`; DESIGN D1 bullet re-worded.
+  - Four mutations each go red.
+  - Acceptance: every kill-kept face byte-equal and clean (`kef` 21, `kef_minting` 8,102, `kev` 140, `kemr` 73). There are 400 complete-to-incomplete transitions on both base and head, all whole-face `Clear`s, so pre-existing.
+  - Fix lane archived (about $28). Unsubscribed.
+  - **PR 4039** (R part 2, `a580e4d8`, brought up on top of 4037) is subscribed; reviewer `session_01Nwzvm72ye7rapYpyEhZypv` dispatched.
+- 02:09 check-in: the PR 4039 review is pending. The topo rows incoming on main come from the merged 4037 and 4043: the band-straddle residual row filed by R part 1, kev-describing evidence, and the P0 row closed. Nothing new on PR 3970.
+
+## 03:01 check-in (2026-10-05)
+
+**PR 4039 review: fix first, no blocker.**
+- Against main it is only the part-2 delta: `pcurves.rs` +208/-51 plus 5 rows. topo 2293/2293, sweep ci 2066/2066.
+- Mutations M1 and M4 (skip joint writes) turn 34 and 21 rows red.
+- `kef_minting` faces are `moved`, so part 2 cannot change the 400 transitions; they are pre-existing.
+- Findings, all adopted:
+  1. Stale docs: "one certification home", `walk_cycle`'s callers, and `site_rows`' re-walk text.
+  2. A false "hull as the pass's" claim.
+  3. The `prev == p` guard cannot go red (M3).
+  4. The O(N^2) residue row should stay P3.
+  5. The re-walk's incidental repair of stale `kev_describing` far-face rows is lost.
+  - Style: the site mint re-spells `certify_walked` and `walk_cycle` (Q1); double bindings; three write paths.
+
+Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the one certification home, a `kev_describing` M3 witness, residue P3. Reviewer archived (about $3.3). Nothing new on PR 3970.
