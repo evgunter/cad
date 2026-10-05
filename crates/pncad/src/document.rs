@@ -225,9 +225,12 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
 // `FreeVar::with_distribution`.
+// `DEFINITION_NODE_BOUND` is the expansion bound
+// `EditError::DefinitionTooLarge` refuses past, so a caller holding that
+// refusal's count can read what it was measured against.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, Var, VarDecl, VarDef,
-    VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
