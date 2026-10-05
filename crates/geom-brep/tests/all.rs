@@ -105,6 +105,8 @@ mod m4_remint_headroom;
 mod m4_remint_sliver;
 #[path = "m5_pr12_circle_certificate.rs"]
 mod m5_pr12_circle_certificate;
+#[path = "zz_rev4034_probes.rs"]
+mod zz_rev4034_probes;
 #[path = "m5_pr7_ssi.rs"]
 mod m5_pr7_ssi;
 #[path = "m5_pr9_tangent.rs"]
