@@ -598,13 +598,20 @@ mod tests {
         let ctx = unit_ctx(band);
         let tau = 1.0e-3;
         let mut calls = 0usize;
-        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, BranchBound::Slab, |s: &[[f64; 3]]| {
-            calls += 1;
-            match s.windows(2).find(|g| g[1][0] - g[0][0] > tau) {
-                Some(g) => Err(refusal(g[0][0] + 1e-12, g[1][0] - 1e-12, g[1][0] - g[0][0])),
-                None => Ok(()),
-            }
-        });
+        let r = refine_by_certificate(
+            &sys,
+            axis_states(),
+            &ctx,
+            band,
+            BranchBound::Slab,
+            |s: &[[f64; 3]]| {
+                calls += 1;
+                match s.windows(2).find(|g| g[1][0] - g[0][0] > tau) {
+                    Some(g) => Err(refusal(g[0][0] + 1e-12, g[1][0] - 1e-12, g[1][0] - g[0][0])),
+                    None => Ok(()),
+                }
+            },
+        );
         let rounds = match r {
             Err(SsiError::RefinementExhausted {
                 stop: RefineStop::StepBudget { .. },
@@ -616,5 +623,136 @@ mod tests {
         assert_eq!(rounds, calls, "a round per refused carrier");
         let bound = (ctx.max_steps - 4) / 2 + 1;
         assert!(calls <= bound, "{calls} rounds, bound {bound}");
+    }
+
+    /// A parabola `y = 4x²` tight enough that a gap across its vertex
+    /// does not hold one arc of it: the chord from `x = −½` to `½` is 1
+    /// long, and its midpoint settles onto the vertex, 1 away.
+    fn hairpin(x: f64) -> [f64; 3] {
+        [4.0 * x * x, 8.0 * x, 8.0]
+    }
+
+    /// States on the hairpin at `xs`.
+    fn on_hairpin(xs: &[f64]) -> Vec<[f64; 3]> {
+        xs.iter().map(|&x| [x, hairpin(x)[0], 0.0]).collect()
+    }
+
+    /// **The fit's minimum halves the longest gap, and stops where a
+    /// gap does not hold one arc.** On the hairpin, two states 0.2 apart
+    /// across the vertex take the cubic's four samples, each a midpoint
+    /// settled onto the locus. Two states 1 apart across it do not: the
+    /// midpoint settles 1 from the chord's, farther than half the gap,
+    /// and the polyline refuses as not one arc. A gap whose midpoint
+    /// will not settle at all, where the locus has a hole, refuses so
+    /// too. Two states the band apart are
+    /// too short to halve: the sized refusal in their length, with the
+    /// bound the caller named.
+    #[test]
+    fn the_fits_minimum_halves_to_four_and_stops_at_a_gap_of_more_than_one_arc() {
+        use super::{ArcMiss, fit_minimum};
+        use crate::ssi::march::tests::GraphR3;
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = kernel_ctx(band);
+        let sys = GraphR3(hairpin);
+        let four = fit_minimum(
+            &sys,
+            on_hairpin(&[-0.1, 0.1]),
+            &ctx,
+            band,
+            BranchBound::Wall,
+        )
+        .unwrap_or_else(|e| panic!("a gap of one arc: {e}"));
+        assert_eq!(four.len(), 4, "the cubic's four: {four:?}");
+        assert!(
+            four.iter()
+                .all(|s| (s[1] - hairpin(s[0])[0]).abs() <= ctx.tol.settling()),
+            "every sample on the locus: {four:?}"
+        );
+        match fit_minimum(
+            &sys,
+            on_hairpin(&[-0.5, 0.5]),
+            &ctx,
+            band,
+            BranchBound::Wall,
+        ) {
+            Err(SsiError::PolylineNotOneArc {
+                gap,
+                miss: ArcMiss::Far { off },
+            }) => {
+                assert!((gap - 1.0).abs() < 1e-12, "the gap {gap}");
+                assert!((off - 1.0).abs() < 1e-6, "settled on the vertex: {off}");
+            }
+            other => panic!("a gap across the hairpin: expected not one arc, got {other:?}"),
+        }
+        let holed = |x: f64| {
+            if x.abs() < 0.1 {
+                [f64::NAN; 3]
+            } else {
+                [0.0; 3]
+            }
+        };
+        let sys = GraphR3(holed);
+        let r = fit_minimum(
+            &sys,
+            vec![[-0.5, 0.0, 0.0], [0.5, 0.0, 0.0]],
+            &ctx,
+            band,
+            BranchBound::Wall,
+        );
+        assert!(
+            matches!(
+                r,
+                Err(SsiError::PolylineNotOneArc {
+                    miss: ArcMiss::Unsettled,
+                    ..
+                })
+            ),
+            "a gap whose midpoint will not settle: {r:?}"
+        );
+        let sys = FixedSpeedR3::at_speed(1.0);
+        match fit_minimum(
+            &sys,
+            vec![[0.0; 3], [2e-9, 0.0, 0.0]],
+            &ctx,
+            band,
+            BranchBound::Slab,
+        ) {
+            Err(SsiError::ShortBranchUncertified {
+                length,
+                limb: None,
+                bounded_by: BranchBound::Slab,
+                ..
+            }) => assert!((length - 2e-9).abs() < 1e-18, "its length {length:e}"),
+            other => panic!("two states the band apart: expected the sized refusal, got {other:?}"),
+        }
+    }
+
+    /// **Refinement stops where a refined gap does not hold one arc.**
+    /// Five samples on the hairpin, one gap spanning its vertex 1 long:
+    /// the stand-in refuses every carrier, and the first round's
+    /// midpoint of that gap settles on the vertex, farther from the
+    /// chord's midpoint than half the gap, so refinement refuses the
+    /// polyline as not one arc rather than fit it.
+    #[test]
+    fn refinement_stops_at_a_gap_that_does_not_hold_one_arc() {
+        use super::ArcMiss;
+        use crate::ssi::march::tests::GraphR3;
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = kernel_ctx(band);
+        let sys = GraphR3(hairpin);
+        let states = on_hairpin(&[-0.7, -0.6, -0.5, 0.5, 0.6]);
+        let r = refine_by_certificate(&sys, states, &ctx, band, BranchBound::Wall, |_| {
+            Err::<(), _>(refusal(-1.0, 1.0, 1.0))
+        });
+        assert!(
+            matches!(
+                r,
+                Err(SsiError::PolylineNotOneArc {
+                    miss: ArcMiss::Far { .. },
+                    ..
+                })
+            ),
+            "the gap across the vertex: {r:?}"
+        );
     }
 }

@@ -1736,8 +1736,9 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
 }
 
 /// A short branch the wall bounds.
-const SHORT_BRANCH: SizedDecision =
-    short_branch("move the plane or the wall so the branch it clips is longer, or clear of the wall");
+const SHORT_BRANCH: SizedDecision = short_branch(
+    "move the plane or the wall so the branch it clips is longer, or clear of the wall",
+);
 
 /// A short branch the caller's slab bounds: the slab may cut it, so a
 /// domain holding more of it lengthens it. A cylinder × sphere arc cut
@@ -2330,14 +2331,13 @@ fn finish_r3(
     let march_tol = seam_tol(ctx.tol, band)?;
     let points = trace_points::<2, 3, _, _>(sys, trace);
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
-    let (carrier, cert) =
-        refine::refine_by_certificate(
-            sys,
-            trace.states.clone(),
-            ctx,
-            band,
-            BranchBound::Slab,
-            |states| {
+    let (carrier, cert) = refine::refine_by_certificate(
+        sys,
+        trace.states.clone(),
+        ctx,
+        band,
+        BranchBound::Slab,
+        |states| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
@@ -2350,7 +2350,8 @@ fn finish_r3(
                 band,
             )?;
             Ok((carrier, cert))
-        })?;
+        },
+    )?;
     let params = carrier.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
     let witness = carrier.mid_point(params.0, params.1);
@@ -2458,6 +2459,17 @@ pub fn plane_nurbs_ssi(
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
+    plane_nurbs_ssi_within(plane, wall, domain, band, SSI_MAX_STEPS)
+}
+
+/// [`plane_nurbs_ssi`] under a step budget of `max_steps` a branch.
+fn plane_nurbs_ssi_within(
+    plane: &Surface<f64>,
+    wall: &NurbsSurface<f64>,
+    domain: SsiDomain,
+    band: Band,
+    max_steps: usize,
+) -> Result<SsiOutcome, SsiError> {
     let Surface::Plane {
         origin: p0,
         normal,
@@ -2511,7 +2523,7 @@ pub fn plane_nurbs_ssi(
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
         tol,
-        max_steps: SSI_MAX_STEPS,
+        max_steps,
         spent: Default::default(),
     };
 
@@ -2761,31 +2773,26 @@ fn trace_plane_nurbs_within(
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
-    let densified = refine::refine_by_certificate(
-        &sys,
-        states,
-        &ctx,
-        band,
-        BranchBound::Wall,
-        |states| {
-        let fitted = ends::fit_states(&sys, states)?;
-        match certify::certify_located(
-            &fitted.0,
-            certify::Lane::AtRest {
-                a: &SsiOperand::Analytic(plane),
-                b: &wall_op,
-                pcurve_b: fitted.2.as_ref(),
-            },
-            TubeScale::uniform(domain.extent),
-            band,
-        ) {
-            Ok(_) => Ok(fitted),
-            Err(verdict) => {
-                refused = Some(fitted);
-                Err(verdict)
+    let densified =
+        refine::refine_by_certificate(&sys, states, &ctx, band, BranchBound::Wall, |states| {
+            let fitted = ends::fit_states(&sys, states)?;
+            match certify::certify_located(
+                &fitted.0,
+                certify::Lane::AtRest {
+                    a: &SsiOperand::Analytic(plane),
+                    b: &wall_op,
+                    pcurve_b: fitted.2.as_ref(),
+                },
+                TubeScale::uniform(domain.extent),
+                band,
+            ) {
+                Ok(_) => Ok(fitted),
+                Err(verdict) => {
+                    refused = Some(fitted);
+                    Err(verdict)
+                }
             }
-        }
-    });
+        });
     let (carrier, pa, pb) = match densified {
         Ok(fitted) => fitted,
         // A refusal before any triple was fitted is the fit's own.
@@ -3938,7 +3945,7 @@ mod budget_tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Vec3};
 
-    use super::{SsiDomain, SsiError, trace_plane_nurbs_within};
+    use super::{SsiDomain, SsiError, plane_nurbs_ssi_within, trace_plane_nurbs_within};
 
     /// **A chart-lane branch marched both ways from its seed holds no
     /// more steps than its budget.** The tilt cut of the dome `W(1)`
@@ -3999,5 +4006,139 @@ mod budget_tests {
         let held = gaps(hi).unwrap();
         assert!(held <= hi, "{held} gaps under a budget of {hi}");
         assert!(gaps(hi - 1).is_none(), "{} steps refuses", hi - 1);
+    }
+
+    /// Straight for `u ≤ ½`, bending by `β(u − ½)²` after.
+    fn psi(u: f64, beta: f64) -> f64 {
+        if u <= 0.5 {
+            0.0
+        } else {
+            beta * (u - 0.5) * (u - 0.5)
+        }
+    }
+
+    /// The B-spline basis function `N_{i,p}(t)` on `knots`.
+    fn basis(knots: &[f64], p: usize, i: usize, t: f64) -> f64 {
+        if p == 0 {
+            let (a, b) = (knots[i], knots[i + 1]);
+            let last = knots[knots.len() - 1];
+            return f64::from(u8::from(
+                (a <= t && t < b) || (t == last && b == last && a < b),
+            ));
+        }
+        let mut r = 0.0;
+        let d1 = knots[i + p] - knots[i];
+        if d1 > 0.0 {
+            r += (t - knots[i]) / d1 * basis(knots, p - 1, i, t);
+        }
+        let d2 = knots[i + p + 1] - knots[i + 1];
+        if d2 > 0.0 {
+            r += (knots[i + p + 1] - t) / d2 * basis(knots, p - 1, i + 1, t);
+        }
+        r
+    }
+
+    /// `a·x = b` by Gauss–Jordan with partial pivoting.
+    fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+        let n = b.len();
+        for c in 0..n {
+            let p = (c..n)
+                .max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs()))
+                .unwrap();
+            a.swap(c, p);
+            b.swap(c, p);
+            for r in (0..n).filter(|&r| r != c) {
+                let f = a[r][c] / a[c][c];
+                let pivot = a[c].clone();
+                for (x, p) in a[r].iter_mut().zip(&pivot).skip(c) {
+                    *x -= f * p;
+                }
+                b[r] -= f * b[c];
+            }
+        }
+        (0..n).map(|i| b[i] / a[i][i]).collect()
+    }
+
+    /// The graph wall `(u, v, (a − g)·a)`, `a = v − 0.4 − ψ(u)`, exact as
+    /// a spline of degree 4 in `u` with a triple knot at ½ and 2 in `v`:
+    /// the plane `z = 0` cuts it in two branches `g` apart, straight and
+    /// then bending, the wall's slope across them `g`.
+    fn bend_pair(g: f64, beta: f64) -> NurbsSurface<f64> {
+        let ku = [
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,
+        ];
+        let (pu, q) = (4usize, 2usize);
+        let n = ku.len() - pu - 1;
+        let f = |u: f64, v: f64| {
+            let a = v - 0.4 - psi(u, beta);
+            a * (a - g)
+        };
+        let grev: Vec<f64> = (0..n)
+            .map(|i| ku[i + 1..=i + pu].iter().sum::<f64>() / pu as f64)
+            .collect();
+        let mu: Vec<Vec<f64>> = grev
+            .iter()
+            .map(|&u| (0..n).map(|i| basis(&ku, pu, i, u)).collect())
+            .collect();
+        let kv = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let vs = [0.0, 0.5, 1.0];
+        let mv: Vec<Vec<f64>> = vs
+            .iter()
+            .map(|&v| (0..=q).map(|j| basis(&kv, q, j, v)).collect())
+            .collect();
+        let rows: Vec<Vec<f64>> = grev
+            .iter()
+            .map(|&u| solve(mv.clone(), vs.iter().map(|&v| f(u, v)).collect()))
+            .collect();
+        let cols: Vec<Vec<f64>> = (0..=q)
+            .map(|j| solve(mu.clone(), rows.iter().map(|r| r[j]).collect()))
+            .collect();
+        let control = (0..n)
+            .flat_map(|i| {
+                let (u, cols) = (grev[i], &cols);
+                (0..=q).map(move |j| Point3::new(u, vs[j], cols[j][i]))
+            })
+            .collect();
+        NurbsSurface::new(
+            KnotVector::clamped(ku.to_vec(), pu).unwrap(),
+            KnotVector::clamped(kv.to_vec(), q).unwrap(),
+            control,
+            vec![1.0; n * (q + 1)],
+        )
+        .unwrap()
+    }
+
+    /// **A sliver pair refuses on few tries.** The two branches of
+    /// [`bend_pair`] 1e-4 m apart, straight and then bending by
+    /// `−½(u − ½)²`: the wall's slope across them is 1e-4, so no tube
+    /// around either is proved clear of the other and the certificate
+    /// refuses, at ε 1e-6. Each march's step is the curvature's, kept by
+    /// its residual and restarted at twice the last kept, so the refusal
+    /// comes under a budget of 40 tries a branch, every halving counted
+    /// (20 spend it).
+    #[test]
+    fn a_sliver_bend_pair_refuses_on_few_tries() {
+        let wall = bend_pair(1e-4, -0.5);
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let dom = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 3.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let run = |budget| plane_nurbs_ssi_within(&plane, &wall, dom, band, budget);
+        assert!(
+            matches!(run(20), Err(SsiError::StepBudget { .. })),
+            "20 tries a branch spend the budget"
+        );
+        match run(40) {
+            Err(SsiError::TubeStraddles { .. }) => {}
+            other => panic!("under 40 tries a branch: expected the tube's refusal, got {other:?}"),
+        }
     }
 }

@@ -143,7 +143,7 @@ fn neither(hermite: SsiError, march: SsiError, length: f64, band: Band) -> SsiEr
         SsiError::Escalated {
             decision: super::TraceDecision::StepProgress,
             ref cause,
-        } if !cause.margin.is_invalid() => BandVerdict::Undecided(cause.clone()),
+        } if !cause.margin.is_invalid() => BandVerdict::Undecided(*cause),
         _ => return march,
     };
     if matches!(
@@ -442,14 +442,13 @@ impl<'a> Ends<'a> {
         end: BranchEnd,
     ) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
-        let (carrier, pa, pb, cert) =
-            refine_by_certificate(
-                self.sys,
-                states.to_vec(),
-                &self.ctx,
-                self.band,
-                BranchBound::Wall,
-                |states| {
+        let (carrier, pa, pb, cert) = refine_by_certificate(
+            self.sys,
+            states.to_vec(),
+            &self.ctx,
+            self.band,
+            BranchBound::Wall,
+            |states| {
                 let (carrier, pa, pb) = fit_states(self.sys, states)?;
                 let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
                     return Err(SsiError::UnsupportedCertificate {
@@ -468,7 +467,8 @@ impl<'a> Ends<'a> {
                     self.band,
                 )?;
                 Ok((carrier, pa, pb, cert))
-            })?;
+            },
+        )?;
         Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
     }
 

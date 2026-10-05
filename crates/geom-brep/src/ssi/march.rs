@@ -1120,7 +1120,9 @@ where
                         on_locus(&add(&x, &predict(0.5 * h)))
                     }
                 };
-                while h * speed > band.escalate() && !kept(h) {
+                // An infinite `h` is no try: its step is not finite, which
+                // the step's own guard below refuses.
+                while h.is_finite() && h * speed > band.escalate() && !kept(h) {
                     h *= 0.5;
                     halved += 1;
                 }
@@ -1666,6 +1668,124 @@ pub(crate) mod tests {
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
             self.arm
+        }
+    }
+
+    /// The locus `y = ψ(x)`, `z = 0` in ℝ³, the state in metres: the
+    /// system the stepper's step rule is tested over. `ψ` returns
+    /// `[ψ, ψ′, ψ″]` and is at most quadratic piecewise.
+    pub(crate) struct GraphR3(pub(crate) fn(f64) -> [f64; 3]);
+
+    impl LocalSystem<2, 3> for GraphR3 {
+        fn residual(&self, x: &[f64; 3]) -> [f64; 2] {
+            [x[1] - (self.0)(x[0])[0], x[2]]
+        }
+
+        fn jacobian(&self, x: &[f64; 3]) -> [[f64; 3]; 2] {
+            [[-(self.0)(x[0])[1], 1.0, 0.0], [0.0, 0.0, 1.0]]
+        }
+
+        fn rhs2(&self, x: &[f64; 3], d1: &[f64; 3]) -> [f64; 2] {
+            [(self.0)(x[0])[2] * d1[0] * d1[0], 0.0]
+        }
+
+        fn rhs3(&self, x: &[f64; 3], d1: &[f64; 3], d2: &[f64; 3]) -> [f64; 2] {
+            [3.0 * (self.0)(x[0])[2] * d1[0] * d2[0], 0.0]
+        }
+
+        fn point(&self, x: &[f64; 3]) -> Point3<f64> {
+            Point3::from_array(*x)
+        }
+
+        fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
+            [1.0; 3]
+        }
+
+        fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
+            Vec3::from_array(*d).norm()
+        }
+
+        fn carrier_jet(
+            &self,
+            _x: &[f64; 3],
+            d1: &[f64; 3],
+            d2: &[f64; 3],
+            d3: &[f64; 3],
+        ) -> [Vec3<f64>; 3] {
+            [*d1, *d2, *d3].map(Vec3::from_array)
+        }
+    }
+
+    impl TransversalityData<3> for GraphR3 {
+        fn normals(&self, x: &[f64; 3]) -> NormalPair {
+            (
+                Vec3::new(-(self.0)(x[0])[1], 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            )
+        }
+
+        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+            1.0
+        }
+    }
+
+    /// Straight for `x ≤ 0`, then bending by `−8x²`.
+    pub(crate) fn straight_then_bend(x: f64) -> [f64; 3] {
+        if x <= 0.0 {
+            [0.0; 3]
+        } else {
+            [-8.0 * x * x, -16.0 * x, -16.0]
+        }
+    }
+
+    /// **A step the jet overreaches is halved, restarts near the last
+    /// kept, and every try counts against the wall.** The locus
+    /// `y = ψ(x)` is straight for `x ≤ 0` and bends by `−8x²` after, so
+    /// at a state on the straight part every rung but the diagonal is
+    /// unbounded, and a step of the diagonal lands far off the bend. The
+    /// residual test halves it until its predicted end lies on the locus
+    /// to ε: the march samples the bend (at least ten states past
+    /// `x = 0`, where an unhalved diagonal step leaves the unit box from
+    /// the straight part). The tries it halved are steps on the wall: the
+    /// trace is charged more steps than it kept, and a budget of the kept
+    /// steps refuses. Each step's first try is at most twice the last
+    /// kept: the branch keeps about 400 steps and halves 288 times,
+    /// where restarting every step from its rungs halves 465.
+    #[test]
+    fn a_step_the_jet_overreaches_is_halved_and_every_try_counts() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = GraphR3(straight_then_bend);
+        let ctx = |max_steps| MarchContext {
+            max_steps,
+            ..unit_ctx(band)
+        };
+        let trace = super::march_both(
+            &sys,
+            [-0.9, 0.0, 0.0],
+            ctx(4096),
+            StepperMode::Realized,
+            band,
+        )
+        .unwrap_or_else(|e| panic!("the bend marched: {e}"));
+        let bent = trace.states.iter().filter(|s| s[0] > 0.0).count();
+        assert!(bent >= 10, "the bend sampled: {bent} states past x = 0");
+        let kept = trace.held.steps();
+        let halved = trace.steps - kept;
+        assert!(
+            halved > 0,
+            "the halved tries charged: {} steps, {kept} kept",
+            trace.steps
+        );
+        assert!(halved <= 350, "the restart: {halved} halvings");
+        match super::march_both(
+            &sys,
+            [-0.9, 0.0, 0.0],
+            ctx(kept),
+            StepperMode::Realized,
+            band,
+        ) {
+            Err(SsiError::StepBudget { budget, .. }) => assert_eq!(budget, kept),
+            other => panic!("a budget of the kept steps: expected the step budget, got {other:?}"),
         }
     }
 
