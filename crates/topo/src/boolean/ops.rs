@@ -3621,7 +3621,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// arc splits it there. A hit between `s₁` and `s₂` (a hole inside the
 /// circle), no hit on a side, a carrier the door cannot read, or ends on
 /// different loops of the face refuses typed.
-fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
+fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     cut_ins: &[SphereCutIn<T>],
