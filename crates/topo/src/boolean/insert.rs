@@ -906,7 +906,19 @@ fn mint_directed<T: Decide>(
         // faces its own germ on the side of the one that half faces.
         Some(from_is_lo == faces_lower)
     } else if empty {
-        let arrival = proven(&body.half_edges, sectors[gf.0].he, EntityId::HalfEdge).edge;
+        // One plan's runs at a vertex are not reconciled with each other
+        // ([`reconcile_shared`] reads other pairs' cuts), so an earlier
+        // run's fan can have carried this strut's corner to its copy
+        // vertex: the run order's defect
+        // (`work/join/four-germ-vertex-pairs-run-b-in-a-order`), refused
+        // here as its fan form refuses `FanStartMismatch`.
+        let arrival = proven(&body.half_edges, sectors[gf.0].he, EntityId::HalfEdge);
+        if arrival.start != vertex {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "an earlier run at the vertex carried a strut's corner to its copy",
+            });
+        }
+        let arrival = arrival.edge;
         // At a shared vertex the corner may already hold another
         // pair's strut, so its departure edge is read off the sectors.
         let departure_he = if run.shared {
