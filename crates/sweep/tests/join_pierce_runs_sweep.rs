@@ -1314,6 +1314,25 @@ fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
     }
 }
 
+/// **The pinch battery**: [`notch343`] against [`pinch_runs`]' two-cube
+/// corner pinch over the sweep's 84 directions, each turned
+/// `psi = 1.05 k + 0.1` for six `k`, every op in both orders. Prints one
+/// [`outcome`] line per run, for a diff between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn pinch_runs_battery() {
+    for i in 0..12 {
+        for j in 0..7 {
+            for k in 0..6 {
+                let psi = f64::from(k) * 1.05 + 0.1;
+                for (tag, r, want) in pinch_runs(direction(i, j), psi) {
+                    println!("i={i} j={j} k={k} {tag}: {}", outcome(r, want, tol()));
+                }
+            }
+        }
+    }
+}
+
 /// [`notch343`] at its corner against a pinch: two cubes touching only
 /// at that corner, in opposite octants of the frame, united undeclared.
 /// Every op in both orders, against the pinch's two cubes clipped by

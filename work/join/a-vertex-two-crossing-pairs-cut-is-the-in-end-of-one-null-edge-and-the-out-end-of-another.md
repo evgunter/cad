@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-05
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -54,3 +55,34 @@ row when this builds.
 ## Hold
 
 The pinch is undeclared, so this is not on D10's held ground.
+
+## Measured
+
+The candidate cause above is false. Measured with
+`join_pierce_runs_sweep::pinch_runs_battery` (the pierce sweep's 84
+directions × 6 turns, every op, both orders), in release:
+- **Reproduced.** 149 at `6e57858c`, split 42/42 notch-first U/S and
+  23/19/23 pinch-first U/I/S. 217 at `6c617914`, split 76/76 and
+  23/19/23. The example `i=0 j=2 k=2` refuses in notch-first U and S.
+- **Traced.** In every one of the 217, `reconcile_pass` turns exactly
+  one run. That run is always in the plan with more than two survivors,
+  and never in the two-survivor plan. The two-survivor plan's run there
+  is a strut (its sense is set by its facing, not its direction) or a
+  fan already on the side that holds no other cut. That plan pairs from
+  A's kept side (`pairing_start_turns`). One of its runs holds the other
+  plan's cut, and the reconcile turns that run alone onto its
+  complement. That flips its side against its own plan's other runs, so
+  the shared vertex is the In end of one null edge and the Out end of
+  another. At `i=0 j=2 k=2 ab U`, the four-survivor plan pairs Out
+  1→3 and 3→0, and the two-survivor strut sits at entry 2. Run 0 turns
+  to In; run 1 stays Out.
+- **Re-pairing from the other start is not the fix.** As an experiment,
+  every plan at a shared vertex paired from the side In the other
+  operand (where both pinch cones' arcs are disjoint):
+  - 45 of the 217 go SOUND (13 + 19 notch-first, 13 pinch-first U);
+  - the rest go to `JoinDesync` or `PinchUncrossed`;
+  - 414 lines that build SOUND today (with no run turned) go to
+    `JoinDesync`, `PinchUncrossed` or `ClassificationInvariant`.
+
+  So each start builds a different subset, and the In start reaches
+  the pinch crossing in `zip.rs`, which is held under PR 4057.
