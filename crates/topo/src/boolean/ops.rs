@@ -754,11 +754,13 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   a closed group is rigidly re-charted about the escape
         //   normal (a rotation about its own center: the same point
         //   set, seams now transverse to the escape planes), a
-        //   trimmed group's face takes a ring edge across the circle
-        //   ([`SphereCutIn`]), and the pipeline re-enters once; the
-        //   ordinary crossing layer then finds the section circles and
-        //   the (Plane, Sphere) germ arm joins them exactly.
-        // - **uncertifiable** (NURBS re-gate,
+        //   trimmed group's face is cut along its chart's meridian
+        //   through the circle ([`SphereCutIn`]), and the pipeline
+        //   re-enters once; the ordinary crossing layer then finds the
+        //   section circles and the (Plane, Sphere) germ arm joins
+        //   them exactly.
+        // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
+        //   the section certificate does not place inside one face,
         //   sphere faces meeting other than across a verified `Rest`,
         //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
@@ -3631,7 +3633,7 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
         coaxial: "bool_sphere_cut_roots_coaxial",
         extreme: "bool_sphere_cut_roots_extreme",
         root_slack: "bool_sphere_cut_roots_slack",
-        decision: BooleanDecision::Sphere(SphereQuestion::AgainstPlane),
+        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
     };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     for cut in cut_ins {
@@ -3645,7 +3647,7 @@ fn apply_cut_ins<T: Decide + Bounds + crate::props::AtRestPolicy>(
             what,
         };
         let esc = |diag| BooleanError::Escalated {
-            decision: BooleanDecision::Sphere(SphereQuestion::AgainstPlane),
+            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
         };
         let r = cut.radius;
